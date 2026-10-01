@@ -294,26 +294,12 @@ impl CurvePlan {
     /// insertions on `insert_once_ring`'s fold
     /// (`compose`'s `the_convex_form_does_not_inflate_the_fold`).
     ///
-    /// **The step is met with the hull of its two sources.** `α` and
-    /// `β` round outward INDEPENDENTLY, so `α_hi + β_hi > 1` and
-    /// `β·x + α·y` alone reaches a little past both sources: a constant
-    /// column, whose source hull is a point, would come out as a bracket
-    /// around it. But `λ ∈ [0, 1]` in ℝ, so `(1 − λ)·x + λ·y` lies
-    /// between `x` and `y` for every `x ∈ X`, `y ∈ Y`, and the hull of
-    /// `X` and `Y` is a second enclosure of the same value, by an
-    /// argument that never reads `α` or `β`. Their meet is sound and
-    /// variation-diminishing in the sense the reals give: a constant
-    /// column stays its point, so an exactly-represented weight channel
-    /// (a polynomial curve's `w ≡ 1`) stays exact through any fold, and
-    /// the cancellation a composite reads off it survives. This
-    /// module's `the_convex_form_holds_a_constant_column_exactly` pins
-    /// the constant column; `compose`'s
-    /// `the_ring_fold_encloses_the_exact_refined_net` pins containment
-    /// of the met step against exact rationals. (Both are
-    /// `#[cfg(test)]`, so these are names and not links.)
+    /// **The step is met with the hull of its two sources**, so a
+    /// constant column stays its point; why that meet is sound is
+    /// `convex_step`'s docs (private, so a name and not a link).
     ///
     /// **Two width allowances, one claim.** This module's
-    /// `the_ring_applier_stays_in_step_and_near_the_described_hull`
+    /// `the_ring_applier_stays_in_step_with_the_point_applier`
     /// allows `8.0·(plans.len() + 1)` ulps where `compose`'s row allows
     /// `2 + 0.5·insertions` — a 16x difference in slope over the same
     /// quantity. Neither is a derived bound; both are ceilings set so
@@ -373,10 +359,31 @@ impl CurvePlan {
 /// [`CurvePlan::apply_certified`] and `compose`'s `insert_once_ring`:
 /// `β·x + α·y` with `Δ = hi − lo`, `α = (u − lo)/Δ` and
 /// `β = (hi − u)/Δ`, BOTH ring quotients of the knots (fixed
-/// association, D9), met with the hull of `x` and `y`. The argument
-/// for every part of that is [`CurvePlan::apply_certified`]'s docs.
-/// `Δ > 0` is the caller's insertion precondition, so neither quotient
-/// refuses on a valid schedule.
+/// association, D9), met with the hull of `x` and `y`. Why the convex
+/// form and why `β` comes from the knots is
+/// [`CurvePlan::apply_certified`]'s docs.
+///
+/// **Precondition: `lo`, `u` and `hi` are exact `f64` knots with
+/// `lo < u < hi`.** Both callers insert `u` strictly inside the span
+/// `[U_j, U_{j+p}]` of the vector they plan against (`insert_once`'s
+/// band, `insert_once_ring`'s window), so `Δ > 0` and neither quotient
+/// refuses.
+///
+/// **Why the hull meet is sound.** `α` and `β` round outward
+/// INDEPENDENTLY, so `α_hi + β_hi > 1` and `β·x + α·y` alone reaches a
+/// little past both sources: a constant column, whose source hull is a
+/// point, would come out as a bracket around it. But the knots are
+/// exact, so the true ratio `λ = (u − lo)/(hi − lo)` is a real number
+/// in `[0, 1]` by the precondition, and `(1 − λ)·x + λ·y` lies between
+/// `x` and `y` for every `x ∈ X`, `y ∈ Y`. The hull of `X` and `Y` is
+/// therefore a second enclosure of the same value, by an argument that
+/// never reads `α` or `β`, and two sound enclosures of one value meet
+/// ([`Certification::meet`]). The result is variation-diminishing in
+/// the sense the reals give: a constant column stays its point, so an
+/// exactly-represented weight channel (a polynomial curve's `w ≡ 1`)
+/// stays exact through any fold. `the_convex_form_holds_a_constant_column_exactly`
+/// pins that; `compose`'s `the_ring_fold_encloses_the_exact_refined_net`
+/// pins containment against exact rationals (both `#[cfg(test)]`).
 pub(super) fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
     let (lo, hi) = (Interval::point(lo), Interval::point(hi));
     let u = Interval::point(u);
@@ -1290,7 +1297,7 @@ mod tests {
     }
 
     /// **The two arithmetics stay in step, and the interval one stays where
-    /// the described coefficients are.** The interval applier reads the SAME
+    /// the point one lands.** The interval applier reads the SAME
     /// [`Step`] list as the point applier, so "same targets, same
     /// sources" is structural rather than tested; what a row can break
     /// is the arithmetic that hangs off it, and these four claims are
@@ -1301,13 +1308,15 @@ mod tests {
     /// 2. **A carry is the coefficient itself**, bitwise: nothing is
     ///    combined, so nothing rounds, and an enclosure wider than a
     ///    point would mean interval arithmetic applier had touched a carry.
-    /// 3. **No slot leaves the described hull.** In ℝ a refined
-    ///    coefficient is a convex combination of the described ones, so
-    ///    it lies in their hull, and each step is met with its two
-    ///    sources' hull, so by induction no slot reaches past it — with
-    ///    no allowance at all. A sign error in a ratio would be hidden
-    ///    by that meet here; containment against exact rationals is
-    ///    `compose`'s `the_ring_fold_encloses_the_exact_refined_net`.
+    /// 3. **Each slot sits where the point applier lands.** Both
+    ///    appliers compute the same refined coefficient, the point one
+    ///    to a few ulps per insertion, so every `f64` answer lies within
+    ///    claim 4's allowance of its interval slot. A ratio of the wrong
+    ///    sign or a swapped association moves the slot by the
+    ///    coefficients' own scale (they alternate in sign), which this
+    ///    sees and a hull test does not: the step's meet with its
+    ///    sources' hull keeps every slot inside the described hull by
+    ///    construction.
     /// 4. **The fold does not inflate.** With point inputs, the widths
     ///    the whole chain accumulates come only from the ratios' own
     ///    rounding, so they stay at the scale of the coefficients times
@@ -1317,7 +1326,7 @@ mod tests {
     ///    **this is the claim the lerp form reds on** (355 ulps against
     ///    the 248 this allows, at `p=2`, 30 insertions), not claim 3.
     #[test]
-    fn the_ring_applier_stays_in_step_and_near_the_described_hull() {
+    fn the_ring_applier_stays_in_step_with_the_point_applier() {
         let cases: &[(usize, &[f64])] = &[
             (1, &[]),
             (2, &[1.0]),
@@ -1326,6 +1335,7 @@ mod tests {
             (4, &[1.0, 2.0, 2.0, 3.0]),
         ];
         let mut worst_width_ulps = 0.0f64;
+        let mut worst_gap_ulps = 0.0f64;
         for &(p, interior) in cases {
             let mut knots = vec![0.0; p + 1];
             knots.extend_from_slice(interior);
@@ -1340,11 +1350,6 @@ mod tests {
                 .map(|i| if i % 2 == 0 { i as f64 } else { -(i as f64) })
                 .collect();
             let input: Vec<Interval> = coeffs.iter().copied().map(Interval::point).collect();
-            let input_hull = input
-                .iter()
-                .copied()
-                .reduce(Interval::hull)
-                .expect("a clamped vector has control points");
             let scale = coeffs.iter().fold(0.0f64, |m, c| m.max(c.abs())).max(1.0);
             for splits in [2usize, 3, 8, 16] {
                 let plans = equal_split_plan(&kv, splits).unwrap();
@@ -1355,21 +1360,22 @@ mod tests {
                 }
                 let tag = format!("p={p} interior={interior:?} splits={splits}");
                 assert_eq!(ring_out.len(), f64_out.len(), "{tag}: extent");
-                // Claim 4's allowance: the width a non-inflating fold
+                // Claims 3 and 4's allowance: the width a non-inflating fold
                 // may accumulate over `plans.len()` insertions (one plan
                 // per insertion), in ulps of the coefficient scale.
                 #[allow(clippy::cast_precision_loss)]
                 let ceiling_ulps = 8.0 * (plans.len() + 1) as f64;
                 for (i, r) in ring_out.iter().enumerate() {
                     assert!(r.is_certified(), "{tag}: slot {i} refused");
+                    let f = f64_out[i];
+                    let gap = (r.lo() - f).max(f - r.hi()).max(0.0) / (scale * f64::EPSILON);
+                    worst_gap_ulps = worst_gap_ulps.max(gap);
                     assert!(
-                        r.lo() >= input_hull.lo() && r.hi() <= input_hull.hi(),
-                        "{tag}: slot {i} = [{:.17e}, {:.17e}] is outside the described hull \
-                         [{:.17e}, {:.17e}]",
+                        gap <= ceiling_ulps,
+                        "{tag}: slot {i} = [{:.17e}, {:.17e}] is {gap:.1} ulps of scale from \
+                         the point applier's {f:.17e}, above {ceiling_ulps:.0}",
                         r.lo(),
                         r.hi(),
-                        input_hull.lo(),
-                        input_hull.hi()
                     );
                     worst_width_ulps = worst_width_ulps.max(r.width() / (scale * f64::EPSILON));
                 }
@@ -1394,7 +1400,10 @@ mod tests {
                 );
             }
         }
-        println!("ring refinement: widest coefficient {worst_width_ulps:.2} ulps of scale");
+        println!(
+            "ring refinement: widest coefficient {worst_width_ulps:.2} ulps of scale, \
+             farthest point answer {worst_gap_ulps:.2}"
+        );
     }
 
     /// **A constant column stays its point.** A refined coefficient is a
@@ -1409,7 +1418,7 @@ mod tests {
     /// weight channel is `w ≡ 1`, and the tensor composite's residual
     /// `N_d·W_C − A_d·N_w` cancels against it. A `W` that came out of
     /// the fold as a bracket loosened the plane × NURBS envelope by
-    /// 0.6% at a 1e-12 m residual.
+    /// 0.5% at a 1e-12 m residual.
     ///
     /// Both shapes are here for a reason. The degree-1, 15-insertion
     /// column is the deep fold; the degree-2, 2-insertion one is the

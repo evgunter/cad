@@ -148,9 +148,7 @@ fn an_off_plane_wiggle_must_refuse_via_the_plane_envelope() {
 ///
 /// It is a bound on an ENCLOSURE, not on a tolerance: `hull_sup` is
 /// bit-identical at every battery ε (only the accept/refuse decision
-/// moves), so the numerical coincidence with the finest battery ε and
-/// with `Band::linear`'s zero width at that ε is a coincidence and
-/// nothing keys on it.
+/// moves), so nothing here keys on ε.
 ///
 /// **Its defence is that it is tight**, not that it is far from
 /// disaster. Ceiling over certified sup — how much slack the ceiling
@@ -165,13 +163,21 @@ const ENVELOPE_FLOOR: f64 = 2.5e-14;
 /// origin, and one ulp there is 2.2e-16 m. Eight of them.
 const SAMPLE_ROUNDING: f64 = 8.0 * f64::EPSILON;
 
+/// The largest share of the sampled truth the additive ceiling's
+/// allowance may be on a rung the ratio arm judges: where
+/// `ENVELOPE_FLOOR` is more than 2.5% of the truth, the floor and not
+/// the envelope is what a ratio would read.
+const FLOOR_SHARE_AT_RATIO_ARM: f64 = 0.025;
+
 /// Above this sampled truth the additive form stops being the honest
-/// one and a RATIO ceiling takes over. Forty times [`ENVELOPE_FLOOR`] —
-/// an absolute constant, so which rungs make which claim never depends
-/// on the enclosure being measured — and the finest battery ε, so the
-/// ratio arm stands down exactly where the lane refuses the rungs it
-/// would read.
-const RATIO_ARM_FROM: f64 = 40.0 * ENVELOPE_FLOOR;
+/// one and a RATIO ceiling takes over: the truth at which
+/// `ENVELOPE_FLOOR` is `FLOOR_SHARE_AT_RATIO_ARM` of it. An absolute
+/// constant, so which rungs make which claim never depends on the
+/// enclosure being measured.
+const RATIO_ARM_FROM: f64 = ENVELOPE_FLOOR / FLOOR_SHARE_AT_RATIO_ARM;
+
+/// The amplitude ladder, in metres.
+const AMPLITUDES: [f64; 5] = [0.0, 1e-13, 1e-12, 1e-11, 1e-10];
 
 /// ATTACK 1b: envelope soundness on the ACCEPT side — a certifying
 /// carrier's certified sup must bound its dense-sampled true sup, and
@@ -200,11 +206,17 @@ const RATIO_ARM_FROM: f64 = 40.0 * ENVELOPE_FLOOR;
 /// at the bottom of its range, which is where the envelope is working
 /// for its living.
 ///
+/// The a = 0 rung's teeth are incidental. It reds at 25 samples
+/// (2.52e-14, just over `ENVELOPE_FLOOR`) but stays green at 17
+/// (3.66e-15, its 33-sample reading), so a coarser schedule does not
+/// move it monotonically, and the guard rests on a = 1e-13 and 1e-12.
+///
 /// **ε moves which rungs certify, and nothing else.** `hull_sup` is
 /// bit-identical at every battery ε; what varies is the lane's
 /// accept/refuse decision, so the ladder is walked at every ε and each
-/// rung claims what it can. At ε = 1e-12 every amplitude at or above
-/// `RATIO_ARM_FROM` refuses, the ratio arm is unreachable, and the row
+/// rung claims what it can. At an ε at or under the smallest amplitude
+/// that reaches `RATIO_ARM_FROM` (1e-12 on this ladder) every such
+/// amplitude refuses, the ratio arm is unreachable, and the row
 /// stands down by name rather than reporting green over an empty
 /// claim.
 #[test]
@@ -216,7 +228,7 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
     for category in ["certified", "ratio arm", "additive arm"] {
         seen.add(category, 0);
     }
-    for a in [0.0, 1e-13, 1e-12, 1e-11, 1e-10] {
+    for a in AMPLITUDES {
         let carrier = if a == 0.0 {
             segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0))
         } else {
@@ -310,9 +322,14 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
          compared nothing",
     );
     // The ratio arm needs an amplitude that both certifies and clears
-    // `RATIO_ARM_FROM`; the lane certifies to about ε, so a fine enough
-    // ε leaves no such rung. That is a stand-down, not a floor to meet.
-    if eps <= RATIO_ARM_FROM {
+    // `RATIO_ARM_FROM`; the lane certifies to about ε, so an ε at or
+    // under the smallest such amplitude leaves no rung to read. That is
+    // a stand-down, not a floor to meet.
+    let first_ratio_rung = AMPLITUDES
+        .into_iter()
+        .find(|&a| a >= RATIO_ARM_FROM)
+        .expect("the ladder reaches the ratio arm");
+    if eps <= first_ratio_rung {
         vacuity::stood_down(
             "pxn envelope ratio arm",
             "every amplitude at or above the ratio arm's threshold refuses at this ε, \

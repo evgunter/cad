@@ -2678,10 +2678,12 @@ mod tests {
     ///
     /// **On the cap grid the sup cell is `(21, 3)`**, again with every
     /// pinned value unmoved: the insertion step is met with the hull of
-    /// its two sources, so the weight channel, constant along `v` on
-    /// this surface, stays exact through the `v` fold, and the cells
-    /// along `v` at `u = 21` tie to the digits pinned here — which one
-    /// carries the sup is decided below them.
+    /// its two sources, and this surface's weights are constant along
+    /// `v`, so each `v` step combines two equal weight enclosures and
+    /// returns that enclosure unchanged. The `v` fold adds the weight
+    /// channel no width (the `u` fold still does, so it is not exact),
+    /// and the cells along `v` at `u = 21` tie to the digits pinned
+    /// here — which one carries the sup is decided below them.
     #[test]
     fn the_sign_witness_floors_norm_e_where_the_components_straddle_zero() {
         let base = quarter_cylinder();

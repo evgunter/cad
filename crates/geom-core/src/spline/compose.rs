@@ -289,11 +289,11 @@ impl BernsteinSpans {
 ///
 /// **The argument for this form — why `β` comes from the knots and not
 /// from `1 − α`, why the combination still encloses the true refined
-/// coefficient, why reading each coefficient once is the whole width
-/// saving, and why the step is met with the hull of its two sources —
-/// has one home in this crate and it is
+/// coefficient, and why reading each coefficient once is the whole width
+/// saving — has one home in this crate and it is
 /// [`super::algebra::CurvePlan::apply_certified`]'s docs.** Both
-/// combine through the one `algebra::convex_step`. What belongs here
+/// combine through the one `algebra::convex_step`, whose docs say why
+/// the step is met with the hull of its two sources. What belongs here
 /// is only what is local:
 ///
 /// - `Δ_i > 0` because `U_i < u` (`i ≤ k − s`, below the copy run) and

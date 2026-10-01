@@ -46,7 +46,7 @@
 //! certification arithmetic, called from files that legitimately hold
 //! a lane `T: Real`.
 
-use interval_transcendentals::DInterval;
+use interval_transcendentals::{DInterval, Decoration};
 
 use super::Interval;
 use crate::real::Real;
@@ -220,6 +220,20 @@ pub trait Certification: sealed::Sealed + Copy {
     fn sqrt(self) -> Self;
 }
 
+impl Interval {
+    /// The one body of [`Certification::clamped_to`] and
+    /// [`Certification::meet`]: the backend's `intersection` with
+    /// `window`, re-read through `from_bounds` (so an empty or
+    /// infinity-only meet refuses) and capped at `dec`.
+    fn narrowed_to(self, window: DInterval, dec: Decoration) -> Self {
+        if !self.is_certified() {
+            return Self::refused();
+        }
+        let meet = self.0.intersection(window);
+        Self(DInterval::from_bounds(meet.lo(), meet.hi()).with_dec_capped(dec))
+    }
+}
+
 /// Raw `f64` comparisons inside these bodies are scalar-implementation
 /// code (Q1's allowance, as in [`Real::min`] at `f64`): the endpoints are
 /// concrete structure, and there is no `T` here.
@@ -248,26 +262,22 @@ impl Certification for Interval {
     }
 
     fn clamped_to(self, lo: f64, hi: f64) -> Self {
-        if !self.is_certified() || lo.is_nan() || hi.is_nan() {
+        if lo.is_nan() || hi.is_nan() {
             return Self::refused();
         }
-        let meet = self.0.intersection(DInterval::from_bounds(lo, hi));
-        let narrowed = DInterval::from_bounds(meet.lo(), meet.hi());
-        Self(narrowed.with_dec_capped(self.0.decoration()))
+        self.narrowed_to(DInterval::from_bounds(lo, hi), self.0.decoration())
     }
 
     fn meet(self, other: Self) -> Self {
-        if !self.is_certified() || !other.is_certified() {
+        if !other.is_certified() {
             return Self::refused();
         }
-        let meet = self.0.intersection(other.0);
-        let narrowed = DInterval::from_bounds(meet.lo(), meet.hi());
         let weaker = if other.0.decoration() < self.0.decoration() {
             other.0.decoration()
         } else {
             self.0.decoration()
         };
-        Self(narrowed.with_dec_capped(weaker))
+        self.narrowed_to(other.0, weaker)
     }
 
     fn contains(self, x: f64) -> bool {
@@ -366,6 +376,39 @@ mod certification_door_tests {
         assert!(!Interval::hull(x, empty).is_certified());
         let trv = ri(-2.0, -1.0) / ri(0.0, 1.0);
         assert!(!Interval::hull(trv, x).is_certified());
+    }
+
+    /// `meet`'s three rules, each on the branch that carries it.
+    #[test]
+    fn the_meet_refuses_a_refused_or_disjoint_pair_and_keeps_the_weaker_decoration() {
+        let x = ri(1.0, 3.0);
+        let p = Interval::refused();
+        assert!(!p.meet(x).is_certified(), "refused receiver");
+        assert!(!x.meet(p).is_certified(), "refused argument");
+
+        let disjoint = x.meet(ri(4.0, 5.0));
+        assert!(
+            !disjoint.is_certified(),
+            "an empty meet refuses: {disjoint:?}"
+        );
+        let touching = x.meet(ri(3.0, 5.0));
+        assert!(touching.is_certified(), "{touching:?}");
+        assert!(touching.lo() == 3.0 && touching.hi() == 3.0, "{touching:?}");
+
+        // `x` is `Com`; an unbounded bracket is at best `Dac`. The meet
+        // is bounded, so without the cap it would read `Com` again.
+        let unbounded = ri(2.0, f64::INFINITY);
+        assert!(
+            x.0.decoration() > unbounded.0.decoration(),
+            "{x:?} {unbounded:?}"
+        );
+        for m in [x.meet(unbounded), unbounded.meet(x)] {
+            assert!(m.lo() == 2.0 && m.hi() == 3.0, "{m:?}");
+            assert!(
+                m.0.decoration() == unbounded.0.decoration(),
+                "the minimum: {m:?}"
+            );
+        }
     }
 
     #[test]
