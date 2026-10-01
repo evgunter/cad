@@ -287,7 +287,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         )
     };
     assert!(
-        matches!(**error, EditError::DuplicateInput { input, .. } if input == a),
+        matches!(&**error, EditError::DuplicateInput { input, .. } if input.id() == a),
         "{error:?}"
     );
     // **The WHOLE sentence, deliberately.** This is what a person reads

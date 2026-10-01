@@ -26,7 +26,7 @@ use editor_core::{
     RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId,
     StepIdFault, StepSegmentsError, UnnamedEntity,
 };
-use editor_core::{Mispaired, NameLookupError, NodeStanding};
+use editor_core::{Mispaired, NameLookupError, NodeStanding, SpokenNode};
 use geom_core::BandError;
 use test_utils::refusal::tagged;
 
@@ -118,6 +118,12 @@ fn all_signs() -> Vec<geom_core::predicate::Sign> {
 }
 
 /// The `&str` view of a list of derived identifier words.
+/// Node `n` as a refusal raised over a document holding it as a
+/// `kind` with no label speaks it.
+fn held(n: u64, kind: &'static str) -> SpokenNode {
+    editor_core::test_support::spoken(RecipeNodeId(tagged(n)), Some(kind))
+}
+
 fn as_strs(words: &[String]) -> Vec<&str> {
     words.iter().map(String::as_str).collect()
 }
@@ -841,7 +847,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &EditError::PayloadDocParamDimension {
             name: name.clone(),
-            node: RecipeNodeId(tagged(3)),
+            node: held(3, "Measure"),
             declared: Dimension::Length,
             referenced: Dimension::Count,
         },
@@ -850,8 +856,8 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     );
     assert_f6(
         &EditError::AssertionDimension {
-            node: RecipeNodeId(tagged(5)),
-            measure: RecipeNodeId(tagged(4)),
+            node: held(5, "Assertion"),
+            measure: held(4, "Measure"),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
@@ -861,7 +867,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &EditError::SlotDocParamDimension {
             name: name.clone(),
-            node: RecipeNodeId(tagged(3)),
+            node: held(3, "Extrude"),
             slot: SlotId::Distance,
             declared: Dimension::Scalar,
             referenced: Dimension::Length,
@@ -1400,23 +1406,23 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     let edit_door: Vec<(String, String)> = vec![
         arm(&EditError::SlotUnknownDocParam {
             name: name.clone(),
-            node,
+            node: held(5, "Extrude"),
             slot: SlotId::Radius,
         }),
         arm(&EditError::SlotDocParamDimension {
             name: name.clone(),
-            node,
+            node: held(5, "Extrude"),
             slot: SlotId::Radius,
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
         arm(&EditError::PayloadUnknownDocParam {
             name: name.clone(),
-            node,
+            node: held(5, "Extrude"),
         }),
         arm(&EditError::PayloadDocParamDimension {
             name: name.clone(),
-            node,
+            node: held(5, "Extrude"),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         }),
@@ -2403,14 +2409,14 @@ fn a_lever_refusal_names_the_instance_and_why() {
 /// edit performs.
 #[test]
 fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
-    let gauge = RecipeNodeId(tagged(3));
+    let gauge = held(3, "InstantiatePart");
     assert_f6(
         &EditError::MaintenanceRefused {
-            gauge,
+            gauge: gauge.clone(),
             fault: Some(Box::new(MateFault::Unleverable {
                 mate: RecipeNodeId(tagged(5)),
                 refusal: Box::new(LeverRefusal::Reach {
-                    instance: gauge,
+                    instance: gauge.id(),
                     part: DocRef {
                         id: DocumentId::derive("display-contract-maintenance"),
                         pin: editor_core::ContentPin([0u8; 32]),
@@ -2422,21 +2428,28 @@ fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
             })),
         },
         &[
-            "could not place gauge 000000000003",
+            "could not place gauge InstantiatePart 000000000003",
             "refused: mate 000000000005",
             "instance 000000000003",
         ],
         &["MaintenanceRefused", "Unleverable"],
     );
     assert_f6(
-        &EditError::MaintenanceRefused { gauge, fault: None },
-        &["could not place gauge 000000000003", "no pose", "no fault"],
+        &EditError::MaintenanceRefused {
+            gauge: gauge.clone(),
+            fault: None,
+        },
+        &[
+            "could not place gauge InstantiatePart 000000000003",
+            "no pose",
+            "no fault",
+        ],
         &["MaintenanceRefused"],
     );
     assert_f6(
         &EditError::MaintenanceUnrecorded { gauge },
         &[
-            "gauge 000000000003",
+            "gauge InstantiatePart 000000000003",
             "no maintenance rows",
             "records every cluster row",
         ],
@@ -3099,7 +3112,7 @@ fn a_step_id_fault_names_the_id_or_the_count() {
     assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);
     assert_f6(
         &EditError::StepIdsRefused {
-            node: RecipeNodeId(tagged(4)),
+            node: held(4, "Profile"),
             fault: StepIdFault::Repeated {
                 step: StepId(tagged(2)),
             },
@@ -3135,10 +3148,10 @@ fn a_step_id_fault_names_the_id_or_the_count() {
     );
     assert_f6(
         &EditError::SetProgramOnNonProfile {
-            node: RecipeNodeId(tagged(4)),
+            node: held(4, "Extrude"),
         },
         &[
-            "node 000000000004 holds no profile program",
+            "Extrude 000000000004 holds no profile program",
             "no program to set",
         ],
         &["SetProgramOnNonProfile"],
@@ -3261,7 +3274,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             "EditError::SlotUnknownDocParam",
             EditError::SlotUnknownDocParam {
                 name: name.clone(),
-                node,
+                node: held(5, "Extrude"),
                 slot: SlotId::Radius,
             }
             .to_string(),

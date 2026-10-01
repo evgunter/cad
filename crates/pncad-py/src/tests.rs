@@ -2153,7 +2153,7 @@ fn the_persist_doors_nested_arms_carry_their_own_word() {
     assert_eq!(snapshot_error_tag(&snapshot), "order_mismatch");
 
     let replayed = EditError::UnknownNode {
-        id: RecipeNodeId(7),
+        id: pncad::document::SpokenNode::absent(RecipeNodeId(7)),
     };
     let carrier = PersistError::EditReplay {
         index: 3,
@@ -2666,6 +2666,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use pncad::select::{EntityKind, RoleSeg};
 
     let id = |n: u64| RecipeNodeId(n);
+    let sp = |n: u64| pncad::document::SpokenNode::absent(id(n));
     let param = || ParamName::from_static("bore");
     let named = || StableName {
         kind: EntityKind::Face,
@@ -2682,36 +2683,36 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     };
 
     // ---- the node roles ----
-    carries(&E::UnknownNode { id: id(1) }, &["node"]);
-    carries(&E::WouldCycle { at: id(1) }, &["node"]);
-    carries(&E::ReadSiteMissingNode { at: id(1) }, &["node"]);
-    carries(&E::SetMembersOnNonList { node: id(1) }, &["node"]);
-    carries(&E::SetProgramOnNonProfile { node: id(1) }, &["node"]);
+    carries(&E::UnknownNode { id: sp(1) }, &["node"]);
+    carries(&E::WouldCycle { at: sp(1) }, &["node"]);
+    carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
+    carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
+    carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
-            node: id(1),
+            node: sp(1),
             fault: StepIdFault::Repeated { step: StepId(2) },
         },
         &["node"],
     );
-    carries(&E::WitnessOnNonSketch { node: id(1) }, &["node"]);
-    carries(&E::DuplicateWitnessEntry { node: id(1) }, &["node"]);
-    carries(&E::PlacementOnNonInstance { node: id(1) }, &["node"]);
-    carries(&E::PlacementRuleMismatch { node: id(1) }, &["node"]);
-    carries(&E::EmptyPlacementList { node: id(1) }, &["node"]);
+    carries(&E::WitnessOnNonSketch { node: sp(1) }, &["node"]);
+    carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
+    carries(&E::PlacementOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::PlacementRuleMismatch { node: sp(1) }, &["node"]);
+    carries(&E::EmptyPlacementList { node: sp(1) }, &["node"]);
     carries(
         &E::NonFinitePlacement {
-            node: id(1),
+            node: sp(1),
             at: pncad::document::FrameSite::Registry,
         },
         &["node"],
     );
-    carries(&E::NonFiniteAlignment { node: id(1) }, &["node"]);
+    carries(&E::NonFiniteAlignment { node: sp(1) }, &["node"]);
     // The door's per-mate admission carries the solve's fault WHOLE
     // beside the mate: the one payload that crosses as a value.
     carries(
         &E::MateRefused {
-            node: id(1),
+            node: sp(1),
             fault: Box::new(pncad::document::MateFault::TableLacks {
                 mate: id(1),
                 what: "a clocking rider on a planar rest",
@@ -2719,33 +2720,33 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "fault"],
     );
-    carries(&E::UpdateOnNonInstance { node: id(1) }, &["node"]);
-    carries(&E::UnresolvedInput { input: id(2) }, &["input"]);
+    carries(&E::UpdateOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::UnresolvedInput { input: sp(2) }, &["input"]);
     carries(
         &E::DuplicateInput {
-            node: id(1),
-            input: id(2),
+            node: sp(1),
+            input: sp(2),
         },
         &["node", "input"],
     );
     carries(
         &E::DeclareInputNotDeclare {
-            node: id(1),
-            input: id(2),
+            node: sp(1),
+            input: sp(2),
         },
         &["node", "input"],
     );
     carries(
         &E::AssertionTarget {
-            node: id(1),
-            measure: id(2),
+            node: sp(1),
+            measure: sp(2),
         },
         &["node", "input"],
     );
     carries(
         &E::DeleteWouldDangle {
-            id: id(1),
-            referenced_by: id(2),
+            id: sp(1),
+            referenced_by: sp(2),
         },
         &["node", "referenced_by"],
     );
@@ -2753,8 +2754,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // The two-node arms answer with the ids they were given, not with
     // the first id twice: the roles are what a caller acts on.
     let dangle = E::DeleteWouldDangle {
-        id: id(4),
-        referenced_by: id(9),
+        id: sp(4),
+        referenced_by: sp(9),
     };
     let payload = edit_payload(&dangle);
     assert_eq!(payload.node, Some(id(4)));
@@ -2763,7 +2764,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // ---- slots and dimensions ----
     carries(
         &E::UnknownSlot {
-            id: id(1),
+            id: sp(1),
             slot: SlotId::Count,
         },
         &["node", "slot"],
@@ -2790,8 +2791,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::AssertionDimension {
-            node: id(1),
-            measure: id(2),
+            node: sp(1),
+            measure: sp(2),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
@@ -2814,14 +2815,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::PayloadUnknownDocParam {
             name: param(),
-            node: id(1),
+            node: sp(1),
         },
         &["node", "param"],
     );
     carries(
         &E::PayloadDocParamDimension {
             name: param(),
-            node: id(1),
+            node: sp(1),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         },
@@ -2830,7 +2831,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::SlotUnknownDocParam {
             name: param(),
-            node: id(1),
+            node: sp(1),
             slot: SlotId::Count,
         },
         &["node", "slot", "param"],
@@ -2838,7 +2839,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::SlotDocParamDimension {
             name: param(),
-            node: id(1),
+            node: sp(1),
             slot: SlotId::Count,
             declared: Dimension::Count,
             referenced: Dimension::Length,
@@ -2875,14 +2876,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // ---- the list-shape arms ----
     carries(
         &E::TooFewMembers {
-            node: id(1),
+            node: sp(1),
             found: 1,
         },
         &["node", "count"],
     );
     carries(
         &E::RepeatedDesignation {
-            node: id(1),
+            node: sp(1),
             first: 0,
             again: 3,
         },
@@ -2891,13 +2892,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // The sorted designation's fault reports ONE position, so it
     // carries `first` and not `again`.
     carries(
-        &E::SelectionNotCanonical { node: id(1), at: 2 },
+        &E::SelectionNotCanonical { node: sp(1), at: 2 },
         &["node", "first"],
     );
     // `found` on a short list is a COUNT and takes the `count`
     // attribute, so it never lands where a dimension word would.
     let short = E::TooFewMembers {
-        node: id(1),
+        node: sp(1),
         found: 1,
     };
     let payload = edit_payload(&short);
@@ -2987,7 +2988,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
     carries(
         &E::ImproperPlacement {
-            node: id(1),
+            node: sp(1),
             at: pncad::document::FrameSite::Step { index: 2 },
             determinant: -1.0,
         },
@@ -2995,7 +2996,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::NonRigidPlacement {
-            node: id(1),
+            node: sp(1),
             at: pncad::document::FrameSite::Listed { index: 0 },
             check: "transform_rigid_col0_unit",
         },
@@ -3003,7 +3004,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::PinUnchanged {
-            node: id(1),
+            node: sp(1),
             pin: ContentPin([0u8; 32]),
         },
         &["node", "pin"],
@@ -3013,6 +3014,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // the metadata float's address is a `str` under `value_path`, a
     // different address in a different tree.
     let off_tree = E::PathOffTree {
+        node: sp(5),
         path: ExprPath {
             node: id(5),
             slot: SlotId::Distance,
@@ -3045,7 +3047,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // with no payload at all is the whole of the empty case.
     carries(
         &E::ProfileProgramRefused {
-            node: id(1),
+            node: sp(1),
             refusal: Box::new(pncad::document::ProgramRefusal::Validate(
                 pncad::profile::ProfileError::EmptyProfile,
             )),
@@ -3054,7 +3056,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::MeasureMalformed {
-            node: id(1),
+            node: sp(1),
             fault: MeasureNodeFault::RefIndexOutOfRange {
                 verb: "distance",
                 index: 5,
@@ -4345,6 +4347,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
     use pncad::document::{Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError};
 
     let node = RecipeNodeId(5);
+    let spoken = pncad::document::SpokenNode::absent(node);
     let name = || ParamName::from_static("width");
 
     let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
@@ -4353,7 +4356,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
             "unknown",
             EditError::SlotUnknownDocParam {
                 name: name(),
-                node,
+                node: spoken.clone(),
                 slot: SlotId::Radius,
             },
             SnapshotError::SlotUnknownDocParam {
@@ -4367,7 +4370,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
             "dimension",
             EditError::SlotDocParamDimension {
                 name: name(),
-                node,
+                node: spoken.clone(),
                 slot: SlotId::Radius,
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
@@ -4383,7 +4386,10 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
         (
             "payload",
             "unknown",
-            EditError::PayloadUnknownDocParam { name: name(), node },
+            EditError::PayloadUnknownDocParam {
+                name: name(),
+                node: spoken.clone(),
+            },
             SnapshotError::PayloadUnknownDocParam { node, name: name() },
         ),
         (
@@ -4391,7 +4397,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
             "dimension",
             EditError::PayloadDocParamDimension {
                 name: name(),
-                node,
+                node: spoken.clone(),
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
             },

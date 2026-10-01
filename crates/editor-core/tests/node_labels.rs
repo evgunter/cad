@@ -123,7 +123,7 @@ fn set_label_refuses_a_dead_node_and_a_no_op_and_delete_drops_the_label() {
         },
     ) {
         EditError::LabelUnchanged { node, label: held } => {
-            assert_eq!((node, held), (extrude, Some(label("pin"))));
+            assert_eq!((node.id(), held), (extrude, Some(label("pin"))));
         }
         other => panic!("relabelling with the same text refuses LabelUnchanged, got {other:?}"),
     }
@@ -134,7 +134,7 @@ fn set_label_refuses_a_dead_node_and_a_no_op_and_delete_drops_the_label() {
             label: None,
         },
     ) {
-        EditError::LabelUnchanged { node, label: None } => assert_eq!(node, frame),
+        EditError::LabelUnchanged { node, label: None } => assert_eq!(node.id(), frame),
         other => panic!("clearing no label refuses LabelUnchanged, got {other:?}"),
     }
 
@@ -151,7 +151,7 @@ fn set_label_refuses_a_dead_node_and_a_no_op_and_delete_drops_the_label() {
             label: Some(label("back")),
         },
     ) {
-        EditError::UnknownNode { id } => assert_eq!(id, extrude),
+        EditError::UnknownNode { id } => assert_eq!(id.id(), extrude),
         other => panic!("labelling a dead node refuses UnknownNode, got {other:?}"),
     }
 }

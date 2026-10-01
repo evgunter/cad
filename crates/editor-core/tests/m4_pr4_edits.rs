@@ -312,7 +312,9 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::WitnessOnNonSketch { node: extrude }
+        EditError::WitnessOnNonSketch {
+            node: doc.spoken(extrude)
+        }
     );
     assert_eq!(
         doc.apply(
@@ -325,7 +327,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
         )
         .unwrap_err(),
         EditError::UnknownNode {
-            id: RecipeNodeId(9999)
+            id: editor_core::SpokenNode::absent(RecipeNodeId(9999))
         }
     );
     // Replay determinism: same edits, bit-identical document
@@ -410,7 +412,9 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::DuplicateWitnessEntry { node: p1 }
+        EditError::DuplicateWitnessEntry {
+            node: doc.spoken(p1)
+        }
     );
     assert_eq!(
         doc.apply(
@@ -422,7 +426,9 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::WitnessOnNonSketch { node: e1 }
+        EditError::WitnessOnNonSketch {
+            node: doc.spoken(e1)
+        }
     );
 }
 

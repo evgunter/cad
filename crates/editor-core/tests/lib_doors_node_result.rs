@@ -160,7 +160,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
 
     let edit = EditError::UnknownNode {
-        id: RecipeNodeId(tagged(7)),
+        id: editor_core::SpokenNode::absent(RecipeNodeId(tagged(7))),
     };
     // No `edit: ` opening: the frame belongs to whoever received the
     // refusal (the viewer composes "the edit was refused: …", the
