@@ -181,3 +181,13 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   asked in an `[ev]` PR. One naming change is recorded in the PR body
   and judged acceptable: SectionFace 0 on a holed section now names
   the holed outline face.
+- DR-30 is the dual stream's twelfth fair pair that found a MAJOR, so
+  its readout point is reached. Readout 2 is being written blind by a
+  separate agent on `analysis/dual-review/readout-2`, and the ruling
+  item `the-dual-review-streams-second-readout-is-owed` is filed with
+  `needs_ev`.
+- **Disclosure.** While looking up how readout 1 was delivered, I read
+  readout 1's contents (via PR 3342's file list). The NURBS dual (PR
+  3678) had both reviews delivered and adjudicated at that point, but
+  its row was not yet recorded. Its row carries this as a fairness
+  flag.
