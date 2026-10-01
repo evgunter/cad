@@ -3709,6 +3709,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::NullScaffoldShared": "ValidationFinding.variant",
     "ValidationError::LeakedNullFaceRecord": "ValidationFinding.variant",
     "ValidationError::StaleNullFaceLoop": "ValidationFinding.variant",
+    "ValidationError::StaleNullFaceOwnership": "ValidationFinding.variant",
     "ValidationError::NullEdgeAtRest": "ValidationFinding.variant",
     "ValidationError::NullFaceAtRest": "ValidationFinding.variant",
     # --- the analysis lane's arms, in this file's alphabet at last -

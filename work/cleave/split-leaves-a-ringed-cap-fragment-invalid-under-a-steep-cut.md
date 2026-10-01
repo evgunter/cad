@@ -2,10 +2,11 @@
 id: split-leaves-a-ringed-cap-fragment-invalid-under-a-steep-cut
 kind: issue
 title: A steep plane split through a bored solid leaves one cap fragment's ring touching its outer loop and the other cap fragment inverted (RingMeetsOuter, LoopRoleInverted)
-status: open
+status: dispatched
 opened: 2026-09-28
 cost: H
 priority: P0
+branch: cleave/section-rings
 ---
 
 Found by CONTACT-6 while measuring a split's section-face senses

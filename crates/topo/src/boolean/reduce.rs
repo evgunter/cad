@@ -2045,8 +2045,8 @@ fn wall_crossing<T: Decide>(
         // The face's own trim decides whether a crossing of the CARRIER
         // is a crossing of this FACE. `None` is the chart door's honest
         // remainder (a ringed face, a non-iso boundary, a full-period
-        // azimuth window) and keeps the caller's frontier rather than
-        // reading as "outside".
+        // window outside the band class) and keeps the caller's
+        // frontier rather than reading as "outside".
         //
         // **A landing point definitely OFF the carrier is not "outside
         // the trim".** The root was certified ON the surface, so the
