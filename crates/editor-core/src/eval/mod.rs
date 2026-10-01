@@ -172,6 +172,24 @@ impl<T: Decide> Evaluation<T> {
         })
     }
 
+    /// **Whether two nodes' values live in different spaces** (A9,
+    /// A11 (2)) — the one predicate every door comparing two nodes'
+    /// geometry asks: `Some` naming the unplaced group (by its root,
+    /// with its cause) that one of them lives in and the other does
+    /// not, `None` when both live in one space. A node absent from
+    /// [`Evaluation::unplaced`] lives in the world.
+    pub fn across_spaces(
+        &self,
+        a: RecipeNodeId,
+        b: RecipeNodeId,
+    ) -> Option<(RecipeNodeId, crate::mate::Unplaced)> {
+        let (sa, sb) = (self.unplaced.get(&a), self.unplaced.get(&b));
+        if sa.map(|s| s.0) == sb.map(|s| s.0) {
+            return None;
+        }
+        sa.or(sb).copied()
+    }
+
     /// **Every unplaced group in a document below this one** (A9,
     /// A11 (2)), routed through the instance it arrived by
     /// ([`crate::CarriedUnplaced`]), once each, in node order: what

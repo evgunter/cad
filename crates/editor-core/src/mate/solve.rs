@@ -555,26 +555,37 @@ pub(crate) fn group_frame<P, T: geom_core::Decide>(
 
 // ---- A12: reading edges, recomputed ----
 
-/// **A12's reading edges**, recomputed from the recipe:
-/// `(mate, instance)` for every mate reference that resolves to a
-/// member of the A11 vocabulary. The edge lands on the MEMBER's
-/// instance — the one the walk from the operand ends on — which is the
-/// vertex the A9/A11 partitions see.
+/// **A12's reading edges**, recomputed from the recipe, as
+/// `(reader, read)`: `(mate, instance)` for every mate reference that
+/// resolves to a member of the A11 vocabulary, landing on the MEMBER's
+/// instance — the one the walk from the operand ends on, which is the
+/// vertex the A9/A11 partitions see — and `(instance, gauge)` and
+/// `(gauge, parent)` for every gauge reference that names a live
+/// gauge (A11 (2)).
 ///
 /// Never stored — the DAG stays the single structure, and a reference
-/// that resolves to no member simply contributes no edge (N5).
-/// Deterministic order: document order of the mate, then `a` before
-/// `b`.
+/// that resolves to nothing live simply contributes no edge (N5).
+/// Deterministic order: document order of the reader, then a mate's
+/// `a` before its `b`.
 pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
     let mut out = Vec::new();
+    let live_gauge = |g: RecipeNodeId| matches!(doc.node(g), Some(Node::Gauge { .. }));
     for &id in doc.order() {
-        let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
-            continue;
-        };
-        for (side, name) in [(MateSide::A, a), (MateSide::B, b)] {
-            if let Ok(w) = walk_of(doc, id, side, name) {
-                out.push((id, w.member.instance));
+        match doc.node(id) {
+            Some(Node::Mate { a, b, .. }) => {
+                for (side, name) in [(MateSide::A, a), (MateSide::B, b)] {
+                    if let Ok(w) = walk_of(doc, id, side, name) {
+                        out.push((id, w.member.instance));
+                    }
+                }
             }
+            Some(
+                Node::InstantiatePart { gauge: Some(g), .. }
+                | Node::Gauge {
+                    parent: Some(g), ..
+                },
+            ) if live_gauge(*g) => out.push((id, *g)),
+            _ => {}
         }
     }
     out
@@ -589,7 +600,9 @@ pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
 /// different components — decidable from recipe structure alone, which
 /// is the whole content of A9. Mates couple components precisely
 /// because their reading edges count here (A12) even though A10's
-/// invariants never see them.
+/// invariants never see them, and so do gauges: two instances on one
+/// gauge sit at frames the gauge fixes between them, so they are one
+/// component with no mate.
 pub fn relative_freedom_components<P: crate::ProfilePayload>(
     doc: &Doc<P>,
 ) -> Vec<Vec<RecipeNodeId>> {

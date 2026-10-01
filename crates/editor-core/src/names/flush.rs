@@ -186,7 +186,8 @@ pub type FlushFinding = topo::flush::FlushFinding<(SitedRef, SitedRef)>;
 /// # Errors
 ///
 /// [`SelectRefusal::NodeHasNoValue`] when `a` or `b` has no value,
-/// carrying its standing;
+/// carrying its standing; [`SelectRefusal::AcrossSpaces`] when they
+/// live in different spaces ([`Evaluation::across_spaces`]);
 /// [`SelectRefusal::PairInBand`] when a pair's verify-door margin is
 /// indeterminate (never silently included or dropped),
 /// [`SelectRefusal::TiedDisagrees`] when a tied name's candidates
@@ -202,6 +203,9 @@ pub fn find_flush_candidates<T: Decide>(
 ) -> Result<Vec<FlushFinding>, SelectRefusal> {
     let va = ev.usable(a).map_err(SelectRefusal::NodeHasNoValue)?;
     let vb = ev.usable(b).map_err(SelectRefusal::NodeHasNoValue)?;
+    if let Some((group, cause)) = ev.across_spaces(a, b) {
+        return Err(SelectRefusal::AcrossSpaces { group, cause });
+    }
     let band = Band::linear(tol)?;
     let fa = face_candidates(va)?;
     let fb = face_candidates(vb)?;

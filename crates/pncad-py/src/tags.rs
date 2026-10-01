@@ -314,6 +314,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
+        R::AcrossSpaces { .. } => "across_spaces",
         _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
 }
@@ -2368,6 +2369,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::DeadGaugeReference { .. } => "dead_gauge_reference",
         SplitError::UnplacedAlone { .. } => "unplaced_alone",
         SplitError::WouldStartPlacing { .. } => "would_start_placing",
+        SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
         SplitError::MateFaceFrameCrosses { .. } => "mate_face_frame_crosses",
         SplitError::HoistedMemberOffset { .. } => "hoisted_member_offset",
@@ -2556,6 +2558,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
         HitTestError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         HitTestError::Ambiguous { .. } => "ambiguous",
         HitTestError::Unnamed { .. } => "unnamed",
+        HitTestError::AcrossSpaces { .. } => "across_spaces",
     }
 }
 

@@ -6262,9 +6262,13 @@ def split(
     raises `SplitError` carrying an `EditError` with variant
     `mate_refused`; a cut with none is unaffected.
 
-    The gauge rules (A4): every gauge reference leaving the cut lands
-    on ONE anchor — a kept gauge or the world — which the instance
-    left behind names (`two_anchors`); a cut that is exactly one placed
+    The gauge rules (A4): every reference leaving the cut lands on ONE
+    anchor — a kept gauge or the world — which the instance left
+    behind names (`two_anchors`, its `instance` the cut node that
+    disagrees): a cut instance votes its gauge, a cut root that is no
+    instance votes the world, and a group nothing places casts no
+    vote. A placing mate never crosses: a cut that leaves behind the
+    mate placing its group refuses (`placing_mate_left`). A cut that is exactly one placed
     group HOISTS its root's offset onto that instance and lands the
     root at the empty offset in the part, any other cut moves
     verbatim; a cut holding a gauge refuses (`cut_holds_gauge`), as do

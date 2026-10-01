@@ -828,8 +828,8 @@ fn a_cut_holding_a_gauge_or_landing_on_two_anchors_refuses_typed() {
     assert!(
         matches!(
             err,
-            editor_core::SplitError::TwoAnchors { instance, first, second }
-                if instance == on_world && first == Some(g) && second.is_none()
+            editor_core::SplitError::TwoAnchors { node, first, second }
+                if node == on_world && first == Some(g) && second.is_none()
         ),
         "{err:?}"
     );
@@ -1027,7 +1027,7 @@ fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed() {
     let err = editor_core::inline(&mated, out.instance, &r, Tol::witness())
         .expect_err("a mate-placed instance");
     assert!(
-        matches!(err, editor_core::InlineError::MatePlaced { instance } if instance == out.instance),
+        matches!(err, editor_core::InlineError::MatePlaced { instance, .. } if instance == out.instance),
         "{err:?}"
     );
     let unplaced = set_offset(out.remainder.clone(), out.instance, None);

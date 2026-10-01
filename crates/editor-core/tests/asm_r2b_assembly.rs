@@ -703,7 +703,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 /// non-edge case is `row5_d`'s subject.
 #[test]
 fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
-    let (doc, ids, _, store, _) = stacked("asm-r2b-row5", 1.0);
+    let (doc, ids, mate, store, _) = stacked("asm-r2b-row5", 1.0);
     let o = with_resolver(store);
 
     // One instance alone: the cut tears the group.
@@ -721,10 +721,25 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
          mate EDGE's crossing unreachable: {torn:?}"
     );
 
-    // The whole group: accepted, and nothing crosses.
-    let out = split(
+    // Both instances without the mate that places them: the placing
+    // mate would cross (A4), and the cut names it.
+    let left = split(
         &doc,
         &ids.iter().copied().collect(),
+        DocumentId::derive("asm-r2b-row5-left"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect_err("a cut that leaves its placing mate behind refuses");
+    assert!(
+        matches!(left, editor_core::SplitError::PlacingMateLeft { mate: m } if m == mate),
+        "{left:?}"
+    );
+
+    // The whole group with its mate: accepted, and nothing crosses.
+    let out = split(
+        &doc,
+        &ids.iter().copied().chain([mate]).collect(),
         DocumentId::derive("asm-r2b-row5-whole"),
         Tol::witness(),
         o.resolver.as_ref(),

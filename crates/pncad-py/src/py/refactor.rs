@@ -260,10 +260,11 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        // Two anchors: the earlier cut instances' gauge rides `node` and
-        // this instance's `input`, each `None` for the world.
+        // Two anchors: the earlier votes' gauge rides `node` and this
+        // node's `input`, each `None` for the world; the node that
+        // disagrees rides `instance`.
         E::TwoAnchors {
-            instance,
+            node,
             first,
             second,
         } => (
@@ -271,7 +272,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             second.as_ref().map_or_else(none, id),
             none(),
-            id(instance),
+            id(node),
             none(),
             none(),
             none(),
@@ -288,6 +289,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         ),
         // The mate is the subject; which side crosses is in the message.
         E::WouldStartPlacing { mate }
+        | E::PlacingMateLeft { mate }
         | E::MateFrameCrosses { mate, .. }
         | E::MateFaceFrameCrosses { mate, .. } => (
             id(mate),
@@ -640,18 +642,18 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         ),
         // The instance is the subject: why it cannot be spliced is the
         // variant, and an unplaced one's cause is in the message.
-        E::MatePlaced { instance } | E::Unplaced { instance, .. } | E::NeedsAGauge { instance } => {
-            (
-                id(instance),
-                none(),
-                none(),
-                none(),
-                none(),
-                none(),
-                none(),
-                none(),
-            )
-        }
+        E::MatePlaced { instance, .. }
+        | E::Unplaced { instance, .. }
+        | E::NeedsAGauge { instance } => (
+            id(instance),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
         // A node of the referenced document, in its own id space: it
         // rides `root`, the part-side slot, as the plain-geometry root
         // does.

@@ -184,6 +184,8 @@ mod refusal_concision;
 mod refusal_concision_at_rest;
 #[path = "refusal_concision_chains.rs"]
 mod refusal_concision_chains;
+#[path = "refusal_concision_refactor.rs"]
+mod refusal_concision_refactor;
 #[path = "remap_reorders_ids.rs"]
 mod remap_reorders_ids;
 #[path = "resolve_group_membership.rs"]

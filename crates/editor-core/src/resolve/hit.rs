@@ -115,6 +115,17 @@ pub enum HitTestError {
     /// THE BUG (spec D4): the node evaluated, but the entity has no
     /// name in its table — the lookup's own refusal, carried whole.
     Unnamed(UnnamedEntity),
+    /// **The targets live in different spaces** (A9, A11 (2)): one is
+    /// in an unplaced group's own space, so no ray in one set of
+    /// coordinates meets both, and nothing outside the group is
+    /// ordered against it. A caller that draws each space somewhere
+    /// picks each space by itself.
+    AcrossSpaces {
+        /// The unplaced group, by its root.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: crate::mate::Unplaced,
+    },
 }
 
 /// The node's standing, at the door that needed its table.
@@ -184,6 +195,14 @@ impl core::fmt::Display for HitTestError {
                 )
             }
             Self::Unnamed(unnamed) => write!(f, "hit test: {unnamed}"),
+            Self::AcrossSpaces { group, cause } => write!(
+                f,
+                "hit test: the targets live in different spaces — one is in the own space of the \
+                 group rooted at node {}, unplaced because {cause}, and nothing outside an \
+                 unplaced group is ordered against it. {}",
+                group,
+                crate::sentence::Recourse("pick each space by itself, or place the group")
+            ),
         }
     }
 }

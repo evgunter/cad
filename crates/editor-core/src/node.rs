@@ -2502,13 +2502,18 @@ pub enum Node<P> {
         /// READING edge, like a mate's: it is not an input, so a gauge
         /// is never consumed by what sits on it, and deleting it is
         /// never refused. A reference to a deleted gauge is kept, so
-        /// the group it unplaces can name its cause.
+        /// the group it unplaces can name its cause. Required on the
+        /// wire, `null` for the world, so a file written before gauges
+        /// refuses typed rather than loading as unplaced.
+        #[serde(deserialize_with = "Option::deserialize")]
         gauge: Option<RecipeNodeId>,
         /// The instance's offset in its gauge, `None` when it carries
         /// none. On its group's root it places the group; on any other
         /// member it is a statement the solve checks
         /// ([`crate::mate::MateFault::OffsetDisagrees`]). Its rigid
-        /// steps are slots ([`SlotId::rigid`]).
+        /// steps are slots ([`SlotId::rigid`]). Required on the wire,
+        /// `null` for none, as `gauge` is.
+        #[serde(deserialize_with = "Option::deserialize")]
         offset: Option<crate::placement::Placement>,
     },
     /// **A gauge** (A11 (2)): a frame that instances and other gauges

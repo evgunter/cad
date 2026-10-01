@@ -365,17 +365,28 @@ pub enum SplitError {
         /// The gauge in the cut.
         gauge: RecipeNodeId,
     },
-    /// **The gauge references leaving the cut land on two anchors**
-    /// (A4): the instance the split leaves behind names ONE gauge, so
-    /// every cut instance must sit on that one — a kept gauge, or the
-    /// world.
+    /// **The references leaving the cut land on two anchors** (A4):
+    /// the instance the split leaves behind names ONE gauge, so every
+    /// cut instance must sit on that one — a kept gauge, or the world —
+    /// and a cut root that is not an instance, whose geometry is in the
+    /// world's coordinates, votes for the world. A group nothing places
+    /// casts no vote.
     TwoAnchors {
-        /// The cut instance whose gauge disagrees with the first.
-        instance: RecipeNodeId,
+        /// The cut node whose anchor disagrees with the first: an
+        /// instance by its gauge, or a cut root that is no instance.
+        node: RecipeNodeId,
         /// The anchor the earlier cut instances name, `None` the world.
         first: Option<RecipeNodeId>,
         /// The one this instance names, `None` the world.
         second: Option<RecipeNodeId>,
+    },
+    /// **The cut holds a placed group and leaves its placing mate
+    /// behind** (A4: a placing mate never crosses a cut): the mate would
+    /// read both members through the one instance the split leaves, and
+    /// stop relating a pair.
+    PlacingMateLeft {
+        /// The placing mate the cut leaves behind.
+        mate: RecipeNodeId,
     },
     /// **A cut group's gauge chain names a deleted gauge** (A4): a dead
     /// reference unplaces the group, and the split has no anchor to
@@ -552,9 +563,9 @@ impl core::fmt::Display for SplitError {
                     f,
                     "split: the cut tears the placement group rooted at node {} (node {cut} is \
                      cut, node {kept} is kept) — the frame lives on the GROUP, so the cut \
-                     must be a union of WHOLE groups; widen the cut, or delete the mates \
-                     holding the group together first",
-                    root
+                     must be a union of WHOLE groups. {}",
+                    root,
+                    Recourse("widen the cut, or delete the mates holding the group together first")
                 )
             }
             Self::CutHoldsGauge { gauge } => write!(
@@ -564,21 +575,28 @@ impl core::fmt::Display for SplitError {
                 g = gauge
             ),
             Self::TwoAnchors {
-                instance,
+                node,
                 first,
                 second,
             } => write!(
                 f,
-                "split: the cut's instances sit on two gauges ({} and {}, at instance {}), and \
+                "split: the cut's material sits on two anchors ({} and {}, at node {}), and \
                  the instance the split leaves behind sits on one. {}",
                 anchor_name(*first),
                 anchor_name(*second),
-                instance,
+                node,
                 Recourse(&format!(
-                    "set instance {}'s gauge to {} (SetGauge), or leave it out of the cut",
-                    instance,
-                    anchor_name(*first)
+                    "leave node {} out of the cut, or put the cut's instances on one gauge \
+                     (SetGauge)",
+                    node
                 ))
+            ),
+            Self::PlacingMateLeft { mate } => write!(
+                f,
+                "split: mate {m} places the group the cut holds, and the cut leaves it behind, \
+                 so a placing mate would cross the seam. {}",
+                Recourse(&format!("add mate {m} to the cut", m = mate)),
+                m = mate
             ),
             Self::DeadGaugeReference { instance, gauge } => write!(
                 f,
@@ -821,13 +839,18 @@ pub enum InlineError {
         /// The plain-geometry root.
         root: RecipeNodeId,
     },
-    /// **The instance carries no offset of its own**: its mates place
-    /// it (or it is a checked member of a group another instance
-    /// roots), so where it sits is a solve result the splice cannot
+    /// **The instance is not its group's root**: its mates place it
+    /// relative to the root (any offset it carries is checked, not
+    /// placing), so where it sits is a solve result the splice cannot
     /// state.
     MatePlaced {
         /// The instance.
         instance: RecipeNodeId,
+        /// Its group's root.
+        root: RecipeNodeId,
+        /// The placing mates that read it, in document order: deleting
+        /// them leaves it a group of its own.
+        mates: Vec<RecipeNodeId>,
     },
     /// **The instance is unplaced** (A11 (2)): nothing places its
     /// group, so there is no frame to splice its part in.
@@ -967,21 +990,44 @@ impl core::fmt::Display for InlineError {
             ),
             Self::UnplaceableFrame { root } => write!(
                 f,
-                "inline: the instance sits off the world's origin, but part root {} is plain \
+                "inline: the instance sits off the world's origin, but part root {r} is plain \
                  recipe geometry, which sits on no gauge — the frame is not expressible \
-                 locally",
-                root
-            ),
-            Self::MatePlaced { instance } => write!(
-                f,
-                "inline: instance {i} carries no offset of its own, so where it sits is a \
-                 solve result the splice cannot state. {}",
+                 locally. {}",
                 Recourse(&format!(
-                    "give instance {i} an offset (SetOffset), then inline",
-                    i = instance
+                    "split node {r} out of the referenced document, so it becomes an instance \
+                     there, point this instance at that version (UpdateReference), then inline",
+                    r = root
                 )),
-                i = instance
+                r = root
             ),
+            Self::MatePlaced {
+                instance,
+                root,
+                mates,
+            } => {
+                write!(
+                    f,
+                    "inline: instance {i} is not its group's root, node {r} is, and its mates \
+                     place it relative to that root, so where it sits is a solve result the \
+                     splice cannot state. ",
+                    i = instance,
+                    r = root
+                )?;
+                let listed = mates
+                    .iter()
+                    .map(|m| m.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(
+                    f,
+                    "{}",
+                    Recourse(&format!(
+                        "delete mate(s) {listed}, which place it, give instance {i} an offset \
+                         if it carries none (SetOffset), then inline",
+                        i = instance
+                    ))
+                )
+            }
             Self::Unplaced { instance, cause } => write!(
                 f,
                 "inline: instance {} is unplaced, because {cause}. {}",
@@ -993,16 +1039,24 @@ impl core::fmt::Display for InlineError {
                 "inline: splicing instance {i}'s part at its offset needs a gauge to hold the \
                  offset, which inline does not mint yet. {}",
                 Recourse(&format!(
-                    "set instance {i}'s offset to the empty chain (SetOffset), then inline",
+                    "insert that gauge yourself — a gauge on instance {i}'s gauge holding its \
+                     offset — put instance {i}'s group on it (SetGauge) with instance {i} at the \
+                     empty offset (SetOffset), which moves nothing, then inline",
                     i = instance
                 )),
                 i = instance
             ),
             Self::PartDeadGauge { node } => write!(
                 f,
-                "inline: the referenced document's node {} names a deleted gauge, which has no \
-                 node in the host — repair it in the referenced document before inlining",
-                node
+                "inline: the referenced document's node {n} names a deleted gauge, which has no \
+                 node in the host. {}",
+                Recourse(&format!(
+                    "in the referenced document, set node {n}'s gauge to a live one or the \
+                     world (SetGauge), point this instance at that version (UpdateReference), \
+                     then inline",
+                    n = node
+                )),
+                n = node
             ),
             Self::MateFrameCrosses { mate, side } => write!(
                 f,
@@ -1923,6 +1977,27 @@ pub fn split(
             });
         }
     }
+    // A placing mate never crosses (A4): a kept mate that places two
+    // cut instances would read both through the one instance the split
+    // leaves behind. Before the reading-edge rule, whose interface
+    // crossing would otherwise carry it across.
+    for &mate in doc.order() {
+        let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
+            continue;
+        };
+        if cut.contains(&mate) {
+            continue;
+        }
+        if let (Some(x), Some(y)) = (
+            crate::mate::member_of(doc, a),
+            crate::mate::member_of(doc, b),
+        ) && cut.contains(&x.instance)
+            && cut.contains(&y.instance)
+            && crate::mate::places(doc, x.instance, y.instance)
+        {
+            return Err(SplitError::PlacingMateLeft { mate });
+        }
+    }
     // The READING edge's own closure rule (A12). An operand is not an
     // input, so the severed-edge loop never sees it — and a mate separated
     // from the node its reference is read at is expressible in
@@ -1987,22 +2062,6 @@ pub fn split(
     {
         return Err(SplitError::CutHoldsGauge { gauge });
     }
-    let mut anchor: Option<Option<RecipeNodeId>> = None;
-    for &instance in &cut_instances {
-        let gauge = doc.node(instance).and_then(Node::gauge_ref);
-        match anchor {
-            None => anchor = Some(gauge),
-            Some(first) if first == gauge => {}
-            Some(first) => {
-                return Err(SplitError::TwoAnchors {
-                    instance,
-                    first,
-                    second: gauge,
-                });
-            }
-        }
-    }
-    let anchor = anchor.flatten();
     // The cut groups, each with its root and why it is unplaced.
     let cut_groups: Vec<(
         &Vec<RecipeNodeId>,
@@ -2024,14 +2083,46 @@ pub fn split(
             });
         }
     }
-    // Unplaced material alone: every node the cut holds that lives in a
-    // space lives in an unplaced group's own.
     let spaces = crate::mate::solve::spaces_with(doc, |instance| {
         cut_groups
             .iter()
             .find(|(members, _, _)| members.contains(&instance))
             .and_then(|&(_, root, cause)| Some((root, cause?)))
     });
+    // The anchor vote (A4): every reference leaving the cut votes. A
+    // cut instance votes its gauge, unless its group is unplaced for
+    // lack of a root, which casts no vote; a cut root that is no
+    // instance and lives in the world holds geometry in the world's
+    // coordinates, and votes for the world. They must agree.
+    let mut anchor: Option<Option<RecipeNodeId>> = None;
+    for &node in doc.order().iter().filter(|id| cut.contains(id)) {
+        let vote = match doc.node(node) {
+            Some(Node::InstantiatePart { gauge, .. }) => {
+                if matches!(spaces.space.get(&node), Some(Some(_))) {
+                    continue;
+                }
+                *gauge
+            }
+            Some(_) if doc.roots().contains(&node) && spaces.space.get(&node) == Some(&None) => {
+                None
+            }
+            _ => continue,
+        };
+        match anchor {
+            None => anchor = Some(vote),
+            Some(first) if first == vote => {}
+            Some(first) => {
+                return Err(SplitError::TwoAnchors {
+                    node,
+                    first,
+                    second: vote,
+                });
+            }
+        }
+    }
+    let anchor = anchor.flatten();
+    // Unplaced material alone: every node the cut holds that lives in a
+    // space lives in an unplaced group's own.
     let mut in_world = false;
     let mut first_own = None;
     for &id in cut {
@@ -2133,12 +2224,14 @@ pub fn split(
     // referenced by BOTH sides → refused (no silent sharing). The
     // remainder keeps its table either way — the edit vocabulary has
     // no parameter-removal arm, and an unreferenced parameter is legal
-    // document state.
+    // document state. A hoisted root's offset is the instance's, so its
+    // parameters stay in the host (A4): they count as kept.
+    let hoisted_root = hoisted.map(|(_, root)| root);
     let mut cut_refs: BTreeMap<crate::doc::ParamName, RecipeNodeId> = BTreeMap::new();
     let mut kept_refs: BTreeMap<crate::doc::ParamName, RecipeNodeId> = BTreeMap::new();
     for &id in doc.order() {
         let Some(node) = doc.node(id) else { continue };
-        let into = if cut.contains(&id) {
+        let into = if cut.contains(&id) && hoisted_root != Some(id) {
             &mut cut_refs
         } else {
             &mut kept_refs
@@ -2597,7 +2690,31 @@ pub fn inline(
     };
     let offset = match crate::mate::solve::root_and_cause(doc, group) {
         (_, Some(cause)) => return Err(InlineError::Unplaced { instance, cause }),
-        (root, None) if root != instance => return Err(InlineError::MatePlaced { instance }),
+        (root, None) if root != instance => {
+            let mates = doc
+                .order()
+                .iter()
+                .copied()
+                .filter(|&mate| {
+                    let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
+                        return false;
+                    };
+                    let (Some(x), Some(y)) = (
+                        crate::mate::member_of(doc, a),
+                        crate::mate::member_of(doc, b),
+                    ) else {
+                        return false;
+                    };
+                    (x.instance == instance || y.instance == instance)
+                        && crate::mate::places(doc, x.instance, y.instance)
+                })
+                .collect();
+            return Err(InlineError::MatePlaced {
+                instance,
+                root,
+                mates,
+            });
+        }
         (_, None) => match node {
             Node::InstantiatePart {
                 offset: Some(offset),
