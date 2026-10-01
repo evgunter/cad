@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: SsiError's trace escalation ends in the coincidence menu, and two certificate arms carry no ending, where the SSI doors take no declaration
 status: open
 opened: 2026-10-01
+priority: P1
+cost: M
 ---
 
 
