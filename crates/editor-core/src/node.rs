@@ -1568,8 +1568,8 @@ pub enum InputFault {
 }
 
 /// [`InputFault::Duplicate`]'s sentence, with `input` spoken as the
-/// door that renders it can: the edit door from its document, the load
-/// door by its tag.
+/// sentence's maker can: the edit and load doors from the document they
+/// judge, [`InputFault`]'s own `Display` by its tag.
 pub(crate) fn duplicate_input(
     f: &mut core::fmt::Formatter<'_>,
     input: &crate::SpokenNode,
@@ -1604,6 +1604,71 @@ impl core::fmt::Display for InputFault {
                 at + 1
             ),
         }
+    }
+}
+
+/// **An [`InputFault`] whose subject is the node's own list or
+/// designation** — every arm but `Duplicate`, whose subject is another
+/// node. A refusal that speaks that node from its document names a
+/// duplicate apart and holds the rest as this, so it cannot hold an
+/// input it would say only by its tag. Each arm is
+/// [`InputFault`]'s namesake, and so is the sentence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListFault {
+    /// [`InputFault::TooFew`].
+    TooFew {
+        /// How many entries it has.
+        found: usize,
+    },
+    /// [`InputFault::RepeatedDesignation`].
+    RepeatedDesignation {
+        /// The position of the entry's first occurrence.
+        first: usize,
+        /// The position at which it is named again.
+        again: usize,
+    },
+    /// [`InputFault::SelectionNotCanonical`].
+    SelectionNotCanonical {
+        /// The entry that does not sort strictly before its successor.
+        at: usize,
+    },
+}
+
+impl InputFault {
+    /// This fault as a [`ListFault`], or the input a `Duplicate`
+    /// reaches twice.
+    ///
+    /// # Errors
+    ///
+    /// The repeated input, for [`InputFault::Duplicate`].
+    pub fn list_fault(self) -> Result<ListFault, RecipeNodeId> {
+        match self {
+            Self::Duplicate { input } => Err(input),
+            Self::TooFew { found } => Ok(ListFault::TooFew { found }),
+            Self::RepeatedDesignation { first, again } => {
+                Ok(ListFault::RepeatedDesignation { first, again })
+            }
+            Self::SelectionNotCanonical { at } => Ok(ListFault::SelectionNotCanonical { at }),
+        }
+    }
+}
+
+impl From<ListFault> for InputFault {
+    fn from(fault: ListFault) -> Self {
+        match fault {
+            ListFault::TooFew { found } => Self::TooFew { found },
+            ListFault::RepeatedDesignation { first, again } => {
+                Self::RepeatedDesignation { first, again }
+            }
+            ListFault::SelectionNotCanonical { at } => Self::SelectionNotCanonical { at },
+        }
+    }
+}
+
+// [`InputFault`]'s prose, forwarded rather than restated.
+impl core::fmt::Display for ListFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", InputFault::from(*self))
     }
 }
 

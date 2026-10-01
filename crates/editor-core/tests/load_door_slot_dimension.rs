@@ -120,7 +120,7 @@ fn a_retyped_extrude_distance_is_refused_at_both_doors() {
             expected,
             found,
         })) => {
-            assert_eq!((node, slot), (extrude, SlotId::Distance));
+            assert_eq!((node.id(), slot), (extrude, SlotId::Distance));
             assert_eq!((expected, found), (Dimension::Length, Dimension::Angle));
         }
         other => panic!("the load door must refuse an angle distance, got {other:?}"),
@@ -170,7 +170,7 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
             expected,
             found,
         })) => {
-            assert_eq!((node, refused), (frame, slot));
+            assert_eq!((node.id(), refused), (frame, slot));
             assert_eq!((expected, found), (Dimension::Length, Dimension::Angle));
         }
         other => panic!("the load door must refuse an angle origin, got {other:?}"),
@@ -252,7 +252,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
             slot,
             name: n,
         })) => {
-            assert_eq!((node, slot, n), (extrude, SlotId::Distance, name));
+            assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name));
         }
         other => panic!("the load door must refuse an undeclared parameter, got {other:?}"),
     }
@@ -314,7 +314,7 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
             declared,
             referenced,
         })) => {
-            assert_eq!((node, slot, n), (extrude, SlotId::Distance, name));
+            assert_eq!((node.id(), slot, n), (extrude, SlotId::Distance, name));
             assert_eq!(
                 (declared, referenced),
                 (Dimension::Angle, Dimension::Length)
