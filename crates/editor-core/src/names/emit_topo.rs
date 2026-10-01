@@ -177,6 +177,44 @@ fn chase_edge_to_table<T: Decide>(
     Ok(body.split_root(e, |k| table.name_of(&ent(0, EntityKey::Edge(k))).is_some())?)
 }
 
+/// [`chase_edge_to_table`] over a split's two halves. The halves are
+/// carved from one scratch arena, so a key resolves in whichever half
+/// kept the entity and only there (`SplitNaming`), and so does its
+/// `SplitEdge` record: each hop reads the record from the half holding
+/// that key. An operand edge the plane crosses twice has its middle
+/// piece on one side and the outer two on the other, so an outer
+/// piece's lineage can run through a key its own half does not hold.
+///
+/// # Errors
+///
+/// [`NamingError::SplitLineage`] on a cycling lineage; the halves'
+/// records are restrictions of one acyclic record set, so their union
+/// is acyclic by the same writer-access argument.
+fn chase_split_edge_to_table<T: Decide>(
+    sides: &[Side<'_, T>],
+    table: &NameTable,
+    e: EdgeKey,
+) -> Result<EdgeKey, NamingError> {
+    let bound: usize = sides.iter().map(|s| s.body.edges().count()).sum();
+    let mut root = e;
+    for _ in 0..=bound {
+        if table.name_of(&ent(0, EntityKey::Edge(root))).is_some() {
+            return Ok(root);
+        }
+        let mut held = sides.iter().filter_map(|s| s.body.edge_provenance_of(root));
+        let record = held.next();
+        debug_assert!(
+            held.all(|other| Some(other) == record),
+            "split halves disagree on edge {root:?}'s birth record"
+        );
+        match record {
+            Some(Provenance::SplitEdge { edge }) => root = *edge,
+            _ => return Ok(root),
+        }
+    }
+    Err(topo::SplitLineageCycle { edge: e }.into())
+}
+
 /// Names both sides of a split (spec D2's split vocabulary + N2).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn name_split<T: Decide>(
@@ -394,7 +432,7 @@ fn name_split_edges_vertices<T: Decide>(
                         Some(Provenance::SplitEdge { .. })
                     )
                 {
-                    divided_edges.insert(chase_edge_to_table(sb.body, target_table, e)?);
+                    divided_edges.insert(chase_split_edge_to_table(sides, target_table, e)?);
                 }
             }
         }
@@ -402,7 +440,7 @@ fn name_split_edges_vertices<T: Decide>(
             if chord_faces.contains_key(&e) {
                 continue;
             }
-            let root = chase_edge_to_table(body, target_table, e)?;
+            let root = chase_split_edge_to_table(sides, target_table, e)?;
             if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_some()
                 && !divided_edges.contains(&root)
             {
@@ -459,7 +497,7 @@ fn name_split_edges_vertices<T: Decide>(
                 .iter()
                 .find_map(|sb| match sb.body.vertex_provenance_of(src) {
                     Some(Provenance::SplitEdge { edge }) => {
-                        Some(chase_edge_to_table(sb.body, target_table, *edge))
+                        Some(chase_split_edge_to_table(sides, target_table, *edge))
                     }
                     _ => None,
                 })
@@ -764,8 +802,13 @@ pub(crate) fn name_boolean<T: Decide>(
     // descend from it too, so they are members of its group
     // (`names::groups`).
     let mut merged_into: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
-    // Merged face → its name, the parent a `Borders` wall cites.
+    // Merged face → its parent's name, the one a `Borders` wall cites.
     let mut merged_names: BTreeMap<FaceKey, StableName> = BTreeMap::new();
+    // The merged parents in the order the merges first list them, each
+    // keyed by the operand faces its merges list: a parent is a set of
+    // entities, never a name, so tied parents spelled alike stay apart.
+    let mut merged_parents: Vec<MergedParent> = Vec::new();
+    let mut parent_at: BTreeMap<BTreeSet<OpSide<FaceKey>>, usize> = BTreeMap::new();
     for (kept, absorbed) in &naming.merge_groups {
         if body.get_face(*kept).is_none() {
             return Err(bug("merge kept face not live"));
@@ -806,29 +849,27 @@ pub(crate) fn name_boolean<T: Decide>(
         }
         let parents: BTreeSet<OpSide<FaceKey>> = descents.iter().copied().collect();
         merged_descents.insert(*kept, descents);
-        // The constituent SET is the name (review R8), so the
-        // canonical form sorts and deduplicates it: two merge groups
-        // with one set collide LOUDLY at insert (`DuplicateName` →
-        // typed `NamingError`; pinned by
-        // `merged_same_constituent_groups_collide_loudly`). With the
-        // set flat, two groups collide whenever they list the same
-        // faces — a merge over a merged face and a merge over that
-        // face's constituents are ONE set, where nesting once kept
-        // them apart — and a per-group discriminator is what would
-        // upgrade the refusal to a success if that class ever matters.
-        for d in parents {
+        for &d in &parents {
             merged_into.entry(d).or_default().push(*kept);
         }
         let merged =
             canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
         merged_names.insert(*kept, merged.clone());
-        put(
-            &mut t,
-            &mut tie,
-            from_tie,
-            merged,
-            ent(0, EntityKey::Face(*kept)),
-        )?;
+        // Two merges that list the same operand faces hold one parent
+        // between them (N2: a parent is a set of entities), so the
+        // faces it is held as are named together below.
+        let at = *parent_at.entry(parents.clone()).or_insert_with(|| {
+            merged_parents.push(MergedParent {
+                name: merged,
+                faces: Vec::new(),
+                parents,
+                from_tie: false,
+            });
+            merged_parents.len() - 1
+        });
+        let held = &mut merged_parents[at];
+        held.faces.push(*kept);
+        held.from_tie |= from_tie;
         handled.insert(*kept);
     }
     let mut groups: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
@@ -859,17 +900,66 @@ pub(crate) fn name_boolean<T: Decide>(
         }
         Ok((*operand_face_name(descend_face(g)?)?.name).clone())
     };
-    for (d, members) in groups {
-        let root_name = operand_face_name(d)?;
+    // Every face that holds part of operand face `d`: its unmerged
+    // pieces, then the merged faces that list it.
+    let held_by = |d: &OpSide<FaceKey>| -> Vec<FaceKey> {
+        groups
+            .get(d)
+            .into_iter()
+            .chain(merged_into.get(d))
+            .flatten()
+            .copied()
+            .collect()
+    };
+    for held in merged_parents {
+        let name = held.name;
+        rec.record(
+            &name,
+            held.faces
+                .iter()
+                .map(|&f| ent(0, EntityKey::Face(f)))
+                .collect(),
+            Parent::Elsewhere,
+        );
+        if let [one] = held.faces[..] {
+            put(
+                &mut t,
+                &mut tie,
+                held.from_tie,
+                name,
+                ent(0, EntityKey::Face(one)),
+            )?;
+            continue;
+        }
+        let others: Vec<FaceKey> = held
+            .parents
+            .iter()
+            .flat_map(&held_by)
+            .filter(|f| !held.faces.contains(f))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        name_parent_faces(
+            &mut t,
+            &mut tie,
+            held.from_tie,
+            name,
+            &held.faces,
+            &others,
+            (&obstacles, body, &held.parents),
+            &wall,
+        )?;
+    }
+    for (d, members) in &groups {
+        let root_name = operand_face_name(*d)?;
         let from_tie = root_name.tied;
         let base = name1(EntityKind::Face, node, d.wrap(root_name.name));
-        let in_merged = merged_into.remove(&d).unwrap_or_default();
+        let in_merged = merged_into.get(d).map_or(&[][..], Vec::as_slice);
         rec.record(
             &base,
-            members
-                .iter()
-                .chain(&in_merged)
-                .map(|&f| ent(0, EntityKey::Face(f)))
+            held_by(d)
+                .into_iter()
+                .map(|f| ent(0, EntityKey::Face(f)))
                 .collect(),
             d.map(EntityKey::Face).parent(),
         );
@@ -878,9 +968,9 @@ pub(crate) fn name_boolean<T: Decide>(
             &mut tie,
             from_tie,
             base,
-            &members,
-            &in_merged,
-            (&obstacles, body, &BTreeSet::from([d])),
+            members,
+            in_merged,
+            (&obstacles, body, &BTreeSet::from([*d])),
             &wall,
         )?;
     }
@@ -924,13 +1014,26 @@ pub(crate) fn name_boolean<T: Decide>(
     Ok(Emitted::new(t, rec))
 }
 
+/// A merged parent in a pair boolean: its `Merged` name, the faces it
+/// is held as, the operand faces its merges list, and whether any of
+/// those is tied.
+struct MergedParent {
+    name: StableName,
+    faces: Vec<FaceKey>,
+    parents: BTreeSet<OpSide<FaceKey>>,
+    from_tie: bool,
+}
+
 /// Names the faces one parent is held as (N2/N3): a lone face whose
 /// parent no merge shares is the parent, `base`; otherwise each of
 /// `pieces` is `base` + `Fragment(Borders)` over the divider walls
-/// [`Obstacles::split`] finds, reading `merged` as the parent's faces a
-/// merge holds, and the pieces one set does not tell apart are the tie.
-/// A merge lists the parent as a constituent, so with any `merged` the
-/// bare `base` has retired and no piece takes it. The pair boolean and
+/// [`Obstacles::split`] finds, reading `merged` as the parent's other
+/// faces — ones that hold part of its region but are named apart from
+/// `pieces`, such as a merge that lists it beside other faces, or an
+/// operand face's unmerged piece beside a merged parent's faces — and
+/// the pieces one set does not tell apart are the tie. With any
+/// `merged` the bare `base` does not name the whole parent, so no
+/// piece takes it. The pair boolean and
 /// the union's end pass both name their parents here.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn name_parent_faces<T: geom_core::Real, K: Ord + Clone>(
@@ -2517,12 +2620,13 @@ mod tests {
         );
     }
 
-    /// Review R8 (resolved M4 PR 5): two merge groups with the SAME
-    /// constituent set — kept faces that are fragments of one operand
-    /// face, each absorbing a fragment of one partner — refuse
-    /// LOUDLY (typed `NamingError`), never a silent alias.
+    /// Two merge groups listing the same operand faces — kept faces
+    /// that are fragments of one operand face, each absorbing a
+    /// fragment of one partner — hold one parent, and with no recorded
+    /// discard between them nothing tells the two apart: the Borders
+    /// rule refuses, never a silent alias.
     #[test]
-    fn merged_same_constituent_groups_collide_loudly() {
+    fn two_holders_of_one_merged_parent_with_nothing_between_them_refuse() {
         let built = unit_cube();
         let ext_node = RecipeNodeId(1);
         let a_table = name_extrude(
@@ -2577,14 +2681,96 @@ mod tests {
             &b,
             Tol::witness(),
         )
-        .expect_err("same-constituent merge groups must refuse loudly");
+        .expect_err("two faces of one merged parent with no divider between them refuse");
         assert!(
             matches!(
-                &err,
-                NamingError::Duplicate { name }
-                    if matches!(name.path.as_slice(), [RoleSeg::Merged(_)])
+                err,
+                NamingError::Emission {
+                    what: "a piece of a face held as several borders no recorded discard between them"
+                }
             ),
-            "{err:?}"
+            "the Borders rule reads the two merges as one parent: {err:?}"
+        );
+    }
+
+    /// **Tied parents spelled alike stay two parents.** The operand's
+    /// top and bottom are one tied name, and each is its own
+    /// single-face merge: the two merges are spelled alike but list
+    /// different entities, so each is a parent held as one face and the
+    /// row is the tie of both, candidates in merge order.
+    #[test]
+    fn two_merges_of_tied_faces_publish_one_tied_merged_row() {
+        let built = unit_cube();
+        let ext_node = RecipeNodeId(1);
+        let own = name_extrude(
+            ext_node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
+        let caps = [built.top, built.bottom];
+        let is_cap = |e: &Entry| matches!(e, Entry::Unique(r) if matches!(r.key, EntityKey::Face(f) if caps.contains(&f)));
+        let tied_name = own
+            .iter()
+            .find(|(_, e)| is_cap(e))
+            .map(|(n, _)| n.clone())
+            .unwrap();
+        let mut a_table = NameTable::new();
+        for (name, entry) in own.iter().filter(|(_, e)| !is_cap(e)) {
+            match entry {
+                Entry::Unique(e) => a_table.insert(name.clone(), *e).unwrap(),
+                Entry::Tied(es) => a_table.insert_tied(name.clone(), es.clone()).unwrap(),
+            }
+        }
+        a_table
+            .insert_tied(
+                tied_name,
+                caps.iter().map(|&f| ent(0, EntityKey::Face(f))).collect(),
+            )
+            .unwrap();
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Absent,
+            merge_groups: vec![(built.top, vec![]), (built.bottom, vec![])],
+            ..topo::BooleanNaming::default()
+        };
+        let empty = NameTable::new();
+        let a = OperandCtx {
+            node: ext_node,
+            table: &a_table,
+            body: &built.body,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId(2),
+            table: &empty,
+            body: &built.body,
+        };
+        let out = name_boolean(
+            RecipeNodeId(9),
+            &built.body,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .expect("two tied single-face merges name as one tied row");
+        let merged: Vec<_> = out
+            .table
+            .iter()
+            .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .collect();
+        assert_eq!(merged.len(), 1, "one merged row: {merged:?}");
+        let (name, entry) = merged[0];
+        assert_eq!(name.path.len(), 1, "the row carries no qualifier: {name:?}");
+        let Entry::Tied(es) = entry else {
+            panic!("the merged row is not the tie: {entry:?}");
+        };
+        assert_eq!(
+            es.iter().map(|e| e.key).collect::<Vec<_>>(),
+            caps.iter().map(|&f| EntityKey::Face(f)).collect::<Vec<_>>(),
+            "the tie's candidates are the two caps, in merge order"
         );
     }
 
@@ -2944,5 +3130,104 @@ mod split_carries_candidates {
                 "{what}: a carried candidate lost its number: {rows:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod split_edge_lineage {
+    //! **A split's edge chase crosses halves.** The clipped cylinder
+    //! (`test_support::clipped_cylinder`) crosses its start rim arc
+    //! twice: the arc's middle piece lies Above and its outer two
+    //! Below, and one Below piece's `SplitEdge` record names the middle
+    //! piece's key, which only the Above half holds.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{Side, chase_edge_to_table, chase_split_edge_to_table};
+    use crate::eval::{CancelToken, DatumValue, EvalOptions, ValuePayload, evaluate};
+    use crate::names::role::SplitHalf;
+    use crate::names::table::{EntityKey, EntityRef};
+    use crate::test_support::clipped_cylinder;
+    use geom_core::Tol;
+    use topo::{Provenance, SplitPlane};
+
+    #[test]
+    fn a_twice_crossed_rim_arcs_pieces_chase_to_the_rim_across_halves() {
+        let (doc, [ext, tool, _]) = clipped_cylinder(Tol::witness());
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let value = ev.value(ext).expect("the extrude evaluates");
+        let ValuePayload::Body(body) = &value.payload else {
+            panic!("the extrude is one body");
+        };
+        // The plane the split verb reads off the same datum.
+        let Some(ValuePayload::Datum(DatumValue::Plane { origin, normal })) =
+            ev.value(tool).map(|v| &v.payload)
+        else {
+            panic!("the tool is a plane datum");
+        };
+        let table = &value.name_table;
+        let out = topo::split(
+            body,
+            &SplitPlane {
+                origin: *origin,
+                normal: normal.get(),
+            },
+            Tol::witness(),
+        )
+        .expect("the plane splits the cylinder");
+        let sides: Vec<Side<'_, f64>> = [
+            (SplitHalf::Above, out.above.body()),
+            (SplitHalf::Below, out.below.body()),
+        ]
+        .into_iter()
+        .map(|(half, body)| Side {
+            body: body.expect("material on both sides"),
+            ix: half.output_body(),
+            half,
+        })
+        .collect();
+        let named = |k| {
+            table
+                .name_of(&EntityRef {
+                    body: 0,
+                    key: EntityKey::Edge(k),
+                })
+                .is_some()
+        };
+        let mut fresh = 0;
+        let mut lost_within_its_half = 0;
+        for s in &sides {
+            for (e, _) in s.body.edges() {
+                if named(e)
+                    || !matches!(
+                        s.body.edge_provenance_of(e),
+                        Some(Provenance::SplitEdge { .. })
+                    )
+                {
+                    continue;
+                }
+                fresh += 1;
+                let root = chase_split_edge_to_table(&sides, table, e).expect("acyclic");
+                assert!(
+                    named(root),
+                    "{:?} edge {e:?} chases to {root:?}, which the extrude never named",
+                    s.half
+                );
+                let within = chase_edge_to_table(s.body, table, e).expect("acyclic");
+                if !named(within) {
+                    lost_within_its_half += 1;
+                }
+            }
+        }
+        assert!(fresh >= 2, "the premise, fresh split pieces: {fresh}");
+        assert!(
+            lost_within_its_half >= 1,
+            "the premise, a piece whose lineage leaves its own half"
+        );
     }
 }

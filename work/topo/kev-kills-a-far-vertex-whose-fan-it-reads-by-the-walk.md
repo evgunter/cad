@@ -2,11 +2,14 @@
 id: kev-kills-a-far-vertex-whose-fan-it-reads-by-the-walk
 kind: issue
 title: kev removes its far vertex on the strength of its orbit walk: a half-edge the walk never reached keeps a start naming the dead vertex through Ok
-status: open
+status: closed
+pr: 3570
+branch: topo/kill-proves-removals
 opened: 2026-09-30
 refs: [kef-and-mekr-kill-a-loop-whose-members-they-read-by-the-walk, kef-and-kev-take-a-mate-whose-own-edge-is-another]
 priority: P3
 cost: E
+closed: 2026-09-30
 ---
 
 ## What

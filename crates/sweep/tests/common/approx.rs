@@ -254,8 +254,9 @@ pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
         band(),
     )
     .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
+    // Lifts both refusals: the Approx chart goes on first; the edges are re-described on it after.
     let surface = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             face,
             FaceSurface::New {
                 surface: approx,
@@ -431,8 +432,9 @@ pub fn try_approx_walls(
             let kv = a.fit().knots_v().knots();
             fit_interior_v = kv[FIT_DEGREE + 1..kv.len() - (FIT_DEGREE + 1)].to_vec();
         }
+        // Lifts both refusals: the Approx chart goes on first; the edges are re-described on it after.
         let new = body
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 face,
                 FaceSurface::New {
                     surface: approx,

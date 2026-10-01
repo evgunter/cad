@@ -34,7 +34,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::EulerCounts;
-use crate::fixtures::assert_err_deep_unchanged;
+use crate::fixtures::{assert_err_deep_unchanged, deep_snapshot};
 use crate::readback::euler_counts;
 use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 use crate::{
@@ -48,63 +48,6 @@ use geom_core::Tol;
 // ---------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------
-
-/// Deep public-API snapshot (keys + payloads + provenance, all arenas).
-fn snapshot(body: &Body<f64>) -> Vec<String> {
-    let mut lines = Vec::new();
-    for (k, e) in body.solids() {
-        lines.push(format!(
-            "{k:?}:{e:?}:{:?}",
-            body.provenance(EntityId::Solid(k))
-        ));
-    }
-    for (k, e) in body.shells() {
-        lines.push(format!(
-            "{k:?}:{e:?}:{:?}",
-            body.provenance(EntityId::Shell(k))
-        ));
-    }
-    for (k, e) in body.faces() {
-        lines.push(format!(
-            "{k:?}:{e:?}:{:?}",
-            body.provenance(EntityId::Face(k))
-        ));
-    }
-    for (k, e) in body.loops() {
-        lines.push(format!(
-            "{k:?}:{e:?}:{:?}",
-            body.provenance(EntityId::Loop(k))
-        ));
-    }
-    for (k, e) in body.half_edges() {
-        lines.push(format!(
-            "{k:?}:{e:?}:{:?}",
-            body.provenance(EntityId::HalfEdge(k))
-        ));
-    }
-    for (k, e) in body.edges() {
-        lines.push(format!(
-            "{k:?}:{e:?}:{:?}",
-            body.provenance(EntityId::Edge(k))
-        ));
-    }
-    for (k, e) in body.vertices() {
-        lines.push(format!(
-            "{k:?}:{e:?}:{:?}",
-            body.provenance(EntityId::Vertex(k))
-        ));
-    }
-    for (k, e) in body.points() {
-        lines.push(format!("{k:?}:{e:?}"));
-    }
-    for (k, e) in body.curves() {
-        lines.push(format!("{k:?}:{e:?}"));
-    }
-    for (k, e) in body.surfaces() {
-        lines.push(format!("{k:?}:{e:?}"));
-    }
-    lines
-}
 
 fn starts(body: &Body<f64>, he: HalfEdgeKey) -> Vec<VertexKey> {
     body.loop_cycle(he)
@@ -747,7 +690,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     assert_eq!((hole2.kill, hole2.plug), (h2b.kill, h2b.plug));
     assert_eq!(hole1.rim, h1b.rim);
     assert_eq!(hole2.walls, h2b.walls);
-    assert_eq!(snapshot(&body), snapshot(&body2));
+    assert_eq!(deep_snapshot(&body), deep_snapshot(&body2));
 }
 
 // ---------------------------------------------------------------------
@@ -1676,10 +1619,10 @@ fn kemr_error_paths_are_atomic() {
     body.get_half_edge_mut(strut.he_plus).unwrap().next = split.he_minus;
     let _ = seed;
     let t0 = std::time::Instant::now();
-    let before = snapshot(&body);
+    let before = deep_snapshot(&body);
     let err = body.kemr(strut.he_plus, strut.he_minus).unwrap_err();
     assert!(matches!(err, EulerOpError::LoopCycleBroken { .. }));
-    assert_eq!(snapshot(&body), before);
+    assert_eq!(deep_snapshot(&body), before);
     assert!(
         t0.elapsed() < std::time::Duration::from_secs(5),
         "bounded walk must terminate promptly"
@@ -2003,9 +1946,9 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     );
     // ring_move to its own face: documented Ok(()) no-op, deeply
     // unchanged.
-    let before = snapshot(&body);
+    let before = deep_snapshot(&body);
     assert_eq!(body.ring_move(ring, split.face), Ok(()));
-    assert_eq!(snapshot(&body), before);
+    assert_eq!(deep_snapshot(&body), before);
 }
 
 // ---------------------------------------------------------------------
@@ -2094,7 +2037,7 @@ fn failing_ring_ops_leave_lineage_pure() {
                 tol,
             )
             .unwrap();
-        let mut lines = snapshot(&body);
+        let mut lines = deep_snapshot(&body);
         lines.push(format!("{post:?}"));
         lines.push(format!("{:?} {:?}", hole.kill, hole.plug));
         (body, lines)

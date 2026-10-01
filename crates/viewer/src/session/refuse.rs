@@ -676,6 +676,17 @@ impl Refusal {
         format!("declare {what} and commit the boolean?")
     }
 
+    /// The accept-offer question, and its one home — shown under an
+    /// instance row whose pin no longer holds. It names the part by
+    /// its file, as the row does, and says the accept reaches every
+    /// instance of it.
+    pub fn version_question(offer: &VersionOffer) -> String {
+        format!(
+            "accept the updated version of {}, at every instance of it?",
+            offer.part
+        )
+    }
+
     /// **One pair an offer declares, as the panel names it**: each
     /// side's operand through the chrome's one spelling of a node, and
     /// the class the declaration asserts. The face within each operand
@@ -934,6 +945,12 @@ pub struct DeclareOffer {
 }
 
 impl DeclareOffer {
+    /// The button that accepts the offer.
+    pub const ACCEPT_LABEL: &str = "Declare";
+
+    /// The button that drops the offer and declares nothing.
+    pub const DECLINE_LABEL: &str = "Decline";
+
     /// Every finding accepting the offer declares, in the order the
     /// refusals reported them.
     pub fn findings(&self) -> &[FlushFinding] {
@@ -964,6 +981,39 @@ impl DeclareOffer {
             b: self.b,
             declare: self.findings.clone(),
         }
+    }
+}
+
+/// **The offer an instance whose pin no longer holds makes**: accept
+/// its part's updated version ([`crate::frame::version_offer`] reads
+/// it off the instance's own failure).
+///
+/// It names the part and nothing about versions: the failure line it is
+/// drawn under already names both pins in the store's words, and the
+/// version accepted is the one on disk at the click.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VersionOffer {
+    id: DocumentId,
+    part: String,
+}
+
+impl VersionOffer {
+    /// **The button that accepts the offer**: the name the store's
+    /// recourse gives the edit (`pncad::workspace::PIN_MISMATCH_RECOURSE`,
+    /// "record the \"accept updated version\" edit"), so the sentence on
+    /// the row and the control under it name one act.
+    pub const LABEL: &str = "Accept updated version";
+
+    /// The offer for the part `id`, named by its file `part`.
+    pub(crate) fn new(id: DocumentId, part: String) -> Self {
+        Self { id, part }
+    }
+
+    /// **Accepting the offer**: every reference to the part moved onto
+    /// the store's version, one action at the session door, so one
+    /// undo.
+    pub fn accept(&self) -> SessionOp {
+        SessionOp::AcceptPartVersion { id: self.id }
     }
 }
 
@@ -1049,6 +1099,12 @@ pub enum FaceFrameFault {
         /// The carrier kind the tag read answered.
         carrier: SurfaceKind,
     },
+    /// The face resolves, but the picture does not draw it: a later
+    /// feature consumed its body, or its instance is hidden. The
+    /// viewport marks no held face it cannot see
+    /// ([`crate::marks::drawn_patch`]), and a frame is not authored on
+    /// a face nothing on screen is marking.
+    NotDrawn,
 }
 
 impl FaceFrameFault {
@@ -1062,7 +1118,7 @@ impl FaceFrameFault {
     /// they choose again. [`Self::Unresolved`] is that on its own
     /// merits: the form's pick is LATCHED (it outlives the selection,
     /// so the reader can go on clicking elsewhere), and a latched face
-    /// that no longer resolves holds the button until the reader picks
+    /// that no longer resolves withholds the button until the reader picks
     /// a face again, whatever is selected now.
     ///
     /// A seat not yet answerable is [`Tone::Advisory`]: no face picked
@@ -1072,9 +1128,10 @@ impl FaceFrameFault {
     pub fn tone(&self) -> Tone {
         match self {
             Self::NoFace | Self::NotLanded => Tone::Advisory,
-            Self::NotOneBody { .. } | Self::Unresolved { .. } | Self::NotPlanar { .. } => {
-                Tone::Actionable
-            }
+            Self::NotOneBody { .. }
+            | Self::Unresolved { .. }
+            | Self::NotPlanar { .. }
+            | Self::NotDrawn => Tone::Actionable,
         }
     }
 }
@@ -1098,6 +1155,10 @@ impl core::fmt::Display for FaceFrameFault {
                 "a sketch frame is read off a PLANAR face, and that one's carrier is a {} — \
                  the kernel's own word for it",
                 carrier.name()
+            ),
+            Self::NotDrawn => f.write_str(
+                "that face is not in the picture — a later feature consumed its body, or it is \
+                 hidden — so pick a face where it is drawn",
             ),
         }
     }
@@ -1163,6 +1224,39 @@ pub fn face_frame_seat(
         Err(error) => Err(FaceFrameFault::Unresolved {
             error: crate::tree::interrogation_as_drawn(error, ev),
         }),
+    }
+}
+
+/// **[`face_frame_seat`], asked of the picture on screen too**: the
+/// seat the add-datum form's button commits, refusing
+/// [`FaceFrameFault::NotDrawn`] for a face that resolves but that the
+/// picture does not draw.
+///
+/// "Drawn" is [`crate::marks::drawn_patch`]'s answer — the one the
+/// held mark lights — so the button and the mark cannot disagree about
+/// a face while there is a picture to ask. With no index for the
+/// picture on screen (`on_screen` is `None`) there is nothing to ask,
+/// and the evaluation's answer stands: the button is let through
+/// rather than withheld while the picture has no index — the same
+/// window in which the selection's own marks light nothing.
+///
+/// # Errors
+///
+/// Every [`face_frame_seat`] refusal first, so a face that is gone is
+/// said as gone; then [`FaceFrameFault::NotDrawn`].
+pub fn face_frame_seat_drawn(
+    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+    picked: Option<&FaceSelection>,
+    on_screen: Option<(&crate::pickindex::PickIndex, &crate::display::DisplayView)>,
+) -> Result<(RecipeNodeId, StableName), FaceFrameFault> {
+    let seat = face_frame_seat(landed, picked)?;
+    match (picked, on_screen) {
+        (Some(face), Some((index, display)))
+            if crate::marks::drawn_patch(index, display, face).is_none() =>
+        {
+            Err(FaceFrameFault::NotDrawn)
+        }
+        _ => Ok(seat),
     }
 }
 
@@ -1302,5 +1396,23 @@ mod refused_boolean {
                 "a one-operand pair is left to the node's own row"
             );
         });
+    }
+}
+
+#[cfg(test)]
+mod version_offer {
+    use super::VersionOffer;
+    use pncad::workspace::PIN_MISMATCH_RECOURSE;
+
+    /// **The accept button and the store's recourse name one act**: the
+    /// label is the edit's name the recourse quotes. Red if either is
+    /// re-worded without the other.
+    #[test]
+    fn the_accept_button_is_the_edit_the_pin_mismatch_recourse_quotes() {
+        let quoted = format!("\"{}\"", VersionOffer::LABEL.to_lowercase());
+        assert!(
+            PIN_MISMATCH_RECOURSE.contains(&quoted),
+            "{quoted} in: {PIN_MISMATCH_RECOURSE}"
+        );
     }
 }

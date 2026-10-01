@@ -2,10 +2,13 @@
 id: loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide
 kind: issue
 title: kfmrh, mfkrh, ring_move, mef's run and kef drop a moved loop's rows onto a minted analytic face where the Decide mint-site walk could now re-mint that face
-status: open
+status: closed
 opened: 2026-09-24
 priority: P2
-cost: D
+cost: M
+pr: 3531
+branch: topo/reparent-remint
+closed: 2026-09-30
 ---
 
 
@@ -37,3 +40,20 @@ the drop. What it would change: the two `leaves_it_incomplete` rows go
 complete, and the loud-to-silent trade
 (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`)
 shrinks to the spline charts.
+
+## Built (2026-09-30, PR 3531)
+
+Where a door moves a loop or run onto a face that was complete on an
+analytic chart and the moved rows do not stand there, a re-mint is
+owed (`Body::plan_moved_rows`, `crates/topo/src/euler_ring.rs`): the
+moved loop is a rewired loop of the destination's `SiteFace`, walked
+in its chart, with the same predicate (`StoredRows::remints`) read on
+the destination as found. The kill family stays keys-only (PR 2527's
+`kev` ruling, `kevs-fan-merge-needs-a-re-describing-kill-door`
+`## Ruled`): `kef`, `kfmrh`, `ring_move` and `mfkrh` refuse
+`PcurveMint { KeysOnly }` before mutating where one is owed, and their
+band twins `kef_minting`, `kfmrh_minting`, `ring_move_minting` and
+`mfkrh_minting` take a `Tol` and re-mint. `mef`'s new face, which `mef`
+(already banded) mints itself, is minted across a chart change. A
+spline destination keeps the drop at every door. The measurement, the
+rule and the receipt are the PR body's.

@@ -64,12 +64,14 @@ fn split(text: &str) -> (String, serde_json::Value) {
 
 /// The extrude node's externally-tagged object (`{"Extrude": {...}}`).
 ///
-/// Node 2: the fixture is a sketch frame, the profile drawn on it, and
-/// the extrude over that.
+/// The fixture is a sketch frame, the profile drawn on it, and the
+/// extrude over that: the one node spelled `Extrude`.
 fn extrude_mut(v: &mut serde_json::Value) -> &mut serde_json::Map<String, serde_json::Value> {
-    v["snapshot"]["nodes"]["2"]
+    v["snapshot"]["nodes"]
         .as_object_mut()
-        .expect("node 2 is an object")
+        .and_then(|nodes| nodes.values_mut().find(|n| n.get("Extrude").is_some()))
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("the extrude is an object")
 }
 
 fn join(header: &str, v: &serde_json::Value) -> String {

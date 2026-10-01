@@ -284,6 +284,19 @@ jobs:
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: matrix.row == 'release-default'
         run: cd demos/tour && cargo nextest run --release --no-fail-fast
+      # The per-PR `eps_regression` runs `demo-tour certified` at the default
+      # ε only (#3291: minutes per run, almost never red at one ε alone), so
+      # the other two rows are re-taken here, once a day. The cells assert
+      # their captions inside the narration, so exit 0 is the check.
+      - name: the tour's certified cells at the other ε rows
+        if: matrix.row == 'release-default'
+        run: |
+          set -euo pipefail
+          cd demos/tour
+          for eps in 1e-6 1e-12; do
+            echo "== demo-tour certified at eps = $eps"
+            CAD_TOLERANCE_EPS=$eps cargo run --release -- certified
+          done
       - name: the tour die corpus is regenerable byte-for-byte
         if: matrix.row == 'release-default'
         run: |

@@ -348,6 +348,17 @@ impl Theme {
         Theme::ALL.iter().copied().find(|theme| theme.name == name)
     }
 
+    /// **The held mark** — a pick a form or tool holds while the
+    /// selection may be elsewhere (`crate::marks::Held`): the
+    /// selection's own mark, since it is a choice the user made.
+    ///
+    /// Not a field and not one of [`Theme::marks`]: the renderer tells
+    /// it from the selection by shape. Every place the held mark is
+    /// drawn reads its colour here.
+    pub fn held(&self) -> Mark {
+        self.selected
+    }
+
     /// The four marks, paired with what to call each in a refusal.
     ///
     /// Ordered, so a failure names the same pair the same way twice.

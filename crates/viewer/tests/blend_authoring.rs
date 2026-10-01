@@ -857,8 +857,9 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
 }
 
 /// **The held set marks exactly the edges it names** — the value claim
-/// (`marks`) and the per-frame path (`mark_segments`) agree, so the
-/// fast one cannot drift from the one the rest of the crate reads.
+/// (`marks`) and the per-frame path (`held_edges`, walked by
+/// `HeldEdges::mark`) agree, so the fast one cannot drift from the
+/// one the rest of the crate reads.
 #[test]
 fn a_held_set_marks_exactly_the_edges_it_names() {
     let tol = Tol::witness();
@@ -871,8 +872,7 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     assert!(
-        blend(&tools).marks().is_empty()
-            && blend(&tools).mark_segments(&index, &display).is_empty(),
+        blend(&tools).marks().is_empty() && blend(&tools).held_edges().is_none(),
         "a tool holding nothing marks nothing"
     );
 
@@ -894,7 +894,12 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
         }
     }
     assert!(!per_name.is_empty(), "five box edges draw segments");
-    assert_eq!(tool.mark_segments(&index, &display), per_name);
+    let held = tool.held_edges().expect("five edges are held");
+    assert_eq!(
+        held.mark(&index, &display),
+        (per_name, None),
+        "the same segments, and a box whose every edge is named refuses none"
+    );
 }
 
 /// **An upstream edit that strands a held edge drops it, loudly.**
