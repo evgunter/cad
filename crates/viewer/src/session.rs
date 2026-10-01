@@ -400,11 +400,6 @@ pub struct DocSession {
     /// read such values. Per person and never in
     /// the document, so no `Open` or new document resets it.
     notation: Notation,
-    /// The label of the creation being performed, for the span of one
-    /// [`SessionOp::CreateLabelled`] and nothing else: set by
-    /// [`DocSession::create_labelled`] around the creation's own
-    /// `perform`, and taken by the one run that creation commits.
-    labelling: Option<Label>,
 }
 
 /// What the session knows because of the document under it: what is
@@ -780,7 +775,6 @@ impl DocSession {
             display: DisplayState::new(),
             resolver: None,
             notation: Notation::DEFAULT,
-            labelling: None,
         };
         session.request_eval();
         session
@@ -1557,17 +1551,47 @@ impl DocSession {
 
     /// **A creation and its label as one action** ([`SessionOp::CreateLabelled`]).
     ///
-    /// The creation is performed as it would be alone, with
-    /// [`DocSession::labelling`] set for the span of that one call:
-    /// the run its edits commit through ([`Self::commit_run`]) takes
-    /// the label and ends with a `SetLabel` on the last node the run
-    /// minted, so the insert and the label land as one history state.
-    /// A creation refused before it commits leaves the label untaken,
-    /// and it is dropped here either way.
+    /// The creation is performed as it would be alone, through
+    /// whichever commit door it takes. Once it has recorded its state,
+    /// a `SetLabel` on the last node it minted is applied to that
+    /// state's document and joins that state's group
+    /// ([`History::extend_current`]), so the insert and the label are
+    /// one undo whatever door recorded the insert. A creation that
+    /// recorded nothing (refused, or declined) is answered as it is,
+    /// and its label is not applied.
     fn create_labelled(&mut self, creation: Creation, label: Label) -> OpOutcome {
-        self.labelling = Some(label);
-        let outcome = self.perform(creation.into_op());
-        self.labelling = None;
+        let before = self.history.current();
+        let mut outcome = self.perform(creation.into_op());
+        let recorded = self.history.current();
+        let Some(&node) = outcome.minted.last() else {
+            return outcome;
+        };
+        if recorded == before || outcome.refusal.is_some() {
+            return outcome;
+        }
+        let edit = DocEdit::SetLabel {
+            node,
+            label: Some(label),
+        };
+        // A label edit performs no maintenance, so its reach is never
+        // asked; the session's own is handed over for uniformity.
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
+        match apply(self.history.doc(), &edit, self.tol, &reach) {
+            Ok(applied) => {
+                self.history.extend_current(
+                    recorded,
+                    LoggedEdit {
+                        edit: edit.clone(),
+                        maintenance: applied.cluster_rows(),
+                    },
+                    applied.doc,
+                );
+                outcome.committed.push(edit);
+                self.request_eval();
+            }
+            Err(error) => outcome.refusal = Some(Refusal::Edit(Box::new(error))),
+        }
         outcome
     }
 
@@ -2921,23 +2945,10 @@ impl DocSession {
     /// The same door again, for an action whose later edits name the
     /// ids its earlier ones MINTED: [`Self::stage_run`], then
     /// [`Self::record_run`].
-    fn commit_run<F>(&mut self, mut next: F) -> OpOutcome
+    fn commit_run<F>(&mut self, next: F) -> OpOutcome
     where
         F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
     {
-        // A labelled creation's label, taken by the first run its
-        // creation commits: the run's own edits, then one `SetLabel`
-        // on the last node they minted.
-        let mut label = self.labelling.take();
-        let next = |minted: &[Option<RecipeNodeId>]| {
-            next(minted).or_else(|| {
-                let node = minted.iter().rev().find_map(|id| *id)?;
-                Some(DocEdit::SetLabel {
-                    node,
-                    label: Some(label.take()?),
-                })
-            })
-        };
         match self.stage_run(next) {
             Ok(staged) => self.record_run(staged),
             Err(refusal) => OpOutcome::refused(refusal),
@@ -3191,7 +3202,6 @@ impl core::fmt::Debug for DocSession {
             display: _,
             resolver,
             notation,
-            labelling,
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)
@@ -3207,7 +3217,6 @@ impl core::fmt::Debug for DocSession {
             )
             .field("derived", derived)
             .field("notation", notation)
-            .field("labelling", labelling)
             .finish_non_exhaustive()
     }
 }

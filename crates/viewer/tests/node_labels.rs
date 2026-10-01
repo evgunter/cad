@@ -204,3 +204,233 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_labels() {
         "a noun no label can hold proposes nothing"
     );
 }
+
+/// **`op`, labelled `text`, as one undo**: the creation commits through
+/// whatever door it takes, the action ends with a `SetLabel` on the
+/// last node it minted, the label is on that node, and ONE undo returns
+/// the document to what it was before the action. Answers that node.
+fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> RecipeNodeId {
+    let before = session.committed_doc().clone();
+    let what = format!("{op:?}");
+    let creation = Creation::of(op).unwrap_or_else(|op| panic!("{op:?} creates a node"));
+    let outcome = session.perform(SessionOp::CreateLabelled {
+        creation,
+        label: label(text),
+    });
+    assert!(outcome.refusal.is_none(), "{what}: {:?}", outcome.refusal);
+    let node = *outcome
+        .minted
+        .last()
+        .unwrap_or_else(|| panic!("{what} minted"));
+    assert!(
+        matches!(
+            outcome.committed.last(),
+            Some(DocEdit::SetLabel { node: at, label: Some(l) }) if *at == node && *l == label(text)
+        ),
+        "{what}: the action ends with the label: {:?}",
+        outcome.committed
+    );
+    assert_eq!(
+        session.committed_doc().label(node),
+        Some(&label(text)),
+        "{what}"
+    );
+    session.perform(SessionOp::Undo);
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "{what}: one undo takes the creation and its label back"
+    );
+    session.perform(SessionOp::Redo);
+    assert_eq!(
+        session.committed_doc().label(node),
+        Some(&label(text)),
+        "{what}: redo brings both back"
+    );
+    session.pump();
+    node
+}
+
+/// **Every creating op, labelled, is one undo** — whichever commit door
+/// it takes (`commit`, `commit_run`, or the boolean's own staged run).
+/// The sample set is held to `SessionOp::creates_a_node` through the
+/// gesture table's every-op roster: a creation added there and not
+/// sampled here is red.
+#[test]
+fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
+    use common::{ang, asm, len, len3, scl3};
+    use pncad::select::ContactClass;
+    use viewer::session::{DatumSpec, PartSelectSpec, PatternRuleSpec};
+
+    let tol = Tol::witness();
+    let bench = asm::bench("node-labels-every-creation", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let mut sampled = std::collections::BTreeSet::new();
+    let mut run = |session: &mut DocSession, op: SessionOp, text: &str| {
+        sampled.insert(format!("{:?}", std::mem::discriminant(&op)));
+        labelled_as_one_undo(session, op, text)
+    };
+
+    let frame = run(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+        },
+        "frame",
+    );
+    let profile = run(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: ProfilePlane::Existing(frame),
+            loops: vec![common::rectangle_loop([0.0, 0.0], 0.02, 0.02)],
+        },
+        "profile",
+    );
+    let block = run(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.02),
+        },
+        "block",
+    );
+    let axis = session_axis(&mut session, frame);
+    run(
+        &mut session,
+        SessionOp::AddRevolve {
+            profile,
+            axis,
+            angle: ang(core::f64::consts::PI),
+        },
+        "turned",
+    );
+    let moved = run(
+        &mut session,
+        SessionOp::AddTransform {
+            input: block,
+            translation: len3([0.005, 0.007, 0.003]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
+        },
+        "moved",
+    );
+    run(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: pncad::document::BooleanOp::Intersect,
+            a: block,
+            b: moved,
+            declare: Vec::new(),
+        },
+        "overlap",
+    );
+    let plane = common::session_insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: len3([0.0, 0.0, 0.01]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            },
+        },
+    );
+    run(
+        &mut session,
+        SessionOp::AddSplit {
+            target: block,
+            tool: plane,
+        },
+        "halves",
+    );
+    let row = || PatternRuleSpec::Linear {
+        direction: scl3([1.0, 0.0, 0.0]),
+        spacing: len(0.05),
+    };
+    let pattern = run(
+        &mut session,
+        SessionOp::AddPattern {
+            input: block,
+            count: 2,
+            rule: row(),
+        },
+        "row",
+    );
+    run(
+        &mut session,
+        SessionOp::AddPlacedUnion {
+            input: block,
+            count: 2,
+            rule: row(),
+        },
+        "fused row",
+    );
+    run(
+        &mut session,
+        SessionOp::AddPart {
+            of: pattern,
+            select: PartSelectSpec::Instance(1),
+        },
+        "second",
+    );
+    run(&mut session, SessionOp::Duplicate { input: block }, "copy");
+    let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
+    run(
+        &mut session,
+        SessionOp::AddFillet {
+            target: block,
+            radius: len(0.001),
+            selection: edges.clone(),
+        },
+        "rounded",
+    );
+    run(
+        &mut session,
+        SessionOp::AddChamfer {
+            target: block,
+            distance: len(0.001),
+            selection: edges,
+        },
+        "bevelled",
+    );
+    run(
+        &mut session,
+        SessionOp::AddInstance { id: bench.post.id },
+        "third post",
+    );
+    run(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Tangent,
+            asm::middle_seat_alignment(),
+        ),
+        "seat",
+    );
+
+    let dir = common::tempdir("node-labels-every-creation-roster");
+    let roster: std::collections::BTreeSet<String> =
+        crate::gesture_table::every_op(block, &dir.join("unused.pncad"))
+            .iter()
+            .filter(|op| op.creates_a_node())
+            .map(|op| format!("{:?}", std::mem::discriminant(op)))
+            .collect();
+    std::fs::remove_dir_all(&dir).expect("the roster directory is removable");
+    assert_eq!(
+        sampled, roster,
+        "every creating op is sampled, and only those"
+    );
+    std::fs::remove_dir_all(&bench.dir).expect("the bench directory is removable");
+}
+
+/// An axis written in `frame`, for the revolve sample.
+fn session_axis(session: &mut DocSession, frame: RecipeNodeId) -> RecipeNodeId {
+    common::session_insert(
+        session,
+        SessionOp::AddDatum {
+            datum: viewer::session::DatumSpec::AxisInPlane {
+                plane: frame,
+                origin: common::len2([0.03, 0.0]),
+                direction: common::scl2([0.0, 1.0]),
+            },
+        },
+    )
+}

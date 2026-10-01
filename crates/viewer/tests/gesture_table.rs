@@ -156,7 +156,7 @@ fn alignment() -> Alignment {
 /// The values are well-formed and otherwise arbitrary: a refused op
 /// never reaches its own validation, and a permitted one is asserted
 /// on WHICH refusal it gives, not on succeeding.
-fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
+pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
     let param = ParamName::from_static("thickness");
     vec![
         SessionOp::Select(Selection::Node(node)),
