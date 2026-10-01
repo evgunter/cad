@@ -150,3 +150,18 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   `join.rs` shares its candidate generation. The undecidable case
   refuses `ShellWitnessExhausted`. The fused `r4tri` orders pin their
   absent names by digest and their geometry as identical.
+- Section rings fix pass, PR 3658 at `4d3938fe4`, green. Both
+  reviewers' MAJOR was fixed by redesign rather than by a patch, so
+  each original reviewer is re-run as a delta review on the new head
+  before merge:
+  - order: the global order is exact lex again, and partners are fixed
+    per planar face along that face's own section line, refusing only
+    within one face;
+  - nesting: disjointness is decided per edge kind (new line × conic
+    and conic × conic predicates), and the hole keeps its face where it
+    is undecided;
+  - a parent tie refuses `NestingContradiction`.
+
+  Noted: a stored recipe naming SectionFace 0 on a holed section now
+  rebinds silently to the holed outline face. The delta review weighs
+  that.
