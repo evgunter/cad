@@ -82,6 +82,8 @@ mod coeffs_pair_identity;
 mod d290_r2_probes;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
+#[path = "decide_4_root_quotient_rows.rs"]
+mod decide_4_root_quotient_rows;
 #[path = "decoration_seam.rs"]
 mod decoration_seam;
 #[path = "eps_provenance.rs"]
@@ -148,8 +150,12 @@ mod spline_hull;
 mod sym11_witness_kind_interval_rows;
 #[path = "sym11_witness_kind_rows.rs"]
 mod sym11_witness_kind_rows;
+#[path = "sym_9_retry_rows.rs"]
+mod sym_9_retry_rows;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
+#[path = "sym_root_rows.rs"]
+mod sym_root_rows;
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
 #[path = "sym_rule_f_interval_rows.rs"]
@@ -179,9 +185,6 @@ mod rate_pair_doors;
 
 #[path = "cert3_evidence.rs"]
 mod cert3_evidence;
-
-#[path = "onb_signed_zero_evidence.rs"]
-mod onb_signed_zero_evidence;
 
 #[path = "m10_7_r2_sym_probes.rs"]
 mod m10_7_r2_sym_probes;

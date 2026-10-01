@@ -2,11 +2,12 @@
 id: mate-refusals-name-documents-by-hex-id
 kind: issue
 title: editor-core: MateFault::PosesOfAnotherDocument and LeverRefusal's part arms name documents by hex id in text the viewer draws
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: E
 parent: MSOLVE-11
+closed: 2026-10-01
 ---
 
 
@@ -43,3 +44,20 @@ two want doing together.
 The text names the instance (and, for the mispairing, the role of each
 document) and leaves the ids to the typed payload. Remove the two
 admissions when it lands.
+
+## Closed — the mate refusals name no document by its id (PR 3680)
+
+`PosesOfAnotherDocument` names the two documents' roles. The lever's
+and the face's refusals name the instance whose part they are about,
+and print no `DocRef` and no `FaceKey`. Both ids stay on the typed
+payload.
+
+The `Mate/PosesOfAnotherDocument` and `Mate/Unleverable` admissions
+are removed from `refusal_concision_chains.rs`'s `ADMISSIONS`. The
+four `Edit/…` admissions are removed from `refusal_concision_edits.rs`.
+
+Rows:
+
+- the two concision suites above
+- `msolve9_from_face::an_unresolvable_part_faults_in_the_resolvers_voice`,
+  which now pins that the part's id is not in the sentence

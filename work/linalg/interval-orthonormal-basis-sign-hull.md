@@ -2,12 +2,13 @@
 id: interval-orthonormal-basis-sign-hull
 kind: issue
 title: Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z encloses zero
-status: open
+status: closed
 opened: 2026-09-03
 refs: [1191, 1939]
-pr: 1939
+pr: 2468
 priority: P0
 cost: H
+closed: 2026-10-01
 ---
 
 ## What was measured
@@ -304,3 +305,30 @@ second member of the class. Two designers weighing PR 3681 converged
 on that, and on no row for a construction-derived plane zero: under
 option 1 the sign of a wall's zero no longer enters.
 
+## Closed (2026-10-01)
+
+Landed as #2468. Ev ruled option 1 on #1944. The construction is
+`|n.z| ≤ max(|n.x|, |n.y|)/2` with a conditioning floor per arm, and
+there is no sign transfer anywhere in the basis. The symbolic tier
+learned the fold through DECIDE-3 (#3039, the canonical root), so the
+tilted derived-frame row certifies with its assertion untouched.
+
+What changed at the landing, beyond the unit itself:
+- Two merges of `main` brought the branch from 2026-09-21 forward, and
+  a single FULL review covered those resolutions. It returned
+  MERGEABLE with 0 MAJOR and 0 MINOR findings.
+- SYM-12's gating row was re-aimed on the orchestrator's ruling. Its
+  claim still holds: the start cap and FlipZ read as the end cap
+  does. The mechanism it pinned does not, because the basis mints no
+  `copysign` atom. The row is now
+  `m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert`,
+  and it is planted red by a `copysign` put back into the basis.
+- Every re-blessed pin names its cause in its commit. The seat
+  digests compose main's mint-chain ids with this basis's `u_ref`, and
+  the Duff plant restores main's digests exactly.
+- M10-5's `in_plane_axis` / `chart_frame` workaround is retired.
+- MSOLVE's note above: the `Datum::FaceFrame` doc line (`crates/editor-core/src/node.rs`,
+  "What a spin of zero means") states the stored-`u_ref` convention. The
+  face-framed mate's roll joins it as a second member only if Ev takes
+  MSOLVE's `[ev]` PR 3681, so that line rides PR 3681 rather than this
+  landing.
