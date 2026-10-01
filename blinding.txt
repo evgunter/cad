@@ -1,0 +1,4 @@
+fork: graft-recertifies-through-the-narrow-lane (with work/shell/plain-transform-rigid-still-refuses-the-m7-8-class)
+dispatched: 2026-10-01
+byte: 150
+mapping: Opus=A Fable=B
