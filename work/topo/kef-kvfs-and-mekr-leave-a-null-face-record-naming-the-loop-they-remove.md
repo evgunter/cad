@@ -4,6 +4,7 @@ kind: issue
 title: kef, kvfs and mekr remove a loop a null-face record names and return Ok, leaving a tier-1-invalid body from a valid one
 status: dispatched
 branch: topo/null-face-record-dies-with-its-loops
+pr: 3618
 opened: 2026-09-30
 priority: P2
 cost: M
