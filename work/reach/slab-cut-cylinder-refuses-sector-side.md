@@ -2,12 +2,15 @@
 id: slab-cut-cylinder-refuses-sector-side
 kind: issue
 title: A slab cut through a cylinder wall refuses CurvedSectorSideUnsupported — the documented second-order recourse is wired into no lane
-status: open
+status: closed
 opened: 2026-09-01
 github: 1455
 refs: [1377, 347]
 priority: P0
 cost: H
+closed: 2026-10-01
+pr: 3627
+branch: reach/slab-cut-sector-side
 ---
 
 ## From GitHub issue 1455
@@ -96,3 +99,28 @@ checks the day the ring lane lands.
 
 Left on this row: the near-tangent residue above, which no fixture
 reaches; and the round crown in the story suite, which is #1291's.
+
+## Closed (2026-10-01, PR 3627)
+
+The sector-side charge reads the curvature at its peak, `l* = |d̂·n̂|·R/2`,
+capped at the reach. Both repros now pass the sector side and stop at
+TANG's pierce-ring door, as do the bar through a ball and a newly
+reached family of vertex-touch poses. Every body that now builds matches
+its closed form.
+
+The dual review found a WRONG ∩ body. A straight chord in a cylinder wall
+was taken as the section structurally, and ten bar-on-cylinder poses
+shipped bodies that failed `validate_geometric`. The planar-side join now
+reads a line as the section only when its midpoint lies on the wall (a
+ruling). A pin row covers that branch, and 716 bodies on the widened scan
+match an independent oracle.
+
+Residue, each in its own file:
+- the near-tangent remainder above, which no fixture reaches;
+- TANG's `pierce-ring-has-no-join-arm` (#1291), where the repros and the
+  round crown now stop;
+- HONE's `planar-side-join-takes-an-off-wall-arc-for-the-section-by-window-alone`;
+- HONE's `join-adjacency-escalation-surfaces-as-a-section-invariant`;
+- `boolean-door-passes-a-geometrically-open-result-the-backstop-cannot-see`
+  (the backstop's negativity floor, with the door's tier-3 gap);
+- `vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces`.
