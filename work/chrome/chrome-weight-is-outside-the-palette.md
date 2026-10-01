@@ -1,13 +1,14 @@
 ---
 id: chrome-weight-is-outside-the-palette
 kind: issue
-title: The tree's badge WEIGHT carries meaning no palette can tune, and no test sees any badge's colour
-status: dispatched
+title: The chrome's loud/quiet tone split sat outside the colourblind claim
+status: closed
 opened: 2026-09-04
 refs: [1769, 1463]
 priority: P4
 cost: E
 branch: chrome/tone-salience
+closed: 2026-10-01
 ---
 
 ## Question (answered by Ev, 2026-10-01)
@@ -17,11 +18,9 @@ Should the theme contract cover the chrome's loud/quiet tone split? The feature 
 Found by CHROME's style lane on PR 1769; judged a class question by the
 fix pass on that PR rather than a missing assertion in it.
 
-**Nothing in the repo sees a badge's colour or weight.** `git grep
-badge()` finds it only in tests comparing the string, so the claim the
-tree's attribution rests on — the row to act on takes the colour, a row
-showing someone else's failure draws quiet — is eyeball-only. The
-drawing is `crates/viewer/src/app.rs:2787-2805`.
+~~**Nothing in the repo sees a badge's colour or weight.**~~ Struck
+at close: stale. `pane::headless::landed_voiced` asserts badge and row
+ink, and egui's weak is a colour, not a weight.
 
 **And half of that claim is outside the palette.** `ui.weak` is an
 egui default: no theme, `colorblind-safe` included, can tune it, while
@@ -29,9 +28,10 @@ egui default: no theme, `colorblind-safe` included, can tune it, while
 The dichromacy carve-out (`crates/viewer/src/theme.rs:425-428`) exempts
 `unresolved` from the safety claim by arguing every badge using it
 carries its own words — an argument nobody has extended to a
-distinction drawn in WEIGHT instead of hue. `ui.weak` is spelled 49
-times in `app.rs` against 8 `colored_label`s, so this is the chrome's
-general habit and not one badge's slip.
+distinction drawn in WEIGHT instead of hue. ~~`ui.weak` is spelled 49
+times in `app.rs` against 8 `colored_label`s.~~ Struck at close: stale
+(see the 2026-09-15 section), and only `app::toned`'s `Advisory` arm
+carries status.
 
 Two decisions, in order:
 
@@ -128,3 +128,18 @@ The ruling is the converged recommendation:
 - Add a test in `tests/theme.rs` that holds the salience claim. It reads egui's per-polarity `Visuals` as inputs: the panel, plain text, and weak text composited over the panel.
 - Add no new fields to `Theme`.
 - Fix the dangling "ratified in `crates/viewer/README.md`" pointer in `theme.rs`'s module doc.
+
+## Closed (2026-10-01)
+
+Ev's ruling, as built on `chrome/tone-salience`:
+- `Theme::unresolved` is `Theme::actionable`. `pane::headless::landed_voiced`
+  takes the theme the draw is handed and reads `Voices::actionable` from it.
+- `theme.rs`'s carve-out above `COLORBLIND_SAFE`, `Safety::ColorblindSafe`
+  and `frame::Tone` separate meaning (the words) from salience (claimed).
+  `GUI-DESIGN.md`'s Colour (G5) says the same.
+- `tests/theme.rs`'s
+  `the_actionable_voice_is_told_from_the_panel_and_both_text_voices` holds
+  the claim. It reads egui's `Visuals` per polarity, under the app feature.
+  The closest pair is colorblind-safe actionable against plain text under
+  protanopia, at 0.0793 against a bar of 0.06.
+

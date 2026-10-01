@@ -11,10 +11,10 @@
 //! # Where a colour comes from
 //!
 //! Two sources, with the precedence between them ratified in
-//! `crates/viewer/README.md`:
+//! `crates/viewer/GUI-DESIGN.md`, *Colour (G5)*:
 //!
 //! - **The theme — a USER preference.** It supplies every semantic
-//!   mark (selection, hover, probe, focus, unresolved) and the
+//!   mark (selection, hover, probe, focus), the actionable colour and the
 //!   *default* body colour. It is never written into a document: the
 //!   same file has to be legible to a colourblind reader and to
 //!   somebody running the palette they find prettiest, on their own
@@ -216,7 +216,8 @@ pub enum Safety {
     /// No claim; nothing is asserted about this palette's marks.
     Unchecked,
     /// Claims its marks stay mutually distinguishable under
-    /// dichromatic vision, and is held to it.
+    /// dichromatic vision, and its actionable colour stays apart from
+    /// the chrome's text, and is held to both.
     ColorblindSafe,
 }
 
@@ -283,12 +284,18 @@ pub struct Theme {
     /// check does not require a hue difference precisely so that
     /// value-only separation stays a legitimate answer.
     pub focus: Mark,
-    /// An unresolved selection, a deleted feature, a FAILED badge —
-    /// everything that says "this does not denote anything". Chrome
-    /// only; it tints no geometry. (A POISONED badge is not on the
-    /// list: a row showing someone else's failure draws quiet, so the
-    /// colour stays on the row to act on.)
-    pub unresolved: Rgba8,
+    /// **The one chrome colour the palette states**, worn by whatever
+    /// a reader may need to act on: [`crate::frame::Tone::Actionable`]
+    /// — an unresolved selection, a deleted feature, a FAILED badge.
+    /// Chrome only; it tints no geometry. (A POISONED row is not
+    /// among them: a row showing someone else's failure draws quiet,
+    /// so the colour stays on the row to act on.)
+    ///
+    /// Redundant to the words, held for salience: everything wearing
+    /// it says what it means, so no meaning rests on the colour, and
+    /// what the colour carries is which row is loud. Under
+    /// [`Safety::ColorblindSafe`] that is part of the claim.
+    pub actionable: Rgba8,
     /// **Construction geometry**: the wireframe a datum plane, axis or
     /// point is drawn as (`crate::datums`).
     ///
@@ -305,7 +312,7 @@ pub struct Theme {
     /// check because that check asks whether four STATES of one
     /// surface stay apart, and a datum is told from a face by being a
     /// thin bright line across it rather than by its hue — the same
-    /// redundancy argument [`Theme::unresolved`] makes, and the reason
+    /// redundancy argument [`Theme::actionable`] makes, and the reason
     /// it is not in [`Theme::marks`] either.
     pub datum: Rgba8,
     /// **A profile the document holds**: the loops of a committed
@@ -403,7 +410,7 @@ const DARK_NEUTRAL: Theme = Theme {
         tint: Rgba8::opaque(255, 229, 173),
         strength: MixFraction::new(0.24).unwrap(),
     },
-    unresolved: Rgba8::opaque(210, 90, 70),
+    actionable: Rgba8::opaque(210, 90, 70),
     // Construction blue, well above the near-black ground.
     datum: Rgba8::opaque(122, 162, 214),
     // A mid green, away from the datum blue, the selection amber, the
@@ -457,9 +464,9 @@ const LIGHT_NEUTRAL: Theme = Theme {
     // Darker than the dark theme's red by as much as the ground
     // moved: the same hue at the same lightness on a pale panel is
     // the one chrome colour that stops being readable.
-    unresolved: Rgba8::opaque(176, 46, 28),
+    actionable: Rgba8::opaque(176, 46, 28),
     // Deeper than the dark theme's by as much as the ground moved,
-    // for `unresolved`'s reason one field up.
+    // for `actionable`'s reason one field up.
     datum: Rgba8::opaque(46, 96, 166),
     // A deep green: the dark palette's hue, dark enough to stand on
     // the pale ground.
@@ -554,10 +561,14 @@ const LIGHT_NEUTRAL: Theme = Theme {
 /// palette (0.35, the lowest strength here by half) precisely so it
 /// reads as a quiet emphasis and not as something greyed out.
 ///
-/// The `unresolved` colour is NOT part of the claim: it tints no
-/// geometry, and every badge that uses it carries its own words
-/// ("deleted", "at rest: …"), so colour is redundant there rather
-/// than load-bearing.
+/// **The actionable colour is held for salience, not for meaning.**
+/// Meaning — FAILED, POISONED, Violated, "deleted" — is carried by
+/// each badge's own words, so the colour is not part of that claim.
+/// Salience is: which row is loud is what [`crate::frame::Tone`]
+/// exists to say, so this palette promises that
+/// [`Theme::actionable`] stays apart from the chrome's plain and weak
+/// text, and from the panel behind both, under all three
+/// dichromacies.
 const COLORBLIND_SAFE: Theme = Theme {
     name: "colorblind-safe",
     polarity: Polarity::Light,
@@ -611,7 +622,7 @@ const COLORBLIND_SAFE: Theme = Theme {
     // Dark, for the reason `LIGHT_NEUTRAL`'s is: this palette's
     // chrome is pale, and a light red on a pale panel is the one
     // chrome colour that stops being readable.
-    unresolved: Rgba8::opaque(166, 54, 12),
+    actionable: Rgba8::opaque(166, 54, 12),
     // A dark teal: separated from this palette's pale ground by
     // lightness, which is the channel every dichromacy keeps.
     datum: Rgba8::opaque(0, 92, 92),

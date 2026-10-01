@@ -288,27 +288,31 @@ pub(crate) mod headless {
         /// egui's own weak text on the frame that was drawn: the
         /// `Advisory` voice.
         pub(crate) weak: egui::Color32,
-        /// [`crate::theme::Theme::DEFAULT`]'s unresolved colour: the
-        /// `Actionable` voice, for a draw handed that theme.
-        pub(crate) unresolved: egui::Color32,
+        /// The actionable colour of the theme the draw was handed: the
+        /// `Actionable` voice.
+        pub(crate) actionable: egui::Color32,
     }
 
-    /// [`landed`], and the [`Voices`] of the frame it drew.
+    /// [`landed`] of `draw` handed `theme`, and the [`Voices`] of the
+    /// frame it drew.
     ///
     /// Panics when the two voices are one colour, since then no row
     /// could tell them apart.
-    pub(crate) fn landed_voiced(draw: impl FnOnce(&mut egui::Ui)) -> (Vec<Landed>, Voices) {
+    pub(crate) fn landed_voiced(
+        theme: &crate::theme::Theme,
+        draw: impl FnOnce(&mut egui::Ui, &crate::theme::Theme),
+    ) -> (Vec<Landed>, Voices) {
         let weak = core::cell::Cell::new(egui::Color32::PLACEHOLDER);
         let painted = landed(|ui| {
             weak.set(ui.visuals().weak_text_color());
-            draw(ui);
+            draw(ui, theme);
         });
         let voices = Voices {
             weak: weak.get(),
-            unresolved: crate::app::chrome(crate::theme::Theme::DEFAULT.unresolved),
+            actionable: crate::app::chrome(theme.actionable),
         };
         assert_ne!(
-            voices.weak, voices.unresolved,
+            voices.weak, voices.actionable,
             "the two voices a tone is drawn in"
         );
         (painted, voices)

@@ -202,14 +202,13 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 /// here or nowhere. Its callers are whatever `rg 'toned\('` lists; they
 /// are not listed here, because a list is what falls behind.
 ///
-/// [`crate::theme::Theme::unresolved`]'s contract is that the colour is
-/// REDUNDANT — everything wearing it says its own words — so this
-/// decides salience and never meaning.
+/// Everything wearing [`crate::theme::Theme::actionable`] says its own
+/// words, so this decides salience and never meaning.
 pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -> egui::RichText {
     let text = egui::RichText::new(text);
     match tone {
         frame::Tone::Advisory => text.weak(),
-        frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
+        frame::Tone::Actionable => text.color(chrome(theme.actionable)),
     }
 }
 
