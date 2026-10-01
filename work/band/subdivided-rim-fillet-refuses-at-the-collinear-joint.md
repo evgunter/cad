@@ -2,10 +2,13 @@
 id: subdivided-rim-fillet-refuses-at-the-collinear-joint
 kind: issue
 title: blend: a rim subdivided by a declared continuation is a two-link chain the fillet refuses as unbuilt junction carry-through, merged or not
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
+closed: 2026-10-01
+pr: 3701
+branch: band/collinear-joint-chain
 ---
 
 
