@@ -5310,3 +5310,40 @@ false recourse.
 
 The fix pass is out on the walk target. It merges after CI and an
 orchestrator read.
+
+## PR 3618 reviewed: APPROVE-WITH-FIXES; fix pass dispatched (2026-10-01)
+
+The single full review ran on the frozen head `ccb0886a04`: 0 MAJOR,
+3 MINOR, 4 NOTE.
+
+**Everything executed held:**
+- **Re-homes:** 1,477 named-ring re-homes, each followed by a clear,
+  with no reads between.
+- **Drops:** records survive and drop exactly when they should.
+- **The door:** no over-refusal; typed and atomic.
+- **Red-first:** all six witnesses.
+- **The census:** still reds on a new relation without a reader.
+
+**Ruled:**
+- **M1, fix:** four mutants survive the PR's rows. No fixture has a
+  marked face with an unnamed ring, and the sweep skips same-face moves.
+  Adopt the reviewer's two probes, and widen the sweep.
+- **M2, fix:** the public op docs don't say they drop records.
+- **M3, fix:** `kef_off` and `kvfs_off` are equivalent too.
+- **N2, take it:** the setter's stated reason for no tier-1 ownership
+  check has lapsed, since every re-home now drops the record. The
+  refined ruling's "no tier-1 check" was premised on that reason, so
+  the fix pass tries the check in pass 13. It keeps it if every suite
+  stays green; otherwise it reverts and corrects the reason.
+- **Style:** wording fixes. Q5's stale finish docs are on CLEAVE/HONE
+  ground, so they go as evidence on the filed HONE row.
+
+**Provenance correction (N1).** F9's ratified M3-PLAN text says only
+"typed attributes… explicit key pairs". The "kill-op hygiene" sentence
+came in M3 PR 1's implementation (`595e7fc74b`). The ruling read it as
+ratified, but it was never ratified. The mechanism stands either way:
+it is consistent with F9's ratified content, and the doc paragraph
+needs no Ev wait.
+
+The fix pass is out on the rebase target. It merges after CI and an
+orchestrator read.
