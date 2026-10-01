@@ -2,10 +2,13 @@
 id: arc-window-membership-has-three-spellings
 kind: issue
 title: geom/sweep/topo: 'does this circle window hold angle phi' is spelled three times, and whole-circle ring metering has a home beside the per-piece one
-status: open
+status: closed
 opened: 2026-09-26
 priority: P1
-cost: D
+cost: M
+closed: 2026-10-01
+pr: 3700
+branch: band/arc-window-one-home
 ---
 
 
