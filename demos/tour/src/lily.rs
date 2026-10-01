@@ -3937,18 +3937,24 @@ mod verbs_gate_r1_probes {
         // same-key CURVED adjacency is the canonical maximal form —
         // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
         //
-        // So the sphere×sphere germ arm is not even reached. This
-        // wall's dependency is #1031's pole half (the repair op), and
-        // only THEN row 9.
+        // With the repair landed and the crossing layer's circle ×
+        // sphere roots, the pair reaches the join: the section rides the
+        // radical plane, tilted against the lantern's polar axis, and the
+        // arc-side rule's polar gate refuses it
+        // (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
         assert!(
             tightest < 0.0,
             "the pucker's box must clear the ball's for the gate to admit; it does \
              not, so this row's reading of the refusal below is wrong"
         );
         assert!(
-            matches!(refusal, BooleanError::CurvedPierceUnsupported { .. }),
-            "the gate admits and the REPAIRED lantern is maximal-faced, so what \
-             refuses is the curved pierce arm — got {refusal:?}"
+            matches!(
+                &refusal,
+                BooleanError::Join(pncad::topo::SplitJoinError::SectionInvariant { what, .. })
+                    if what.contains("tilted against the sphere chart's polar axis")
+            ),
+            "the gate admits, the REPAIRED lantern is maximal-faced and the crossing \
+             layer pierces, so what refuses is the join's polar gate — got {refusal:?}"
         );
     }
 
