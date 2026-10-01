@@ -2,10 +2,11 @@
 id: two-cell-dimension-witness-ladders-join-roles-and-the-uncut-shell-have-drifted
 kind: issue
 title: Two cell-dimension witness ladders — join's section-loop role resolution and the uncut-shell witness — have drifted apart
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P1
 cost: M
+branch: cleave/ladders
 ---
 
 

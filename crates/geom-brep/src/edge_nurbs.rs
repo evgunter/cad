@@ -341,15 +341,7 @@ impl PlaneNurbsRefusal {
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
             ),
-            // The mint's verdict is exact: a speed bound that is zero or
-            // not finite, with no band between.
-            Self::ChartSpeed(ChartSpeedRefusal::Zero { .. }) => {
-                (CertCheck::PlaneNurbsChartSpeed, RefusedArm::SignCertain)
-            }
-            Self::ChartSpeed(ChartSpeedRefusal::NotFinite { .. }) => (
-                CertCheck::PlaneNurbsChartSpeedBound,
-                RefusedArm::SignCertain,
-            ),
+            Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain),
             Self::FootPointInconclusive { .. }
             | Self::PcurveFit
             | Self::CarrierDomain(_)
