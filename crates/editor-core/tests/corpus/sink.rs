@@ -263,6 +263,11 @@ pub fn document() -> CorpusDoc {
             bytes: vec![0xc0, 0xde],
         },
     });
+    // A node label on the union (document data beside the node).
+    r.push(DocEdit::SetLabel {
+        node: union,
+        label: Some(editor_core::Label::new("kitchen sink").unwrap()),
+    });
     // Appearance + D7 metadata on the union's output body.
     let body = StableName {
         kind: EntityKind::Body,
@@ -275,7 +280,7 @@ pub fn document() -> CorpusDoc {
     });
     r.push(DocEdit::SetAppearance {
         name: body.clone(),
-        attr: Attr::Label("kitchen sink".into()),
+        attr: Attr::Label(editor_core::Label::new("kitchen sink").unwrap()),
     });
     r.push(DocEdit::SetAppearanceMeta {
         name: body.clone(),

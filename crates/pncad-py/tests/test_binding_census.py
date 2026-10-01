@@ -2949,6 +2949,15 @@ NOT_BOUND = {
     # type crosses, for `NotAFaceName`'s reason.
     "ParamNameFault": SHAPE,
     "ParamNameReason": SHAPE,
+    # `Label` is a node's label as a validated text, and `LabelFault`
+    # what `Label::new` refuses with. A Python caller holds a label as
+    # `str`: `Doc.label` answers one, and `DocEdit.set_label` and
+    # `label=` at insert call the constructor at the boundary and
+    # publish its refusal as `EditError.variant` (`label_blank`,
+    # `label_line_break`, `label_control_character`); neither type
+    # crosses, for `NotAFaceName`'s reason.
+    "Label": SHAPE,
+    "LabelFault": SHAPE,
     # **The clearance engine's refusal, flattened to a tag — and
     # unreachable at the lane Python evaluates on.** It reaches Python
     # as `EvaluationError.kind == "measure_clearance_refused"`
@@ -3455,6 +3464,7 @@ MEMBERS_BOUND_AS = {
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
+    "EditError::LabelUnchanged": "EditError.variant",
     "EditError::MaintenanceRefused": "EditError.variant",
     "EditError::MaintenanceUnrecorded": "EditError.variant",
     "EvalError::UnknownParam": "EvalError.variant",

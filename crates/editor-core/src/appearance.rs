@@ -126,8 +126,9 @@ impl AttrKind {
 pub enum Attr {
     /// Display color.
     Color(Rgba8),
-    /// User-facing display label.
-    Label(String),
+    /// User-facing display label: the same [`crate::Label`] text a
+    /// node's label is.
+    Label(crate::Label),
     /// Display visibility (`false` = hidden).
     Visibility(bool),
 }

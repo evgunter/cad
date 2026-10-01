@@ -274,7 +274,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::EmptyPlacementList { node }
 
         | EditError::NonFiniteAlignment { node }
-        | EditError::UpdateOnNonInstance { node } => EditPayload {
+        | EditError::UpdateOnNonInstance { node }
+        | EditError::LabelUnchanged { node, label: _ } => EditPayload {
             node: Some(*node),
             ..none
         },

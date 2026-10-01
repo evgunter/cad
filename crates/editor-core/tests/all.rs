@@ -451,6 +451,8 @@ mod name_depth;
 mod name_tables_by_position;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
+#[path = "node_labels.rs"]
+mod node_labels;
 #[path = "node_standing.rs"]
 mod node_standing;
 #[path = "parallel_node_map_interval.rs"]
