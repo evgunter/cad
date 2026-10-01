@@ -682,6 +682,30 @@ impl<T: Real> NurbsSurface<T> {
         })
     }
 
+    /// The count rule [`Self::new`] holds a net to, without a net: a
+    /// row-major net over `knots_u × knots_v` has
+    /// `knots_u.control_count() · knots_v.control_count()` control
+    /// points and as many weights. For a reader that indexes a net by
+    /// counts taken from its knots and must refuse, not panic, on a
+    /// net that breaks them.
+    ///
+    /// # Errors
+    ///
+    /// [`SplineError::ControlCountMismatch`] for `control`, then
+    /// [`SplineError::WeightCountMismatch`] for `weights`.
+    pub fn check_net_counts(
+        knots_u: &KnotVector,
+        knots_v: &KnotVector,
+        control: usize,
+        weights: usize,
+    ) -> Result<(), SplineError> {
+        net::check_counts(
+            knots_u.control_count() * knots_v.control_count(),
+            control,
+            weights,
+        )
+    }
+
     /// The "no description yet" placeholder payload for
     /// [`crate::surfaces::Surface::Nurbs`]: structurally valid (bilinear on
     /// `[0,1]²`, unit weights) with all-poison control points, so
@@ -1049,16 +1073,16 @@ impl<T: Real> NurbsSurface<T> {
     /// `lo + hi − v`. So every parameter already recorded against the
     /// old chart still means what it meant there and now names a
     /// different place on the surface. Re-attaching a reversed chart
-    /// through `set_face_surface` drops the face's pcurve rows (they
-    /// are stated in the chart, and the chart changed), so the face
-    /// arrives rowless and wants re-deriving; an edge description's
-    /// interval is not the setter's to touch and goes stale:
-    /// `topo::validate` stays green (nothing structural moved) while
-    /// the geometric-structural tier reports it on every edge the face
-    /// described. `set_face_surface`'s own warning is the contract —
-    /// attach surfaces BEFORE upgrading edge descriptions, and re-derive
-    /// pcurves after — and `crates/sweep/tests/vrev_reversed_chart_hazard.rs`
-    /// pins what a caller that does not sees.
+    /// drops the face's pcurve rows (they are stated in the chart, and
+    /// the chart changed), so the face arrives rowless and wants
+    /// re-deriving. An edge described against the old chart is the
+    /// re-chart's to answer for: `topo`'s keys-only `set_face_surface`
+    /// refuses a swap that would strand it, and the describing
+    /// `set_face_surfaces_describing` takes its re-description and
+    /// certifies it on the reversed chart. What a body that strands it
+    /// anyway looks like at rest — structural validation green, the
+    /// geometric-structural tier reporting every such edge — is pinned
+    /// by `crates/sweep/tests/vrev_reversed_chart_hazard.rs`.
     ///
     /// [`two_sum`]: geom_core::exact::two_sum
     pub fn reversed_v(&self) -> Result<Self, KnotMirrorError> {

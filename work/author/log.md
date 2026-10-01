@@ -1540,3 +1540,53 @@ Fourteen units closed. The container restarted mid-unit. The lane, target and pu
 **Lesson:** the class a unit fixes is the class to grep its own diff for. `unwrap_or_default` and a truncating `zip` are the Option-collapse shapes.
 
 The lane filed CHROME's badge-channel row at P1. That looks high for a three-field consolidation, but it is CHROME's to triage, so I left it.
+
+## 2026-09-30 — boolean-judge fork: converged after one round; `[ev]` #3587
+
+Designer pair on `the-boolean-door-evaluates-its-boolean-twice` (byte on `analysis/design-fork/author-boolean-judge-2026-09-30`).
+
+**First reports agreed on the spine:** stop judging at the door; commit every boolean; the seam evaluates it once; the offer goes on the row.
+**They split on the recourse:**
+- A: replace a consumer-less boolean, leaving DM6 untouched.
+- B: attach a declaration to a live boolean, narrowing DM6.
+
+**Round 1.** Both measured `find_flush_candidates`. It is a strict superset (two blocks apart on one ground plane report 4 pairs, and the union builds undeclared), so neither kept it as a pre-commit prompt.
+- A moved to attach. A declaration is name-inert and operand-bound, so DM6's splice reasons don't reach it. Replace dead-ends mid-chain and strands appearance keys. The kernel's own recourse already prescribes attach.
+- B kept attach as the final state and added replace as an interim.
+
+**Converged on the final state;** not a crossover, because B never left attach. The shape (A1: a DM6 exception; A2: declared pairs as payload, a DM4 shape change) is Ev's, with both leaning A2 and unsure. The later-flush row travels on the same PR. Fork-log row 24.
+
+**Sequencing, my call:** no interim replace. The current door gives correct answers at a frame cost; it doesn't give wrong ones. The viewer unit waits on the shape.
+
+**Filed off the question:**
+- ZIP: `a-boolean-reports-one-undeclared-contact-per-refusal`.
+- VSEAM `ui-thread-work-after-the-index-seam`: evidence for `session::probe` as a fourth frame-thread evaluation.
+
+## 2026-09-30 — AUTH-15 dispatched: accept a part's updated version from the viewer
+
+Everything P0–P2 on this slate is with Ev (#3551, #3571, #3587), blocked on another program's row, or a design row. So the next unit is the P3 door `viewer-has-no-door-to-accept-a-parts-updated-version`: a refusal whose recourse the GUI cannot take, which is this program's charter exactly. The offer must live in the existing refuse-then-offer homes (the AUTH-9 lesson). Review tier: one FULL review.
+- 2026-09-30 — Seam note from TOPO: `viewer::sketch::tests::a_last_leg_no_close_can_follow_is_walked_back` (AUTH-13) was red at ε 1e-6 and 1e-12. Its `banded` and `banded_short` legs placed their in-band offsets at literal `1e-9` and `4e-10`, which sit inside the band only at the default ε, while `previewed` reads `Tol::witness()`. They now read `Tol::witness().eps()` (1ε and 0.4ε, the same points at the default ε). Main stayed green because viewer-only diffs never select the ε rows; TOPO's PR 3570 found it. (TOPO orchestrator)
+
+## 2026-09-30 — AUTH-15 MERGED (`f88b6438`): accept a part's updated version from the viewer
+
+Fifteen units closed. **The trap fired a fifteenth time:** the button's label was a hand copy of the kernel recourse's "accept updated version". The one FULL review caught it. The label is now one const, and a row asserts that the recourse sentence contains it.
+
+The review also caught:
+- a stale offer, drawn until the accept's run landed, where a second click read as hex ids;
+- a README promise that a live session cannot keep.
+
+**This is the third refuse-then-offer instance** (after `creation_offer` and AUTH-9's `declare_offer`). All three live in one home, but in three shapes. The general `Offer` type they want is named on OFFER's P1 row as evidence.
+
+## 2026-10-01 — Ev ruled #3551 (negative extrude): (a)
+
+Ev's ruling:
+- An extrude's distance is a positive depth with a structural `side`.
+- The rule "a size an operation covers is positive; its direction has one home" is adopted, with revolve and patterns as named follow-ons.
+- Ev added a requirement: a negative depth's refusal shows how to write the extrude the other way.
+
+The AUTHOR design row closes. Its work is on the owners' slates:
+- EDIT `extrude-distance-is-a-depth-and-a-side` (P0, H), with the kernel half on CARVE/STRUT ground and the eval wiring on WIRE's;
+- AUTHOR `the-create-pane-has-no-extrude-side` (P1, blocked on it);
+- CARVE `revolve-angle-is-a-signed-size-beside-a-directed-axis` and EDIT `pattern-spacing-is-a-signed-size-beside-a-direction` (design).
+
+Fork-log row 22's decision half is filled in. Ev took A's first recommendation, which B also reached in round 1. Mapping: A=Opus, B=Fable.

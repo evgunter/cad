@@ -2,11 +2,12 @@
 id: refusal-rows-that-count-instead-of-snapshot
 kind: issue
 title: Two in-lib refusal rows check the body unchanged by one arena count, and null.rs keeps a pcurve-rows check the deep snapshot now subsumes
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
-pr: 3566
-branch: topo/snapshot-key-slots
+pr: 3580
+branch: topo/set-face-surface-proves-edges
+closed: 2026-09-30
 ---
 
 
@@ -46,3 +47,13 @@ PR 3566 moves the `instance.rs` and `release_corruption.rs` rows to
 companion in
 `a_refusal_on_the_second_face_leaves_the_body_untouched` once the
 live lane's diff on `null.rs` has landed.
+
+## Delivered (PR 3580)
+
+`null.rs` drops the `rows` companion in
+`a_refusal_on_the_second_face_leaves_the_body_untouched`, and in the
+two sibling rows of the same file that carried it (the torn-loop
+`set_edge_curve` row and the `mef` row's `refuses` loop); each compares
+by `deep_snapshot` alone. The same shape in `euler_ring.rs` is under
+the kill-plans lane's diff and is filed:
+`a-kill-refusal-row-keeps-a-rows-companion-the-deep-snapshot-subsumes`.

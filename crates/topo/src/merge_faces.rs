@@ -1090,10 +1090,10 @@ impl EstablishedFact {
 /// | `merged_outline_ring` (the survivor's surface) | `StaleGeometry` |
 /// | `loop_winding`, through `merged_outline_ring` | `StaleKey`, `StaleGeometry`, `UnclaimedHalfEdge`, `LoopCycleBroken` |
 /// | `ring_move_minting` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C), `LoopCycleBroken`; its site mint's `StaleGeometry`, `PcurveMint` (`Corrupt` alone: a moved loop is left as found on a spline chart) and `Certification` (a `tol` that forms no band) |
-/// | `kef_minting` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `OrbitBroken`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_minting`'s |
-/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `LoopCycleBroken`, `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
-/// | `mekr_chord` (a lone vertex's ring) | `StaleKey`, `StaleGeometry`, `LoopNotCycle`, `LoopNotEmpty`, `LoopCycleBroken`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
-/// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `OrbitBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
+/// | `kef_minting` | `StaleKey`, `UnclaimedHalfEdge`, `NotSameEdge`, `LoopCycleBroken`, `LoopNotCycle`, `OrbitBroken`, `KillLeavesDangling`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_minting`'s |
+/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `NotSameEdge`, `LoopNotCycle`, `OrbitBroken`, `LoopCycleBroken`, `KillLeavesDangling`, `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
+/// | `mekr_chord` (a lone vertex's ring) | `StaleKey`, `StaleGeometry`, `LoopNotCycle`, `LoopNotEmpty`, `LoopCycleBroken`, `KillLeavesDangling`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
+/// | `kemr` | `StaleKey`, `NotSameEdge`, `UnclaimedHalfEdge`, `LoopNotCycle`, `LoopCycleBroken`, `OrbitBroken`, `EmptyAnchorsCollide`, `KillLeavesDangling`, `NotSameLoop` (C) |
 ///
 /// The `mekr_chord` row and the `kev` after it run only on a planar
 /// survivor, which refuses the call whatever it raises, so where those
@@ -1110,9 +1110,9 @@ impl EstablishedFact {
 /// cannot resolve. The rest belong to operators this
 /// door does not call: the attachment and split gates
 /// (`set_edge_curve`, `split_edge`), the make-side sites (`mev`,
-/// `mef`), `kvfs`, `kfmrh`'s cross-solid form and the
-/// shell-move door. That is not a third arm: an arm the door cannot
-/// reach cannot be pinned, and a classification nothing can
+/// `mef`), `kvfs`, `kfmrh`'s cross-solid form, `movefac`'s ownership
+/// proof and the shell-move door. That is not a third arm: an arm the
+/// door cannot reach cannot be pinned, and a classification nothing can
 /// distinguish is documentation, which is what this table is. No
 /// count of the remainder is stated here; the match below is the
 /// census.
@@ -1161,6 +1161,8 @@ impl OpPlacement {
             | E::UnclaimedHalfEdge { .. }
             | E::OrbitBroken { .. }
             | E::EmptyAnchorsCollide { .. }
+            | E::KillLeavesDangling { .. }
+            | E::NotOwned { .. }
             | E::Certification { .. }
             | E::RebasedCarrier { .. }
             | E::RebasedNullEdge { .. }
@@ -1168,6 +1170,13 @@ impl OpPlacement {
             | E::NotMergedMember { .. }
             | E::DuplicateRedescription { .. }
             | E::DescriptionNotAdjacent { .. }
+            | E::RechartStrandsDescriptions { .. }
+            | E::RechartUnvouched { .. }
+            | E::RechartUndescribed { .. }
+            | E::RechartFalsifies { .. }
+            | E::RechartOffBoundary { .. }
+            | E::RechartBoundaryEscalated { .. }
+            | E::FaceMovedTwice { .. }
             | E::FanStartMismatch { .. }
             | E::FanOrbitBroken { .. }
             | E::LoopNotEmpty { .. }
