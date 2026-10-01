@@ -705,6 +705,21 @@ pub enum EulerOpError {
         /// The stranded edges, in edge-arena order.
         edges: Vec<EdgeKey>,
     },
+    /// The keys-only [`Body::set_face_surface`] would move `face` onto
+    /// another chart with these certified boundary edges naming no key
+    /// the face wears after the swap, so nothing vouches that they, and
+    /// the vertices they end at, lie on the new chart — tier 3's
+    /// `PlanarBoundaryResidual` / `PlanarFaceResidual` at rest on a
+    /// plane. Every one is named, in edge-arena order. The door takes
+    /// no band to ask; [`Body::set_face_surfaces_describing`] takes one
+    /// and asks. Raised in the plan phase, so the body is untouched.
+    RechartUnvouched {
+        /// The moved face.
+        face: FaceKey,
+        /// The certified edges on it that name no key it wears after
+        /// the swap, in edge-arena order.
+        edges: Vec<EdgeKey>,
+    },
     /// [`Body::set_face_surfaces_describing`] was handed no
     /// re-description for these edges, and the move would strand them
     /// as [`EulerOpError::RechartStrandsDescriptions`] names: the door
@@ -1178,6 +1193,11 @@ impl EulerOpError {
                  re-describe them (set_face_surfaces_describing takes one, and their \
                  re-descriptions)"
             ),
+            Self::RechartUnvouched { face, edges } => format!(
+                "set_face_surface: face {face:?} would move onto a chart that its edges \
+                 {edges:?} do not name, and the keys-only door takes no band to check that \
+                 they lie on it (set_face_surfaces_describing takes one, and checks)"
+            ),
             Self::RechartUndescribed { edges } => format!(
                 "set_face_surfaces_describing: the move would leave edges {edges:?} described \
                  against a surface their faces no longer wear, and no re-description is listed \
@@ -1418,6 +1438,10 @@ pub(crate) fn every_euler_op_error_once()
             edge: ek,
             error: CertifyError::Unimplemented,
         },
+        EulerOpError::RechartUnvouched {
+            face: fc,
+            edges: vec![ek],
+        },
         EulerOpError::RechartUndescribed { edges: vec![ek] },
         EulerOpError::RechartOffBoundary {
             face: fc,
@@ -1591,6 +1615,7 @@ impl EulerOpError {
             | Self::DuplicateRedescription { .. }
             | Self::DescriptionNotAdjacent { .. }
             | Self::RechartStrandsDescriptions { .. }
+            | Self::RechartUnvouched { .. }
             | Self::RechartUndescribed { .. }
             | Self::RechartFalsifies { .. }
             | Self::RechartOffBoundary { .. }

@@ -110,7 +110,7 @@ fn the_attach_door_takes_axes_and_refuses_planes_and_stale_keys() {
         .find(|(_, f)| f.surface == stale_after)
         .map(|(k, _)| k)
         .unwrap();
-    b.set_face_surface(
+    b.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
             surface: cone(),
@@ -262,7 +262,7 @@ fn the_orphan_door_drops_the_row() {
         .map(|(k, _)| k)
         .unwrap();
     let fresh = b
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             face,
             FaceSurface::New {
                 surface: Surface::Cylinder {

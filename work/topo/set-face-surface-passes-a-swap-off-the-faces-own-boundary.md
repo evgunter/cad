@@ -59,3 +59,29 @@ accepting a swap it cannot vouch for:
 
 A curved new chart is not checked by either door, nor by tier 3 at rest
 (`validate_geometric`'s not-yet-checked list, #638).
+
+## Ruled (orchestrator, 2026-09-30): refuse, keys-only
+
+Of the two options above, only the refusal keeps the ratified decisions
+as they stand:
+
+- S93 (closed by PR 3161, `325a4daadc`) calls a prose-held caller
+  obligation a defect. "Keep it and say so in the docs" is exactly
+  that.
+- Ev's PR 2527 ruling on the kill family already gives the pattern for a
+  change a keys-only door cannot vouch for. The keys-only door refuses
+  it typed, before mutating. The describing sibling, which takes a band,
+  certifies it.
+
+So `set_face_surface` refuses typed, before mutating, wherever a moved
+face keeps a certified boundary edge whose description names no key
+the face wears after the swap. The door cannot vouch for such an edge
+without a band, and `set_face_surfaces_describing` is the door that can.
+Scaffold edges, which carry no certificate, vouch for nothing and
+strand nothing. The lane derives the exact condition from tier 3's
+residual checks and states it in the door's docs. No band is added.
+
+No `[ev]` question (the PR 3156 lesson). The lane measures first. If a
+production caller relies on the keys-only door for a swap this would
+refuse, and the describing door cannot serve it, the lane stops and
+reports, because that would be a real fork.

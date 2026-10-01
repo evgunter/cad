@@ -6797,7 +6797,7 @@ mod tests {
             .map(|(k, _)| k)
             .collect();
         for &f in &seeds {
-            body.set_face_surface(
+            body.set_face_surface_stranding_for_tests(
                 f,
                 FaceSurface::New {
                     surface: masquerade_like_placeholder(),
