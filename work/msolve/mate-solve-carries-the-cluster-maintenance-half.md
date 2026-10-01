@@ -2,11 +2,13 @@
 id: mate-solve-carries-the-cluster-maintenance-half
 kind: issue
 title: mate/solve.rs holds the D-3 cluster-record maintenance beside the solve, a second concern the module doc gives one bullet
-status: open
+status: closed
 opened: 2026-09-19
 priority: P1
 cost: M
 parent: MSOLVE-12
+pr: 3698
+closed: 2026-10-01
 ---
 
 
@@ -29,3 +31,14 @@ solve with no verdict refuses the edit), `solve.rs` keeping the solve
 and the module doc it already has. Not taken in MSOLVE-7: the fence
 was the solve's cost and seats, and a file split is a review of its
 own.
+
+## Closed (2026-10-01, PR 3698)
+
+`crates/editor-core/src/mate/maintain.rs` holds `ClusterMaintenance`,
+`Maintain`, `maintain`, `registry_after`, `unsolved_because`,
+`undecided` and `reconcile`, moved verbatim in their own commit
+(`140c89663`) under a module doc of their own (what they re-key, when
+the edit door runs them, why a solve with no verdict refuses the
+edit). `solve.rs` keeps the solve and its module doc, less the
+`reconcile` bullet. Every moved item keeps its visibility;
+`has_mates`, which stays, became `pub(super)`.
