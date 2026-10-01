@@ -346,8 +346,8 @@ impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
         )
     }
 
-    fn lever_arm(&self, x: &[f64; 3], extent: f64) -> f64 {
-        crate::dihedral::folded_lever_arm(self.a, self.b, p3(x), extent)
+    fn lever_arm(&self, x: &[f64; 3]) -> f64 {
+        crate::dihedral::pair_lever_arm(self.a, self.b, p3(x))
     }
 }
 
@@ -358,14 +358,15 @@ impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
         (ja.jet.du.cross(ja.jet.dv), jb.jet.du.cross(jb.jet.dv))
     }
 
-    fn lever_arm(&self, x: &[f64; 4], extent: f64) -> f64 {
+    fn lever_arm(&self, x: &[f64; 4]) -> f64 {
         // Chart curvature is not bounded in closed form for a NURBS
         // patch, so the honest arm at this shape is the CHART SPEED
         // over the second-derivative magnitude — the local radius of
-        // curvature of the two parameter lines, folded min-wins with
-        // the extent. A flat line (zero second derivative) never
-        // shrinks the arm; a poisoned one makes it poison.
-        let mut arm = extent;
+        // curvature of the two parameter lines, folded min-wins, with
+        // `f64::MAX` where the chart is flat (the plane identity). A
+        // flat line never shrinks the arm; a poisoned one makes it
+        // poison.
+        let mut arm = f64::MAX;
         for j in [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])] {
             for (speed, second) in [
                 (j.jet.du.norm(), j.jet.duu.norm()),
@@ -410,6 +411,10 @@ mod tests {
     }
 
     fn bilinear() -> NurbsSurface<f64> {
+        bilinear_weighted(1.0)
+    }
+
+    fn bilinear_weighted(w: f64) -> NurbsSurface<f64> {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let mut control = Vec::new();
@@ -419,7 +424,7 @@ mod tests {
                 control.push(Point3::new(x, iv as f64, 0.4 * x * (1.0 - x)));
             }
         }
-        NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+        NurbsSurface::new(ku, kv, control, vec![w; 6]).unwrap()
     }
 
     /// The Jacobian rows must be the implicit gradients — the system is
@@ -444,30 +449,61 @@ mod tests {
         let (s, n) = (sphere(), Surface::nurbs_placeholder());
         let x = [0.8, 0.3, 0.2];
         for (a, b) in [(&s, &n), (&n, &s)] {
-            let arm = ImplicitPairR3 { a, b }.lever_arm(&x, 10.0);
+            let arm = ImplicitPairR3 { a, b }.lever_arm(&x);
             assert!(
                 arm.is_nan(),
                 "a NURBS operand folded to {arm:e}, not poison"
             );
         }
-        let arm = ImplicitPairR3 { a: &s, b: &s }.lever_arm(&x, 10.0);
+        let arm = ImplicitPairR3 { a: &s, b: &s }.lever_arm(&x);
         assert_eq!(arm, 1.0, "two spheres lever against their radius");
     }
 
-    /// **The ℝ⁴ arm folds the extent the same way**: a poisoned extent
-    /// is poison, not the chart's own radius of curvature.
+    /// **The ℝ⁴ arm is poison when either chart's jet is**. The healthy
+    /// bilinear chart bends only along `u`, where at `u = ½` the speed
+    /// is 1 and the second derivative 0.4: an arm of 2.5. A chart
+    /// whose weights underflow to `0/0` at the midpoint has a poisoned
+    /// jet, and the arm is poison rather than its sibling's 2.5.
     #[test]
-    fn r4_lever_arm_propagates_a_poisoned_extent() {
+    fn r4_lever_arm_is_poison_when_a_chart_jet_is() {
         use super::super::march::TransversalityData;
-        let (a, b) = (bilinear(), bilinear());
-        let sys = ParametricPairR4 {
-            a: Chart::Nurbs(&a),
-            b: Chart::Nurbs(&b),
-        };
+        let healthy = bilinear();
+        let poisoned = bilinear_weighted(f64::from_bits(1));
         let x = [0.5, 0.5, 0.5, 0.5];
-        let arm = sys.lever_arm(&x, 10.0);
-        assert!(arm.is_finite() && arm < 10.0, "the chart bends: {arm:e}");
-        assert!(sys.lever_arm(&x, f64::NAN).is_nan());
+        let both = ParametricPairR4 {
+            a: Chart::Nurbs(&healthy),
+            b: Chart::Nurbs(&healthy),
+        };
+        let arm = both.lever_arm(&x);
+        assert!(
+            (arm - 2.5).abs() <= 1e-12,
+            "the bilinear chart's arm: {arm:e}"
+        );
+        assert!(
+            Chart::Nurbs(&poisoned)
+                .jet3(0.5, 0.5)
+                .jet
+                .duu
+                .norm()
+                .is_nan(),
+            "FIXTURE: an underflowing weight poisons the second derivative"
+        );
+        for sys in [
+            ParametricPairR4 {
+                a: Chart::Nurbs(&poisoned),
+                b: Chart::Nurbs(&healthy),
+            },
+            ParametricPairR4 {
+                a: Chart::Nurbs(&healthy),
+                b: Chart::Nurbs(&poisoned),
+            },
+        ] {
+            let arm = sys.lever_arm(&x);
+            assert!(
+                arm.is_nan(),
+                "a poisoned chart folded to {arm:e}, not poison"
+            );
+        }
     }
 
     /// The order-2 and order-3 right-hand sides must be exactly the
