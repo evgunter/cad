@@ -459,6 +459,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "ShellWitnessExhausted",
+            BooleanError::ShellWitnessExhausted {
+                operand: Operand::B,
+                shell: topo::ShellKey::default(),
+            },
+        ),
+        (
             "RimSeamNotDeclarable",
             BooleanError::RimSeamNotDeclarable { declaration },
         ),

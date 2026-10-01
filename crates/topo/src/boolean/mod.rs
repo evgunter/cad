@@ -101,6 +101,7 @@ pub use refusal_routes::{
 mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
+mod shell_witness;
 pub mod solid_contain;
 mod surface_group;
 pub mod tables;
@@ -1419,6 +1420,17 @@ pub enum BooleanError {
         /// The offending shell.
         shell: ShellKey,
     },
+    /// Every witness of a shell the other operand's boundary does not
+    /// cut — its vertices, its edges' midpoints, an interior point of
+    /// each planar face — lies ON that boundary, so which side of it
+    /// the shell lies on is undecided (`shell_witness`'s module docs).
+    /// Two operands that are one body reach this.
+    ShellWitnessExhausted {
+        /// The operand whose shell was probed.
+        operand: Operand,
+        /// The shell, in that operand's working copy.
+        shell: ShellKey,
+    },
     /// The containment fallback / uncut-component probe refused (F8).
     Containment(PointInSolidError),
     /// `revert` refused on the ∖ B side.
@@ -1615,6 +1627,8 @@ pub enum BooleanErrorKind {
     JoinDesync,
     /// [`BooleanError::TornComponent`].
     TornComponent,
+    /// [`BooleanError::ShellWitnessExhausted`].
+    ShellWitnessExhausted,
     /// [`BooleanError::Containment`].
     Containment,
     /// [`BooleanError::Revert`].
@@ -1778,6 +1792,7 @@ impl BooleanError {
             Self::RestZipUnsupported { .. } => BooleanErrorKind::RestZipUnsupported,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
+            Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
             Self::Containment(_) => BooleanErrorKind::Containment,
             Self::Revert(_) => BooleanErrorKind::Revert,
             Self::SeamOrientation { .. } => BooleanErrorKind::SeamOrientation,
@@ -2192,6 +2207,15 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "component {shell:?} of the {} operand carries section faces \
                  of both sides (kernel bug)",
+                operand_word(*operand)
+            ),
+            Self::ShellWitnessExhausted { operand, .. } => write!(
+                f,
+                "the solids do not cross, and every point of the {} solid the \
+                 Boolean tried (each corner, each edge's middle, a point inside \
+                 each flat face) lies on the other's boundary, so it cannot tell \
+                 whether that solid is inside the other. Recourse: if the two are \
+                 one body, use it once",
                 operand_word(*operand)
             ),
             // The payload does not say which operand was being tested, so
@@ -3519,6 +3543,10 @@ mod tests {
                 operand: Operand::A,
                 shell: ShellKey::default(),
             },
+            BooleanError::ShellWitnessExhausted {
+                operand: Operand::B,
+                shell: ShellKey::default(),
+            },
             BooleanError::Containment(
                 crate::boolean::solid_contain::PointInSolidError::RayExhausted,
             ),
@@ -3618,6 +3646,7 @@ mod tests {
                 BooleanErrorKind::RestZipUnsupported => "RestZipUnsupported",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
+                BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
                 BooleanErrorKind::Containment => "Containment",
                 BooleanErrorKind::Revert => "Revert",
                 BooleanErrorKind::SeamOrientation => "SeamOrientation",

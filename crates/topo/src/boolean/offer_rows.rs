@@ -1804,6 +1804,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::RestZipUnsupported
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::TornComponent
+        | BooleanErrorKind::ShellWitnessExhausted
         | BooleanErrorKind::SeamOrientation
         | BooleanErrorKind::ZipCorrespondence
         | BooleanErrorKind::ResultInvalid
