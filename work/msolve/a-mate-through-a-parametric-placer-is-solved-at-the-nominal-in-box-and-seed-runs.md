@@ -7,6 +7,7 @@ opened: 2026-09-29
 priority: P2
 cost: M
 design: true
+needs_ev: true
 ---
 
 Filed by the EDIT orchestrator from the design-fork review of the
@@ -56,3 +57,11 @@ predates the unit.
 reads through a parametric `Transform`, and show the mated part's
 enclosure omitting its pose at a box corner.
 
+## Weighed (2026-10-01)
+
+Plan item 19 gathers this row and its sibling
+(`from-face-frame-under-an-analysis-lane-refuses-unpinned`,
+`a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`)
+into one design fork, which two designers weighed on
+`msolve/ev-analysis-lane-solve`. That PR adds the sentence to
+`ASSEMBLY.md` A11 rule 5 that the recommendation would make true.

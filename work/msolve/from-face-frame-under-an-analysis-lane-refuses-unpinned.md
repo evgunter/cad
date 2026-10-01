@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-20
 priority: P1
 cost: H
+needs_ev: true
+design: true
 ---
 
 Found by the MSOLVE-9 lane while wiring `MateReach::face_pose`
@@ -72,3 +74,24 @@ ladder and the coset table carried at `T` rather than `f64`, so a face
 pose crosses with its tangent or its enclosure intact and the solved
 placement carries them onward. Not a choice of which `f64` to read —
 every such choice is one of the two losses above.
+
+## Weighed (2026-10-01)
+
+Plan item 19 gathers this row and its sibling
+(`from-face-frame-under-an-analysis-lane-refuses-unpinned`,
+`a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`)
+into one design fork, which two designers weighed on
+`msolve/ev-analysis-lane-solve`. That PR adds the sentence to
+`ASSEMBLY.md` A11 rule 5 that the recommendation would make true.
+
+Two corrections to this row, made by the designers and checked by the
+orchestrator against the tree:
+- The cost named under "The doors it blocks" is not live in v1. A
+  referenced part is evaluated with no box and no seed (`ASSEMBLY.md`
+  AQ4, per-instance arguments, is not implemented;
+  `PartCache::evaluate_entered`),
+  so today a face pose's tangent is zero and its enclosure is only as
+  wide as rounding. The refusal guards a loss that only per-instance
+  arguments would make real. The two doors are still lost.
+- The `undecided`/maintenance sentence under "What is missing" is
+  stale: A11 (2) records no frame.

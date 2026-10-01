@@ -453,7 +453,15 @@ frame refuses typed and keeps taking authored vectors. Neither read
 changes the solve's algorithm — coset intersection over decided
 predicates, no numeric fitting, no geometry inspected inside the
 fold — and nothing is stored twice: the face name is the state, the
-frame is derived. A mated part that does not resolve faults its
+frame is derived. The solve runs at the evaluation's own scalar, over
+the evaluation's own parameters: at `f64` it is the nominal solve, in
+a seed run each solved pose carries its tangent, in a box run each
+solved pose is an enclosure over the box, and every branch inside it
+is a named predicate decided at that scalar. Only what the walk reads
+— a pattern's count, a `Part`'s index — is read at the nominal, and no
+box or seed binds those. A face frame therefore resolves on every
+lane, and a parametric placer on a member's chain moves its member's
+pose in the run that binds it. A mated part that does not resolve faults its
 mate in the resolver's own voice, carrying the part fault unaltered —
 `MateFault::FaceUnresolved` (`FaceRefusal::PartUnresolved`) where a
 `FromFace` side stands on it, since a side's frame is read before the
