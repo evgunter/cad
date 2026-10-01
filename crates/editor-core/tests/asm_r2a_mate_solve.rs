@@ -1708,7 +1708,11 @@ fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_fram
             NodeResult::Failed(e) => named(&e.escalations),
             NodeResult::Poisoned { .. } => false,
         };
-        assert!(!on_node, "node {} carries the solve's escalation", id.0);
+        assert!(
+            !on_node,
+            "node {:012x} carries the solve's escalation",
+            id.0
+        );
     }
     assert!(
         matches!(
@@ -1841,11 +1845,11 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
     );
     let message = fault.to_string();
     assert!(
-        message.contains(&format!("mate {} contradicts itself", id.0)),
+        message.contains(&format!("mate {:012x} contradicts itself", id.0)),
         "one mate at fault is named ONCE: {message}"
     );
     assert!(
-        !message.contains(&format!("mates {} and {}", id.0, id.0)),
+        !message.contains(&format!("mates {:012x} and {:012x}", id.0, id.0)),
         "the pair sentence reads as an indexing fault here: {message}"
     );
     assert!(

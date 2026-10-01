@@ -229,8 +229,8 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
-    PartFault, ProductError, ProductErrorKind, RecipeNodeId, ResolveFault, SlotId,
+    ChecksReport, Doc, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
+    PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, SlotId,
 };
 use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
@@ -2407,8 +2407,8 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// DERIVED: the failure it follows from is already on screen, as the
 /// one [`Tone::Actionable`] row the tree draws for it. So it takes the
 /// tree's own reading of a downstream row — [`Tone::Advisory`], naming
-/// the row that carries the cause ([`crate::tree::cause_row`], spelled
-/// [`crate::tree::node_number`]) — and the index's own words move to
+/// the row that carries the cause ([`crate::tree::cause_row`], as the
+/// document speaks it) — and the index's own words move to
 /// the tooltip, unaltered.
 ///
 /// **It is placed under the cause, not dropped**, because it carries
@@ -2441,6 +2441,7 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// where the louder news it defers to is actually drawn.
 pub fn index_badge(
     error: Option<&PickIndexError>,
+    doc: &Doc<ProfileProgram>,
     evaluation: Option<&Evaluation<f64>>,
 ) -> Option<Badge> {
     let error = error?;
@@ -2457,7 +2458,7 @@ pub fn index_badge(
             format!(
                 "pick index: waits on {}, which failed — until the index builds, no pick is \
                  answered and the picture is not redrawn",
-                crate::tree::node_number(cause)
+                doc.spoken(cause)
             ),
             Tone::Advisory,
         )
@@ -3346,7 +3347,7 @@ mod tests {
         // line instead of to the notices is erased by its own cause.
         let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
         assert!(
-            notice.contains("instance 7"),
+            notice.contains("instance 000000000007"),
             "the notice names which of the user's placements went — here in \
              the part-instance vocabulary, because the MateConstrained arm's \
              subject is an instance. That is `AdmissionFault`'s per-arm rule \
@@ -3411,7 +3412,7 @@ mod tests {
         .expect("news");
         assert_eq!(
             gone,
-            "free move: a committed placement was discarded — node 4 is not in the document"
+            "free move: a committed placement was discarded — node 000000000004 is not in the document"
         );
     }
 
@@ -3513,7 +3514,7 @@ mod tests {
         assert_eq!(
             dropped_hide_text(core::slice::from_ref(&gone)).expect("news"),
             "hide: a hide was dropped with the instance it was on — \
-             node 4 is not in the document"
+             node 000000000004 is not in the document"
         );
     }
 
@@ -3527,7 +3528,7 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             instance 3 is mate-constrained (mate node(s) 5): its pose is \
+             instance 000000000003 is mate-constrained (mate node(s) 000000000005): its pose is \
              mate-derived, so the free-move probe refuses — delete the mate(s) if \
              free relative motion is intended"
         );

@@ -145,8 +145,8 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     assert_eq!(shelf_bottom.node, rot_shelf);
 
     let mut tool = MateTool::new();
-    tool.pick(post_a_top.clone());
-    tool.pick(shelf_bottom.clone());
+    tool.pick(session.doc(), post_a_top.clone());
+    tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, asm::seat_choice())
@@ -416,7 +416,11 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     assert!(
         second.refusal.is_some()
             || !all_ok
-            || rows.iter().filter(|r| r.kind == "Mate").count() == 2,
+            || rows
+                .iter()
+                .filter(|r| r.spoken.kind() == Some("Mate"))
+                .count()
+                == 2,
         "a second mate on the same pair is either refused at the door or visible in \
          the tree; it is never invisible: refusal={:?} rows={rows:?}",
         second.refusal
@@ -822,8 +826,8 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     assert_ne!(top.name, bottom.name, "two DIFFERENT faces of one instance");
 
     let mut tool = MateTool::new();
-    tool.pick(top);
-    tool.pick(bottom);
+    tool.pick(session.doc(), top);
+    tool.pick(session.doc(), bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
     match tool.proposal(doc, eval, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
@@ -833,7 +837,10 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     }
     // Nothing entered the document.
     assert!(
-        !session.tree_rows().iter().any(|r| r.kind == "Mate"),
+        !session
+            .tree_rows()
+            .iter()
+            .any(|r| r.spoken.kind() == Some("Mate")),
         "a refused proposal authors nothing"
     );
 }

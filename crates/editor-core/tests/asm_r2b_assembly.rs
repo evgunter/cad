@@ -650,7 +650,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     // only has the Display still learns which mate is wrong.
     let msg = err.to_string();
     assert!(
-        msg.contains(&format!("mate {}", mate.0)),
+        msg.contains(&format!("mate {:012x}", mate.0)),
         "the rendering names the mate: {msg}"
     );
     // The other side of the split: a REFUTED declaration is a finding
@@ -868,7 +868,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     // REMAINDER, `inner` in the part), so the rendering tells them
     // apart.
     assert!(
-        err.contains(&format!("minted by node {}", outer_probe.node.0)),
+        err.contains(&format!("minted by node {:012x}", outer_probe.node.0)),
         "the refusal names the crossing by its `outer`: {err}"
     );
     assert_ne!(
@@ -1655,7 +1655,7 @@ fn the_crossing_refusal_is_a_named_node_error() {
     let msg = e.to_string();
     assert!(msg.contains("re-verify"), "{msg}");
     assert!(
-        msg.contains("minted by node 2"),
+        msg.contains("minted by node 000000000002"),
         "the refusal names the crossing by its `outer`: {msg}"
     );
 }
@@ -1840,11 +1840,11 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         "{msg}"
     );
     assert!(
-        msg.contains("mate 4's declared Rest contact, refuted:"),
+        msg.contains("mate 000000000004's declared Rest contact, refuted:"),
         "{msg}"
     );
     assert!(
-        msg.contains("mate 4's declared Rest contact, declined:"),
+        msg.contains("mate 000000000004's declared Rest contact, declined:"),
         "{msg}"
     );
     assert!(msg.contains("no mate declared this:"), "{msg}");
@@ -1922,10 +1922,10 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     let expected: [&[&str]; 3] = [
         &[
             "product: 1 root not valid at rest:",
-            "\n  root 3 output 1: a solid encloses negative volume, so it is inside-out",
+            "\n  root 000000000003 output 1: a solid encloses negative volume, so it is inside-out",
         ],
-        &["root 2's face name (minted by node 1) collides"],
-        &["the kernel could not graft root 5's body: the band's "],
+        &["root 000000000002's face name (minted by node 000000000001) collides"],
+        &["the kernel could not graft root 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {
         // Through the assembly surface, exactly as a caller sees it.

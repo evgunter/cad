@@ -270,7 +270,8 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     };
     let sentence = err.to_string();
     assert!(
-        sentence.contains(&format!("node {}", named.0)) && sentence.contains(&fault.to_string()),
+        sentence.contains(&format!("node {:012x}", named.0))
+            && sentence.contains(&fault.to_string()),
         "{sentence}"
     );
 }
@@ -1205,7 +1206,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                 None => {
                     assert!(
                         twin.is_ok(),
-                        "{label}: the solve admits mate {}; the door refused its twin: {:?}",
+                        "{label}: the solve admits mate {:012x}; the door refused its twin: {:?}",
                         id.0,
                         twin.err()
                     );
@@ -1215,7 +1216,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                     let (named, got) = match twin {
                         Err(refusal) => refusal,
                         Ok(_) => panic!(
-                            "{label}: the solve refuses mate {} on its own datum ({fault}); \
+                            "{label}: the solve refuses mate {:012x} on its own datum ({fault}); \
                              the door admitted its twin",
                             id.0
                         ),
@@ -1223,7 +1224,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                     assert_eq!(
                         renamed(got, named, id),
                         *fault,
-                        "{label}: mate {} — the door's fault is the solve's",
+                        "{label}: mate {:012x} — the door's fault is the solve's",
                         id.0
                     );
                     refused += 1;

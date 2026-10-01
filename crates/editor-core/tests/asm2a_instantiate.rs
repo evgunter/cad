@@ -1070,7 +1070,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         "the message never points at an object the caller cannot reach: {rendered}"
     );
     assert!(
-        rendered.contains(&format!("node {}", inner_root.0))
+        rendered.contains(&format!("node {:012x}", inner_root.0))
             && !rendered.contains("did not resolve"),
         "it names the root and points, never quoting the root's own refusal: {rendered}"
     );
@@ -1174,8 +1174,8 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     );
     let rendered = fault.to_string();
     assert!(
-        rendered.contains(&format!("repair node {}", extrude.0))
-            && rendered.contains(&format!("node {}", moved.0)),
+        rendered.contains(&format!("repair node {:012x}", extrude.0))
+            && rendered.contains(&format!("node {:012x}", moved.0)),
         "the instance names the root and points at the failed node: {rendered}"
     );
     let levels: Vec<_> = failure(&ev, ids[0])
@@ -1188,7 +1188,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
         "the traceback ends at the failing node, drawn as the part draws it"
     );
     let refused = own
-        .strip_prefix(&format!("node {} failed: ", extrude.0))
+        .strip_prefix(&format!("node {:012x} failed: ", extrude.0))
         .expect("a node line opens with its node");
     assert!(
         !rendered.contains(refused),
@@ -1242,7 +1242,7 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String {
     match run(doc, opts).result(node) {
         Some(NodeResult::Failed(e)) => e.to_string(),
-        other => panic!("node {} refuses on its own: {other:?}", node.0),
+        other => panic!("node {:012x} refuses on its own: {other:?}", node.0),
     }
 }
 

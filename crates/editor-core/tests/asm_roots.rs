@@ -234,7 +234,8 @@ fn row2a_ancestor_freedom_names_both() {
     // The prose names both too (the bindings' message surface).
     let text = format!("{err}");
     assert!(
-        text.contains(&format!("{}", profile.0)) && text.contains(&format!("{}", extrude.0)),
+        text.contains(&format!("root {:012x}", profile.0))
+            && text.contains(&format!("root {:012x}", extrude.0)),
         "both nodes must be named: {text}"
     );
 }

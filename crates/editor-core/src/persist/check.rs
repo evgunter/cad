@@ -1042,49 +1042,49 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::IdBeyondCounter { id, next_id } => write!(
                 f,
-                "node id {} is at or beyond the mint counter {next_id} — replay would \
+                "node id {} is at or beyond the mint counter {next_id:012x} — replay would \
                  re-mint a referenced id",
-                id.0
+                id
             ),
             Self::StepIds { node, fault } => {
-                write!(f, "profile node {}'s step ids: {fault}", node.0)
+                write!(f, "profile node {}'s step ids: {fault}", node)
             }
             Self::MintLogOrder { step } => write!(
                 f,
                 "the step mint's log is not strictly ascending at id {} — an id logged twice or \
                  out of order, which no mint writes",
-                step.0
+                step
             ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,
-                "the {name} spells the profile step id #{}, which the document's mint log does not \
+                "the {name} spells the profile step id {}, which the document's mint log does not \
                  hold — the document never minted it",
-                step.0
+                step
             ),
             Self::DanglingInput { node, input } => write!(
                 f,
                 "node {} takes input from node {}, which is not live",
-                node.0, input.0
+                node, input
             ),
             Self::ForwardInput { node, input } => write!(
                 f,
                 "node {} takes input from node {}, which does not precede it in `order`",
-                node.0, input.0
+                node, input
             ),
             Self::DeclareInput { node, input } => write!(
                 f,
                 "node {}'s declare input names node {}, which is not a declaration",
-                node.0, input.0
+                node, input
             ),
             Self::WitnessSite { node } => write!(
                 f,
                 "a witness is attached to node {}, which bears no sketch",
-                node.0
+                node
             ),
             Self::WitnessOnMissingNode { node } => write!(
                 f,
                 "a witness is attached to node {}, which is not live",
-                node.0
+                node
             ),
             Self::EpsilonInvalid { value } => write!(
                 f,
@@ -1094,12 +1094,12 @@ impl core::fmt::Display for SnapshotError {
             Self::NotAGauge { node, gauge } => write!(
                 f,
                 "node {}'s gauge reference names node {}, which is not a gauge",
-                node.0, gauge.0
+                node, gauge
             ),
             Self::GaugeCycle { node, gauge } => write!(
                 f,
                 "gauge {} sits on gauge {}, which sits on it",
-                node.0, gauge.0
+                node, gauge
             ),
             // The frame clause is the frame rule's own
             // (`crate::placement::FrameFault`); these arms supply only
@@ -1126,10 +1126,10 @@ impl core::fmt::Display for SnapshotError {
             Self::MateAlignment { node } => write!(
                 f,
                 "mate node {}'s alignment datum carries a non-finite coordinate",
-                node.0
+                node
             ),
             Self::PlacementRule { node, fault } => {
-                write!(f, "placement-rule node {}: {fault}", node.0)
+                write!(f, "placement-rule node {}: {fault}", node)
             }
             // The rule's own clause (`SlotDimensionFault`), forwarded
             // into this door's subject. Every slot address alike,
@@ -1145,7 +1145,7 @@ impl core::fmt::Display for SnapshotError {
             } => write!(
                 f,
                 "node {}: {}",
-                node.0,
+                node,
                 crate::node::SlotDimensionFault {
                     slot: *slot,
                     expected: *expected,
@@ -1155,7 +1155,7 @@ impl core::fmt::Display for SnapshotError {
             Self::SlotUnknownDocParam { node, slot, name } => write!(
                 f,
                 "node {}: slot {} reads the parameter {name}, which the document does not declare",
-                node.0,
+                node,
                 slot.label()
             ),
             Self::SlotDocParamDimension {
@@ -1168,7 +1168,7 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "node {}: slot {} reads the parameter {name} as {} {referenced}, and it is \
                  declared {declared}",
-                node.0,
+                node,
                 slot.label(),
                 referenced.article()
             ),
@@ -1176,7 +1176,7 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "node {}: its payload expression reads the parameter {name}, which the \
                  document does not declare",
-                node.0
+                node
             ),
             Self::PayloadDocParamDimension {
                 node,
@@ -1187,13 +1187,13 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "node {}: its payload expression reads the parameter {name} as {} \
                  {referenced}, and it is declared {declared}",
-                node.0,
+                node,
                 referenced.article()
             ),
             Self::MeasureRefs { node, fault } => {
-                write!(f, "measure node {}: {fault}", node.0)
+                write!(f, "measure node {}: {fault}", node)
             }
-            Self::InputList { node, fault } => write!(f, "node {}: {fault}", node.0),
+            Self::InputList { node, fault } => write!(f, "node {}: {fault}", node),
             Self::AssertionBound {
                 node,
                 measure,
@@ -1203,9 +1203,9 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "assertion node {} bounds {} {measured} measure (node {}) with {} \
                  {bound} expression",
-                node.0,
+                node,
                 measured.article(),
-                measure.0,
+                measure,
                 bound.article()
             ),
             Self::AssertionTarget {
@@ -1216,9 +1216,9 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "assertion node {} carries {} {bound} bound against node {}, which is not a \
                  measure",
-                node.0,
+                node,
                 bound.article(),
-                measure.0
+                measure
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
@@ -1323,7 +1323,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 None | Some(GaugeRefFault::Deleted) => {}
                 // `check_id` above refused an id past the counter.
                 Some(GaugeRefFault::NeverMinted) => {
-                    unreachable!("node {}'s gauge id was checked minted above", id.0)
+                    unreachable!("node {}'s gauge id was checked minted above", id)
                 }
                 Some(GaugeRefFault::NotAGauge) => {
                     return Err(SnapshotError::NotAGauge { node: id, gauge });

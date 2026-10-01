@@ -98,11 +98,7 @@ impl core::fmt::Display for Unplaced {
         match self {
             Self::NoOffset => f.write_str("no instance in it carries an offset"),
             Self::DeadGauge { gauge } => {
-                write!(
-                    f,
-                    "its gauge chain names node {}, which was deleted",
-                    gauge.0
-                )
+                write!(f, "its gauge chain names node {}, which was deleted", gauge)
             }
         }
     }
@@ -204,14 +200,14 @@ impl core::fmt::Display for PoseRefusal {
                 f,
                 "instance {} has no world pose: its group (rooted at node {}) is unplaced, \
                  because {cause}. {}",
-                instance.0,
-                group.0,
+                instance,
+                group,
                 crate::sentence::Recourse(UNPLACED_RECOURSE)
             ),
             Self::Placement { node, error } => write!(
                 f,
                 "the placement at node {} does not evaluate: {}",
-                node.0,
+                node,
                 error.kind()
             ),
         }
@@ -1192,7 +1188,10 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
         alignment,
     } = node
     else {
-        unreachable!("admit_mate is asked of a mate; node {} is not one", mate.0)
+        unreachable!(
+            "admit_mate is asked of a mate; {} is not one",
+            doc.spoken(mate)
+        )
     };
     let band = Band::linear(tol).map_err(|error| Box::new(MateFault::Band { error }))?;
     let wa = walk_of(doc, mate, MateSide::A, a).map_err(Box::new)?;

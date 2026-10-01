@@ -576,7 +576,10 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
     }
 }
 
-/// The node kind's tally name.
+/// The node kind's tally name: one per [`Node`] VARIANT, which is what
+/// the census counts. Not `editor_core::node_kind_noun`, whose words
+/// split `Datum` by flavour — a split this tally's sub-kind half
+/// (`sub_kinds`) already counts on its own.
 pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
     match node {
         Node::Datum(_) => "Datum",

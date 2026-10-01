@@ -136,7 +136,7 @@ fn face_name() -> StableName {
 #[test]
 fn stable_name_display_is_kind_plus_minting_node() {
     let shown = face_name().to_string();
-    assert_eq!(shown, "face name minted by node 7");
+    assert_eq!(shown, "face name minted by node 000000000007");
     assert!(
         !shown.contains("Cap") && !shown.contains('['),
         "the role path leaked into prose: {shown:?}"
@@ -161,18 +161,18 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
     let cases = [
         (
             NodePickError::NotABody { node },
-            vec!["node 4", "not body-denoting"],
+            vec!["node 000000000004", "not body-denoting"],
         ),
         (
             NodePickError::NoSuchBody { node, body: 2 },
-            vec!["node 4", "index 2"],
+            vec!["node 000000000004", "index 2"],
         ),
         // The standing speaks under this door's prefix; the wrapped
         // kernel refusals are forwarded in their own doors' words, not
         // paraphrased — prefix included.
         (
             NodePickError::Standing(NodeStanding::Failed { node }),
-            vec!["pick:", "node 4", "failed"],
+            vec!["pick:", "node 000000000004", "failed"],
         ),
         (
             NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance {
@@ -220,9 +220,9 @@ fn name_lookup_error_display_names_its_content_not_its_struct() {
             }),
             vec![
                 "name lookup:".to_owned(),
-                "node 6".to_owned(),
+                "node 000000000006".to_owned(),
                 "poisoned".to_owned(),
-                "node 2".to_owned(),
+                "node 000000000002".to_owned(),
             ],
         ),
     ];
@@ -259,7 +259,13 @@ fn an_unnamed_entity_names_the_lookup_and_no_hit_test() {
     };
     assert_f6(
         &unnamed,
-        &["name lookup:", "node 2", "edge", "body 0", "kernel bug"],
+        &[
+            "name lookup:",
+            "node 000000000002",
+            "edge",
+            "body 0",
+            "kernel bug",
+        ],
         &["UnnamedEntity", "Unnamed"],
     );
     let text = unnamed.to_string();
@@ -288,22 +294,27 @@ fn node_standing_display_names_its_content_and_no_door() {
     let cases = [
         (
             NodeStanding::NotEvaluated { node },
-            vec!["node 6", "no result", "canceled", "re-evaluate"],
+            vec!["node 000000000006", "no result", "canceled", "re-evaluate"],
         ),
         (
             NodeStanding::NotInDocument { node },
-            vec!["node 6", "not a node of the document"],
+            vec!["node 000000000006", "not a node of the document"],
         ),
         (
             NodeStanding::Failed { node },
-            vec!["node 6", "failed", "own failure"],
+            vec!["node 000000000006", "failed", "own failure"],
         ),
         (
             NodeStanding::Poisoned {
                 node,
                 through: RecipeNodeId(2),
             },
-            vec!["node 6", "poisoned", "node 2", "upstream"],
+            vec![
+                "node 000000000006",
+                "poisoned",
+                "node 000000000002",
+                "upstream",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &NODE_STANDING, &[]);
@@ -337,9 +348,9 @@ fn resolve_indeterminate_display_names_its_content_not_its_struct() {
         &[
             "indeterminate",
             "minting node",
-            "node 6",
+            "node 000000000006",
             "poisoned",
-            "node 2",
+            "node 000000000002",
             "upstream",
         ],
         &["ResolveIndeterminate", "Poisoned", "standing:"],
@@ -404,7 +415,7 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
     let cases = [
         (
             InterrogateError::Standing(NodeStanding::Poisoned { node, through }),
-            vec!["node 7", "node 3", "poisoned"],
+            vec!["node 000000000007", "node 000000000003", "poisoned"],
         ),
         (InterrogateError::NoSuchName, vec!["stale", "another node"]),
         (
@@ -524,7 +535,7 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             },
             vec![
                 "face",
-                "node 7",
+                "node 000000000007",
                 "neither certified in nor out",
                 "ambiguity band",
                 editor_core::SEL_DATUM_DISTANCE,
@@ -536,34 +547,39 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 matched: 1,
                 candidates: 3,
             },
-            vec!["face", "node 7", "3 candidates", "1 match"],
+            vec!["face", "node 000000000007", "3 candidates", "1 match"],
         ),
         (
             SelectRefusal::Unreadable {
                 name: Box::new(face_name()),
                 error: InterrogateError::WholeBody,
             },
-            vec!["face", "node 7", "whole body"],
+            vec!["face", "node 000000000007", "whole body"],
         ),
         (
             SelectRefusal::NotADatum {
                 datum: RecipeNodeId(9),
                 found: "a body",
             },
-            vec!["node 9", "a body", "evaluated datum"],
+            vec!["node 000000000009", "a body", "evaluated datum"],
         ),
         (
             SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
                 node: RecipeNodeId(9),
                 through: RecipeNodeId(4),
             }),
-            vec!["distance query's datum", "node 9", "poisoned", "node 4"],
+            vec![
+                "distance query's datum",
+                "node 000000000009",
+                "poisoned",
+                "node 000000000004",
+            ],
         ),
         (
             SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
                 node: RecipeNodeId(9),
             }),
-            vec!["flush query's node", "node 9", "failed"],
+            vec!["flush query's node", "node 000000000009", "failed"],
         ),
         (
             SelectRefusal::NotALength {
@@ -582,7 +598,7 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec![
                 "the pair (",
                 "face",
-                "node 7",
+                "node 000000000007",
                 "neither certified in nor out",
                 "only definite findings",
             ],
@@ -1078,21 +1094,21 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 id: node,
                 next_id: 4,
             },
-            vec!["node id 5", "mint counter 4"],
+            vec!["node id 000000000005", "mint counter 000000000004"],
         ),
         (
             SnapshotError::DanglingInput {
                 node,
                 input: RecipeNodeId(9),
             },
-            vec!["node 5", "node 9", "not live"],
+            vec!["node 000000000005", "node 000000000009", "not live"],
         ),
         (
             SnapshotError::ForwardInput {
                 node,
                 input: RecipeNodeId(9),
             },
-            vec!["node 5", "does not precede it"],
+            vec!["node 000000000005", "does not precede it"],
         ),
         (
             SnapshotError::DeclareInput {
@@ -1103,11 +1119,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::WitnessSite { node },
-            vec!["a witness is attached to node 5", "bears no sketch"],
+            vec![
+                "a witness is attached to node 000000000005",
+                "bears no sketch",
+            ],
         ),
         (
             SnapshotError::WitnessOnMissingNode { node },
-            vec!["a witness is attached to node 5", "not live"],
+            vec!["a witness is attached to node 000000000005", "not live"],
         ),
         (
             SnapshotError::SlotDimension {
@@ -1116,7 +1135,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 expected: Dimension::Length,
                 found: Dimension::Angle,
             },
-            vec!["node 5", "slot distance", "needs a length expression"],
+            vec![
+                "node 000000000005",
+                "slot distance",
+                "needs a length expression",
+            ],
         ),
         (
             SnapshotError::SlotUnknownDocParam {
@@ -1141,7 +1164,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 node,
                 name: ParamName::from_static("depth"),
             },
-            vec!["node 5", "payload expression", "depth", "does not declare"],
+            vec![
+                "node 000000000005",
+                "payload expression",
+                "depth",
+                "does not declare",
+            ],
         ),
         (
             SnapshotError::PayloadDocParamDimension {
@@ -1155,7 +1183,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 // existing beside the slot one: a payload expression
                 // has no slot, so the node is the only address the
                 // refusal can carry.
-                "node 5",
+                "node 000000000005",
                 "payload expression",
                 "depth",
                 "as a length",
@@ -1178,21 +1206,31 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 node,
                 gauge: RecipeNodeId(2),
             },
-            vec!["node 5's gauge reference", "node 2", "not a gauge"],
+            vec![
+                "node 000000000005's gauge reference",
+                "node 000000000002",
+                "not a gauge",
+            ],
         ),
         (
             SnapshotError::GaugeCycle {
                 node,
                 gauge: RecipeNodeId(2),
             },
-            vec!["gauge 5 sits on gauge 2", "which sits on it"],
+            vec![
+                "gauge 000000000005 sits on gauge 000000000002",
+                "which sits on it",
+            ],
         ),
         (
             SnapshotError::PlacementNonFinite {
                 node,
                 at: editor_core::FrameSite::Step { index: 0 },
             },
-            vec!["step 1 of node 5's placement", "non-finite coordinate"],
+            vec![
+                "step 1 of node 000000000005's placement",
+                "non-finite coordinate",
+            ],
         ),
         (
             SnapshotError::PlacementImproper {
@@ -1200,7 +1238,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 at: editor_core::FrameSite::Step { index: 1 },
                 determinant: -1.0,
             },
-            vec!["step 2 of node 5's placement", "improper (mirroring)"],
+            vec![
+                "step 2 of node 000000000005's placement",
+                "improper (mirroring)",
+            ],
         ),
         (
             SnapshotError::PlacementNonRigid {
@@ -1209,21 +1250,28 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 check: "transform_rigid_col01_orth",
             },
             vec![
-                "step 1 of node 5's placement",
+                "step 1 of node 000000000005's placement",
                 "not definitely rigid",
                 "may shear",
             ],
         ),
         (
             SnapshotError::MateAlignment { node },
-            vec!["mate node 5", "alignment datum", "non-finite coordinate"],
+            vec![
+                "mate node 000000000005",
+                "alignment datum",
+                "non-finite coordinate",
+            ],
         ),
         (
             SnapshotError::PlacementRule {
                 node,
                 fault: PlacementRuleFault::NoPlacements,
             },
-            vec!["placement-rule node 5", "placement list is empty"],
+            vec![
+                "placement-rule node 000000000005",
+                "placement list is empty",
+            ],
         ),
         (
             SnapshotError::MeasureRefs {
@@ -1234,14 +1282,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     refs: 2,
                 },
             },
-            vec!["measure node 5", "reads reference 3"],
+            vec!["measure node 000000000005", "reads reference 3"],
         ),
         (
             SnapshotError::InputList {
                 node,
                 fault: InputFault::TooFew { found: 1 },
             },
-            vec!["node 5"],
+            vec!["node 000000000005"],
         ),
         (
             SnapshotError::AssertionTarget {
@@ -1278,13 +1326,16 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 fault: StepIdFault::Repeated { step: StepId(3) },
             },
             vec![
-                "profile node 5's step ids",
-                "step id 3 stands for two steps",
+                "profile node 000000000005's step ids",
+                "step id 000000000003 stands for two steps",
             ],
         ),
         (
             SnapshotError::MintLogOrder { step: StepId(6) },
-            vec!["not strictly ascending at id 6", "which no mint writes"],
+            vec![
+                "not strictly ascending at id 000000000006",
+                "which no mint writes",
+            ],
         ),
         (
             SnapshotError::NameStepNotMinted {
@@ -1299,8 +1350,8 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 step: StepId(8),
             },
             vec![
-                "minted by node 5",
-                "profile step id #8",
+                "minted by node 000000000005",
+                "profile step id 000000000008",
                 "mint log does not hold",
             ],
         ),
@@ -1505,7 +1556,7 @@ fn a_border_delta_names_the_walls_that_moved() {
             new: vec![],
         },
         &[
-            "at node 7",
+            "at node 000000000007",
             &format!("no longer borders the {} and the {}", wall(3), wall(4)),
             "borders no wall it did not",
         ],
@@ -1572,27 +1623,27 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 gone: vec![vertex.clone()],
                 new: vec![],
             },
-            "the parent's seams with the vertex name minted by node 5 (the end cap vertex \
-             over the start of the leg of the profile step minted #1) are gone",
+            "the parent's seams with the vertex name minted by node 000000000005 (the end cap vertex \
+             over the start of the leg of the profile step 000000000001) are gone",
         ),
         (
             GroupCutters::Read {
                 gone: vec![],
                 new: vec![member_wall],
             },
-            "the parent has new seams with the face name minted by node 8 (the side wall \
-             over the leg of the profile step minted #2, minted by node 6)",
+            "the parent has new seams with the face name minted by node 000000000008 (the side wall \
+             over the leg of the profile step 000000000002, minted by node 000000000006)",
         ),
         (
             GroupCutters::Read {
                 gone: vec![wall(1), wall(3)],
                 new: vec![wall(0)],
             },
-            "the parent's seams with 2 cutters (the face name minted by node 6 (the side \
-             wall over the leg of the profile step minted #1); the face name minted by node 6 (the \
-             side wall over the leg of the profile step minted #3)) are gone, and the parent \
-             has new seams with the face name minted by node 6 (the side wall over the leg \
-             of the profile step minted #0)",
+            "the parent's seams with 2 cutters (the face name minted by node 000000000006 (the side \
+             wall over the leg of the profile step 000000000001); the face name minted by node 000000000006 (the \
+             side wall over the leg of the profile step 000000000003)) are gone, and the parent \
+             has new seams with the face name minted by node 000000000006 (the side wall over the leg \
+             of the profile step 000000000000)",
         ),
         (
             GroupCutters::Read {
@@ -1633,7 +1684,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
             assert_eq!(
                 d.to_string(),
                 format!(
-                    "at node 8, the group this fragment's parent was divided into held \
+                    "at node 000000000008, the group this fragment's parent was divided into held \
                      {was} entities in the last-good run and holds {now} now; {clause}; and \
                      no verdict flip was found that explains the change"
                 )
@@ -1686,7 +1737,9 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 node: RecipeNodeId(9),
                 param: SlotId::Count,
             },
-            format!("a structural parameter changed on the derivation path (node 9, slot {count})"),
+            format!(
+                "a structural parameter changed on the derivation path (node 000000000009, slot {count})"
+            ),
         ),
         (
             Diagnosis::RecipeEdit {
@@ -1695,7 +1748,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 },
             },
             "the recorded reference disagrees with the recipe as it stands on the derivation \
-             path (node 4 was deleted)"
+             path (node 000000000004 was deleted)"
                 .to_owned(),
         ),
     ];
@@ -1703,7 +1756,8 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
         node: RecipeNodeId(11),
         cause,
     };
-    let tail = ", upstream of node 11, the name's minting node, but not on its derivation path";
+    let tail =
+        ", upstream of node 00000000000b, the name's minting node, but not on its derivation path";
     let up = [
         (
             upstream(UpstreamCause::PredicateFlip {
@@ -1714,7 +1768,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
             }),
             format!(
                 "the margin deciding which side of a face's plane a point lies on flipped from \
-                 negative to positive at node 10{tail}"
+                 negative to positive at node 00000000000a{tail}"
             ),
         ),
         (
@@ -1722,7 +1776,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 node: RecipeNodeId(10),
                 param: SlotId::Count,
             }),
-            format!("a structural parameter changed at node 10 (slot {count}){tail}"),
+            format!("a structural parameter changed at node 00000000000a (slot {count}){tail}"),
         ),
         (
             upstream(UpstreamCause::RecipeEdit {
@@ -1730,7 +1784,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                     node: RecipeNodeId(4),
                 },
             }),
-            format!("the recipe changed (node 4 was deleted){tail}"),
+            format!("the recipe changed (node 000000000004 was deleted){tail}"),
         ),
     ];
     for (d, want) in path.into_iter().chain(up) {
@@ -1826,9 +1880,9 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
     assert_f6(
         &below,
         &[
-            "mate 2's b reference",
+            "mate 000000000002's b reference",
             "does not name a face of the product",
-            "it is read at node 5, which is not a root of the product, and a reference \
+            "it is read at node 000000000005, which is not a root of the product, and a reference \
              resolves against a root's own rows",
         ],
         &["ReadBelowARoot", "Reference"],
@@ -1843,7 +1897,7 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
     assert_f6(
         &tied,
         &[
-            "mate 2's a reference",
+            "mate 000000000002's a reference",
             "2 entities answer to it",
             "a tie is never broken by picking",
         ],
@@ -1934,7 +1988,7 @@ fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
     assert_f6(
         &row,
         &[
-            "mate 5's class Tangent has no at-rest kernel record",
+            "mate 000000000005's class Tangent has no at-rest kernel record",
             why,
             editor_core::NO_AT_REST_RECORD_RECOURSE,
         ],
@@ -1943,7 +1997,7 @@ fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
     assert_f6(
         &mint(row),
         &[
-            "mate 5's class Tangent has no at-rest kernel record",
+            "mate 000000000005's class Tangent has no at-rest kernel record",
             why,
             editor_core::NO_AT_REST_RECORD_RECOURSE,
         ],
@@ -1992,8 +2046,8 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &raised,
         &[
             &counted,
-            "mate 2's a reference",
-            "mate 5's class Tangent has no at-rest kernel record",
+            "mate 000000000002's a reference",
+            "mate 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["Reference", "NoAtRestRecord"],
     );
@@ -2036,8 +2090,8 @@ fn the_mint_arms_render_every_refusal_they_hold() {
         &carried,
         &[
             &counted,
-            "mate 2's a reference",
-            "mate 5's class Tangent has no at-rest kernel record",
+            "mate 000000000002's a reference",
+            "mate 000000000005's class Tangent has no at-rest kernel record",
         ],
         &["CarriedMintRefusal", "CarriedRefusal"],
     );
@@ -2072,7 +2126,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert_f6(
         &pair,
         &[
-            "mates 3 and 5 cannot both hold",
+            "mates 000000000003 and 000000000005 cannot both hold",
             "a clash of 0.01 m",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
@@ -2095,14 +2149,16 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
     assert_f6(
         &itself,
         &[
-            "mate 6 contradicts itself",
+            "mate 000000000006 contradicts itself",
             "mate_clocking_redundant",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
         &["Contradictory"],
     );
     assert!(
-        !itself.to_string().contains("mates 6 and 6"),
+        !itself
+            .to_string()
+            .contains("mates 000000000006 and 000000000006"),
         "one mate at fault is named once: {itself}"
     );
 }
@@ -2159,7 +2215,7 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
     };
     let shown = fault.to_string();
     for want in [
-        "mates 3 and 5 cannot both hold",
+        "mates 000000000003 and 000000000005 cannot both hold",
         "predicate `mate_member_rotation_identity`",
         "a dimensionless residual of 0.25",
         "on a 4 m arm",
@@ -2281,7 +2337,7 @@ fn a_lever_refusal_names_the_instance_and_why() {
             instance,
             fault: PartFault::NoResolver,
         },
-        &["instance 7", "no part resolver"],
+        &["instance 000000000007", "no part resolver"],
         &["PartUnresolved", "NoResolver"],
     );
     assert_f6(
@@ -2291,7 +2347,7 @@ fn a_lever_refusal_names_the_instance_and_why() {
             face,
             kind: SurfaceKind::Nurbs,
         },
-        &["instance 7", "nurbs face", "cannot be bounded"],
+        &["instance 000000000007", "nurbs face", "cannot be bounded"],
         &["FaceUnbounded", "Nurbs"],
     );
     assert_f6(
@@ -2300,22 +2356,22 @@ fn a_lever_refusal_names_the_instance_and_why() {
             part,
             face,
         },
-        &["instance 7", "not well formed"],
+        &["instance 000000000007", "not well formed"],
         &["MalformedBody"],
     );
     assert_f6(
         &LeverRefusal::NoExtent { instance, part },
-        &["instance 7", "no faces"],
+        &["instance 000000000007", "no faces"],
         &["NoExtent"],
     );
     assert_f6(
         &LeverRefusal::NoFiniteBound { instance, part },
-        &["instance 7", "non-finite"],
+        &["instance 000000000007", "non-finite"],
         &["NoFiniteBound"],
     );
     assert_f6(
         &LeverRefusal::NotAnInstance { node: instance },
-        &["node 7", "not a live instantiate node"],
+        &["node 000000000007", "not a live instantiate node"],
         &["NotAnInstance"],
     );
 }
@@ -2408,7 +2464,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
             NamingError::MissingUpstream {
                 node: RecipeNodeId(11),
             },
-            vec!["upstream node 11"],
+            vec!["upstream node 00000000000b"],
         ),
         (
             NamingError::Emission {
@@ -2435,7 +2491,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 other: face,
                 found: RimShare::Several,
             },
-            vec!["operand node 23", "more than one edge"],
+            vec!["operand node 000000000017", "more than one edge"],
         ),
         (
             NamingError::MergedChord { edge },
@@ -2461,8 +2517,8 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec![
                 "seam vertex",
                 "2 differently named vertices",
-                "vertex name minted by node 3",
-                "vertex name minted by node 4",
+                "vertex name minted by node 000000000003",
+                "vertex name minted by node 000000000004",
             ],
         ),
         (
@@ -2471,7 +2527,11 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 node: RecipeNodeId(29),
                 rim: edge,
             },
-            vec!["merged faces", "operand node 29", "does not lie within"],
+            vec![
+                "merged faces",
+                "operand node 00000000001d",
+                "does not lie within",
+            ],
         ),
         (
             NamingError::MergedChordConstituents {
@@ -2493,7 +2553,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     })],
                 }),
             },
-            vec!["member node 37", "a tie stands where one edge is needed"],
+            vec![
+                "member node 000000000025",
+                "a tie stands where one edge is needed",
+            ],
         ),
         (
             NamingError::Band(BandError::Empty {
@@ -2576,7 +2639,7 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
             found: Dimension::Angle,
         },
         &[
-            "node 7",
+            "node 000000000007",
             "loop 1 step 3 · centre x",
             "needs a length expression",
             "got an angle",
@@ -2620,7 +2683,7 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         };
         let at_load = at_load.to_string();
         let clause = at_load
-            .strip_prefix("node 7: ")
+            .strip_prefix("node 000000000007: ")
             .unwrap_or_else(|| panic!("the load door names the node first: {at_load}"));
         assert_eq!(at_edit.problem().to_string(), clause);
         assert_eq!(
@@ -2692,7 +2755,7 @@ fn maintenance_display_says_what_the_edit_did() {
                 instance: gauge,
                 offset: editor_core::Placement::IDENTITY,
             },
-            vec!["instance 3's group", "offset was cleared"],
+            vec!["instance 000000000003's group", "offset was cleared"],
         ),
         (
             Maintenance::Strand {
@@ -2700,7 +2763,7 @@ fn maintenance_display_says_what_the_edit_did() {
                 name: face_name(),
             },
             vec![
-                "node 5 carries a face name minted by node 7",
+                "node 000000000005 carries a face name minted by node 000000000007",
                 // The row is made by two edits — a delete and a
                 // reshaping — and the sentence names what either
                 // removed without claiming which.
@@ -2712,7 +2775,7 @@ fn maintenance_display_says_what_the_edit_did() {
         (
             Maintenance::StrandedAppearance { name: face_name() },
             vec![
-                "the appearance store holds an attachment under a face name minted by node 7",
+                "the appearance store holds an attachment under a face name minted by node 000000000007",
                 "this edit removed what it denoted",
                 "rebound or cleared",
             ],
@@ -2720,7 +2783,7 @@ fn maintenance_display_says_what_the_edit_did() {
         (
             Maintenance::OrphanedDeclare { declare: other },
             vec![
-                "node 5 declares contacts",
+                "node 000000000005 declares contacts",
                 "deleted the last node that consumed it",
                 // What it lost is a CONSUMER. "nothing reads it"
                 // would be false — the same delete re-roots the
@@ -2841,23 +2904,26 @@ fn a_step_id_fault_names_the_id_or_the_count() {
         ),
         (
             StepIdFault::NotThisProfiles { step: StepId(9) },
-            vec!["step id 9", "not a step of the program this node holds"],
+            vec![
+                "step id 000000000009",
+                "not a step of the program this node holds",
+            ],
         ),
         (
             StepIdFault::Repeated { step: StepId(4) },
-            vec!["step id 4 stands for two steps"],
+            vec!["step id 000000000004 stands for two steps"],
         ),
         (
             StepIdFault::NotMinted { step: StepId(12) },
             vec![
-                "step id 12",
+                "step id 00000000000c",
                 "not in the document's mint log",
                 "never minted it",
             ],
         ),
         (
             StepIdFault::Collides { step: StepId(7) },
-            vec!["drew step id 7", "mint log already holds"],
+            vec!["drew step id 000000000007", "mint log already holds"],
         ),
     ];
     assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);
@@ -2867,8 +2933,8 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             fault: StepIdFault::Repeated { step: StepId(2) },
         },
         &[
-            "node 4's program cannot take the step ids given",
-            "step id 2 stands for two steps",
+            "node 000000000004's program cannot take the step ids given",
+            "step id 000000000002 stands for two steps",
         ],
         &["StepIdsRefused", "Repeated"],
     );
@@ -2888,8 +2954,8 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             step: StepId(9),
         },
         &[
-            "edge name minted by node 3",
-            "profile step id #9",
+            "edge name minted by node 000000000003",
+            "profile step id 000000000009",
             "never minted",
             "mint log does not hold it",
         ],
@@ -2899,7 +2965,10 @@ fn a_step_id_fault_names_the_id_or_the_count() {
         &EditError::SetProgramOnNonProfile {
             node: RecipeNodeId(4),
         },
-        &["node 4 holds no profile program", "no program to set"],
+        &[
+            "node 000000000004 holds no profile program",
+            "no program to set",
+        ],
         &["SetProgramOnNonProfile"],
     );
 }

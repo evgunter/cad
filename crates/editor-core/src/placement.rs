@@ -453,8 +453,8 @@ impl FrameSite {
     #[must_use]
     pub fn subject(self, node: crate::node::RecipeNodeId) -> String {
         match self {
-            Self::Listed { index } => format!("placement {index} of node {}", node.0),
-            Self::Step { index } => format!("step {} of node {}'s placement", index + 1, node.0),
+            Self::Listed { index } => format!("placement {index} of node {}", node),
+            Self::Step { index } => format!("step {} of node {}'s placement", index + 1, node),
         }
     }
 }
