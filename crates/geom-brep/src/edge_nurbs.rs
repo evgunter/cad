@@ -183,9 +183,17 @@ pub enum PlaneNurbsRefusal {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// A margin escalated inside the rung-3 certificate, or the
-    /// reported transversality was poisoned.
-    Escalated(Indeterminate),
+    /// A limb's margin escalated inside the rung-3 certificate.
+    Escalated {
+        /// Which limb.
+        limb: SsiLimb,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// The reported transversality — the minimum sine over interior
+    /// samples that each decided transverse — came out poisoned. No
+    /// geometry and no tolerance reaches it, so it is a kernel defect.
+    ReportedTransversalityPoisoned(Indeterminate),
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly. A routing boundary (C12.1), never a
     /// runtime fallback.
@@ -297,8 +305,8 @@ impl PlaneNurbsRefusal {
     ///
     /// The per-sample transversality and the uniqueness tube are the
     /// `Transversality` decision, whose band-decided arms end alike (D4
-    /// ¶1 (iv)); the certificate's limb and escalation refusals share
-    /// the certificate's ending.
+    /// ¶1 (iv)); a certificate limb's refusal, definite or escalated,
+    /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
         self.decision()
@@ -314,14 +322,15 @@ impl PlaneNurbsRefusal {
             Self::TransversalityEscalated { cause, .. } => {
                 (CertCheck::Transversality, RefusedArm::Undecided(cause))
             }
-            Self::Limb { .. } => (CertCheck::PlaneNurbsCertificate, RefusedArm::SignCertain),
+            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain),
             // The tube's margin is the lane's transversality over the
             // chain (`ssi_tube_transversality`), and this refusal is its
             // decided verdict.
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
-            Self::Escalated(diag) => (
-                CertCheck::PlaneNurbsCertificate,
-                RefusedArm::Undecided(diag),
+            Self::Escalated { limb, cause } => (limb.check(), RefusedArm::Undecided(cause)),
+            Self::ReportedTransversalityPoisoned(cause) => (
+                CertCheck::PlaneNurbsReportedTransversality,
+                RefusedArm::Undecided(cause),
             ),
             Self::FootPointInconclusive { .. }
             | Self::PcurveFit
@@ -371,10 +380,14 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                  m, which is the bound it could prove and not the sliver's own extent",
                 verdict.margin()
             ),
-            Self::Escalated(diag) => write!(
+            Self::Escalated { limb, cause } => {
+                write!(f, "{} escalated: {}", limb.name(), cause.payload())
+            }
+            Self::ReportedTransversalityPoisoned(cause) => write!(
                 f,
-                "a plane × NURBS limb margin escalated: {}",
-                diag.payload()
+                "every interior sample decided the plane and the NURBS wall cross, yet \
+                 their reported minimum crossing angle is unreadable: {}",
+                cause.payload()
             ),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
         }
@@ -516,7 +529,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // no caller can tell from a measurement.
     let min_sin =
         geom_core::k_stats::gate_measured("plane_nurbs_transversality_reported", min_sin, band)
-            .map_err(PlaneNurbsRefusal::Escalated)?;
+            .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----
     let localized = localized(wall);
@@ -785,7 +798,9 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         SsiError::TubeStraddles { verdict, boxes } => {
             PlaneNurbsRefusal::TubeStraddles { verdict, boxes }
         }
-        SsiError::Escalated(diag) => PlaneNurbsRefusal::Escalated(diag),
+        SsiError::CertificateEscalated { limb, cause } => {
+            PlaneNurbsRefusal::Escalated { limb, cause }
+        }
         SsiError::FootPointInconclusive { t, last_distance } => {
             // The limb re-projects warm-started from the image; a
             // divergence there is the same class as the schedule's own,
