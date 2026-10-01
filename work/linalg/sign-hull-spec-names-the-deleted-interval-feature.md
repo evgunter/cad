@@ -2,11 +2,12 @@
 id: sign-hull-spec-names-the-deleted-interval-feature
 kind: issue
 title: PROPS-SIGN-HULL-SPEC instructs --features interval and a CI-Config trailer; the first now errors and the second never did anything
-status: open
+status: closed
 opened: 2026-09-24
 priority: P4
 cost: E
 refs: [interval-orthonormal-basis-sign-hull]
+closed: 2026-10-01
 ---
 
 ## What
@@ -24,3 +25,9 @@ inert since 2026-09-04 (`docs/prompts/implementer-discipline.md`: nothing
 in CI reads a commit trailer) and names a lane axis RING-4 also removed.
 The spec is LINALG's, so RING-4 left it; the re-word is two lines — drop
 the flag, drop the trailer.
+
+## Closed (2026-10-01)
+
+The spec was deleted when #2468 merged
+(`docs/doc-ledger/props-sign-hull-spec.md`). The merge also dropped
+the `#[cfg(feature = "interval")]` attributes the branch carried.
