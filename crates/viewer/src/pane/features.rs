@@ -1197,7 +1197,10 @@ mod tests {
     #[test]
     fn clicking_a_rows_label_selects_its_node() {
         let row = instance_row();
-        let label = format!("InstantiatePart 000000000004 — {}", crate::test_support::PART_FILE);
+        let label = format!(
+            "InstantiatePart 000000000004 — {}",
+            crate::test_support::PART_FILE
+        );
         let clicks = row_clicked(&row, &label, false);
         assert_eq!(clicks.select, Some(row.id));
         assert_eq!(clicks.hide, None, "a label click toggles nothing");

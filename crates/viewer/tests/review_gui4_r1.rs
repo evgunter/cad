@@ -447,7 +447,11 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     assert!(
         second.refusal.is_some()
             || !all_ok
-            || rows.iter().filter(|r| r.spoken.kind() == Some("Mate")).count() == 2,
+            || rows
+                .iter()
+                .filter(|r| r.spoken.kind() == Some("Mate"))
+                .count()
+                == 2,
         "a second mate on the same pair is either refused at the door or visible in \
          the tree; it is never invisible: refusal={:?} rows={rows:?}",
         second.refusal
@@ -864,7 +868,10 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     }
     // Nothing entered the document.
     assert!(
-        !session.tree_rows().iter().any(|r| r.spoken.kind() == Some("Mate")),
+        !session
+            .tree_rows()
+            .iter()
+            .any(|r| r.spoken.kind() == Some("Mate")),
         "a refused proposal authors nothing"
     );
 }

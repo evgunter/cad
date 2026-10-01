@@ -720,7 +720,10 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
         alignment,
     } = node
     else {
-        unreachable!("admit_mate is asked of a mate; {} is not one", doc.spoken(mate))
+        unreachable!(
+            "admit_mate is asked of a mate; {} is not one",
+            doc.spoken(mate)
+        )
     };
     let band = Band::linear(tol).map_err(|error| Box::new(MateFault::Band { error }))?;
     let wa = walk_of(doc, mate, MateSide::A, a).map_err(Box::new)?;

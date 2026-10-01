@@ -147,11 +147,7 @@ impl Route {
 // each instance below it.
 impl core::fmt::Display for Route {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "document {} through instance {}",
-            self.of, self.through
-        )?;
+        write!(f, "document {} through instance {}", self.of, self.through)?;
         for node in &self.via {
             write!(f, " → instance {}", node)?;
         }

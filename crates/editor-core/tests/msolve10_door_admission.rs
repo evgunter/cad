@@ -240,7 +240,8 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     };
     let sentence = err.to_string();
     assert!(
-        sentence.contains(&format!("node {:012x}", named.0)) && sentence.contains(&fault.to_string()),
+        sentence.contains(&format!("node {:012x}", named.0))
+            && sentence.contains(&fault.to_string()),
         "{sentence}"
     );
 }

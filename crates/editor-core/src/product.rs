@@ -281,11 +281,7 @@ struct SourceLine<'a> {
 
 impl crate::finding::Finding for SourceLine<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "root {} output {}",
-            self.source.node, self.source.output
-        )
+        write!(f, "root {} output {}", self.source.node, self.source.output)
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -343,11 +339,9 @@ impl Staged for ProductError {
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
                         format!("the below half of node {}", placed)
                     }
-                    Some(crate::node::PartSelect::Instance(i)) => format!(
-                        "instance `{}` of node {}",
-                        crate::expr::unparse(i),
-                        placed
-                    ),
+                    Some(crate::node::PartSelect::Instance(i)) => {
+                        format!("instance `{}` of node {}", crate::expr::unparse(i), placed)
+                    }
                 };
                 write!(
                     f,

@@ -3602,10 +3602,7 @@ mod properties_pane_tests {
             vec![Selection::Node(body)]
         });
         // The startup body is an extrude, spoken by its kind and tag.
-        let line = format!(
-            "first operand: Extrude {:012x}; second operand: —",
-            body.0
-        );
+        let line = format!("first operand: Extrude {:012x}; second operand: —", body.0);
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 

@@ -3824,7 +3824,8 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         }
         .to_string()
     };
-    let head = "check connectedness: root 000000000004 output 0: the component count is unknowable: ";
+    let head =
+        "check connectedness: root 000000000004 output 0: the component count is unknowable: ";
     let sign = "the sign of a shell's volume is too close to call: ";
     let in_band =
         |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");

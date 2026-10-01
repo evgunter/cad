@@ -1043,7 +1043,12 @@ impl ViewerBehavior<'_> {
                     .collect()
             })
             .unwrap_or_default();
-        move |id| named.get(id).cloned().unwrap_or_else(|| format!("node {id}"))
+        move |id| {
+            named
+                .get(id)
+                .cloned()
+                .unwrap_or_else(|| format!("node {id}"))
+        }
     }
 
     /// The add-profile form: a template shape with Length fields, one

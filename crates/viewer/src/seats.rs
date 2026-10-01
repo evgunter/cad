@@ -221,9 +221,8 @@ impl core::fmt::Display for SeatEvent {
         match self {
             Self::PickLost { seat, node } => write!(
                 f,
-                "the {} pick ({}) is no longer in the document; the tool dropped it",
+                "the {} pick (node {node}) is no longer in the document; the tool dropped it",
                 seat.name(),
-                format!("node {node}")
             ),
         }
     }

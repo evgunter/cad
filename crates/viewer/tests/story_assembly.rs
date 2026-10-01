@@ -517,7 +517,10 @@ fn the_windmill_story() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     assert!(
-        session.tree_rows().iter().any(|row| row.spoken.kind() == Some("Mate")),
+        session
+            .tree_rows()
+            .iter()
+            .any(|row| row.spoken.kind() == Some("Mate")),
         "the mate has a row"
     );
     assert_eq!(

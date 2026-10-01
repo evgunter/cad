@@ -91,7 +91,8 @@
 use pncad::document::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, EvalOptions, Evaluation, Frame,
     MateFault, MateFrame, MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram,
-    RecipeNodeId, SitedFace, SpokenNode, class_admission, mate_reach, member_of, solve_document, table_gap,
+    RecipeNodeId, SitedFace, SpokenNode, class_admission, mate_reach, member_of, solve_document,
+    table_gap,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;

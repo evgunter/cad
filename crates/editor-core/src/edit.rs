@@ -1750,11 +1750,7 @@ impl EditError {
                 )
             }
             Self::DeleteWouldDangle { id, referenced_by } => {
-                write!(
-                    f,
-                    "node {} is still an input to node {}",
-                    id, referenced_by
-                )?;
+                write!(f, "node {} is still an input to node {}", id, referenced_by)?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -2021,11 +2017,7 @@ impl EditError {
                 tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
             }
             Self::ReadSiteMissingNode { at } => {
-                write!(
-                    f,
-                    "the reference is read at node {}, which is not live",
-                    at
-                )?;
+                write!(f, "the reference is read at node {}, which is not live", at)?;
                 tail.recourse(f, format_args!("read it at {HELD_NODE}"))
             }
             Self::NonFiniteDocParam { name, field } => {

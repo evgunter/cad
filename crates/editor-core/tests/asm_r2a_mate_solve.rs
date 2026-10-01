@@ -1714,7 +1714,11 @@ fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_fram
             NodeResult::Failed(e) => named(&e.escalations),
             NodeResult::Poisoned { .. } => false,
         };
-        assert!(!on_node, "node {:012x} carries the solve's escalation", id.0);
+        assert!(
+            !on_node,
+            "node {:012x} carries the solve's escalation",
+            id.0
+        );
     }
     assert!(
         matches!(

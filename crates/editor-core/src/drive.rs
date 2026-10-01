@@ -1946,7 +1946,8 @@ fn render_reason(r: &RefusalReason) -> String {
                         s,
                         " {}:status:{:?}->{:?}",
                         node.full(),
-                        delta.old_status, delta.new_status
+                        delta.old_status,
+                        delta.new_status
                     );
                 }
                 for f in &delta.flips {
@@ -1954,7 +1955,10 @@ fn render_reason(r: &RefusalReason) -> String {
                         s,
                         " {}:{}:{:?}->{:?}x{}",
                         node.full(),
-                        f.predicate, f.from, f.to, f.count
+                        f.predicate,
+                        f.from,
+                        f.to,
+                        f.count
                     );
                 }
                 for d in &delta.diverged {
@@ -1962,7 +1966,9 @@ fn render_reason(r: &RefusalReason) -> String {
                         s,
                         " {}:{}:count {}->{}",
                         node.full(),
-                        d.predicate, d.old_count, d.new_count
+                        d.predicate,
+                        d.old_count,
+                        d.new_count
                     );
                 }
             }

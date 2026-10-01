@@ -1729,7 +1729,12 @@ mod display_tests {
                     other: pair.1,
                     found: RimShare::Several,
                 },
-                vec![face0.as_str(), face1.as_str(), "000000000017", "more than one edge"],
+                vec![
+                    face0.as_str(),
+                    face1.as_str(),
+                    "000000000017",
+                    "more than one edge",
+                ],
             ),
             (
                 NamingError::SeamVertexPartners {

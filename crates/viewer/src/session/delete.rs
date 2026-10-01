@@ -10,7 +10,6 @@
 
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId, cascade_delete_order};
 
-
 /// **What the delete button says, and the list it says it about.**
 ///
 /// A destructive action that understates itself is worse than one that

@@ -898,7 +898,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         node: RecipeNodeId(3),
         body: 0,
     };
-    let badge = frame::index_badge(Some(&own), session.doc(), session.evaluation()).expect("it badges");
+    let badge =
+        frame::index_badge(Some(&own), session.doc(), session.evaluation()).expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(badge.label(), format!("pick index: {own}"));
     let unread = frame::index_badge(Some(&refusal), session.doc(), None).expect("it badges");
@@ -921,7 +922,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         node: absent,
         error: NodePickError::Standing(NodeStanding::NotEvaluated { node: absent }),
     };
-    let badge = frame::index_badge(Some(&never_ran), session.doc(), session.evaluation()).expect("it badges");
+    let badge = frame::index_badge(Some(&never_ran), session.doc(), session.evaluation())
+        .expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(
         badge.label(),

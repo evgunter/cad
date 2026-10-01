@@ -273,7 +273,10 @@ fn pick_index_error_says_only_that_its_root_was_not_indexed() {
             error: inner.clone(),
         }
         .to_string();
-        assert_eq!(outer, format!("root 000000000007 could not be indexed: {inner}"));
+        assert_eq!(
+            outer,
+            format!("root 000000000007 could not be indexed: {inner}")
+        );
     }
 }
 

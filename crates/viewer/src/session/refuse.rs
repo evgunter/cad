@@ -750,12 +750,7 @@ impl core::fmt::Display for Refusal {
                 )
             }
             Self::WrongNodeKind { node, wanted } => {
-                write!(
-                    f,
-                    "node {} is not {} in this document",
-                    node,
-                    wanted.name()
-                )
+                write!(f, "node {} is not {} in this document", node, wanted.name())
             }
             // The frame is layer 3's and the sentence is the door's.
             // Nothing is doubled: `EditError`'s arms state the problem

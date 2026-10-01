@@ -330,9 +330,10 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
         })
     );
     assert!(
-        refusal
-            .to_string()
-            .contains(&format!("the repair is upstream, at node {:012x}", s.failed.0)),
+        refusal.to_string().contains(&format!(
+            "the repair is upstream, at node {:012x}",
+            s.failed.0
+        )),
         "{refusal}"
     );
 

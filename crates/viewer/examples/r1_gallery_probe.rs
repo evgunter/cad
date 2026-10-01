@@ -210,7 +210,10 @@ fn main() {
                 println!("      node {}: free-move refused typed", row.id);
             }
         }
-        let mates = rows.iter().filter(|r| r.spoken.kind() == Some("Mate")).count();
+        let mates = rows
+            .iter()
+            .filter(|r| r.spoken.kind() == Some("Mate"))
+            .count();
         if mates > 0 {
             println!("      ({mates} authored mate node(s))");
         }

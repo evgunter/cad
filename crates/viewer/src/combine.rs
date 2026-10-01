@@ -752,11 +752,9 @@ impl core::fmt::Display for DuplicateFault {
                 "node {}'s body could not be measured for the copy's step: {error}",
                 input
             ),
-            Self::NoExtent { input } => write!(
-                f,
-                "node {}'s body has no width to step a copy by",
-                input
-            ),
+            Self::NoExtent { input } => {
+                write!(f, "node {}'s body has no width to step a copy by", input)
+            }
         }
     }
 }

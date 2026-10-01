@@ -541,12 +541,7 @@ pub struct StableName {
 // re-spelling it.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{} name minted by node {}",
-            self.kind.noun(),
-            self.node
-        )
+        write!(f, "{} name minted by node {}", self.kind.noun(), self.node)
     }
 }
 

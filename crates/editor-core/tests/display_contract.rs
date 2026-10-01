@@ -259,7 +259,13 @@ fn an_unnamed_entity_names_the_lookup_and_no_hit_test() {
     };
     assert_f6(
         &unnamed,
-        &["name lookup:", "node 000000000002", "edge", "body 0", "kernel bug"],
+        &[
+            "name lookup:",
+            "node 000000000002",
+            "edge",
+            "body 0",
+            "kernel bug",
+        ],
         &["UnnamedEntity", "Unnamed"],
     );
     let text = unnamed.to_string();
@@ -303,7 +309,12 @@ fn node_standing_display_names_its_content_and_no_door() {
                 node,
                 through: RecipeNodeId(2),
             },
-            vec!["node 000000000006", "poisoned", "node 000000000002", "upstream"],
+            vec![
+                "node 000000000006",
+                "poisoned",
+                "node 000000000002",
+                "upstream",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &NODE_STANDING, &[]);
@@ -557,7 +568,12 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 node: RecipeNodeId(9),
                 through: RecipeNodeId(4),
             }),
-            vec!["distance query's datum", "node 000000000009", "poisoned", "node 000000000004"],
+            vec![
+                "distance query's datum",
+                "node 000000000009",
+                "poisoned",
+                "node 000000000004",
+            ],
         ),
         (
             SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
@@ -1103,7 +1119,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::WitnessSite { node },
-            vec!["a witness is attached to node 000000000005", "bears no sketch"],
+            vec![
+                "a witness is attached to node 000000000005",
+                "bears no sketch",
+            ],
         ),
         (
             SnapshotError::WitnessOnMissingNode { node },
@@ -1116,7 +1135,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 expected: Dimension::Length,
                 found: Dimension::Angle,
             },
-            vec!["node 000000000005", "slot distance", "needs a length expression"],
+            vec![
+                "node 000000000005",
+                "slot distance",
+                "needs a length expression",
+            ],
         ),
         (
             SnapshotError::SlotUnknownDocParam {
@@ -1141,7 +1164,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 node,
                 name: ParamName::from_static("depth"),
             },
-            vec!["node 000000000005", "payload expression", "depth", "does not declare"],
+            vec![
+                "node 000000000005",
+                "payload expression",
+                "depth",
+                "does not declare",
+            ],
         ),
         (
             SnapshotError::PayloadDocParamDimension {
@@ -1182,7 +1210,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 node,
                 at: editor_core::FrameSite::Registry,
             },
-            vec!["placement frame for node 000000000005", "non-finite coordinate"],
+            vec![
+                "placement frame for node 000000000005",
+                "non-finite coordinate",
+            ],
         ),
         (
             SnapshotError::PlacementImproper {
@@ -1190,7 +1221,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 at: editor_core::FrameSite::Step { index: 1 },
                 determinant: -1.0,
             },
-            vec!["step 2 of node 000000000005's placement", "improper (mirroring)"],
+            vec![
+                "step 2 of node 000000000005's placement",
+                "improper (mirroring)",
+            ],
         ),
         (
             SnapshotError::PlacementNonRigid {
@@ -1213,14 +1247,21 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::MateAlignment { node },
-            vec!["mate node 000000000005", "alignment datum", "non-finite coordinate"],
+            vec![
+                "mate node 000000000005",
+                "alignment datum",
+                "non-finite coordinate",
+            ],
         ),
         (
             SnapshotError::PlacementRule {
                 node,
                 fault: PlacementRuleFault::NoPlacements,
             },
-            vec!["placement-rule node 000000000005", "placement list is empty"],
+            vec![
+                "placement-rule node 000000000005",
+                "placement list is empty",
+            ],
         ),
         (
             SnapshotError::MeasureRefs {
@@ -1281,7 +1322,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::MintLogOrder { step: StepId(6) },
-            vec!["not strictly ascending at id 000000000006", "which no mint writes"],
+            vec![
+                "not strictly ascending at id 000000000006",
+                "which no mint writes",
+            ],
         ),
         (
             SnapshotError::NameStepNotMinted {
@@ -1683,7 +1727,9 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 node: RecipeNodeId(9),
                 param: SlotId::Count,
             },
-            format!("a structural parameter changed on the derivation path (node 000000000009, slot {count})"),
+            format!(
+                "a structural parameter changed on the derivation path (node 000000000009, slot {count})"
+            ),
         ),
         (
             Diagnosis::RecipeEdit {
@@ -1700,7 +1746,8 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
         node: RecipeNodeId(11),
         cause,
     };
-    let tail = ", upstream of node 00000000000b, the name's minting node, but not on its derivation path";
+    let tail =
+        ", upstream of node 00000000000b, the name's minting node, but not on its derivation path";
     let up = [
         (
             upstream(UpstreamCause::PredicateFlip {
@@ -2099,7 +2146,9 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
         &["Contradictory"],
     );
     assert!(
-        !itself.to_string().contains("mates 000000000006 and 000000000006"),
+        !itself
+            .to_string()
+            .contains("mates 000000000006 and 000000000006"),
         "one mate at fault is named once: {itself}"
     );
 }
@@ -2337,7 +2386,11 @@ fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
                 },
             })),
         },
-        &["could not place gauge 000000000003", "refused: mate 000000000005", "instance 000000000003"],
+        &[
+            "could not place gauge 000000000003",
+            "refused: mate 000000000005",
+            "instance 000000000003",
+        ],
         &["MaintenanceRefused", "Unleverable"],
     );
     assert_f6(
@@ -2534,7 +2587,11 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 node: RecipeNodeId(29),
                 rim: edge,
             },
-            vec!["merged faces", "operand node 00000000001d", "does not lie within"],
+            vec![
+                "merged faces",
+                "operand node 00000000001d",
+                "does not lie within",
+            ],
         ),
         (
             NamingError::MergedChordConstituents {
@@ -2563,7 +2620,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     })],
                 }),
             },
-            vec!["member node 000000000025", "a tie stands where one edge is needed"],
+            vec![
+                "member node 000000000025",
+                "a tie stands where one edge is needed",
+            ],
         ),
         (
             NamingError::Band(BandError::Empty {
@@ -2593,7 +2653,11 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 }),
                 curved: false,
             },
-            vec!["node 000000000029", "node 00000000002b", "several faces on different carriers"],
+            vec![
+                "node 000000000029",
+                "node 00000000002b",
+                "several faces on different carriers",
+            ],
         ),
         (
             NamingError::Escalated {
@@ -2777,7 +2841,11 @@ fn cluster_maintenance_display_names_the_act_not_its_struct() {
                 absorbed: other,
                 absorbed_frame: None,
             },
-            vec!["cluster gauged by node 000000000005", "absorbed into", "node 000000000003"],
+            vec![
+                "cluster gauged by node 000000000005",
+                "absorbed into",
+                "node 000000000003",
+            ],
         ),
         (
             ClusterMaintenance::Split {
@@ -2785,7 +2853,11 @@ fn cluster_maintenance_display_names_the_act_not_its_struct() {
                 to: other,
                 frame: None,
             },
-            vec!["separated from", "node 000000000003", "now gauged by node 000000000005"],
+            vec![
+                "separated from",
+                "node 000000000003",
+                "now gauged by node 000000000005",
+            ],
         ),
         (
             ClusterMaintenance::GaugeRewrite {
@@ -2793,11 +2865,19 @@ fn cluster_maintenance_display_names_the_act_not_its_struct() {
                 to: other,
                 frame: None,
             },
-            vec!["node 000000000003", "lost that instance", "now gauged by node 000000000005"],
+            vec![
+                "node 000000000003",
+                "lost that instance",
+                "now gauged by node 000000000005",
+            ],
         ),
         (
             ClusterMaintenance::Drop { gauge, frame: None },
-            vec!["node 000000000003", "lost its last instance", "placement record"],
+            vec![
+                "node 000000000003",
+                "lost its last instance",
+                "placement record",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &CLUSTER_MAINTENANCE, &[]);
@@ -2832,7 +2912,11 @@ fn maintenance_display_says_what_the_edit_did() {
                 absorbed: other,
                 absorbed_frame: None,
             }),
-            vec!["cluster gauged by node 000000000005", "absorbed into", "node 000000000003"],
+            vec![
+                "cluster gauged by node 000000000005",
+                "absorbed into",
+                "node 000000000003",
+            ],
         ),
         (
             Maintenance::Strand {
@@ -2981,7 +3065,10 @@ fn a_step_id_fault_names_the_id_or_the_count() {
         ),
         (
             StepIdFault::NotThisProfiles { step: StepId(9) },
-            vec!["step id 000000000009", "not a step of the program this node holds"],
+            vec![
+                "step id 000000000009",
+                "not a step of the program this node holds",
+            ],
         ),
         (
             StepIdFault::Repeated { step: StepId(4) },
@@ -3039,7 +3126,10 @@ fn a_step_id_fault_names_the_id_or_the_count() {
         &EditError::SetProgramOnNonProfile {
             node: RecipeNodeId(4),
         },
-        &["node 000000000004 holds no profile program", "no program to set"],
+        &[
+            "node 000000000004 holds no profile program",
+            "no program to set",
+        ],
         &["SetProgramOnNonProfile"],
     );
 }

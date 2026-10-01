@@ -746,11 +746,9 @@ impl core::fmt::Display for SelectionRefusal {
                 "the selection has no faces to measure a clearance between in this leaf's \
                  replay: {standing}"
             ),
-            Self::NoSuchBody { node, index } => write!(
-                f,
-                "node {}'s value carries no body at index {index}",
-                node
-            ),
+            Self::NoSuchBody { node, index } => {
+                write!(f, "node {}'s value carries no body at index {index}", node)
+            }
             Self::Unresolved { name } => write!(
                 f,
                 "{name} does not resolve to a unique entity in the selected node's name table"

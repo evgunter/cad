@@ -873,9 +873,9 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
         Standing::Downstream {
             cause_known: false, ..
         }
-        | Standing::Status(
-            RowStatus::Poisoned { .. } | RowStatus::Ok | RowStatus::Unevaluated,
-        ) => None,
+        | Standing::Status(RowStatus::Poisoned { .. } | RowStatus::Ok | RowStatus::Unevaluated) => {
+            None
+        }
     }
 }
 
