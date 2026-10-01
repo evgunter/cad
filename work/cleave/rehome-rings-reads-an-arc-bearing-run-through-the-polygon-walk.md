@@ -5,7 +5,7 @@ title: chord_join::rehome_rings places a bystander ring against the run through 
 status: open
 opened: 2026-09-24
 priority: P1
-cost: D
+cost: M
 refs: [arc-aware-point-in-loop, three-answers-to-is-this-loop-inside-that-one]
 ---
 
