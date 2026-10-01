@@ -428,3 +428,56 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
     )
     .expect("the split the refusal names composes at r = 0.749");
 }
+
+/// **A `meridian_splits` row names the seam its foot SPLIT, not merely
+/// a source seam.** The foot a band minted on a seam is an endpoint of
+/// that seam's surviving remnant, so every split row's foot touches the
+/// remnant recorded against the split row's own seam. Membership in the
+/// source (the surgery postcondition, and the row above) cannot see a
+/// row that names ANOTHER crossing's seam of the same band: red under
+/// `ann.crossings[(ix + 1) % n].mate_seam` at the birth block, which
+/// every other `sweep` rim row passes.
+#[test]
+fn every_band_crossing_names_the_seam_its_foot_split() {
+    let zone_body = zone();
+    let pair = [
+        one_rim(&zone_body, ZONE_SPHERE_LO),
+        one_rim(&zone_body, ZONE_SPHERE_HI),
+    ];
+    let zone_out = fillet_edges(&zone_body, &pair, 0.08, tol()).expect("the zone pair builds");
+    foot_touches_its_seams_remnant(&zone_out);
+
+    let lantern_body = lantern();
+    let one = rim_arcs_at(&lantern_body, LANTERN_RIMS[1].0, LANTERN_RIMS[1].1);
+    let one_out = fillet_edges(&lantern_body, &one, 0.05, tol()).expect("one lantern rim builds");
+    foot_touches_its_seams_remnant(&one_out);
+
+    let mut all: Vec<EdgeKey> = Vec::new();
+    for (rim_r, rim_y) in LANTERN_RIMS {
+        all.extend(rim_arcs_at(&lantern_body, rim_r, rim_y));
+    }
+    let lantern_out =
+        fillet_edges(&lantern_body, &all, 0.05, tol()).expect("the lantern triple builds");
+    foot_touches_its_seams_remnant(&lantern_out);
+}
+
+fn foot_touches_its_seams_remnant(out: &Filleted<f64>) {
+    let rec = out.naming.as_ref().expect("the surgery keeps its records");
+    let ends = |e: EdgeKey| -> [topo::VertexKey; 2] {
+        let he = out.body.get_edge(e).expect("a remnant survives").he_plus;
+        [
+            out.body.get_half_edge(he).expect("its half").start,
+            out.body.half_edge_end(he).expect("its end"),
+        ]
+    };
+    assert!(!rec.meridian_splits.is_empty());
+    for (foot, seam, _) in &rec.meridian_splits {
+        assert!(
+            rec.meridian_remnants
+                .iter()
+                .any(|(piece, src)| src == seam && ends(*piece).contains(foot)),
+            "the split row naming {seam:?} has foot {foot:?}, which no remnant of \
+             {seam:?} touches"
+        );
+    }
+}

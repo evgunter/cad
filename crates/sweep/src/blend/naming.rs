@@ -198,10 +198,10 @@ pub struct BlendNaming {
     /// the band discriminates.
     pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,
     /// The SURVIVING piece of a source edge the band's carve split ←
-    /// that source edge: a seam meridian at a ladder rim's or an annulus
-    /// rim's crossing, or a cap rim at a ruled band's transverse cap. (Present even when
-    /// the surviving piece kept the source key — the piece is a
-    /// fragment, so it is named as one.)
+    /// that source edge: a seam meridian at a ladder rim's or an
+    /// annulus rim's crossing, or a cap rim at a ruled band's transverse
+    /// cap. (Present even when the surviving piece kept the source key —
+    /// the piece is a fragment, so it is named as one.)
     pub meridian_remnants: Vec<(EdgeKey, EdgeKey)>,
     /// A band's SLIT ← (the source meridian whose upper piece became
     /// it, the slitting band's identity). One per band; the band

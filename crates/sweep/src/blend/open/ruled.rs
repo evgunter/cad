@@ -308,7 +308,7 @@ fn split_rim<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<SplitFragments, BlendError> {
     let t = seam_split_param(body, rim, crease, foot)?;
-    let frag = split_fragment(body, rim, vertex, t, rec, "cap rim split", tol)?;
+    let frag = split_fragment(body, rim, vertex, t, None, rec, "cap rim split", tol)?;
     rec.feet.push((frag.vertex, vertex, support));
     retire_fragment(rec, frag.near, frag.source);
     Ok(frag)
