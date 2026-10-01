@@ -179,7 +179,9 @@ pub const SSI_CERT_SPANS: usize = 32;
 /// that proved it.
 ///
 /// **Ladder structure** (C6's `f64` selection lane), lifted to the
-/// certificate's scalar for uniformity — no decision reads it.
+/// certificate's scalar for uniformity. No trilean reads it, but it is
+/// what the exhaustiveness accounting banks: a cell inside the recorded
+/// region is accounted, so the region recorded must be the one proved.
 #[derive(Clone, Copy, Debug)]
 pub enum SsiTube<T> {
     /// The ℝ³ arm: a box chain around the carrier padded by `radius`
@@ -190,9 +192,9 @@ pub enum SsiTube<T> {
     },
     /// The chart arm (plane × NURBS): a per-span window chain around
     /// the wall's pcurve, padded per axis in chart units. The rung is
-    /// the ladder radius in metres that was tried; the pads are that
-    /// radius divided by each axis's chart speed, and they, not the
-    /// rung, are the proved region.
+    /// the ladder radius in metres that was tried, a label and not a
+    /// metre bound on the region; the pads are that radius divided by
+    /// each axis's chart speed, and they are the proved region.
     Chart {
         /// The ladder rung tried, in metres.
         rung: T,
@@ -802,9 +804,9 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
 ///
 /// # Errors
 ///
-/// [`ChartSpeedRefusal::ZeroAcrossLocus`](super::ChartSpeedRefusal::ZeroAcrossLocus)
-/// when a window's transverse stretch is zero, which no smaller rung
-/// cures.
+/// [`SsiError::TubeDegenerate`] when a window's transverse stretch is
+/// zero, or the pcurve's tangent at a span midpoint is zero or not
+/// finite: neither depends on the pad, so no smaller rung cures it.
 fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
@@ -836,16 +838,18 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
         let t = pcurve.deriv(T::from_f64(mid));
         let tn = (t.x.powi(2) + t.y.powi(2)).sqrt().hi();
-        // Positive FINITE only — the same class the chart-speed mint
-        // refuses. An admitted `+∞` here does not certify a wrong
-        // number today (`ex`/`ey` become `0` or NaN and the stretch
-        // check catches the residue), but which check answers would
-        // then depend on the refusal's arithmetic path rather than on
-        // this test saying what it means.
-        if !tn.is_finite() || tn <= 0.0 {
-            return Ok(None);
-        }
         let (tx, ty) = (t.x.hi(), t.y.hi());
+        // A positive finite norm and a nonzero direction. The norm alone
+        // cannot see a zero tangent: the outward `sqrt` of an exact `0`
+        // is the smallest subnormal, so the zero shows as `(tx, ty)`.
+        // The tangent is the pcurve's alone, so an unusable one refuses
+        // at this rung rather than sending the ladder down rungs that
+        // read the same tangent.
+        if !tn.is_finite() || tn <= 0.0 || tx.abs().max(ty.abs()) <= 0.0 {
+            return Err(SsiError::TubeDegenerate(
+                super::TubeDegeneracy::PcurveTangentUnusable,
+            ));
+        }
         let Some(margin) = chart_transverse_margin(n, du, dv, (tx, ty, tn))? else {
             return Ok(None);
         };
@@ -856,6 +860,16 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     }
     Ok((count > 0).then_some((worst, count)))
 }
+
+/// [`certify_branch`]'s routing boundary for a NURBS operand with no
+/// traced pcurve — the first operand's, which never has one.
+pub(crate) const NURBS_LIMBS_NEED_PCURVE: &str = "a NURBS operand's limbs need the traced pcurve \
+     (the ℝ⁴ trace supplies it; the ℝ³ trace has none)";
+
+/// [`certify_branch`]'s routing boundary for a NURBS operand whose
+/// analytic partner is not a plane.
+pub(crate) const CHART_TUBE_NEEDS_PLANE: &str = "the chart uniqueness tube is written for a PLANE \
+     against a NURBS surface; another analytic kind needs its own chart form";
 
 /// The uniqueness tube of a certified carrier, as boxes — what the
 /// exhaustiveness accounting pass consumes to prove cells "accounted"
@@ -912,8 +926,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             SsiOperand::Nurbs(s) => {
                 let Some(p) = pc else {
                     return Err(SsiError::UnsupportedCertificate {
-                        what: "a NURBS operand's limbs need the traced pcurve \
-                               (the ℝ⁴ trace supplies it; the ℝ³ trace has none)",
+                        what: NURBS_LIMBS_NEED_PCURVE,
                     });
                 };
                 nurbs_limbs(carrier, p, s.surface(), band)?
@@ -947,9 +960,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             | (SsiOperand::Nurbs(n), SsiOperand::Analytic(plane)) => {
                 let Surface::Plane { normal, .. } = **plane else {
                     return Err(SsiError::UnsupportedCertificate {
-                        what: "the chart uniqueness tube is written for a PLANE against \
-                               a NURBS surface; another analytic kind needs its own \
-                               chart form",
+                        what: CHART_TUBE_NEEDS_PLANE,
                     });
                 };
                 let Some(p) = pcurve_b else {
@@ -957,11 +968,12 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                         what: "the chart uniqueness tube needs the traced pcurve",
                     });
                 };
-                // The rung in chart units, per axis: metres ÷ the
-                // operand's minted chart speed along that axis. Dividing
-                // by a sup under-states the reach, so the pad is a
-                // subset of the metre statement, and the pad — not the
-                // rung — is what the certificate records as proved.
+                // The pad per axis: the rung ÷ the operand's minted chart
+                // speed along that axis. The padded windows are the
+                // proved region and the certificate records them; the
+                // rung is the ladder's label, not a metre bound on that
+                // region (a window's corner can sit farther than the
+                // rung from the carrier).
                 let (pad_u, pad_v) = n.speeds().pad(radius);
                 probe_tube_chart(p, n.surface(), normal, (pad_u, pad_v))?.map(|(m, k)| {
                     let tube = SsiTube::Chart {
@@ -1177,7 +1189,7 @@ mod tests {
         use geom_core::{Interval, Point2, Point3, Real, Vec3};
 
         use super::super::probe_tube_chart;
-        use crate::ssi::{ChartSpeedRefusal, SsiError};
+        use crate::ssi::{SsiError, TubeDegeneracy};
 
         fn iv(x: f64) -> Interval {
             Interval::from_f64(x)
@@ -1309,10 +1321,37 @@ mod tests {
             assert!(
                 matches!(
                     verdict,
-                    Err(SsiError::ChartSpeed(ChartSpeedRefusal::ZeroAcrossLocus))
+                    Err(SsiError::TubeDegenerate(
+                        TubeDegeneracy::WallConstantAcrossLocus
+                    ))
                 ),
                 "a chart constant across the locus answered {verdict:?} instead of \
                  refusing by name"
+            );
+        }
+
+        /// **A pcurve with no tangent refuses by name, at the first
+        /// rung.** A linear pcurve whose two control points coincide has
+        /// a zero tangent everywhere; the tangent is the pcurve's whatever
+        /// the pad, so trying the next rung reads the same zero.
+        #[test]
+        fn a_pcurve_with_no_tangent_refuses_rather_than_trying_a_smaller_rung() {
+            let still = NurbsCurve2::new(
+                linear_kv(),
+                vec![Point2::new(iv(0.5), iv(0.5)), Point2::new(iv(0.5), iv(0.5))],
+                vec![1.0, 1.0],
+            )
+            .expect("a pcurve a caller can build");
+            let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
+            let verdict = probe_tube_chart(&still, &unit_patch(), normal, (0.01, 0.01));
+            assert!(
+                matches!(
+                    verdict,
+                    Err(SsiError::TubeDegenerate(
+                        TubeDegeneracy::PcurveTangentUnusable
+                    ))
+                ),
+                "a pcurve with no tangent answered {verdict:?} instead of refusing by name"
             );
         }
     }
@@ -1374,6 +1413,39 @@ mod tests {
         let below = carrier(&odd(30));
         assert_eq!(below.knots().control_count(), 33);
         assert_eq!(super::refined(&below).knots().control_count(), 33 + 31);
+    }
+
+    /// **Each pad widens its own axis.** A one-span linear pcurve whose
+    /// hull is `[0.2, 0.6] × [0.4, 0.5]`, padded by different amounts
+    /// along `u` and `v`: the window is the hull widened by `pad_u` along
+    /// `u` and by `pad_v` along `v`, bit for bit, and its midpoint is the
+    /// span's.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::expect_used)]
+    fn each_pad_widens_its_own_axis_of_the_window() {
+        use geom::NurbsCurve2;
+        use geom_core::Point2;
+        use geom_core::spline::KnotVector;
+
+        use super::chart_tube_windows;
+
+        let pc = NurbsCurve2::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point2::new(0.2, 0.4), Point2::new(0.6, 0.5)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let (pad_u, pad_v) = (0.125, 0.375);
+        let windows = chart_tube_windows(&pc, (pad_u, pad_v)).expect("certified hulls");
+        assert_eq!(windows.len(), 1, "one span, one window");
+        let w = windows[0];
+        let got = [w.rect.u.0, w.rect.u.1, w.rect.v.0, w.rect.v.1, w.mid].map(f64::to_bits);
+        let want = [0.2 - pad_u, 0.6 + pad_u, 0.4 - pad_v, 0.5 + pad_v, 0.5].map(f64::to_bits);
+        assert_eq!(
+            got, want,
+            "window {:?} mid {}: u must widen by pad_u and v by pad_v",
+            w.rect, w.mid
+        );
     }
 
     /// **The chart tube is recorded per axis, as proved, and accounting

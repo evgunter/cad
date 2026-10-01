@@ -434,6 +434,9 @@ pub enum SsiError {
     /// bound, or the chart is constant across the traced locus. Refused
     /// by the axis it lands on.
     ChartSpeed(ChartSpeedRefusal),
+    /// Limb 3's chart tube cannot be probed at any rung: the window
+    /// fact it names does not depend on the pad.
+    TubeDegenerate(TubeDegeneracy),
     /// The caller routed the wrong kinds into an arm.
     WrongLane {
         /// What the arm expects.
@@ -613,6 +616,7 @@ impl core::fmt::Display for SsiError {
                 write!(f, "ssi: {what}")
             }
             Self::ChartSpeed(r) => write!(f, "ssi: {}", r.what()),
+            Self::TubeDegenerate(d) => write!(f, "ssi: {}", d.what()),
             Self::WrongLane { expected } => write!(
                 f,
                 "ssi: wrong dispatch lane — this arm traces {expected} (caller bug)"
@@ -692,6 +696,7 @@ impl SsiError {
             | Self::Fit(_)
             | Self::UnsupportedCertificate { .. }
             | Self::ChartSpeed(_)
+            | Self::TubeDegenerate(_)
             | Self::WrongLane { .. }
             | Self::Escalated(_)
             | Self::Band(_)
@@ -746,8 +751,7 @@ pub enum ChartAxis {
 /// ([`ChartedNurbs::mint`]); a floor or a tube pad crosses into chart
 /// units by dividing by it, so both a zero and a non-finite speed leave
 /// nothing to divide by. Neither refining the search nor narrowing the
-/// tube cures either, so each refuses where it is found: an axis speed
-/// at the mint, the stretch across the locus at the tube probe.
+/// tube cures either, so each refuses at the mint.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChartSpeedRefusal {
     /// The certified chart speed along `axis` is zero: the wall is
@@ -762,11 +766,6 @@ pub enum ChartSpeedRefusal {
         /// The axis.
         axis: ChartAxis,
     },
-    /// Over a span window of the traced pcurve, the chart's certified
-    /// stretch transverse to the pcurve is zero: the wall is constant
-    /// across the locus there. A narrower tube's window lies inside this
-    /// one, where the stretch is zero as well, so no rung cures it.
-    ZeroAcrossLocus,
 }
 
 impl ChartSpeedRefusal {
@@ -796,10 +795,41 @@ impl ChartSpeedRefusal {
                  derivative bound overflowed or is refused — so no length in metres can be \
                  translated into its parameter domain"
             }
-            Self::ZeroAcrossLocus => {
-                "the NURBS wall is constant across the traced locus over a span of its \
-                 pcurve — its certified chart stretch transverse to the pcurve is zero, a \
-                 degenerate chart that no narrower uniqueness tube can cure"
+        }
+    }
+}
+
+/// Why limb 3's chart tube cannot be probed at any rung
+/// ([`SsiError::TubeDegenerate`]): a fact about one span window of the
+/// traced pcurve that does not depend on the pad, so no narrower tube
+/// cures it and the ladder refuses at the first rung that meets it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TubeDegeneracy {
+    /// The wall's certified chart stretch transverse to the pcurve is
+    /// zero over a window: the wall is constant across the locus there.
+    /// A narrower window lies inside this one, where the stretch bound
+    /// is zero as well.
+    WallConstantAcrossLocus,
+    /// The pcurve's tangent at a span midpoint is zero or not finite, so
+    /// it names no direction to read the wall across. The tangent is the
+    /// pcurve's alone, whatever the pad.
+    PcurveTangentUnusable,
+}
+
+impl TubeDegeneracy {
+    /// The refusal's sentence, without the `ssi:` prefix.
+    #[must_use]
+    pub fn what(self) -> &'static str {
+        match self {
+            Self::WallConstantAcrossLocus => {
+                "the uniqueness tube cannot be probed: the NURBS wall is constant across the \
+                 traced locus over a span of its pcurve (its certified chart stretch \
+                 transverse to the pcurve is zero), which no narrower tube cures"
+            }
+            Self::PcurveTangentUnusable => {
+                "the uniqueness tube cannot be probed: the traced pcurve's tangent at a span \
+                 midpoint is zero or not finite, so it names no direction to read the wall \
+                 across, which no narrower tube cures"
             }
         }
     }

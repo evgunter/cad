@@ -74,7 +74,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, norm_sq, norm_sup};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
-use super::{ChartAxis, ChartSpeedRefusal, SsiError};
+use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
 
 /// An axis-aligned enclosure box in ℝ³.
 #[derive(Clone, Copy, Debug)]
@@ -378,9 +378,9 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 ///
 /// # Errors
 ///
-/// [`ChartSpeedRefusal::ZeroAcrossLocus`] when the stretch is zero: the
-/// chart is constant along e⊥ over this window, and a narrower window
-/// (a smaller rung) lies inside it, so it cannot cure that.
+/// [`TubeDegeneracy::WallConstantAcrossLocus`] when the stretch is
+/// zero: the chart is constant along e⊥ over this window, and a narrower
+/// window (a smaller rung) lies inside it, so it cannot cure that.
 pub(super) fn chart_transverse_margin(
     n: [Interval; 3],
     du: Box3,
@@ -416,7 +416,9 @@ pub(super) fn chart_transverse_margin(
         return Ok(None);
     }
     if stretch <= 0.0 {
-        return Err(SsiError::ChartSpeed(ChartSpeedRefusal::ZeroAcrossLocus));
+        return Err(SsiError::TubeDegenerate(
+            TubeDegeneracy::WallConstantAcrossLocus,
+        ));
     }
     // A lower bound over an upper bound stays one only rounded down.
     Ok(Some(div_down(
@@ -470,7 +472,9 @@ impl ChartSpeeds {
 
 /// A parameter window `[u0, u1] × [v0, v1]` is one when each pair is
 /// ordered. A NaN end compares false, so it is refused with an inverted
-/// pair.
+/// pair. Every box over a window asks this before it clamps the window
+/// to the domain: a clamp turns an inverted window past a domain end
+/// into an ordered point.
 fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> bool {
     u0 <= u1 && v0 <= v1
 }
@@ -780,6 +784,11 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// the intersection, but only containment is load-bearing, so the
     /// caller takes whichever it needs and never both.
     pub(crate) fn rect_box(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Box3 {
+        // The window door, before the clamp below: clamping an inverted
+        // window past a domain end makes it an ordered point.
+        if !ordered_window(u0, u1, v0, v1) {
+            return refused_box();
+        }
         let (ud, vd) = (
             self.surface.knots_u().domain(),
             self.surface.knots_v().domain(),
@@ -868,12 +877,11 @@ mod tests {
     }
 
     /// **A window with a NaN or inverted end names no region, and every
-    /// box over it is refused.** Before the window door, `f64::clamp`
-    /// passed a NaN end through and `span_range` landed it on the first
-    /// span, so a NaN window read the first span's control block as a
+    /// box over it is refused.** Without the window door, `f64::clamp`
+    /// passes a NaN end through and `span_range` lands it on the first
+    /// span, so a NaN window reads the first span's control block as a
     /// certified box — a strict subset of this two-span patch's. The
-    /// first-order box inherits the refusal through its derivative boxes.
-    /// The ordered window beside them certifies, so the rows are about
+    /// ordered window beside them certifies, so the rows are about
     /// the window and not the patch.
     #[test]
     fn a_nan_or_inverted_window_is_refused_rather_than_landed_on_the_first_span() {
@@ -906,6 +914,21 @@ mod tests {
                 assert!(!certified(b), "{name}: {which} certified {b:?}");
             }
         }
+    }
+
+    /// An inverted window past a domain end clamps to an ordered point,
+    /// so the door has to come before the clamp in every box.
+    #[test]
+    fn an_inverted_window_past_the_domain_is_refused_by_rect_box() {
+        let s = multiplicity_2_patch();
+        let b = NurbsBoxes::new(&s);
+        let c = |x: Box3| x.x.is_certified() && x.y.is_certified() && x.z.is_certified();
+        assert!(!c(b.point_box(1.5, 1.2, 0.0, 1.0)));
+        assert!(
+            !c(b.rect_box(1.5, 1.2, 0.0, 1.0)),
+            "rect_box clamps an inverted window to a point"
+        );
+        assert!(!c(b.rect_box(-0.2, -0.5, 0.0, 1.0)));
     }
 
     /// The box loops now SKIP an empty span cell instead of hulling its

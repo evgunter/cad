@@ -82,7 +82,9 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, R
 
 use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
 use crate::recourse::{Reading, Refused, RefusedArm};
-use crate::ssi::{SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale, certify_rung3};
+use crate::ssi::{
+    ChartSpeedRefusal, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale, certify_rung3,
+};
 
 /// What the plane × NURBS lane proved, in metres unless noted.
 #[derive(Clone, Copy, Debug)]
@@ -195,6 +197,11 @@ pub enum PlaneNurbsRefusal {
     /// samples that each decided transverse — came out poisoned. No
     /// geometry and no tolerance reaches it, so it is a kernel defect.
     ReportedTransversalityPoisoned(Indeterminate),
+    /// The spline face's chart speed along a parameter direction is
+    /// zero (the face is constant along it) or has no finite bound (its
+    /// net is too large), so no length in metres crosses into its
+    /// parameters. A fact of the face, refused at the lane's door.
+    ChartSpeed(ChartSpeedRefusal),
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly. A routing boundary (C12.1), never a
     /// runtime fallback.
@@ -333,6 +340,15 @@ impl PlaneNurbsRefusal {
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
             ),
+            // The mint's verdict is exact: a speed bound that is zero or
+            // not finite, with no band between.
+            Self::ChartSpeed(ChartSpeedRefusal::Zero { .. }) => {
+                (CertCheck::PlaneNurbsChartSpeed, RefusedArm::SignCertain)
+            }
+            Self::ChartSpeed(ChartSpeedRefusal::NotFinite { .. }) => (
+                CertCheck::PlaneNurbsChartSpeedBound,
+                RefusedArm::SignCertain,
+            ),
             Self::FootPointInconclusive { .. }
             | Self::PcurveFit
             | Self::CarrierDomain(_)
@@ -390,6 +406,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                  their reported minimum crossing angle is unreadable: {}",
                 cause.payload()
             ),
+            Self::ChartSpeed(r) => f.write_str(r.what()),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
         }
     }
@@ -819,7 +836,7 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
             }
         }
         SsiError::UnsupportedCertificate { what } => PlaneNurbsRefusal::Unsupported { what },
-        SsiError::ChartSpeed(r) => PlaneNurbsRefusal::Unsupported { what: r.what() },
+        SsiError::ChartSpeed(r) => PlaneNurbsRefusal::ChartSpeed(r),
         _ => PlaneNurbsRefusal::Unsupported {
             what: "the rung-3 certificate refused for a reason outside this lane's vocabulary",
         },

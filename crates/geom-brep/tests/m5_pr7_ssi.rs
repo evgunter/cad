@@ -2800,7 +2800,7 @@ fn wall_rows_at(z0: f64, z1: f64) -> NurbsSurface<f64> {
 /// `v` (no extrusion), no finite speed bound along `u` (a net at
 /// `1e200` m) and along `v` (an extrusion `1e200` m tall). Each refuses
 /// with the axis it lands on at `plane_nurbs_ssi` and at the edge lane's
-/// `plane_nurbs_limbs`, which reports the same sentence in its own
+/// `plane_nurbs_limbs`, which carries the same refusal in its own
 /// vocabulary — before its schedule, whose foot points and normal sines
 /// cannot be stated on such a wall and would otherwise answer in the
 /// mint's place.
@@ -2851,11 +2851,12 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
             other => panic!("{name}: plane_nurbs_ssi expected {want:?}, got {other:?}"),
         }
         match geom_brep::plane_nurbs_limbs::<f64>(&carrier, &cutting_plane(), &wall, 1.0, band()) {
-            Err(geom_brep::PlaneNurbsRefusal::Unsupported { what }) => assert_eq!(
-                what,
-                want.what(),
-                "{name}: the edge lane refused with another sentence"
-            ),
+            Err(geom_brep::PlaneNurbsRefusal::ChartSpeed(got)) => {
+                assert_eq!(
+                    got, want,
+                    "{name}: plane_nurbs_limbs refused on the wrong axis"
+                );
+            }
             other => panic!("{name}: plane_nurbs_limbs expected {want:?}, got {other:?}"),
         }
     }

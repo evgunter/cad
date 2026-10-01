@@ -143,8 +143,8 @@ pub use props::{
 pub use ssi::{
     ChartAxis, ChartSpeedRefusal, ChartedNurbs, ExhaustLane, Exhaustiveness, ExhaustivenessRefusal,
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain, SsiError,
-    SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepperMode, certify_rung3, cylinder_sphere_ssi,
-    idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepperMode, TubeDegeneracy, certify_rung3,
+    cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
