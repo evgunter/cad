@@ -58,10 +58,10 @@
 //! about what certification does, not a lack in `Interval`, the type it
 //! runs on — so the
 //! between-samples statement there is the carrier's incidence with the
-//! chart's own surface (`sup |f_S(C(t))|`) together with limb 3's
-//! uniqueness tube — [`EnvelopeStatement::OnLocusHull`] carries the
-//! argument, and the displacement itself stays certified at the
-//! schedule.
+//! chart's own surface (`sup |f_S(C(t))|`) — with limb 3's uniqueness
+//! tube beside it for a fitted carrier — and
+//! [`EnvelopeStatement::OnLocusHull`] carries the argument; the
+//! displacement itself stays certified at the schedule.
 //! **No UV-space tolerance appears in any certified statement or in any
 //! message this module emits**: chart steps are implementation dials,
 //! the map's local stretch is the lever arm, and a certification
@@ -1144,9 +1144,12 @@ pub enum UncoveredClass {
     /// azimuth-non-harmonic, and the cone has no fitted certificate.
     ConeSection,
     /// A circle on a sphere that is neither polar nor meridian:
-    /// azimuth-non-harmonic; its certified route is
-    /// [`PcurveCache::certify_fitted`]'s Circle arm, which no mint
-    /// site reaches.
+    /// azimuth-non-harmonic, so the closed-form door has no image. Its
+    /// route is the fitted lane — the image from
+    /// [`crate::FittedLane::sphere_circle_image`], certified by
+    /// [`PcurveCache::certify_fitted`]'s Circle arm — and the pcurve
+    /// mint (`topo::mint_pcurves`) takes it, so this class is what the
+    /// closed-form door answers, not a state a minted face is left in.
     SphereGeneralCircle,
     /// A circle on a torus that is neither a parallel nor a meridian
     /// (a Villarceau circle among them, or a circle ⊥ the axis centred
@@ -1180,8 +1183,8 @@ impl UncoveredClass {
             }
             Self::SphereGeneralCircle => {
                 "a circle on the sphere that is neither polar nor meridian is \
-                 azimuth-non-harmonic; its certified route (certify_fitted's Circle arm) is \
-                 reached by no mint site"
+                 azimuth-non-harmonic, so it has no closed-form chart image; its route is the \
+                 fitted lane (FittedLane::sphere_circle_image, then certify_fitted)"
             }
             Self::TorusGeneralCircle => {
                 "a circle that is neither a parallel nor a meridian of the torus (a \
@@ -1212,8 +1215,8 @@ impl UncoveredClass {
                 "Recourse: describe the boundary with rims and rulings of the cone"
             }
             Self::SphereGeneralCircle => {
-                "Recourse: describe the boundary with polar or meridian circles of the \
-                 sphere's chart, or certify the image through certify_fitted with its mate"
+                "Recourse: derive the image through FittedLane::sphere_circle_image and \
+                 certify it through certify_fitted, as mint_pcurves does"
             }
             Self::TorusGeneralCircle => {
                 "Recourse: describe the boundary with parallels and meridians of the torus"
@@ -1297,10 +1300,10 @@ pub enum PcurveCertifyError {
         /// The scalar the check ran at ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
-    /// A [`Pcurve::Fitted`] cache was certified without the **mate
-    /// operand**: the fitted lane's certificate is the SSI one, whose
-    /// uniqueness tube is a statement about the operand PAIR whose
-    /// intersection minted the carrier. The mate is re-read from the
+    /// A [`Pcurve::Fitted`] cache over a rung-3 carrier was certified
+    /// without the **mate operand**: its certificate is the SSI one,
+    /// whose uniqueness tube is a statement about the operand PAIR whose
+    /// intersection minted the carrier. A Circle carrier reads no mate. The mate is re-read from the
     /// body at rest (never stored with the cache — a stored operand
     /// could drift from the body's own), so a caller that has one must
     /// supply it.
@@ -1674,12 +1677,13 @@ pub enum EnvelopeStatement {
     /// enclose, exactly and tightly, is the carrier's incidence with
     /// the chart's own surface: `f_S ∘ C` is a polynomial composite.
     /// So the fitted analytic certificate proves, between the samples,
-    /// that **the carrier never leaves the surface** — and pairs that
-    /// with limb 3's uniqueness tube, which proves the locus near the
-    /// carrier is a single arc, so there is no second branch for the
-    /// chart image to have drifted onto. The map residual itself is
-    /// certified at the [`CERT_SAMPLES`] schedule, as
-    /// [`PcurveCertificate::max_residual`] records.
+    /// that **the carrier never leaves the surface**. Over a fitted
+    /// carrier it pairs that with limb 3's uniqueness tube, which proves
+    /// the locus near the carrier is a single arc; over an exact Circle
+    /// carrier the carrier IS the locus and there is no tube. The map
+    /// residual itself is certified at the [`CERT_SAMPLES`] schedule,
+    /// as [`PcurveCertificate::max_residual`] records — and between the
+    /// samples it is bounded by nothing this statement says.
     OnLocusHull,
     /// `sup |S(P(t)) − C(t)|` for the two NURBS-chart iso rungs —
     /// [`Pcurve::IsoLine`] (M6-3) and [`Pcurve::IsoArc`] (M8-3, whose
@@ -1788,12 +1792,14 @@ pub struct PcurveCertificate<T: Real> {
     pub envelope: T,
     /// Which sup-norm [`Self::envelope`] bounds.
     pub statement: EnvelopeStatement,
-    /// The **full C2 certificate** of a [`Pcurve::Fitted`] cache: hull
-    /// sup-norm and uniqueness tube, re-derived (never trusted) by
-    /// [`PcurveCache::recertify`] through `geom_brep::ssi::certify`.
-    /// `None` for the closed-form lane, which discharges C2.2 by
-    /// algebra and has no locus tube to prove — its one arc is the
-    /// carrier itself.
+    /// The **full C2 certificate** of a fitted cache over a rung-3
+    /// carrier: hull sup-norm and uniqueness tube, re-derived (never
+    /// trusted) by [`PcurveCache::recertify`] through
+    /// `geom_brep::ssi::certify`. `None` wherever the carrier is exact —
+    /// the closed-form lane, which discharges C2.2 by algebra, and a
+    /// fitted image over a Circle carrier, whose envelope is the
+    /// carrier's incidence with the chart — since there is no locus tube
+    /// to prove: the one arc is the carrier itself.
     pub ssi: Option<SsiCertificate<T>>,
 }
 
@@ -2526,57 +2532,45 @@ impl<T: Decide> PcurveCache<T> {
 }
 
 impl<T: Decide> PcurveCache<T> {
-    /// Certifies a **fitted** (rung-3) chart image.
+    /// Certifies a **fitted** chart image.
     ///
-    /// **This door has no `src` caller** — the certified route exists,
-    /// and no kernel constructor mints a `Fitted` cache into a body.
-    /// It is nonetheless the lane's only callerless ITEM: the rest is
-    /// reached through [`PcurveCache::recertify`], whose `Fitted` arm
-    /// the tier-3 validator dispatches per half-edge, which is why
-    /// `topo::validate_pcurves` reads the fitted door off the scalar's
-    /// policy at all. That arm cannot execute on a body this workspace
-    /// builds, since this door is the variant's sole origin; it is
-    /// live for a caller who attaches a `Fitted` cache through
-    /// `topo::Body::attach_pcurve`.
+    /// Its `src` caller is the pcurve mint (`topo::mint_pcurves`), for a
+    /// sphere chart's GENERAL circle — a circle neither polar nor
+    /// meridian, whose image no closed form holds. The mint derives the
+    /// image through [`crate::FittedLane::sphere_circle_image`] and
+    /// certifies it here; the tier-3 validator re-derives the
+    /// certificate per half-edge through [`PcurveCache::recertify`].
+    /// The remaining consumer still waiting on a rung-3 carrier is the
+    /// cyl×sphere germ-chord lane, banked with the join-lane analog.
     ///
     /// `lane` is the door itself, not an `Option`: only a scalar that
     /// may certify can hold one ([`crate::FittedLane`]), so this door
     /// cannot be called at a scalar that may not.
     ///
-    /// Two consumers are waiting on it, in decreasing firmness:
-    ///
-    /// 1. **Mint-side wiring of the general-circle route** — the
-    ///    oblique-trihedron octant faces whose boundary circles are
-    ///    GENERAL sphere circles stay legally uncached. The door is not
-    ///    what blocks it: `topo::mint_pcurves` holds the fitted door
-    ///    (`topo::AtRestPolicy::fitted_lane`) and wires
-    ///    [`PcurveCache::certify_general`] through it. What is left is
-    ///    this door's own wiring for a Circle carrier, which no mint
-    ///    site reaches. Named as an open frontier in `docs/DESIGN.md`,
-    ///    and in **no** milestone plan and no carried-items register.
-    /// 2. The cyl×sphere germ-chord lane, banked with the join-lane
-    ///    analog.
-    ///
     /// The `General` curve-in-UV arm of the ratified pcurve unification
-    /// (`docs/PCURVE-UNIFY-DESIGN.md` U2) is no longer among them: it
-    /// certifies through [`PcurveCache::certify_general`] beside this
-    /// door, and `topo::mint_pcurves` mints it.
+    /// (`docs/PCURVE-UNIFY-DESIGN.md` U2) certifies through
+    /// [`PcurveCache::certify_general`] beside this door.
     ///
     /// Same five checks in the same fixed order as
     /// [`PcurveCache::certify`], with two differences that are the
-    /// whole content of the lane: check 1 admits a `Curve3::Nurbs`
-    /// carrier (the closed-form lane's `UnsupportedCarrier` retires for
-    /// this class), and check 4 is the **full C2 certificate** — hull
-    /// sup-norm AND uniqueness tube — derived through
-    /// `geom_brep::ssi::certify` against the operand pair
-    /// (`surface`, `mate`). [`PcurveCertificate::statement`] records
-    /// which sup the resulting envelope bounds.
+    /// whole content of the lane: check 1 admits a `Curve3::Nurbs` or
+    /// an exact `Curve3::Circle` carrier, and check 4 is a hull bound
+    /// derived through `geom_brep::ssi::certify`. Over a rung-3
+    /// carrier it is the **full C2 certificate** — hull sup-norm AND
+    /// uniqueness tube — against the operand pair (`surface`, `mate`).
+    /// Over a Circle carrier it is limbs 1 and 2 against `surface`
+    /// alone: the carrier is the locus, not a fit of it, so there is no
+    /// branch for a tube to select, and the junctions that mint such
+    /// circles are often tangent (a fillet's corner ball against its
+    /// bands), where no tube exists. [`PcurveCertificate::statement`]
+    /// records which sup the resulting envelope bounds.
     ///
     /// `mate` is the other operand of the pair whose intersection
-    /// minted the carrier: the uniqueness tube is a statement about the
-    /// PAIR, so a single surface cannot produce one. It is a parameter
-    /// rather than stored data precisely so that re-certification
-    /// re-reads the body's own geometry.
+    /// minted a rung-3 carrier: the uniqueness tube is a statement about
+    /// the PAIR, so a single surface cannot produce one. It is a
+    /// parameter rather than stored data precisely so that
+    /// re-certification re-reads the body's own geometry. A Circle
+    /// carrier does not read it.
     ///
     /// # Errors
     ///
@@ -7998,7 +7992,7 @@ mod fitted_lane_routing_tests {
                 CHART_TUBE_NEEDS_PLANE,
             ),
         ] {
-            match fitted_lane(&carrier, 0.0, 1.0, &image, &surface, &mate, band) {
+            match fitted_lane(&carrier, 0.0, 1.0, &image, &surface, Some(&mate), band) {
                 Err(PcurveCertifyError::FittedCertificate { what, .. }) => {
                     assert_eq!(what, want, "{name}: answered {what}");
                 }

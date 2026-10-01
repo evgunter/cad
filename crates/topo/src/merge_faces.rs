@@ -1681,13 +1681,12 @@ impl<T: Decide> Body<T> {
         //
         // LATENT (named, not reachable by any current path): the mint
         // pass holds the fitted door (`AtRestPolicy::fitted_lane`) and
-        // mints U2's `General` arm through it, but the FITTED variant
-        // itself still has no mint site, so a `Fitted`
-        // cache (at rest since M6-2) on a merged body would still come
-        // back as the mint pass's honest-skip — the face legally
-        // UNCACHED, its fitted certificate silently dropped. What is
-        // left of that item is `certify_fitted`'s own wiring, not the
-        // bound; this site inherits the fix when that lands.
+        // mints U2's `General` arm and a sphere's general circle
+        // through it, but a `Fitted` cache over a RUNG-3 carrier has no
+        // mint site, so one attached at rest on a merged body would
+        // come back as the mint pass's honest-skip — the face legally
+        // UNCACHED, its fitted certificate silently dropped. This site
+        // inherits the fix when that route lands.
         if !self.pcurves.is_empty() {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;

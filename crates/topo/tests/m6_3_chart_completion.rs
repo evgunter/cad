@@ -19,9 +19,9 @@
 //!   parameter (OQ4), interpolated so every CERT-schedule sample is a
 //!   collocation point;
 //! - the cache survives AT REST: the tier-3 pcurve pass re-derives
-//!   the full C2 certificate, reading the MATE operand from the
-//!   edge's own intensional description
-//!   (`EdgeDescription::Intersection { sphere, plane }`);
+//!   its certificate — the exact circle's incidence with the chart,
+//!   limbs 1 and 2 against the sphere alone, with no tube: the carrier
+//!   is the locus, so there is no branch for one to select;
 //! - the same body certifies at the INTERVAL scalar
 //!   (`certified` module), enclosure-asserted — the loud-skip pattern
 //!   is not needed here because no march budget is consulted (the
@@ -236,8 +236,8 @@ fn a_general_circle_refuses_the_closed_form_sphere_door_typed() {
 }
 
 /// The at-rest row at `f64`: the cache is fitted, its statement is
-/// `OnLocusHull`, and the tier-3 pcurve pass RE-DERIVES the full
-/// certificate with the mate read from the edge's description.
+/// `OnLocusHull` with no pair certificate (an exact carrier has no tube
+/// to prove), and the tier-3 pcurve pass RE-DERIVES the certificate.
 #[test]
 fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
     let (body, he) = build::<f64>();
@@ -245,7 +245,10 @@ fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
     assert!(matches!(cache.pcurve(), Pcurve::Fitted(_)));
     let cert = cache.certificate();
     assert_eq!(cert.statement, EnvelopeStatement::OnLocusHull);
-    assert!(cert.ssi.is_some(), "the full C2 certificate is stored");
+    assert!(
+        cert.ssi.is_none(),
+        "a Circle carrier certifies against the chart alone, so no pair certificate: {cert:?}"
+    );
     // Schedule residual: every CERT sample is a collocation point of
     // the fit, so the sampled max sits at floating-point noise —
     // asserted against the band, not a literal.

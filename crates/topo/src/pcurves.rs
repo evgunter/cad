@@ -34,16 +34,18 @@
 //!   circles; torus parallels/meridians) derive and certify exactly as
 //!   the cylinder's; the sphere walk additionally knows the chart's
 //!   involution twin and the pole's zero azimuth lever (see
-//!   [`chart_u_arm`]/`sphere_twin`). A carrier OUTSIDE the closed-form
+//!   [`chart_u_arm`]/`sphere_twin`). A sphere's GENERAL circle (neither
+//!   polar nor meridian) has no closed form and takes the fitted lane:
+//!   its image from [`geom_brep::FittedLane::sphere_circle_image`],
+//!   certified by [`geom_brep::PcurveCache::certify_fitted`]'s Circle
+//!   arm (`analytic_derive`). Any other carrier outside the closed-form
 //!   classes that can still lie on the chart refuses
 //!   [`PcurveCertifyError::UnsupportedCarrier`] with the class named,
-//!   and its face stays uncached — the sphere's general circles have a
-//!   certified route that this pass cannot reach
-//!   ([`geom_brep::PcurveCache::certify_fitted`], whose docs carry the
-//!   frontier); the cone/torus oblique classes have no honest route (no
-//!   ring-computable meters composite). A carrier that cannot lie on
-//!   its face ([`PcurveCertifyError::CarrierOffChart`]) is a defect,
-//!   and the pass refuses with it.
+//!   and its face stays uncached — the cone/torus oblique classes have
+//!   no honest route (no ring-computable meters composite). A carrier
+//!   that cannot lie on its face
+//!   ([`PcurveCertifyError::CarrierOffChart`]) is a defect, and the
+//!   pass refuses with it.
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
 //!   rims map through the chart's own rational-quadratic parameter

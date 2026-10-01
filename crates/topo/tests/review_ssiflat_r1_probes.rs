@@ -225,12 +225,12 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
 #[test]
 fn the_f64_siblings_hull_bound_sits_strictly_under_the_interval_constant() {
     let cache = drive_fitted_door::<f64>().expect("the f64 lane certifies at every drawn ε");
-    let ssi = cache.certificate().ssi.expect("the full C2 certificate");
+    let hull_sup = cache.certificate().envelope;
     assert!(
-        ssi.hull_sup < HULL_SUP_AT_INTERVAL,
-        "the f64 hull bound ({:e}) reached the interval lane's constant ({HULL_SUP_AT_INTERVAL:e}) \
-         — the scalar-width argument behind the #925 re-scope no longer holds",
-        ssi.hull_sup
+        hull_sup < HULL_SUP_AT_INTERVAL,
+        "the f64 hull bound ({hull_sup:e}) reached the interval lane's constant \
+         ({HULL_SUP_AT_INTERVAL:e}) — the scalar-width argument behind the #925 re-scope no \
+         longer holds"
     );
 }
 

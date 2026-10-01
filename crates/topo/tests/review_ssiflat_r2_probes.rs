@@ -132,6 +132,55 @@ where
     )
 }
 
+/// The same arc as a RUNG-3 carrier — its one-segment rational-quadratic
+/// chain (a quarter turn needs one), `Curve3::Nurbs` on `[0, 1]` — with
+/// its chart image interpolated on the CHAIN's parameter, certified at
+/// the fitted door against the (sphere, tilted plane) pair at `f64`.
+fn certify_chain_at(
+    radius: f64,
+    arc: (f64, f64),
+    band: Band,
+) -> Result<PcurveCache<f64>, geom_brep::PcurveCertifyError> {
+    let circle = general_circle::<f64>(radius);
+    let (a, b) = arc;
+    let half = 0.5 * (b - a);
+    let w = half.cos();
+    let apex = Point3::origin() + (circle.eval(0.5 * (a + b)) - Point3::origin()) / w;
+    let knots = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+        .expect("one rational-quadratic segment");
+    let chain = geom::NurbsCurve3::new(
+        knots,
+        vec![circle.eval(a), apex, circle.eval(b)],
+        vec![1.0, w, 1.0],
+    )
+    .expect("the arc's chain");
+    let n = 33usize;
+    let mut params = Vec::with_capacity(n);
+    let mut pts = Vec::with_capacity(n);
+    for i in 0..n {
+        #[allow(clippy::cast_precision_loss)]
+        let s = i as f64 / (n - 1) as f64;
+        let p = chain.eval(s);
+        params.push(s);
+        pts.push(Point2::new(p.y.atan2(p.x), (p.z / radius).asin()));
+    }
+    let image = Arc::new(
+        NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the chart image fits"),
+    );
+    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(0.0, 1.0);
+    PcurveCache::<f64>::certify_fitted(
+        image,
+        0.0,
+        1.0,
+        &Curve3::Nurbs(Arc::new(chain)),
+        &sphere::<f64>(radius),
+        Some(&tilted_plane::<f64>()),
+        window,
+        band,
+        geom_brep::FittedLane::certified(),
+    )
+}
+
 /// The reviewed row's own arc: a quarter turn away from the seam.
 const ARC: (f64, f64) = (0.3, 0.3 + core::f64::consts::FRAC_PI_2);
 
@@ -307,7 +356,11 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     // honest shape instead: a refusal that names the ladder, carries NO
     // magnitude because it measured nothing, and shows no NaN to a
     // consumer.
-    let err = certify_at::<f64>(1.0e-5, ARC, loose_band())
+    //
+    // The carrier is RUNG-3 — the arc's rational-quadratic chain as a
+    // `Curve3::Nurbs` — because only a fitted carrier runs limb 3: an
+    // exact Circle carrier certifies against the chart alone.
+    let err = certify_chain_at(1.0e-5, ARC, loose_band())
         .expect_err("a 10-micron arc has no certifiable uniqueness tube at a 1e-6 band");
     let geom_brep::PcurveCertifyError::FittedCertificate {
         what, magnitude, ..
