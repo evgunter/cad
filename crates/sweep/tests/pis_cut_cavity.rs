@@ -18,9 +18,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::bores::{bored_brick, section_faces, tilted};
 use crate::common::poses::poses;
-use geom_core::{Band, Point2, Point3, Tol, Vec3};
-use sweep::test_support::{bored_cylinder, brick, prism_at};
+use geom_core::{Band, Point3, Tol};
+use sweep::test_support::bored_cylinder;
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, PointInSolidError, SolidContainment, point_in_solid, transform_rigid};
 
@@ -38,33 +39,13 @@ struct Solid {
     hi: [f64; 3],
 }
 
-/// The brick `[−2, 2]² × [0, 2.5]` less a unit rod parallel to `z`
-/// about `(cx, cy)`, through the subtract door; the rod runs past both
-/// caps.
-fn cavity_at(cx: f64, cy: f64) -> Body<f64> {
-    let block: Body<f64> = brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.5), tol());
-    let rod: Body<f64> = prism_at(
-        vec![
-            (Point2::new(cx - 1.0, cy), 1.0),
-            (Point2::new(cx + 1.0, cy), 1.0),
-        ],
-        -0.5,
-        3.5,
-        tol(),
-    );
-    match topo::subtract(&block, &rod, tol()) {
-        Ok(topo::BooleanResult::Body(b)) => b.body,
-        other => panic!("the rod subtracts: {:?}", other.err()),
-    }
-}
-
 fn brick_walls(p: Point3<f64>) -> Vec<f64> {
     vec![p.x + 2.0, 2.0 - p.x, p.y + 2.0, 2.0 - p.y, p.z, 2.5 - p.z]
 }
 
 fn cavity() -> Solid {
     Solid {
-        body: cavity_at(0.0, 0.0),
+        body: bored_brick(0.0, 0.0, 1.0),
         walls: |p| {
             let mut w = brick_walls(p);
             w.push(p.x.hypot(p.y) - 1.0);
@@ -78,7 +59,7 @@ fn cavity() -> Solid {
 /// The rod off the brick's centre, at `(0.8, 0)`.
 fn off_centre_cavity() -> Solid {
     Solid {
-        body: cavity_at(0.8, 0.0),
+        body: bored_brick(0.8, 0.0, 1.0),
         walls: |p| {
             let mut w = brick_walls(p);
             w.push((p.x - 0.8).hypot(p.y) - 1.0);
@@ -107,27 +88,12 @@ fn bored() -> Solid {
     }
 }
 
-/// A cutting plane: a point on it and its normal.
-#[derive(Clone, Copy)]
-struct Cut {
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
-}
+/// A cutting plane.
+type Cut = SplitPlane<f64>;
 
-impl Cut {
-    /// Through `(0, 0, z)`, tilted `t` rad about `y` (normal
-    /// `(sin t, 0, cos t)`), flipped when `flip`.
-    fn tilted(z: f64, t: f64, flip: bool) -> Self {
-        let s = if flip { -1.0 } else { 1.0 };
-        Self {
-            origin: Point3::new(0.0, 0.0, z),
-            normal: Vec3::new(s * t.sin(), 0.0, s * t.cos()),
-        }
-    }
-
-    fn elevation(&self, p: Point3<f64>) -> f64 {
-        (p - self.origin).dot(self.normal)
-    }
+/// `p`'s signed distance from the cut, positive above.
+fn elevation(cut: &Cut, p: Point3<f64>) -> f64 {
+    (p - cut.origin).dot(cut.normal)
 }
 
 /// Which half of a cut a row reads.
@@ -156,7 +122,7 @@ fn cases() -> Vec<Case> {
         Case {
             name: "cavity cut at tilt 1.0",
             solid: cavity,
-            cut: Some(Cut::tilted(1.25, 1.0, false)),
+            cut: Some(tilted(1.25, 1.0, false)),
             floor: [5015, 11428],
             escalations: 0,
         },
@@ -170,49 +136,49 @@ fn cases() -> Vec<Case> {
         Case {
             name: "cavity cut flat",
             solid: cavity,
-            cut: Some(Cut::tilted(1.25, 0.0, false)),
+            cut: Some(tilted(1.25, 0.0, false)),
             floor: [12360, 12360],
             escalations: 0,
         },
         Case {
             name: "cavity cut at tilt 0.3",
             solid: cavity,
-            cut: Some(Cut::tilted(1.25, 0.3, false)),
+            cut: Some(tilted(1.25, 0.3, false)),
             floor: [5518, 9696],
             escalations: 0,
         },
         Case {
             name: "off-centre cavity cut flat",
             solid: off_centre_cavity,
-            cut: Some(Cut::tilted(1.25, 0.0, false)),
+            cut: Some(tilted(1.25, 0.0, false)),
             floor: [12360, 12360],
             escalations: 0,
         },
         Case {
             name: "off-centre cavity cut at tilt 1.4, flipped",
             solid: off_centre_cavity,
-            cut: Some(Cut::tilted(1.25, 1.4, true)),
+            cut: Some(tilted(1.25, 1.4, true)),
             floor: [11263, 5958],
             escalations: 0,
         },
         Case {
             name: "bored cylinder cut flat",
             solid: bored,
-            cut: Some(Cut::tilted(0.5, 0.0, false)),
+            cut: Some(tilted(0.5, 0.0, false)),
             floor: [12360, 12360],
             escalations: 0,
         },
         Case {
             name: "bored cylinder cut at tilt 0.3",
             solid: bored,
-            cut: Some(Cut::tilted(0.5, 0.3, false)),
+            cut: Some(tilted(0.5, 0.3, false)),
             floor: [5200, 8936],
             escalations: 3,
         },
         Case {
             name: "bored cylinder cut at tilt -1, flipped",
             solid: bored,
-            cut: Some(Cut::tilted(0.5, -1.0, true)),
+            cut: Some(tilted(0.5, -1.0, true)),
             floor: [5909, 9560],
             escalations: 0,
         },
@@ -224,15 +190,8 @@ fn parts(case: &Case, solid: &Solid) -> Vec<(Option<Part>, Body<f64>)> {
     let Some(cut) = case.cut else {
         return vec![(None, solid.body.clone())];
     };
-    let result = split(
-        &solid.body,
-        &SplitPlane {
-            origin: cut.origin,
-            normal: cut.normal,
-        },
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("{}: the cut splits: {e:?}", case.name));
+    let result = split(&solid.body, &cut, tol())
+        .unwrap_or_else(|e| panic!("{}: the cut splits: {e:?}", case.name));
     [(Part::Below, result.below), (Part::Above, result.above)]
         .into_iter()
         .map(|(part, kept)| {
@@ -249,7 +208,7 @@ fn truth(solid: &Solid, cut: Option<Cut>, part: Option<Part>, p: Point3<f64>) ->
     let clear = 1e3 * tol().eps();
     let mut walls = (solid.walls)(p);
     if let (Some(cut), Some(part)) = (cut, part) {
-        let e = cut.elevation(p);
+        let e = elevation(&cut, p);
         walls.push(if part == Part::Below { -e } else { e });
     }
     if walls.iter().any(|d| d.abs() < clear) {
@@ -282,21 +241,6 @@ fn probes(solid: &Solid, cut: Option<Cut>, part: Option<Part>) -> Vec<(Point3<f6
         }
     }
     out
-}
-
-/// The planar faces of `half` on the cut's plane: its section faces.
-fn section_faces(half: &Body<f64>, cut: Cut) -> Vec<topo::FaceKey> {
-    half.faces()
-        .filter(|(_, f)| {
-            matches!(
-                half.get_surface(f.surface),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.cross(cut.normal).norm() < 1e-12
-                        && cut.elevation(*origin).abs() < 1e-12
-            )
-        })
-        .map(|(k, _)| k)
-        .collect()
 }
 
 /// A refusal on a margin strictly inside the band's gap `(ε, K·ε)`: a
@@ -390,7 +334,7 @@ fn every_section_face_passes_check_6() {
         let Some(cut) = case.cut else { continue };
         let solid = (case.solid)();
         for (part, half) in parts(&case, &solid) {
-            let sections = section_faces(&half, cut);
+            let sections = section_faces(&half, &cut);
             assert!(
                 !sections.is_empty(),
                 "{} {part:?}: the cut makes section faces",

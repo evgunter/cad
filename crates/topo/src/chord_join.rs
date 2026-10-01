@@ -2515,8 +2515,8 @@ fn face_plane_normal<T: Decide>(
     }
 }
 
-/// A representative point of a ring (its anchor vertex).
-fn ring_representative<T: Decide>(
+/// A representative point of a loop (its anchor vertex).
+pub(crate) fn ring_representative<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
 ) -> Result<Point3<T>, SplitJoinError> {

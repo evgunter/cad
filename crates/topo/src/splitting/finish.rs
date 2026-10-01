@@ -21,9 +21,11 @@
 //! about it, the reading tier 3's check 6 makes: a section's outer
 //! boundary winds counter-clockwise (`true`). A section polygon that
 //! is a hole in another — the bore's outline inside the cut through a
-//! bored block — winds clockwise, and does not stay a face: it becomes
-//! a ring of the section face of its side that encloses it
-//! (`nest_hole_sections`), so a holed section is one face.
+//! bored block — winds clockwise (`false`), and becomes a ring of the
+//! section face of its side that encloses it wherever the two
+//! outlines are decided disjoint (`nest_hole_sections`), so a holed
+//! section is one face; where nothing decides it, the hole keeps a
+//! face of its own that cancels the face around it.
 //!
 //! The book's "the 'inner' loop should appear in the part Above, and
 //! the 'outer' loop in the part Below" is list-position convention
@@ -69,6 +71,7 @@ use super::{PlaneSide, SplitReduction};
 use crate::attach::Rechart;
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
+use crate::chord_join::ring_representative;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::validate::{RingOuterVerdict, ring_outer_contact};
@@ -120,10 +123,13 @@ pub struct SplitResult<T: Real> {
 /// neither side (discarded scaffolding) simply resolve nowhere.
 #[derive(Debug, Default)]
 pub struct SplitNaming {
-    /// The section faces with their side, in section completion order
-    /// (the `order` module's total exact-order sort: reorderings are
-    /// recorded predicate verdicts, so the position is a function of
-    /// the verdict vector — N4's covariance).
+    /// The section faces each side keeps, with their side, in section
+    /// completion order (the join's sweep order and its per-face line
+    /// order are recorded predicate verdicts, so the position is a
+    /// function of the verdict vector — N4's covariance). A section
+    /// polygon nested as a ring of another (`nest_hole_sections`) has
+    /// no face of its own and no row; the face that took it as a ring
+    /// keeps its own row.
     pub sections: Vec<(FaceKey, PlaneSide)>,
     /// Chord-mef fragment rows: `(new face, divided-from face)` in
     /// mint order, call-time keys ([`crate::chord_join`]'s `ChordJoiner`
@@ -210,6 +216,13 @@ pub enum SplitFinishError {
         /// The operand's curved face the plane is tangent to.
         face: FaceKey,
     },
+    /// Two section faces each read as enclosing the other around a
+    /// hole: their outlines were decided disjoint, and disjoint
+    /// outlines cannot (kernel bug, loudly).
+    NestingContradiction {
+        /// The hole's section face (in the discarded scratch body).
+        hole: FaceKey,
+    },
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -269,6 +282,10 @@ impl core::fmt::Display for SplitFinishError {
                 "which side of a cut face is material cannot be read: its outline \
                  encloses no area, or has an edge with no curve. Recourse: move the \
                  split plane"
+            ),
+            Self::NestingContradiction { hole } => write!(
+                f,
+                "two cut faces each read as enclosing the other around hole {hole:?} (kernel bug)"
             ),
             Self::SectionCusp { .. } => write!(
                 f,
@@ -480,25 +497,33 @@ pub(super) fn split_finish<T: Decide>(
 /// face over the whole outline plus a coplanar face per hole that
 /// cancels it.
 ///
-/// A face encloses the hole when the two outlines are certified
-/// disjoint (tier 3's check 9 contact reading, `ring_outer_contact`)
-/// and the hole's anchor vertex is certified inside the face's outline
-/// on the loops' own carriers ([`point_in_carrier_loop`]); among
-/// several (an island in a hole in a face), the hole goes to the one
-/// every other encloses. The hole moves onto that face's chart first,
-/// its boundary restated with it, so the ring rides the chart of the
-/// face that keeps it.
+/// A face encloses the hole when the two outlines are decided
+/// disjoint ([`outlines_disjoint`]), as the hole is from every ring
+/// the face already holds, and the hole's anchor vertex is
+/// certified inside the face's outline on the loops' own carriers
+/// ([`point_in_carrier_loop`]). Disjoint outlines nest or are apart
+/// (Jordan), so among several enclosing faces — an island in a hole in
+/// a face — exactly one is enclosed by all the others, and the hole
+/// goes to it; two such would be two outlines each enclosing the other,
+/// which disjoint outlines cannot be, and that refuses as a kernel bug
+/// ([`SplitFinishError::NestingContradiction`]). The hole moves onto
+/// that face's chart first, its boundary restated with it, so the ring
+/// rides the chart of the face that keeps it.
 ///
-/// A hole no face certainly encloses keeps its own face. That
-/// encoding is the one the split produced before this step, sound by
-/// cancellation, and it is what a clockwise section the join chorded
-/// across the wrong arc of a curved face comes back as
+/// **Where nothing decides, the hole keeps its own face** — the
+/// encoding the split produced before this step, sound by
+/// cancellation (volumes and point-in-solid read it right; tier 3
+/// passes it). That is the case for an outline edge on a spiric or
+/// NURBS carrier, whose contacts nothing here decides; for a
+/// containment or contact reading in the band; and for the clockwise
+/// polygons the join mints when it chords a curved face across the
+/// wrong arc, which touch the outline around them
 /// (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`).
 ///
 /// # Errors
 ///
-/// [`SplitFinishError::Euler`] and [`SplitFinishError::Corrupt`] from
-/// the surgery.
+/// [`SplitFinishError::NestingContradiction`]; [`SplitFinishError::Euler`]
+/// and [`SplitFinishError::Corrupt`] from the surgery.
 fn nest_hole_sections<T: Decide>(
     body: &mut Body<T>,
     section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
@@ -520,13 +545,10 @@ fn nest_hole_sections<T: Decide>(
             let Some(&Surface::Plane { normal, .. }) = body.get_surface(outer_data.surface) else {
                 return Err(corrupt());
             };
-            if !matches!(
-                ring_outer_contact(body, outer_data.outer, inner_loop, band),
-                RingOuterVerdict::Disjoint
-            ) {
+            if !outlines_disjoint(body, outer_data.outer, inner_loop, band)? {
                 return Ok(false);
             }
-            let q = anchor_point(body, inner_loop)?;
+            let q = ring_representative(body, inner_loop).map_err(|_| corrupt())?;
             Ok(matches!(
                 point_in_carrier_loop(body, outer_data.outer, normal, q, band),
                 Ok(Some(LoopContainment::In))
@@ -538,21 +560,34 @@ fn nest_hole_sections<T: Decide>(
                 enclosing.push(f);
             }
         }
-        let mut parent = None;
+        let mut innermost = Vec::new();
         for &f in &enclosing {
-            let mut innermost = true;
+            let mut inside_all = true;
             for &g in &enclosing {
                 if g != f && !encloses(g, f)? {
-                    innermost = false;
+                    inside_all = false;
                 }
             }
-            if innermost {
-                parent = parent.or(Some(f));
+            if inside_all {
+                innermost.push(f);
             }
         }
-        let Some(parent) = parent else {
-            continue;
+        let parent = match innermost[..] {
+            [] => continue,
+            [parent] => parent,
+            _ => return Err(SplitFinishError::NestingContradiction { hole }),
         };
+        // Tier 3 compares a ring with its face's outer loop only, so a
+        // ring that met another ring would pass it: a hole joins only
+        // rings it is decided disjoint from.
+        let hole_loop = body.get_face(hole).ok_or_else(corrupt)?.outer;
+        let mut clear = true;
+        for &r in &body.get_face(parent).ok_or_else(corrupt)?.rings {
+            clear = clear && outlines_disjoint(body, r, hole_loop, band)?;
+        }
+        if !clear {
+            continue;
+        }
         let chart = body.get_face(parent).ok_or_else(corrupt)?.surface;
         let restated = section_plane_restatements(body, hole)?;
         body.set_face_surfaces_describing(
@@ -567,18 +602,192 @@ fn nest_hole_sections<T: Decide>(
     Ok(())
 }
 
-/// The point of a loop's anchor vertex.
-fn anchor_point<T: Decide>(
+/// Whether two loops in the section plane are DECIDED disjoint: `true`
+/// only where every pair of their edges is.
+///
+/// - **Line and circle edges**: tier 3's check 9 contact reading
+///   ([`ring_outer_contact`]), which on a planar face whose loops carry
+///   only these kinds decides every shared point — at a vertex of
+///   either loop, along an arc, or where two edges cross.
+/// - **A pair with an ellipse edge**, which check 9's edge arms skip:
+///   separated on the CARRIERS, a superset of the arcs. A line against
+///   a conic: the conic's whole carrier lies on one side of the line
+///   through the segment (**`split_nest_line_conic`**, the offset of
+///   the conic's centre from the line less its amplitude across it,
+///   `√((m·a)² + (m·b)²)`). Two conics: in the unit coordinates of one,
+///   the other's carrier lies wholly inside or wholly outside the unit
+///   circle (**`split_nest_conic_conic`**, `1 − |c′| − R` or
+///   `|c′| − R − 1` with `R = √(|a′|² + |b′|²)` bounding its reach,
+///   levered by the first's smaller semi-axis into metres).
+/// - **A spiric or NURBS edge, or an edge with no certified curve**:
+///   nothing decides it, so `false`.
+///
+/// A margin in the band is `false` too: an undecided pair is not a
+/// disjoint one.
+fn outlines_disjoint<T: Decide>(
+    body: &Body<T>,
+    a: crate::entity::LoopKey,
+    b: crate::entity::LoopKey,
+    band: geom_core::Band,
+) -> Result<bool, SplitFinishError> {
+    if !matches!(
+        ring_outer_contact(body, a, b, band),
+        RingOuterVerdict::Disjoint
+    ) {
+        return Ok(false);
+    }
+    let (ea, eb) = (loop_edges(body, a)?, loop_edges(body, b)?);
+    for x in &ea {
+        for y in &eb {
+            let separated = match (x, y) {
+                (OutlineEdge::Undecided, _) | (_, OutlineEdge::Undecided) => return Ok(false),
+                (OutlineEdge::Line(p, q), OutlineEdge::Conic(c, true))
+                | (OutlineEdge::Conic(c, true), OutlineEdge::Line(p, q)) => {
+                    line_clears_conic(*p, *q, c, band)
+                }
+                (OutlineEdge::Conic(c, true), OutlineEdge::Conic(d, _))
+                | (OutlineEdge::Conic(c, _), OutlineEdge::Conic(d, true)) => {
+                    conics_clear(c, d, band)
+                }
+                // Lines and circles: check 9 decided them above.
+                _ => true,
+            };
+            if !separated {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// One outline edge, as [`outlines_disjoint`] reads it: a segment by
+/// its ends; a conic by its carrier, flagged `true` for an ellipse
+/// (the kind check 9's edge arms skip); or a kind nothing decides.
+enum OutlineEdge<T: Real> {
+    Line(geom_core::Point3<T>, geom_core::Point3<T>),
+    Conic(Conic<T>, bool),
+    Undecided,
+}
+
+/// A conic carrier: centre and the two semi-axis vectors.
+struct Conic<T: Real> {
+    centre: geom_core::Point3<T>,
+    a: Vec3<T>,
+    b: Vec3<T>,
+}
+
+fn loop_edges<T: Decide>(
     body: &Body<T>,
     l: crate::entity::LoopKey,
-) -> Result<geom_core::Point3<T>, SplitFinishError> {
+) -> Result<Vec<OutlineEdge<T>>, SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
-    let v = match body.get_loop(l).ok_or_else(corrupt)?.boundary {
-        LoopBoundary::Cycle { first } => body.get_half_edge(first).ok_or_else(corrupt)?.start,
-        LoopBoundary::Empty { vertex } => vertex,
+    // A lone-vertex loop bounds nothing a contact reading could clear.
+    let first = match body.get_loop(l).ok_or_else(corrupt)?.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { .. } => return Ok(vec![OutlineEdge::Undecided]),
     };
-    let point = body.get_vertex(v).ok_or_else(corrupt)?.point;
-    body.get_point(point).copied().ok_or_else(corrupt)
+    let mut out = Vec::new();
+    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+        let h = body.get_half_edge(he).ok_or_else(corrupt)?;
+        let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
+        let Some(curve) = body
+            .get_curve_geom(edge.curve)
+            .and_then(crate::null::CurveGeom::certified)
+        else {
+            out.push(OutlineEdge::Undecided);
+            continue;
+        };
+        out.push(match *curve.carrier() {
+            geom::Curve3::Line { .. } => {
+                let end = body.half_edge_end(he).ok_or_else(corrupt)?;
+                let point = |v| -> Result<geom_core::Point3<T>, SplitFinishError> {
+                    let p = body.get_vertex(v).ok_or_else(corrupt)?.point;
+                    body.get_point(p).copied().ok_or_else(corrupt)
+                };
+                OutlineEdge::Line(point(h.start)?, point(end)?)
+            }
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => OutlineEdge::Conic(
+                Conic {
+                    centre: center,
+                    a: u_ref * radius,
+                    b: axis.cross(u_ref) * radius,
+                },
+                false,
+            ),
+            geom::Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => OutlineEdge::Conic(
+                Conic {
+                    centre: center,
+                    a: u_ref * major,
+                    b: axis.cross(u_ref) * minor,
+                },
+                true,
+            ),
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => OutlineEdge::Undecided,
+        });
+    }
+    Ok(out)
+}
+
+/// The conic's whole carrier lies definitely on one side of the line
+/// through `p`, `q` (both in the conic's plane).
+fn line_clears_conic<T: Decide>(
+    p: geom_core::Point3<T>,
+    q: geom_core::Point3<T>,
+    c: &Conic<T>,
+    band: geom_core::Band,
+) -> bool {
+    let along = q - p;
+    if !positive("split_nest_line_conic", along.norm(), band)
+        || !positive("split_nest_line_conic", c.a.norm().min(c.b.norm()), band)
+    {
+        return false;
+    }
+    let m = c.a.cross(c.b).normalize().cross(along.normalize());
+    let reach = (m.dot(c.a).powi(2) + m.dot(c.b).powi(2)).sqrt();
+    positive(
+        "split_nest_line_conic",
+        m.dot(c.centre - p).abs() - reach,
+        band,
+    )
+}
+
+/// `margin` (metres) definitely positive under `band`.
+fn positive<T: Decide>(name: &'static str, margin: T, band: geom_core::Band) -> bool {
+    matches!(
+        crate::validate::decide(name, geom_core::Margin::of(margin), band),
+        Ok(geom_core::Sign::Positive)
+    )
+}
+
+/// One conic's carrier lies definitely inside or definitely outside the
+/// other's (both in one plane).
+fn conics_clear<T: Decide>(e: &Conic<T>, h: &Conic<T>, band: geom_core::Band) -> bool {
+    let (ae, be) = (e.a.norm(), e.b.norm());
+    let lever = ae.min(be);
+    if !positive("split_nest_conic_conic", lever, band) {
+        return false;
+    }
+    let unit = |v: Vec3<T>| (v.dot(e.a) / ae.powi(2), v.dot(e.b) / be.powi(2));
+    let (cx, cy) = unit(h.centre - e.centre);
+    let (ax, ay) = unit(h.a);
+    let (bx, by) = unit(h.b);
+    let centre = (cx.powi(2) + cy.powi(2)).sqrt();
+    let reach = (ax.powi(2) + ay.powi(2) + bx.powi(2) + by.powi(2)).sqrt();
+    let inside = (T::one() - centre - reach) * lever;
+    let outside = (centre - reach - T::one()) * lever;
+    positive("split_nest_conic_conic", inside, band)
+        || positive("split_nest_conic_conic", outside, band)
 }
 
 /// The sense of the section face a promoted loop will bound, charted

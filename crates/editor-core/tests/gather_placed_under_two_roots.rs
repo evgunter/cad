@@ -15,8 +15,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
     EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, NameTable, Node, PartSelect,
-    PatternKind, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, SplitHalf, StableName,
-    product, product_named,
+    PatternKind, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SplitHalf,
+    StableName, product, product_named,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head_at, insert, len, on_frame, scl, solve, step, xform};
@@ -846,5 +846,48 @@ fn a_split_through_the_u_cutters_pockets_gathers() {
             vec![2, 2],
             "x = {x}: the x = 4 wall and the section, each holed by both prongs"
         );
+    }
+}
+
+/// **A section with holes is one section face per side, so its name
+/// is index 0.** Splitting the U-cutter's subtract at `x = 3`, each
+/// half's section is one face holding both prongs' sections as rings;
+/// the split mints `SectionFace { side, section: 0 }` on each side and
+/// no index past it. Before the split nested holes, each side minted
+/// three, in completion order: 0 and 1 the prongs' cancelling faces,
+/// 2 the face over the whole outline.
+#[test]
+fn a_holed_section_is_named_once_per_side() {
+    let doc = ProfileDoc::empty_derived("u-cutter-section-names", Tol::witness());
+    let (doc, sub) = cutter(doc, &[(1.0, 1.5), (2.5, 3.0)]);
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(3.0), len(0.0), len(0.0)],
+            normal: [scl(1.0), scl(0.0), scl(0.0)],
+        }),
+    );
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: sub,
+            tool: plane,
+        },
+    );
+    let ev = run(&doc);
+    let names = fixture::table(&ev, split);
+    for side in [SplitHalf::Above, SplitHalf::Below] {
+        let at = |section| {
+            names.lookup(&fixture::minted(
+                EntityKind::Face,
+                split,
+                RoleSeg::SectionFace { side, section },
+            ))
+        };
+        assert!(
+            matches!(at(0), Some(Entry::Unique(_))),
+            "{side:?}: the holed section face is index 0"
+        );
+        assert!(at(1).is_none(), "{side:?}: no second section face");
     }
 }
