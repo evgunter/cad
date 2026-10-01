@@ -86,3 +86,40 @@ structural corruption in `KERNEL_OR_FILE_DEFECT_ENDING` today, and
 should be checked against that finding. A tier-3 (geometric) refusal at
 rest, such as `validate`'s `DEFECT` ending, is a different question,
 because a file's geometry does reach the body.
+
+**Missed by that sweep, and re-swept after main moved** (PR 3621's
+review, C7; the same pattern set, plus `*Invariant` and `*Desync` in
+the name pass, on the merge of main at `79555f031e`):
+
+- `topo::chord_join::SplitJoinError::Corrupt` ends in a "(corrupt
+  body)" tag ("the join's traversal failed at {entity}",
+  `crates/topo/src/chord_join.rs`), and its sibling `SectionInvariant`
+  ("curved-section invariant at face …") ends in nothing.
+- `topo::boolean::voids`' `VoidInsertError::Corrupt { what: "graft
+  refused outside its own error surface (kernel bug)" }`
+  (`crates/topo/src/boolean/voids.rs`, the arm that maps a graft
+  refusal), rendered as the bare `what`.
+- `BooleanError::ClassificationInvariant` ("classification invariant
+  violated: {what}") ends in nothing (`crates/topo/src/boolean/mod.rs`).
+  The "(kernel bug or corrupt …)" tag the BOOL bullet above names is
+  `BooleanError::JoinDesync`'s and the seam zip's "(kernel bug)" is
+  `ZipCorrespondence`'s; `CorruptOperand` ends in "(a broken body)".
+- `topo::props::quad_lane`'s point lookup reports a corrupt body as
+  `PropsError::QuadratureUnsupported` ("corrupt body reaching the
+  quadrature lane (a key did not resolve)",
+  `crates/topo/src/props/quad_lane.rs`), whose render tells the user to
+  state the face inside the certified inventory: a false recourse, not
+  only a missing ending.
+- `topo::splitting::containment`'s `CorruptLoop` ("loop … is not
+  walkable") ends in nothing.
+- Main's `BooleanError::VolumeCorrupt` puts
+  `KERNEL_OR_FILE_DEFECT_ENDING` on an operand's props corruption (and
+  `KERNEL_DEFECT_ENDING` on the result's), and `census`'s
+  `Undecided::CorruptInstance` ends in the file variant too. Both are
+  the same re-check as the `props`/`transform` note above: whether a
+  file reaches the structure they read.
+
+The pattern cannot see a corruption refusal whose variant has an
+ordinary name and whose text names no defect (the `quad_lane` arm was
+found by its `what` literal, not its variant), nor a `what` payload
+built outside a string literal.

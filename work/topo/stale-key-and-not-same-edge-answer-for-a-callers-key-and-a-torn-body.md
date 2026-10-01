@@ -43,13 +43,46 @@ which is right for a driver passing keys it read from the body
 stale key. The unit that unified the corruption endings
 (`euler-op-corruption-refusals-end-in-a-tag`) could not give these
 three `geom_core::KERNEL_DEFECT_ENDING` without telling a caller with a
-stale key that the kernel is defective, so they end in the caller's
-repair and then the report ("Recourse: pass keys this body holds; if
-the call did, the body is torn, which is a kernel defect: report it"),
-pinned by `euler::tests::corruption_refusals_end_in_the_kernel_defect_ending`.
-The repair reads oddly where the caller is a kernel driver (an
-`ExtrudeError::Op` wrapping a `StaleKey` tells the person at the GUI to
-pass keys).
+stale key that the kernel is defective, and no conditional text is
+true at every raise site either, so they state the fact and claim
+neither a recourse nor a defect
+(`euler::tests::corruption_refusals_end_in_the_kernel_defect_ending`
+pins both halves).
+
+## The driver case
+
+The caller is usually a kernel driver, not the person at the GUI. In
+all 11 feature-tree chains that carry one of these variants
+(`crates/editor-core/tests/refusal_concision_chains.rs`'s
+`FILED_NO_RECOURSE`: `Boolean/Join/Euler`, `Split/Finish/Euler`,
+`Split/Join/Euler`, `Split/Reduce/CrossingInsertion`,
+`Split/Reduce/Euler`, `Blend/Op`, `Extrude/Op`, `Loft/Euler`,
+`Revolve/Op`, `Shell/Partition`, `Shell/Rim`) the keys come from the
+extrude, revolve, loft, blend, split, Boolean or shell driver. A
+recourse to "pass keys this body holds" speaks to nobody the user can
+be, and `Shell/Partition`'s wrapper (`ShellError::Partition`, "could
+not be partitioned out (kernel bug)") contradicts it outright.
+
+Sampling 12 `StaleKey` raise sites (PR 3621's review, C2) found three
+shapes:
+
+- caller-only: `mekr_both_empty`'s `get_loop(target)`,
+  `set_null_face_pair`'s face and loops (`null.rs`), `split_edge`'s
+  `get_edge` (`split.rs`);
+- torn-only: `euler_ring.rs`'s `parent_loop` reads, `split.rs`'s row
+  `Stale`, `Body::rebased_carrier`, `splitting/classify.rs`'s
+  half-edge read;
+- driver-minted: `sweep`'s `extrude.rs` (`base.hes[j]`, which the
+  driver minted itself, and its rim `get_edge`) and
+  `revolve/full.rs`'s seam `c_plus`. Here the body is sound and the
+  driver's bookkeeping is the defect, so "the body is torn" is false
+  as well.
+
+Neither direction below fixes the driver case: keys a kernel driver
+mints are a caller's keys under both, so the caller's variant would
+still answer them. Only the wrapper (`ExtrudeError::Op`,
+`ShellError::Partition`, …) knows the caller was the kernel, so the
+wrapper has to say so, whichever way the variant splits.
 
 ## The question
 
