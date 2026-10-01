@@ -7,7 +7,6 @@ opened: 2026-09-13
 refs: [S331]
 priority: P0
 cost: M
-design: true
 ---
 
 

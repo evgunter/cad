@@ -287,7 +287,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         )
     };
     assert!(
-        matches!(**error, EditError::DuplicateInput { input, .. } if input == a),
+        matches!(&**error, EditError::DuplicateInput { input, .. } if input.id() == a),
         "{error:?}"
     );
     // **The WHOLE sentence, deliberately.** This is what a person reads
@@ -302,7 +302,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         refused.refusal.as_ref().expect("refused").to_string(),
         format!(
             "the edit was refused: the node this edit writes would be invalid: \
-             node {} is taken as an input twice — a node's inputs are pairwise \
+             Extrude {} is taken as an input twice — a node's inputs are pairwise \
              distinct. Recourse: replace one of the two with a different node",
             test_utils::refusal::tag(a.0)
         )

@@ -221,7 +221,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{norm_sup, sqrt_down};
+use geom_core::interval::norm_sup;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
@@ -2352,7 +2352,7 @@ impl Composite {
     /// ([`Composite::e_floors`]), so an upper bound short by one ulp
     /// makes that quotient unsound. [`norm_sup`] rounds every step
     /// outward — the per-channel square and both sums in certification arithmetic,
-    /// then `sqrt_up`; an `f64` fold of the same three endpoints
+    /// then the root's upper end; an `f64` fold of the same three endpoints
     /// rounds to nearest at each multiply and add and lands below
     /// this reading on most cells of a real grid.
     fn m_tilde_sup(&self, su: usize, sv: usize) -> f64 {
@@ -2400,14 +2400,7 @@ impl Composite {
         let e_mig_sq = Interval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
             + Interval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
             + Interval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        // The re-mint through `point` was refusal-preserving only
-        // while a refused square had NaN endpoints. It does not: the
-        // refusal is asked by name and carried across by hand.
-        let e_mig_iv = if !e_mig_sq.is_certified() {
-            Interval::refused()
-        } else {
-            Interval::point(sqrt_down(e_mig_sq.lo())) / wt
-        };
+        let e_mig_iv = e_mig_sq.sqrt() / wt;
         let m_sup = self.m_tilde_sup(su, sv);
         let e_proj_iv = if m_sup > 0.0 && m_sup.is_finite() {
             Interval::point(mig(self.dd.cell_hull(su, sv))) / (Interval::point(m_sup) * wt)
@@ -2513,7 +2506,7 @@ mod tests {
     use super::{Composite, Refine, directional_mark, stall_verdict};
     use geom_core::Bounds;
     use geom_core::interval::certification::Certification;
-    use geom_core::interval::{norm_sup, sqrt_up};
+    use geom_core::interval::norm_sup;
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, Tol};
 
@@ -2827,7 +2820,10 @@ mod tests {
                     "{name} d={d:e} cell ({su},{sv}): the divisor {shipped:e} is below \
                      interval arithmetic reading {ring:e} — it is not certified from above"
                 );
-                let fold = sqrt_up(h[0].mag().powi(2) + h[1].mag().powi(2) + h[2].mag().powi(2));
+                let fold =
+                    Interval::point(h[0].mag().powi(2) + h[1].mag().powi(2) + h[2].mag().powi(2))
+                        .sqrt()
+                        .mag();
                 if fold < ring {
                     fold_below += 1;
                 }

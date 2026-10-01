@@ -209,11 +209,7 @@ pub fn authored_from_world(
     let origin = inverse.transform_point(pose.origin);
     let axis = inverse.transform_vec(pose.axis);
     let reference = inverse.transform_vec(reference);
-    pncad::document::MateFrame::authored(
-        [origin.x, origin.y, origin.z],
-        [axis.x, axis.y, axis.z],
-        [reference.x, reference.y, reference.z],
-    )
+    pncad::document::MateFrame::authored(origin.to_array(), axis.to_array(), reference.to_array())
 }
 
 // The assembly suites say `asm::down_at` / `asm::up_at`; both name the

@@ -709,7 +709,7 @@ impl MateFault {
     /// its own failure states it.
     #[getter]
     fn cause(&self, py: Python<'_>) -> Option<Py<PyAny>> {
-        super::value::carried_cause(py, self.0.carried_chain())
+        super::value::carried_cause(py, self.0.carried_chain(), None)
             .map(|cause| cause.into_value(py).into_any())
     }
 
@@ -969,7 +969,7 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
     );
     // The refusal the fault carries, typed, as the cause — the value's
     // own `cause`, and what a node failure does with one.
-    super::value::with_carried(py, err, fault.carried_chain())
+    super::value::with_carried(py, err, fault.carried_chain(), None)
 }
 
 /// The document's solved poses: each instance's pose relative to its
@@ -1194,8 +1194,8 @@ impl Maintenance {
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
-            d::Maintenance::Strand { node, .. } => Some(NodeId(*node)),
-            d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(*declare)),
+            d::Maintenance::Strand { node, .. } => Some(NodeId(node.id())),
+            d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(declare.id())),
             d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
         }
     }
@@ -1211,7 +1211,7 @@ impl Maintenance {
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
             d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
-                super::doc::name_text(py, name).map(Some)
+                super::doc::name_text(py, name.name()).map(Some)
             }
             d::Maintenance::Cluster(_) | d::Maintenance::OrphanedDeclare { .. } => Ok(None),
         }

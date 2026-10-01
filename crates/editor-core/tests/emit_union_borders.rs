@@ -189,10 +189,7 @@ fn plane_label(ev: &Evaluation<f64>, node: RecipeNodeId, of: &StableName) -> Str
     let topo::Surface::Plane { origin, normal, .. } = s else {
         return "curved".to_owned();
     };
-    let (n, o) = (
-        [normal.x, normal.y, normal.z],
-        [origin.x, origin.y, origin.z],
-    );
+    let (n, o) = (normal.to_array(), origin.to_array());
     for (i, axis) in ["x", "y", "z"].into_iter().enumerate() {
         if (n[i].abs() - 1.0).abs() < 1e-9 {
             return format!("{axis}={:.2}", o[i]);
