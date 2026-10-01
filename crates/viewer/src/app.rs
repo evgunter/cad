@@ -788,10 +788,12 @@ impl ViewerApp {
         };
         let (theme, theme_notice) = saved.resolve_theme();
         let (input, keys_notice) = saved.resolve_keys();
+        let (notation, notation_notices) = saved.resolve_notation();
         notices.extend(
             [theme_notice, keys_notice]
                 .into_iter()
                 .flatten()
+                .chain(notation_notices)
                 .map(|n| n.to_string()),
         );
         // The launch directory, read once for the same reason the
@@ -823,8 +825,11 @@ impl ViewerApp {
         // a default rather than a check.
         crate::widgets::install_number_formatter(egui_ctx);
 
+        let mut session = DocSession::new(document, tol, evaluator()?);
+        session.set_notation(notation);
+
         Ok(Self {
-            session: DocSession::new(document, tol, evaluator()?),
+            session,
             delta,
             scene: Arc::new(mesh),
             picks: PickCache::new(indexer()?),
@@ -1282,10 +1287,13 @@ impl ViewerApp {
         if self.store.unusable().is_some() {
             return;
         }
+        let notation = self.session.notation();
         let prefs = Prefs {
             theme: Some(self.theme.name.to_owned()),
             keys: self.keys_pref.clone(),
             last_dir: self.last_dir.clone(),
+            length_unit: Some(notation.length.def().symbol().to_owned()),
+            angle_unit: Some(notation.angle.def().symbol().to_owned()),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
             self.notices.push(frame::store_refusal(&error));
@@ -1729,7 +1737,9 @@ impl ViewerApp {
             // The display budget's: shown while the δ on screen is
             // the one the budget CHOSE when the document opened,
             // and gone the moment the user picks their own.
-            if let Some(badge) = frame::delta_badge(self.budget_delta.as_ref()) {
+            if let Some(badge) =
+                frame::delta_badge(self.budget_delta.as_ref(), self.session.notation().length)
+            {
                 draw_badge(ui, &self.theme, &badge);
             }
             // **The three display seams that hold a refusal.**
@@ -1891,6 +1901,12 @@ impl eframe::App for ViewerApp {
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
+        // The working notation the panes read and the forms' pickers
+        // write, taken from the session and given back after the
+        // layout like the palette: a pick is a person's preference,
+        // never a `SessionOp`, because it changes nothing a document
+        // says.
+        let mut notation = self.session.notation();
         // **The tiles stand on the chrome's own ground.** `no_frame`
         // alone gives the panes no background at all, which does not
         // leave them transparent onto something sensible: it leaves
@@ -1921,6 +1937,7 @@ impl eframe::App for ViewerApp {
                     camera: &mut self.camera,
                     input: self.input,
                     theme: self.theme,
+                    notation: &mut notation,
                     drafts: &mut self.drafts,
                     display: &display,
                     tools: &mut self.tools,
@@ -1946,6 +1963,10 @@ impl eframe::App for ViewerApp {
                 self.tree.ui(&mut behavior, ui);
             });
         self.checks_window(ui.ctx(), &mut ops);
+        if notation != self.session.notation() {
+            self.session.set_notation(notation);
+            self.remember_prefs();
+        }
         self.profile_drawn = profile_drawn;
         self.datums_vanished = datums_vanished;
         self.profiles_undrawn = profiles_undrawn;
@@ -2042,6 +2063,11 @@ pub(crate) struct ViewerBehavior<'a> {
     /// The palette this frame draws with; `Copy`, because a theme is
     /// a small value and the frame must not be able to change it.
     pub(crate) theme: Theme,
+    /// The working notation ([`crate::props::Notation`]) every value
+    /// nobody wrote reads in this frame; the creation forms' unit
+    /// pickers write it, and the app hands a changed one to the session
+    /// and the preferences after the layout.
+    pub(crate) notation: &'a mut crate::props::Notation,
     pub(crate) drafts: &'a mut Drafts,
     /// The display snapshot this frame draws and picks under.
     pub(crate) display: &'a DisplayView,
@@ -4113,7 +4139,7 @@ mod properties_pane_tests {
         ]);
         let row = pane.row(EXTRUDE, SlotId::Distance);
         assert_eq!(row.source.as_deref(), Some(source.as_str()));
-        let field = crate::props::field_text(&row);
+        let field = crate::props::field_text(&row, pane.app.session.notation());
         assert_eq!(field, "= 0.04 m");
         let quoted = format!("{} = {source}", SlotId::Distance.label());
         let landed = pane.landed();
@@ -4155,7 +4181,10 @@ mod properties_pane_tests {
         let mut pane = Driven::with(ops);
         let history = pane.app.session.history().len();
         for (axis, source) in axes.iter().zip(sources) {
-            let shown = crate::props::field_text(&pane.row(FRAME, SlotId::Origin(*axis)));
+            let shown = crate::props::field_text(
+                &pane.row(FRAME, SlotId::Origin(*axis)),
+                pane.app.session.notation(),
+            );
             pane.click(&shown);
             let open = pane.frame(Vec::new());
             assert!(

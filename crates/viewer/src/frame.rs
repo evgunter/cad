@@ -232,6 +232,7 @@ use pncad::document::{
     ChecksReport, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
     PartFault, ProductError, ProductErrorKind, RecipeNodeId, ResolveFault, SlotId,
 };
+use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
 
 use crate::blend::BlendEvent;
@@ -2205,21 +2206,25 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
 /// say (`wording` absent, which is a fit that did not move δ). The
 /// second was a second condition at the call site.
 ///
-/// **The δ is rendered, not formatted**
-/// ([`crate::scene::DisplayTolerance::render_mm`]). The badge's whole
+/// **The δ is rendered, not formatted**, in `unit` — the working
+/// notation's length unit
+/// ([`crate::scene::DisplayTolerance::render_in`]). The badge's whole
 /// sentence is which δ the picture is at, and the δ it announces is the
 /// budget's own choice — `constant / TRIANGLE_BUDGET`, a quotient with
-/// no short spelling — so a fixed `{:.3}` read `δ 0.000 mm chosen` for
-/// every body whose cost constant is under a triangle·millimetre. A
+/// no short spelling — so a fixed precision would read it as zero. A
 /// label wide enough for the render is the price, and a badge is a
 /// label rather than a fixed-width field.
-pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
+pub fn delta_badge(fitted: Option<&FittedDelta>, unit: LengthUnit) -> Option<Badge> {
     let fitted = fitted?;
-    let wording = fitted.wording()?;
+    let wording = fitted.wording(unit)?;
     Some(
         Badge::read(
             Subject::Display,
-            format!("δ {} mm chosen", fitted.delta.render_mm()),
+            format!(
+                "δ {} {} chosen",
+                fitted.delta.render_in(unit),
+                unit.symbol()
+            ),
             Tone::Advisory,
         )
         .detailed(wording),

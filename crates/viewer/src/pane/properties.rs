@@ -5,14 +5,14 @@
 
 use eframe::egui;
 use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId, SlotId};
-use pncad::quantity::{self, UnitDef};
+use pncad::quantity::UnitDef;
 use pncad::select::Resolution;
 
 use crate::app::{ViewerBehavior, indeterminate_wording, toned};
 use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::frame::Tone;
-use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
+use crate::props::{self, Notation, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::session::{
     BoundsTarget, NodeKindWanted, Refusal, Selection, SessionOp, Standing, ValueGestureName, admits,
 };
@@ -102,7 +102,7 @@ impl ViewerBehavior<'_> {
                     ui.horizontal(|ui| {
                         value_field_ops(
                             ui,
-                            param_showing(&row),
+                            param_showing(&row, *self.notation),
                             value_gesture(ValueGestureName::Param(name.clone())),
                             param_doors(&name),
                             self.ops,
@@ -183,12 +183,10 @@ impl ViewerBehavior<'_> {
     /// dimension, value, the NOTATION to write it in, one
     /// [`SessionOp::CreateParam`] on commit.
     ///
-    /// **The unit is the form's, not this form's.** A length picked
-    /// here is `Drafts::length_unit`, the one every creation form in
-    /// the crate writes its lengths in — a form's notation is a
-    /// statement about how the person at the keyboard is working, and
-    /// somebody declaring a parameter in millimetres is not then
-    /// authoring the extrude that consumes it in metres. The panel's
+    /// **The unit is the working notation's, not this form's.** A
+    /// length picked here is [`Notation::length`], the one every
+    /// creation form in the crate writes its lengths in and every value
+    /// nobody wrote reads in ([`props::Notation`]). The panel's
     /// pickers are per literal for the opposite reason, and a
     /// parameter's DECLARED notation is one of those: it is changed
     /// afterwards at its own row ([`ViewerBehavior::param_unit_ui`]),
@@ -257,7 +255,7 @@ impl ViewerBehavior<'_> {
                 .drafts
                 .new_param_dimension
                 .map_or(FIELD_DRAG_SPEED, |dimension| {
-                    FieldWriting::of(dimension, None).tick
+                    FieldWriting::of(dimension, None, Notation::CANONICAL).tick
                 });
             match self.new_param_unit() {
                 Some(unit) => unit_field(ui, unit, speed, &mut self.drafts.new_param_value),
@@ -273,10 +271,10 @@ impl ViewerBehavior<'_> {
             // event, so the field it re-writes is next frame's.
             match self.drafts.new_param_dimension {
                 Some(Dimension::Length) => {
-                    length_picker(ui, "add_param", &mut self.drafts.length_unit);
+                    length_picker(ui, "add_param", &mut self.notation.length);
                 }
                 Some(Dimension::Angle) => {
-                    angle_picker(ui, "add_param", &mut self.drafts.angle_unit);
+                    angle_picker(ui, "add_param", &mut self.notation.angle);
                 }
                 Some(Dimension::Scalar | Dimension::Count) | None => {}
             }
@@ -339,17 +337,17 @@ impl ViewerBehavior<'_> {
     ///
     /// **The picker is a third place and does not read it**, which is
     /// the honest state of this form. `length_picker` and
-    /// `angle_picker` write a typed draft (`Drafts::length_unit`,
-    /// `angle_unit`), so the ladder below is spelled a second time to
+    /// `angle_picker` write the typed working notation
+    /// ([`Notation::length`], [`Notation::angle`]), so the ladder below is spelled a second time to
     /// choose between them and the two could disagree. It is an
     /// instance of the crate's `Dimension`-to-unit ladder class, filed
     /// on CHROME, and the pairing it protects — a length picker that
-    /// could write a `deg` — is the one the typed drafts already make
+    /// could write a `deg` — is the one the typed notation already makes
     /// unrepresentable.
     fn new_param_unit(&self) -> Option<UnitDef> {
         match self.drafts.new_param_dimension? {
-            Dimension::Length => Some(self.drafts.length_unit.def()),
-            Dimension::Angle => Some(self.drafts.angle_unit.def()),
+            Dimension::Length => Some(self.notation.length.def()),
+            Dimension::Angle => Some(self.notation.angle.def()),
             Dimension::Scalar | Dimension::Count => None,
         }
     }
@@ -489,26 +487,35 @@ impl ViewerBehavior<'_> {
                     .moved
                     .get(&node)
                     .map_or([0.0; 3], |frame| frame.translation);
-                ui.label("free-move probe (mm, display only):");
-                // A LENGTH field written in millimetres — so the
-                // conversion and the drag tick are the panel's own
-                // ([`FieldWriting`]) rather than a factor of a thousand
-                // and a bare `0.5` with nothing saying what unit they
-                // are in. Three components of one frame, one writing.
-                let field = FieldWriting::of(Dimension::Length, Some(quantity::MM.def()));
-                // **A conversion above the widget, and the one in this
-                // crate that cannot fail.** A millimetre value leaves
-                // `f64` above `f64::MAX * MILLI`
-                // ([`crate::props::written`]), which is why the panel's
-                // value fields ask before they convert. The translation
-                // here is not a document value: it is one this probe
-                // itself authored, either out of this field — bounded
-                // by what a finite millimetre text can spell, which is
-                // `1e305` m short of the overflow — or out of a pointer
-                // drag in world coordinates. A door that minted a frame
-                // from a document value would make this
-                // `crate::props::shown_value` like the other two.
-                let mut mm = current.map(|v| field.shown(v));
+                // A LENGTH field written in the working notation — so
+                // the conversion and the drag tick are the panel's own
+                // ([`FieldWriting`]) and the probe reads in the unit
+                // every other value nobody wrote reads in. Three
+                // components of one frame, one writing.
+                let field = FieldWriting::of(
+                    Dimension::Length,
+                    Some(self.notation.length.def()),
+                    *self.notation,
+                );
+                let unit = self.notation.length.def();
+                ui.label(format!(
+                    "free-move probe ({}, display only):",
+                    unit.symbol()
+                ));
+                // **Asked, not formed**, as the panel's value fields
+                // ask ([`crate::props::shown_value`]): a translation
+                // dragged or typed in a coarse notation can have no
+                // value in a finer one the notation was switched to.
+                let mut written = [0.0; 3];
+                for (shown, canonical) in written.iter_mut().zip(current) {
+                    match crate::props::shown_value(field.unit, canonical) {
+                        Ok(value) => *shown = value,
+                        Err(unit) => {
+                            crate::widgets::message(ui, crate::props::no_reading(unit));
+                            return;
+                        }
+                    }
+                }
                 // The G1 gesture triple over DISPLAY state, through the
                 // one widget→gesture mapping (`drag_ops`) so the typed-
                 // input arm exists here too: typing a value performs a
@@ -520,10 +527,11 @@ impl ViewerBehavior<'_> {
                 // FULL frame from all three, so dragging x does not
                 // zero y and z. The chrome offers the translation
                 // components; the op vocabulary takes any rigid frame.
-                let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
+                let frame_of =
+                    |written: [f64; 3]| Frame::translation(written.map(|v| field.authored(v)));
                 let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
                 ui.horizontal(|ui| {
-                    vec3_row_ops(ui, field.tick, &mut mm, gesture, typed, self.ops);
+                    vec3_row_ops(ui, field.tick, &mut written, gesture, typed, self.ops);
                 });
             }
         }
@@ -634,7 +642,7 @@ impl ViewerBehavior<'_> {
         // match.
         value_field_ops(
             ui,
-            slot_showing(row, draft),
+            slot_showing(row, draft, *self.notation),
             value_gesture(ValueGestureName::Slot {
                 node,
                 slot: row.slot,
@@ -666,7 +674,7 @@ impl ViewerBehavior<'_> {
     /// that a pick is an EDIT, and that re-picking the row already
     /// shown is not one.
     pub(crate) fn param_unit_ui(&mut self, ui: &mut egui::Ui, row: &ParamRow) {
-        let Some(written) = props::rendering_unit(row.dimension, row.unit) else {
+        let Some(written) = props::rendering_unit(row.dimension, row.unit, *self.notation) else {
             return;
         };
         if let Some(unit) = pick_unit(ui, "param_unit", row.name.as_str(), row.dimension, written)
@@ -740,7 +748,10 @@ impl ViewerBehavior<'_> {
         for row in rows {
             match self.session.slot_unit_refusal(node, row.slot) {
                 Some(refusal) => refused.push((row, refusal)),
-                None => writable.push((row, props::rendering_unit(row.dimension, row.unit))),
+                None => writable.push((
+                    row,
+                    props::rendering_unit(row.dimension, row.unit, *self.notation),
+                )),
             }
         }
         let first_unit = writable.first().and_then(|(_, unit)| *unit);
@@ -818,7 +829,7 @@ impl ViewerBehavior<'_> {
             slot: row.slot,
         };
         let reading = self.bounds_wording(&target);
-        if let Some(name) = slot_notes(ui, &self.theme, row, reading.as_deref()) {
+        if let Some(name) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
             self.ops.push(SessionOp::Select(Selection::Param(name)));
         }
     }
@@ -864,7 +875,7 @@ impl ViewerBehavior<'_> {
         row: &SlotRow,
         label: &str,
     ) {
-        let refused = Self::probe_refusal(node, row);
+        let refused = Self::probe_refusal(node, row, *self.notation);
         let button = ui.add_enabled(refused.is_none(), egui::Button::new(label).small());
         let button = match refused {
             None => button.on_hover_text(PROBE_HOVER),
@@ -889,7 +900,11 @@ impl ViewerBehavior<'_> {
     /// the disabled control's words are the refused operation's own by
     /// construction rather than by two compositions agreeing. A caller
     /// that wants the words asks the value for them.
-    pub(crate) fn probe_refusal(node: RecipeNodeId, row: &SlotRow) -> Option<Refusal> {
+    pub(crate) fn probe_refusal(
+        node: RecipeNodeId,
+        row: &SlotRow,
+        notation: Notation,
+    ) -> Option<Refusal> {
         match &row.driver {
             SlotDriver::Literal => None,
             SlotDriver::Expression { params } => Some(Refusal::DrivenByExpression {
@@ -897,6 +912,7 @@ impl ViewerBehavior<'_> {
                 slot: row.slot,
                 params: params.clone(),
                 current: row.value.as_ref().ok().copied(),
+                notation,
             }),
         }
     }
@@ -1018,20 +1034,33 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: 
 /// what there is to fix, over a zero it does not show. A literal that
 /// evaluated shows no fixed text: egui formats the number it is
 /// dragging, and a pinned text would freeze the field mid-gesture.
-pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>) -> FieldShowing {
-    let writing = FieldWriting::of(row.dimension, row.unit);
-    let number = props::shown_value(
+pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notation) -> FieldShowing {
+    let writing = FieldWriting::of(row.dimension, row.unit, notation);
+    let number = match props::shown_value(
         writing.unit,
         match row.value {
             Ok(value) => value.as_f64(),
             Err(_) => 0.0,
         },
-    );
+    ) {
+        // **A driven slot keeps its field whatever its value reads
+        // as.** It shows its reading as text ([`props::field_text`],
+        // which says `no … reading` where the working notation cannot
+        // name the value), and the field under that text is its door
+        // to the expression. The number the field holds is never
+        // written: a drag or a typed number over a driven slot is
+        // refused by the session's driven-slot guard, so a zero held
+        // there lands nowhere — the same zero a slot that did not
+        // evaluate holds under its text.
+        Err(_) if row.driver.is_driven() => Ok(0.0),
+        number => number,
+    };
     let (text, source) = match draft {
         Some(draft) => (Some(draft.to_owned()), None),
-        None if row.driver.is_driven() || row.value.is_err() => {
-            (Some(props::field_text(row)), props::field_source(row))
-        }
+        None if row.driver.is_driven() || row.value.is_err() => (
+            Some(props::field_text(row, notation)),
+            props::field_source(row),
+        ),
         None => (None, None),
     };
     FieldShowing {
@@ -1046,8 +1075,8 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>) -> FieldShowing {
 /// **A document parameter's value field**: its number, in the unit
 /// it was DECLARED in. A parameter is never driven, so there is no
 /// text to show over it and no source to seed its edit with.
-pub(crate) fn param_showing(row: &ParamRow) -> FieldShowing {
-    let writing = FieldWriting::of(row.dimension, row.unit);
+pub(crate) fn param_showing(row: &ParamRow, notation: Notation) -> FieldShowing {
+    let writing = FieldWriting::of(row.dimension, row.unit, notation);
     FieldShowing {
         writing,
         dimension: row.dimension,
@@ -1118,6 +1147,7 @@ fn slot_notes(
     theme: &Theme,
     row: &SlotRow,
     reading: Option<&str>,
+    notation: Notation,
 ) -> Option<ParamName> {
     if let Err(error) = &row.value {
         crate::widgets::message_toned(
@@ -1142,7 +1172,7 @@ fn slot_notes(
             format!(
                 "{}: {}",
                 row.slot.label(),
-                Refusal::affordance(params, row.slot, row.value.as_ref().ok().copied())
+                Refusal::affordance(params, row.slot, row.value.as_ref().ok().copied(), notation,)
             ),
             theme,
             Tone::Advisory,
@@ -1241,7 +1271,7 @@ mod layout_tests {
 
     use super::{bounds_notes, exists_notice, slot_notes, slot_showing};
     use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
-    use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
+    use crate::props::{Notation, SlotDriver, SlotFault, SlotRow, SlotValue};
     use crate::session::Refusal;
     use crate::theme::Theme;
 
@@ -1301,14 +1331,14 @@ mod layout_tests {
             Ok(value),
         );
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, None);
+            slot_notes(ui, &Theme::DEFAULT, &row, None, Notation::DEFAULT);
         });
         let affordance = find(
             &painted,
             &format!(
                 "{}: {}",
                 SlotId::Distance.label(),
-                Refusal::affordance(&params, SlotId::Distance, Some(value))
+                Refusal::affordance(&params, SlotId::Distance, Some(value), Notation::DEFAULT)
             ),
         );
         assert_own_lines(region, affordance);
@@ -1336,7 +1366,7 @@ mod layout_tests {
             )
         };
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, None);
+            slot_notes(ui, &Theme::DEFAULT, &row, None, Notation::DEFAULT);
         });
         let quoted = find(
             &painted,
@@ -1365,7 +1395,7 @@ mod layout_tests {
                 Ok(value),
             )
         };
-        let showing = slot_showing(&driven, None);
+        let showing = slot_showing(&driven, None, Notation::DEFAULT);
         assert_eq!(showing.text.as_deref(), Some("= 0.004 m"));
         assert_eq!(showing.source.as_deref(), Some("thickness * 2"));
 
@@ -1374,9 +1404,13 @@ mod layout_tests {
             source: Some("4 mm".to_owned()),
             ..distance_row(SlotDriver::Literal, Ok(value))
         };
-        assert_eq!(slot_showing(&literal, None).text, None, "egui formats it");
+        assert_eq!(
+            slot_showing(&literal, None, Notation::DEFAULT).text,
+            None,
+            "egui formats it"
+        );
         for row in [&driven, &literal] {
-            let showing = slot_showing(row, Some("thickness * undeclared"));
+            let showing = slot_showing(row, Some("thickness * undeclared"), Notation::DEFAULT);
             assert_eq!(
                 showing.text.as_deref(),
                 Some("thickness * undeclared"),
@@ -1390,7 +1424,7 @@ mod layout_tests {
     fn a_slots_fault_is_said_under_its_row_inside_the_pane() {
         let row = distance_row(SlotDriver::Literal, Err(SlotFault::NoExpression));
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, None);
+            slot_notes(ui, &Theme::DEFAULT, &row, None, Notation::DEFAULT);
         });
         let fault = find(
             &painted,
@@ -1424,7 +1458,7 @@ mod tests {
     use crate::app::ViewerBehavior;
     use crate::display::AdmissionFault;
     use crate::pane::headless::painted_after_clicking;
-    use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
+    use crate::props::{Notation, SlotDriver, SlotFault, SlotRow, SlotValue};
     use crate::session::Refusal;
     use crate::theme::Theme;
     use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
@@ -1461,32 +1495,38 @@ mod tests {
     #[test]
     fn a_driven_slots_range_button_reads_the_refusal_the_probe_would_give() {
         let current = SlotValue::Continuous(0.004);
+        let millimetres = Notation {
+            length: pncad::quantity::MM,
+            ..Notation::DEFAULT
+        };
         let row = distance_row(
             SlotDriver::Expression {
                 params: vec![thickness()],
             },
             Ok(current),
         );
-        match ViewerBehavior::probe_refusal(NODE, &row) {
+        match ViewerBehavior::probe_refusal(NODE, &row, millimetres) {
             Some(Refusal::DrivenByExpression {
                 node,
                 slot,
                 ref params,
                 current: carried,
+                notation,
             }) => {
                 assert_eq!(node, NODE);
                 assert_eq!(slot, SlotId::Distance);
                 assert_eq!(params, &vec![thickness()], "what to edit instead");
                 assert_eq!(carried, Some(current));
+                assert_eq!(notation, millimetres, "and the notation it reads in");
             }
             ref other => panic!("expected the driven refusal, got {other:?}"),
         }
-        let rendered = ViewerBehavior::probe_refusal(NODE, &row)
+        let rendered = ViewerBehavior::probe_refusal(NODE, &row, millimetres)
             .expect("a driven slot is refused the probe")
             .to_string();
         assert_eq!(
             rendered,
-            Refusal::affordance(&[thickness()], SlotId::Distance, Some(current)),
+            Refusal::affordance(&[thickness()], SlotId::Distance, Some(current), millimetres),
             "and it renders as the ratified affordance, from its one home"
         );
         // The mapping itself, planted: the words a reader gets for this
@@ -1494,7 +1534,7 @@ mod tests {
         // home; this line does not.
         assert_eq!(
             rendered,
-            "driven by an expression over thickness (currently 0.004 m) — edit the expression?"
+            "driven by an expression over thickness (currently 4 mm) — edit the expression?"
         );
     }
 
@@ -1558,7 +1598,8 @@ mod tests {
         assert!(
             ViewerBehavior::probe_refusal(
                 NODE,
-                &distance_row(SlotDriver::Literal, Ok(SlotValue::Continuous(0.008)))
+                &distance_row(SlotDriver::Literal, Ok(SlotValue::Continuous(0.008))),
+                Notation::DEFAULT,
             )
             .is_none()
         );
@@ -1582,15 +1623,15 @@ mod tests {
             },
             Err(SlotFault::NoExpression),
         );
-        let refusal =
-            ViewerBehavior::probe_refusal(NODE, &row).expect("a driven slot is refused the probe");
+        let refusal = ViewerBehavior::probe_refusal(NODE, &row, Notation::DEFAULT)
+            .expect("a driven slot is refused the probe");
         assert!(
             matches!(refusal, Refusal::DrivenByExpression { current: None, .. }),
             "no current value to name: {refusal:?}"
         );
         assert_eq!(
             refusal.to_string(),
-            Refusal::affordance(&[thickness()], SlotId::Distance, None)
+            Refusal::affordance(&[thickness()], SlotId::Distance, None, Notation::DEFAULT)
         );
         assert!(refusal.to_string().contains("thickness"));
     }

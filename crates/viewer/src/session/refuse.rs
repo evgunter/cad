@@ -37,7 +37,7 @@ use crate::docio::DocIoError;
 use crate::frame::Tone;
 use crate::generation::Generation;
 use crate::history::History;
-use crate::props::{self, SlotValue};
+use crate::props::{self, Notation, SlotValue};
 use crate::session::{FaceSelection, SessionOp};
 
 /// The node kind a creation op's seat requires — the payload of
@@ -235,6 +235,10 @@ pub enum Refusal {
         params: Vec<ParamName>,
         /// The slot's current value, when it has one.
         current: Option<SlotValue>,
+        /// The working notation the affordance reads `current` in —
+        /// the one in force when the edit was refused, since nobody
+        /// wrote that value.
+        notation: Notation,
     },
     /// The node does not exist, or does not carry that slot.
     NoSuchSlot {
@@ -623,10 +627,14 @@ impl Refusal {
     /// wording drifts from the decision.
     ///
     /// The current value is spelled as the slot's field spells it
-    /// ([`props::computed_text`], in the notation of `slot`'s
-    /// dimension for a computed value and carrying its symbol), so the
-    /// two never show one number two ways.
-    pub fn affordance(params: &[ParamName], slot: SlotId, current: Option<SlotValue>) -> String {
+    /// ([`props::computed_text`], in the working `notation` and
+    /// carrying its symbol), so the two never show one number two ways.
+    pub fn affordance(
+        params: &[ParamName],
+        slot: SlotId,
+        current: Option<SlotValue>,
+        notation: Notation,
+    ) -> String {
         let over = if params.is_empty() {
             "an expression".to_owned()
         } else {
@@ -636,7 +644,7 @@ impl Refusal {
         match current {
             Some(value) => format!(
                 "driven by {over} (currently {}) — edit the expression?",
-                props::computed_text(slot.dimension(), value.as_f64())
+                props::computed_text(slot.dimension(), value.as_f64(), notation)
             ),
             None => format!("driven by {over} — edit the expression?"),
         }
@@ -720,8 +728,13 @@ impl core::fmt::Display for Refusal {
                 slot,
                 params,
                 current,
+                notation,
                 ..
-            } => write!(f, "{}", Self::affordance(params, *slot, *current)),
+            } => write!(
+                f,
+                "{}",
+                Self::affordance(params, *slot, *current, *notation)
+            ),
             Self::NoSuchSlot { node, slot } => {
                 write!(f, "node {} has no {} slot", node.0, slot.label())
             }

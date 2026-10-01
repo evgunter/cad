@@ -136,8 +136,10 @@ use pncad::document::{
     ParamName, ProfileProgram, RecipeNodeId, SlotId, UnitSym, VectorSlot, eval, eval_count,
     unparse,
 };
-use pncad::prelude::{M, RAD};
-use pncad::quantity::{self, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength};
+use pncad::prelude::{M, PI, RAD};
+use pncad::quantity::{
+    self, AngleUnit, LengthUnit, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength,
+};
 
 /// What is in a slot right now.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -217,31 +219,121 @@ pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
         .collect()
 }
 
+/// **The working notation**: the length unit and the angle unit a
+/// value nobody wrote is read in, and every creation form writes its
+/// literals in.
+///
+/// One per PERSON, not per document. A recipe's literals remember the
+/// notation each was written in, and that is the document's; a value
+/// the kernel computed — a driven slot's, a measure's, both numbers of
+/// an assertion's verdict — was written by nobody, and reads in the
+/// notation of whoever is reading it. So it is held by the session
+/// (`crate::session::DocSession::notation`), persisted through
+/// [`crate::prefs::Prefs`] by unit symbol, and never enters the
+/// document. The creation forms' unit pickers are its control: a
+/// person who authors a datum in millimetres is not then authoring the
+/// extrude that consumes it in metres, and reads in millimetres too.
+///
+/// A literal's own remembered unit always wins over it
+/// ([`rendering_unit`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Notation {
+    /// Every `Length` reads and is written in this.
+    pub length: LengthUnit,
+    /// Every `Angle` reads and is written in this.
+    pub angle: AngleUnit,
+}
+
+impl Notation {
+    /// The notation a person who has chosen none works in: metres and
+    /// half turns (`pi rad`).
+    pub const DEFAULT: Self = Self {
+        length: M,
+        angle: PI,
+    };
+
+    /// The canonical spellings — metres and radians, said out loud.
+    pub const CANONICAL: Self = Self {
+        length: M,
+        angle: RAD,
+    };
+
+    /// The unit a value of `dimension` reads in: this notation's for a
+    /// length or an angle, the dimensionless row for a bare scalar,
+    /// and `None` for a count, which is a number rather than a
+    /// quantity.
+    pub fn unit(self, dimension: Dimension) -> Option<UnitDef> {
+        match dimension {
+            Dimension::Length => Some(self.length.def()),
+            Dimension::Angle => Some(self.angle.def()),
+            Dimension::Scalar => Some(quantity::ONE.def()),
+            Dimension::Count => None,
+        }
+    }
+
+    /// A `Length` literal from an already-canonical value, remembering
+    /// this notation (`WrittenLength::canonical_in`: a form's draft
+    /// holds metres whatever its picker shows, so this attaches the
+    /// unit without applying it).
+    ///
+    /// # Errors
+    ///
+    /// A non-finite value (the literal door's refusal).
+    pub fn length_literal(self, metres: f64) -> Result<Expr, DimensionError> {
+        Expr::written_length(WrittenLength::canonical_in(metres, self.length))
+    }
+
+    /// An `Angle` literal — [`Self::length_literal`]'s twin.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite value.
+    pub fn angle_literal(self, radians: f64) -> Result<Expr, DimensionError> {
+        Expr::written_angle(WrittenAngle::canonical_in(radians, self.angle))
+    }
+
+    /// Three `Length` literals — a datum origin, a translation.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite component.
+    pub fn length_literals(self, v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+        Ok([
+            self.length_literal(v[0])?,
+            self.length_literal(v[1])?,
+            self.length_literal(v[2])?,
+        ])
+    }
+
+    /// Two `Length` literals — a point in a sketch frame.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite component.
+    pub fn point_literals(self, p: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+        Ok([self.length_literal(p[0])?, self.length_literal(p[1])?])
+    }
+}
+
 /// **The unit a panel row is RENDERED in**: the notation the row's
-/// literal remembers, or — for a row driven by an expression — the
-/// canonical one.
+/// literal remembers, or — for a value nobody wrote — the working
+/// `notation`'s.
 ///
 /// The `None` case is not a literal's; a literal always names its unit
 /// (`Expr::display_unit` answers `None` only for the kinds that are not
-/// literals). It is a COMPUTED value's, and a computed value was never
-/// written by anyone, so a reader has to choose. Every reader in this
-/// crate chooses through here, which is the point of it being a
-/// function: the choice is CANONICAL, and `unparse` renders such a
-/// value the same way, so the panel and the text door agree by
-/// construction rather than by two files being edited together.
+/// literals). It is a COMPUTED value's, which reads in the notation of
+/// the person reading it ([`Notation`]). Every reader in this crate
+/// chooses through here, so a driven slot, the refusal's affordance, a
+/// measure and an assertion cannot read one value two ways.
 ///
 /// `Count` has no units at all — an instance count is a number, not a
 /// quantity — and answers `None`.
-pub fn rendering_unit(dimension: Dimension, remembered: Option<UnitDef>) -> Option<UnitDef> {
-    if let Some(unit) = remembered {
-        return Some(unit);
-    }
-    match dimension {
-        Dimension::Length => Some(M.def()),
-        Dimension::Angle => Some(RAD.def()),
-        Dimension::Scalar => Some(quantity::ONE.def()),
-        Dimension::Count => None,
-    }
+pub fn rendering_unit(
+    dimension: Dimension,
+    remembered: Option<UnitDef>,
+    notation: Notation,
+) -> Option<UnitDef> {
+    remembered.or_else(|| notation.unit(dimension))
 }
 
 /// A canonical value as it is WRITTEN in `unit` — one divide, the
@@ -561,7 +653,7 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
 /// What a slot's value field shows in its number's place.
 ///
 /// **A driven slot shows [`DRIVEN`] and the value its expression
-/// equals** ([`computed_text`]), not its source: the value is bounded
+/// equals** ([`computed_text`], in the working `notation`), not its source: the value is bounded
 /// and carries its unit, and the source is said under the row and
 /// opens the field's keyboard edit ([`field_source`]). A driven slot
 /// that did not evaluate shows [`NO_VALUE`] after the mark.
@@ -570,7 +662,7 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
 /// a literal's and so a number and its unit. A literal that evaluated
 /// shows its number ALONE, in the unit the row is written in, or
 /// [`no_reading`] where that notation cannot name it ([`written`]).
-pub fn field_text(row: &SlotRow) -> String {
+pub fn field_text(row: &SlotRow, notation: Notation) -> String {
     match (&row.driver, &row.value) {
         (SlotDriver::Literal, Ok(value)) => match row.unit {
             // **And the notation may not be able to name it**, which
@@ -598,18 +690,52 @@ pub fn field_text(row: &SlotRow) -> String {
             ),
         },
         (SlotDriver::Expression { .. }, Ok(value)) => {
-            format!("{DRIVEN} {}", computed_text(row.dimension, value.as_f64()))
+            format!(
+                "{DRIVEN} {}",
+                computed_text(row.dimension, value.as_f64(), notation)
+            )
         }
         (SlotDriver::Expression { .. }, Err(_)) => format!("{DRIVEN} {NO_VALUE}"),
         (SlotDriver::Literal, Err(_)) => row.source.clone().unwrap_or_default(),
     }
 }
 
-/// **A COMPUTED value as the chrome says it**: in the notation a
-/// computed value is rendered in ([`rendering_unit`]'s canonical one,
-/// which remembers no unit of its own) and carrying that unit's
-/// symbol, through [`shown_text`] — so bounded by
-/// [`crate::readout::MAX_CHARS`] and a symbol.
+/// **A value nobody wrote, as a quantity**: a canonical number and
+/// its dimension, spelled only when it is drawn ([`Self::spelled`]).
+///
+/// Carried unspelled so a row built before the working notation is
+/// known — a measure's tree row, an assertion's verdict — reads in the
+/// notation in force when it is DRAWN, and re-spells the frame that
+/// notation changes. Equality is BITWISE over the value: two
+/// readings are the same row when they hold the same bits, which is
+/// what lets a row that carries one stay `Eq`.
+#[derive(Clone, Copy, Debug)]
+pub struct Computed {
+    /// The value, canonical metres or radians (or a bare number).
+    pub canonical: f64,
+    /// Its dimension, which picks its unit out of a notation.
+    pub dimension: Dimension,
+}
+
+impl PartialEq for Computed {
+    fn eq(&self, other: &Self) -> bool {
+        self.canonical.to_bits() == other.canonical.to_bits() && self.dimension == other.dimension
+    }
+}
+
+impl Eq for Computed {}
+
+impl Computed {
+    /// This value as [`computed_text`] says it in `notation`.
+    pub fn spelled(self, notation: Notation) -> String {
+        computed_text(self.dimension, self.canonical, notation)
+    }
+}
+
+/// **A COMPUTED value as the chrome says it**: in the working
+/// `notation` ([`rendering_unit`] for a value that remembers no unit)
+/// and carrying that unit's symbol, through [`shown_text`] — so
+/// bounded by [`crate::readout::MAX_CHARS`] and a symbol.
 ///
 /// One spelling for every computed value the chrome says: a driven
 /// slot's field ([`field_text`]), the refusal's affordance
@@ -619,8 +745,8 @@ pub fn field_text(row: &SlotRow) -> String {
 /// The symbol is carried because nothing else says the unit: a
 /// computed slot's picker says `computed`, and a measure has no picker
 /// at all.
-pub fn computed_text(dimension: Dimension, canonical: f64) -> String {
-    shown_text(rendering_unit(dimension, None), canonical)
+pub fn computed_text(dimension: Dimension, canonical: f64, notation: Notation) -> String {
+    shown_text(rendering_unit(dimension, None, notation), canonical)
 }
 
 /// The mark a driven slot's field wears in front of its value: the
@@ -1345,12 +1471,12 @@ mod written_tests {
             source: Some("unused".to_owned()),
         };
         assert_eq!(
-            super::field_text(&row(1.0e306)),
+            super::field_text(&row(1.0e306), super::Notation::DEFAULT),
             no_reading(MM.def()),
             "a literal whose millimetre value is not a number showed one"
         );
         assert_eq!(
-            super::field_text(&row(1.0e304)),
+            super::field_text(&row(1.0e304), super::Notation::DEFAULT),
             "9.999999999999999e306",
             "and one decade below the overflow is an ordinary field, spelled \
              by `{{:?}}`'s exact round-tripping digits — the quotient's, \

@@ -23,6 +23,7 @@
 
 use editor_core::{DocEdit, ProfileDoc};
 use pncad::geom_core::Tol;
+use pncad::quantity::MM;
 use viewer::readout;
 use viewer::scene::{
     self, DisplayTolerance, INITIAL_DELTA, ProbeStop, SCALE_PROBE_DELTA, TRIANGLE_BUDGET,
@@ -192,7 +193,7 @@ fn a_document_inside_the_budget_is_drawn_as_asked() {
         "nothing was over budget, so there is nothing to report"
     );
     assert_eq!(
-        fitted.wording(),
+        fitted.wording(MM),
         None,
         "and the status line stays quiet about a picture drawn as asked"
     );
@@ -210,7 +211,7 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
     let body = session.landed_body().expect("the ring gathers");
     let fitted = scene::fit_delta(body, delta(OVER_BUDGET_DELTA), tol).expect("fits");
     let wording = fitted
-        .wording()
+        .wording(MM)
         .expect("a coarsened picture has a sentence");
     for needle in [
         // The renders, not a second formatting of them: a needle built
@@ -218,8 +219,8 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
         // that string rather than to the δ, which is the defect the
         // render exists to close (`no_delta_renders_as_a_number_a_
         // delta_cannot_be`).
-        &fitted.delta.render_mm(),
-        &delta(OVER_BUDGET_DELTA).render_mm(),
+        &fitted.delta.render_in(MM),
+        &delta(OVER_BUDGET_DELTA).render_in(MM),
         &TRIANGLE_BUDGET.to_string(),
         &"not a cap".to_owned(),
     ] {
@@ -256,7 +257,7 @@ const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 /// `the_top_of_the_type_is_spelled_exactly`), and that spelling is
 /// twenty-two characters.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
-    let text = d.render_mm();
+    let text = d.render_in(MM);
     // BOTH factors below are spelled here DELIBERATELY rather than
     // read from the code, and they are two different numbers.
     //
@@ -286,7 +287,7 @@ fn reads_back_as_a_delta(d: DisplayTolerance) {
 /// [`reads_back_as_a_delta`], and inside the character bound — which is
 /// every δ below the band at the top of the type.
 fn fits_and_reads_back_as_a_delta(d: DisplayTolerance) {
-    let text = d.render_mm();
+    let text = d.render_in(MM);
     assert!(
         text.chars().count() <= readout::MAX_CHARS,
         "δ {} mm renders as {text}, past the {} character bound",
@@ -422,8 +423,8 @@ fn the_door_refuses_a_delta_whose_millimetre_value_is_not_one() {
 /// filed it named: 0.4 µm read `0.000` and 1.6 µm read `0.002`.
 #[test]
 fn the_two_deltas_the_fixed_three_decimal_render_lied_about() {
-    assert_eq!(delta(0.4e-6).render_mm(), "0.0004");
-    assert_eq!(delta(1.6e-6).render_mm(), "0.0016");
+    assert_eq!(delta(0.4e-6).render_in(MM), "0.0004");
+    assert_eq!(delta(1.6e-6).render_in(MM), "0.0016");
     // Both are exact here, which is what a decimal spelling buys where
     // it fits at all: the field shows the δ in force rather than a
     // rounding of it.
@@ -448,7 +449,7 @@ fn a_budget_delta_renders_to_the_grid_rather_than_to_its_figures() {
     let mm = d.get() * 1.0e3;
     let exact = format!("{mm}");
     assert_eq!(exact, "0.0003746123456789012", "seventeen figures");
-    let rendered = d.render_mm();
+    let rendered = d.render_in(MM);
     assert_eq!(rendered, "0.0003746123", "and the render keeps seven");
     assert!(
         readout::reads_back(&rendered, mm),

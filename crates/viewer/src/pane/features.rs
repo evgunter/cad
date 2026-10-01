@@ -7,6 +7,7 @@ use pncad::document::{AssertionVerdict, RecipeNodeId, UnevaluatedReason};
 
 use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
 use crate::frame;
+use crate::props::Notation;
 use crate::session::{Refusal, Selection, SessionOp, VersionOffer};
 use crate::theme::Theme;
 use crate::tree::{self, Measured, RowStatus, TreeRow};
@@ -87,6 +88,7 @@ pub(crate) fn feature_row_ui(
     selected: bool,
     hidden: bool,
     theme: &Theme,
+    notation: Notation,
 ) -> RowClicks {
     let mut clicks = RowClicks::default();
     ui.horizontal(|ui| {
@@ -100,7 +102,7 @@ pub(crate) fn feature_row_ui(
                 clicks.hide = Some(!shown);
             }
         }
-        row_result(ui, row, theme);
+        row_result(ui, row, theme, notation);
     });
     if let Some(to) = lines_under(ui, row, theme) {
         clicks.select = Some(to);
@@ -201,18 +203,18 @@ pub(crate) fn failure_lines(
 /// Whether a row draws a badge at all is this pane's decision. How
 /// LOUD a drawn badge or verdict is, is not decided here — that is
 /// `TreeRow::tone()`.
-fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) {
+fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notation) {
     match &row.status {
         // A healthy row draws no badge: a tree of unmarked rows is
         // what makes the marked ones carry. The status still has one,
         // which `examples/r1_e2e.rs` prints.
         RowStatus::Ok => match &row.measured {
             Some(Measured::Value(value)) => {
-                ui.label(value);
+                ui.label(value.spelled(notation));
             }
             Some(Measured::Asserted(asserted)) => {
                 ui.label(toned(asserted.verdict.label(), theme, row.tone()));
-                if let Some(comparison) = asserted.comparison() {
+                if let Some(comparison) = asserted.comparison(notation) {
                     ui.label(comparison);
                 }
             }
@@ -306,7 +308,7 @@ impl ViewerBehavior<'_> {
     /// clicks name.
     pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
         let hidden = self.display.hidden.contains(&row.id);
-        let clicks = feature_row_ui(ui, row, selected, hidden, &self.theme);
+        let clicks = feature_row_ui(ui, row, selected, hidden, &self.theme, *self.notation);
         if let Some(to) = clicks.select {
             self.ops.push(SessionOp::Select(Selection::Node(to)));
         }
@@ -343,6 +345,7 @@ mod tests {
     use crate::pane::headless::{
         assert_under, find, landed, landed_voiced, painted, painted_after_clicking, painted_text,
     };
+    use crate::props::Notation;
     use crate::theme::Theme;
     use crate::tree;
     use crate::tree::{CarriedLine, RowStatus, TreeRow};
@@ -803,7 +806,12 @@ mod tests {
     /// `row`, drawn by the pane's own row function, unselected and not
     /// hidden.
     fn feature_row_drawn(ui: &mut egui::Ui, row: &TreeRow) {
-        feature_row_ui(ui, row, false, false, &Theme::DEFAULT);
+        feature_row_drawn_in(ui, row, Notation::DEFAULT);
+    }
+
+    /// [`feature_row_drawn`], read in `notation`.
+    fn feature_row_drawn_in(ui: &mut egui::Ui, row: &TreeRow, notation: Notation) {
+        feature_row_ui(ui, row, false, false, &Theme::DEFAULT, notation);
     }
 
     /// **A measure with a value paints it on its own row**, in the
@@ -835,13 +843,15 @@ mod tests {
     }
 
     /// **The value is written in the kind its dimension is**: an
-    /// angle in radians, not a length.
+    /// angle in the notation's angle unit, not a length.
     ///
     /// Red if `measured_of` renders every measure as a length.
     #[test]
-    fn a_measured_angle_paints_in_radians() {
+    fn a_measured_angle_paints_in_the_notations_angle_unit() {
         let fixture = measure_fixture();
-        let drawn = painted_text(|ui| feature_row_drawn(ui, &fixture.row(fixture.angle)));
+        let drawn = painted_text(|ui| {
+            feature_row_drawn_in(ui, &fixture.row(fixture.angle), Notation::CANONICAL);
+        });
         assert!(drawn.contains("0.5 rad"), "{drawn}");
     }
 
@@ -1032,14 +1042,72 @@ mod tests {
     /// Red if `asserted` spells a verdict's numbers in any dimension
     /// but its measure's, or `comparison` any relation but `dir`'s.
     #[test]
-    fn an_assertion_over_an_angle_paints_both_numbers_in_radians() {
+    fn an_assertion_over_an_angle_paints_both_numbers_in_its_angle_unit() {
         let fixture = measure_fixture();
-        let drawn = painted(|ui| feature_row_drawn(ui, &fixture.row(fixture.angle_holds)));
+        let drawn = painted(|ui| {
+            feature_row_drawn_in(ui, &fixture.row(fixture.angle_holds), Notation::CANONICAL);
+        });
         let comparison = compared(&fixture, fixture.angle_holds, "0.5 rad", "1 rad");
         assert!(
             drawn.contains(&comparison),
             "`{comparison}` among {drawn:?}"
         );
+    }
+
+    /// **One change of the working notation re-spells a driven slot, a
+    /// measure's row and an assertion's two numbers together**, from
+    /// rows built ONCE: the tree rows carry quantities and are spelled
+    /// when drawn, so nothing has to be rebuilt for the new notation to
+    /// reach them.
+    ///
+    /// Red if a measure's row or an assertion's verdict is spelled when
+    /// the row is built (it would keep metres), or if any of the three
+    /// reads a notation of its own.
+    #[test]
+    fn a_changed_notation_re_spells_a_driven_slot_a_measure_and_an_assertion_together() {
+        use pncad::document::{Dimension, SlotId};
+
+        use crate::props::{SlotDriver, SlotRow, SlotValue, field_text};
+
+        let fixture = measure_fixture();
+        let measure = fixture.row(fixture.distance);
+        let assertion = fixture.row(fixture.holds);
+        let driven = SlotRow {
+            slot: SlotId::Distance,
+            dimension: Dimension::Length,
+            structural: false,
+            driver: SlotDriver::Expression { params: Vec::new() },
+            value: Ok(SlotValue::Continuous(HEIGHT)),
+            unit: None,
+            source: Some("height".to_owned()),
+        };
+        let millimetres = Notation {
+            length: pncad::quantity::MM,
+            ..Notation::DEFAULT
+        };
+        for (notation, height, bound) in [
+            (Notation::DEFAULT, "0.0125 m", "0.01 m"),
+            (millimetres, "12.5 mm", "10 mm"),
+        ] {
+            let drawn = painted(|ui| {
+                feature_row_drawn_in(ui, &measure, notation);
+                feature_row_drawn_in(ui, &assertion, notation);
+            });
+            assert!(
+                drawn.iter().any(|text| text == height),
+                "the measure reads {height}: {drawn:?}"
+            );
+            let comparison = compared(&fixture, fixture.holds, height, bound);
+            assert!(
+                drawn.contains(&comparison),
+                "the assertion reads `{comparison}`: {drawn:?}"
+            );
+            assert_eq!(
+                field_text(&driven, notation),
+                format!("{} {height}", crate::props::DRIVEN),
+                "and the driven slot reads in the same notation"
+            );
+        }
     }
 
     /// **An indeterminate assertion paints the kernel's reason under
@@ -1141,7 +1209,7 @@ mod tests {
         let select = core::cell::Cell::new(None);
         let hide = core::cell::Cell::new(None);
         painted_after_clicking(target, |ui| {
-            let clicks = feature_row_ui(ui, row, false, hidden, &Theme::DEFAULT);
+            let clicks = feature_row_ui(ui, row, false, hidden, &Theme::DEFAULT, Notation::DEFAULT);
             select.set(select.get().or(clicks.select));
             hide.set(hide.get().or(clicks.hide));
         });
@@ -1255,7 +1323,7 @@ mod tests {
         let clicked = core::cell::RefCell::new(None);
         let mut selected = None;
         painted_after_clicking(VersionOffer::LABEL, |ui| {
-            let clicks = feature_row_ui(ui, &row, false, false, &Theme::DEFAULT);
+            let clicks = feature_row_ui(ui, &row, false, false, &Theme::DEFAULT, Notation::DEFAULT);
             selected = selected.or(clicks.select);
             if let Some(op) = clicks.accept {
                 *clicked.borrow_mut() = Some(op);

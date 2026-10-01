@@ -36,7 +36,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::{DEG, IN, MM, PI, RAD};
 use pncad::quantity::{UnitDef, WrittenLength, unit_by_symbol};
 use viewer::props::{
-    self, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, rendering_unit,
+    self, Notation, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, rendering_unit,
 };
 use viewer::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp};
 
@@ -161,7 +161,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     let rows = props::slot_rows(&doc, extrude);
     let row = rows.first().expect("the extrude has a distance");
     assert_eq!(row.unit, Some(MM.def()), "the stored unit is remembered");
-    let unit = rendering_unit(row.dimension, row.unit).expect("a length row");
+    let unit = rendering_unit(row.dimension, row.unit, Notation::DEFAULT).expect("a length row");
     assert_eq!(unit, MM.def());
     // 0.008 m shown as 8 mm — and back to the identical bits.
     let shown = in_written(0.008, unit);
@@ -187,7 +187,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
         Some("m"),
         "a literal always names its notation"
     );
-    let unit = rendering_unit(row.dimension, row.unit);
+    let unit = rendering_unit(row.dimension, row.unit, Notation::DEFAULT);
     assert_eq!(unit.map(|u| u.symbol()), Some("m"));
     assert_eq!(
         in_written(0.008, unit.expect("a length row")).to_bits(),
@@ -196,16 +196,28 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
 
     // `None` reaches `rendering_unit` only for a value NOBODY WROTE — a
     // slot driven by an expression — and the unit chosen there is the
-    // CANONICAL one, which is what `unparse` renders such a value in
-    // too. The two used to disagree: this function's predecessor chose
-    // half-turns for an unmarked angle while the text formatter chose
-    // radians, so one stored value read two ways.
-    let unit = rendering_unit(Dimension::Angle, None);
-    assert_eq!(unit.map(|u| u.symbol()), Some("rad"));
+    // WORKING notation's: half turns by default, and whatever the
+    // person reading has picked otherwise.
+    let unit = rendering_unit(Dimension::Angle, None, Notation::DEFAULT);
+    assert_eq!(unit.map(|u| u.symbol()), Some("pi rad"));
     let shown = in_written(core::f64::consts::TAU, unit.expect("an angle row"));
-    assert!(
-        (shown - core::f64::consts::TAU).abs() < 1e-12,
-        "a full turn shown as {shown}"
+    assert!((shown - 2.0).abs() < 1e-15, "a full turn shown as {shown}");
+    let degrees = Notation {
+        length: MM,
+        angle: DEG,
+    };
+    assert_eq!(
+        rendering_unit(Dimension::Angle, None, degrees).map(|u| u.symbol()),
+        Some("deg")
+    );
+    assert_eq!(
+        rendering_unit(Dimension::Length, None, degrees).map(|u| u.symbol()),
+        Some("mm")
+    );
+    assert_eq!(
+        rendering_unit(Dimension::Length, Some(IN.def()), degrees).map(|u| u.symbol()),
+        Some("in"),
+        "and a literal's own unit wins over it"
     );
 
     // Half-turns are still a row a user can PICK — the notation this
@@ -221,7 +233,8 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     // exactly 1.0. It is a row so that no literal has to decline to
     // name a notation — and the picker still offers nothing for it,
     // because a choice between one option is not a choice.
-    let dimensionless = rendering_unit(Dimension::Scalar, None).expect("the dimensionless row");
+    let dimensionless =
+        rendering_unit(Dimension::Scalar, None, Notation::DEFAULT).expect("the dimensionless row");
     assert_eq!(dimensionless.symbol(), "");
     assert_eq!(dimensionless.factor(), 1.0);
     assert_eq!(
@@ -232,7 +245,10 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     assert!(props::unit_options(Dimension::Scalar).is_empty());
     // A Count has no unit at all: an instance count is a number, and
     // the table has no row for it.
-    assert_eq!(rendering_unit(Dimension::Count, None), None);
+    assert_eq!(
+        rendering_unit(Dimension::Count, None, Notation::DEFAULT),
+        None
+    );
     assert!(props::unit_options(Dimension::Count).is_empty());
 }
 
@@ -395,7 +411,7 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
     // written as half a π.
     let shown = in_written(
         radians,
-        rendering_unit(after.dimension, after.unit).expect("an angle row"),
+        rendering_unit(after.dimension, after.unit, Notation::DEFAULT).expect("an angle row"),
     );
     assert!((shown - 0.5).abs() < 1e-15, "shown as {shown}");
 
@@ -417,7 +433,7 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
         "the literal now names radians, rather than declining to name anything"
     );
     assert_eq!(
-        rendering_unit(after.dimension, after.unit).map(|u| u.symbol()),
+        rendering_unit(after.dimension, after.unit, Notation::DEFAULT).map(|u| u.symbol()),
         Some("rad"),
         "and the panel renders what the literal says, with nothing to infer"
     );
@@ -498,8 +514,11 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
         .into_iter()
         .next()
         .expect("the distance row");
-    assert_eq!(props::field_text(&row), "8");
-    assert_eq!(rendering_unit(row.dimension, row.unit), Some(MM.def()));
+    assert_eq!(props::field_text(&row, Notation::DEFAULT), "8");
+    assert_eq!(
+        rendering_unit(row.dimension, row.unit, Notation::DEFAULT),
+        Some(MM.def())
+    );
     // The SOURCE the row carries is the whole literal, unit and all —
     // it is what the expression door would read back — but that is not
     // what a literal's field shows.
@@ -530,17 +549,28 @@ fn the_field_shows_a_driven_slots_value_and_edits_its_source() {
         .as_ref()
         .expect("the expression evaluates")
         .as_f64();
-    let shown = props::field_text(&row);
+    let shown = props::field_text(&row, session.notation());
     assert_eq!(
         shown,
         format!(
             "{} {}",
             props::DRIVEN,
-            props::computed_text(Dimension::Length, value)
+            props::computed_text(Dimension::Length, value, Notation::DEFAULT)
         ),
-        "the field shows the value, in the canonical notation a driven row is written in"
+        "the field shows the value, in the working notation a driven row is written in"
     );
     assert!(shown.ends_with(" m"), "and names that notation: {shown}");
+    session.set_notation(Notation {
+        length: MM,
+        ..Notation::DEFAULT
+    });
+    let shown = props::field_text(&row, session.notation());
+    assert_eq!(
+        shown,
+        format!("{} {}", props::DRIVEN, props::written_text(value, MM.def())),
+        "and re-reads in the notation the person switched to"
+    );
+    assert!(shown.ends_with(" mm"), "{shown}");
     assert_eq!(
         props::field_source(&row).as_deref(),
         Some("thickness * 2.0 + 1 mm"),
@@ -610,7 +640,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         Some("in"),
         "the picker now says what the field said"
     );
-    assert_eq!(props::field_text(&row), "25");
+    assert_eq!(props::field_text(&row, Notation::DEFAULT), "25");
     assert_eq!(
         row.driver,
         props::SlotDriver::Literal,
@@ -632,7 +662,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         .next()
         .expect("the distance row");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("in"));
-    assert_eq!(props::field_text(&row), "2");
+    assert_eq!(props::field_text(&row, Notation::DEFAULT), "2");
 }
 
 /// **A parameter declared in millimetres reads in millimetres**, and a
@@ -671,7 +701,8 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     };
 
     let before = row(&session);
-    let unit = rendering_unit(before.dimension, before.unit).expect("a length parameter");
+    let unit = rendering_unit(before.dimension, before.unit, Notation::DEFAULT)
+        .expect("a length parameter");
     assert_eq!(
         unit.symbol(),
         "mm",
@@ -693,7 +724,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let after = row(&session);
     assert_eq!(
-        rendering_unit(after.dimension, after.unit).map(|u| u.symbol()),
+        rendering_unit(after.dimension, after.unit, Notation::DEFAULT).map(|u| u.symbol()),
         Some("mm"),
         "writing a number does not rewrite how the number is written"
     );
@@ -720,7 +751,10 @@ fn a_count_parameter_has_no_written_unit() {
         .find(|row| row.name == name)
         .expect("the parameter row");
     assert_eq!(row.unit, None);
-    assert_eq!(rendering_unit(row.dimension, row.unit), None);
+    assert_eq!(
+        rendering_unit(row.dimension, row.unit, Notation::DEFAULT),
+        None
+    );
     assert_eq!(row.value, SlotValue::Count(6));
 }
 
@@ -839,7 +873,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
             .iter()
             .find(|row| row.name == ParamName::from_static(name))
             .expect("the parameter row");
-        FieldWriting::of(row.dimension, row.unit)
+        FieldWriting::of(row.dimension, row.unit, Notation::DEFAULT)
     };
 
     // The millimetre declaration: 8, dragged half a millimetre at a
@@ -880,14 +914,17 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         .into_iter()
         .find(|row| row.slot == SlotId::Distance)
         .expect("the distance row");
-    assert_eq!(FieldWriting::of(slot.dimension, slot.unit), mm);
+    assert_eq!(
+        FieldWriting::of(slot.dimension, slot.unit, Notation::DEFAULT),
+        mm
+    );
 
     // Each dimension keeps its own tick, and a count keeps whole
     // numbers: the mistakes `drag_tick`'s branch and the `Count` arm
     // exist to answer. "Each" is `Dimension::ALL`, so the claim is
     // about the lattice rather than about the dimensions a list
     // written here happens to name.
-    let canonical = |dimension| FieldWriting::of(dimension, None).tick;
+    let canonical = |dimension| FieldWriting::of(dimension, None, Notation::CANONICAL).tick;
     let ticks: Vec<f64> = Dimension::ALL.iter().map(|dim| canonical(*dim)).collect();
     for (i, tick) in ticks.iter().enumerate() {
         assert!(
@@ -924,7 +961,7 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
         (Dimension::Scalar, 12.345_678_901_234_567),
     ];
     for (dimension, canonical) in cases {
-        let unit = rendering_unit(dimension, None);
+        let unit = rendering_unit(dimension, None, Notation::DEFAULT);
         let showing = props::shown_in(unit, canonical);
         let text = viewer::readout::number(showing);
         let read: f64 = text

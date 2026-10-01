@@ -19,6 +19,7 @@ use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
 use crate::drafts::{ProfileEdit, RowEdit};
 use crate::frame;
+use crate::props::Notation;
 use crate::session::{DocSession, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::Theme;
@@ -59,12 +60,12 @@ impl ViewerBehavior<'_> {
         notation_row(
             ui,
             "edit_path",
-            &mut self.drafts.length_unit,
-            &mut self.drafts.angle_unit,
+            &mut self.notation.length,
+            &mut self.notation.angle,
         );
         let written = (
-            (self.drafts.length_unit.def(), self.drafts.angle_unit.def()),
-            self.drafts.notation(),
+            (self.notation.length.def(), self.notation.angle.def()),
+            *self.notation,
         );
         let Some(edit) = self.drafts.profile_edit.as_mut() else {
             unreachable!("`Drafts::profile_edit` answered Ok, so the draft is held")
@@ -106,7 +107,7 @@ pub(crate) fn edit_door_ui(
     ui: &mut egui::Ui,
     session: &DocSession,
     theme: Theme,
-    (units, notation): ((UnitDef, UnitDef), sketch::Notation),
+    (units, notation): ((UnitDef, UnitDef), Notation),
     edit: &mut ProfileEdit,
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) -> Result<Option<SessionOp>, frame::Message> {
@@ -495,6 +496,7 @@ mod tests {
     use crate::pane::headless::{
         Landed, Voices, find, find_opening, landed_voiced, painted_while_hovering,
     };
+    use crate::props::Notation;
     use crate::sketch::{
         self, Cut, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, ProfileShape,
     };
@@ -614,7 +616,7 @@ mod tests {
                         phase: 0.0,
                     }],
                 },
-                sketch::Notation::CANONICAL,
+                Notation::CANONICAL,
             )
             .expect("finite"),
         ];
@@ -1110,7 +1112,7 @@ mod tests {
                 &crate::session::ProfileShape::Path {
                     steps: Drafts::default().profile_path,
                 },
-                sketch::Notation::CANONICAL,
+                Notation::CANONICAL,
             )
             .expect("the form's default chain lowers"),
         ];
@@ -1177,7 +1179,7 @@ mod tests {
                 .expect("the editor holds the profile");
             let written = (
                 (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                sketch::Notation::CANONICAL,
+                Notation::CANONICAL,
             );
             match super::edit_door_ui(ui, session, Theme::DEFAULT, written, edit, None) {
                 Ok(Some(op)) => formed = Some(op),
@@ -1288,7 +1290,7 @@ mod tests {
                 .expect("held");
             let written = (
                 (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                sketch::Notation::CANONICAL,
+                Notation::CANONICAL,
             );
             let _hovered_only =
                 super::edit_door_ui(ui, &session, Theme::DEFAULT, written, edit, None);
@@ -1319,7 +1321,7 @@ mod tests {
                 .expect("held");
             let written = (
                 (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                sketch::Notation::CANONICAL,
+                Notation::CANONICAL,
             );
             let _read_only = super::edit_door_ui(ui, &session, Theme::DEFAULT, written, edit, None);
         });
