@@ -564,31 +564,57 @@ mod tests {
 
     /// Pass 13's ownership check: a record naming a live loop its face
     /// does not hold is reported typed (`StaleNullFaceOwnership`),
-    /// naming each such loop and not the face's own. The door refuses
-    /// the record ([`the_door_refuses_a_record_naming_a_loop_not_the_faces_own`]),
+    /// naming each such loop and not the face's own: another face's
+    /// outer loop, and another face's ring. The door refuses the record
+    /// ([`the_door_refuses_a_record_naming_a_loop_not_the_faces_own`]),
     /// so it is built on the crate-internal map, modelling an op that
     /// moved a named loop off its face and kept the record.
     #[test]
     fn stale_null_face_ownership_reported() {
-        let cube = declined_cube::<f64>(Tol::witness());
-        let mut body = cube.body;
-        let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
-        let outer1 = body.get_face(f1).unwrap().outer;
-        let outer2 = body.get_face(f2).unwrap().outer;
+        let mut body = crate::fixtures::ops_holed_box(Tol::witness()).body;
+        let (face, outer, ring) = ringed_face(&body);
+        let (other, other_outer) = body
+            .faces()
+            .find(|&(f, _)| f != face)
+            .map(|(f, data)| (f, data.outer))
+            .unwrap();
+        for (marked, pair, named_loop) in [
+            (
+                face,
+                NullFacePair::Boolean {
+                    in_copy: outer,
+                    out_copy: other_outer,
+                },
+                other_outer,
+            ),
+            (
+                other,
+                NullFacePair::Split {
+                    above_loop: other_outer,
+                    below_loop: ring,
+                },
+                ring,
+            ),
+        ] {
+            let mut body = body.clone();
+            body.null_faces.insert(marked, pair);
+            assert_eq!(
+                validate(&body),
+                Err(vec![ValidationError::StaleNullFaceOwnership {
+                    face: marked,
+                    named_loop,
+                }]),
+                "{pair:?} on {marked:?}"
+            );
+        }
         body.null_faces.insert(
-            f1,
-            NullFacePair::Boolean {
-                in_copy: outer1,
-                out_copy: outer2,
+            face,
+            NullFacePair::Split {
+                above_loop: outer,
+                below_loop: ring,
             },
         );
-        assert_eq!(
-            validate(&body),
-            Err(vec![ValidationError::StaleNullFaceOwnership {
-                face: f1,
-                named_loop: outer2,
-            }])
-        );
+        assert_eq!(validate(&body), Ok(()), "the face's own two loops");
     }
 
     /// The first face with exactly one ring, its outer loop and the
