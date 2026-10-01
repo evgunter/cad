@@ -62,3 +62,19 @@ Not done in `S69` (PR 2014): that unit's fence was the generator, the
 ledger and one postcondition site, and moving a relation the operator
 and the validator both depend on is not a change to make from a
 generator branch.
+
+## Evidence (PR 3669)
+
+`movefac`'s copy now proves more than the other two read. Its mate hop
+goes through `Body::proven_mate` and proves that the face the mate's
+loop names lists that loop (`NotOwned { child: Loop, owner: Face }`),
+and an empty loop any half-edge claims refuses `LoopCycleBroken`. On a
+valid body the relation is unchanged
+(`movefac::tests::valid_fixtures_partition_as_their_records_do`, now
+from each shell's face list and its reverse). `seqgen::shell_components`
+does neither, which is sound only because it reads bodies the generator
+builds through the operators; pass 11 runs only once passes 1–7 are
+clean, and pass 7 checks every loop's owner both ways. A unified routine has to
+carry the proofs to the copy that reads unvalidated input, so the
+`seqgen` register entry in `scripts/gates/loop-boundary-discards.sh`
+now says it lacks the proof that audits `movefac`'s.
