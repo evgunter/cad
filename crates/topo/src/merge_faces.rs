@@ -1171,6 +1171,7 @@ impl OpPlacement {
             | E::DuplicateRedescription { .. }
             | E::DescriptionNotAdjacent { .. }
             | E::RechartStrandsDescriptions { .. }
+            | E::RechartUnvouched { .. }
             | E::RechartUndescribed { .. }
             | E::RechartFalsifies { .. }
             | E::RechartOffBoundary { .. }
