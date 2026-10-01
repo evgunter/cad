@@ -1008,13 +1008,16 @@ impl Doc {
     /// one action. `mate` is a `Node.mate`; every member of the group
     /// its `a` side reads is put on the gauge its `b` side's instance
     /// sits on, then the mate is inserted, which places: the first
-    /// operand's group is placed on the second's, and the first's root
-    /// offset is cleared (`last_maintenance` reports it as
-    /// `offset_cleared`). When the two sides already share a gauge this
-    /// is a plain insert.
+    /// operand's group is placed on the second's, and every offset the
+    /// first's group held is cleared (`last_maintenance` reports each
+    /// as `offset_cleared`). When the two sides already share a gauge
+    /// this is a plain insert.
     ///
     /// Atomic: a refusal at any step raises that step's `EditError` and
-    /// leaves the document untouched. Returns the mate's id.
+    /// leaves the document untouched; the action refuses whole
+    /// (`would_start_placing`, naming the mate) when the re-gauge would
+    /// make a mate already in the document start placing. Returns the
+    /// mate's id.
     /// `last_maintenance` reads the whole action's record afterwards.
     #[pyo3(signature = (mate, *, resolver=None))]
     fn regauge_then_mate(
@@ -1031,7 +1034,9 @@ impl Doc {
         // swaps the document and that record together.
         let mut maintenance = Vec::new();
         let mut last: Option<d::Applied<d::ProfileProgram>> = None;
-        for edit in d::regauge_then_mate(&self.inner, mate.inner.clone()) {
+        let edits = d::regauge_then_mate(&self.inner, mate.inner.clone())
+            .map_err(|err| edit_err(py, &err))?;
+        for edit in edits {
             let base = last.as_ref().map_or(&self.inner, |applied| &applied.doc);
             let applied = d::apply(base, &edit, tol, &reach).map_err(|err| edit_err(py, &err))?;
             maintenance.extend(applied.maintenance.iter().cloned());
@@ -2871,7 +2876,7 @@ impl Node {
     /// at the empty offset (A11 (2)); `DocEdit.set_offset` moves it,
     /// `DocEdit.set_gauge` puts it on a gauge, and a mate places it on
     /// another instance's group — the first operand's group on the
-    /// second's, clearing the first's root offset.
+    /// second's, clearing every offset the first's group held.
     ///
     /// The instance also carries no interface record: an AUTHORED
     /// instance crosses nothing, and a non-empty record is mintable
@@ -2938,7 +2943,7 @@ impl Node {
     /// A mate PLACES when its two instances sit on one gauge, and
     /// declares otherwise. A placing mate that joins two groups places
     /// the first operand's group on the second's: "mate `a` to `b`"
-    /// moves `a`, and the insert clears `a`'s group root's offset
+    /// moves `a`, and the insert clears every offset `a`'s group held
     /// (`Doc.last_maintenance`, `offset_cleared`). Which side moves is
     /// independent of which side's frame states the datum.
     /// `Doc.regauge_then_mate` copies `b`'s gauge to `a`'s group first.

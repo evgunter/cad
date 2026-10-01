@@ -1730,13 +1730,19 @@ fn solve<P: crate::ProfilePayload>(
                 for &instance in &group {
                     out.root.insert(instance, root);
                 }
-                // A placed group's further offsets are statements the
-                // solve checks (A11 (2)); an unplaced group's state
-                // nothing about where anything sits.
-                if cause.is_none() {
-                    for (instance, fault) in check_offsets(&s, &group, root, &solved) {
-                        out.faults.insert(instance, fault);
-                    }
+                // Every further offset is a statement the solve checks
+                // (A11 (2)), a placed group's in the world and an
+                // unplaced group's in its own space.
+                let stranded = read.iter().find_map(|(mate, walked)| {
+                    let (wa, wb) = walked.as_ref().ok()?;
+                    (out.roles.get(mate) == Some(&MateRole::Refused)
+                        && places(doc, wa.member.instance, wb.member.instance)
+                        && group.contains(&wa.member.instance))
+                    .then_some(*mate)
+                });
+                for (instance, fault) in check_offsets(&s, &group, (root, cause), &solved, stranded)
+                {
+                    out.faults.insert(instance, fault);
                 }
                 out.pose.extend(solved.pose);
                 for (mate, role) in solved.roles {
@@ -1924,28 +1930,38 @@ fn solve_group<P: crate::ProfilePayload>(
     })
 }
 
-/// **A placed group's checked offsets** (A11 (2)): every member other
-/// than the root that carries an offset states where it sits, and the
-/// statement is verified against the solve — never trusted and never
-/// ignored. A member that disagrees, or whose statement cannot be
-/// decided, is faulted itself; the rest of the group stands.
+/// **A group's checked offsets** (A11 (2)): every member that carries
+/// an offset states where it sits on its gauge, and every statement
+/// but the reference's is verified against the solve — never trusted
+/// and never skipped. A member that disagrees, whose statement cannot
+/// be decided, or that the solve gives no pose is faulted itself; the
+/// rest of the group stands. An unplaced group checks as a placed one
+/// does, inside its own space.
 ///
-/// The member sits at `G ∘ offset` by its own statement and at
-/// `left ∘ G ∘ root_offset ∘ right` by the solve, `G` its gauge's
-/// frame, so the two agree when `offset⁻¹ ∘ G⁻¹ ∘ left ∘ G ∘
-/// root_offset ∘ right` is the identity, decided as a coset member of
-/// the trivial subgroup over the member part's reach. With no placer
-/// on the path (`left` absent) the gauge cancels and is not read; a
-/// placer's offset is a map in document coordinates, so only then is
-/// the gauge frame read, at the document's own parameters, as every
-/// number the solve reads is.
+/// The reference is the earliest member carrying an offset that the
+/// solve posed — in a placed group, its root. Each member sits at
+/// `W = pose ∘ F` by the solve ([`Pose::compose_around`], the one
+/// composition every world pose is read through), `F` the group's
+/// frame: its gauge chain and root offset ([`group_frame`]) in the
+/// world, the identity in its own space. The reference's statement
+/// fixes where the gauge sits, `G = W_ref ∘ offset_ref⁻¹`, so a member
+/// agrees when `(G ∘ offset)⁻¹ ∘ W` is the identity, decided as a
+/// coset member of the trivial subgroup over the member part's reach.
+/// In a placed group `G` is the gauge's own frame, and a placer on the
+/// path is a map in document coordinates, conjugated by `F`. With no
+/// placer on either path `F` cancels and is not read; otherwise it is
+/// read at the document's own parameters, as every number the solve
+/// reads is.
+///
+/// `stranded` is the first mate of the group the solve refused,
+/// which is why a member the spanning tree cannot reach has no pose.
 fn check_offsets<P: crate::ProfilePayload>(
     s: &Solve<'_, P>,
     group: &[RecipeNodeId],
-    root: RecipeNodeId,
+    (root, cause): (RecipeNodeId, Option<Unplaced>),
     solved: &GroupSolve,
+    stranded: Option<RecipeNodeId>,
 ) -> Vec<(RecipeNodeId, MateFault)> {
-    let poses = &solved.pose;
     let Solve {
         doc,
         env,
@@ -1967,35 +1983,48 @@ fn check_offsets<P: crate::ProfilePayload>(
     let placement = |instance, node, error: crate::eval::NodeRefusal| {
         unchecked(instance, OffsetCheck::Placement { node, error })
     };
+    let Some((reference, stated_ref, pose_ref)) = group
+        .iter()
+        .find_map(|&id| Some((id, offset_of(id)?, *solved.pose.get(&id)?)))
+    else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
     for &instance in group {
-        if instance == root {
+        let Some(stated) = offset_of(instance) else {
+            continue;
+        };
+        if instance == reference {
             continue;
         }
-        let (Some(stated), Some(pose)) = (offset_of(instance), poses.get(&instance)) else {
+        let Some(&pose) = solved.pose.get(&instance) else {
+            let Some(mate) = stranded else {
+                unreachable!(
+                    "a member the tree does not reach is welded through a mate the solve refused"
+                )
+            };
+            out.push((
+                instance,
+                unchecked(instance, OffsetCheck::Unreached { mate }),
+            ));
             continue;
         };
         let check = || -> Result<(), MateFault> {
             let stated = stated
                 .eval(env, band)
                 .map_err(|e| placement(instance, instance, e.into()))?;
-            let root_offset = match offset_of(root) {
-                Some(o) => o
-                    .eval(env, band)
-                    .map_err(|e| placement(instance, root, e.into()))?,
-                None => Affine3::identity(),
+            let stated_ref = stated_ref
+                .eval(env, band)
+                .map_err(|e| placement(instance, reference, e.into()))?;
+            let frame = if (pose.left.is_none() && pose_ref.left.is_none()) || cause.is_some() {
+                crate::placement::Motion::Identity
+            } else {
+                group_frame(doc, root, env, band)
+                    .map_err(|(node, error)| placement(instance, node, error))?
             };
-            let left = match pose.left {
-                None => Affine3::identity(),
-                Some(left) => {
-                    let gauge = doc.node(instance).and_then(Node::gauge_ref);
-                    let g = gauge_frame(doc, gauge, env, band)
-                        .map_err(|(node, e)| placement(instance, node, e))?
-                        .affine();
-                    g.inverse() * left.affine::<f64>() * g
-                }
-            };
-            let solved = left * root_offset * pose.right.affine::<f64>();
+            let world = |p: Pose| p.compose_around(frame).affine();
+            let gauge = world(pose_ref) * stated_ref.inverse();
+            let offset = (gauge * stated).inverse() * world(pose);
             let arm = crate::eval::parts::instantiated(doc, instance)
                 .ok_or(super::LeverRefusal::NotAnInstance { node: instance })
                 .and_then(|doc_ref| {
@@ -2009,17 +2038,15 @@ fn check_offsets<P: crate::ProfilePayload>(
                 })
                 .and_then(|parts| Arm::of(parts, 0.0))
                 .map_err(|refusal| unchecked(instance, OffsetCheck::Unleverable(refusal)))?;
-            super::coset::trivial_member(stated.inverse() * solved, band, arm).map_err(|stop| {
-                match stop {
-                    FoldStop::Clash { predicate, clash } => MateFault::OffsetDisagrees {
-                        instance,
-                        root,
-                        predicate,
-                        clash,
-                    },
-                    FoldStop::Indeterminate(diag) => {
-                        unchecked(instance, OffsetCheck::Indeterminate(diag))
-                    }
+            super::coset::trivial_member(offset, band, arm).map_err(|stop| match stop {
+                FoldStop::Clash { predicate, clash } => MateFault::OffsetDisagrees {
+                    instance,
+                    root: reference,
+                    predicate,
+                    clash,
+                },
+                FoldStop::Indeterminate(diag) => {
+                    unchecked(instance, OffsetCheck::Indeterminate(diag))
                 }
             })
         };

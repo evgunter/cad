@@ -110,6 +110,12 @@ pub(crate) struct PartValue<T: Decide> {
     pub carried: Arc<Vec<crate::assembly::CarriedDeclaration>>,
     /// The same for the refusals it carried up.
     pub carried_unminted: Arc<Vec<crate::assembly::CarriedRefusal>>,
+    /// The referenced document's own UNPLACED GROUPS, by root, with
+    /// their causes: material its world product leaves out (A9), which
+    /// the instantiating document must still be able to name.
+    pub unplaced: Arc<Vec<(RecipeNodeId, crate::mate::Unplaced)>>,
+    /// The same for the unplaced groups it carried up from its parts.
+    pub carried_unplaced: Arc<Vec<crate::assembly::CarriedUnplaced>>,
 }
 
 impl<T: Decide> Clone for PartValue<T> {
@@ -122,6 +128,8 @@ impl<T: Decide> Clone for PartValue<T> {
             unminted: Arc::clone(&self.unminted),
             carried: Arc::clone(&self.carried),
             carried_unminted: Arc::clone(&self.carried_unminted),
+            unplaced: Arc::clone(&self.unplaced),
+            carried_unplaced: Arc::clone(&self.carried_unplaced),
         }
     }
 }
@@ -388,7 +396,7 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     match kind {
         K::NoBodyRoots => ProductRecourse::InThePart("give it a root that denotes a body"),
         K::Naming => ProductRecourse::InThePart("repair it there"),
-        K::PlacedUnderTwoRoots | K::Graft | K::RootInvalid | K::ProductInvalid => {
+        K::Unplaced | K::PlacedUnderTwoRoots | K::Graft | K::RootInvalid | K::ProductInvalid => {
             ProductRecourse::Carried
         }
         K::ContactLineage
@@ -619,6 +627,20 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             Ok(product) => product,
             Err(e) => return Err(product_fault(&e, evaluation)),
         };
+        // The part's unplaced groups are not in its product (A9), so
+        // they cross beside it: its own, and those its parts carried up
+        // to it, read off the evaluation rather than the product so a
+        // group below an instance no root gathers is named too.
+        let unplaced = Arc::new(
+            evaluation
+                .unplaced
+                .values()
+                .copied()
+                .collect::<BTreeMap<_, _>>()
+                .into_iter()
+                .collect(),
+        );
+        let carried_unplaced = Arc::new(evaluation.all_unplaced_below());
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
         // mint health are as much part of that as its records are. The
@@ -632,6 +654,8 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             unminted: Arc::new(product.unminted),
             carried: Arc::new(product.carried),
             carried_unminted: Arc::new(product.carried_unminted),
+            unplaced,
+            carried_unplaced,
         })
     }
 }

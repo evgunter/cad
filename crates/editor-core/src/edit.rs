@@ -1237,6 +1237,15 @@ pub enum EditError {
         /// The gauge it names, which sits on `node`.
         gauge: RecipeNodeId,
     },
+    /// **"Copy a gauge, then mate" would make another mate start
+    /// placing** (A11 (2); [`regauge_then_mate`]): re-gauging the first
+    /// operand's group would put both instances of `mate`, which
+    /// declares today, on one gauge, so it would start placing and move
+    /// a group the action never named.
+    WouldStartPlacing {
+        /// The mate that would start placing.
+        mate: RecipeNodeId,
+    },
     /// A placement-rule node whose rule and count slot would give two
     /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN): an
     /// `Explicit` rule paired with a count slot, a stepped rule with
@@ -2210,6 +2219,18 @@ impl EditError {
                     format_args!("name a gauge that does not sit on node {}", node),
                 )
             }
+            Self::WouldStartPlacing { mate } => {
+                write!(
+                    f,
+                    "copying the gauge would put both instances of mate {}, which declares, on \
+                     one gauge, so it would start placing",
+                    mate
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("delete mate {}, then copy the gauge and mate", mate),
+                )
+            }
             // The two rule-shaped arms FORWARD the fault set's one
             // prose vocabulary (`PlacementRuleFault`'s `Display`); the
             // two frame-shaped arms below keep their own prose because
@@ -2344,14 +2365,14 @@ pub struct EditRecord {
 pub enum Maintenance {
     /// **The mate door's offset clear** (A11 (2)): inserting a placing
     /// mate that joins two groups places the first operand's group on
-    /// the second's, so the root of `a`'s group, when `b`'s group
-    /// carries an offset, gives up its own — the merged group keeps one root, and a freshly
-    /// inserted part never carries a stray checked offset. Structural
-    /// and deterministic from the edit, so replay reproduces it with
-    /// no solve, and the offset it cleared rides here for the caller
-    /// to read.
+    /// the second's, so every member of `a`'s group gives up its
+    /// offset — the merged group keeps `b`'s root, and a freshly
+    /// inserted part never carries a stray checked offset. One row per
+    /// cleared offset. Structural and deterministic from the edit, so
+    /// replay reproduces it with no solve, and the offset it cleared
+    /// rides here for the caller to read.
     OffsetCleared {
-        /// The root of `a`'s group before the mate joined it.
+        /// A member of `a`'s group before the mate joined it.
         instance: RecipeNodeId,
         /// The offset it carried.
         offset: crate::placement::Placement,
@@ -2786,8 +2807,10 @@ pub struct Applied<P> {
     /// read at the door, out of the document the edit had just
     /// produced. A delete reports strands and orphans; a `SetProgram`
     /// reports strands and never an orphan; the insert of a placing
-    /// mate reports at most one [`Maintenance::OffsetCleared`] and
-    /// nothing else; no other edit reports anything.
+    /// mate that joins two groups reports one
+    /// [`Maintenance::OffsetCleared`] per offset its first operand's
+    /// group held, in document order, and nothing else; no other edit
+    /// reports anything.
     ///
     /// The paragraph above is the contract — it is stated here in
     /// full because a consumer outside this crate cannot read
@@ -3261,19 +3284,25 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
 /// onto the gauge its `b` side's instance sits on, then insert the
 /// mate — which then places, and joins the two groups: the first
 /// operand's group is placed on the second's
-/// ([`DocEdit::InsertNode`]'s mate door clears `a`'s group root's
-/// offset). One compound edit: the
-/// caller applies the list in order, and atomicity is applying all of
-/// it, as for [`cascade_delete_order`].
+/// ([`DocEdit::InsertNode`]'s mate door clears the offsets `a`'s group
+/// held). One compound edit: the caller applies the list in order, and
+/// atomicity is applying all of it, as for [`cascade_delete_order`].
 ///
 /// The answer is the bare insert when the two sides already share a
 /// gauge, when a side resolves to no member — the insert door then
 /// refuses the mate in its own words — and for a node that is not a
 /// mate, which has no gauge to copy. Nothing is applied here.
+///
+/// # Errors
+///
+/// [`EditError::WouldStartPlacing`] when the re-gauge would put the
+/// two instances of a mate already in the document on one gauge: that
+/// mate declares today, and would start placing — moving a group the
+/// action never named.
 pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     mate: Node<P>,
-) -> Vec<DocEdit<P>> {
+) -> Result<Vec<DocEdit<P>>, EditError> {
     let mut edits = Vec::new();
     if let Node::Mate { a, b, .. } = &mate
         && let (Some(ma), Some(mb)) = (
@@ -3283,19 +3312,44 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     {
         let gauge = doc.node(mb.instance).and_then(Node::gauge_ref);
         let groups = crate::mate::groups(doc);
-        if let Some(group) = groups.iter().find(|g| g.contains(&ma.instance)) {
-            for &member in group {
-                if doc.node(member).and_then(Node::gauge_ref) != gauge {
-                    edits.push(DocEdit::SetGauge {
-                        node: member,
-                        gauge,
-                    });
-                }
+        let moved: &[RecipeNodeId] = groups
+            .iter()
+            .find(|g| g.contains(&ma.instance))
+            .map_or(&[], Vec::as_slice);
+        let gauge_after = |instance: RecipeNodeId| {
+            if moved.contains(&instance) {
+                gauge
+            } else {
+                doc.node(instance).and_then(Node::gauge_ref)
+            }
+        };
+        for &id in doc.order() {
+            let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
+                continue;
+            };
+            let (Some(x), Some(y)) = (
+                crate::mate::member_of(doc, a),
+                crate::mate::member_of(doc, b),
+            ) else {
+                continue;
+            };
+            if !crate::mate::places(doc, x.instance, y.instance)
+                && gauge_after(x.instance) == gauge_after(y.instance)
+            {
+                return Err(EditError::WouldStartPlacing { mate: id });
+            }
+        }
+        for &member in moved {
+            if doc.node(member).and_then(Node::gauge_ref) != gauge {
+                edits.push(DocEdit::SetGauge {
+                    node: member,
+                    gauge,
+                });
             }
         }
     }
     edits.push(DocEdit::InsertNode { node: mate });
-    edits
+    Ok(edits)
 }
 
 /// The nodes a cascading delete of `id` must remove, ordered so that
@@ -3485,7 +3539,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
                 let env = new.param_env::<f64>();
                 crate::mate::solve::admit_mate(&new, id, &node, &env, reach, tol)
                     .map_err(|fault| EditError::MateRefused { node: id, fault })?;
-                reported.extend(clear_joined_offset(doc, &mut new, &node));
+                reported.extend(clear_joined_offsets(doc, &mut new, &node));
             }
             EditRecord {
                 minted: Some(id),
@@ -4120,47 +4174,52 @@ fn check_gauge_ref<P>(
 
 /// **The mate door** (A11 (2)): a PLACING mate that joins two groups
 /// places the first operand's group on the second's — "mate `a` to
-/// `b`" moves `a` — so when `b`'s group carries an offset, the root of
-/// `a`'s group gives up its own, and the merged group keeps one root.
-/// Which side moves is independent of which side's frame states the
-/// datum ([`crate::mate::Alignment`]). `before` is the document without the mate, which is
-/// where the two groups are read; `after` holds it. Structural: walks
-/// and offsets only, so replay reproduces it with no solve.
-fn clear_joined_offset<P: crate::ProfilePayload>(
+/// `b`" moves `a` — so when `b`'s group is placed, every offset in
+/// `a`'s group is cleared, the root's and the checked members' alike:
+/// they stated where `a`'s group sat, and the mate moves it. The
+/// merged group's root is then `b`'s root (the root rule,
+/// `mate::solve::root_and_cause`, finds no candidate in `a`'s), so `b`
+/// does not move. A `b` group nothing places has no world pose to
+/// keep, and nothing is cleared. Which side moves is independent of
+/// which side's frame states the datum ([`crate::mate::Alignment`]).
+/// `before` is the document without the mate, which is where the two
+/// groups are read; `after` holds it. Each cleared offset is reported,
+/// in document order. Structural: walks and offsets only, so replay
+/// reproduces it with no solve.
+fn clear_joined_offsets<P: crate::ProfilePayload>(
     before: &Doc<P>,
     after: &mut Doc<P>,
     mate: &Node<P>,
-) -> Option<Maintenance> {
+) -> Vec<Maintenance> {
     let Node::Mate { a, b, .. } = mate else {
-        return None;
+        return Vec::new();
     };
-    let ia = crate::mate::member_of(after, a)?.instance;
-    let ib = crate::mate::member_of(after, b)?.instance;
+    let (Some(ia), Some(ib)) = (
+        crate::mate::member_of(after, a).map(|m| m.instance),
+        crate::mate::member_of(after, b).map(|m| m.instance),
+    ) else {
+        return Vec::new();
+    };
     if !crate::mate::places(after, ia, ib) {
-        return None;
+        return Vec::new();
     }
     let groups = crate::mate::groups(before);
     let group_of = |i| groups.iter().find(|g| g.contains(&i));
-    let (ga, gb) = (group_of(ia)?, group_of(ib)?);
-    if ga == gb {
-        return None;
-    }
-    let offset = |id: &RecipeNodeId| match before.node(*id) {
-        Some(Node::InstantiatePart {
-            offset: Some(offset),
-            ..
-        }) => Some(offset.clone()),
-        _ => None,
+    let (Some(ga), Some(gb)) = (group_of(ia), group_of(ib)) else {
+        return Vec::new();
     };
-    gb.iter().find_map(offset)?;
-    let (root, cleared) = ga.iter().find_map(|id| Some((*id, offset(id)?)))?;
-    if let Some(Node::InstantiatePart { offset, .. }) = after.nodes.get_mut(&root) {
-        *offset = None;
+    if ga == gb || crate::mate::solve::root_and_cause(before, gb).1.is_some() {
+        return Vec::new();
     }
-    Some(Maintenance::OffsetCleared {
-        instance: root,
-        offset: cleared,
-    })
+    let mut cleared = Vec::new();
+    for &instance in ga {
+        if let Some(Node::InstantiatePart { offset, .. }) = after.nodes.get_mut(&instance)
+            && let Some(offset) = offset.take()
+        {
+            cleared.push(Maintenance::OffsetCleared { instance, offset });
+        }
+    }
+    cleared
 }
 
 /// A witness edit's site check: the store's key rule

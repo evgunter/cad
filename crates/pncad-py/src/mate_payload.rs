@@ -616,6 +616,11 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                 },
                 OffsetCheck::Unleverable(_) => base,
                 OffsetCheck::Indeterminate(diag) => with_escalation(base, diag),
+                // The refused mate that strands the member.
+                OffsetCheck::Unreached { mate } => MateFaultPayload {
+                    mate: Some(*mate),
+                    ..base
+                },
             }
         }
     }

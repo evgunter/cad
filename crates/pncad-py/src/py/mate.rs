@@ -1181,8 +1181,8 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 /// name is said at the delete rather than at the next evaluation.
 ///
 /// Payload attributes are present on every arm, `None` where
-/// inapplicable: `node` and `offset` for an `offset_cleared` — the
-/// root of the mate's first operand's group, now placed on the
+/// inapplicable: `node` and `offset` for an `offset_cleared` — a
+/// member of the mate's first operand's group, now placed on the
 /// second's, and the offset it gave up; `node` and `name` for a
 /// strand, `name` alone for a `stranded_appearance`, whose carrier is
 /// the appearance store and not a node, and `node` alone for an

@@ -1763,8 +1763,10 @@ impl Evaluation {
 /// is the arm's stable tag, `node` rides along, a poisoning adds
 /// `through`, a wrong-kind value adds `kind`, and an unplaced export
 /// adds `parts` — each unplaced part as `(node, root, cause)`, the
-/// cause [`crate::tags::unplaced_tag`]'s word. The message is the
-/// door's own `Display`.
+/// cause [`crate::tags::unplaced_tag`]'s word, and a group in a part
+/// below as `(instance, root, cause)`, the instance it arrived through
+/// and its root in the part's own ids. The message is the door's own
+/// `Display`.
 fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) -> PyErr {
     use pncad::export::ExportError as E;
     let node_obj = match node.into_pyobject(py) {
@@ -1796,6 +1798,25 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
+        // A group below: the instance it arrived through, its root in
+        // the part's own id space, and its cause; the whole route is in
+        // the message.
+        E::UnplacedBelow { groups } => {
+            let listed: Vec<(NodeId, NodeId, &'static str)> = groups
+                .iter()
+                .map(|row| {
+                    (
+                        NodeId(row.route.through),
+                        NodeId(row.group),
+                        crate::tags::unplaced_tag(&row.cause),
+                    )
+                })
+                .collect();
+            match listed.into_pyobject(py) {
+                Ok(bound) => fields[4] = ("parts", bound.unbind().into_any()),
+                Err(failed) => return failed,
+            }
+        }
         E::Unplaced { parts } => {
             let listed: Vec<(NodeId, NodeId, &'static str)> = parts
                 .iter()

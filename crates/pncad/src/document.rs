@@ -319,9 +319,12 @@ pub use editor_core::ContentBits;
 // `Doc::roots` and set through
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
-// the edit and persistence doors carry.
+// the edit and persistence doors carry. `OwnSpace` is one unplaced
+// group's own space, which a `Product` carries beside the world for
+// the at-rest gate to check, and `own_spaces` gathers every one.
 pub use editor_core::{
-    Product, ProductError, ProductErrorKind, RootFault, SourceFinding, product, product_recorded,
+    OwnSpace, Product, ProductError, ProductErrorKind, RootFault, SourceFinding, own_spaces,
+    product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -430,7 +433,9 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // own or a part's — and `CarriedDeclarations` is what an instantiated
 // value carries up. `AssemblyError::CarriedMintRefusal` is the
 // outermost gate's refusal over inner mates that could not be minted
-// at all, and `CarriedRefusal` is one of its rows; `MintRefusal` is one
+// at all, and `CarriedRefusal` is one of its rows; `CarriedUnplaced` is
+// an unplaced group below, which the part's world product leaves out
+// (`Evaluation::unplaced_below`); `MintRefusal` is one
 // row of the gate's refusal over this document's own mates. Both arms
 // raise EVERY row they hold, so the row types are what the gate's
 // answer is made of and a consumer matching that answer must name
@@ -440,8 +445,8 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // do it by re-typing the sentence.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef,
-    Relation, Route, assemble, assemble_gathered,
+    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE,
+    RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class

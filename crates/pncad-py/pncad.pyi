@@ -503,7 +503,11 @@ class ExportError(PncadError):
     unplaced group's own space, since STEP writes one world: `parts`
     lists each as `(node, root, cause)` — the part, its group's root,
     and `no_offset` or `dead_gauge` — and the message says how to
-    place it."""
+    place it. `unplaced_below` is the same refusal for a group in a
+    part below, which the part's world leaves out: `parts` lists each
+    as `(instance, root, cause)` — the instance it arrived through,
+    its root in the part's own ids, and the cause — and the message
+    names the whole route."""
 
     variant: str
     node: NodeId
@@ -2555,7 +2559,8 @@ class Node:
         the empty offset. `DocEdit.set_offset` moves it,
         `DocEdit.set_gauge` puts it on a gauge, and a mate places it
         on another instance's group — the first operand's group on the
-        second's, clearing the first's root offset. No interface record
+        second's, clearing every offset the first's group held. No
+        interface record
         either: an AUTHORED instance crosses nothing, and a non-empty
         record is mintable only by the `split` that observed
         declarations crossing its cut.
@@ -2603,8 +2608,8 @@ class Node:
         A mate PLACES when its two instances sit on one gauge, and
         declares otherwise. A placing mate that joins two groups
         places the first operand's group on the second's: "mate `a`
-        to `b`" moves `a`, and the insert clears `a`'s group root's
-        offset (`Doc.last_maintenance`, `offset_cleared`). Which side
+        to `b`" moves `a`, and the insert clears every offset `a`'s
+        group held (`Doc.last_maintenance`, `offset_cleared`). Which side
         moves is independent of which side's frame states the datum.
         `Doc.regauge_then_mate` copies `b`'s gauge to `a`'s group first.
 
@@ -3525,8 +3530,9 @@ class Doc:
 
         Inserting a mate that places — both instances on one gauge —
         and joins two groups places the first operand's group on the
-        second's: the first's root offset is cleared in the same edit,
-        and `last_maintenance` reports it as `offset_cleared`.
+        second's: every offset the first's group held is cleared in the
+        same edit, and `last_maintenance` reports each as
+        `offset_cleared`.
 
         A mate the solve refuses on its own datum — no member at its
         head, one member named twice, a class outside the vocabulary,
@@ -3590,11 +3596,13 @@ class Doc:
         `mate` is a `Node.mate`: every member of the group its `a` side
         reads is put on the gauge its `b` side's instance sits on, then
         the mate is inserted, which places — the first operand's group
-        on the second's, its root offset cleared. A plain insert when
-        the sides already share a gauge. Atomic: a refusal at any step
-        raises that step's `EditError` and leaves the document
-        untouched. Returns the mate's id; `last_maintenance` reads the
-        whole action's record."""
+        on the second's, every offset it held cleared. A plain insert
+        when the sides already share a gauge. Atomic: a refusal at any
+        step raises that step's `EditError` and leaves the document
+        untouched, and the action refuses whole (`would_start_placing`,
+        naming the mate) when the re-gauge would make a mate already in
+        the document start placing. Returns the mate's id;
+        `last_maintenance` reads the whole action's record."""
 
     @property
     def last_maintenance(self) -> list[Maintenance]:

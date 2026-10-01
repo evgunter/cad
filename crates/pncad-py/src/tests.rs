@@ -2725,6 +2725,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "input"],
     );
+    carries(&E::WouldStartPlacing { mate: id(1) }, &["node"]);
     carries(&E::PlacementRuleMismatch { node: id(1) }, &["node"]);
     carries(&E::EmptyPlacementList { node: id(1) }, &["node"]);
     carries(

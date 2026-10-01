@@ -1209,6 +1209,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::GaugeNotLive { .. }
             | EditError::NotAGauge { .. }
             | EditError::GaugeCycle { .. }
+            | EditError::WouldStartPlacing { .. }
             | EditError::PlacementRuleMismatch { .. }
             | EditError::EmptyPlacementList { .. }
             | EditError::ImproperPlacement { .. }

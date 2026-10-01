@@ -470,7 +470,9 @@ where
     let carried = crate::assembly::CarriedDeclarations {
         minted: carry_up(
             &part.minted,
-            part.carried.iter().map(|r| (&r.route, &r.declaration)),
+            part.carried
+                .iter()
+                .map(|r| (&r.route, r.declaration.clone())),
             id,
             doc_ref.id,
         )
@@ -478,11 +480,27 @@ where
         .collect(),
         unminted: carry_up(
             &part.unminted,
-            part.carried_unminted.iter().map(|r| (&r.route, &r.refusal)),
+            part.carried_unminted
+                .iter()
+                .map(|r| (&r.route, r.refusal.clone())),
             id,
             doc_ref.id,
         )
         .map(|(route, refusal)| crate::assembly::CarriedRefusal { route, refusal })
+        .collect(),
+        unplaced: carry_up(
+            &part.unplaced,
+            part.carried_unplaced
+                .iter()
+                .map(|r| (&r.route, (r.group, r.cause))),
+            id,
+            doc_ref.id,
+        )
+        .map(|(route, (group, cause))| crate::assembly::CarriedUnplaced {
+            route,
+            group,
+            cause,
+        })
         .collect(),
     };
     Ok(OpOut {
@@ -504,7 +522,7 @@ where
 /// one route rule.
 fn carry_up<'a, P: Clone + 'a>(
     own: &'a [P],
-    below: impl Iterator<Item = (&'a crate::assembly::Route, &'a P)> + 'a,
+    below: impl Iterator<Item = (&'a crate::assembly::Route, P)> + 'a,
     node: RecipeNodeId,
     of: crate::ident::DocumentId,
 ) -> impl Iterator<Item = (crate::assembly::Route, P)> + 'a {
@@ -519,7 +537,7 @@ fn carry_up<'a, P: Clone + 'a>(
                 payload.clone(),
             )
         })
-        .chain(below.map(move |(route, payload)| (route.through_instance(node), payload.clone())))
+        .chain(below.map(move |(route, payload)| (route.through_instance(node), payload)))
 }
 
 /// Stamps every UNSOURCED description of `body` with this node's

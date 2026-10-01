@@ -128,6 +128,12 @@ pub struct Evaluation<T: Decide> {
     /// denotes no geometry. [`crate::product::product`] gathers the
     /// world alone, and the at-rest gate checks each space by itself.
     pub unplaced: BTreeMap<RecipeNodeId, (RecipeNodeId, crate::mate::Unplaced)>,
+    /// **Every node whose value holds a part that leaves an unplaced
+    /// group out** (A9, A11 (2)): an instance whose part, or a part
+    /// below it, holds one, and every node that consumes such geometry,
+    /// with the groups as the instance carried them across the seam
+    /// ([`crate::CarriedUnplaced`]). A node absent here holds none.
+    pub unplaced_below: BTreeMap<RecipeNodeId, Vec<crate::assembly::CarriedUnplaced>>,
     /// How many REFERENCED documents this evaluation actually
     /// evaluated across the document seam (ASM-2A D-3's sharing
     /// evidence). N instances of one part contribute 1; a memo-hit
@@ -164,6 +170,21 @@ impl<T: Decide> Evaluation<T> {
                 NodeStanding::NotInDocument { node: id }
             }
         })
+    }
+
+    /// **Every unplaced group in a document below this one** (A9,
+    /// A11 (2)), routed through the instance it arrived by
+    /// ([`crate::CarriedUnplaced`]), once each, in node order: what
+    /// the parts' world products leave out, which a door writing one
+    /// world must refuse over.
+    pub fn all_unplaced_below(&self) -> Vec<crate::assembly::CarriedUnplaced> {
+        let mut out: Vec<crate::assembly::CarriedUnplaced> = Vec::new();
+        for row in self.unplaced_below.values().flatten() {
+            if !out.contains(row) {
+                out.push(row.clone());
+            }
+        }
+        out
     }
 
     /// The node's successful value, if it has one — [`Evaluation::usable`]
@@ -3521,6 +3542,7 @@ where
     // result DAG — canceled prefixes resolve what completed and report
     // the rest as typed losses carrying their standing.
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
+    let unplaced_below = unplaced_below(doc, &order, &nodes);
 
     Evaluation {
         epoch: opts.epoch,
@@ -3532,9 +3554,53 @@ where
         recomputed,
         reused,
         unplaced: spaces.own,
+        unplaced_below,
         part_evaluations: parts.evaluations(),
         appearance: resolved_appearance,
     }
+}
+
+/// [`Evaluation::unplaced_below`]: each instance's carried groups, and
+/// every consumer of geometry holding them, in one pass in schedule
+/// order, which puts every input before its consumer. A node that
+/// denotes no geometry of its own — a mate, a declaration, a measure,
+/// an assertion, a gauge — holds none.
+fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
+    doc: &Doc<P>,
+    order: &[RecipeNodeId],
+    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+) -> BTreeMap<RecipeNodeId, Vec<crate::assembly::CarriedUnplaced>> {
+    let mut out: BTreeMap<RecipeNodeId, Vec<crate::assembly::CarriedUnplaced>> = BTreeMap::new();
+    for &id in order {
+        let Some(node) = doc.node(id) else { continue };
+        if matches!(
+            node,
+            crate::node::Node::Mate { .. }
+                | crate::node::Node::Declare { .. }
+                | crate::node::Node::Measure { .. }
+                | crate::node::Node::Assertion { .. }
+                | crate::node::Node::Gauge { .. }
+        ) {
+            continue;
+        }
+        // A node with no value carries nothing up: its own refusal is
+        // the evaluation's to report.
+        let mut rows: Vec<crate::assembly::CarriedUnplaced> =
+            usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id })
+                .map(|value| value.carried.unplaced.clone())
+                .unwrap_or_default();
+        for input in node.inputs() {
+            for row in out.get(&input).into_iter().flatten() {
+                if !rows.contains(row) {
+                    rows.push(row.clone());
+                }
+            }
+        }
+        if !rows.is_empty() {
+            out.insert(id, rows);
+        }
+    }
+    out
 }
 
 /// The all-nodes ToleranceConflict refusal (spec D4 door).
@@ -3640,6 +3706,7 @@ where
         recomputed: 0,
         reused: 0,
         unplaced: BTreeMap::new(),
+        unplaced_below: BTreeMap::new(),
         part_evaluations: 0,
         appearance: resolved_appearance,
     }

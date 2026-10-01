@@ -2307,6 +2307,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::PlacedUnderTwoRoots
         | ProductErrorKind::Naming
         | ProductErrorKind::NoBodyRoots
+        | ProductErrorKind::Unplaced
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid
@@ -3277,6 +3278,7 @@ mod tests {
             ProductErrorKind::RootFailed,
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::NoBodyRoots,
+            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,

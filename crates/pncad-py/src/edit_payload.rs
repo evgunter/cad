@@ -261,6 +261,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             fault: Some(fault),
             ..none
         },
+        EditError::WouldStartPlacing { mate } => EditPayload {
+            node: Some(*mate),
+            ..none
+        },
         EditError::WouldCycle { at } | EditError::ReadSiteMissingNode { at } => EditPayload {
             node: Some(*at),
             ..none

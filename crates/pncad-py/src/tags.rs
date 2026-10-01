@@ -594,6 +594,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::GaugeNotLive { .. } => "gauge_not_live",
         EditError::NotAGauge { .. } => "not_a_gauge",
         EditError::GaugeCycle { .. } => "gauge_cycle",
+        EditError::WouldStartPlacing { .. } => "would_start_placing",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
@@ -1234,6 +1235,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::GaugeNotLive { .. } => None,
         EditError::NotAGauge { .. } => None,
         EditError::GaugeCycle { .. } => None,
+        EditError::WouldStartPlacing { .. } => None,
         EditError::PlacementRuleMismatch { .. } => None,
         EditError::EmptyPlacementList { .. } => None,
         EditError::ImproperPlacement { .. } => None,
@@ -1765,12 +1767,14 @@ pub fn unplaced_tag(cause: &Unplaced) -> &'static str {
 /// The stable tag for why a checked offset could not be checked — the
 /// inner arm of [`mate_fault_tag`]'s `mate_offset_unchecked`: a
 /// placement the check reads did not evaluate, the member's part reach
-/// is not in hand, or the check landed in the ambiguity band.
+/// is not in hand, the check landed in the ambiguity band, or a refused
+/// mate leaves the member with no pose.
 pub fn offset_check_tag(cause: &OffsetCheck) -> &'static str {
     match cause {
         OffsetCheck::Placement { .. } => "placement_refused",
         OffsetCheck::Unleverable(_) => "unleverable",
         OffsetCheck::Indeterminate(_) => "indeterminate",
+        OffsetCheck::Unreached { .. } => "unreached",
     }
 }
 
@@ -2071,6 +2075,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
         E::Unplaced { .. } => "unplaced",
+        E::UnplacedBelow { .. } => "unplaced_below",
     }
 }
 
@@ -2085,6 +2090,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::RootPoisoned => "root_poisoned",
         K::PlacedUnderTwoRoots => "placed_under_two_roots",
         K::NoBodyRoots => "no_body_roots",
+        K::Unplaced => "unplaced",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
@@ -2266,6 +2272,7 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
 pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
     match err {
         AssemblyError::Product(inner) => product_error_tag(inner),
+        AssemblyError::Space { .. } => "own_space",
         AssemblyError::Mint { .. } => "unminted_mates",
         AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::AtRest { .. } => "at_rest",
@@ -3108,7 +3115,7 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 ///
 /// The word decides which payload attributes carry: an
 /// `offset_cleared` names the instance whose offset the mate door
-/// cleared — the root of the mate's first operand's group, now placed
+/// cleared — a member of the mate's first operand's group, now placed
 /// on the second's — and carries that offset, a `strand` the
 /// surviving node and the name whose minting node the edit deleted,
 /// and a `stranded_appearance` that same name with no carrying node,

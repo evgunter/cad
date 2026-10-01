@@ -1185,6 +1185,12 @@ pub enum OffsetCheck {
     Unleverable(LeverRefusal),
     /// The check landed in the ambiguity band.
     Indeterminate(Box<Indeterminate>),
+    /// The solve gives the member no pose: `mate`, which welds its
+    /// group, refused, so the group's spanning tree does not reach it.
+    Unreached {
+        /// The group's first mate the solve refused.
+        mate: RecipeNodeId,
+    },
 }
 
 impl core::fmt::Display for OffsetCheck {
@@ -1197,6 +1203,11 @@ impl core::fmt::Display for OffsetCheck {
             Self::Indeterminate(diag) => {
                 write!(f, "the check could not be decided — {}", diag.payload())
             }
+            Self::Unreached { mate } => write!(
+                f,
+                "the solve gives it no pose, because mate {}, which welds its group, refused",
+                mate
+            ),
         }
     }
 }
@@ -1286,7 +1297,9 @@ impl MateFault {
             | Self::OffsetDisagrees { .. } => None,
             Self::OffsetUnchecked { cause, .. } => match &**cause {
                 OffsetCheck::Placement { node, error } => Some((*node, error)),
-                OffsetCheck::Unleverable(_) | OffsetCheck::Indeterminate(_) => None,
+                OffsetCheck::Unleverable(_)
+                | OffsetCheck::Indeterminate(_)
+                | OffsetCheck::Unreached { .. } => None,
             },
         }
     }
@@ -1581,6 +1594,14 @@ impl core::fmt::Display for MateFault {
                         ))
                     ),
                     OffsetCheck::Unleverable(_) => Ok(()),
+                    OffsetCheck::Unreached { mate } => write!(
+                        f,
+                        ". {}",
+                        crate::sentence::Recourse(format_args!(
+                            "repair mate {}, or clear the offset",
+                            mate
+                        ))
+                    ),
                     OffsetCheck::Indeterminate(_) => {
                         write!(f, ". {}", crate::sentence::Recourse("clear the offset"))
                     }

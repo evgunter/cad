@@ -372,7 +372,7 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
     assert_eq!(groups(&plain).len(), 2, "a declaring mate joins nothing");
 
     // The compound door.
-    let edits = regauge_then_mate(&doc, mate.clone());
+    let edits = regauge_then_mate(&doc, mate.clone()).expect("no other mate starts placing");
     assert_eq!(
         edits,
         vec![

@@ -679,6 +679,7 @@ fn hand_eval(
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
         unplaced: Default::default(),
+        unplaced_below: Default::default(),
         document: doc.id(),
         prior_refused: None,
         order,
