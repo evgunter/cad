@@ -2320,9 +2320,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     not what the wall is about. The bore itself is placed:
     //     the cylinder chart's full-turn band gives every endpoint on
     //     the corm's bore wall a verdict. The sweep then stops at
-    //     operand B's seam ruling `EdgeKey(4v1)` (`z ∈ [-0.92, -0.72]`
-    //     at azimuth 0) against the corm's SPHERE zone `FaceKey(5v1)`:
-    //     the ruling straddles the sphere, and the reduction has no
+    //     operand B's seam ruling `EdgeKey(4v1)` against the corm's
+    //     SPHERE zone `FaceKey(5v1)`: in the reduction's working copy,
+    //     split at the bore's rims, the fragment keeping that key runs
+    //     `z ∈ [-0.92, -0.72]` at azimuth 0 and straddles the sphere
+    //     (the authored ruling, `z ∈ [-0.92, 0]`, does not), and the
+    //     reduction has no
     //     line × sphere root lane to place the crossing
     //     (`work/reach/line-edge-crossing-a-sphere-face-has-no-root-lane.md`).
     //     Behind it, a purely cylindrical mate on a full-turn bore does

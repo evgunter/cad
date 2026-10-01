@@ -19,10 +19,19 @@ CurvedPierceUnsupported { operand: B, face: FaceKey(5v1), edge: EdgeKey(4v1), ..
 ```
 
 - edge `4v1` of operand B (the foot): a LINE, the foot wall's seam
-  ruling at azimuth 0, `(0.06, 0, -0.92) → (0.06, 0, -0.72)`;
+  ruling at azimuth 0. As AUTHORED (`lily.rs`, `foot(FOOT_BOTTOM_Z, 0.0,
+  STEM_R, tol)`) it runs `z ∈ [-0.92, 0]`, and both of those ends are
+  outside the sphere. The pair the refusal names is in the reduction's
+  WORKING COPY of B, measured at the arm (`curved_face_arm`'s `pu`,
+  `pv`): earlier pairs split the ruling where it meets the corm's bore
+  rims, and the fragment that keeps the key runs
+  `(0.06, 0, -0.92) → (0.06, 0, -0.72)`. Its lower end is outside the
+  sphere (distance `≈ 0.424` from the centre), its upper end inside
+  (`≈ 0.228`);
 - face `5v1` of operand A (the corm): its SPHERE zone, centre
   `(0, 0, -0.5)`, radius `0.3`;
-- the endpoints are on opposite sides of the sphere, so the pair takes
+- the fragment's endpoints are on opposite sides of the sphere, so the
+  pair takes
   the straddle arm of `reduce::curved_face_arm`
   (`(Positive, Negative) | (Negative, Positive)`), and `wall_crossing`
   answers `SpanVerdict::Unsettled` because `line_wall_root_count` has
