@@ -348,7 +348,13 @@ fn insert_once_ring(
             out.push(coeffs[i]);
         } else if i + s <= k {
             // Window k−p+1 ..= k−s: interval arithmetic combination.
-            out.push(convex_step(coeffs[i - 1], coeffs[i], knots[i], knots[i + p], u));
+            out.push(convex_step(
+                coeffs[i - 1],
+                coeffs[i],
+                knots[i],
+                knots[i + p],
+                u,
+            ));
         } else {
             // Q_i = c_{i−1} (carry above the window; i ≥ 1 here because
             // k ≥ s for an interior u with multiplicity s).
