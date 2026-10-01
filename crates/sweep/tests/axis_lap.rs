@@ -311,3 +311,50 @@ fn a_blind_d_pocket_builds_from_below_and_refuses_from_above() {
         "{err:?}"
     );
 }
+
+/// **A split whose section is too nearly a circle to name reads as the
+/// split's own refusal.** The plane is tilted from square to the rod by
+/// the angle that puts the section ellipse's semi-axis difference,
+/// `R(1/cos θ − 1)`, in the middle of the band — so the tilt itself is
+/// decided and the carrier's kind is not. The escalation says what it
+/// hinged on and offers the split's levers: no declaration (a split
+/// takes none) and no carrier to construct (no door the user reaches
+/// builds one).
+#[test]
+fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let difference = (band.zero() + band.escalate()) / 2.0;
+    let theta = (R / (R + difference)).acos();
+    let err = topo::split(
+        &rod(),
+        &topo::SplitPlane {
+            origin: Point3::new(0.0, 0.0, LEN / 2.0),
+            normal: Vec3::new(0.0, -theta.sin(), theta.cos()),
+        },
+        tol(),
+    )
+    .expect_err("the section's kind is undecided");
+    let text = err.to_string();
+    println!("[axis_lap] the nearly-circular split: {text}");
+    assert!(
+        matches!(
+            err,
+            topo::SplitError::Join(SplitJoinError::Section {
+                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_)),
+                ..
+            })
+        ),
+        "the carrier's constructor escalates: {err:?}"
+    );
+    assert!(
+        text.starts_with(
+            "whether the curve is a circle or an ellipse is undecided for the section through \
+             a curved face: "
+        ) && text.ends_with("Recourse: move the geometry, or lower the tolerance"),
+        "{text}"
+    );
+    assert!(
+        test_utils::refusal::subjectless_escalations(&text).is_empty(),
+        "{text}"
+    );
+}

@@ -274,9 +274,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
-        13,
-        13,
-        "the mignitude, the two norm assemblies and the curvature join all refuse by name",
+        12,
+        12,
+        "the mignitude, the norm assemblies and the curvature join all refuse by name",
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
@@ -332,10 +332,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-core/src/interval.rs",
-        16,
-        2,
-        "the type's own body. The 2 that ask are the two refusal doors \
-         (`certified_bracket`, `sign_within`). The other 14 are not certification \
+        18,
+        4,
+        "the type's own body. The 4 that ask are the two refusal doors \
+         (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup` \
+         and `div_down`. The other 14 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
          `repr_bits`, `copysign` and the kink selectors), which test NaI and empty \
