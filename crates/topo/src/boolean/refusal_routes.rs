@@ -1417,6 +1417,7 @@ mod tests {
         let along = (p1 - p0) * (1.0 / diagonal);
         let theta = (b.zero() + b.escalate()) / 2.0 / diagonal;
         let up = Vec3::new(0.0, 0.0, 1.0);
+        // Lifts both refusals: the bent plane is the gate's near-flat input; the half's edges are not the row.
         body.set_face_surface_stranding_for_tests(
             half.face,
             crate::euler::FaceSurface::New {

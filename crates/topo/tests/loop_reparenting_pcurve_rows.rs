@@ -984,6 +984,7 @@ fn two_keys_holding_one_surface_read_as_two_charts_whatever_recipe_they_carry() 
 fn mfkrh_onto_a_second_key_sharing_a_recipe_mints_the_promoted_face_in_its_chart() {
     let mut s = sheet();
     let cyl = s.body.get_face(s.low).unwrap().surface;
+    // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
     let second = s
         .body
         .set_face_surface_stranding_for_tests(
@@ -1030,6 +1031,7 @@ fn mfkrh_onto_a_second_key_sharing_a_recipe_mints_the_promoted_face_in_its_chart
 #[test]
 fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
+    // Lifts RechartUnvouched: the back on a rowless curved chart of its own is the row's premise.
     s.body
         .set_face_surface_stranding_for_tests(
             s.plane,
@@ -1051,6 +1053,7 @@ fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
 #[test]
 fn ring_move_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
+    // Lifts RechartUnvouched: the back on a rowless curved chart of its own is the row's premise.
     s.body
         .set_face_surface_stranding_for_tests(
             s.plane,
@@ -1305,6 +1308,7 @@ fn mef_onto_a_second_key_holding_one_surface_mints_the_new_face_in_its_chart() {
     for stamped in [false, true] {
         let mut s = sheet();
         let cyl = s.body.get_face(s.low).unwrap().surface;
+        // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
         let second = s
             .body
             .set_face_surface_stranding_for_tests(
@@ -1435,6 +1439,7 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_onto_the_plane() 
 fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door() {
     let mut s = sheet();
     let forged = forge(&mut s);
+    // Lifts both refusals: the forged key joining the cylinder to a plane is the row's premise.
     s.body
         .set_face_surface_stranding_for_tests(
             s.low,
@@ -1448,6 +1453,7 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
 
     let mut s = sheet();
     let forged = forge(&mut s);
+    // Lifts RechartUnvouched: the forged key joining the cylinder to a plane is the row's premise.
     s.body
         .set_face_surface_stranding_for_tests(
             s.plane,
@@ -1464,6 +1470,7 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
     let forged = forge(&mut s);
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
+    // Lifts RechartUnvouched: the forged key joining the cylinder to a plane is the row's premise.
     s.body
         .set_face_surface_stranding_for_tests(
             s.plane,
@@ -1494,6 +1501,7 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
 
     let mut s = sheet();
     let forged = forge(&mut s);
+    // Lifts RechartUnvouched: the forged key joining the cylinder to a plane is the row's premise.
     s.body
         .set_face_surface_stranding_for_tests(
             s.plane,
@@ -1538,6 +1546,7 @@ fn kef_into_a_face_on_a_chart_that_mints_nothing_drops_the_remnants_rows() {
 #[test]
 fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
+    // Lifts RechartUnvouched: the back on a rowless curved chart of its own is the row's premise.
     s.body
         .set_face_surface_stranding_for_tests(
             s.plane,
@@ -1587,6 +1596,7 @@ fn kef_between_faces_on_one_chart_carries_the_remnants_rows_byte_for_byte() {
 fn kef_into_a_second_key_sharing_a_recipe_drops_the_remnants_rows_until_the_pass() {
     let mut s = sheet();
     let cyl = s.body.get_face(s.low).unwrap().surface;
+    // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
     let second = s
         .body
         .set_face_surface_stranding_for_tests(
@@ -1678,9 +1688,7 @@ fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
 #[test]
 fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
     let mut s = sheet();
-    // A cylinder panel onto a plane its boundary does not lie on: the
-    // describing door refuses that (`RechartOffBoundary`), so the row
-    // takes the stranding door, whose rows are the real door's.
+    // Lifts both refusals: a minted cylinder face onto a plane its boundary misses is the row.
     s.body
         .set_face_surface_stranding_for_tests(
             s.low,
@@ -1719,6 +1727,7 @@ fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
 #[test]
 fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them() {
     let mut s = sheet();
+    // Lifts both refusals: a face on a cylinder its boundary misses is the row.
     s.body
         .set_face_surface_stranding_for_tests(
             s.low,
@@ -1757,6 +1766,7 @@ fn a_swap_drops_the_rows_of_every_loop_of_the_face() {
     assert_eq!(rows_of(&s.body, s.low), (8, 0));
     assert_eq!(s.body.get_face(s.low).unwrap().rings.len(), 1);
 
+    // Lifts both refusals: a face with a ring, onto a plane, is the row.
     s.body
         .set_face_surface_stranding_for_tests(
             s.low,
@@ -1819,6 +1829,7 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
         let cyl = s.body.get_face(s.low).unwrap().surface;
         // A second key for the same cylinder, minted on the rowless
         // planar face so that nothing is dropped establishing it.
+        // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
         let second = s
             .body
             .set_face_surface_stranding_for_tests(
@@ -2014,6 +2025,7 @@ fn arc_sheet(tied: bool) -> ArcSheet {
             std::sync::Arc::new((*p).clone())
         };
         keys.push(
+            // Lifts both refusals: every face on the patch, tied or deep-copied, is the fixture; its rows go back after.
             s.body
                 .set_face_surface_stranding_for_tests(
                     face,
@@ -2071,6 +2083,7 @@ fn a_swap_orphaning_the_old_key_carries_every_row_across_one_payload() {
                 ),
                 "two payloads with no tie are two charts to the keys-only door"
             );
+            // Lifts RechartUnvouched: the row reads the writes across two untied payloads.
             s.body
                 .set_face_surface_stranding_for_tests(s.low, onto_up)
                 .unwrap();
@@ -2482,6 +2495,7 @@ fn set_face_surface_keeps_the_bit_on_the_faces_chart_and_writes_the_stated_one_e
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         s.body.set_face_sense(s.low, false).unwrap();
         let before = format!("{:?}", s.body);
+        // Lifts RechartUnvouched: the row reads the door's writes off the panel's own chart.
         let got = s
             .body
             .set_face_surface_stranding_for_tests(s.low, spec.build(&s.body, keys[0], keys[2]));
@@ -2762,6 +2776,7 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
         "the patch faces the plane's way"
     );
     let plane_key = body.get_face(top).unwrap().surface;
+    // Lifts both refusals: the cap re-charted onto its own flat patch is the row's premise.
     let own = body
         .set_face_surface_stranding_for_tests(
             top,

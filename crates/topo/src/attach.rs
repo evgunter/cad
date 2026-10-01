@@ -1513,6 +1513,7 @@ mod tests {
         };
 
         let mut stranded = body.clone();
+        // Lifts both refusals: the stranded state tier 3 reports at rest is the row.
         stranded
             .set_face_surface_stranding_for_tests(top, swap())
             .unwrap();
@@ -1717,6 +1718,7 @@ mod tests {
             ),
         ] {
             let mut unvouched = body.clone();
+            // Lifts RechartUnvouched: tier 3's verdict on the membrane off its own boundary is the row.
             unvouched
                 .set_face_surface_stranding_for_tests(membrane, plain.clone())
                 .unwrap();
