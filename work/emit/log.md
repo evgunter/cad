@@ -1287,3 +1287,25 @@ Ev approved, including the form proposals. The unit `node-labels-are-document-da
 3. then labels.
 
 **Fork-log numbering:** rows 21–24 each appear twice in the log; the fork column tells them apart.
+
+## 2026-10-01 — edge pieces are named by their ends (PR 3629)
+
+Implements the ruling on PR 3553.
+
+**What it does.**
+- Every edge piece takes `Ends`: seam chains, operand-edge pieces, earlier seams, union member edges, and section chords, which replaces #512 A2's tie.
+- A split's same-side faces take `Keeps`.
+- A crossing vertex is ranked along the crossed edge by its carrier's parameter.
+- Retired: `SplitReference`, `SeamLineSides`, `NarrowBand`, the cell count, and the plane-reading helpers.
+- Recipes that used to refuse now name: the cylinder across a plate, the cylinder split twice, the rim crossed twice, and the slot along x across a sunk boss.
+- In the corpus, 90 edge rows changed, from `OrderAlong` to `Ends`. No face, vertex or body name moved.
+
+**Review.** Two blocking findings, both fixed:
+- **N5's locality sentence overclaimed.** A second crossing by a face that already crosses the parent renames the first crossing and every piece whose ends cite it. The sentence is qualified, a test pins the case, and the question is filed as a design row.
+- **Departures from the rule had no rows.** These are now filed:
+  - NURBS crossings tie;
+  - a union seam made of several curves ties;
+  - crossings whose sides' names don't settle which side is first tie;
+  - whether the Upstream-flip and RecipeEdit diagnosis rungs are still reachable from emitted names.
+
+`m10_sym_profile_interval`'s ledger move was main's (#3612, re-pinned by #3652), not this PR's.
