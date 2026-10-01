@@ -1714,17 +1714,22 @@ fn classify_replay<T: geom_core::Decide>(
     // `work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`
     // holds. What HAS been discharged is the precondition the arms were
     // kept for: the log now carries the op-minted escalations too.
-    // ITERATION ORDER IS NODE ID, and where a leaf carries several
-    // refusing nodes that decides which one speaks: the FIRST
-    // indeterminacy in node-id order settles the leaf as a sliver or a
-    // bisect, and a definite structure flip at a later node never gets
-    // to argue. Deterministic (a `BTreeMap` walk, same in both
-    // schedules) but arbitrary — node id is a minting counter, not a
-    // ranking of causes. It is stated rather than defended because
-    // nothing downstream depends on which cause wins: every arm here
-    // is refused mass either way, and the receipt does not change.
+    // ITERATION ORDER IS THE LEAF'S EVALUATION ORDER, and where a leaf
+    // carries several refusing nodes that decides which one speaks: the
+    // FIRST indeterminacy in that order settles the leaf as a sliver or
+    // a bisect, and a definite structure flip at a later node never
+    // gets to argue. Deterministic (the schedule's order, the same in
+    // both schedules) and the node the author placed first where the
+    // DAG leaves a choice, but not a ranking of causes. It is stated
+    // rather than defended because nothing downstream depends on which
+    // cause wins: every arm here is refused mass either way, and the
+    // receipt does not change.
     let mut structure_flips = Vec::new();
-    for (&node, result) in &leaf.nodes {
+    for (node, result) in leaf
+        .order
+        .iter()
+        .filter_map(|&node| leaf.nodes.get(&node).map(|result| (node, result)))
+    {
         let (escalations, failure) = match result {
             NodeResult::Ok(v) => (&v.escalations, None),
             NodeResult::Failed(e) => (&e.escalations, Some(e)),

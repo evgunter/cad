@@ -70,8 +70,7 @@ fn boolean_body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
 }
 
 /// Two overlapping bricks A ([0,2]³-ish) and B, then one Subtract with
-/// the operands in the given order. Node ids are minted monotonically,
-/// so both docs address the Subtract by the SAME id.
+/// the operands in the given order.
 fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
     let (doc, pa) = on_frame(
@@ -124,19 +123,24 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     (doc, s)
 }
 
-/// R2: Subtract(A,B)'s memo entry offered as prior to a doc holding
-/// Subtract(B,A) at the SAME node id with the SAME upstream keys in
-/// swapped order — a key collision here silently reuses A−B for B−A.
+/// R2: Subtract(A,B) and Subtract(B,A) over the SAME upstream keys in
+/// swapped order must key apart — a collision would let the memo serve
+/// A−B for B−A wherever the two met under one id. The two subtracts are
+/// two nodes with two ids, so the memo's id lookup alone keeps them
+/// apart here; the keys are compared directly (a content key never
+/// holds the node's own id).
 #[test]
 fn operand_swap_never_reuses_the_prior_subtract() {
     let (d1, s1) = subtract_doc(false);
     let (d2, s2) = subtract_doc(true);
-    assert_eq!(s1, s2, "attack precondition: aligned node ids");
     let e1 = run(&d1, None, false);
     let e2_scratch = run(&d2, None, false);
     let e2 = run(&d2, Some(&e1), false);
-    // The swapped subtract must have been RECOMPUTED (its key differs)
-    // and must bit-match its own scratch result, not the prior's.
+    assert_ne!(
+        e1.value(s1).expect("A-B evaluates").content_key,
+        e2_scratch.value(s2).expect("B-A evaluates").content_key,
+        "Subtract(A,B) and Subtract(B,A) must key apart"
+    );
     assert_eq!(
         fingerprint(boolean_body(&e2, s2)),
         fingerprint(boolean_body(&e2_scratch, s2)),
@@ -147,9 +151,6 @@ fn operand_swap_never_reuses_the_prior_subtract() {
         fingerprint(boolean_body(&e1, s1)),
         "A-B and B-A genuinely differ (attack is live)"
     );
-    // Upstream nodes (identical in both docs) MAY reuse; the subtract
-    // may not.
-    assert!(e2.recomputed >= 1, "the swapped subtract must recompute");
 }
 
 /// R3: delete a node and insert an identical replacement — the fresh
@@ -902,8 +903,9 @@ fn wire_doors_refuse_typed() {
 }
 
 /// R2: same evaluated floats under DIFFERENT op tags must not collide
-/// — a Plane and an Axis datum with identical slot values at the same
-/// node id (parallel docs), prior offered across: no reuse.
+/// — a Plane and an Axis datum with identical slot values must key
+/// apart. The two datums are two nodes with two ids, so the memo's id
+/// lookup alone keeps them apart; the keys are compared directly.
 #[test]
 fn datum_kind_is_key_separated() {
     let build = |axis: bool| {
@@ -923,7 +925,6 @@ fn datum_kind_is_key_separated() {
     };
     let (d1, n1) = build(false);
     let (d2, n2) = build(true);
-    assert_eq!(n1, n2);
     let e1 = run(&d1, None, false);
     let e2 = run(&d2, Some(&e1), false);
     assert_ne!(
@@ -935,7 +936,6 @@ fn datum_kind_is_key_separated() {
         &e2.value(n2).unwrap().payload,
         ValuePayload::Datum(editor_core::DatumValue::Axis { .. })
     ));
-    assert_eq!(e2.reused, 0, "nothing may be reused across the kind flip");
 }
 
 /// R7: the Interval lane's memo — keys built from `repr_bits` must

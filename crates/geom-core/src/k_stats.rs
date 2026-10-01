@@ -139,7 +139,8 @@
 //! — a lever arm that must be definitely positive, a discriminant that
 //! must be definitely nonzero, an aggregate that must be a measurement
 //! at all — states that condition by choosing a GATE door
-//! ([`decide_positive`], [`decide_nonzero`], [`gate_measured`]) instead
+//! ([`decide_positive`], [`decide_negative`], [`decide_nonzero`],
+//! [`gate_measured`]) instead
 //! of reading a sign out of [`decide`] and rejecting it in private. The
 //! rejection is then minted and recorded by `record_escalation`, the
 //! one place this channel is minted, so the frame holds it for the same
@@ -627,6 +628,29 @@ pub fn decide_positive<T: Decide>(
 ) -> Result<(), Indeterminate> {
     classify_gated(name, margin.value(), band, |sign| {
         (sign == Sign::Positive).then_some(())
+    })
+}
+
+/// **The mirrored gate**: [`decide_positive`] for a predicate whose
+/// question is only validly posed when the margin is DEFINITELY
+/// NEGATIVE — a signed reading whose sign other code interprets, so
+/// the margin cannot be negated to reach [`decide_positive`] without
+/// flipping what every consumer of the recorded sign reads (a
+/// straight corner's `cos θ`, whose sized recourse passes on a
+/// negative margin). Same posture, same recording.
+///
+/// # Errors
+///
+/// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
+/// otherwise, for a definite non-negative sign, an [`Indeterminate`]
+/// carrying [`MarginKind::Invalid`](crate::MarginKind::Invalid) under `name`.
+pub fn decide_negative<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    classify_gated(name, margin.value(), band, |sign| {
+        (sign == Sign::Negative).then_some(())
     })
 }
 

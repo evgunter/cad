@@ -75,7 +75,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     // The same insertion `shell` runs, by hand: taken.
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted), tol())
+    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted))
         .expect("insert_voids takes the reverted cavity");
     assert_eq!(out.shells().count(), 2, "outer + cavity");
 }
@@ -109,7 +109,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     );
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted), tol())
+    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted))
         .expect("the sphere's graft is taken");
     assert_eq!(
         topo::validate_geometric(&out, tol()),
@@ -207,7 +207,7 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     let evidence = void_evidence(&cavity);
-    topo::insert_voids(&mut out, &solids, cavity, &evidence, tol()).expect("the graft is taken");
+    topo::insert_voids(&mut out, &solids, cavity, &evidence).expect("the graft is taken");
     assert_eq!(
         topo::validate_geometric(&out, tol()),
         Ok(()),
