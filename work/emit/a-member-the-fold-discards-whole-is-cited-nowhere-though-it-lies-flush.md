@@ -6,8 +6,6 @@ status: open
 opened: 2026-10-01
 priority: P1
 cost: M
-design: true
-needs_ev: true
 pr: 3734
 branch: emit/fold-discarded-member
 ---
@@ -119,3 +117,16 @@ published in some orders today. That is a change to N3's reading of
 "declared-coincident faces merge", so it is weighed before a lane
 builds it.
 
+
+## Ruled (Ev, PR 3734, 2026-10-01)
+
+Ev approved member-space linking of consumed pairs, as written into N2's union paragraph (`crates/editor-core/src/names/README.md`, fork-log row 37).
+
+**What to build:**
+- `BooleanNaming::covered` must be symmetric, and written on both the section path and `finish_fallback`. The fallback must stop treating declared pairs across the two operands as inapplicable.
+- `judge_pairwise_contact` must keep each pair's `BooleanNaming`; today it returns `()`.
+- Union linking must read those consumed pairs before the fold. The fold keeps its per-face descent, and `Borders` still reads it.
+
+**Corpus:**
+- Add the two-member covered and poke-out cases, and B's swallowed case `xmerge`, to the rim-piece corpus.
+- Expected movement: `KNOWN_ABSENT` for `r4tri`/`r4trig` goes to 0.
