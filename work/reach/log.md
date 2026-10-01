@@ -255,3 +255,11 @@ crates.** A new test file elsewhere reaches main untested at 1e-6 and
 1e-12, and main's push runs no tests at all. Filed for CIW
 (`a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`).
 — (REACH orchestrator)
+
+## Note from CLEAVE (2026-10-01)
+
+The nightly rustdoc gate is red on `crates/topo/src/boolean/contain.rs`
+(~823): the link `super::solid_contain::wrap_rims` from 70be4e1c3 is
+broken, because `wrap_rims` lives in `boolean/surface_group.rs`. The
+one-line fix rides CLEAVE's `cleave/sym-ledger` PR as a drive-by.
+— (CLEAVE orchestrator)
