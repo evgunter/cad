@@ -230,7 +230,7 @@ impl McReport {
                 s,
                 "measure {} mean={:016x} sigma={:016x} min={:016x} max={:016x} measured={} \
                  unmeasured={}",
-                m.node,
+                m.node.full(),
                 m.mean.to_bits(),
                 m.sigma.to_bits(),
                 m.min.to_bits(),
@@ -243,7 +243,10 @@ impl McReport {
             let _ = writeln!(
                 s,
                 "assertion {} holds={} violated={} unevaluated={}",
-                a.node, a.holds, a.violated, a.unevaluated
+                a.node.full(),
+                a.holds,
+                a.violated,
+                a.unevaluated
             );
         }
         let _ = writeln!(s, "outside_box {:016x}", self.outside_box.to_bits());
