@@ -1159,3 +1159,38 @@ fn inline_refuses_two_placing_mates_of_one_pair_that_would_read_two_pairs() {
     );
     assert!(err.to_string().contains("Recourse:"), "{err}");
 }
+
+/// **A declaring mate across gauges goes through the gate's existing
+/// declared-contact path** (the spec's ruling 8). The top stands on a
+/// gauge of its own, posed by its offset exactly where the seat puts
+/// it; the mate between it and the world base declares, the gate mints
+/// it and certifies the flush contact — what a loop-closing declaring
+/// mate within one gauge gets. P2 neither widens nor narrows it.
+#[test]
+fn a_declaring_mate_across_gauges_is_minted_and_certified_at_rest() {
+    let p = parts("p2-cross-gauge");
+    let doc = ProfileDoc::empty(DocumentId::derive("p2-cross-gauge"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 0.0])));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let doc = set_gauge(doc, top, Some(g));
+    // Where the seat puts the top: the half turn of the opposed seat,
+    // its corner on the base's top cap at (1, 1).
+    let seated = Frame {
+        columns: [[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]],
+        translation: [1.0, 1.0, BASE_HEIGHT],
+    };
+    let doc = set_offset(doc, top, Some(Placement::literal(&seated)));
+    let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let o = p.opts();
+    assert_eq!(
+        solve(&doc, &o, Tol::witness()).role(mate),
+        Some(MateRole::Declaring)
+    );
+    let assembly = editor_core::assemble(&doc, &run(&doc, &o), Tol::witness())
+        .expect("the gate certifies the declared flush contact");
+    assert_eq!(
+        assembly.minted.iter().map(|d| d.mate).collect::<Vec<_>>(),
+        vec![mate]
+    );
+}
