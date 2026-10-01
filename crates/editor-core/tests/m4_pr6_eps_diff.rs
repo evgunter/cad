@@ -24,8 +24,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Node, ProfileDoc, RecipeNodeId, RunStatus, evaluate, load, save,
-    verdict_summary,
+    CancelToken, EvalOptions, Node, ProfileDoc, RunStatus, evaluate, load, save, verdict_summary,
 };
 use fixture::{desc, insert, len2, scl};
 use geom_core::Sign;
@@ -148,11 +147,10 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
         1,
         "exactly one differing node: {flips:?}"
     );
-    // The profile is node 1: the frame it is drawn on goes in first.
-    let delta = flips
-        .nodes
-        .get(&RecipeNodeId(1))
-        .expect("profile node delta");
+    // The profile is the fixture's second node: the frame it is drawn
+    // on goes in first. The children built the same document.
+    let profile = thin_profile_doc().order()[1];
+    let delta = flips.nodes.get(&profile).expect("profile node delta");
     let expected = editor_core::SummaryDelta {
         old_status: RunStatus::Ok,
         new_status: RunStatus::Ok,
@@ -207,7 +205,7 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // The report surface: exactly the flipped predicates, in order.
     let report = flips.report();
     assert_eq!(report.len(), 2);
-    assert!(report.iter().all(|(node, _)| *node == RecipeNodeId(1)));
+    assert!(report.iter().all(|(node, _)| *node == profile));
 
     // The no-edit control: a summary diffs empty against itself.
     assert!(editor_core::diff_summaries(&old, &old).is_empty());

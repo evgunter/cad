@@ -434,6 +434,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
             op: BooleanOp::Union,
             a: bench.post_a,
             b: bench.shelf_i,
+            declare: Vec::new(),
         },
     );
     session.pump();
@@ -529,6 +530,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
             op: BooleanOp::Union,
             a: bench.post_a,
             b: bench.shelf_i,
+            declare: Vec::new(),
         },
     );
     session.pump();
@@ -915,7 +917,7 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
 /// poisoned through a real DAG ancestor.
 #[test]
 fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
-    use pncad::document::{Node, NodeStanding, ProductError, RecipeNodeId};
+    use pncad::document::{Node, NodeStanding, ProductError};
 
     let tol = Tol::witness();
 
@@ -931,7 +933,6 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
         },
         tol,
     );
-    assert_eq!(extrude, RecipeNodeId(2), "the literal below names this id");
     let ev = evaluate(
         &doc,
         None,
@@ -942,17 +943,15 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
     let failed = ProductError::Root(NodeStanding::Failed { node: extrude });
     assert_eq!(
         tree::product_refusal_wording(&failed, &ev),
-        "product: root node 2 failed, so it has no value — fix the node's own failure",
+        format!(
+            "product: root node {} failed, so it has no value — fix the node's own failure",
+            extrude.0
+        ),
         "a root that is its own cause keeps the gather's sentence"
     );
 
     // A root poisoned through a real DAG ancestor.
     let (doc, extrude, moved) = common::broken_document(tol);
-    assert_eq!(
-        (extrude, moved),
-        (RecipeNodeId(2), RecipeNodeId(3)),
-        "the literal below names these ids"
-    );
     let ev = evaluate(
         &doc,
         None,
@@ -966,8 +965,11 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
     });
     assert_eq!(
         tree::product_refusal_wording(&poisoned, &ev),
-        "product: root node 3 is poisoned by the failure at node 2, so it has no value — the \
-         repair is upstream, at node 2",
+        format!(
+            "product: root node {} is poisoned by the failure at node {}, so it has no value — \
+             the repair is upstream, at node {}",
+            moved.0, extrude.0, extrude.0
+        ),
         "a root poisoned through the row the tree names keeps the gather's sentence"
     );
 }
@@ -1264,6 +1266,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         note: None,
         repair_at: None,
         measured: None,
+        version_offer: None,
     };
     let rows = [
         row(1, RowStatus::Ok),

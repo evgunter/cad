@@ -47,3 +47,20 @@ site-mint rule for a remnant arriving rowless on a minted face of the
 same chart (which is `kef`'s contract, TOPO's ground, and needs a
 band). Either way the merge's mint stays the boolean's closing pass
 for the faces the zip BUILDS.
+
+## Measured after `kef` took the site-mint rule (2026-09-30, PR 3531)
+
+`kef`'s band twin, `kef_minting`, re-mints the surviving face when its
+remnant arrives without standing rows — across a chart change, or
+rowless on the same chart — and the surviving face was complete; the
+keys-only `kef` refuses there instead
+(`topo/loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`,
+`Body::plan_moved_rows`): the second shape above. The zip's two `kef`s
+and its `kfmrh` call the band twins. Measured on sweep's
+`ci` profile with a probe at the whole-body mint (not committed): on
+that PR's merge base the whole-body mints met 659 half-minted faces in
+64 tests, 657 of them at the merge door's re-mint
+(`merge_faces.rs`); at its head they meet 2, the two doors the null
+unit named (`shell9_r2_probes`' launder row and
+`m8_4_intersection_iso`'s spline), and none at the merge door. The zip
+itself is unchanged; whether this row closes is ZIP's call.
