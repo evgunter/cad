@@ -130,3 +130,13 @@ Ev approved member-space linking of consumed pairs, as written into N2's union p
 **Corpus:**
 - Add the two-member covered and poke-out cases, and B's swallowed case `xmerge`, to the rim-piece corpus.
 - Expected movement: `KNOWN_ABSENT` for `r4tri`/`r4trig` goes to 0.
+
+## Built, and where it stops (emit lane, 2026-10-01, branch `emit/union-member-space-linking`)
+
+Built as ruled: the symmetric `BooleanNaming::covered` on the section path, the declared-REST union and `finish_fallback`; `judge_pairwise_contact` keeps each pair's naming; `emit_union::Links` links member faces before the fold. The corpus has `r5covered`, `r5coveredids`, `r5poke`, `r5pokehi` and `xmerge`. `KNOWN_ABSENT` for `r4tri` and `r4trig` is 0. lib_g16 and the names corpus do not move.
+
+It stops at `near` in `crates/editor-core/tests/emit_union_flush_names.rs`. That case is `a`, `b` flush, plus a slab over x 0.499..0.501. Orders `[b, g, a]` and `[g, b, a]` now refuse with `Emission("a piece of a face held as several borders no recorded discard between them")` from `borders::Obstacles::split`. Before, they published.
+
+In those orders the top cap's parent, `Merged([a top, b top])`, is held as two faces: x 0..0.499 and x 0.501..1.5. Under fold linking these were two parents, one face each, so the order's table differed from the others. The step-1 discard of `b`'s top (x 0.5..0.501) has its seam at x 0.501. The step-2 discard of `a`'s top has its seam at x 0.499 only, and no `touches`. Across x 0.501 that discard borders `a`'s covered copy, and the classification dropped that copy, so `discard_row` records the stretch as neither bordered nor an earlier seam. N2 makes the two discards one obstacle, since no piece holds that region. The kernel's discard rows give no record that joins them.
+
+Joining them needs a new fact: either a kernel record of where a discard meets a copy that is held through another face, or a join rule in `Obstacles`. The ruling does not decide which.

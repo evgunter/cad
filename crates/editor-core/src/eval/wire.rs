@@ -2785,7 +2785,9 @@ fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// **Contact is judged before the fold, pairwise** (DM4's contact
 /// rule): [`judge_pairwise_contact`] runs each member pair whose boxes
 /// meet, or that carries a declaration, as its own two-member union,
-/// so an undeclared contact refuses in every member order. A fold step
+/// so an undeclared contact refuses in every member order, and the face
+/// pairs each judgement consumed are the union's face links (N2,
+/// [`names::UnionLinks`]). A fold step
 /// that refuses one is a bug ([`fold_step_refusal`]). A certified pair
 /// passes each step's census by being fed to the step that joins its
 /// sites as a declared face pair.
