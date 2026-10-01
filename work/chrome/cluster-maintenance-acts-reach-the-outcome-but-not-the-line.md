@@ -2,7 +2,8 @@
 id: cluster-maintenance-acts-reach-the-outcome-but-not-the-line
 kind: issue
 title: A cluster act rides OpOutcome::maintenance but the status line words none of them
-status: open
+status: closed
+closed: 2026-10-01
 opened: 2026-09-24
 priority: P4
 cost: E
@@ -29,3 +30,12 @@ told about a mate edit), and the change is one match arm and one row.
 
 Found while building the maintenance report
 (`the-viewer-drops-every-dm7-rename-report`).
+
+## Closed (2026-10-01): Ev's ruling, the status line stays silent
+
+Ev, in chat, 2026-10-01: *"if there's a user-visible log it should go in the log but not on the statusline i guess?"*
+
+So a cluster act is not worded on the status line, and `frame::maintenance_notice` keeps answering `None` for `Maintenance::Cluster`. Its reason there should cite this ruling rather than the bookkeeping argument.
+
+The viewer has no user-visible log today. `history.rs` is the undo tree, and nothing shows an action's outcomes after the line clears. Whoever builds one owes the cluster acts a place in it, worded through `ClusterMaintenance`'s `Display`. No row is filed for the log itself, because no row asks for one.
+
