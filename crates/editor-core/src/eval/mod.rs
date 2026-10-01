@@ -4371,7 +4371,7 @@ struct SolveAnswer<T: geom_core::Real> {
     faulted: bool,
 }
 
-impl<T: geom_core::Real + ContentBits> SolveAnswer<T> {
+impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
     /// What `poses` answers for `id`, with the group's frame the node
     /// evaluated in this lane.
     fn of(
