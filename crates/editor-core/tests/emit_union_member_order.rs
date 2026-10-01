@@ -85,13 +85,7 @@ fn union_of(
     let doc = ProfileDoc::empty_derived("emit_union_member_order", Tol::witness());
     let (doc, x, y) = fixture(doc);
     let members = if swap { vec![y, x] } else { vec![x, y] };
-    let (doc, u) = insert(
-        doc,
-        Node::Union {
-            members,
-            declare: None,
-        },
-    );
+    let (doc, u) = crate::fixture::union_over(doc, &members, None);
     (run(&doc), u, [x, y])
 }
 

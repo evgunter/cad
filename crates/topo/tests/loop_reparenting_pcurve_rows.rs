@@ -1427,7 +1427,7 @@ fn forge(s: &mut Sheet) -> topo::SurfaceKey {
         )
         .unwrap();
     other.set_surface_source(flat_key, one_recipe()).unwrap();
-    topo::graft_disjoint(&mut s.body, &other, tol()).unwrap();
+    topo::graft_disjoint(&mut s.body, &other).unwrap();
     let forged = s
         .body
         .surfaces()

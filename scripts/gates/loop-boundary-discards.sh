@@ -227,6 +227,7 @@ REGISTER=(
   "crates/topo/src/splitting/finish.rs|classify_shell||1|unaudited"
   "crates/topo/src/splitting/finish.rs|describe_section_boundary||1|unaudited"
   "crates/topo/src/splitting/finish.rs|section_plane_restatements||1|audited: an Empty loop holds no edge, so it has no description to restate; describe_section_boundary, which re-describes the same loops right after, steps over it the same way"
+  "crates/topo/src/splitting/finish.rs|loop_edges|LoopBoundary::Empty { .. } => return|1|audited: the discarded variant is answered by name — a lone-vertex loop is read as an outline edge nothing decides, so outlines_disjoint answers false and the hole keeps its own face"
   "crates/topo/src/splitting/join.rs|certify_section_area||1|unaudited"
   "crates/topo/src/splitting/join.rs|loop_starts||1|unaudited"
   "crates/topo/src/validate.rs|loop_cycle_of||1|unaudited"

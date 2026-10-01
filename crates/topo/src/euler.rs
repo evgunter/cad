@@ -2152,7 +2152,7 @@ impl<T: Decide> Body<T> {
     /// the other not) is refused [`EulerOpError::RebasedNullEdge`]; one
     /// whose two halves are both in the run moves whole and is carried.
     /// The one-half refusal, and the plane × NURBS class's
-    /// `RebasedCarrier { Unimplemented }`, stand even where `point` is
+    /// `RebasedCarrier { NurbsLaneNotSupplied }`, stand even where `point` is
     /// the old vertex's own: the gate does not ask whether `point` is
     /// that point, and its docs (the crate-internal
     /// `Body::certify_rebased_run`) say why. A fan split that moves
@@ -3907,7 +3907,7 @@ impl<T: Decide> Body<T> {
     ///
     /// **What that costs.** The plane × NURBS class (M7-8) needs an
     /// injected lane this bound cannot supply, so `recertify` answers
-    /// `Unimplemented` exactly as `split_edge` does on the same class —
+    /// `NurbsLaneNotSupplied` exactly as `split_edge` does on the same class —
     /// an operator makes no claim it cannot derive, and a claim it
     /// cannot derive is not a licence to move the edge. `recertify`
     /// answers that before any endpoint check, so the gate refuses where
@@ -5636,7 +5636,7 @@ mod tests {
     #[test]
     fn a_fan_mev_refuses_the_plane_x_nurbs_class_where_nothing_moves_and_mev_null_splits_it() {
         // The over-refusal the gate's docs state, through the public
-        // door: `recertify` answers `Unimplemented` for the M7-8 class
+        // door: `recertify` answers `NurbsLaneNotSupplied` for the M7-8 class
         // before any endpoint check, so `mev` refuses at the old
         // vertex's own point (the closed spec) as at a moved one (a
         // chord), body untouched. The no-move split is `mev_null`, which
@@ -5655,7 +5655,7 @@ mod tests {
                 body.mev(site, point, spec, tol).map(|_| ()),
                 Err(EulerOpError::RebasedCarrier {
                     edge,
-                    error: geom_brep::CertifyError::Unimplemented,
+                    error: geom_brep::CertifyError::NurbsLaneNotSupplied,
                 }),
                 "the M7-8 edge, mev to {point:?}"
             );

@@ -56,9 +56,9 @@ macro_rules! name_free_node {
 }
 
 /// A stable recipe-node identity (spec D3, NAMING-DESIGN N1's
-/// substrate): minted from `Doc`'s monotone counter at insertion,
-/// never reused (deletion does not free it), never positional. Its
-/// stability is a contract, pinned by test.
+/// substrate): minted from the document's mint chain ([`crate::Mint`])
+/// at insertion, never reused (deletion does not free it), never
+/// positional. Its stability is a contract, pinned by test.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -66,7 +66,7 @@ pub struct RecipeNodeId(pub u64);
 
 /// **A profile program step's identity** (`names/README.md`, "N1, the
 /// profile pieces"): minted from the document's mint chain
-/// ([`crate::StepMint`]) when the step is authored — by `InsertNode`
+/// ([`crate::Mint`]) when the step is authored — by `InsertNode`
 /// or `SetProgram` — never reused, never positional, and unique across
 /// the document. A profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
 #[derive(
@@ -1209,6 +1209,39 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         Node::Measure { expr, .. } => {
             let mut leaves = Vec::new();
             expr.value_leaves(&mut leaves);
+            Some(leaves)
+        }
+        Node::Assertion { bound, .. } => Some(vec![bound]),
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. } => None,
+    }
+}
+
+/// [`payload_exprs`], exclusive: the same expressions in the same order.
+pub(crate) fn payload_exprs_mut<P>(node: &mut Node<P>) -> Option<Vec<&mut Expr>> {
+    match node {
+        Node::Measure { expr, .. } => {
+            let mut leaves = Vec::new();
+            expr.value_leaves_mut(&mut leaves);
             Some(leaves)
         }
         Node::Assertion { bound, .. } => Some(vec![bound]),
@@ -2876,6 +2909,19 @@ macro_rules! node_rows {
 
 impl<P: crate::ProfilePayload> Node<P> {
     row_readers!(pub(crate) node_rows -> SlotId);
+
+    /// Reads every literal's display unit as its dimension's canonical
+    /// one, in the slots and in the expressions no slot addresses
+    /// ([`payload_exprs`]): what [`Node::bit_eq`] sees, as a value that
+    /// serializes (D6: the display unit is never identity).
+    pub(crate) fn erase_display_units(&mut self) {
+        for (_, expr) in self.rows_mut() {
+            expr.erase_display_units();
+        }
+        for expr in payload_exprs_mut(self).into_iter().flatten() {
+            expr.erase_display_units();
+        }
+    }
 }
 
 /// **THE slot table of a placement**: every rigid step's components at

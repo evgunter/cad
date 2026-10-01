@@ -217,6 +217,7 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
     match verdict(&body, rim) {
         Err(BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: sweep::blend::BlendDecision::SupportCoaxiality,
             source,
         }) => {
             assert_eq!(source.predicate, Some("fillet3_support_coaxiality"));
@@ -464,7 +465,7 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
     whole(0.0).expect("the exactly coaxial rim resolves");
     let escalated = whole(in_band()).unwrap_err();
     assert!(
-        matches!(&escalated, BlendError::Escalated { site: BlendSite::Chain, source }
+        matches!(&escalated, BlendError::Escalated { site: BlendSite::Chain, decision: sweep::blend::BlendDecision::SupportCoaxiality, source }
             if source.predicate == Some("fillet3_support_coaxiality")),
         "{escalated:?}"
     );

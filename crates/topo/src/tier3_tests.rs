@@ -2621,7 +2621,7 @@ fn check_10_reads_past_a_witness_where_two_shells_touch() {
     let outer = body.shells_of_solid(outer_solid).expect("live")[0];
     let inner_body: Body<f64> =
         crate::test_support_fixtures::brick((1.0, 2.0), (1.0, 2.0), (2.0, 3.0), tol);
-    crate::graft_disjoint_all_onto_keyed(&mut body, &[outer_solid], &inner_body, tol)
+    crate::graft_disjoint_all_onto_keyed(&mut body, &[outer_solid], &inner_body)
         .expect("the graft");
     let inner = *body
         .shells_of_solid(outer_solid)

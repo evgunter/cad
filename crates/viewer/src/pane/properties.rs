@@ -1479,7 +1479,7 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
 
-    const NODE: RecipeNodeId = RecipeNodeId(4);
+    const NODE: RecipeNodeId = RecipeNodeId(test_utils::refusal::tagged(4));
 
     fn thickness() -> ParamName {
         ParamName::from_static("thickness")
@@ -1557,9 +1557,9 @@ mod tests {
     /// The fault a fused instance's display doors refuse with.
     fn fused() -> AdmissionFault {
         AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(0),
-            root: RecipeNodeId(2),
-            others: vec![RecipeNodeId(1)],
+            instance: RecipeNodeId(test_utils::refusal::tagged(0)),
+            root: RecipeNodeId(test_utils::refusal::tagged(2)),
+            others: vec![RecipeNodeId(test_utils::refusal::tagged(1))],
         }
     }
 
@@ -1788,7 +1788,7 @@ mod verdict_tests {
     fn name(kind: EntityKind) -> StableName {
         StableName {
             kind,
-            node: RecipeNodeId(1),
+            node: RecipeNodeId(test_utils::refusal::tagged(1)),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -1797,7 +1797,7 @@ mod verdict_tests {
         Standing::Face {
             face: FaceSelection {
                 name: name(EntityKind::Face),
-                node: RecipeNodeId(2),
+                node: RecipeNodeId(test_utils::refusal::tagged(2)),
                 body: 0,
             },
             resolution: resolution.map(Box::new),
@@ -1809,7 +1809,7 @@ mod verdict_tests {
             error: ResolveError::NodeGone {
                 name: name(EntityKind::Face),
                 edit: RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(1),
+                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
                 },
             },
             offers,
@@ -1846,12 +1846,12 @@ mod verdict_tests {
         let standing = Standing::Edge {
             edge: EdgeSelection {
                 name: name(EntityKind::Edge),
-                node: RecipeNodeId(2),
+                node: RecipeNodeId(test_utils::refusal::tagged(2)),
                 body: 0,
             },
             resolution: Some(Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                 standing: NodeStanding::Failed {
-                    node: RecipeNodeId(1),
+                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
                 },
             }))),
         };
@@ -1877,7 +1877,7 @@ mod verdict_tests {
     #[test]
     fn a_deleted_nodes_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Node {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId(test_utils::refusal::tagged(3)),
             present: false,
         });
         assert_eq!(find(&painted, "deleted").ink, Some(voices.actionable));
@@ -1904,7 +1904,7 @@ mod verdict_tests {
         for standing in [
             Standing::Empty,
             Standing::Node {
-                node: RecipeNodeId(3),
+                node: RecipeNodeId(test_utils::refusal::tagged(3)),
                 present: true,
             },
             Standing::Param {
