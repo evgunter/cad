@@ -166,7 +166,11 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         ..
     } = *surface
     {
-        return cone_face(apex, axis, half_angle, outer, band);
+        let (flux, area) = cone_face(apex, axis, half_angle, outer, band)?;
+        return Ok(RoundOutcome::Converged(FaceCutBounds {
+            flux: Interval::from_certified(flux),
+            area: Interval::from_certified(area),
+        }));
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
@@ -246,41 +250,34 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
 /// between its ends, a section ellipse on one nappe whole).
 ///
 /// The traversal's winding orients `VA`, so no sense bit is read — the
-/// cylinder lane's posture. The answer is final at every round.
-fn cone_face<T: Decide + Bounds + CertifiedEnclosure>(
+/// cylinder lane's posture. `(flux, area)`, final at every round.
+fn cone_face<T: Decide>(
     apex: Point3<T>,
     axis: geom_core::Vec3<T>,
     half_angle: T,
     outer: &[LoopEdge<T>],
     band: Band,
-) -> Result<RoundOutcome, PropsError> {
+) -> Result<(T, T), PropsError> {
     let (mut above, mut below) = (false, false);
     for e in outer {
         for t in [e.t0, e.t1] {
             let h = (e.carrier.eval(t) - apex).dot(axis);
-            match crate::validate::decide("props_cone_face_nappe", geom_core::Margin::of(h), band) {
-                Ok(geom_core::Sign::Positive) => above = true,
-                Ok(geom_core::Sign::Negative) => below = true,
-                Ok(geom_core::Sign::Zero) => {}
-                Err(_) => {
-                    return Err(PropsError::QuadratureUnsupported {
-                        what: "a cone face's boundary vertex is too close to its apex level \
-                               to tell which nappe it is on",
-                    });
-                }
+            match crate::validate::decide("props_cone_face_nappe", geom_core::Margin::of(h), band)
+                .map_err(|cause| PropsError::Escalated { cause })?
+            {
+                geom_core::Sign::Positive => above = true,
+                geom_core::Sign::Negative => below = true,
+                geom_core::Sign::Zero => {}
             }
         }
     }
     if above && below {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a cone face spanning both nappes — its normal turns over at the apex, \
-                   so the closed-form area does not hold",
-        });
+        return Err(PropsError::NappeSpanning);
     }
     let va = loop_vector_area(outer, apex)?;
-    let flux = Interval::from_certified((apex - Point3::origin()).dot(va));
-    let area = Interval::from_certified((axis.dot(va) / half_angle.sin()).abs());
-    Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }))
+    let flux = (apex - Point3::origin()).dot(va);
+    let area = (axis.dot(va) / half_angle.sin()).abs();
+    Ok((flux, area))
 }
 
 /// **The NURBS-patch flux lane** (M6-3 Leg C; RATIONAL since

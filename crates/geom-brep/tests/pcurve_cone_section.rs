@@ -47,7 +47,8 @@ fn section() -> Curve3<f64> {
         normal,
         u_ref: side.cross(normal),
     };
-    let Ok(PlaneConeSection::TiltedEllipse(e)) = plane_cone_section(&plane, &cone(1.0), 3.0, band())
+    let Ok(PlaneConeSection::TiltedEllipse(e)) =
+        plane_cone_section(&plane, &cone(1.0), 3.0, band())
     else {
         panic!("a 0.5 rad tilt of a 0.45 rad cone is an ellipse");
     };
@@ -89,7 +90,10 @@ fn the_image_is_exact_on_both_nappes_and_both_traversals() {
             let Pcurve::ConeSection { beta, sense, .. } = image else {
                 panic!("{what}: expected the cone-section image, got {image:?}");
             };
-            assert!(beta.abs() > 0.05, "{what}: a genuinely eccentric projection");
+            assert!(
+                beta.abs() > 0.05,
+                "{what}: a genuinely eccentric projection"
+            );
             assert_eq!(sense.abs(), 1.0, "{what}");
             for i in 0..=64 {
                 let t = -3.0 + 9.0 * f64::from(i) / 64.0;
@@ -100,7 +104,11 @@ fn the_image_is_exact_on_both_nappes_and_both_traversals() {
             let cache = PcurveCache::certify(image, 0.3, 4.0, &carrier, &surface, wide(), band())
                 .unwrap_or_else(|e| panic!("{what}: {e}"));
             let cert = cache.certificate();
-            assert!(cert.envelope < 1e-12, "{what}: envelope {:e}", cert.envelope);
+            assert!(
+                cert.envelope < 1e-12,
+                "{what}: envelope {:e}",
+                cert.envelope
+            );
             assert!(
                 matches!(cert.statement, EnvelopeStatement::MapResidualClosedForm),
                 "{what}"

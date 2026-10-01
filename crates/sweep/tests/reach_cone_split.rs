@@ -46,9 +46,14 @@ struct Frustum {
 
 fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let lp = ProfileLoop::polygon(pts.iter().map(|&(x, y)| Point2::new(x, y)));
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Narrowing upward: apex at `y = 2`, the face on the mirror nappe.
@@ -233,8 +238,8 @@ fn cuts_through_a_cap_and_the_apex_region() {
         (10.0f64.atan(), 2.0),
     ] {
         let what = format!("phi {phi}, through y = {qy}");
-        let result =
-            split(&f.body, &plane(phi, qy), Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result = split(&f.body, &plane(phi, qy), Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
         let (va, vb) = (vol(&above), vol(&below));
         assert!((va + vb - FRUSTUM_VOLUME).abs() < 1e-12, "{what}: sum");
@@ -280,18 +285,12 @@ fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
 /// of the tilted cylinder face's quadrature.
 #[test]
 fn a_plane_missing_the_cone_splits_the_body() {
-    let tower = revolved(&[
-        (0.0, 0.0),
-        (1.0, 0.0),
-        (1.0, 1.0),
-        (0.5, 2.0),
-        (0.0, 2.0),
-    ]);
+    let tower = revolved(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 2.0), (0.0, 2.0)]);
     let total = PI + FRUSTUM_VOLUME;
     for phi in [0.0, 0.3] {
         let what = format!("phi {phi}");
-        let result =
-            split(&tower, &plane(phi, 0.5), Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result = split(&tower, &plane(phi, 0.5), Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
         let props = |b: &Body<f64>| topo::props::mass_properties(b, Tol::witness()).unwrap();
         let (pa, pb) = (props(&above), props(&below));
@@ -302,6 +301,44 @@ fn a_plane_missing_the_cone_splits_the_body() {
             pb.volume,
             pb.volume_pad
         );
-        assert!((pa.volume + pb.volume - total).abs() <= slack, "{what}: sum");
+        assert!(
+            (pa.volume + pb.volume - total).abs() <= slack,
+            "{what}: sum"
+        );
+    }
+}
+
+/// The halves of a cut tilted about `x` — a section whose height peaks
+/// inside its arcs, not at their ends on the seams — answer the solid
+/// containment door correctly or refuse `PartialConeFace`, never a
+/// wrong verdict. The three points are outside the half they are asked
+/// of, between the section's true height and the window its vertices
+/// fold; a cone trim reading that window answered `In` for each.
+#[test]
+fn a_tilted_cone_cut_is_never_misread_by_containment() {
+    use topo::{PointInSolidError, SolidContainment, point_in_solid};
+    let f = narrowing();
+    let n = Vec3::new(0.0, 0.4f64.cos(), 0.4f64.sin());
+    let cut = SplitPlane {
+        origin: Point3::new(0.0, 0.5, 0.0),
+        normal: n,
+    };
+    let result = split(&f.body, &cut, Tol::witness()).unwrap();
+    let (above, below) = halves(&result, "x-tilted cut");
+    let band = crate::common::approx::band();
+    for q in [
+        Point3::new(-0.212, 0.507, -0.439),
+        Point3::new(0.013, 0.3945, 0.686),
+        Point3::new(-0.437, 0.282, 0.686),
+    ] {
+        let up = n.dot(q - cut.origin) > 0.0;
+        for (part, inside) in [(&above, up), (&below, !up)] {
+            match point_in_solid(part, q, band, Tol::witness()) {
+                Ok(SolidContainment::In) if inside => {}
+                Ok(SolidContainment::Out) if !inside => {}
+                Err(PointInSolidError::PartialConeFace { .. }) => {}
+                other => panic!("{q:?} (inside: {inside}): {other:?}"),
+            }
+        }
     }
 }

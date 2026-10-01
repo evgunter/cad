@@ -55,3 +55,31 @@ refusal the way `WallOutline::Unsupported` does.
 The trigger to do it is whichever lands first: the props lane gaining a
 cone conic-trim flux (which opens import), or a split/boolean cone arm.
 Each opens a door to this face.
+
+## 2026-10-01: both triggers fired, measured, and guarded
+
+The plane × cone split lane (`plane-cone-elliptic-section-split-refusal`,
+branch `reach/plane-cone-ellipse`) landed both doors at once: the split
+admits cones and mints the tilted `Ellipse`, and the props lane computes
+a cone face's flux and area in closed form, so a section-bounded cone
+face is now a valid body at rest.
+
+Measured before the guard: a frustum (radius 1 at `y = 0`, 1/2 at
+`y = 1`, revolved about `y`) split by the plane through `(0, 0.5, 0)`
+with normal `(0, cos 0.4, sin 0.4)` — a tilt about `x`, so the
+section's height peaks inside its arcs rather than at the seam
+vertices. On a 9×9×9 grid of points kept 0.02 clear of both surfaces,
+`point_in_solid` answered **34 of 1358 queries wrongly** (every one
+`In` for a point outside the half), the rest refusing. The same probe
+on a cylinder: 0 wrong, the CONTACT-3 fix holding.
+
+What landed with that lane is this item's own fallback arm, not its
+fix: `cone_window_premise` (`solid_contain.rs`), called first in
+`cone_chart_trim` and `cone_face_trim`, refuses `PartialConeFace` for
+a cone face with any edge that is neither a rim (`Circle`) nor a
+generator (`Line`). After it: 0 wrong, 1358 refused. The row is
+`sweep/tests/reach_cone_split.rs`
+`a_tilted_cone_cut_is_never_misread_by_containment` (red with the
+guard removed). What remains here is the fix proper: the section's
+side along each generator, the cylinder's `wall_outline` discipline,
+so those faces answer instead of refusing.

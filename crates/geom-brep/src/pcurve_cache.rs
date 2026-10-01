@@ -1616,7 +1616,9 @@ pub enum EnvelopeStatement {
     /// the [`Pcurve::Harmonic`] lane, or `span{1, f, sin}` for the
     /// spiric CAP ([`SpiricImage::Cap`]), where the difference is a
     /// constant-coefficient combination of the same three functions
-    /// on both sides and its sup is `|k₀| + |k₁|·f_max + |k₂|`.
+    /// on both sides and its sup is `|k₀| + |k₁|·f_max + |k₂|`, or the
+    /// [`Pcurve::ConeSection`] lane, whose mapped image is a harmonic
+    /// plus a unit vector times a harmonic scalar.
     /// Nothing sampled, nothing hulled.
     MapResidualClosedForm,
     /// `sup |S(P(t)) − C(t)|`, by the **tensor Bernstein composite**
@@ -2173,12 +2175,12 @@ impl<T: Real> PcurveCache<T> {
 
 impl<T: Decide> PcurveCache<T> {
     /// Certifies a **closed-form** image — [`Pcurve::Harmonic`],
-    /// [`Pcurve::IsoLine`], [`Pcurve::IsoArc`] or [`Pcurve::Spiric`] —
-    /// of `carrier` on `surface` over `[t0, t1]`, inside the face's
-    /// chart `window`: the minting lane's door, at every `Decide`
-    /// scalar. Which of the four is being certified selects the
-    /// check-4 statement and nothing else; the other four checks are
-    /// one sequence.
+    /// [`Pcurve::IsoLine`], [`Pcurve::IsoArc`], [`Pcurve::Spiric`] or
+    /// [`Pcurve::ConeSection`] — of `carrier` on `surface` over
+    /// `[t0, t1]`, inside the face's chart `window`: the minting lane's
+    /// door, at every `Decide` scalar. Which of the five is being
+    /// certified selects the check-4 statement and nothing else; the
+    /// other four checks are one sequence.
     ///
     /// A [`Pcurve::Fitted`] image refuses here, naming
     /// [`PcurveCache::certify_fitted`]: the fitted lane's certificate
@@ -2219,6 +2221,9 @@ impl<T: Decide> PcurveCache<T> {
     ///      ([`EnvelopeStatement::SpiricIdentity`]) — each plus the
     ///      drift its own check 1 admitted, and each zero on every
     ///      minted image, for the same reason the snap slack is.
+    ///    - [`Pcurve::ConeSection`]: the harmonic closed form of the
+    ///      image's Kepler decomposition plus its remainder term
+    ///      (`run_cone_section_checks`).
     /// 5. **Trim containment**: the pcurve's chart box lies inside
     ///    `window`.
     ///
@@ -3311,7 +3316,7 @@ fn run_cone_section_checks<T: Decide>(
     let (su, cu) = u0.sin_cos();
     let d0 = u_ref * cu + cv * su;
     let d1 = (cv * cu - u_ref * su) * sense;
-    let bb = beta * beta;
+    let bb = beta.powi(2);
     let ecc = (beta + beta) / (T::one() + bb);
     let root = (T::one() - bb) / (T::one() + bb);
     let h_c = apex + axis * (cos_a * v0) - d0 * (sin_a * v0 * ecc);
@@ -5619,7 +5624,7 @@ pub fn chart_pcurve<T: Decide>(
                     // that is no section of this cone yields a `β`
                     // the schedule and envelope refuse in metres.
                     let ecc = (T::zero() - r0.dot(ra)) / ra.dot(ra);
-                    let beta = ecc / (T::one() + (T::one() - ecc * ecc).sqrt());
+                    let beta = ecc / (T::one() + (T::one() - ecc.powi(2)).sqrt());
                     let orient = ra.cross(rb).dot(axis);
                     let sense = match decide(
                         "pcurve_chart_orientation",
@@ -6734,20 +6739,22 @@ mod tests {
         };
         assert!(p0.x.abs() < 1e-15 && (p0.y - h / ha.cos()).abs() < 1e-12);
         assert!((pl.x - 1.0).abs() < 1e-15 && pl.y.abs() < 1e-15);
-        // What stays refused on the cone chart, TYPED and class-named:
-        // a tilted-section ELLIPSE — azimuth-non-harmonic, and the
-        // cone has no ring-computable meters composite for a fitted
-        // certificate either (ssi/certify docs), so neither route is
-        // honest.
-        let section = Curve3::Ellipse {
+        // An ellipse derives the cone-section image whether or not it
+        // lies on this cone — derivation is total structure selection —
+        // and one that does not is refused by the certification that
+        // follows every derivation. This one is no section of the cone.
+        let stray = Curve3::Ellipse {
             center: Point3::new(0.2, 0.0, 2.0),
             axis: Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
             major: 1.2,
             minor: 1.0,
             u_ref: Vec3::new(0.3_f64.cos(), 0.0, -0.3_f64.sin()),
         };
-        let err = chart_pcurve(&section, &cone, band()).unwrap_err();
-        assert!(matches!(err, PcurveCertifyError::UnsupportedCarrier));
+        let image = chart_pcurve(&stray, &cone, band()).unwrap();
+        assert!(matches!(image, Pcurve::ConeSection { .. }), "{image:?}");
+        assert!(
+            PcurveCache::certify(image, 0.0, 1.0, &stray, &cone, wide_window(), band()).is_err()
+        );
     }
 
     /// A pcurve that winds more than one full period around the chart

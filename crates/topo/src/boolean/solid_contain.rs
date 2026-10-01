@@ -144,6 +144,7 @@ use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
+use crate::null::CurveGeom;
 use crate::splitting::containment::{
     LoopContainment, PointInLoopError, SCHEDULE, loop_reach, point_in_carrier_loop,
 };
@@ -268,8 +269,11 @@ pub enum PointInSolidError {
     /// remainder — a face whose outline passes through the apex twice,
     /// an apex-closed face with a ring, a group whose members disagree
     /// on their slant window (two bands stacked on one cone, with
-    /// another surface's face between them), or a window not definitely
-    /// under a period on a face whose group does not wrap.
+    /// another surface's face between them), a window not definitely
+    /// under a period on a face whose group does not wrap, or a face
+    /// with an edge that is neither a rim nor a generator — a tilted
+    /// plane section, whose slant peaks inside the edge, so no
+    /// vertex-folded window states the face (`cone_window_premise`).
     PartialConeFace {
         /// The cone face neither class expresses.
         face: FaceKey,
@@ -459,9 +463,10 @@ impl core::fmt::Display for PointInSolidError {
                 f,
                 "cannot tell what is inside the solid: one of its cone faces has an \
                  outline the inside/outside test cannot read (it passes through the \
-                 apex twice, say). The solid itself is fine. Recourse: split the cone \
-                 face so each piece reaches the apex at most once, or let its faces \
-                 cover the turn"
+                 apex twice, or a tilted cut bounds it, say). The solid itself is fine. \
+                 Recourse: split the cone face so each piece reaches the apex at most \
+                 once, or let its faces cover the turn; a face a tilted cut bounds has \
+                 no way through yet"
             ),
             Self::PartialTorusFace { .. } => write!(
                 f,
@@ -1495,6 +1500,7 @@ pub(super) fn cone_chart_trim<T: Decide>(
     half_angle: T,
     band: Band,
 ) -> Result<(Option<(T, T)>, FaceKey, (T, T), bool), PointInSolidError> {
+    cone_window_premise(body, face)?;
     let cos_a = half_angle.cos();
     if let Some(representative) = wrapped_cone_group(body, face, charts, apex, axis, cos_a, band)? {
         let v = cone_slant_window(body, representative, apex, axis, cos_a)?;
@@ -1538,6 +1544,7 @@ pub(super) fn cone_face_trim<T: Decide>(
     half_angle: T,
     band: Band,
 ) -> Result<(Option<(T, T)>, (T, T), bool), PointInSolidError> {
+    cone_window_premise(body, face)?;
     let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
     let nappe = cone_nappe(face, v, band)?;
     if wrap_rims(body, face, WrapRims::Coaxial { origin: apex, axis }, band)?.is_some() {
@@ -1620,6 +1627,47 @@ fn cone_trimmed_window<T: Decide>(
         return Err(partial);
     }
     Ok(az)
+}
+
+/// **The premise of a vertex-folded window**: every boundary edge of
+/// the face is a rim (`Circle`, slant constant) or a generator (`Line`,
+/// slant affine), so the slant between an edge's ends never leaves the
+/// span of its ends and the vertices' window is the face's own. A
+/// plane section that is not axis-normal peaks INSIDE its edge, and
+/// the window would over-cover the face on one side of it and
+/// under-cover it on the other, so such a face is refused here rather
+/// than misread. Reading its region needs each section's own side
+/// along the generator (the cylinder's `wall_outline` discipline),
+/// which this arm does not have.
+///
+/// # Errors
+///
+/// [`PointInSolidError::PartialConeFace`] for an edge outside the two
+/// classes; [`PointInSolidError::CorruptFace`] for an unwalkable face.
+fn cone_window_premise<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<(), PointInSolidError> {
+    let corrupt = || PointInSolidError::CorruptFace { face };
+    let f = body.get_face(face).ok_or_else(corrupt)?;
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+            let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
+            let curve = body.get_edge(edge).ok_or_else(corrupt)?.curve;
+            let Some(CurveGeom::Certified(c)) = body.get_curve_geom(curve) else {
+                return Err(corrupt());
+            };
+            match c.carrier() {
+                geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => {}
+                geom::Curve3::Ellipse { .. }
+                | geom::Curve3::Nurbs(_)
+                | geom::Curve3::Spiric { .. } => {
+                    return Err(PointInSolidError::PartialConeFace { face });
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The face's slant window, folded over its outer cycle's vertices.

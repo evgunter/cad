@@ -148,10 +148,10 @@ mod ring2_r2_probes;
 mod cert5_r2_probes;
 #[path = "offset_mint.rs"]
 mod offset_mint;
-#[path = "pcurve_conic.rs"]
-mod pcurve_conic;
 #[path = "pcurve_cone_section.rs"]
 mod pcurve_cone_section;
+#[path = "pcurve_conic.rs"]
+mod pcurve_conic;
 #[path = "pcurve_general.rs"]
 mod pcurve_general;
 #[path = "pcurve_p1a_meter.rs"]

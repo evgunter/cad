@@ -817,11 +817,12 @@ fn section_case<T: Decide>(
             carrier: circle,
         }));
     }
-    let conic = |carrier: geom::Curve3<T>| {
-        section_conic(carrier).map(SectionCase::Conic).ok_or_else(|| {
+    let conic =
+        |carrier: geom::Curve3<T>| {
+            section_conic(carrier).map(SectionCase::Conic).ok_or_else(|| {
             invariant("a conic classification carried a carrier that is neither ellipse nor circle")
         })
-    };
+        };
     // The cone (C5's plane×cone arm): the tilted ellipse and the
     // axis-normal circle are conics to select an arc of; the apex lane's
     // generator pair is the ruling case, its tangent generator the
@@ -872,8 +873,12 @@ fn cone_chart_lever<T: Decide>(
 ) -> Result<(T, T), SplitJoinError> {
     let offset = conic.center - apex;
     let radius = (offset - axis * offset.dot(axis)).norm() + conic.sa;
-    let nappe = match decide("split_cone_chord_nappe", Margin::of((p1 - apex).dot(axis)), band)
-        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    let nappe = match decide(
+        "split_cone_chord_nappe",
+        Margin::of((p1 - apex).dot(axis)),
+        band,
+    )
+    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
     {
         Sign::Positive => T::one(),
         Sign::Negative => T::zero() - T::one(),

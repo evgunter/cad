@@ -263,13 +263,14 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
 /// feature instead of a wrong locus).
 #[test]
 fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
-    let cone = Surface::Cone {
-        apex: Point3::origin(),
+    // A sphere chart images circles only; no ellipse lies on a sphere.
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
         axis: Vec3::unit_z(),
-        half_angle: 0.5,
         u_ref: Vec3::unit_x(),
     };
-    let (keys, lookup) = table(vec![cone]);
+    let (keys, lookup) = table(vec![sphere]);
     let carrier = Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 1.0),
         axis: Vec3::unit_z(),
@@ -290,11 +291,11 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         &lookup,
         band(),
     )
-    .expect_err("an ellipse is not a locus of any cone chart image");
+    .expect_err("an ellipse is not a locus of any sphere chart image");
     assert_eq!(
         err,
         CertifyError::ChartImageUnavailable {
-            chart: "cone",
+            chart: "sphere",
             carrier: "ellipse",
         },
         "the refusal must name the (chart, carrier) pair it could not state"
