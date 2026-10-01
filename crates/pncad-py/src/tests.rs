@@ -4589,6 +4589,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "classification_invariant",
             "contact_contradicted",
             "containment",
+            "coplanar_neighbours",
             "corrupt_operand",
             "crossing_insertion",
             "curved_boolean_unsupported",
@@ -4623,6 +4624,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffolding_operand",
             "seam_orientation",
             "shell_witness_exhausted",
+            "spheres_meet",
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
@@ -5398,10 +5400,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "profile_error_tag",
         values: &[
+            "arc_below_scene_resolution",
             "band",
             "degenerate_segment",
             "empty_profile",
             "escalated",
+            "inconsistent_arc",
             "multiple_outer_loops",
             "near_full_arc",
             "nesting_too_deep",

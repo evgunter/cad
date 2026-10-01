@@ -19,10 +19,11 @@
 //! carrier), or nothing. Ray casting ([`ray_crossings`]) reuses the same
 //! carrier closed forms for the containment forest's parity test.
 
-use geom_core::k_stats::decide;
-use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
+use geom_core::k_stats::{decide, decide_reported};
+use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, MarginDiag, Point2, Real, Sign, Vec2};
 
 use crate::Segment;
+use crate::validate::ArcCheck;
 
 /// The left normal: `v` rotated +90° counterclockwise, (−y, x).
 pub(crate) fn perp<T: Real>(v: Vec2<T>) -> Vec2<T> {
@@ -36,9 +37,6 @@ pub(crate) struct Seg<T: Real> {
     pub a: Point2<T>,
     /// End point.
     pub b: Point2<T>,
-    /// The bulge the segment was lowered from (tan(θ/4); crate-doc sign
-    /// convention) — the value the sagitta margins are written in.
-    pub bulge: T,
     /// The chord vector `b − a`.
     pub chord: Vec2<T>,
     /// The chord length |b − a| (definitely positive — degeneracy is
@@ -71,15 +69,16 @@ pub(crate) struct ArcGeom<T: Real> {
     /// monotone in angular distance up to π, and the apex splits the arc
     /// into two halves of angle |θ|/2 ≤ π).
     pub span_chord: T,
-    /// The turn sense: `Positive` = counterclockwise sweep (bulge > 0),
+    /// The turn sense: `Positive` = counterclockwise sweep,
     /// `Negative` = clockwise.
     pub turn: Sign,
 }
 
-/// Why a segment could not be built, each arm carrying the margin the
-/// predicate that refused it classified — what a caller's sentence
-/// names when it reports the refusal.
-pub(crate) enum SegIssue<T: Real> {
+/// Why a segment's shape could not be read, each arm carrying the
+/// margin the predicate that refused it classified — what a caller's
+/// sentence names when it reports the refusal. Everything a constructed
+/// arc can be refused for ([`build_constructed_seg`]).
+pub(crate) enum ShapeIssue<T: Real> {
     /// The chord is degenerate: consecutive vertices coincident at
     /// tolerance (`vertex_separation` classified Zero — or Negative,
     /// unreachable for a true distance but mapped here defensively).
@@ -98,7 +97,7 @@ pub(crate) enum SegIssue<T: Real> {
     Escalated(Indeterminate),
 }
 
-impl<T: Real> SegIssue<T> {
+impl<T: Real> ShapeIssue<T> {
     /// The predicate that refused the segment — the name the run's own
     /// funnel recorded, so a caller reporting the refusal names what
     /// the classification named.
@@ -107,6 +106,59 @@ impl<T: Real> SegIssue<T> {
             Self::Degenerate { .. } => "vertex_separation",
             Self::NearFull { .. } => "arc_diameter_clearance",
             Self::Escalated(source) => source.predicate.unwrap_or("<unnamed>"),
+        }
+    }
+}
+
+/// Why a table's segment could not be built: its shape, or its stored
+/// arc against its vertices ([`build_seg`] under [`Consistency::Decide`]).
+pub(crate) enum SegIssue<T: Real> {
+    /// The segment's shape ([`ShapeIssue`]).
+    Shape(ShapeIssue<T>),
+    /// The stored arc disagrees with its vertices: one of validation's
+    /// three consistency checks classified the stored carrier or sweep
+    /// definitely off (`arc_start_on_carrier`, `arc_landing`,
+    /// `arc_sweep_range`).
+    Inconsistent {
+        /// Which check refused it.
+        check: ArcCheck,
+    },
+    /// A difference check (`arc_start_on_carrier`, `arc_landing`)
+    /// classified the stored arc off its vertices, at a magnitude whose
+    /// `f64` rounding is itself past the band: the scene cannot read
+    /// that difference, so the reading is not a statement about the
+    /// input (`arc_carrier_resolution` classified the headroom Zero or
+    /// Negative).
+    BelowSceneResolution {
+        /// Which check read the difference.
+        check: ArcCheck,
+        /// What that check classified.
+        margin: MarginDiag,
+        /// What `arc_carrier_resolution` classified
+        /// ([`resolves`]'s margin).
+        headroom: MarginDiag,
+    },
+}
+
+impl<T: Real> From<ShapeIssue<T>> for SegIssue<T> {
+    fn from(issue: ShapeIssue<T>) -> Self {
+        Self::Shape(issue)
+    }
+}
+
+impl<T: Real> SegIssue<T> {
+    /// An escalation, as a table segment's refusal.
+    fn escalated(source: Indeterminate) -> Self {
+        Self::Shape(ShapeIssue::Escalated(source))
+    }
+
+    /// The predicate that refused the segment ([`ShapeIssue::predicate`]).
+    #[cfg(test)]
+    pub(crate) fn predicate(&self) -> &'static str {
+        match self {
+            Self::Shape(issue) => issue.predicate(),
+            Self::Inconsistent { check } => check.predicate(),
+            Self::BelowSceneResolution { .. } => "arc_carrier_resolution",
         }
     }
 }
@@ -126,8 +178,8 @@ pub(crate) struct ChordFrame<T: Real> {
     pub unit: Vec2<T>,
     /// The chord's midpoint.
     pub mid: Point2<T>,
-    /// The chord's left unit normal (the apex side for a positive
-    /// bulge is −normal).
+    /// The chord's left unit normal (the apex side of a
+    /// counterclockwise arc is −normal).
     pub normal: Vec2<T>,
 }
 
@@ -149,14 +201,6 @@ impl<T: Real> ChordFrame<T> {
             normal,
         }
     }
-
-    /// The midpoint of the arc on this frame with `bulge`: the sagitta
-    /// L·bulge/2 off the chord's midpoint, against the left normal (a
-    /// positive bulge winds counter-clockwise). The one spelling of an
-    /// arc's apex.
-    pub(crate) fn apex(&self, bulge: T) -> Point2<T> {
-        self.mid - self.normal * (self.len * bulge * T::from_f64(0.5))
-    }
 }
 
 /// [`arc_carrier`]'s answer.
@@ -171,11 +215,8 @@ pub(crate) struct ArcCarrier<T: Real> {
 /// apothem L·(1 − b²)/(4b) along the frame's normal from its midpoint,
 /// the radius |L·(1 + b²)/(4b)|. Pure arithmetic over the segment's
 /// input values — no predicate runs here — and the ONE spelling of
-/// it: the lowering to the canonical form mints an arc's carrier
-/// through this ([`crate::lower_to`]), and the validated
-/// form's lift rebuilds a carried arc's carrier through it, so the
-/// carrier at any scalar is one expression of the endpoints and bulge
-/// at that scalar (at a certified scalar, its own enclosure).
+/// it: the bulge mode's lowering mints an arc's carrier through this
+/// ([`crate::lower_to`]).
 pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrier<T> {
     let b2 = bulge.powi(2);
     let four_bulge = T::from_f64(4.0) * bulge;
@@ -187,10 +228,28 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
     }
 }
 
-/// Builds and classifies a segment from its endpoints, its canonical
-/// segment and the bulge it was lowered from. An arc's carrier and
-/// sweep are the canonical segment's; the sagitta margins below are
-/// written in the bulge.
+/// Whether [`build_seg`] decides an arc's three consistency checks
+/// (D1): a table's arcs are verified here, and an arc a construction
+/// built was verified at that construction, at this scalar, so the
+/// checks are not decided again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Consistency {
+    /// Decide the three checks (a table: data no construction produced
+    /// — the fixture door, a hand-built loop, `map_scalar`, a pinned
+    /// lift).
+    Decide,
+    /// The arc is the construction's own output, verified there: by the
+    /// construction's own predicate (a `Center` arc's
+    /// `path_arc_center_equidistant`), or by the exact witness of the
+    /// identities the lowering registers. Passed by every validation of
+    /// a constructed loop ([`crate::ConstructedProfile`]) and by the path
+    /// door's re-read of the fillet arcs it has just lowered.
+    ByConstruction,
+}
+
+/// Builds and classifies a segment from its endpoints and its stored
+/// canonical segment. An arc's carrier and sweep are the stored ones,
+/// verified against the endpoints here and never re-derived from them.
 ///
 /// Predicates fired, in order:
 ///
@@ -198,16 +257,38 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
 ///   (meters, a direct displacement; no lever arm). Zero ⇒ degenerate
 ///   segment (the Q1 sliver semantics: within band ⇒ escalation).
 /// - **`segment_straightness`** — margin: the signed sagitta
-///   s = L·bulge/2 (meters): the apex's offset from the chord. This is
-///   the dimensionless bulge acting through its lever arm, the
-///   half-chord L/2. Zero ⇒ line (the arc is chord-coincident at
-///   tolerance); a definite sign ⇒ arc with that turn sense; in-band ⇒
-///   a sliver arc, escalated.
+///   s = (L/2)·tan(Δθ/4) (meters): the apex's offset from the chord,
+///   zero for a stored line. This is the dimensionless quarter-sweep
+///   tangent acting through its lever arm, the half-chord L/2. Zero ⇒
+///   line (the arc is chord-coincident at tolerance, and its carrier is
+///   not carried); a definite sign ⇒ arc with that turn sense; in-band
+///   ⇒ a sliver arc, escalated.
+/// - **The three consistency checks** (arcs only, and only under
+///   [`Consistency::Decide`]; D1's table arcs, "verified at validate
+///   as ε-decisions"), each refused typed
+///   ([`SegIssue::Inconsistent`]) on a definite answer it does not
+///   accept:
+///   - **`arc_start_on_carrier`** — margin: ‖a − c‖ − r (meters,
+///     direct; [`Arc2::rim`]). Zero ⇒ the start lies on the carrier.
+///   - **`arc_landing`** — margin: ‖point_from(a, 1) − b‖ (meters,
+///     direct; [`Arc2::landing`]). Zero ⇒ the start, turned by the
+///     sweep about the centre, lands on the end.
+///   - **`arc_sweep_range`** — margin: r·|Δθ|·(2π − |Δθ|)/2π (meters:
+///     the dimensionless range product levered by the radius — the arc
+///     length r·|Δθ| near an empty sweep and the gap r·(2π − |Δθ|)
+///     near a full turn), with |Δθ| the sweep signed by the decided
+///     turn. The turn is the sign of tan(Δθ/4), which is the sweep's own
+///     sign for |Δθ| < 2π, so what this reads is the upper bound:
+///     Positive ⇒ |Δθ| < 2π, and a sweep past a full turn is Negative
+///     (its gap, or its quarter tangent's sign, has turned). A full turn
+///     is Zero here and refused, as no loop of two or more vertices can
+///     hold one past `vertex_separation`.
 /// - **`arc_diameter_clearance`** (arcs only) — margin:
-///   2r − |a − apex| (meters): how far the arc's half-span chord sits
-///   below the carrier diameter, ≈ L²/(16r) for a near-full arc of
+///   2r − |a − apex| = 2r·(1 − sin(|Δθ|/4)) (meters, computed in the
+///   second form): how far the arc's half-span chord sits below the
+///   carrier diameter, ≈ L²/(16r) for a near-full arc of
 ///   endpoint chord L. Zero ⇒ the arc is within tolerance of a full
-///   circle — rejected as [`SegIssue::NearFull`] (the angular gap g
+///   circle — rejected as [`ShapeIssue::NearFull`] (the angular gap g
 ///   satisfies r·g²/16 ≤ ε, so the complement is a sliver and
 ///   `arc_span`'s chordal-defect margins would compress arc-length
 ///   distances by cos(θ/4) ≤ √(ε/r) — false-coincidence territory;
@@ -219,40 +300,87 @@ pub(crate) fn build_seg<T: Decide>(
     a: Point2<T>,
     b: Point2<T>,
     segment: Segment<T>,
-    bulge: T,
+    consistency: Consistency,
     band: Band,
 ) -> Result<Seg<T>, SegIssue<T>> {
+    match consistency {
+        Consistency::Decide => classify(a, b, segment, band, |arc, span| {
+            check_carrier(arc, a, b, span, band)
+        }),
+        Consistency::ByConstruction => {
+            build_constructed_seg(a, b, segment, band).map_err(SegIssue::Shape)
+        }
+    }
+}
+
+/// [`build_seg`] of a constructed arc's segment
+/// ([`Consistency::ByConstruction`]): no consistency check is decided,
+/// so none can refuse, and the error type has no arm for one.
+pub(crate) fn build_constructed_seg<T: Decide>(
+    a: Point2<T>,
+    b: Point2<T>,
+    segment: Segment<T>,
+    band: Band,
+) -> Result<Seg<T>, ShapeIssue<T>> {
+    classify(a, b, segment, band, |_, _| Ok(()))
+}
+
+/// [`build_seg`]'s body, with the arc's consistency checks as `check`
+/// (the arc and its span |Δθ|), run after the turn is decided.
+fn classify<T: Decide, E: From<ShapeIssue<T>>>(
+    a: Point2<T>,
+    b: Point2<T>,
+    segment: Segment<T>,
+    band: Band,
+    check: impl FnOnce(Arc2<T>, T) -> Result<(), E>,
+) -> Result<Seg<T>, E> {
+    let escalated = |source| E::from(ShapeIssue::Escalated(source));
     let frame = ChordFrame::of(a, b);
     let len = frame.len;
-    match decide("vertex_separation", Margin::of(len), band).map_err(SegIssue::Escalated)? {
+    match decide("vertex_separation", Margin::of(len), band).map_err(escalated)? {
         Sign::Positive => {}
-        Sign::Zero | Sign::Negative => return Err(SegIssue::Degenerate { margin: len }),
+        Sign::Zero | Sign::Negative => {
+            return Err(ShapeIssue::Degenerate { margin: len }.into());
+        }
     }
     let half = T::from_f64(0.5);
-    let straightness = decide(
-        "segment_straightness",
-        Margin::levered(bulge * half, len),
-        band,
-    )
-    .map_err(SegIssue::Escalated)?;
     // The decision is fired for every segment, since the K stream
     // records it for every segment, but only an arc's is read: a stored
-    // line's bulge is exactly zero (the lowering rule), so there is no
-    // turn for its margin to report.
+    // line has no turn for its margin to report.
+    let bow = match segment {
+        Segment::Line => T::zero(),
+        Segment::Arc(arc) => arc.quarter_tan(),
+    };
+    let straightness = decide(
+        "segment_straightness",
+        Margin::levered(bow * half, len),
+        band,
+    )
+    .map_err(escalated)?;
     let kind = match segment {
         Segment::Line => SegKind::Line,
         Segment::Arc(..) if straightness == Sign::Zero => SegKind::Line,
         Segment::Arc(arc) => {
             let turn = straightness;
-            let apex = frame.apex(bulge);
+            let span = match turn {
+                Sign::Negative => arc.reversed().sweep,
+                Sign::Positive | Sign::Zero => arc.sweep,
+            };
+            check(arc, span)?;
+            let apex = arc.apex(a, b);
             let span_chord = a.distance(apex);
-            let clearance = arc.radius + arc.radius - span_chord;
+            // 2r − |a − apex| with |a − apex| = 2r·sin(|Δθ|/4), spelled
+            // on the carrier: the chord-scale apex carries tan(|Δθ|/4),
+            // whose relative error grows as 1/(2π − |Δθ|) near a full
+            // turn, while 1 − sin(|Δθ|/4) is flat there.
+            let clearance =
+                (arc.radius + arc.radius) * (T::one() - (span * T::from_f64(0.25)).sin());
             match decide("arc_diameter_clearance", Margin::of(clearance), band)
-                .map_err(SegIssue::Escalated)?
+                .map_err(escalated)?
             {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
-                    return Err(SegIssue::NearFull { margin: clearance });
+                    return Err(ShapeIssue::NearFull { margin: clearance }.into());
                 }
             }
             SegKind::Arc(ArcGeom {
@@ -266,12 +394,124 @@ pub(crate) fn build_seg<T: Decide>(
     Ok(Seg {
         a,
         b,
-        bulge,
         chord: frame.chord,
         len,
         unit: frame.unit,
         kind,
     })
+}
+
+/// The rounding a lowered f64 arc carries into `arc_start_on_carrier`'s
+/// difference ‖a − c‖ − r, in ulps of the check's scale (`2⁻⁵²·scale`),
+/// to first order with every rounding at most half an ulp of a
+/// magnitude at most twice the scale: the lowered centre 4 (the chord,
+/// its midpoint, its unit normal, the apothem's product and the sum
+/// onto the midpoint), the lowered radius 2 (the quotient
+/// L(1 + b²)/(4b)), and the check's own subtraction, norm and
+/// difference 2.
+const ON_CARRIER_ULPS: f64 = 8.0;
+
+/// The rounding a lowered f64 arc carries into `arc_landing`'s
+/// difference ‖landing(a) − b‖, in ulps of the check's scale, counted
+/// as [`ON_CARRIER_ULPS`] is: the lowered centre 4, the sweep 4·atan(b)
+/// turned through the radius 4 (the arctangent's rounding over
+/// |Δθ| ≤ 2π), the rotation's sine, cosine, products and sums 4, and
+/// the landing's sum onto `a` and its distance to `b` 2 — 14, stated
+/// as 16.
+const LANDING_ULPS: f64 = 16.0;
+
+/// **`arc_carrier_resolution`** — whether a difference a consistency
+/// check read at magnitude `scale` is one the scene can read at all.
+/// Margin: K·ε/(ulps·2⁻⁵²) − scale (meters): how far the check's
+/// magnitude sits below the one at which `ulps` of an `f64`'s rounding
+/// there, ulps·scale·2⁻⁵², reaches the escalation band K·ε. `ulps` is
+/// the check's own rounding bound ([`ON_CARRIER_ULPS`],
+/// [`LANDING_ULPS`]). Written on magnitudes rather than on the two
+/// resolutions so the margin is at the scene's scale, where the band is
+/// no lever on it. Positive ⇒ the check's definite answer stands; Zero
+/// or Negative ⇒ the answer may be the representation's rounding, and
+/// the refusal is [`SegIssue::BelowSceneResolution`], not an
+/// inconsistency.
+///
+/// `2⁻⁵²` (`f64::EPSILON`) at every scalar, for the reason the path
+/// door's `FilletCarrierBelowSceneResolution` gives: every scalar this
+/// kernel ships carries an `f64` value channel.
+fn resolves<T: Decide>(
+    check: ArcCheck,
+    margin: MarginDiag,
+    scale: T,
+    ulps: f64,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
+    let headroom = T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale;
+    let gate = decide_reported("arc_carrier_resolution", Margin::of(headroom), band)
+        .map_err(SegIssue::escalated)?;
+    match gate.sign {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(SegIssue::BelowSceneResolution {
+            check,
+            margin,
+            headroom: gate.margin,
+        }),
+    }
+}
+
+/// Validation's three consistency checks of a stored arc against its
+/// endpoints `a → b`, decided in order at the run's band ([`build_seg`]
+/// states each margin). `span` is the sweep signed by the arc's decided
+/// turn into |Δθ|, without an `abs`.
+fn check_carrier<T: Decide>(
+    arc: Arc2<T>,
+    a: Point2<T>,
+    b: Point2<T>,
+    span: T,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
+    let refuse = |check: ArcCheck| Err(SegIssue::Inconsistent { check });
+    // A difference check's definite answer is a statement about the
+    // input only where the scene's `f64` can read a difference that
+    // small at the magnitude it was taken at ([`resolves`]).
+    let scale = arc.radius.max(reach(arc.centre));
+    let on_carrier = arc.rim(a) - arc.radius;
+    let read = decide_reported("arc_start_on_carrier", Margin::of(on_carrier), band)
+        .map_err(SegIssue::escalated)?;
+    match read.sign {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            resolves(
+                ArcCheck::OnCarrier,
+                read.margin,
+                scale.max(reach(a)),
+                ON_CARRIER_ULPS,
+                band,
+            )?;
+            return refuse(ArcCheck::OnCarrier);
+        }
+    }
+    let landing = arc.landing(a).distance(b);
+    let read =
+        decide_reported("arc_landing", Margin::of(landing), band).map_err(SegIssue::escalated)?;
+    match read.sign {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => {
+            resolves(
+                ArcCheck::Landing,
+                read.margin,
+                scale.max(reach(a)).max(reach(b)),
+                LANDING_ULPS,
+                band,
+            )?;
+            return refuse(ArcCheck::Landing);
+        }
+    }
+    let tau = T::tau();
+    let ratio = span * (tau - span) / tau;
+    match decide("arc_sweep_range", Margin::levered(ratio, arc.radius), band)
+        .map_err(SegIssue::escalated)?
+    {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => refuse(ArcCheck::SweepRange),
+    }
 }
 
 /// **`chord_side`** — which side of a segment's (infinite) chord line a

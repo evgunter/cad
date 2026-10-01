@@ -133,7 +133,8 @@
 //!
 //! NURBS legs (`nurbs_in_place`, `nurbs(curve)` and variants) are
 //! specified by PATHS-DESIGN §2 but have **no representation in the
-//! v1 lowering target** (a [`ProfileLoop`] is a vertex+bulge chain;
+//! v1 lowering target** (a [`ProfileLoop`] is a chain of vertices and
+//! line or circular-arc segments;
 //! this crate deliberately depends on `geom-core` only) — they arrive
 //! with the v2 profiles-as-programs representation (#104). There is no
 //! NURBS-adjacent fillet WALL waiting with them: bare `fillet(r)` is
@@ -152,7 +153,7 @@
 //!
 //! ```
 //! use geom_core::{Point2, Tol};
-//! use profile::{Open, Profile, SketchPlane, Start};
+//! use profile::{ConstructedProfile, Open, SketchPlane, Start};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let tol = Tol::witness();
@@ -169,7 +170,7 @@
 //! // The chain also RECORDED itself: the program replays to the same
 //! // loop, bit for bit (profiles-as-programs v2 — see [`program`]).
 //! assert_eq!(square.program.len(), 13);
-//! Profile::new(SketchPlane::xy(), vec![square.loop_]).validate(tol)?;
+//! ConstructedProfile::new(SketchPlane::xy(), vec![square.loop_]).validate(tol)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -367,7 +368,7 @@ use geom_core::{
 };
 
 use crate::ProfileLoop;
-use crate::path::program::{ClosedLoop, Step, Target};
+use crate::path::program::{ClosedLoop, ConstructedLoop, Step, Target};
 use crate::seg;
 use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
@@ -1063,7 +1064,7 @@ pub enum PathError<T: Real> {
     // both would have to render one sentence for two situations, which is
     // exactly what D4 ¶1's addendum forbids.
     /// **The fillet arc is too shallow to be STORED as an arc.** A
-    /// profile holds an arc as its chord and a bulge, and the loop's
+    /// profile holds an arc as its chord and a carrier, and the loop's
     /// reader classifies that pair back through the same predicates
     /// validation runs: a fillet whose sagitta `r(1 − cos(θ/2))` sits
     /// at or below the run's ε is read as a *line*, and the carrier the
@@ -1089,8 +1090,8 @@ pub enum PathError<T: Real> {
     /// merging them would put the only distinction into prose a caller
     /// would have to parse.
     FilletArcFlattenedInStorage {
-        /// The fillet arc's sweep read back from the stored bulge,
-        /// 4·atan(b) radians (diagnostic).
+        /// The fillet arc's sweep, 4·atan(b) of the bulge it was
+        /// emitted with, radians (diagnostic).
         turn: T,
         /// The requested fillet radius, meters (diagnostic).
         radius: T,
@@ -1113,14 +1114,15 @@ pub enum PathError<T: Real> {
     /// [`FilletArcFlattenedInStorage`](Self::FilletArcFlattenedInStorage)
     /// for why the two are separate variants.
     FilletCarrierBelowSceneResolution {
-        /// The fillet arc's sweep read back from the stored bulge,
-        /// 4·atan(b) radians (diagnostic).
+        /// The fillet arc's sweep, 4·atan(b) of the bulge it was
+        /// emitted with, radians (diagnostic).
         turn: T,
         /// The requested fillet radius, meters (diagnostic).
         radius: T,
         /// The magnitude the refusing clearance was a difference at,
         /// meters — the carrier radii, the centre separation, the
-        /// offset from a carrier line.
+        /// offset from a carrier line, or the arc's own vertices where
+        /// its carrier disagrees with them.
         scale: T,
         /// About the finest that difference could have been read:
         /// `scale · 2^-52`, meters.
@@ -1748,7 +1750,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             } => write!(
                 f,
                 "a radius-{radius} m fillet through a turn of {turn} rad is a {arc_length} m \
-                 arc, too shallow to store as a chord and a bulge ('{predicate}' classifies \
+                 arc, too shallow to store as a chord and a carrier ('{predicate}' classifies \
                  it at {margin} m). Recourse: {FILLET_FLATTENED_RECOURSE}",
                 radius = num(radius),
                 turn = num(turn),
@@ -2707,8 +2709,10 @@ impl<T: Real> Core<T> {
     }
 
     /// Finishes the loop, returning it PAIRED with the program that
-    /// produced it (see [`ClosedLoop`]).
-    fn finish(mut self) -> ClosedLoop<T> {
+    /// produced it (see [`ClosedLoop`]): each (position, bulge) pair
+    /// lowered to its vertex and canonical segment, registered at the
+    /// run's `tol` (`crate::lower_arc`).
+    fn finish(mut self, tol: Tol) -> ClosedLoop<T> {
         let spans = self.step_spans();
         let radii = core::mem::take(&mut self.radii);
         let pieces = self.segment_pieces();
@@ -2716,7 +2720,10 @@ impl<T: Real> Core<T> {
         let structure = structure.into_record(spans, radii, pieces);
         structure.check_role_lists(&self.program);
         ClosedLoop {
-            loop_: ProfileLoop::lower(&self.verts, self.tangent),
+            loop_: ConstructedLoop(ProfileLoop::from_chain(
+                crate::lower_chain(&self.verts, Some(tol)),
+                self.tangent,
+            )),
             program: self.program,
             structure,
         }
@@ -3152,7 +3159,17 @@ impl<T: Decide> Core<T> {
         for &(leaving, radius) in &self.fillet_arcs {
             let stored = |i: usize| {
                 let ((start, bulge), end) = (self.verts[i], self.verts[(i + 1) % n].0);
-                seg::build_seg(start, end, crate::lower_to(start, bulge, end), bulge, band)
+                // The arc was lowered here, which registered its
+                // endpoint identities: it is the construction's own
+                // output, verified at its construction (D1), and this
+                // re-read asks what validation asks of its shape and
+                // joints, not its consistency.
+                seg::build_constructed_seg(
+                    start,
+                    end,
+                    crate::lower_to(start, bulge, end, Some(tol)),
+                    band,
+                )
             };
             // A recorded index always names a vertex of the chain it was
             // recorded on: `record_fillet_arc` reads `verts.len() - 1`
@@ -3178,12 +3195,12 @@ impl<T: Decide> Core<T> {
                 };
             let arc = match stored(leaving) {
                 Ok(arc) => arc,
-                Err(seg::SegIssue::Escalated(source)) => {
+                Err(seg::ShapeIssue::Escalated(source)) => {
                     return Err(PathError::Escalated { source });
                 }
                 Err(
-                    issue @ (seg::SegIssue::Degenerate { margin }
-                    | seg::SegIssue::NearFull { margin }),
+                    issue @ (seg::ShapeIssue::Degenerate { margin }
+                    | seg::ShapeIssue::NearFull { margin }),
                 ) => {
                     return Err(flattened(issue.predicate(), margin));
                 }
@@ -3249,7 +3266,7 @@ impl<T: Decide> Core<T> {
     /// form carries, or it is a refusal.
     fn build(self, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>> {
         self.fillets_carry_their_tangency(tol)?;
-        Ok(self.finish())
+        Ok(self.finish(tol))
     }
 
     /// Takes the opened fillet and its chain-side bookkeeping, which
@@ -3803,7 +3820,10 @@ fn circle_kernel<T: Decide>(
         (Point2::new(center.x + radius, center.y), T::one()),
         (Point2::new(center.x - radius, center.y), T::one()),
     ];
-    Ok(ProfileLoop::lower(&semicircles, Vec::new()))
+    Ok(ProfileLoop::from_chain(
+        crate::lower_chain(&semicircles, Some(tol)),
+        Vec::new(),
+    ))
 }
 
 /// The kernel behind the table's split-circle row: the lowered loop
@@ -3836,7 +3856,10 @@ fn circle_split_kernel<T: Decide>(
             )
         })
         .collect();
-    Ok(ProfileLoop::lower(&chain, Vec::new()))
+    Ok(ProfileLoop::from_chain(
+        crate::lower_chain(&chain, Some(tol)),
+        Vec::new(),
+    ))
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
@@ -5625,28 +5648,28 @@ mod fillet_stored_form {
     }
 
     /// The same segment, re-carried onto the circle (`centre`,
-    /// `radius`) — the carrier the DOOR computed, in place of the one
-    /// the stored bulge reconstructs. Everything else about the segment
+    /// `radius`) — the carrier the DOOR computed, in place of the
+    /// stored one. Everything else about the segment
     /// is kept, so [`seg::joint_tangency`] classifies the door's carrier
     /// through exactly the arms it classifies the stored one through:
     /// the measurement is a substitution, not a second expression.
     fn on_the_doors_carrier(arc: &Seg<f64>, centre: Point2<f64>, radius: f64) -> Seg<f64> {
         let toward_apex = (arc.a.lerp(arc.b, 0.5) - centre).normalize();
         let apex = centre + toward_apex * radius;
+        let (sweep, turn) = match &arc.kind {
+            SegKind::Arc(g) => (g.arc.sweep, g.turn),
+            SegKind::Line => (0.0, Sign::Zero),
+        };
         Seg {
             kind: SegKind::Arc(seg::ArcGeom {
                 arc: Arc2 {
                     centre,
                     radius,
-                    sweep: 4.0 * arc.bulge.atan(),
+                    sweep,
                 },
                 apex,
                 span_chord: arc.a.distance(apex),
-                turn: if arc.bulge >= 0.0 {
-                    Sign::Positive
-                } else {
-                    Sign::Negative
-                },
+                turn,
             }),
             ..*arc
         }
@@ -5707,9 +5730,9 @@ mod fillet_stored_form {
         let Some(s) = fillet_index(lp) else {
             return (
                 format!(
-                    "| {theta:e} | no joint-declared arc: n = {n}, declared = {:?}, bulges = {:?} |",
+                    "| {theta:e} | no joint-declared arc: n = {n}, declared = {:?}, segments = {:?} |",
                     lp.tangent_joints(),
-                    lp.bulges()
+                    lp.segments()
                 ),
                 [0.0; 2],
             );
@@ -5720,7 +5743,7 @@ mod fillet_stored_form {
                     vs[i],
                     vs[(i + 1) % n],
                     lp.segments()[i],
-                    lp.bulges()[i],
+                    seg::Consistency::Decide,
                     band,
                 )
             })
@@ -5729,7 +5752,12 @@ mod fillet_stored_form {
             Ok(_) => "ok".to_string(),
             Err(e) => format!("REFUSED: {}", short(&e.to_string())),
         };
-        let bulge = lp.bulges()[s];
+        // The stored sweep's quarter tangent: the sagitta's lever, as
+        // validation reads it.
+        let bulge = match lp.segments()[s] {
+            crate::Segment::Arc(arc) => arc.quarter_tan(),
+            crate::Segment::Line => 0.0,
+        };
         let chord = vs[s].distance(vs[(s + 1) % n]);
         let head = format!(
             "| {theta:e} | {:e} | {chord:e} | {bulge:e} | {:e} |",
@@ -5795,7 +5823,7 @@ mod fillet_stored_form {
             .angle(theta, Tol::witness())?
             .line(1.0, Tol::witness())?
             .line_to(Start, Tol::witness())
-            .map(|c| c.loop_)
+            .map(|c| c.loop_.into_loop())
     }
 
     /// The line × arc corner's arrival circle: radius 2, counterclockwise
@@ -5821,7 +5849,7 @@ mod fillet_stored_form {
                 },
                 Tol::witness(),
             )
-            .map(|c| c.loop_)
+            .map(|c| c.loop_.into_loop())
     }
 
     /// An arc × arc corner turning by `theta`: two radius-2 circles about
@@ -5844,7 +5872,7 @@ mod fillet_stored_form {
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
     }
 
     fn corners() -> [Corner; 3] {
