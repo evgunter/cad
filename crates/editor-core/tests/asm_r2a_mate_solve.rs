@@ -1452,7 +1452,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
     match load(&corrupt, Tol::witness()) {
         Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::NodeNotMinted {
             id,
-        })) => assert_eq!(id, RecipeNodeId(99)),
+        })) => assert_eq!(id.id(), RecipeNodeId(99)),
         other => panic!("expected NodeNotMinted, got {other:?}"),
     }
 }

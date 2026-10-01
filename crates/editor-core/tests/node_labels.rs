@@ -221,9 +221,51 @@ fn the_load_door_refuses_a_blank_label_and_a_label_on_a_dead_node() {
     let dead = text.replace(&entry, &format!("{}: \"lid\"", key(gone)));
     match load(&dead, tol) {
         Err(PersistError::Snapshot(SnapshotError::LabelOnMissingNode { node })) => {
-            assert_eq!(node, gone);
+            assert_eq!(node, editor_core::SpokenNode::absent(gone));
         }
         other => panic!("a label on a dead node refuses LabelOnMissingNode, got {other:?}"),
+    }
+}
+
+/// The load door speaks a node from the document it judges: a file
+/// whose `order` runs backwards refuses with its nodes' kinds and
+/// labels, read off the parsed document, and an id that document does
+/// not hold reads as a node.
+#[test]
+fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-speak", tol);
+    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, profile, Some("outline"));
+    let doc = set_label(doc, extrude, Some("base \"plate\""));
+    let text = save(&doc, &[], tol).expect("saves");
+    let (header, body) = text.split_once('\n').expect("a header line, then the body");
+    let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    v["snapshot"]["order"]
+        .as_array_mut()
+        .expect("the file carries its order")
+        .reverse();
+    match load(&format!("{header}\n{v}\n"), tol) {
+        Err(PersistError::Snapshot(SnapshotError::ForwardInput { node, input })) => {
+            assert!(
+                [profile, extrude].contains(&node.id()),
+                "a labelled node is refused"
+            );
+            assert_eq!(node, doc.spoken(node.id()), "the refused node");
+            assert_eq!(input, doc.spoken(input.id()), "its input");
+            let said = if node.id() == extrude {
+                format!("Extrude \"base \\\"plate\\\"\" ({})", tag(extrude.0))
+            } else {
+                format!("Profile \"outline\" ({})", tag(profile.0))
+            };
+            let sentence =
+                PersistError::Snapshot(SnapshotError::ForwardInput { node, input }).to_string();
+            assert!(
+                sentence.contains(&format!("{said} takes input from")),
+                "the sentence speaks the node with its label: {sentence}"
+            );
+        }
+        other => panic!("a backwards order refuses ForwardInput, got {other:?}"),
     }
 }
 

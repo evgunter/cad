@@ -1401,6 +1401,27 @@ Also, save runs the same validator, and `EditReplay` already spoke labels at loa
 
 **Also today:** `[ev]` PR 3734 is open. It asks how a union decides which member faces a merged face cites. The designers converged on linking in member space; fork-log row 37.
 
+## 2026-10-01 — split/inline (PR 3740) and persist-door (PR 3741) refusals speak the node
+
+**PR 3740: split and inline errors.** `SplitError` and `InlineError` speak each node from the document whose ids it is spelled in.
+- Fixed: `TornGroup`, `OperandSeveredFromMate` and `SeveredEdge` printed their cut and kept ends as decimal ids. They now name each end once, by role.
+- Review folds:
+  - inline's choice of document is pinned by labelled tests (checked by mutation);
+  - `carry` now copies each label right after its insert, so a refusal raised mid-carry has labels to speak;
+  - the placeholder `RecipeNodeId(0)` is now `unreachable!`.
+- Corrected premise: ids are not document-scoped. `Mint::empty()` starts every document at the zero chain, so the speaking document is fixed by the raise site, never looked up. This is now stated on `SplitError`.
+
+**PR 3741: load and save errors.** `SnapshotError`'s 30 node fields and two names, `NonFiniteSite`, `PersistError::ProfileProgram` and `FrameSite::subject` speak from the document being validated.
+- New arm `SnapshotError::DuplicateInput` (Python `duplicate_input`). `InputList` now holds a `ListFault`, which cannot be a duplicate.
+- Duplicate-key refusals at parse time have one helper and one sentence.
+- Filed `work/edit/load-door-refusals-tag-ids-the-file-spells-in-decimal` (P4, a design question).
+
+**Remaining rows of the labels unit:**
+- `analysis-door-refusals-speak-the-node`
+- `selection-door-refusals-speak-the-node`
+- `viewer-refusals-speak-the-node`
+- `memoized-refusals-speak-inner-nodes-through-the-frame`
+- `a-cluster-act-speaks-its-gauges-by-tag`
 ## 2026-10-01 — union parents link in member space (PR 3734, ruled)
 
 **Ruling.** Ev approved the fork-log row 37 recommendation:

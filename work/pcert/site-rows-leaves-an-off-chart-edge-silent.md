@@ -2,11 +2,13 @@
 id: site-rows-leaves-an-off-chart-edge-silent
 kind: issue
 title: an Euler op's site mint clears a face whose new edge is off its chart, so the op answers Ok and tier 3 answers [] on a body the mint refuses
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P0
 cost: M
 refs: [D36, S331]
+parent: S331
+branch: pcert/at-rest-rows-mandatory
 ---
 
 

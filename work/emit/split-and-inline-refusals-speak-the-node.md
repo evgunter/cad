@@ -2,8 +2,9 @@
 id: split-and-inline-refusals-speak-the-node
 kind: unit
 title: Split and inline refusals speak the node with its label, from the document each names it in
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-01
 priority: P2
 cost: M
 parent: node-labels-are-document-data
