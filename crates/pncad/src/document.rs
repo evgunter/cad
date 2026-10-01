@@ -105,6 +105,10 @@ pub use editor_core::{
     PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
 };
 
+// How a sentence names a node: the kind noun and tag a person reads, and
+// the full-width id a machine channel prints.
+pub use editor_core::{FullId, SpokenNode, node_kind_noun};
+
 // Placement: the chain a `Node::Transform` holds — rigid steps of
 // expressions and literal frames — and its steps.
 pub use editor_core::{Placement, Step};
@@ -327,7 +331,7 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the cluster placement a document
+// Instantiated parts. `Frame` is the group placement a document
 // records per instantiate node
 // (read through `Doc::placement`, written by `DocEdit::SetPlacement`);
 // `PartResolver` is the document seam evaluation crosses to reach a
@@ -375,7 +379,7 @@ pub use editor_core::{
     Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance,
     FaceFrame, Lever, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member,
     PartReach, PlacerRow, ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE,
-    clusters, gauge_of, mate_reach, member_of, reading_edges, relative_freedom_components,
+    groups, mate_reach, member_of, reading_edges, relative_freedom_components, root_of,
     solve_document,
 };
 /// Why a mate's `FromFace` frame did not resolve to a pose, which

@@ -265,6 +265,9 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             cause: diag(),
         },
         PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
+        PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
+            axis: geom_brep::ChartAxis::U,
+        }),
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },

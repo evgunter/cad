@@ -100,9 +100,9 @@ PATTERN_SPACING = 0.2
 #: Where the flat-packed shelf sits, relative to the same gap.
 FLAT_PACK_SHELF_Y = 0.9
 
-#: The stand's gauge post: the one instance carrying an authored frame,
+#: The stand's root post: the one instance carrying an authored frame,
 #: inset in y so the bench top overhangs front and back.
-GAUGE_OFFSET_Y = (SHELF_DEPTH - POST_SECTION) / 2.0
+ROOT_OFFSET_Y = (SHELF_DEPTH - POST_SECTION) / 2.0
 
 POST_LABEL = "pncad-demo-post"
 SHELF_LABEL = "pncad-demo-shelf"
@@ -222,7 +222,7 @@ def seat(a_frame, b_frame, primitive=None, post_cap=None):
 POST_CAP = "the post's top cap face"
 
 #: The stand's two mates, as (a seat, b seat) in document order: the
-#: gauge post's top to the shelf's underside, then the shelf's
+#: root post's top to the shelf's underside, then the shelf's
 #: underside to the far post's top. The post sides are the cap face,
 #: the shelf sides authored points (the shelf's own datum, not a face
 #: of it).
@@ -293,15 +293,15 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     """The assembled bench: a post at each end of the shelf, the shelf
     SEATED on them by mates.
 
-    Only the gauge post carries an authored frame — placement lives on
-    the cluster, and the mates place the rest. Answers the document,
+    Only the root post carries an authored frame — placement lives on
+    the group, and the mates place the rest. Answers the document,
     its three instances and its two mates, each in document order.
     """
     doc = Doc(STAND_LABEL)
     post_a = doc.insert(Node.instantiate_part(post_ref))
     doc.apply(
         DocEdit.set_placement(
-            post_a, Frame.translation((0 * m, GAUGE_OFFSET_Y * m, 0 * m))
+            post_a, Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m))
         )
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))

@@ -365,11 +365,15 @@ impl ViewerBehavior<'_> {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
-                    ui.label(crate::tree::node_number(*node));
+                    ui.label(crate::tree::node_label(
+                        self.session.doc(),
+                        *node,
+                        self.session.part_files(),
+                    ));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
-                    // Beside the number, which is the node it is about.
+                    // Beside the node's name, which is the node it is about.
                     standing_verdict(ui, &self.theme, standing);
                 });
                 return;
@@ -401,7 +405,7 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             // The feature that MADE the entity, so the button deletes
             // what the label names.
-            ui.label(format!("{noun} of {}", crate::tree::node_number(feature)));
+            ui.label(format!("{noun} of {}", self.session.doc().spoken(feature)));
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
@@ -452,7 +456,11 @@ impl ViewerBehavior<'_> {
             return;
         }
         ui.separator();
-        ui.label(format!("instance {}", node.0));
+        ui.label(crate::tree::node_label(
+            doc,
+            node,
+            self.session.part_files(),
+        ));
         // The admission test `SetInstanceHidden` itself runs, read once
         // for the section: the toggle below is offered exactly where
         // the op would accept it, and the free-move probe runs this
@@ -1575,7 +1583,7 @@ mod tests {
         // Planted, not compared with another reading of the fault.
         assert!(
             painted.contains(
-                "instance 0's geometry is fused into node 2 together with instance(s) 1 — \
+                "instance 000000000000's geometry is fused into node 000000000002 together with instance(s) 000000000001 — \
                  a display operation cannot address it separately"
             ),
             "{painted}"
@@ -1865,7 +1873,7 @@ mod verdict_tests {
         );
     }
 
-    /// **A deleted node's one word is loud**, beside its number.
+    /// **A deleted node's one word is loud**, beside its name.
     #[test]
     fn a_deleted_nodes_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Node {

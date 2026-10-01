@@ -380,7 +380,7 @@ impl core::fmt::Display for IdMapError {
                 f,
                 "patch {} of body {} on node {} was offered twice; an id assignment \
                  is a bijection",
-                key.patch, key.body, key.node.0
+                key.patch, key.body, key.node
             ),
             Self::TooManyPatches { patches } => write!(
                 f,
@@ -449,13 +449,13 @@ impl core::fmt::Display for PickIndexError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Node { node, error } => {
-                write!(f, "root {} could not be indexed: {error}", node.0)
+                write!(f, "root {} could not be indexed: {error}", node)
             }
             Self::Ids(error) => write!(f, "{error}"),
             Self::DrawnTwice { node, body } => write!(
                 f,
                 "body {} of node {} is drawn by two parts; one drawn body is one part",
-                body, node.0
+                body, node
             ),
             Self::Names(error) => write!(f, "{error}"),
         }
@@ -737,7 +737,7 @@ impl<K: DrawnKind> PartWindows<K> {
             _ => unreachable!(
                 "the window of body {body} of node {} is {range:?}, past the {} entities or the \
                  {} names laid out with it",
-                node.0,
+                node,
                 self.entities.len(),
                 self.names.len()
             ),
@@ -2324,7 +2324,7 @@ impl core::fmt::Display for EdgeNameFault {
             Self::NotDrawn { node, body } => write!(
                 f,
                 "this picture draws no body {body} of node {}, so it draws none of its edges",
-                node.0
+                node
             ),
             Self::OutOfRange {
                 node,
@@ -2335,7 +2335,7 @@ impl core::fmt::Display for EdgeNameFault {
                 f,
                 "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so \
                  this address was not one this index handed out",
-                node.0
+                node
             ),
             Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error}"),
         }
@@ -2393,7 +2393,7 @@ impl core::fmt::Display for EdgeNamesRefused {
             "the index names {named} of the {} edges it draws on body {body} of node {}; the \
              first it cannot: {}",
             named.saturating_add(*refused),
-            node.0,
+            node,
             EdgeNameFault::Unnamed(*first)
         )
     }

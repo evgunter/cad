@@ -192,6 +192,15 @@ pub enum CertCheck {
     /// each decided transverse — named when that aggregate is poisoned,
     /// which no geometry and no tolerance reaches.
     PlaneNurbsReportedTransversality,
+    /// Intersection, plane × NURBS: the spline face's chart speed along
+    /// a parameter direction, which must be positive for a length in
+    /// metres to cross into its parameters — zero where the face is
+    /// constant along that direction.
+    PlaneNurbsChartSpeed,
+    /// Intersection, plane × NURBS: the bound on the spline face's chart
+    /// speed along a parameter direction, which must be finite — not,
+    /// where the face's net is too large for its derivative bound.
+    PlaneNurbsChartSpeedBound,
 }
 
 /// The check's own name — the noun a refusal about it writes (the
@@ -255,6 +264,8 @@ impl core::fmt::Display for CertCheck {
             Self::PlaneNurbsReportedTransversality => {
                 "the plane × NURBS lane's reported minimum crossing angle"
             }
+            Self::PlaneNurbsChartSpeed => "the spline face's chart speed",
+            Self::PlaneNurbsChartSpeedBound => "the spline face's chart-speed bound",
         })
     }
 }
@@ -706,6 +717,27 @@ impl CertCheck {
             // A fold over samples that each decided transverse: a poison
             // that survives it is the kernel's.
             Self::PlaneNurbsReportedTransversality => Ending::Unsized(Unsized::Defect),
+            // A face constant along a parameter direction is the face's
+            // own degeneracy, and the stored face is what the lever
+            // edits, so it ends in the lever at rest too.
+            Self::PlaneNurbsChartSpeed => Ending::Sized(SizedDecision {
+                lever: "move the geometry so the spline face varies along both of its \
+                        parameter directions",
+                size: "degenerate face",
+                passes: SizedPass::Positive,
+                stored: StoredDefinite::Lever,
+                at_zero: None,
+            }),
+            // An unbounded derivative is the face's scale: the lever is
+            // the model's size.
+            Self::PlaneNurbsChartSpeedBound => Ending::Sized(SizedDecision {
+                lever: "move the geometry to a scale where the spline face's control points \
+                        stay well inside the range of finite numbers",
+                size: "scale",
+                passes: SizedPass::Positive,
+                stored: StoredDefinite::Lever,
+                at_zero: None,
+            }),
             // Approximations: a fitted intersection carrier on its
             // surfaces, a certified sag bound, and the plane × NURBS
             // lane's fitted image's two residual limbs. The surface
@@ -2801,7 +2833,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    const ALL_CHECKS: [CertCheck; 23] = [
+    const ALL_CHECKS: [CertCheck; 25] = [
         CertCheck::ParamSpan,
         CertCheck::ParamWinding,
         CertCheck::EndpointStart,
@@ -2825,6 +2857,8 @@ mod tests {
         CertCheck::PlaneNurbsOnLocus,
         CertCheck::PlaneNurbsHull,
         CertCheck::PlaneNurbsReportedTransversality,
+        CertCheck::PlaneNurbsChartSpeed,
+        CertCheck::PlaneNurbsChartSpeedBound,
     ];
 
     /// **[`ALL_CHECKS`] is the WHOLE taxonomy**, pinned against a
@@ -2842,29 +2876,31 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 23,
-            CertCheck::ParamWinding => 23,
-            CertCheck::EndpointStart => 23,
-            CertCheck::EndpointEnd => 23,
-            CertCheck::Surface1Residual => 23,
-            CertCheck::Surface2Residual => 23,
-            CertCheck::WitnessSurface1 => 23,
-            CertCheck::WitnessSurface2 => 23,
-            CertCheck::WitnessMidpoint => 23,
-            CertCheck::Transversality => 23,
-            CertCheck::TransversalityArm => 23,
-            CertCheck::TangentParallel => 23,
-            CertCheck::TangentSecondOrder => 23,
-            CertCheck::TangentHull => 23,
-            CertCheck::TangentTube => 23,
-            CertCheck::MappedSource => 23,
-            CertCheck::SeamHalfplane => 23,
-            CertCheck::SeamSide => 23,
-            CertCheck::ChartImage => 23,
-            CertCheck::ChartResidual => 23,
-            CertCheck::PlaneNurbsOnLocus => 23,
-            CertCheck::PlaneNurbsHull => 23,
-            CertCheck::PlaneNurbsReportedTransversality => 23,
+            CertCheck::ParamSpan => 25,
+            CertCheck::ParamWinding => 25,
+            CertCheck::EndpointStart => 25,
+            CertCheck::EndpointEnd => 25,
+            CertCheck::Surface1Residual => 25,
+            CertCheck::Surface2Residual => 25,
+            CertCheck::WitnessSurface1 => 25,
+            CertCheck::WitnessSurface2 => 25,
+            CertCheck::WitnessMidpoint => 25,
+            CertCheck::Transversality => 25,
+            CertCheck::TransversalityArm => 25,
+            CertCheck::TangentParallel => 25,
+            CertCheck::TangentSecondOrder => 25,
+            CertCheck::TangentHull => 25,
+            CertCheck::TangentTube => 25,
+            CertCheck::MappedSource => 25,
+            CertCheck::SeamHalfplane => 25,
+            CertCheck::SeamSide => 25,
+            CertCheck::ChartImage => 25,
+            CertCheck::ChartResidual => 25,
+            CertCheck::PlaneNurbsOnLocus => 25,
+            CertCheck::PlaneNurbsHull => 25,
+            CertCheck::PlaneNurbsReportedTransversality => 25,
+            CertCheck::PlaneNurbsChartSpeed => 25,
+            CertCheck::PlaneNurbsChartSpeedBound => 25,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -4649,9 +4685,9 @@ mod tests {
     /// at the kernel's tolerance, which no ε_in lever reaches yet
     /// ([`Reading::Adopt`]): no ending there names the tolerance, in either direction, or
     /// blames the kernel alone. A sign-certain refusal ends in the
-    /// ending that names the file too (the tube's, a lower bound, in its
-    /// lever), and a band-decided arm of a sized decision in its lever
-    /// alone.
+    /// ending that names the file too (the tube's, a lower bound, and a
+    /// spline face's chart speed, a fact of the face, in their levers),
+    /// and a band-decided arm of a sized decision in its lever alone.
     #[test]
     fn an_adoption_reading_names_no_tolerance_and_no_kernel_alone() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -4675,8 +4711,15 @@ mod tests {
                 .collect();
             let definite = recourse(check, RefusedArm::SignCertain, Reading::Adopt);
             // The tube's definite refusal is the certificate's limit, not
-            // a stored contradiction: it keeps its lever.
-            if check == CertCheck::TangentTube {
+            // a stored contradiction, and a spline face's missing chart
+            // speed is a fact of the face, which the lever edits: they
+            // keep their levers.
+            if matches!(
+                check,
+                CertCheck::TangentTube
+                    | CertCheck::PlaneNurbsChartSpeed
+                    | CertCheck::PlaneNurbsChartSpeedBound
+            ) {
                 assert!(definite.starts_with("Recourse: move"), "{definite}");
             } else {
                 assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?}");
@@ -4844,6 +4887,8 @@ mod tests {
             (CertCheck::PlaneNurbsOnLocus, LastResort),
             (CertCheck::PlaneNurbsHull, LastResort),
             (CertCheck::PlaneNurbsReportedTransversality, Defect),
+            (CertCheck::PlaneNurbsChartSpeed, Sized(Positive)),
+            (CertCheck::PlaneNurbsChartSpeedBound, Sized(Positive)),
         ];
         assert_eq!(table.len(), ALL_CHECKS.len());
         for check in ALL_CHECKS {

@@ -1825,7 +1825,7 @@ FAMILIES: dict[str, str] = {
 #: `MintedDeclaration`, `RefusedRef`), mates and the solve
 #: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateRole`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
-#: `Maintenance`, `clusters`, `gauge_of`, `reading_edges`,
+#: `Maintenance`, `groups`, `root_of`, `reading_edges`,
 #: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
 #: `class_admission`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,
@@ -2240,6 +2240,14 @@ NOT_BOUND = {
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
     "Dimension": SHAPE,
+    # How a sentence names a node. Python reads a node's sentence inside
+    # the error a door raises, already spoken; its machine spelling is
+    # `NodeId`'s and `StepId`'s repr, which prints the full id
+    # (`FullId`); and its kind word is `Doc.node_kind`, the snake_case
+    # vocabulary `src/node_kind.rs` keeps apart from the chrome's noun.
+    "FullId": SHAPE,
+    "SpokenNode": SHAPE,
+    "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
     # direction door refused and which of its four facts it reported.
     # It crosses as its carrier does, and its carrier does not cross
@@ -3588,7 +3596,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::OperandSeveredFromMate": "SplitError.variant",
-    "SplitError::TornCluster": "SplitError.variant",
+    "SplitError::TornGroup": "SplitError.variant",
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
