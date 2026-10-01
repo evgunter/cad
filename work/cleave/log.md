@@ -191,3 +191,16 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   3678) had both reviews delivered and adjudicated at that point, but
   its row was not yet recorded. Its row carries this as a fairness
   flag.
+- Wave 3 dispatched:
+  - **wrong-arc** (`cleave/wrong-arc`, P1 H): curved-face crossings are
+    paired across the outside arc. This is what the section-rings
+    fallback pins. Review: single full.
+  - **ladders** (`cleave/ladders`, P1 M): one cell-dimension witness
+    ladder shared by join role resolution and the uncut-shell witness.
+    It may also take the contact-skip row. Review: single full.
+  - **section-ccw** (`cleave/section-ccw`, P2 E): `plane_section`
+    returns regions, each an outer polygon with its holes. Review is
+    the orchestrator's read, or style if a public type changes.
+
+  Filed `edge-mint-doors-read-the-nurbs-lane-from-the-policy` (unit 2
+  of the NURBS-lane design); held until PR 3678 lands.
