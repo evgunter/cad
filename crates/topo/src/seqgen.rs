@@ -989,7 +989,7 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// merged members where they land. So the parent's certificate is
 /// re-derived here through [`geom_brep::EdgeCurve::recertify`] — the
 /// door `split_edge` itself certifies through, not tier 3's
-/// `recertify_nurbs_lane`, which admits a strictly wider class — and
+/// lane-holding `recertify_via`, which admits a strictly wider class — and
 /// ASSERTED rather than filtered on, over every edge this is asked
 /// about: all of them where [`split_edge_candidates`] builds the list,
 /// and the edges up to the first splittable one where

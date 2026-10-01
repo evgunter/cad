@@ -38,7 +38,8 @@ use geom_core::{Band, ErrorTextReading, Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;
 use sweep::blend::{
-    BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
+    BlendDecision, BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted,
+    fillet_edges,
 };
 use sweep::test_support::{revolved_about_y, rod_upper_crease, rod_with_flat_at};
 use sweep::{Extrusion, extrude};
@@ -67,6 +68,7 @@ fn contact_in_band_margin(result: Result<Filleted<f64>, BlendRefusal>, what: &st
         Err(BlendRefusal { error, .. }) => {
             let BlendError::Escalated {
                 site: BlendSite::Link { .. },
+                decision: BlendDecision::ContactSecondOrder,
                 source,
             } = &error
             else {

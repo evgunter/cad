@@ -1981,7 +1981,7 @@ fn vertex_point<T: Decide + Bounds>(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     //! **Two contracts, and they need opposite assertions.**
     //!
     //! The **locus** rows sample the face's true locus and assert the
@@ -3058,7 +3058,7 @@ mod tests {
     ///
     /// The descending sides run on a reversed carrier axis so their
     /// own parameters increase, exactly as the split lane mints them.
-    fn torus_wall(
+    pub(crate) fn torus_wall(
         center: Point3<f64>,
         axis: Vec3<f64>,
         u_ref: Vec3<f64>,

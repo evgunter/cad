@@ -467,6 +467,25 @@ impl MeasureExpr {
         }
     }
 
+    /// [`Self::value_leaves`], exclusive: the same leaves in the same
+    /// order.
+    pub(crate) fn value_leaves_mut<'e>(&'e mut self, out: &mut Vec<&'e mut Expr>) {
+        match &mut self.kind {
+            MeasureKind::Primitive(_) => {}
+            MeasureKind::Value(e) => out.push(e),
+            MeasureKind::Neg(a) => a.value_leaves_mut(out),
+            MeasureKind::Add(a, b)
+            | MeasureKind::Sub(a, b)
+            | MeasureKind::Mul(a, b)
+            | MeasureKind::Div(a, b)
+            | MeasureKind::Min(a, b)
+            | MeasureKind::Max(a, b) => {
+                a.value_leaves_mut(out);
+                b.value_leaves_mut(out);
+            }
+        }
+    }
+
     /// The document parameters this expression references, with their
     /// recorded dimensions — the `Expr::param_refs` contract lifted to
     /// this language, so `apply`'s re-check reaches measure nodes too.

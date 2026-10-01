@@ -37,6 +37,21 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
+## Walls: one per run
+
+A *run* is a maximal chain of adjacent profile pieces the lowering's
+cosurface verdict puts on one carrier — collinear lines, cocircular
+same-turn arcs — however the author wrote them (a declared straight
+continuation, a station kept on a side, a raw collinear polygon). Extrude
+and revolve build ONE wall per run on every carrier kind, so no sweep mints
+a same-key adjacency for a merge to undo. The one exception is a run that
+is the whole closed loop (a circle): it keeps its canonical cut (C12.5).
+A station inside a run stays a vertex wherever a cap carries the profile
+(extrude's caps, a partial revolve's wedge caps), splitting the rim or
+meridian chain into collinear edges; in a full revolve it has no entity.
+Loft builds one wall per corresponding segment pair: across sections
+nothing declares two walls one surface, and the station pins the ruling.
+
 ## Blend vocabulary (BLEND-VOCAB-DESIGN V1–V4)
 
 The fillet and the chamfer are one request over the same bodies, judged
@@ -136,7 +151,8 @@ becomes that face's new outer boundary, so a ring carries through
 exactly when the trim CONTAINS it, metered before any mutation under
 `fillet3_ring_clearance` (`blend/surgery.rs`'s ring carry-through
 pass, which meters every ring of every touched support face against
-every blend trimline in closed form). A merged cap that is an ANNULUS
+every blend trimline in closed form, and every edge a convex ruled
+cut-off leaves on its cap against the sliver it removes). A merged cap that is an ANNULUS
 therefore carves on both its rims, one call each. A CURVED single face
 carrying every arc is authorable through `topo`'s `kef` and refuses at
 the half-band gate on both routes
@@ -172,7 +188,20 @@ the cap, one trimline `mef` per support carves its strip along the
 ruling, and the crease's `kef` with two `kef`/`kev` pairs folds the
 slivers in and retires the old vertices — the trimlines described as
 the band's tangent contact with a curved support, the arcs as its
-transverse intersection with the cap, on either material side. An
+transverse intersection with the cap, on either material side. On the
+convex side the cut removes the sliver between the arc and the old
+vertex from the cap, and leaves every other edge of the cap where it
+was — the edges of its other cycles (a bore's ring, or the outer cycle
+where the cut runs in a ring) and those of the cut cycle other than
+the two rims it shortens (a notch in the outline). Each is metered
+before any mutation, over its own window, against a region that
+encloses the sliver: the annulus about the spine's crossing from the
+band's radius out to the farthest the sliver reaches, cut down to the
+half-plane towards the old vertex that the sliver lies in. The meter is
+the same ring carry-through pass under the same
+`fillet3_ring_clearance`; an edge not definitely clear of the region
+refuses `RingClearance` at the cap
+(`crates/sweep/tests/band_ruled_cap_ring.rs`). An
 oblique or curved end face refuses typed as the run-out A3-3 reserves.
 Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
 creases in one call, at the prism closed form `ΔV = A_section · L`

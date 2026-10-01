@@ -59,9 +59,10 @@
 //! 2026-08-19 — it carries the value channel's bracket, and that is
 //! not the right to mint a C9 certification bound). A dual does not receive a
 //! refusal here; it cannot write the call. `Bounds` stays off `topo`'s
-//! default signatures because the capability is injected at a separate
-//! door ([`crate::certify::NurbsLane`]) rather than raised into the
-//! shared machinery.
+//! default signatures because the capability is a sealed value
+//! ([`crate::certify::NurbsLane`], the shape [`crate::FittedLane`] has)
+//! that the shared machinery takes as an argument and `topo` reads off
+//! the scalar's policy, rather than a bound raised into that machinery.
 //!
 //! **The symbolic tier rides the same bound and needs no arm of its
 //! own** (`geom_core::sym`): `Sym<T>` implements
@@ -82,9 +83,11 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, R
 
 use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
 use crate::recourse::{Reading, Refused, RefusedArm};
-use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
+use crate::ssi::{
+    ChartSpeedRefusal, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale, certify_rung3,
+};
 
-/// What the plane × NURBS lane proved, in meters unless noted.
+/// What the plane × NURBS lane proved, in metres unless noted.
 #[derive(Clone, Copy, Debug)]
 pub struct PlaneNurbsLimbs<T: Real> {
     /// Limb 1: the largest on-locus residual over the schedule, over
@@ -94,8 +97,9 @@ pub struct PlaneNurbsLimbs<T: Real> {
     /// Limb 2: the certified sup-norm bound over the whole span, over
     /// both operands. This is the number that certifies.
     pub hull_sup: T,
-    /// Limb 3: the certified uniqueness-tube radius.
-    pub tube_radius: T,
+    /// Limb 3: the region the uniqueness tube proved — the chart tube's
+    /// per-axis pad in chart units, and the ladder rung it was tried at.
+    pub tube: SsiTube<T>,
     /// Limb 3: the smallest certified transversality margin over the
     /// box chain, in meters.
     pub tube_transversality: T,
@@ -194,6 +198,11 @@ pub enum PlaneNurbsRefusal {
     /// samples that each decided transverse — came out poisoned. No
     /// geometry and no tolerance reaches it, so it is a kernel defect.
     ReportedTransversalityPoisoned(Indeterminate),
+    /// The spline face's chart speed along a parameter direction is
+    /// zero (the face is constant along it) or has no finite bound (its
+    /// net is too large), so no length in metres crosses into its
+    /// parameters. A fact of the face, refused at the lane's door.
+    ChartSpeed(ChartSpeedRefusal),
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly. A routing boundary (C12.1), never a
     /// runtime fallback.
@@ -332,6 +341,7 @@ impl PlaneNurbsRefusal {
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
             ),
+            Self::ChartSpeed(r) => (r.check(), RefusedArm::SignCertain),
             Self::FootPointInconclusive { .. }
             | Self::PcurveFit
             | Self::CarrierDomain(_)
@@ -389,6 +399,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                  their reported minimum crossing angle is unreadable: {}",
                 cause.payload()
             ),
+            Self::ChartSpeed(r) => f.write_str(r.what()),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
         }
     }
@@ -480,6 +491,13 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             what: geom::PLACEHOLDER_SURFACE,
         });
     }
+    // The wall the tube localizes on, with its chart speeds minted at the
+    // door: a wall constant along an axis, or with no finite speed bound
+    // along one, has no chart a length in metres can cross into, and the
+    // schedule below would only meet that as a foot point or a sine that
+    // cannot be stated.
+    let localized = localized(wall);
+    let wall_op = SsiOperand::nurbs(&localized).map_err(refusal)?;
 
     // ---- The fixed schedule: foot points, and the normal angle. ----
     // The feet and the image are `chart_image`'s, which is also the
@@ -532,12 +550,11 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----
-    let localized = localized(wall);
     let cert = certify_rung3(
         carrier,
         Some(&pcurve),
         &SsiOperand::Analytic(plane),
-        &SsiOperand::Nurbs(&localized),
+        &wall_op,
         TubeScale::uniform(extent),
         band,
     )
@@ -545,7 +562,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     Ok(PlaneNurbsLimbs {
         on_locus_max: cert.on_locus_max,
         hull_sup: cert.hull_sup,
-        tube_radius: cert.tube_radius,
+        tube: cert.tube,
         tube_transversality: cert.tube_transversality,
         tube_boxes: cert.tube_boxes,
         min_sin_theta: min_sin,
@@ -812,6 +829,7 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
             }
         }
         SsiError::UnsupportedCertificate { what } => PlaneNurbsRefusal::Unsupported { what },
+        SsiError::ChartSpeed(r) => PlaneNurbsRefusal::ChartSpeed(r),
         _ => PlaneNurbsRefusal::Unsupported {
             what: "the rung-3 certificate refused for a reason outside this lane's vocabulary",
         },

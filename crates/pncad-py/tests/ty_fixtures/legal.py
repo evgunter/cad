@@ -118,7 +118,7 @@ from pncad import (
     canonical_bytes,
     circle,
     class_admission,
-    clusters,
+    groups,
     content_pin,
     deg,
     rad,
@@ -131,7 +131,7 @@ from pncad import (
     meridian_vertex,
     import_step,
     load,
-    gauge_of,
+    root_of,
     header_document_id,
     inline,
     m,
@@ -575,14 +575,14 @@ recomputed_nodes: int = both.recomputed
 crossings: int = both.part_evaluations
 
 # LIB-G18b: the assembly authoring vocabulary. A reference becomes an
-# instance, an edit places its cluster, a mate says how two instances
+# instance, an edit places its group, a mate says how two instances
 # meet, and the gate says whether the result is valid at rest.
 instance: NodeId = doc.insert(Node.instantiate_part(reference))
 placed: DocEdit = DocEdit.set_placement(instance, here)
 designated: DocEdit = DocEdit.set_roots([instance])
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
 product_roots: list[NodeId] = doc.roots
-cluster_frame: Frame = doc.placement(instance)
+group_frame: Frame = doc.placement(instance)
 registry: dict[NodeId, Frame] = doc.placements()
 carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
@@ -605,12 +605,12 @@ joint: NodeId = doc.insert(
 
 # The solve's read side, and the admission table a tool asks first.
 poses: SolvedPoses = solve_document(doc)
-gauge: NodeId | None = poses.gauge(instance)
+root: NodeId | None = poses.root(instance)
 role: MateRole | None = poses.role(joint)
 refusal: MateFault | None = poses.fault(joint)
 world: Frame = poses.placement(doc, instance)
-groups: list[list[NodeId]] = clusters(doc)
-keyed_by: NodeId = gauge_of(doc, instance)
+placed_groups: list[list[NodeId]] = groups(doc)
+keyed_by: NodeId = root_of(doc, instance)
 edges: list[tuple[NodeId, NodeId]] = reading_edges(doc)
 partition: list[list[NodeId]] = relative_freedom_components(doc)
 admission: ClassAdmission = class_admission(ContactClass.Rest)

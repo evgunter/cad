@@ -342,13 +342,14 @@ def blank(radius):
     downstream evaluates; at 0.6 it cannot fit on a 1 m cube, so the
     fillet node FAILS and the boolean below it is poisoned. The recipe
     is otherwise identical, which is what makes the two documents
-    comparable.
+    comparable: both are authored at 0.12 and the radius is then edited
+    to `radius`, so they insert the same nodes and mint the same ids.
     """
     doc = Doc()
     cube = unit_cube(doc)
     edges = evaluate(doc).all_edges(cube)
     assert len(edges) == 12
-    blended = doc.insert(Node.fillet(cube, Expr.length_in(radius, m), edges))
+    blended = doc.insert(Node.fillet(cube, Expr.length_in(0.12, m), edges))
     peg = doc.insert(
         Node.extrude(
             doc.insert(
@@ -377,6 +378,7 @@ def blank(radius):
         ), Expr.angle_in(0, deg))
     )
     fused = doc.insert(Node.boolean(BooleanOp.Union, blended, lifted))
+    doc.apply(DocEdit.set_param(blended, "radius", Expr.length_in(radius, m)))
     return doc, blended, fused
 
 

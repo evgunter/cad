@@ -20,6 +20,10 @@ the module's other names (`offset_axial_request`, `_pole`,
 `_branch`, `_side`, `_chart_motion`, `_edge_agreement`,
 `_edge_on_surface`, `_seam_radial`, `_seam_concentric`,
 `_seam_meridian`, `_alignment`, `_meridian`, `_meridian_through`,
-`_latitude_tilt`, `_reauthor_plane`, and the ones SHELL-7 itself
+`_latitude_tilt`, and the ones SHELL-7 itself
 added or folded) owe rows. A docs-tier unit: read each site, state its
 quantity and lever, add the row.
+
+**2026-10-01 (#3626).** `_reauthor_plane` has its row now, beside the
+unit's new `_reauthor_end`, `_reauthor_azimuth` and `_rim_window`; it is off
+the list above.

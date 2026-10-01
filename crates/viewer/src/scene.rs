@@ -670,7 +670,7 @@ impl SceneMesh {
                         // infinity in a vertex buffer.
                         let Some(position) = p.narrow() else {
                             return Err(SceneError::UndrawablePosition {
-                                position: [p.x, p.y, p.z],
+                                position: p.to_array(),
                             });
                         };
                         positions.push(position);
@@ -1517,7 +1517,7 @@ fn insert(
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
     // The scene's document has no instance and no mate, so no edit
-    // here can move a cluster's gauge: the refusing reach is never
+    // here can move a group's root: the refusing reach is never
     // asked.
     let applied = apply(
         &doc,

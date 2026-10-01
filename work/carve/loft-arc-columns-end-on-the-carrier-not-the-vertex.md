@@ -34,8 +34,12 @@ unit's branch and taken out again, because it flips a decision:
   rung goes from 1 to 0. The test's own prose names the cause: that
   seam's carrier differs from the arc wall's column "by the arc
   endpoint's rounding", so it has no bitwise `IsoCurve` match. With the
-  vertices pinned the match is bitwise. The 1e-12 row (a typed refusal
-  carrying the 6.3e-12 sup) was not re-measured.
+  vertices pinned the match is bitwise. The 1e-12 row was not
+  re-measured. (It was a typed refusal carrying a 6.3e-12 sup; since
+  PROPS' PR 3524 took the convex insertion form that sup is
+  3.5528237131349995e-14 and the 1e-12 row is the FIRST-CLASS cell, with
+  the refusal below 1e-13 — so whatever this row does about the 1e-12
+  cell, it is a different cell from the one described here.)
 - `step-export`'s `swept_elbow.step` corner reads `(…, 3.0, 3.0)`
   instead of `2.9999999999999996`, and the elbow's `KERNEL_VOLUME_*`
   sidecar moves in the last digit.

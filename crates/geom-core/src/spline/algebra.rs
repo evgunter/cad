@@ -250,15 +250,73 @@ impl CurvePlan {
     /// arithmetics".
     ///
     /// Homogeneous is what makes this a plain affine combination:
-    /// insertion on `(w·P, w)` is
-    /// `Q_j = C_{j−1} + (C_j − C_{j−1})·α_j` with the Boehm ratio
-    /// itself, where the PROJECTIVE applier above needs
+    /// insertion on `(w·P, w)` is `Q_j = C_{j−1}·β_j + C_j·α_j` with the
+    /// Boehm ratios themselves, where the PROJECTIVE applier above needs
     /// [`CurvePlan::weights`]' quotient `λ` to combine de-homogenized
     /// points. So no weight is read here, and the result is an
     /// enclosure of the refined homogeneous net of the DESCRIBED
-    /// curve: `α` is a ring quotient of knot enclosures, outward
-    /// rounded, and every coefficient the caller handed in is widened
-    /// by it rather than re-rounded to `f64`.
+    /// curve: `α` and `β` are ring quotients of knot enclosures,
+    /// outward rounded, and every coefficient the caller handed in is
+    /// widened by them rather than re-rounded to `f64`.
+    ///
+    /// # The convex form, and why `β` comes from the knots
+    ///
+    /// **This section is the ONE home of that argument in this crate.**
+    /// `compose`'s `insert_once_ring` combines the same way and cites
+    /// this method rather than restating it — a change whose subject is
+    /// duplicated width has no business shipping a duplicated argument.
+    ///
+    /// With `Δ = U_{j+p} − U_j`, positive by the insertion precondition
+    /// (`insert_once`'s band comment, so the quotients never refuse on a
+    /// valid plan):
+    ///
+    /// ```text
+    /// α = (u − U_j)/Δ        β = (U_{j+p} − u)/Δ
+    /// ```
+    ///
+    /// **`β` is derived from the knots, NOT as `1 − α`, and the two are
+    /// not required to sum to exactly one.** Each encloses its own true
+    /// ratio by outward rounding, which is the whole of what the
+    /// enclosure needs: with `λ` the exact real ratio, `α ∋ λ` and
+    /// `β ∋ 1 − λ`, and interval `*` and `+` are inclusion-monotone, so
+    /// the combination contains `(1 − λ)·x + λ·y` for every `x`, `y` in
+    /// the input enclosures. `1 − α` would inherit `α`'s rounding and
+    /// add its own, and route the argument through a subtraction rather
+    /// than through the knots.
+    ///
+    /// **The convex form reads each coefficient ONCE, and that is
+    /// WIDTH.** `x + (y − x)·α` reads `x` TWICE, so an interval `x`
+    /// enters the width with coefficient `1 + α` and a fold of
+    /// insertions multiplies its dust up step by step. Read once each,
+    /// the width grows only by the ratios' own rounding — measured at 16
+    /// ulps of the coefficient scale over 30 insertions against 355 for
+    /// the lerp form on this applier, and at 4.7 against 473.7 over 80
+    /// insertions on `insert_once_ring`'s fold
+    /// (`compose`'s `the_convex_form_does_not_inflate_the_fold`).
+    ///
+    /// It does NOT make the step stay inside the hull of its two
+    /// sources. `α` and `β` round outward INDEPENDENTLY, so
+    /// `α_hi + β_hi > 1` and the combination reaches a little past both:
+    /// a constant column, whose source hull is a point, comes out as a
+    /// bracket around it. That is outward and therefore sound; what it
+    /// is not is variation-diminishing in the exact sense the reals
+    /// give. The excursion's SIZE is pinned here by
+    /// this module's `the_convex_form_bulges_by_the_ratios_own_rounding`,
+    /// and its existence at `insert_once_ring` by that function's own
+    /// width row. (Both are `#[cfg(test)]`, so these are names and not
+    /// links.)
+    ///
+    /// **Two width allowances, one claim.** This module's
+    /// `the_ring_applier_stays_in_step_and_near_the_described_hull`
+    /// allows `8.0·(plans.len() + 1)` ulps where `compose`'s row allows
+    /// `2 + 0.5·insertions` — a 16x difference in slope over the same
+    /// quantity. Neither is a derived bound; both are ceilings set so
+    /// that a form which multiplies its width per step cannot meet them
+    /// while the convex form can, and they were set against different
+    /// fixtures (equal-split plan chains here, full-multiplicity
+    /// decomposition there). The looser one is this module's, and it is
+    /// the one to tighten first if either is ever asked to catch a
+    /// small regression.
     ///
     /// **Total, and NaI is the refusal** (D4): a plan step with no
     /// insertion ratio — degree elevation, knot removal — refuses its
@@ -293,36 +351,11 @@ impl CurvePlan {
                             (Some(cx), Some(cy), Some(r)) => {
                                 // BOTH barycentric coefficients, each from
                                 // its own knots: `β = (U_{j+p} − u)/Δ` and
-                                // `α = (u − U_j)/Δ` with `Δ = U_{j+p} − U_j`,
-                                // positive by the insertion precondition
-                                // (`insert_once`'s band comment), so the
-                                // quotients never refuse on a valid plan.
-                                //
-                                // **The convex form, not the lerp form, and
-                                // the difference is WIDTH.** `x + (y − x)·α`
-                                // reads `x` TWICE, so an interval `x` enters
-                                // the width with coefficient `1 + α` and a
-                                // fold of insertions multiplies its dust up
-                                // step by step. Read once each with
-                                // coefficients that sum to 1 in ℝ, the
-                                // width grows only by the ratios' own
-                                // rounding — measured at 16 ulps of the
-                                // coefficient scale over 30 insertions
-                                // against 355 for the lerp form.
-                                //
-                                // It does NOT make the step stay inside the
-                                // hull of its two sources. `α` and `β` are
-                                // rounded outward INDEPENDENTLY, so
-                                // `α_hi + β_hi > 1` and the combination
-                                // reaches a little past both: a constant
-                                // column, whose source hull is a point,
-                                // comes out as a bracket around it (the
-                                // excursion is pinned by
-                                // `the_convex_form_bulges_by_the_ratios_own_rounding`).
-                                // That is outward and therefore sound; what
-                                // it is not is variation-diminishing in the
-                                // exact sense the reals give.
-                                // Fixed association (D9): `β·x + α·y`.
+                                // `α = (u − U_j)/Δ` with `Δ = U_{j+p} − U_j`.
+                                // Fixed association (D9): `β·x + α·y`. The
+                                // argument for this form, and for `β` coming
+                                // from the knots rather than from `1 − α`,
+                                // is this method's own docs.
                                 let (lo, hi) = (Interval::point(r.lo), Interval::point(r.hi));
                                 let u = Interval::point(r.inserted);
                                 let span = hi - lo;
@@ -425,14 +458,16 @@ pub fn insert_knot_plan(
 /// on the ground that it "folds `Interval` coefficients with an
 /// outward-rounding quotient and has no weights to form `λ` from" —
 /// which is a description of [`CurvePlan::apply_certified`], so the argument
-/// no longer separates them. What still does is the SHAPE of the
-/// schedule each needs: that one inserts to full interior multiplicity
-/// over a raw knot list, deliberately never rebuilding a [`KnotVector`]
-/// per step, where a plan chain rebuilds one per insertion; and it
-/// combines in the lerp form, which a unification would have to change
-/// (and which would move every composite bound). Filed on PROPS'
-/// `f64-refinement-inside-an-enclosure-has-five-more-sites`, with that
-/// width measurement; not done here.
+/// no longer separates them, and neither does the coefficient
+/// arithmetic any more: both combine in the convex form with `α` and
+/// `β` re-derived from their knots, and
+/// [`CurvePlan::apply_certified`]'s docs are the one home of that
+/// argument. What still separates them is the SHAPE of the schedule
+/// each needs: that one inserts to full interior multiplicity over a
+/// raw knot list, deliberately never rebuilding a [`KnotVector`] per
+/// step, where a plan chain rebuilds one per insertion. Filed on PROPS'
+/// `f64-refinement-inside-an-enclosure-has-five-more-sites`; not done
+/// here.
 fn insert_once(kv: &KnotVector, weights: &[f64], u: f64) -> CurvePlan {
     let p = kv.degree();
     let knots = kv.knots();

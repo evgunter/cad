@@ -266,6 +266,22 @@ pub enum EllipseInvalid {
     Escalated(Indeterminate),
 }
 
+impl EllipseInvalid {
+    /// What an [`Self::Escalated`] constructor predicate was deciding,
+    /// in words — the one spelling every door that renders this
+    /// escalation states. A predicate the constructor does not decide
+    /// reads as [`geom_core::UNNAMED_DECISION`], which the refusal
+    /// guard flags as no subject.
+    #[must_use]
+    pub fn escalated_subject(diag: &Indeterminate) -> &'static str {
+        match diag.predicate {
+            Some("ellipse_axes_distinct") => "whether the curve is a circle or an ellipse",
+            Some("ellipse_minor_positive") => "whether the curve's minor semi-axis is positive",
+            _ => geom_core::UNNAMED_DECISION,
+        }
+    }
+}
+
 impl core::fmt::Display for EllipseInvalid {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -287,9 +303,9 @@ impl core::fmt::Display for EllipseInvalid {
             ),
             Self::Escalated(diag) => write!(
                 f,
-                "ellipse construction escalated: {} — the configuration sits too close to \
-                 the circular coincidence to name a kind; construct the Circle carrier, \
-                 or {} (D4)",
+                "ellipse construction: {} is undecided ({}) — construct the Circle \
+                 carrier, or {} (D4)",
+                Self::escalated_subject(diag),
                 diag.payload(),
                 geom_core::COINCIDENCE_RECOURSE
             ),
@@ -433,6 +449,19 @@ pub enum CurveData<'a, T: Real> {
 }
 
 impl<T: Real> Curve3<T> {
+    /// Whether the carrier bends — every kind but `Line`. Matched
+    /// exhaustively, so a new kind decides here: a curved span's chord
+    /// midpoint is off it, and its chord is not its extent.
+    pub fn is_curved(&self) -> bool {
+        match self {
+            Curve3::Line { .. } => false,
+            Curve3::Circle { .. }
+            | Curve3::Ellipse { .. }
+            | Curve3::Spiric { .. }
+            | Curve3::Nurbs(_) => true,
+        }
+    }
+
     /// **The carrier's stored data** — the one walk of the analytic
     /// kinds' fields, which each reader that visits them field by field
     /// folds with its own question (a poison read, a hash key), and the
@@ -720,7 +749,7 @@ impl<T: Real> Curve3<T> {
     /// `Circle` arm calls `circle_point` on the one frame it shares
     /// with its tangent half — so a caller that builds a point here
     /// builds the very node either door would. That is what
-    /// `sweep::swept::register_span_identity` rests on — node ids are
+    /// `sweep::swept::register_placed_carrier_end` rests on — node ids are
     /// content hashes, so "the constructor states the identity about
     /// the node the certifier will ask about" is a fact of this
     /// delegation and not a transcription anyone has to keep in step.
@@ -851,6 +880,12 @@ impl<T: SpanLocate> Curve3<T> {
             }
             Curve3::Nurbs(n) => n.eval(t),
         }
+    }
+
+    /// The point at [`crate::mid_param`]`(t0, t1)` — ON the curve
+    /// whatever its kind, where a curved span's chord midpoint is not.
+    pub fn mid_point(&self, t0: T, t1: T) -> Point3<T> {
+        self.eval(crate::mid_param(t0, t1))
     }
 
     /// The first derivative `dP/dt` at parameter `t`.

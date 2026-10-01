@@ -254,11 +254,7 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
         )
     };
     let SegmentKind::Arc {
-        arc: Arc2 {
-            centre: center,
-            radius,
-            ..
-        },
+        arc: Arc2 { centre, radius, .. },
         ..
     } = blend.kind
     else {
@@ -270,8 +266,8 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
     );
     let want = eye_fillet_center_y();
     assert!(
-        center.x.abs() < 1e-12 && (center.y - want).abs() < 1e-12,
-        "the eye fillet must be the NEAR candidate (0, {want:.6}), got {center:?}"
+        centre.x.abs() < 1e-12 && (centre.y - want).abs() < 1e-12,
+        "the eye fillet must be the NEAR candidate (0, {want:.6}), got {centre:?}"
     );
     format!(
         "the eye slot's top tip had TWO fits of r = {R_EYE}: centres \
@@ -279,7 +275,7 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
          authored — centre (0, +{:.6}) — and left the other pocket at the \
          sharp bottom tip, where it is still authorable as THAT tip's own \
          fillet. A pick, never a guess.",
-        center.y
+        centre.y
     )
 }
 

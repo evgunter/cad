@@ -60,7 +60,7 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 3);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     let (doc, eval) = session.landed_pair().expect("landed");
@@ -405,7 +405,9 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
         format!(
             "instance {}'s geometry is fused into node {} together with instance(s) {} — \
              a display operation cannot address it separately",
-            a.0, weld.0, b.0
+            test_utils::refusal::tag(a.0),
+            test_utils::refusal::tag(weld.0),
+            test_utils::refusal::tag(b.0)
         )
     );
 
@@ -454,7 +456,7 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     let note = session
         .tree_rows()
         .into_iter()
-        .find(|row| row.kind == "Mate")
+        .find(|row| row.spoken.kind() == Some("Mate"))
         .expect("the mate row exists")
         .note
         .expect("a Tangent mate carries its standing note");
@@ -522,7 +524,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         "a node that IS in the document and is not an instance is the \
          wrong-kind refusal, naming itself"
     );
-    let absent = RecipeNodeId(9_999);
+    let absent = RecipeNodeId(test_utils::refusal::tagged(9_999));
     assert_eq!(
         display::instance_check(doc, absent),
         Err(AdmissionFault::NoSuchNode { node: absent }),
@@ -542,12 +544,15 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         .expect_err("a mate is not an instance")
         .to_string();
     assert_eq!(
-        absent_says, "node 9999 is not in the document",
+        absent_says, "node 00000000270f is not in the document",
         "the absent id's sentence says the id denotes nothing"
     );
     assert_eq!(
         wrong_kind_says,
-        format!("node {} is not a part instance", mate.0),
+        format!(
+            "node {} is not a part instance",
+            test_utils::refusal::tag(mate.0)
+        ),
         "the wrong-kind sentence says something IS there and is the \
          wrong thing"
     );

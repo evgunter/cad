@@ -213,7 +213,7 @@ proptest! {
         for (k, q) in pts.iter().enumerate() {
             prop_assert_eq!(algebra.vertices()[k].x.to_bits(), q.x.to_bits());
             prop_assert_eq!(algebra.vertices()[k].y.to_bits(), q.y.to_bits());
-            prop_assert_eq!(algebra.bulges()[k].to_bits(), 0.0f64.to_bits());
+            prop_assert!(matches!(algebra.segments()[k], profile::Segment::Line));
         }
         validate_ok(&algebra);
     }
@@ -1549,8 +1549,8 @@ fn sweep_and_arclen_legs_agree_bitwise() {
         assert_eq!(a.x.to_bits(), b.x.to_bits());
         assert_eq!(a.y.to_bits(), b.y.to_bits());
     }
-    for (a, b) in by_sweep.bulges().iter().zip(by_len.bulges().iter()) {
-        assert_eq!(a.to_bits(), b.to_bits());
+    for (a, b) in by_sweep.segments().iter().zip(by_len.segments().iter()) {
+        assert_eq!(format!("{a:?}"), format!("{b:?}"));
     }
     validate_ok(&by_sweep);
 }
@@ -1756,8 +1756,8 @@ fn radius_and_via_arrivals_complete_via_their_binders() {
         assert_eq!(va.x.to_bits(), vb.x.to_bits());
         assert_eq!(va.y.to_bits(), vb.y.to_bits());
     }
-    for (va, vb) in a.bulges().iter().zip(b.bulges().iter()) {
-        assert_eq!(va.to_bits(), vb.to_bits());
+    for (va, vb) in a.segments().iter().zip(b.segments().iter()) {
+        assert_eq!(format!("{va:?}"), format!("{vb:?}"));
     }
     validate_ok(&a);
     // Via arrival: the SAME carrier named through a point on it.
@@ -1862,8 +1862,8 @@ fn ray_extension_is_tangent_fillet_bitwise() {
         assert_eq!(a.x.to_bits(), b.x.to_bits());
         assert_eq!(a.y.to_bits(), b.y.to_bits());
     }
-    for (a, b) in extended.bulges().iter().zip(spelled.bulges().iter()) {
-        assert_eq!(a.to_bits(), b.to_bits());
+    for (a, b) in extended.segments().iter().zip(spelled.segments().iter()) {
+        assert_eq!(format!("{a:?}"), format!("{b:?}"));
     }
     assert_eq!(extended.tangent_joints(), spelled.tangent_joints());
     validate_ok(&extended);

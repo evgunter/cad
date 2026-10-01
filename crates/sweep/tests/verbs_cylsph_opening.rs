@@ -13,26 +13,22 @@
 //! candidates. Two of them are reachable for this pair, one is not, and
 //! WHICH one a pose takes turns on whether the walls cross:
 //!
-//! - **The crossing coaxial pose refuses at `CurvedPierceUnsupported`**
-//!   — the CROSSING layer, `boolean::reduce`'s curved-face arm. The
-//!   edge it names is operand A's SEAM LINE, and the face is the ball's
-//!   SPHERE face. The pierce door exists for a LINE carrier crossing a
-//!   CYLINDER wall, so it is the FACE kind that refuses this one, not
-//!   the carrier — which is the SPHSPH reading exactly, on the other
-//!   operand order.
+//! - **The crossing coaxial pose gets through the crossing layer and
+//!   refuses at the germ frame, `GermFrameUnsupported`.** The cylinder's
+//!   SEAM LINE crossing the ball's SPHERE face used to be the door (a
+//!   line × sphere pair with no root lane); the crossing layer has that
+//!   lane now, so the pose reaches `boolean::join::cs_pair_frame`, which
+//!   names a frame only for a DECLARED-coaxial pair — coaxiality is
+//!   never inferred — and keeps `NoArm` for this undeclared one.
 //! - **A non-crossing coaxial pose — a ball wholly inside a wider
 //!   cylinder — refuses at `FallbackExtentUnsupported`** instead, the
 //!   containment fallback's curved-extent scan. It is reachable
 //!   precisely because no crossing is found first.
-//! - **The germ frame is reached by neither.** Both doors sit above it,
-//!   so no cylinder×sphere germ pair is ever offered to
-//!   `pair_section_frame` in this build.
 //!
-//! This unit's section and frame arms move none of that, and every row
-//! below pins the refusal as a MEASUREMENT rather than as a target.
-//! What would move the first is a pierce lane for a curved FACE; what
-//! would move the second is a cyl×sphere seam lane. Neither is this
-//! unit's work.
+//! Every row below pins the refusal as a MEASUREMENT rather than as a
+//! target. What would move the first is a coaxiality declaration the
+//! frame can read (`work/wire/axis-shaped-identity-channel.md`); what
+//! would move the second is a cyl×sphere seam lane.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -97,102 +93,39 @@ fn fixture() -> [(&'static str, Body<f64>, Body<f64>); 2] {
     ]
 }
 
-/// **THE OPENING MEASUREMENT.** The crossing coaxial union dies at the
-/// CROSSING layer, in both poses, with the same typed variant — not at
-/// the germ frame, which sits below this door and is never reached.
+/// **THE OPENING MEASUREMENT.** The crossing coaxial union gets past
+/// the CROSSING layer in both poses and dies at the GERM FRAME, with the
+/// same typed variant, naming the cylinder and the sphere.
 ///
-/// **BOTH halves of the payload are read off the bodies, and each half
-/// carries a stated non-vacuity guard.** The pierce door exists for a
-/// LINE carrier definitely crossing a CYLINDER wall, so a refusal here
-/// is either the carrier's fault or the face's, and the row has to name
-/// which:
-///
-/// - the EDGE is operand A's, and its certified carrier is a **Line** —
-///   the cylinder's SEAM, which refutes the guess this row was first
-///   written with (a rim circle). Discriminating, and measured so: A
-///   carries SIX edges, of which FOUR are the rim Circles and only two
-///   are seam Lines, and the guard below pins that the circles are on
-///   offer.
-/// - the FACE is operand B's, and its surface kind is **Sphere**.
-///
-/// So the carrier is one the door HAS an arm for and the face is not:
-/// what refuses is the FACE kind. That is one reason, not two, and it
-/// is not a germ-pair join.
-///
-/// **What the Sphere half can and cannot catch, measured rather than
-/// assumed.** B's face roster is UNIFORM — two faces, both the ball's
-/// sphere wall — and body face keys are slotmap indices that COLLIDE
-/// across bodies, so this assertion cannot catch a door that named a
-/// different face; measured directly, substituting a face key drawn
-/// from A leaves the row green. What it does catch is a door reaching
-/// into a roster with no sphere in it, and A is exactly that (two
-/// Planes and two Cylinders), which the second guard pins. That is
-/// strictly more than the assertions it replaced: those read Display
-/// SUBSTRINGS that are static literals present in EVERY
-/// `CurvedPierceUnsupported` message whatever the payload said, so
-/// they pinned nothing about this pose and are gone.
+/// The crossing layer used to stop it: operand A's seam LINE crossing
+/// the ball's SPHERE face had no root lane. With the line × sphere
+/// roots the seam pierces, and the germ pair this crossing mints is a
+/// cylinder×sphere pair whose frame `cs_pair_frame` names only under a
+/// coaxiality DECLARATION, which no caller can pass yet.
 #[test]
-fn the_coaxial_union_refuses_at_the_curved_pierce_door() {
+fn the_coaxial_union_refuses_at_the_germ_frame() {
     for (label, c, s) in fixture() {
         let err = topo::union(&c, &s, Tol::witness())
-            .expect_err("a coaxial cyl×sphere crossing has no crossing lane");
-        let BooleanError::CurvedPierceUnsupported {
-            operand,
-            edge,
-            face,
-            ..
-        } = err
-        else {
-            panic!("{label}: expected the curved pierce door, got {err:?}");
+            .expect_err("an undeclared coaxial cyl×sphere pair has no frame");
+        let BooleanError::GermFrameUnsupported { a_kind, b_kind, .. } = err else {
+            panic!("{label}: expected the germ frame door, got {err:?}");
         };
-        // Operand A is the cylinder, and the edge it names is its SEAM.
-        assert_eq!(format!("{operand:?}"), "A", "{label}");
         assert_eq!(
-            topo::query::edge_carrier_kind(&c, edge),
-            Some(topo::CurveKind::Line),
-            "{label}: the refusal names a non-line carrier"
-        );
-        // Non-vacuity for that half: the rim circles ARE on offer, so
-        // "Line" is a choice the door made and not the only kind there.
-        assert_eq!(
-            c.edges()
-                .filter(|&(k, _)| {
-                    topo::query::edge_carrier_kind(&c, k) == Some(topo::CurveKind::Circle)
-                })
-                .count(),
-            4,
-            "{label}: the Line pin only says something while rim circles are on offer"
-        );
-        // The face is the BALL's, and it is the sphere wall — the half
-        // the door has no arm for.
-        assert_eq!(
-            topo::query::face_surface_kind(&s, face),
-            Some(geom_brep::SurfaceKind::Sphere),
-            "{label}: the refusal does not name a sphere face of operand B"
-        );
-        // Non-vacuity for THIS half, exactly as far as it goes (see the
-        // doc): operand A has no sphere face at all, so a door that
-        // reached into A's roster could not answer Sphere.
-        assert!(
-            c.faces().all(|(k, _)| {
-                topo::query::face_surface_kind(&c, k) != Some(geom_brep::SurfaceKind::Sphere)
-            }),
-            "{label}: operand A has a sphere face, so the Sphere pin says nothing"
+            (a_kind, b_kind),
+            (
+                geom_brep::SurfaceKind::Cylinder,
+                geom_brep::SurfaceKind::Sphere
+            ),
+            "{label}: the germ pair is the cylinder's wall and the ball's sphere"
         );
     }
 }
 
-/// **The declared arm changes nothing about the union, and this row is
-/// the receipt.** `cylinder_sphere_section` and the germ-frame arm both
-/// landed in this unit; the union's door did not move, because the door
-/// is two layers above them. A row that greened only on the direct pose
-/// would be hiding a pose-dependent answer, so the twin is asserted to
-/// the same variant.
-///
-/// What WOULD move it: a pierce lane that takes a Circle carrier
-/// against a curved face. Not this unit.
+/// **Both poses take the same door**: a row that greened only on the
+/// direct pose would be hiding a pose-dependent answer, so the twin is
+/// asserted to the same variant.
 #[test]
-fn the_section_and_frame_arms_do_not_move_the_unions_door() {
+fn both_poses_take_the_same_door() {
     let doors: Vec<String> = fixture()
         .into_iter()
         .map(|(_, c, s)| {
@@ -205,11 +138,11 @@ fn the_section_and_frame_arms_do_not_move_the_unions_door() {
         })
         .collect();
     assert_eq!(doors[0], doors[1], "the two poses take different doors");
-    assert_eq!(doors[0], "CurvedPierceUnsupported", "{doors:?}");
+    assert_eq!(doors[0], "GermFrameUnsupported", "{doors:?}");
 }
 
 /// **The non-coaxial transversal pose still marches** — the SSI lane is
-/// untouched by this unit, and the union's door for it is the same
+/// untouched by this unit, and the union's door for it is still the
 /// pierce door. That is the honest statement that the exact arm did not
 /// narrow anything it was not supposed to.
 #[test]
@@ -237,9 +170,8 @@ fn a_transversal_pose_keeps_its_door_too() {
 /// the wall face's BOX and a box overlap is a MAY, not a DOES.
 ///
 /// This is what makes the opening measurement a table rather than a
-/// single door: the crossing pose takes the pierce, the non-crossing
-/// pose takes the scan, and the germ frame takes neither. Only the
-/// third would have been this unit's to move.
+/// single door: the crossing pose takes the germ frame and the
+/// non-crossing pose takes the scan.
 #[test]
 fn a_contained_ball_refuses_at_the_curved_extent_scan() {
     let c = cyl(2.0, -2.0, 2.0);

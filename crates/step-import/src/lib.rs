@@ -806,7 +806,7 @@ pub fn import_step(
                 if topo::per_part_gate_owed(model.instances.len()) {
                     gate(&one, Some(spec.id), tol)?;
                 }
-                topo::graft_disjoint(&mut body, &one, tol).map_err(|source| {
+                topo::graft_disjoint(&mut body, &one).map_err(|source| {
                     StepImportError::Instance {
                         solid: spec.id,
                         source: Box::new(source),

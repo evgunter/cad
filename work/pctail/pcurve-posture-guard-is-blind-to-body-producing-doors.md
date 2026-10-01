@@ -25,7 +25,7 @@ takes a body and RETURNS one is invisible to it, and its row posture
 is a prose survey: `Body::revert` (`crates/topo/src/revert.rs`, the
 producer position the posture docs describe — carries every row key
 for key, plane-face rows mirrored with their frames),
-`transform_rigid` / `transform_rigid_via`
+`transform_rigid`
 (`crates/topo/src/transform.rs`, re-derives when the operand carried
 caches), `split` (`crates/topo/src/splitting/mod.rs`, the splitting
 lane, `Maintains` by the survey), `plane_section`

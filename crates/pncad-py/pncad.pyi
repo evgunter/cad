@@ -38,7 +38,7 @@ it is genuinely a second measure and not a second reading.
 
 The ASSEMBLY vocabulary is the layer above a single document:
 `Workspace` holds the parts, `Node.instantiate_part` references one,
-`DocEdit.set_placement` places its cluster, `Node.mate` says how two
+`DocEdit.set_placement` places its group, `Node.mate` says how two
 instances meet, `solve_document` poses them, `product` gathers what
 the document IS and `assemble` says whether it is valid at rest.
 `split` and `inline` refactor across the seam, and
@@ -641,7 +641,7 @@ class MateError(PncadError):
     `variant` is the refusing arm's stable tag; `fault` is the
     `MateFault` VALUE carrying the arm's payload.
 
-    The solve itself is TOTAL and never raises — a refusing cluster
+    The solve itself is TOTAL and never raises — a refusing group
     must not fail an unrelated one, so `solve_document` records the
     fault per node and `SolvedPoses.fault` hands back the same value
     this exception carries. Raised only where an answer is a pose or
@@ -703,7 +703,7 @@ class SplitError(PncadError):
     node: Optional[NodeId]
     consumer: Optional[NodeId]
     input: Optional[NodeId]
-    gauge: Optional[NodeId]
+    root: Optional[NodeId]
     instance: Optional[NodeId]
     param: Optional[str]
     name: Optional[str]
@@ -2544,7 +2544,7 @@ class Node:
         (`DocEdit.update_reference`, or `update_references` for every
         site at once).
 
-        No frame argument: placement lives on the CLUSTER, which is
+        No frame argument: placement lives on the GROUP, which is
         what makes zero-anchor and multi-anchor states
         unrepresentable rather than merely refused —
         `DocEdit.set_placement` is the door. No interface record
@@ -3174,6 +3174,18 @@ class DocEdit:
     @staticmethod
     def delete_node(id: NodeId) -> DocEdit: ...
     @staticmethod
+    def set_label(node: NodeId, label: Optional[str]) -> DocEdit:
+        """Set or clear a node's label: `label` replaces the label the
+        node has, `None` clears it. A label is document data beside the
+        node — not unique, never identity — so the edit recomputes
+        nothing; it does move the content pin, as a recolour does.
+
+        Raises EditError at this call for a text that is not a label
+        (`label_blank`, `label_line_break`, `label_control_character`),
+        and at `apply` for a node the document does not hold
+        (`unknown_node`) or an edit that would leave the label as it is
+        (`label_unchanged`)."""
+    @staticmethod
     def set_members(node: NodeId, members: list[NodeId]) -> DocEdit:
         """Replace a node's whole LIST input — a `Node.union`'s
         members, a `Node.loft`'s sections — with the list stated in
@@ -3306,11 +3318,11 @@ class DocEdit:
 
     @staticmethod
     def set_placement(node: NodeId, frame: Frame) -> DocEdit:
-        """Place an instance's CLUSTER.
+        """Place an instance's GROUP.
 
         The frame REPLACES whatever was recorded. Placement is
-        per-cluster, not per-instance: an instance coupled to others
-        by mates shares their frame, and `gauge_of` says which node
+        per-group, not per-instance: an instance coupled to others
+        by mates shares their frame, and `root_of` says which node
         the registry is actually keyed by. Refuses typed on
         `EditError`: `placement_on_non_instance`,
         `non_finite_placement`, `improper_placement`."""
@@ -3450,15 +3462,16 @@ class DocEdit:
 class Doc:
     """A parametric document: the recipe, not the geometry."""
 
-    def __init__(self, label: Optional[str] = None) -> None:
+    def __init__(self, seed: Optional[str] = None) -> None:
         """An empty document.
 
         `Doc()` mints a FRESH random identity, so two documents
         authored here are two parts and one workspace holds both.
-        `Doc(label)` derives the id from the label instead — same
-        label, same id, on every platform, which makes it the
+        `Doc(seed)` derives the id from the seed text instead — same
+        seed, same id, on every platform, which makes it the
         reproducible spelling and, deliberately, the one that makes
-        two same-label documents the SAME part. Raises IdentityError
+        two same-seed documents the SAME part. (The seed is not a
+        label: a node's label is `Doc.label`.) Raises IdentityError
         if the OS entropy source refuses."""
     @property
     def id(self) -> str:
@@ -3469,18 +3482,21 @@ class Doc:
         """Apply one edit, answering the minted node id if the edit
         minted one.
 
-        `resolver` is the document seam an edit that moves a cluster's
-        gauge levers through: its cluster-record maintenance mints the
-        cluster's frame from a solve of the prior document, whose lever
+        `resolver` is the document seam an edit that moves a group's
+        root levers through: its cluster-record maintenance mints the
+        group's frame from a solve of the prior document, whose lever
         is the mated parts' own extent. Every other edit never consults
         it, with one exception: inserting a mate asks the solve's own
-        per-mate admission at the door, and a clocking rider on a frame
-        coincidence is decided over the mated parts' extent, read
-        through `resolver`. Absent, a gauge-moving edit raises
-        `EditError` with variant `maintenance_refused` rather than
-        recording a frame nothing decided, and a mate with such a rider
-        raises `mate_refused` with `inner_variant == "mate_unleverable"`;
-        everything else is unaffected.
+        per-mate admission at the door, which reads the mated parts
+        through `resolver` in two cases — a `MateFrame.from_face` side
+        is resolved from the part's own face, and a clocking rider on a
+        frame coincidence is decided over the parts' extent. Absent, a
+        root-moving edit raises `EditError` with variant
+        `maintenance_refused` rather than recording a frame nothing
+        decided, a mate with a face side raises `mate_refused` with
+        `inner_variant == "mate_face_unresolved"`, and one with such a
+        rider `inner_variant == "mate_unleverable"`; everything else is
+        unaffected.
 
         A mate the solve refuses on its own datum — no member at its
         head, one member named twice, a class outside the vocabulary,
@@ -3567,7 +3583,7 @@ class Doc:
         be inferred."""
 
     def placement(self, node: NodeId) -> Frame:
-        """An instance's CLUSTER frame, or the identity when nothing
+        """An instance's GROUP frame, or the identity when nothing
         was recorded. Total — use `placements` to tell "placed at the
         identity" from "carries no frame of its own". This is the
         AUTHORED frame; a mated instance's world pose is
@@ -3575,8 +3591,8 @@ class Doc:
 
     def placements(self) -> dict[NodeId, Frame]:
         """The placement registry itself: every node with a recorded
-        cluster frame. A mated instance that is not its cluster's
-        gauge is ABSENT here however it is posed."""
+        group frame. A mated instance that is not its group's
+        root is ABSENT here however it is posed."""
 
     def reference(self, node: NodeId) -> Optional[DocRef]:
         """The `(id, pin)` an instantiate node carries, or `None` for
@@ -3611,26 +3627,45 @@ class Doc:
         A node this document does not hold raises EditError
         (`unknown_node`) rather than answering a word or `None`."""
 
-    def insert(self, node: Node, *, resolver: Optional[Workspace] = None) -> NodeId:
+    def label(self, node: NodeId) -> Optional[str]:
+        """The label a person gave `node`, or `None` when it has none.
+        Set or cleared by `DocEdit.set_label`, or by `label=` at
+        insert. A node this document does not hold raises EditError
+        (`unknown_node`): `None` answers only for a held node."""
+
+    def insert(
+        self,
+        node: Node,
+        *,
+        label: Optional[str] = None,
+        resolver: Optional[Workspace] = None,
+    ) -> NodeId:
         """Insert a node, answering its minted id — `apply` of
         `DocEdit.insert_node`.
 
-        `resolver` is the document seam a mate's admission levers
-        through: an insert is a Join at most (the survivor keeps its
-        gauge), so its maintenance never consults it, but a mate's
-        clocking rider on a frame coincidence is decided at the door
-        over the mated parts' extent, read through `resolver` — see
-        `apply` for what a mate refuses here (`mate_refused`)."""
+        `label=` labels the new node in the same call: the insert and
+        `DocEdit.set_label`, both applied or neither. A text that is
+        not a label raises EditError before anything is applied.
+
+        `resolver` is the document seam a mate's admission reads the
+        parts through: an insert is a Join at most (the survivor keeps
+        its root), so its maintenance never consults it, but a mate's
+        `from_face` side is resolved from the part's face at the door,
+        and its clocking rider on a frame coincidence is decided there
+        over the mated parts' extent, both read through `resolver` —
+        see `apply` for what a mate refuses here (`mate_refused`)."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
         elevation: Optional[Expr] = None,
+        *,
+        label: Optional[str] = None,
     ) -> NodeId:
         """Insert a sketch frame and return its id.
 
-        Exactly `insert(Node.sketch_frame(...))`. Each call mints a
-        FRESH frame; two sketches meant to share a plane bind the id
-        once and pass it twice.
+        Exactly `insert(Node.sketch_frame(...), label=label)`. Each call
+        mints a FRESH frame; two sketches meant to share a plane bind
+        the id once and pass it twice.
         """
 
     def declare(self, finding: FlushFinding) -> NodeId:
@@ -5279,26 +5314,46 @@ def evaluate(
 # `Node.mate` + `DocEdit.set_placement`; reading is `solve_document`,
 # `product` and `assemble`; refactoring is `split` / `inline`.
 #
-# Placement lives on the CLUSTER, never on the instance: mated
+# Placement lives on the GROUP, never on the instance: mated
 # instances share one recorded frame — the earliest of them in
-# document order, their GAUGE — and every other member's world pose is
+# document order, their ROOT — and every other member's world pose is
 # SOLVED from the mates and composed outward. That is why
 # `Doc.placement` and `SolvedPoses.placement` are two different
 # questions, and why a document can carry three instances and one
 # frame.
 
 class MateFrame:
-    """One side's mate frame, in that instance's own part coordinates.
+    """One side's mate frame, in that instance's own part coordinates
+    — two arms.
 
-    AUTHORED data, not geometry read back: the solve is structural
-    plus decided predicates over exactly these numbers, so a frame
-    that does not match the face its mate names is a disagreement
-    nothing here can see.
-
+    AUTHORED: three vectors, `MateFrame(origin, axis, reference)`.
     `axis` need not be unit and `reference` need not be perpendicular
     to it — only the axis's direction and the reference's
     perpendicular part are read. Both are plain numbers (a direction
-    carries no dimension); `origin` is three lengths."""
+    carries no dimension); `origin` is three lengths.
+
+    FROM A FACE: `MateFrame.from_face(face)`, where `face` is the
+    PART-LOCAL name text of a face of the mated part — the row
+    `evaluate(part).select(...)` answers on the part's own document,
+    never the instance-qualified spelling a mate head carries. The
+    solve reads that face's canonical pose off the part's own
+    evaluation at every evaluation and takes it as the frame: the
+    carrier's origin, its CHART axis (the face's orientation sense is
+    not folded in — the mate's `AxisSense` says which way the sides
+    point) and the carrier's own in-frame reference direction as the
+    roll. So a face frame's roll is the carrier's: a side that needs a
+    roll of its own takes authored vectors. Nothing is stored twice:
+    edit the part so the face moves, and the mate follows. A face with
+    no canonical frame (a NURBS carrier) refuses at the solve and keeps
+    taking authored vectors.
+
+    A face frame resolves at the NOMINAL value only. Under an analysis
+    lane — `stackup.sensitivities`' dual passes, a certified
+    `clearance`'s interval leaf — the part's product pins no single
+    number, so the side refuses `mate_face_unresolved` / `unpinned`
+    rather than drop the pose's own sensitivity: those doors refuse an
+    assembly that holds a face frame, where the same mate authored as
+    vectors still solves."""
 
     def __init__(
         self,
@@ -5306,18 +5361,45 @@ class MateFrame:
         axis: tuple[float, float, float],
         reference: tuple[float, float, float],
     ) -> None: ...
+    @staticmethod
+    def from_face(face: str) -> MateFrame:
+        """A frame resolved from `face`, a face of the part by its
+        PART-LOCAL name text (see the class docs); the name is the
+        whole frame, and it resolves on the nominal lane only. Raises
+        ValueError for text that is not a stable name, and EditError
+        (`mate_head_not_a_face`) for a name of another kind."""
+
     @property
-    def origin(self) -> tuple[Length, Length, Length]: ...
+    def variant(self) -> str:
+        """`"authored"` or `"from_face"`."""
+
     @property
-    def axis(self) -> tuple[float, float, float]: ...
+    def origin(self) -> Optional[tuple[Length, Length, Length]]:
+        """The authored origin; `None` on a `from_face` frame, whose
+        origin is the face's and is read at the solve."""
+
     @property
-    def reference(self) -> tuple[float, float, float]: ...
+    def axis(self) -> Optional[tuple[float, float, float]]:
+        """The authored axis; `None` on a `from_face` frame."""
+
+    @property
+    def reference(self) -> Optional[tuple[float, float, float]]:
+        """The authored clocking reference; `None` on a `from_face`
+        frame, whose roll is the carrier's own."""
+
+    @property
+    def face(self) -> Optional[str]:
+        """The face a `from_face` frame names, as its name text in the
+        part's own spelling; `None` on an authored frame."""
+
     def placement(self) -> Frame:
-        """The rigid placement this frame denotes: local +Z is `axis`,
-        roll fixed by `reference`. Raises FrameError when the axis has
-        no definite direction or the reference no definite
+        """The rigid placement an AUTHORED frame denotes: local +Z is
+        `axis`, roll fixed by `reference`. Raises FrameError when the
+        axis has no definite direction or the reference no definite
         perpendicular — the refusal the solve would meet, reachable
-        BEFORE authoring the mate that carries it."""
+        BEFORE authoring the mate that carries it. Raises TypeError on
+        a `from_face` frame, which denotes no placement until the
+        solve resolves it against the part: ask the solved document."""
 
     def __eq__(self, other: object) -> bool: ...
 
@@ -5402,10 +5484,12 @@ class Alignment:
     @property
     def clocking(self) -> Optional[Angle]: ...
     @property
-    def lever_arm(self) -> Length:
+    def lever_arm(self) -> Optional[Length]:
         """The datum's own contribution to the lever this mate's angular
         decisions turn on: both mate frames' distances from their parts'
-        origins plus every length the primitive authors, summed.
+        origins plus every length the primitive authors, summed. `None`
+        when a side is a `from_face` frame, whose origin is the face's
+        and is read at the solve, where the term is formed.
 
         The lever itself adds the two mated parts' own extent (an upper
         bound from each evaluated body), which only the solve has in
@@ -5531,6 +5615,12 @@ class MateFault:
     @property
     def instance(self) -> Optional[NodeId]: ...
     @property
+    def face(self) -> Optional[str]:
+        """The face a `from_face` frame named, as its name text in the
+        PART's own spelling, where the refusal is about one
+        (`mate_face_unresolved`)."""
+
+    @property
     def parent(self) -> Optional[NodeId]: ...
     @property
     def child(self) -> Optional[NodeId]: ...
@@ -5571,11 +5661,18 @@ class MateFault:
         """The nested refusal's own word: the frame ladder's
         (`FrameError.variant`'s vocabulary), the band constructor's
         (`invalid_value`, `invalid_lever_arm`, `empty`), or the lever
-        refusal's (`part_unresolved`, `face_unbounded`, `no_extent`,
-        `no_finite_bound`, `not_an_instance`, with the instance it is
-        about as `instance`). `None` on an arm whose payload
-        is a struct rather than an enum — an escalation has no inner
-        word, and its shape is which margin attribute is set."""
+        refusal's (`part_unresolved`, `face_unbounded`,
+        `malformed_body`, `no_extent`, `no_finite_bound`,
+        `not_an_instance`, with the instance it is about as `instance`,
+        or `out_of_range`, about the pair's lever rather than one part,
+        with no `instance`), or the face refusal's on
+        `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
+        `ambiguous`, `not_a_face`, `readback`, `unpinned`,
+        `not_an_instance`, with the
+        instance as `instance` and the face as `face`). `None` on an
+        arm whose payload is a struct rather than an enum — an
+        escalation has no inner word, and its shape is which margin
+        attribute is set."""
 
     @property
     def margin(self) -> Optional[Length]:
@@ -5646,60 +5743,64 @@ class MateFault:
 
 class SolvedPoses:
     """The document's solved poses: each instance's pose relative to
-    its cluster gauge, each mate's role, and the per-node refusals."""
+    its group root, each mate's role, and the per-node refusals."""
 
     def fault(self, node: NodeId) -> Optional[MateFault]:
         """The node's recorded fault. Recorded against the refusing
-        MATE and against every instance in its cluster that
+        MATE and against every instance in its group that
         consequently has no pose — and no further."""
 
     def role(self, mate: NodeId) -> Optional[MateRole]: ...
-    def gauge(self, instance: NodeId) -> Optional[NodeId]:
-        """The instance's cluster gauge. A singleton is its own."""
+    def root(self, instance: NodeId) -> Optional[NodeId]:
+        """The instance's group root. A singleton is its own."""
 
     def relative(self, instance: NodeId) -> Optional[Frame]:
-        """Its pose relative to that gauge. The gauge's own entry is
+        """Its pose relative to that root. The root's own entry is
         the identity, bit-exactly."""
 
     def placement(self, doc: Doc, instance: NodeId) -> Frame:
-        """The instance's WORLD placement: the cluster's recorded
+        """The instance's WORLD placement: the group's recorded
         frame composed onto the solved relative pose. A singleton
         returns its recorded frame verbatim.
 
         `doc` must be the document this solve is OF. Passing another
         would compose this document's relative poses onto that one's
-        cluster frames, which is a pose of neither, so the door
+        group frames, which is a pose of neither, so the door
         refuses first: a `SolvedPoses` carries the id of the document
         `solve_document` solved, and a mismatch raises MateError with
         tag `mate_poses_of_another_document` before any frame is
-        read. Raises MateError when the cluster did not solve."""
+        read. Raises MateError when the group did not solve."""
 
 def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedPoses:
     """Solve the document's mates: the per-pair coset fold along a
     deterministic spanning tree.
 
-    TOTAL — this never raises. A refusing cluster must not fail an
+    TOTAL — this never raises. A refusing group must not fail an
     unrelated one, so refusals are read back through
     `SolvedPoses.fault`.
 
-    The solve reads no geometry except each mated part's own extent —
-    an upper bound taken from its evaluated body, entering only as the
-    lever a parallelism verdict is decided over — so `resolver` is the
-    same document seam `evaluate(doc, resolver=)` crosses. Without one
-    every mate on a part faults `mate_unleverable` in the resolver's
-    own voice rather than levering over nothing. In particular the
-    solve does NOT check that a mate's frames match the faces its
-    references name, which is why a document can solve cleanly and
-    still refuse at the gate."""
+    The solve reads no geometry except what each mated part's own
+    evaluation answers: its extent — an upper bound taken from its
+    evaluated body, entering only as the lever a parallelism verdict
+    is decided over — and, for a `MateFrame.from_face` side, that
+    face's canonical pose. So `resolver` is the same document seam
+    `evaluate(doc, resolver=)` crosses. Without one every mate on a
+    part refuses in the resolver's own voice rather than reading
+    nothing: a face side `mate_face_unresolved` (read first), an
+    authored one `mate_unleverable`. A face frame IS its face and
+    cannot drift from the part; the solve does NOT check that AUTHORED
+    vectors match the faces the mate's references name, which is why
+    a document authored so can solve cleanly and still refuse at the
+    gate."""
 
-def clusters(doc: Doc) -> list[list[NodeId]]:
-    """The placement clusters: instances coupled by mates, members in
+def groups(doc: Doc) -> list[list[NodeId]]:
+    """The placement groups: instances coupled by mates, members in
     document order. The partition placement is keyed by."""
 
-def gauge_of(doc: Doc, instance: NodeId) -> NodeId:
-    """An instance's cluster GAUGE — the document-order-first instance
-    of its cluster, whose recorded frame places the whole cluster.
-    Answers the node itself when it is in no cluster."""
+def root_of(doc: Doc, instance: NodeId) -> NodeId:
+    """An instance's group ROOT — the document-order-first instance
+    of its group, whose recorded frame places the whole group.
+    Answers the node itself when it is in no group."""
 
 def reading_edges(doc: Doc) -> list[tuple[NodeId, NodeId]]:
     """For each mate, the instantiate node each of its references
@@ -5708,7 +5809,7 @@ def reading_edges(doc: Doc) -> list[tuple[NodeId, NodeId]]:
 def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
     """The relative-freedom partition: components over consuming
     union reading edges, so mates couple what they constrain. Coarser
-    than `clusters`, which partitions instances alone."""
+    than `groups`, which partitions instances alone."""
 
 class Maintenance:
     """One act of automatic maintenance an accepted edit performed:
@@ -6088,17 +6189,17 @@ def split(
     in one store.
 
     The cut must be ancestor- and consumer-closed and a union of WHOLE
-    placement clusters. Pure — `doc` is untouched. Raises SplitError,
-    typed, naming the offending edge, cluster, parameter or name.
+    placement groups. Pure — `doc` is untouched. Raises SplitError,
+    typed, naming the offending edge, group, parameter or name.
 
     `resolver` is the document seam the split's own edits lever
-    through where one moves a cluster's gauge (the remainder's mate
-    deletes split the cluster they cut; the part's mate inserts
-    re-form it): its cluster-record maintenance mints the cluster's
+    through where one moves a group's root (the remainder's mate
+    deletes split the group they cut; the part's mate inserts
+    re-form it): its cluster-record maintenance mints the group's
     frame from a solve of the prior document, whose lever is the
     mated parts' own extent. The part being minted answers its own
     reference; `resolver` answers every other. Absent, a cut that
-    moves a gauge raises `SplitError` carrying an `EditError` with
+    moves a root raises `SplitError` carrying an `EditError` with
     variant `maintenance_refused`; a cut that moves none is
     unaffected."""
 

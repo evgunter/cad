@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Expr, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
+    BooleanOp, Dimension, DimensionError, Doc, Expr, Label, LabelFault, LoopProgram, Maintenance,
+    Node, ParamName, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
@@ -253,6 +253,29 @@ pub(crate) struct Drafts {
     /// selected, and dropped the moment the selection leaves the node
     /// it was loaded from ([`Drafts::abandon_profile_edit_off`]).
     pub(crate) profile_edit: Option<ProfileEdit>,
+    /// **The rename field's text, as typed**, and the node it renames:
+    /// `Some` once a keystroke has landed, taken when the field
+    /// commits. `None` shows the label the node has.
+    pub(crate) label_text: Option<(RecipeNodeId, String)>,
+    /// **A create form's label, as typed**, by the kind noun the form
+    /// creates. A form nobody has typed into has no entry and shows
+    /// the proposal ([`crate::tree::proposed_label`]) for that moment;
+    /// the entry is taken when the form commits.
+    pub(crate) creation_labels: BTreeMap<&'static str, String>,
+}
+
+/// **A label field's text, as the document's label**: blank clears
+/// (`None`); anything else is held to the label rule.
+///
+/// # Errors
+///
+/// [`LabelFault`] for a text the rule refuses — one with a line break
+/// or another control character.
+pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    Label::new(text).map(Some)
 }
 
 /// **One value per door of the profile editor** — the add-profile
@@ -646,6 +669,8 @@ impl Default for Drafts {
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
             profile_edit: None,
+            label_text: None,
+            creation_labels: BTreeMap::new(),
         }
     }
 }
@@ -725,6 +750,11 @@ impl Drafts {
     /// untouched again, and still open on the node, which is where the
     /// person is still working.
     pub(crate) fn accepted(&mut self, op: &SessionOp, minted: &[RecipeNodeId]) {
+        // A labelled creation settles the form its creation came from.
+        let op = match op {
+            SessionOp::CreateLabelled { creation, .. } => creation.op(),
+            op => op,
+        };
         let SessionOp::AddProfile { plane, .. } = op else {
             return;
         };
@@ -736,6 +766,34 @@ impl Drafts {
             && let Some(frame) = minted.first()
         {
             self.profile_plane = Some(ProfilePlane::Existing(*frame));
+        }
+    }
+
+    /// **The rename field is showing `shown`'s label** (`None`: no
+    /// rename field is showing). A rename typed for any other node is
+    /// dropped, so it can neither reappear on a later visit nor commit
+    /// against a node it was not typed for.
+    pub(crate) fn rename_shown_for(&mut self, shown: Option<RecipeNodeId>) {
+        if self
+            .label_text
+            .as_ref()
+            .is_some_and(|(typed_for, _)| Some(*typed_for) != shown)
+        {
+            self.label_text = None;
+        }
+    }
+
+    /// **A creation landed**: the label its form held is spent, so the
+    /// next creation of that kind proposes afresh. The form is found by
+    /// the kind noun of the last node the action minted — the noun a
+    /// form's label field is keyed by, which is that node's kind
+    /// (`each_datum_choices_noun_is_the_kind_of_the_node_it_commits`,
+    /// `creation_nouns`). Called only for an op that committed, so a
+    /// refused creation keeps what was typed.
+    pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
+        if let Some(node) = minted.last().and_then(|id| doc.node(*id)) {
+            self.creation_labels
+                .remove(pncad::document::node_kind_noun(node));
         }
     }
 
@@ -772,7 +830,7 @@ impl Drafts {
             self.profile_edit = None;
             let loops = sketch::held_loops(doc, node)?;
             let Some(base) = current else {
-                unreachable!("`held_loops` loaded feature {} as a profile", node.0)
+                unreachable!("`held_loops` loaded node {} as a profile", node)
             };
             self.profile_edit = Some(ProfileEdit::load(node, base, loops));
         }
@@ -931,10 +989,7 @@ impl Drafts {
                 };
                 DatumSpec::AxisInPlane {
                     plane,
-                    origin: notation.point_literals([
-                        self.datum_in_frame_origin.x,
-                        self.datum_in_frame_origin.y,
-                    ])?,
+                    origin: notation.point_literals(self.datum_in_frame_origin.to_array())?,
                     direction: scalars2(self.datum_in_frame_direction)?,
                 }
             }
@@ -1083,6 +1138,68 @@ mod tests {
         assert_eq!(drafts.profile_shape, None, "the shape still rests");
     }
 
+    /// A rename draft survives only while its own node's field shows.
+    #[test]
+    fn a_rename_draft_is_dropped_when_the_pane_moves_off_its_node() {
+        let (typed_for, other) = (RecipeNodeId(3), RecipeNodeId(4));
+        let mut drafts = Drafts {
+            label_text: Some((typed_for, "lid".to_owned())),
+            ..Drafts::default()
+        };
+        drafts.rename_shown_for(Some(typed_for));
+        assert!(drafts.label_text.is_some(), "kept while its node shows");
+        drafts.rename_shown_for(Some(other));
+        assert_eq!(drafts.label_text, None, "dropped on another node");
+        drafts.label_text = Some((typed_for, "lid".to_owned()));
+        drafts.rename_shown_for(None);
+        assert_eq!(drafts.label_text, None, "dropped with no node shown");
+    }
+
+    /// A labelled creation settles its form as the bare creation does,
+    /// and spends the label draft of the kind it minted — only once it
+    /// has landed, and only that kind's.
+    #[test]
+    fn a_landed_creation_spends_its_kinds_label_draft_and_settles_its_form() {
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("drafts-creation-landed", tol);
+        let (doc, frame) = inserted(&doc, xy_frame(), tol);
+        let mut drafts = Drafts {
+            profile_plane: Some(ProfilePlane::NewXy),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+        drafts
+            .creation_labels
+            .insert("Datum frame", "floor".to_owned());
+        drafts.creation_labels.insert("Extrude", "plate".to_owned());
+        let loops = drafts
+            .profile_programs(Notation::DEFAULT)
+            .expect("the default circle lowers");
+        let creation = crate::session::Creation::of(SessionOp::AddProfile {
+            plane: ProfilePlane::NewXy,
+            loops,
+        })
+        .expect("adding a profile creates a node");
+        drafts.accepted(
+            &SessionOp::CreateLabelled {
+                creation,
+                label: pncad::document::Label::new("sketch").expect("a label"),
+            },
+            &[frame],
+        );
+        assert_eq!(
+            drafts.profile_plane,
+            Some(ProfilePlane::Existing(frame)),
+            "the labelled add settles the form as the bare one does"
+        );
+        drafts.creation_landed(&doc, &[frame]);
+        assert_eq!(
+            drafts.creation_labels.keys().copied().collect::<Vec<_>>(),
+            vec!["Extrude"],
+            "the frame's draft is spent, the extrude's kept"
+        );
+    }
+
     /// An accepted add on an EXISTING frame leaves the pick where it
     /// was — the arm that must not follow the rule above, since the
     /// one id it minted is the profile.
@@ -1188,6 +1305,40 @@ mod tests {
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
         )
+    }
+
+    /// **A datum choice's noun is the kind of the node it lowers to**:
+    /// the add-datum form's proposed label counts by
+    /// [`DatumKindChoice::noun`], so it has to be `node_kind_noun`'s
+    /// word for what the form commits.
+    #[test]
+    fn each_datum_choices_noun_is_the_kind_of_the_node_it_commits() {
+        for (datum_kind, _) in DatumKindChoice::ALL {
+            let spec = picked(datum_kind)
+                .datum_spec(Some(&seated()), Notation::DEFAULT)
+                .expect("the default drafts are finite")
+                .expect("every pick is filled");
+            assert_eq!(
+                pncad::document::node_kind_noun(&datum_node(spec)),
+                datum_kind.noun(),
+                "{datum_kind:?}"
+            );
+        }
+    }
+
+    /// Blank clears; a label is kept as typed; a text the rule refuses
+    /// is refused.
+    #[test]
+    fn a_label_field_reads_blank_as_clear_and_holds_the_rest_to_the_rule() {
+        assert_eq!(super::label_typed(" \t "), Ok(None));
+        assert_eq!(
+            super::label_typed(" lid ").map(|label| label.map(|l| l.as_str().to_owned())),
+            Ok(Some(" lid ".to_owned()))
+        );
+        assert!(matches!(
+            super::label_typed("a\u{7}b"),
+            Err(pncad::document::LabelFault::Control { at: 1, .. })
+        ));
     }
 
     /// **Every seat a datum fills can be filled from the add-datum

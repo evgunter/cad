@@ -88,7 +88,7 @@ use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
 use crate::splitting::SplitPlane;
-use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
+use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_carrier_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -234,6 +234,14 @@ pub enum SplitJoinError {
         /// The undecidable ring.
         ring: LoopKey,
     },
+    /// The divided face's outer loop carries an edge the containment
+    /// walk has no crossing row for (a spiric, a spline), and the ray
+    /// schedule from the ring's representative ran out with at least
+    /// one ray abandoned because it could meet that edge.
+    RingHomingUncrossable {
+        /// The unplaced ring.
+        ring: LoopKey,
+    },
     /// Loose ends survived the sweep — the null-edge set does not
     /// close into section polygons. Both lanes read a line edge's side
     /// at its far vertex, so a vertex's germs agree with the sections
@@ -336,6 +344,20 @@ pub enum SplitJoinError {
         /// What failed.
         what: &'static str,
     },
+    /// A sphere face's section plane is definitely TILTED against the
+    /// face's chart polar axis (`split_sphere_section_polar`): the
+    /// azimuth-anchored arc-side rule premises azimuth monotone along
+    /// the section carrier, which a sphere chart gives only for a polar
+    /// section. A deliberate typed frontier, for a plane×sphere pair and
+    /// for a sphere pair's radical plane alike — the no-crossings re-cut
+    /// re-charts a free ball so its sections ARE polar; a configuration
+    /// it does not reach stops here.
+    SectionNotPolar {
+        /// The sphere face being divided.
+        face: FaceKey,
+        /// The band the tilt was decided against.
+        band: Band,
+    },
 }
 
 impl From<EulerOpError> for SplitJoinError {
@@ -414,8 +436,9 @@ impl SplitJoinError {
                 ),
                 crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
                     f,
-                    "every test ray grazed a hole loop, so which piece holds it is \
-                     ill-conditioned at this tolerance. Recourse: {recourse}"
+                    "every test ray grazed the divided face's boundary, so which piece \
+                     holds a hole loop is ill-conditioned at this tolerance. Recourse: \
+                     {recourse}"
                 ),
                 crate::splitting::PointInLoopError::CorruptLoop { .. } => {
                     write!(f, "re-homing a hole loop refused: {e}")
@@ -425,6 +448,12 @@ impl SplitJoinError {
                 f,
                 "a hole loop sits on the divided face's outer boundary, so which piece \
                  holds it cannot be decided. Recourse: {recourse}"
+            ),
+            Self::RingHomingUncrossable { .. } => write!(
+                f,
+                "which piece holds a hole loop cannot be read: no test ray got past a \
+                 curved edge of the divided face's boundary that it could meet. Recourse: \
+                 {recourse}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
@@ -446,6 +475,20 @@ impl SplitJoinError {
             }
             Self::Band(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            // The carrier's constructor states its escalation for a
+            // caller that could build the circle instead; no reader of
+            // a join can, so the join keeps the constructor's subject
+            // and offers its own door's levers.
+            Self::Section {
+                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
+                ..
+            } => write!(
+                f,
+                "{} is undecided for the section through a curved face: {}. Recourse: \
+                 {recourse}",
+                geom::EllipseInvalid::escalated_subject(diag),
+                diag.payload()
+            ),
             Self::Section { source, .. } => {
                 write!(f, "the section through a curved face refused: {source}")
             }
@@ -467,6 +510,15 @@ impl SplitJoinError {
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
+            Self::SectionNotPolar { band, .. } => write!(
+                f,
+                "a section through a sphere face is tilted against the sphere's polar axis, \
+                 and the join takes only polar sections ('split_sphere_section_polar', band \
+                 ({:e}, {:e})). Recourse: revolve the ball about the section's normal: the \
+                 line through both centres for two balls, the face's normal for a plane",
+                band.zero(),
+                band.escalate(),
+            ),
         }
     }
 }
@@ -737,12 +789,8 @@ fn section_case<T: Decide>(
                 "a chord's section pair has no plane — the C5 arms this lane reads are \
                  plane×cylinder and plane×sphere, and a curved×curved pair has no arc-side \
                  rule to run; refused typed rather than defaulted to a straight chord. A \
-                 SPHERE PAIR is the sharp case: its section IS an exact closed-form Circle \
-                 (sphere_sphere_section), so what is missing is not the locus but the \
-                 CHART the arc-side rule reads — the azimuth-anchored rule premises \
-                 azimuth monotone along the carrier, which holds on a sphere chart only \
-                 for a POLAR section, and a sphere pair's section axis is the centre line, \
-                 polar for neither operand unless both charts already aim along it",
+                 sphere pair never arrives here: its section lies in the pair's radical \
+                 plane, which the boolean's join hands each side as a plane×sphere pair",
             ));
         }
     };
@@ -798,12 +846,7 @@ fn section_case<T: Decide>(
         {
             Sign::Zero => {}
             Sign::Positive | Sign::Negative => {
-                return Err(invariant(
-                    "plane×sphere section tilted against the sphere chart's polar \
-                     axis — the azimuth-anchored arc-side rule needs a polar \
-                     section (the extent-certified re-cut re-charts the operand; a tilted \
-                     residual configuration is a typed frontier)",
-                ));
+                return Err(SplitJoinError::SectionNotPolar { face, band });
             }
         }
         return Ok(SectionCase::Conic(SectionConic {
@@ -1335,7 +1378,7 @@ fn chord_spec<T: Decide>(
                     k
                 }
             };
-            let witness = carrier.eval(s1 + (s2 - s1) * T::from_f64(0.5));
+            let witness = carrier.mid_point(s1, s2);
             return Ok(Some(EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
                     s1: wall_key,
@@ -1384,7 +1427,7 @@ fn chord_spec<T: Decide>(
             k
         }
     };
-    let witness = carrier.eval(t_start + (t_end - t_start) * T::from_f64(0.5));
+    let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             s1: wall_key,
@@ -1403,6 +1446,29 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
     Ok(face_azimuth_images(body, surface, face, band)?.and_then(|images| azimuth_hull(&images)))
+}
+
+/// [`face_azimuth_window`] on `face`'s own surface: the window every
+/// reader folds, read from outside the crate so a suite can hold the
+/// interval lane's window against the `f64` replay's. `sweep-testing`
+/// only, never production surface.
+///
+/// # Errors
+///
+/// As [`face_azimuth_window`], and [`SplitJoinError::Corrupt`] for a
+/// face or surface key that does not resolve.
+#[cfg(feature = "sweep-testing")]
+pub fn face_azimuth_window_traces<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<Option<(T, T)>, SplitJoinError> {
+    let key = body
+        .get_face(face)
+        .ok_or_else(|| corrupt_face(face))?
+        .surface;
+    let surface = body.get_surface(key).ok_or_else(|| corrupt_face(face))?;
+    face_azimuth_window(body, surface, face, band)
 }
 
 /// The azimuth hull of a walk's images: the window every caller folds.
@@ -1518,7 +1584,7 @@ fn bool_planar_chord_spec<T: Decide>(
             k
         }
     };
-    let witness = carrier.eval(t_start + (t_end - t_start) * T::from_f64(0.5));
+    let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             s1: plane_key,
@@ -2072,21 +2138,25 @@ fn run_azimuth_images<T: Decide>(
                             // index above: the branch wanted is the
                             // unique one in an OPEN interval, and the
                             // nearest one is exactly what carries no
-                            // information here. That puts this fold's
-                            // jump at an integer `q` — the entry azimuth
-                            // landing exactly on the previous exit —
-                            // where the open interval's two ends are
-                            // genuinely different answers and an
-                            // enclosure straddling it reports both. It
-                            // is a boundary of a half-open selection,
-                            // not a fold written around its own live
-                            // value, so it is recorded rather than
-                            // respelled.
+                            // information here.
+                            //
+                            // The selection jumps at an integer `q`: the
+                            // entry meridian leaves the pole along the
+                            // half-meridian the previous one arrived on —
+                            // a slit, two meridian edges overlapping, or a
+                            // wedge inside rounding. An enclosure
+                            // straddling the jump spans both branches,
+                            // `prev` and `prev ± τ`, so the window's width
+                            // encloses τ or more. What makes that sound
+                            // is the property a window reader relies on:
+                            // it reads the window as a region only once
+                            // its period gate has decided the width
+                            // definitely under τ, so on this window it
+                            // declines or escalates and never reads it.
+                            let q = (prev - raw) / tau;
                             k = if advancing {
-                                let q = (prev - raw) / tau;
                                 q.floor() + T::one()
                             } else {
-                                let q = (prev - raw) / tau;
                                 T::zero() - (T::zero() - q).floor() - T::one()
                             };
                         }
@@ -2344,7 +2414,9 @@ impl ChordJoiner {
 
     /// `laringmv(oldf, newf)`: move every bystander ring of `oldf`
     /// enclosed by the mef run (`newf`'s outer) into `newf` — decided
-    /// by the trilean containment predicate, never a raw comparison.
+    /// on the run's own edge carriers ([`point_in_carrier_loop`]),
+    /// since a run bearing an arc does not bound the polygon through
+    /// its vertices.
     ///
     /// The test is against the RUN, not `oldf`'s outer (issue #93):
     /// when the split loop was a RING of `oldf` (an island seam),
@@ -2377,12 +2449,13 @@ impl ChordJoiner {
                 continue;
             }
             let rep = ring_representative(body, ring)?;
-            match point_in_loop(body, run, normal, rep, self.band)? {
-                LoopContainment::In => body.ring_move(ring, newf)?,
-                LoopContainment::Out => {}
-                LoopContainment::OnBoundary => {
+            match point_in_carrier_loop(body, run, normal, rep, self.band)? {
+                Some(LoopContainment::In) => body.ring_move(ring, newf)?,
+                Some(LoopContainment::Out) => {}
+                Some(LoopContainment::OnBoundary) => {
                     return Err(SplitJoinError::RingHomingAmbiguous { ring });
                 }
+                None => return Err(SplitJoinError::RingHomingUncrossable { ring }),
             }
         }
         Ok(())
@@ -2449,13 +2522,16 @@ impl ChordJoiner {
 /// The face's **chart** plane normal (F5-gated: always a `Plane`),
 /// deliberately without the face's sense folded in.
 ///
-/// Its one consumer is [`point_in_loop`], which reads the normal only
-/// to recover the loop's PLANE and whose verdict is exactly invariant
-/// under `n̂ ↦ −n̂`. **That derivation lives at `point_in_loop`**,
+/// Its one consumer is [`point_in_carrier_loop`], which reads the
+/// normal only to recover the loop's PLANE and the in-plane side axis
+/// `n̂ × d` of each ray; only the straight edges' crossing rows read
+/// that axis, and their verdict is exactly invariant under `n̂ ↦ −n̂`.
+/// **That derivation lives at
+/// [`point_in_loop`](crate::splitting::containment::point_in_loop)**,
 /// under the function whose property it is rather than under the
 /// five-line producer that relies on it; the consequence here is that
 /// ring re-homing cannot move a ring on the sense bit, and
-/// `tests/review_m3_pr3_pil.rs` pins it.
+/// `tests/review_m3_pr3_pil.rs` pins it for the straight rows.
 ///
 /// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
 /// which multiplies although its own consumer is equally sign-blind,
@@ -2480,8 +2556,8 @@ fn face_plane_normal<T: Decide>(
     }
 }
 
-/// A representative point of a ring (its anchor vertex).
-fn ring_representative<T: Decide>(
+/// A representative point of a loop (its anchor vertex).
+pub(crate) fn ring_representative<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
 ) -> Result<Point3<T>, SplitJoinError> {
@@ -2617,7 +2693,7 @@ mod tests {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
                         s1: cyl,
                         s2: plane,
-                        witness: carrier.eval((t0 + t1) * 0.5),
+                        witness: carrier.mid_point(t0, t1),
                     },
                     carrier,
                     param_start: t0,

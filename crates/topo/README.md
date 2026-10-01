@@ -160,8 +160,10 @@ aborts. Failures, all typed: `UndeclaredContact`, `ContactContradicted`
 Invariant: every definite verdict wins over every declaration.
 
 **Continuation.** Two faces, one from each operand, on one carrier
-with their senses ALIGNED, interiors disjoint, sharing only a boundary
-curve, are a *continuation*: one surface carried on across the seam.
+with their senses ALIGNED are a *continuation*: one surface carried on,
+whether the two abut along a boundary curve or overlap on a patch.
+Which of the two it is, the kernel derives exactly; the author declares
+only the coincidence.
 A continuation is not a contact and is not a `ContactClass`. The two
 declaration seats take different types, so each states only what its
 consumer can use. A mate (and every record and census reading) takes a

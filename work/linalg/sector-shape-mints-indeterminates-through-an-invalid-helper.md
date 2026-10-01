@@ -2,10 +2,11 @@
 id: sector-shape-mints-indeterminates-through-an-invalid-helper
 kind: issue
 title: sector_shape mints Indeterminates through a local invalid() helper after a definite sign
-status: open
+status: closed
 opened: 2026-09-20
 priority: P0
-cost: D
+cost: M
+closed: 2026-10-01
 ---
 
 
@@ -40,3 +41,20 @@ PR 2928 owned the eight `geom-brep` sites its item named. This is the
 same class one crate over, found by sweeping for the SHAPE rather than
 the spelling; `work/curved/` carries the rest of `topo`'s instances,
 and this file carries the two on ground PROPS owns.
+
+## Closed (2026-10-01)
+
+Closed by #3686. Both gates now go through topo's funnel wrappers. A
+new door, `geom_core::k_stats::decide_negative`, mirrors
+`decide_positive` and keeps the straightness margin's sign,
+`cos θ × arm`. That sign matters: `refusal_routes`' recourse table
+reads it, and so do the committed K data.
+
+The review caught an earlier spelling that negated the margin and
+inverted the Boolean's tighten advice. A polarity row now pins it.
+The escalation now reaches the frame's log. The accept/refuse
+partition is unchanged across 8,652 cases.
+
+The same class elsewhere is filed on its owners' slates (see the PR
+body's sweep table). The funnel bypass is
+`work/restfront/topo-calls-k-stats-past-its-own-classification-funnel.md`.

@@ -2,11 +2,13 @@
 id: edge-dir-is-a-chord-so-curved-edge-pieces-misrank
 kind: issue
 title: emit_topo::edge_dir is a chord, so pieces of an arc over pi misorder and pieces of a closed edge always tie
-status: open
+status: closed
 opened: 2026-09-30
 priority: P1
 cost: M
 refs: [edge-pieces-are-named-by-their-ends]
+closed: 2026-10-01
+pr: 3629
 ---
 
 
@@ -40,3 +42,11 @@ longer project onto `edge_dir`: they take `Ends`. The one ordinal left,
 on crossing vertices, is by the crossed edge's own curve parameter, not
 by projection onto a chord. `edge-pieces-are-named-by-their-ends`
 implements it and closes this row.
+
+## Closed (2026-10-01, PR 3629)
+
+`edge_dir` is gone: edge pieces take `Ends`, and the one ordinal left,
+on crossing vertices, reads the crossed edge's carrier parameter
+(`emit_topo::param_along`), measured near the middle of its certified
+interval so a closed edge's crossings are read without the period's
+cut between them.

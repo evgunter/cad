@@ -243,7 +243,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         .expect("a self-boolean refuses")
         .to_string();
     assert!(
-        rendered.contains(&format!("node {}", softened.0)),
+        rendered.contains(&format!("node {}", test_utils::refusal::tag(softened.0))),
         "the refusal names the double-picked node: {rendered}"
     );
     assert!(mispick.committed.is_empty(), "a refusal commits nothing");
@@ -486,7 +486,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let affordance = session.delete_affordance(block);
     assert_eq!(
         affordance.label,
-        "Delete feature 'Extrude' and 3 dependent features"
+        format!(
+            "Delete Extrude {} and 3 dependent features",
+            test_utils::refusal::tag(block.0)
+        )
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {

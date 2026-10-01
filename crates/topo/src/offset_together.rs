@@ -329,7 +329,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             )
         };
 
-        let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+        let mid = carrier.mid_point(t0, t1);
         let displacement = p_start - old_start;
         specs.push((
             edge,
@@ -954,7 +954,7 @@ mod scope_walks {
             tol,
         )
         .unwrap();
-        let second = crate::graft_disjoint(&mut body, &placed, tol).unwrap();
+        let second = crate::graft_disjoint(&mut body, &placed).unwrap();
         assert!(crate::validate::validate_closed(&body).is_ok());
         (body, first, second)
     }

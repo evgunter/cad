@@ -16,21 +16,40 @@ use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
 
-/// The dials with a chosen rule set, the tier on at the shipped budget.
+/// **The dials of a RULES differential**: the tier on at the shipped
+/// budget, `rules` as chosen, and NO retry ladder
+/// (`geom_core::SymRetry::none`).
+///
+/// A rules differential measures what one rule set reaches against
+/// another, and a retry ladder (`SymRetry::kept_atom`) is a second rule
+/// set run into each side's refusals — its first attempt shuts rule G,
+/// so a row comparing rule G on against rule G off with the ladder on
+/// both sides would read rule G's cost as recovered and stay green. So
+/// every differential in this crate's suites takes its dials from here,
+/// whatever `SymbolicDials::default()` carries, and
+/// [`split_at_the_nominal`] is the same principle for a replay. A row
+/// that wants a ladder sets `retry` itself and says so.
 pub(crate) fn dials(rules: SymRules) -> SymbolicDials {
     SymbolicDials {
         rules,
+        retry: geom_core::SymRetry::none(),
         ..SymbolicDials::default()
     }
 }
 
 /// Whether `doc` certifies its WHOLE analyzed box in one leaf under
 /// `dials` — `max_depth = 0`, one leaf, the receipt's `certified == 1`.
-pub(crate) fn certifies_whole_with(
-    doc: &editor_core::ProfileDoc,
+pub(crate) fn certifies_whole_with(doc: &ProfileDoc, dials: SymbolicDials, tol: Tol) -> bool {
+    whole_box_leaf(doc, dials, tol).0
+}
+
+/// [`certifies_whole_with`] with the leaf's decision receipt beside the
+/// answer (`SymCounts::default()` where the drive refused to run).
+pub(crate) fn whole_box_leaf(
+    doc: &ProfileDoc,
     dials: SymbolicDials,
     tol: Tol,
-) -> bool {
+) -> (bool, geom_core::SymCounts) {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     drive(
         doc,
@@ -43,7 +62,9 @@ pub(crate) fn certifies_whole_with(
         },
         tol,
     )
-    .is_ok_and(|v| v.receipt().certified == 1)
+    .map_or((false, geom_core::SymCounts::default()), |v| {
+        (v.receipt().certified == 1, v.decisions())
+    })
 }
 
 /// [`certifies_whole_with`] at the shipped budget under `rules`.
@@ -76,12 +97,24 @@ pub(crate) fn ceiling(
     hi: f64,
     steps: usize,
 ) -> (f64, f64, f64) {
+    ceiling_with(doc_at, dials(rules), tol, lo, hi, steps)
+}
+
+/// [`ceiling`] under whole dials — the rules AND the retry ladder.
+pub(crate) fn ceiling_with(
+    doc_at: &dyn Fn(f64) -> ProfileDoc,
+    dials: SymbolicDials,
+    tol: Tol,
+    lo: f64,
+    hi: f64,
+    steps: usize,
+) -> (f64, f64, f64) {
     let (mut lo, mut hi) = (lo, hi);
     let mut probes = 0.0;
     let mut spent = 0.0;
     let mut probe = |s: f64| {
         let t = Instant::now();
-        let ok = certifies_whole(&doc_at(s), rules, tol);
+        let ok = certifies_whole_with(&doc_at(s), dials, tol);
         spent += t.elapsed().as_secs_f64();
         probes += 1.0;
         ok
@@ -167,15 +200,37 @@ pub(crate) fn head(s: &str, n: usize) -> String {
 }
 
 /// The split of `doc`'s NOMINAL replay under `rules` ([`split`] over
-/// [`nominal_box`]).
+/// [`nominal_box`]), the tier making ONE attempt per rung.
+///
+/// **No retry ladder**, deliberately: every caller of this door is a
+/// RULES differential — what one rule reaches on one document — and a
+/// ladder installed here would put a second rule set inside both sides
+/// of it. [`split_at_the_nominal_retried`] is the door for a row that
+/// wants the tier a drive actually runs.
 pub(crate) fn split_at_the_nominal(
     doc: &ProfileDoc,
     rules: SymRules,
     tol: Tol,
 ) -> BTreeMap<&'static str, [u64; 4]> {
+    split_at_the_nominal_retried(doc, rules, geom_core::SymRetry::none(), tol)
+}
+
+/// [`split_at_the_nominal`] with a RETRY LADDER installed
+/// (`geom_core::SymRetry`) — the tier a drive runs, dials and all.
+pub(crate) fn split_at_the_nominal_retried(
+    doc: &ProfileDoc,
+    rules: SymRules,
+    retry: geom_core::SymRetry,
+    tol: Tol,
+) -> BTreeMap<&'static str, [u64; 4]> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
-    let (shapes, _, _) =
-        crate::m10_8_arc_family_interval::replay(doc, &nominal_box(&analyzed), rules, tol);
+    let (shapes, _, _) = crate::m10_8_arc_family_interval::replay_retried(
+        doc,
+        &nominal_box(&analyzed),
+        rules,
+        retry,
+        tol,
+    );
     split(&shapes)
 }
 
@@ -190,16 +245,25 @@ pub(crate) fn assert_split(
     table: &BTreeMap<&'static str, [u64; 4]>,
     expected: &[(&str, [u64; 4])],
 ) {
+    // EVERY row that moved, in one panic. A per-row `assert_eq!` stops
+    // at the first, so re-pinning a table that moved on six rows cost
+    // six runs of a suite that takes minutes — and each run told the
+    // reader one sixth of what had happened.
+    let mut moved: Vec<String> = Vec::new();
     for (pred, want) in expected {
         let got = table
             .get(pred)
             .copied()
             .unwrap_or_else(|| panic!("{name}: no {pred} decisions — the pinned table lists it"));
-        assert_eq!(
-            got, *want,
-            "{name}: {pred} moved at the nominal (theorem/gated/registered/numeric); if a rule              took it, re-pin and say which"
-        );
+        if got != *want {
+            moved.push(format!("{pred} {want:?} -> {got:?}"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "{name}: these moved at the nominal (theorem/gated/registered/numeric); if a rule \
+         took them, re-pin and say which: {moved:?}"
+    );
     let unlisted: Vec<String> = table
         .iter()
         .filter(|(p, _)| !expected.iter().any(|(e, _)| e == *p))

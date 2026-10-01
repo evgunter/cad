@@ -233,10 +233,10 @@ Everything Python can say about geometry, in full:
 - Edits: `insert_node`, `delete_node`, `set_tolerance`, and — since
   R1-PARAMS — `set_doc_param(ParamName, DocParam)`, the named
   document parameter edit (guide §3.2).
-- `Doc(label=…)` and `Doc.id` — a document's IDENTITY. `Doc()` mints
+- `Doc(seed=…)` and `Doc.id` — a document's IDENTITY. `Doc()` mints
   a fresh random id, so two documents authored from Python are two
-  parts and one workspace holds both; `Doc(label)` derives the id
-  from the label for callers whose saves must reproduce. `Doc.id` is
+  parts and one workspace holds both; `Doc(seed)` derives the id
+  from the seed text for callers whose saves must reproduce. `Doc.id` is
   the canonical 32 hex digits the save header carries and the store
   keys on.
 - `Workspace(path)` — a DIRECTORY of documents, scanned by each

@@ -92,11 +92,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
 }
 
 fn mate_frame() -> MateFrame {
-    MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {
@@ -126,7 +122,7 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let part = ProfileDoc::empty_derived("rv_operand_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let doc_ref = store.insert(part, Tol::witness());
-    // The delete moves the pair's gauge and the solve levers the
+    // The delete moves the pair's root and the solve levers the
     // parts, so both go through the store's reach.
     let opts = fixture::resolver::with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&opts, Tol::witness());

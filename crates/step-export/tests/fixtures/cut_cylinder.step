@@ -7,7 +7,7 @@ ENDSEC;
 DATA;
 #1 = CARTESIAN_POINT('', (0.0, 0.0, 2.5));
 #2 = DIRECTION('', (0.0, 0.0, 1.0));
-#3 = DIRECTION('', (1.0, -0.0, -0.0));
+#3 = DIRECTION('', (1.0, 0.0, -0.0));
 #4 = AXIS2_PLACEMENT_3D('', #1, #2, #3);
 #5 = PLANE('', #4);
 #6 = CARTESIAN_POINT('', (1.0, 0.0, 2.5));

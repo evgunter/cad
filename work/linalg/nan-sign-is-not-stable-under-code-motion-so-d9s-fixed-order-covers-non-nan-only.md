@@ -2,11 +2,12 @@
 id: nan-sign-is-not-stable-under-code-motion-so-d9s-fixed-order-covers-non-nan-only
 kind: issue
 title: A Mat3/Affine3 product's NaN sign and payload differ between debug and release because LLVM commutes fadd across inline sites, so D9's fixed-order determinism holds for non-NaN outputs only
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2375]
 priority: P0
-cost: D
+cost: M
+closed: 2026-10-01
 ---
 
 
@@ -73,3 +74,22 @@ crate stayed green, because the consumer's oracle was built from
 `Mat3::Mul` itself. The nine multiply-adds every composed placement
 rides on are unpinned at their home. That row belongs here, in
 `geom-core`, and is smaller than the NaN question above — take it first.
+
+## Closed (2026-10-01)
+
+Closed by #3687.
+
+- **Rider.** `mat.rs`'s `products_are_pinned_to_hand_computed_literals`
+  pins `Mat3`'s product to literal values. Its first row cancels
+  `1 + 2^53 − 2^53`, so a regrouped sum turns it red. Before this row,
+  nothing in geom-core caught one.
+- **Qualifier.** It is stated once, at `linalg.rs`'s "Totality and
+  determinism": fixed order buys bit-identity for non-NaN outputs
+  only. A NaN's sign and payload are unspecified.
+- **Guard.** `affine.rs`'s
+  `two_spellings_of_a_product_agree_bitwise_off_nan` checks the
+  operators against the documented order on finite inputs, both arms
+  carrying a cancellation case.
+- **D9's text is unchanged.** D9 claims same build plus same inputs
+  gives the same bits, and NaN code motion does not break that. The
+  review concurred.

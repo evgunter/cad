@@ -396,7 +396,7 @@ impl core::fmt::Display for DeclareError {
                          stands",
                     ),
                     // A `Declare` node has no inputs, slots or
-                    // parameters, and moves no cluster: nothing else
+                    // parameters, and moves no group: nothing else
                     // the insert checks can refuse it.
                     _ => write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING),
                 }
@@ -475,7 +475,7 @@ pub fn declare_all<P: Clone + crate::ProfilePayload>(
 ) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
     let node = declare_node(findings)?;
     // A `Declare` node is neither an instance nor a mate, so inserting
-    // one moves no cluster's gauge: the maintenance never asks the
+    // one moves no group's root: the maintenance never asks the
     // reach, and the refusing one is the honest value here.
     let applied = apply(
         doc,

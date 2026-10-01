@@ -207,9 +207,9 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // `apply`'s last argument is the mated parts' REACH — what an edit
-// that moves an assembly cluster's gauge levers its re-keying solve
+// that moves an assembly group's root levers its re-keying solve
 // through. This document has no instance and no mate, so no edit here
-// can move a gauge and the refusing reach is never asked.
+// can move a root and the refusing reach is never asked.
 // The frame the square is drawn on — a dependency of the profile
 // exactly as the profile is a dependency of the extrude.
 let applied = apply(&doc, &DocEdit::InsertNode {

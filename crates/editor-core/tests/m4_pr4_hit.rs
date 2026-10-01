@@ -7,6 +7,7 @@
 
 use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
+use test_utils::refusal::tagged;
 
 use editor_core::NodeStanding;
 use editor_core::{
@@ -279,9 +280,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         }))
     );
     assert_eq!(
-        body_name(&ev, RecipeNodeId(9999), 0),
+        body_name(&ev, RecipeNodeId(tagged(9999)), 0),
         Err(HitTestError::Standing(NodeStanding::NotInDocument {
-            node: RecipeNodeId(9999)
+            node: RecipeNodeId(tagged(9999))
         }))
     );
     // The Unnamed bug door: a node whose (legitimately empty) table
@@ -338,8 +339,8 @@ test_utils::f6_variants! {
 /// cites, and its roster had drifted from the other one.
 #[test]
 fn hit_test_error_display_names_its_content_not_its_struct() {
-    let node = RecipeNodeId(7);
-    let through = RecipeNodeId(3);
+    let node = RecipeNodeId(tagged(7));
+    let through = RecipeNodeId(tagged(3));
     // Two faces of ONE node, differing only in their role path — the
     // shared-edge tie's own shape, and the case that says the
     // rendering carries the path.
@@ -363,15 +364,15 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
     let cases = [
         (
             HitTestError::Standing(NodeStanding::NotEvaluated { node }),
-            vec!["node 7", "no result"],
+            vec!["node 000000000007", "no result"],
         ),
         (
             HitTestError::Standing(NodeStanding::Failed { node }),
-            vec!["node 7", "failed"],
+            vec!["node 000000000007", "failed"],
         ),
         (
             HitTestError::Standing(NodeStanding::Poisoned { node, through }),
-            vec!["node 7", "node 3", "poisoned"],
+            vec!["node 000000000007", "node 000000000003", "poisoned"],
         ),
         (
             HitTestError::EvaluationOfAnotherDocument {
@@ -392,7 +393,12 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             // node render identically through `StableName`'s
             // `Display`, and the role path that would tell them apart
             // is a `Debug` derivation the prose must not carry.
-            vec!["tied between 2 faces", "(1) face", "(2) face", "node 7"],
+            vec![
+                "tied between 2 faces",
+                "(1) face",
+                "(2) face",
+                "node 000000000007",
+            ],
         ),
         (
             HitTestError::Unnamed(UnnamedEntity {
@@ -408,7 +414,7 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             vec![
                 "hit test:",
                 "name lookup:",
-                "node 7",
+                "node 000000000007",
                 "face",
                 "body 2",
                 "kernel bug",

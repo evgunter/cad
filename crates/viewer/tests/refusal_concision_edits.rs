@@ -25,6 +25,7 @@ use editor_core::{
     StepIdFault,
 };
 use test_utils::refusal::Admission;
+use test_utils::refusal::tagged;
 use viewer::session::Refusal;
 
 fn shown(e: EditError) -> String {
@@ -34,7 +35,7 @@ fn shown(e: EditError) -> String {
 fn name() -> StableName {
     StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         path: Vec::new(),
     }
 }
@@ -44,7 +45,7 @@ fn param() -> ParamName {
 }
 
 fn n(id: u64) -> RecipeNodeId {
-    RecipeNodeId(id)
+    RecipeNodeId(tagged(id))
 }
 
 /// Every `EditError` arm, on a representative payload.
@@ -328,12 +329,12 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                     path: vec![editor_core::RoleSeg::RimEdge(
                         editor_core::CapEnd::End,
                         editor_core::ProfileEdgeRef::Piece {
-                            step: editor_core::StepId(9),
+                            step: editor_core::StepId(tagged(9)),
                             role: editor_core::PieceRole::Leg,
                         },
                     )],
                 },
-                step: editor_core::StepId(9),
+                step: editor_core::StepId(tagged(9)),
             },
         ),
         (
@@ -584,9 +585,15 @@ fn next_step_id_fault(fault: &StepIdFault) -> Option<StepIdFault> {
             authored: 4,
             given: 3,
         }),
-        StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles { step: StepId(7) }),
-        StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated { step: StepId(7) }),
-        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides { step: StepId(7) }),
+        StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles {
+            step: StepId(tagged(7)),
+        }),
+        StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated {
+            step: StepId(tagged(7)),
+        }),
+        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides {
+            step: StepId(tagged(7)),
+        }),
         StepIdFault::Collides { .. } => None,
         // No row: no edit door raises it. It is the load door's word,
         // and an edit that writes a name spelling a step the document
@@ -769,10 +776,11 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             "Unleverable",
             MateFault::Unleverable {
                 mate: n(9),
-                refusal: LeverRefusal::NoExtent {
+                refusal: Box::new(LeverRefusal::Reach {
                     instance: n(6),
                     part: doc_ref,
-                },
+                    refusal: editor_core::ReachRefusal::NoExtent,
+                }),
             },
         ),
     ]
@@ -845,16 +853,16 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
 /// the row namespace that writes it: the node, measure, sketch step or
 /// mate the refusal is about, and a pair's corner list.
 const LABELS: &[(&str, &str)] = &[
-    ("Edit/PlacementRuleMismatch", "node 5"),
-    ("Edit/EmptyPlacementList", "node 5"),
-    ("Edit/MeasureMalformed", "measure node 5"),
+    ("Edit/PlacementRuleMismatch", "node 000000000005"),
+    ("Edit/EmptyPlacementList", "node 000000000005"),
+    ("Edit/MeasureMalformed", "measure node 000000000005"),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",
         "at corner",
     ),
-    ("Edit/MaintenanceRefused(", "mate 9"),
-    ("Edit/MateRefused(", "mate 9"),
+    ("Edit/MaintenanceRefused(", "mate 000000000009"),
+    ("Edit/MateRefused(", "mate 000000000009"),
 ];
 
 /// The rows that state no recourse — no `Recourse:`, no "There is no way
@@ -869,31 +877,6 @@ const FILED_NO_RECOURSE: &[&str] = &[
     "Edit/PlacementAxis",
     "Edit/PlacementOnNonInstance",
     "Edit/PlacementRuleMismatch",
-    // work/msolve/msolve-refusals-short-of-the-shape-guard.md
-    "Edit/MaintenanceRefused",
-    "Edit/MaintenanceRefused(ClassNotAdmitted)",
-    "Edit/MaintenanceRefused(Contradictory)",
-    "Edit/MaintenanceRefused(DanglingHead)",
-    "Edit/MaintenanceRefused(Indeterminate)",
-    "Edit/MaintenanceRefused(PartSelectsAnotherCopy)",
-    "Edit/MaintenanceRefused(PlacerRefused)",
-    "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-    "Edit/MaintenanceRefused(SelfMate)",
-    "Edit/MaintenanceRefused(TableLacks)",
-    "Edit/MaintenanceRefused(Under)",
-    "Edit/MaintenanceRefused(Unleverable)",
-    "Edit/MateRefused",
-    "Edit/MateRefused(ClassNotAdmitted)",
-    "Edit/MateRefused(Contradictory)",
-    "Edit/MateRefused(DanglingHead)",
-    "Edit/MateRefused(Indeterminate)",
-    "Edit/MateRefused(PartSelectsAnotherCopy)",
-    "Edit/MateRefused(PlacerRefused)",
-    "Edit/MateRefused(PosesOfAnotherDocument)",
-    "Edit/MateRefused(SelfMate)",
-    "Edit/MateRefused(TableLacks)",
-    "Edit/MateRefused(Under)",
-    "Edit/MateRefused(Unleverable)",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
     "Edit/ProfileProgramRefused(Resolve)",
     "Edit/ProfileProgramRefused(Transition)",
@@ -967,7 +950,7 @@ fn every_edit_refusal_renders_within_the_budget() {
 
 /// The rows that name a document or a version by its hex id, by exact
 /// row id and the exact span, each filed with its owner: `EditError`'s
-/// pairing and pin arms, and the mate refusals it forwards.
+/// pairing and pin arms.
 const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Edit/EvaluationOfAnotherDocument",
@@ -983,35 +966,5 @@ const ADMISSIONS: &[Admission<'static>] = &[
         row: "Edit/PinUnchanged",
         span: "9515831d455a13139e7a712b440337b3447c4b9f3b969d034020eacf0fd8a56d",
         filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-        span: "3e23e8160039594a33894f6564e1b134",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-        span: "ca978112ca1bbdcafac231b39a23dc4d",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MateRefused(PosesOfAnotherDocument)",
-        span: "3e23e8160039594a33894f6564e1b134",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MateRefused(PosesOfAnotherDocument)",
-        span: "ca978112ca1bbdcafac231b39a23dc4d",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MaintenanceRefused(Unleverable)",
-        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MateRefused(Unleverable)",
-        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
     },
 ];

@@ -318,7 +318,7 @@ pub enum SelectRefusal {
 impl core::fmt::Display for SelectRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let named = |f: &mut core::fmt::Formatter<'_>, name: &StableName| {
-            write!(f, "the {} minted by node {}", name.kind.noun(), name.node.0)
+            write!(f, "the {} minted by node {}", name.kind.noun(), name.node)
         };
         match self {
             Self::InBand {
@@ -358,7 +358,7 @@ impl core::fmt::Display for SelectRefusal {
                 f,
                 "select: the query measures from node {}, which produced {found} rather than \
                  a datum — point a distance query at an evaluated datum",
-                datum.0
+                datum
             ),
             Self::DatumHasNoValue(standing) => {
                 write!(
