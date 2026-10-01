@@ -236,7 +236,6 @@ fn tier2_strut_scan_echoes_on_dangling_start() {
 /// row is the only other reader; this table stays this guard's.
 pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // ---- Sugar: delegates to an asserting operator. ----
-    ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
     (
         "insert_void",
         "calls `insert_voids` with the one destination as a slice — same body, same assertion",

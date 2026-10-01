@@ -3114,14 +3114,26 @@ mod tests {
             }
         };
         // A MERIDIAN at `u`: the torus cut by the plane through the
-        // axis at that azimuth. Ascending in `v` when `up`.
+        // axis at that azimuth. Ascending in `v` when `up`. The
+        // descending one is the chord `mef` closes the wall with, whose
+        // two faces are the seed and the wall: described as an image in
+        // the torus's chart, which the wall wears, since no face wears
+        // the cutting plane.
         let meridian = |body: &mut Body<f64>, u: f64, up: bool| {
             let spine = center + e(u) * major;
-            let plane = body.add_surface(Surface::Plane {
-                origin: center,
-                normal: axis.cross(e(u)),
-                u_ref: e(u),
-            });
+            let description = if up {
+                EdgeDescriptionSpec::Intersection {
+                    s1: torus,
+                    s2: body.add_surface(Surface::Plane {
+                        origin: center,
+                        normal: axis.cross(e(u)),
+                        u_ref: e(u),
+                    }),
+                    witness: on(u, (v0 + v1) * 0.5),
+                }
+            } else {
+                EdgeDescriptionSpec::chart(torus)
+            };
             let (carrier, t0, t1) = if up {
                 (
                     Curve3::Circle {
@@ -3146,11 +3158,7 @@ mod tests {
                 )
             };
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    s1: torus,
-                    s2: plane,
-                    witness: on(u, (v0 + v1) * 0.5),
-                },
+                description,
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -3407,8 +3415,9 @@ mod tests {
 
     /// A torus face bounded by two LONE full-meridian circles
     /// (outer + ring, no seam parallel) — **the R1 review arm's
-    /// P6 fixture, construction unchanged**, adopted as the row
-    /// for the class it found.
+    /// P6 fixture**, adopted as the row for the class it found; the
+    /// seed takes the torus first, so each circle `mef` mints names
+    /// the two faces it bounds.
     ///
     /// Both orientations give the SAME stored pcurves and the SAME
     /// hull, yet they denote complementary annuli, so that hull
@@ -3431,6 +3440,17 @@ mod tests {
             minor_radius: minor,
             u_ref,
         });
+        // The seed wears the torus before any circle is minted on it:
+        // each circle's description names the torus and its cap's plane,
+        // the two faces `mef` gives it.
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::Shared {
+                key: torus,
+                sense: true,
+            },
+        )
+        .expect("the seed face is the torus annulus");
         let meridian =
             |body: &mut Body<f64>, u: f64| -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
                 let spine = center + e(u) * major;
@@ -3526,14 +3546,6 @@ mod tests {
             .expect("mef Chords self-loop: the circular edge at u1");
         body.kemr(strut.he_plus, strut.he_minus)
             .expect("kemr: the strut dies and the u1 circle becomes a ring");
-        body.set_face_surface(
-            seed.face,
-            FaceSurface::Shared {
-                key: torus,
-                sense: true,
-            },
-        )
-        .expect("the seed face is the torus annulus");
         (body, seed.face)
     }
 

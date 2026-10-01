@@ -192,9 +192,10 @@
 //!   its side faces): mint with a conventional spec, then upgrade via
 //!   [`Body::set_edge_curve`], which also enforces
 //!   description-adjacency coherence. The operators themselves accept
-//!   any spec that certifies, save `mef`: the chord's two faces are
-//!   the old face and the one it mints, both known in its plan phase,
-//!   so it asks the same adjacency question of the chord.
+//!   any spec that certifies, save `mef` minting a face on another
+//!   key: the chord's two faces then wear the old face's key and the
+//!   one it mints, both known in its plan phase, so it asks the same
+//!   adjacency question of the chord.
 //! - Chord-line sugar for polyhedral construction and the migrated M1
 //!   suites: [`Body::mev_line`], [`Body::mef_chord`],
 //!   [`Body::mekr_chord`] derive the spec from the site's endpoint
@@ -689,6 +690,22 @@ impl<T: Real> NewCurve<T> {
             Self::Chord => EdgeCurveSpec::line_between(p_from, p_to),
         }
     }
+}
+
+/// [`require_description_adjacent`] for the chord [`Body::mef`] mints,
+/// whose faces wear `old`, the parent's key, and `after`, the new
+/// face's: asked where `after` is not `old`. Where it is, nothing is
+/// asked — the boolean pipeline's chord joins mint a chord with the
+/// description of the face that will be glued along it
+/// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+fn require_chord_adjacent<T: Real>(
+    spec: &EdgeCurveSpec<T>,
+    (old, after): (SurfaceKey, Slot),
+) -> Result<(), EulerOpError> {
+    if after == Slot::Kept(old) {
+        return Ok(());
+    }
+    require_description_adjacent(None, &spec.description, [Slot::Kept(old), after])
 }
 
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
@@ -2334,12 +2351,19 @@ impl<T: Decide> Body<T> {
     /// its loops the cut rewires leave complete, and a ring it keeps
     /// keeps what it had.
     ///
-    /// **The chord's description describes this edge, or is refused.**
-    /// Its two faces wear the old face's key and the new face's, so
-    /// `curve`'s description is asked the adjacency question
-    /// [`Body::set_edge_curve`] asks
+    /// **A chord bounding a face minted on another key describes the
+    /// edge it is, or is refused.** Where `surface` is not the old
+    /// face's key, the chord's two faces wear the old face's key and the
+    /// new face's, and `curve`'s description is asked the adjacency
+    /// question [`Body::set_edge_curve`] asks
     /// ([`EulerOpError::DescriptionNotAdjacent`], naming no edge: the
-    /// chord has no key yet), whatever `surface` is.
+    /// chord has no key yet).
+    ///
+    /// **What it does not ask:** where the new face keeps the old
+    /// face's key, whether the chord's description names it. The
+    /// boolean pipeline's chord joins rely on that: they mint the chord
+    /// with the description of the face glued along it afterwards
+    /// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
     ///
     /// **A face minted on another chart is vouched for by the edges it
     /// takes, or refused** ([`RechartDoor::Mef`]). Where `surface` is
@@ -2397,8 +2421,9 @@ impl<T: Decide> Body<T> {
     /// Then, for both sites, the geometry gates: a
     /// [`FaceSurface::Shared`] key resolves (`StaleGeometry`), a stated
     /// sense agrees with the derived one on the old face's chart
-    /// ([`EulerOpError::SenseContradictsChart`]), `curve`'s description
-    /// is adjacency-coherent with the old face's key and the new face's
+    /// ([`EulerOpError::SenseContradictsChart`]), where the new face's
+    /// key is not the old one's `curve`'s description is
+    /// adjacency-coherent with the two
     /// ([`EulerOpError::DescriptionNotAdjacent`], `edge: None`), and
     /// `curve` certifies ([`EulerOpError::Certification`]) — the order
     /// [`Body::set_edge_curve`] asks them in. Then, where the new face's key
@@ -2962,7 +2987,7 @@ impl<T: Decide> Body<T> {
         let carried = resolved.on_parent_chart;
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(u1 == u2, p1, p2);
-        require_description_adjacent(None, &spec.description, [Slot::Kept(inherit_surface), after])?;
+        require_chord_adjacent(&spec, (inherit_surface, after))?;
         let certified = self.certify_edge_spec(spec, p1, p2, tol)?;
         self.vouch_move(
             RechartDoor::Mef,
@@ -3123,7 +3148,7 @@ impl<T: Decide> Body<T> {
         )?;
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(true, anchor, anchor);
-        require_description_adjacent(None, &spec.description, [Slot::Kept(inherit_surface), after])?;
+        require_chord_adjacent(&spec, (inherit_surface, after))?;
         let certified = self.certify_edge_spec(spec, anchor, anchor, tol)?;
         let carried = resolved.on_parent_chart;
         self.vouch_move(
