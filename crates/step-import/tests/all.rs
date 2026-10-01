@@ -148,3 +148,5 @@ mod wall_column_structure;
 mod wild;
 
 test_utils::every_suite_file_is_aggregated!();
+#[path = "cleave_nurbs_lane_r2_step.rs"]
+mod cleave_nurbs_lane_r2_step;
