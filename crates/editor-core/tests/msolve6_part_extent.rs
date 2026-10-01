@@ -56,6 +56,45 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
     doc
 }
 
+/// `part` (a [`box_part`]) re-valued in place: its square's half-width
+/// and its extrude's height edited, every id kept — a later version of
+/// the same document.
+fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
+    let profile = part
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(part.node(id), Some(Node::Profile(_))))
+        .expect("a box part has one profile");
+    let Some(Node::Profile(program)) = part.node(profile) else {
+        unreachable!("found as a profile")
+    };
+    let ids = program
+        .ids
+        .iter()
+        .map(|lp| lp.iter().copied().map(Some).collect())
+        .collect();
+    let loops = fixture::desc(program.plane, vec![fixture::square(0.0, 0.0, half)]).loops;
+    let body = body_node(&part);
+    let (part, _) = fixture::step(
+        part,
+        DocEdit::SetProgram {
+            node: profile,
+            loops,
+            ids,
+        },
+    );
+    let (part, _) = fixture::step(
+        part,
+        DocEdit::SetParam {
+            node: body,
+            slot: editor_core::SlotId::Distance,
+            expr: len(height),
+        },
+    );
+    part
+}
+
 /// A cylinder part: a rectangle `radius × height` in the xy plane,
 /// revolved a full turn about the plane's +y through the origin. The
 /// cylinder stands on the origin along +y; its farthest point from
@@ -86,12 +125,38 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
     doc
 }
 
-/// `n` instances of `part`, and the options that resolve them.
+/// **The node a part's caps are named on**: its one extrude or
+/// revolve, found by kind.
+///
+/// # Panics
+///
+/// If `part` has no such node, or more than one.
+fn body_node(part: &ProfileDoc) -> RecipeNodeId {
+    let solids: Vec<RecipeNodeId> = part
+        .order()
+        .iter()
+        .copied()
+        .filter(|&id| {
+            matches!(
+                part.node(id),
+                Some(Node::Extrude { .. } | Node::Revolve { .. })
+            )
+        })
+        .collect();
+    let [body] = solids[..] else {
+        panic!("a part here has one body node, not {solids:?}");
+    };
+    body
+}
+
+/// `n` instances of `part`, the options that resolve them, and the
+/// part's [`body_node`].
 fn instances(
     label: &str,
     part: ProfileDoc,
     n: usize,
-) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
+) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions, RecipeNodeId) {
+    let body = body_node(&part);
     let mut store = PartStore::new();
     let doc_ref = store.insert(part, Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -105,30 +170,27 @@ fn instances(
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
     };
-    (doc, ids, opts)
+    (doc, ids, opts, body)
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// A frame coincidence between `a`'s top cap and `b`'s bottom cap,
 /// with a clocking rider: on a coincidence the rider is
 /// redundant-or-contradictory, DECIDED at the lever, so it is the one
 /// arm that reports `Clash::Levered(Lever::Roll { radians: θ, arm: L })`
-/// — the row's window onto `L`.
+/// — the row's window onto `L`. Each side is an instance and its
+/// part's [`body_node`].
 fn clocked(
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+    (a, a_body): (RecipeNodeId, RecipeNodeId),
+    (b, b_body): (RecipeNodeId, RecipeNodeId),
     alignment: Alignment,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: fixture::head(in_part(a, CapEnd::End)),
-        b: fixture::head(in_part(b, CapEnd::Start)),
+        a: fixture::head(in_part(a, a_body, CapEnd::End)),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment,
     }
@@ -201,7 +263,7 @@ fn with_both(labels: &[&str]) -> EvalOptions {
 #[test]
 fn a2_a_box_parts_reach_is_its_far_corner() {
     let (half, height) = (0.5, 1.0);
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, _) = instances(
         "msolve6-a2-box",
         box_part("msolve6-a2-box-part", half, height),
         1,
@@ -220,7 +282,7 @@ fn a2_a_box_parts_reach_is_its_far_corner() {
 #[test]
 fn a2_a_cylinder_parts_reach_is_at_least_its_far_rim() {
     let (radius, height) = (0.3, 0.7);
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, _) = instances(
         "msolve6-a2-cyl",
         cylinder_part("msolve6-a2-cyl-part", radius, height),
         1,
@@ -242,7 +304,7 @@ fn a2_a_cylinder_parts_reach_is_at_least_its_far_rim() {
 /// (the two reaches first, then the datum's sum).
 #[test]
 fn a2_the_lever_is_the_formula_to_the_bit() {
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, body) = instances(
         "msolve6-a2-lever",
         box_part("msolve6-a2-lever-part", 0.5, 1.0),
         2,
@@ -255,8 +317,12 @@ fn a2_the_lever_is_the_formula_to_the_bit() {
     // The rider is decided where the mate is authored, over the same
     // lever the solve forms: the door refuses it with the solve's
     // own fault.
-    let (_, fault) = at_the_store(&doc, &opts, clocked(ids[0], ids[1], alignment))
-        .expect_err("a quarter-turn rider contradicts the coincidence");
+    let (_, fault) = at_the_store(
+        &doc,
+        &opts,
+        clocked((ids[0], body), (ids[1], body), alignment.clone()),
+    )
+    .expect_err("a quarter-turn rider contradicts the coincidence");
     let MateFault::Contradictory {
         clash: Clash::Levered(Lever::Roll {
             radians: theta,
@@ -269,10 +335,10 @@ fn a2_the_lever_is_the_formula_to_the_bit() {
     };
     assert_eq!(*theta, core::f64::consts::FRAC_PI_2);
     let r = reaches(&doc, &opts, &ids);
-    let expected = (r[0] + r[1]) + alignment.lever_arm();
+    let expected = (r[0] + r[1]) + fixture::datum_lever(&alignment);
     assert_eq!(*arm, expected, "the lever is the formula, bit for bit");
     // And the datum's own term is what the formula says it is.
-    assert_eq!(alignment.lever_arm(), 0.1_f64.hypot(1.0) + 0.2);
+    assert_eq!(fixture::datum_lever(&alignment), 0.1_f64.hypot(1.0) + 0.2);
 }
 
 // ---- A3: the lever decides at the parts' scale ----
@@ -305,19 +371,23 @@ fn verdict(band: Band, theta: f64, arm: f64) -> Verdict {
 /// separates that from the metre's verdict, the two differ.
 fn tilted(label: &str, half: f64) -> (Verdict, Verdict, Option<MateFault>, f64) {
     let theta = 1e-8;
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, body) = instances(
         label,
         box_part(&format!("{label}-part"), half, 2.0 * half),
         2,
     );
     let alignment = coincidence(frame([0.0, 0.0, 2.0 * half]), frame([0.0; 3]), theta);
     let r = reaches(&doc, &opts, &ids);
-    let arm = (r[0] + r[1]) + alignment.lever_arm();
+    let arm = (r[0] + r[1]) + fixture::datum_lever(&alignment);
     let band = Band::linear(Tol::witness()).expect("the band");
     // The verdict is reached where the mate is authored: an admitted
     // rider enters and the solve places the pair; a refused one
     // carries the solve's own fault out of the door.
-    let fault = match at_the_store(&doc, &opts, clocked(ids[0], ids[1], alignment)) {
+    let fault = match at_the_store(
+        &doc,
+        &opts,
+        clocked((ids[0], body), (ids[1], body), alignment),
+    ) {
         Ok((doc, mate)) => {
             let poses = solve(&doc, &opts, Tol::witness());
             assert_eq!(
@@ -392,14 +462,16 @@ fn a3_a_10m_part_tilted_1e_8_is_refused_at_its_scale() {
 /// **A part that does not resolve faults the mate `Unleverable`,
 /// carrying the `PartFault` unaltered** — and the blast radius is
 /// pinned: the mate faults (it used to stay `Determining`), and its
-/// cluster's instances carry the mate fault, in the resolver's voice.
+/// group's instances carry the mate fault, in the resolver's voice.
 #[test]
 fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
     // The part lives in ANOTHER store: the reference is well formed
     // and nothing here can resolve it.
     let mut elsewhere = PartStore::new();
-    let doc_ref = elsewhere.insert(box_part("msolve6-a4-elsewhere", 0.5, 1.0), Tol::witness());
-    let (doc, ids, opts) = instances(
+    let lost_part = box_part("msolve6-a4-elsewhere", 0.5, 1.0);
+    let lost_body = body_node(&lost_part);
+    let doc_ref = elsewhere.insert(lost_part, Tol::witness());
+    let (doc, ids, opts, body) = instances(
         "msolve6-a4-unresolved",
         box_part("msolve6-a4-part", 0.5, 1.0),
         1,
@@ -411,8 +483,8 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
         doc,
         &with_both(&["msolve6-a4-part", "msolve6-a4-elsewhere"]),
         clocked(
-            ids[0],
-            lost,
+            (ids[0], body),
+            (lost, lost_body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -426,10 +498,11 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
         panic!("expected UNLEVERABLE, got {fault:?}");
     };
     assert_eq!(*named, mate);
-    let LeverRefusal::PartUnresolved {
+    let LeverRefusal::Reach {
         instance,
-        fault: part,
-    } = refusal
+        refusal: ReachRefusal::PartUnresolved { fault: part },
+        ..
+    } = refusal.as_ref()
     else {
         panic!("expected the part's own fault, got {refusal:?}");
     };
@@ -445,7 +518,7 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
         "the resolver's own classification, unaltered: {part:?}"
     );
     assert_eq!(poses.role(mate), Some(MateRole::Refused));
-    // The blast radius: every instance in the cluster carries the
+    // The blast radius: every instance in the group carries the
     // fault, and the evaluation fails them in the mate's voice.
     assert_eq!(poses.fault(ids[0]), Some(fault));
     assert_eq!(poses.fault(lost), Some(fault));
@@ -470,13 +543,15 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
     assert!(
         matches!(
             fault,
-            MateFault::Unleverable {
-                refusal: LeverRefusal::PartUnresolved {
-                    fault: PartFault::NoResolver,
+            MateFault::Unleverable { ref refusal, .. } if matches!(
+                refusal.as_ref(),
+                LeverRefusal::Reach {
+                    refusal: ReachRefusal::PartUnresolved {
+                        fault: PartFault::NoResolver,
+                    },
                     ..
-                },
-                ..
-            }
+                }
+            )
         ),
         "{fault:?}"
     );
@@ -508,36 +583,6 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
         editor_core::mate::part_reach(&body).err(),
         Some(refusal.clone())
     );
-    let instance = RecipeNodeId(7);
-    let part = editor_core::DocRef {
-        id: DocumentId::derive("msolve6-a4-unbounded"),
-        pin: content_pin(&box_part("msolve6-a4-unbounded", 0.5, 1.0), Tol::witness()).unwrap(),
-    };
-    assert_eq!(
-        LeverRefusal::of(refusal, instance, part),
-        LeverRefusal::FaceUnbounded {
-            instance,
-            part,
-            face: made.face,
-            kind: SurfaceKind::Nurbs,
-        }
-    );
-    // A face whose surface key resolves to nothing is a malformed
-    // body, not an unboundable face: its own arm, named the same way.
-    // (No door builds one — `Body` mints a face's surface with the
-    // face — so the arm is pinned at the wrap.)
-    assert_eq!(
-        LeverRefusal::of(
-            ReachRefusal::MalformedBody { face: made.face },
-            instance,
-            part
-        ),
-        LeverRefusal::MalformedBody {
-            instance,
-            part,
-            face: made.face,
-        }
-    );
 }
 
 // ---- A5: the evaluation and the memo ----
@@ -548,7 +593,7 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
 /// one mate, the same count as with no mate at all.
 #[test]
 fn a5_a_mated_part_is_evaluated_exactly_once() {
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, body) = instances(
         "msolve6-a5-once",
         box_part("msolve6-a5-once-part", 0.5, 1.0),
         2,
@@ -562,8 +607,8 @@ fn a5_a_mated_part_is_evaluated_exactly_once() {
         doc,
         &opts,
         clocked(
-            ids[0],
-            ids[1],
+            (ids[0], body),
+            (ids[1], body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -590,10 +635,12 @@ fn a5_a_mated_part_is_evaluated_exactly_once() {
 #[test]
 fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     let theta = 1e-8;
-    // Two versions of ONE part document: the same id, so the
-    // reference can be re-pinned in place; different extents.
+    // Two versions of ONE part document, the later a value edit of the
+    // earlier: the same ids, so the reference can be re-pinned in
+    // place; different extents.
     let small = box_part("msolve6-a5-memo-part", 0.005, 0.01);
-    let large = box_part("msolve6-a5-memo-part", 5.0, 10.0);
+    let body = body_node(&small);
+    let large = resized(small.clone(), 5.0, 10.0);
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -638,8 +685,8 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     // only there. Elsewhere the door's refusal IS the small part's
     // verdict, and the row ends on it.
     let node = clocked(
-        a,
-        b,
+        (a, body),
+        (b, body),
         coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), theta),
     );
     let (doc, mate) = match at_the_store(&doc, &opts_small, node) {
@@ -724,6 +771,14 @@ impl MateReach for Counting<'_> {
         self.0.set(self.0.get() + 1);
         self.1.reach(part)
     }
+
+    fn face_pose(
+        &self,
+        part: &editor_core::DocRef,
+        face: &editor_core::FaceName,
+    ) -> Result<topo::readback::Pose<f64>, editor_core::FacePoseRefusal> {
+        self.1.face_pose(part, face)
+    }
 }
 
 /// Two instances of a box seated by a frame coincidence (a clocked,
@@ -737,8 +792,9 @@ fn seated(
     RecipeNodeId,
     EvalOptions,
     Vec<editor_core::LoggedEdit<editor_core::ProfileProgram>>,
+    RecipeNodeId,
 ) {
-    let (doc, ids, opts) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 0);
+    let (doc, ids, opts, body) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 0);
     debug_assert!(ids.is_empty());
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let mut log = Vec::new();
@@ -781,14 +837,14 @@ fn seated(
         &mut doc,
         DocEdit::InsertNode {
             node: clocked(
-                a,
-                b,
+                (a, body),
+                (b, body),
                 coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
             ),
         },
     )
     .unwrap();
-    (doc, [a, b], mate, opts, log)
+    (doc, [a, b], mate, opts, log, body)
 }
 
 /// **A mate-graph edit on a document whose part does not resolve
@@ -799,8 +855,10 @@ fn seated(
 #[test]
 fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
     let mut elsewhere = PartStore::new();
-    let lost_ref = elsewhere.insert(box_part("msolve6-a6-elsewhere", 0.5, 1.0), Tol::witness());
-    let (doc, ids, opts) = instances(
+    let lost_part = box_part("msolve6-a6-elsewhere", 0.5, 1.0);
+    let lost_body = body_node(&lost_part);
+    let lost_ref = elsewhere.insert(lost_part, Tol::witness());
+    let (doc, ids, opts, body) = instances(
         "msolve6-a6-unresolved",
         box_part("msolve6-a6-part", 0.5, 1.0),
         1,
@@ -810,8 +868,8 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
         doc,
         &with_both(&["msolve6-a6-part", "msolve6-a6-elsewhere"]),
         clocked(
-            ids[0],
-            lost,
+            (ids[0], body),
+            (lost, lost_body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -826,10 +884,14 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
     assert!(
         matches!(
             fault.as_deref(),
-            Some(MateFault::Unleverable {
-                refusal: LeverRefusal::PartUnresolved { instance, .. },
-                ..
-            }) if *instance == lost
+            Some(MateFault::Unleverable { refusal, .. }) if matches!(
+                refusal.as_ref(),
+                LeverRefusal::Reach {
+                    instance,
+                    refusal: ReachRefusal::PartUnresolved { .. },
+                    ..
+                } if *instance == lost
+            )
         ),
         "the resolver's own voice: {fault:?}"
     );
@@ -860,7 +922,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
 /// instance) each ask `2 × 2 = 4`.
 #[test]
 fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
-    let (doc, [a, b], mate, opts, _log) = seated("msolve6-a6-preserving");
+    let (doc, [a, b], mate, opts, _log, body) = seated("msolve6-a6-preserving");
     let counting = Counting(
         core::cell::Cell::new(0),
         mate_reach::<f64>(&opts, Tol::witness()),
@@ -877,8 +939,8 @@ fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
         .apply(
             &DocEdit::InsertNode {
                 node: clocked(
-                    b,
-                    c,
+                    (b, body),
+                    (c, body),
                     coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
                 ),
             },
@@ -913,7 +975,7 @@ fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
     let doc = doc
         .apply(
             &DocEdit::SetAppearance {
-                name: in_part(a, CapEnd::End),
+                name: in_part(a, body, CapEnd::End),
                 attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(200, 30, 30)),
             },
             tol,
@@ -988,7 +1050,7 @@ fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
 /// minted frame; `load` re-applies it and never solves.
 #[test]
 fn a6_a_saved_split_replays_bit_identically_with_no_store() {
-    let (doc, [a, b], mate, opts, mut log) = seated("msolve6-a6-replay");
+    let (doc, [a, b], mate, opts, mut log, _) = seated("msolve6-a6-replay");
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
@@ -1073,7 +1135,7 @@ fn a6_a_saved_split_replays_bit_identically_with_no_store() {
 /// would have refused.
 #[test]
 fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
-    let (doc, [a, b], mate, opts, mut log) = seated("msolve6-a6-mirror");
+    let (doc, [a, b], mate, opts, mut log, _) = seated("msolve6-a6-mirror");
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
@@ -1151,7 +1213,7 @@ fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
 /// instead of loading as a log of entries that performed nothing.
 #[test]
 fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_a_format() {
-    let (doc, [_a, b], mate, opts, mut log) = seated("msolve6-a6-dropped-rows");
+    let (doc, [_a, b], mate, opts, mut log, _) = seated("msolve6-a6-dropped-rows");
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
@@ -1331,7 +1393,7 @@ fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
 #[test]
 fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
     use geom_core::{Bounds, Interval};
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, body) = instances(
         "msolve6-a5-interval",
         cylinder_part("msolve6-a5-interval-part", 0.3, 0.7),
         2,
@@ -1344,8 +1406,8 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
         doc,
         &opts,
         clocked(
-            ids[0],
-            ids[1],
+            (ids[0], body),
+            (ids[1], body),
             coincidence(frame([0.0, 0.0, 0.7]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1500,7 +1562,7 @@ fn a2_the_reach_bounds_the_true_maximum_over_every_fixture_part() {
         let body = body_of(&part);
         let (truth, circles) = true_reach(&body);
         let bound = editor_core::mate::part_reach(&body).expect("bounded");
-        let (doc, ids, opts) = instances(&format!("msolve6-p1-asm-{name}"), part.clone(), 1);
+        let (doc, ids, opts, _) = instances(&format!("msolve6-p1-asm-{name}"), part.clone(), 1);
         let via_door = reaches(&doc, &opts, &ids)[0];
         assert!(bound >= truth, "{name}: bound {bound} < true reach {truth}");
         assert!(
@@ -1536,8 +1598,16 @@ fn a2_the_reach_fold_propagates_a_poisoned_face_rather_than_dropping_it() {
 
 /// Three instances of one box, `a` placed at a translation so the
 /// orphan's inherited frame is recognisable.
-fn trio(label: &str) -> (ProfileDoc, [RecipeNodeId; 3], EvalOptions, Frame) {
-    let (doc, ids, opts) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 3);
+fn trio(
+    label: &str,
+) -> (
+    ProfileDoc,
+    [RecipeNodeId; 3],
+    EvalOptions,
+    Frame,
+    RecipeNodeId,
+) {
+    let (doc, ids, opts, body) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 3);
     let f_a = Frame::translation([1.0, 2.0, 3.0]);
     let (doc, _) = step(
         doc,
@@ -1546,7 +1616,7 @@ fn trio(label: &str) -> (ProfileDoc, [RecipeNodeId; 3], EvalOptions, Frame) {
             frame: f_a,
         },
     );
-    (doc, [ids[0], ids[1], ids[2]], opts, f_a)
+    (doc, [ids[0], ids[1], ids[2]], opts, f_a, body)
 }
 
 /// **A contradictory prior records the split with the cluster's
@@ -1556,13 +1626,13 @@ fn trio(label: &str) -> (ProfileDoc, [RecipeNodeId; 3], EvalOptions, Frame) {
 /// pose and not a refusal.
 #[test]
 fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
-    let (doc, [a, b, c], opts, f_a) = trio("msolve6-p3a");
+    let (doc, [a, b, c], opts, f_a, body) = trio("msolve6-p3a");
     let (doc, _m1) = mated(
         doc,
         &opts,
         clocked(
-            a,
-            b,
+            (a, body),
+            (b, body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1572,8 +1642,8 @@ fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
         doc,
         &opts,
         clocked(
-            a,
-            b,
+            (a, body),
+            (b, body),
             coincidence(frame([0.0, 0.0, 2.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1581,8 +1651,8 @@ fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
         doc,
         &opts,
         clocked(
-            b,
-            c,
+            (b, body),
+            (c, body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1611,10 +1681,14 @@ fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
 /// frame** — the same recourse, the same row.
 #[test]
 fn a6_an_under_determined_prior_records_the_split_with_the_clusters_frame() {
-    let (doc, [a, b, _c], opts, f_a) = trio("msolve6-p3b");
+    let (doc, [a, b, _c], opts, f_a, body) = trio("msolve6-p3b");
     let (doc, m) = insert(
         doc,
-        clocked(a, b, coaxial(frame([0.0; 3]), frame([0.0; 3]))),
+        clocked(
+            (a, body),
+            (b, body),
+            coaxial(frame([0.0; 3]), frame([0.0; 3])),
+        ),
     );
     let poses = solve(&doc, &opts, Tol::witness());
     assert!(matches!(poses.fault(b), Some(MateFault::Under { .. })));
@@ -1647,7 +1721,8 @@ fn a6_an_under_determined_prior_records_the_split_with_the_clusters_frame() {
 #[test]
 fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     let small = box_part("msolve6-p3c-part", 0.005, 0.01);
-    let large = box_part("msolve6-p3c-part", 5.0, 10.0);
+    let body = body_node(&small);
+    let large = resized(small.clone(), 5.0, 10.0);
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -1667,7 +1742,7 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
         },
     );
     let band = Band::linear(Tol::witness()).expect("band");
-    let datum = coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), 0.0).lever_arm();
+    let datum = fixture::datum_lever(&coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), 0.0));
     let r_large = {
         let (re, _) = step(
             doc.clone(),
@@ -1688,8 +1763,8 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
         doc,
         &opts_small,
         clocked(
-            a,
-            b,
+            (a, body),
+            (b, body),
             coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), theta),
         ),
     );
@@ -1697,8 +1772,8 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
         doc,
         &opts_small,
         clocked(
-            b,
-            c,
+            (b, body),
+            (c, body),
             coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1737,10 +1812,13 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     assert!(matches!(
         &err,
         EditError::MaintenanceRefused { gauge, fault: Some(f) }
-            if *gauge == c && matches!(**f, MateFault::Unleverable {
-                refusal: LeverRefusal::PartUnresolved { fault: PartFault::NoResolver, .. },
-                ..
-            })
+            if *gauge == c && matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
+                refusal.as_ref(),
+                LeverRefusal::Reach {
+                    refusal: ReachRefusal::PartUnresolved { fault: PartFault::NoResolver },
+                    ..
+                }
+            ))
     ));
 }
 
@@ -1781,20 +1859,20 @@ fn a6_a_logged_edit_has_one_wire_shape_and_its_rows_round_trip() {
     assert_eq!(back, with);
 }
 
-/// **A whole-cluster split levers through the part it is minting**
+/// **A whole-group split levers through the part it is minting**
 /// (the `WithPart` resolver composed with the caller's), and with no
 /// resolver at all refuses typed — `Unresolved` on the new instance,
 /// in the resolver's own voice, never a frame nothing decided.
 #[test]
 fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolver() {
-    let (doc, ids, opts) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
+    let (doc, ids, opts, body) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
     let [a, b] = [ids[0], ids[1]];
     let (doc, _m) = mated(
         doc,
         &opts,
         clocked(
-            a,
-            b,
+            (a, body),
+            (b, body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1806,7 +1884,7 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         Tol::witness(),
         opts.resolver.as_ref(),
     )
-    .expect("a whole-cluster cut splits through the part in hand");
+    .expect("a whole-group cut splits through the part in hand");
     let none = split(
         &doc,
         &cut,
@@ -1832,13 +1910,18 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
             matches!(
                 *error,
                 EditError::MaintenanceRefused { fault: Some(ref f), .. }
-                    if matches!(**f, MateFault::Unleverable {
-                        refusal: LeverRefusal::PartUnresolved {
-                            fault: PartFault::Unresolved { fault: ResolveFault::Unresolved, .. },
+                    if matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
+                        refusal.as_ref(),
+                        LeverRefusal::Reach {
+                            refusal: ReachRefusal::PartUnresolved {
+                                fault: PartFault::Unresolved {
+                                    fault: ResolveFault::Unresolved,
+                                    ..
+                                },
+                            },
                             ..
-                        },
-                        ..
-                    })
+                        }
+                    ))
             ),
             "typed Unresolved expected, got {error:?}"
         ),
@@ -1853,8 +1936,10 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
 #[test]
 fn a5_two_mated_parts_evaluate_once_each() {
     let mut store = PartStore::new();
-    let ra = store.insert(box_part("msolve6-p8-a", 0.5, 1.0), Tol::witness());
-    let rb = store.insert(block("msolve6-p8-b"), Tol::witness());
+    let (pa, pb) = (box_part("msolve6-p8-a", 0.5, 1.0), block("msolve6-p8-b"));
+    let (a_body, b_body) = (body_node(&pa), body_node(&pb));
+    let ra = store.insert(pa, Tol::witness());
+    let rb = store.insert(pb, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p8"), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(ra));
@@ -1865,8 +1950,8 @@ fn a5_two_mated_parts_evaluate_once_each() {
         doc,
         &opts,
         clocked(
-            a,
-            b,
+            (a, a_body),
+            (b, b_body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1874,8 +1959,8 @@ fn a5_two_mated_parts_evaluate_once_each() {
         doc,
         &opts,
         clocked(
-            b,
-            c,
+            (b, b_body),
+            (c, a_body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );

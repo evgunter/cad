@@ -97,9 +97,9 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use slotmap::SecondaryMap;
 
+use crate::attach::Rechart;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, SolidKey, VertexKey};
-use crate::euler::FaceSurface;
 use crate::geometry::SurfaceKey;
 use crate::replace_face::ReplaceFaceError;
 
@@ -329,7 +329,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
             )
         };
 
-        let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+        let mid = carrier.mid_point(t0, t1);
         let displacement = p_start - old_start;
         specs.push((
             edge,
@@ -349,7 +349,7 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     // adopted on is the door's own whole-body check.
     let mut staged = body.clone();
     let mut work = staged.begin_surgery();
-    let mut minted: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
+    let mut charts: Vec<Rechart<T>> = Vec::new();
     for m in moves {
         let Some(&first) = m.faces.first() else {
             return Err(ReplaceFaceError::EmptyGroup);
@@ -362,59 +362,17 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
         else {
             return Err(ReplaceFaceError::Corrupt);
         };
-        // An offset moves the chart along its own normal, so every face
-        // keeps the side its material lies on.
-        let sense = work.get_face(first).ok_or(ReplaceFaceError::Corrupt)?.sense;
-        let new_key = work
-            .set_face_surface(
-                first,
-                FaceSurface::New {
-                    surface: Surface::Plane {
-                        origin: origin + p.delta,
-                        normal: p.normal,
-                        u_ref,
-                    },
-                    sense,
-                },
-            )
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-        for &member in &m.faces[1..] {
-            let sense = work
-                .get_face(member)
-                .ok_or(ReplaceFaceError::Corrupt)?
-                .sense;
-            work.set_face_surface(
-                member,
-                FaceSurface::Shared {
-                    key: new_key,
-                    sense,
-                },
-            )
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-        }
-        minted.push((p.old_key, new_key));
+        charts.push(crate::replace_face::offset_rechart(
+            &work,
+            Surface::Plane {
+                origin: origin + p.delta,
+                normal: p.normal,
+                u_ref,
+            },
+            &m.faces,
+        )?);
     }
-    for (vertex, point) in &moved {
-        let old_point = work
-            .get_vertex(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point;
-        let new_point = work.add_point(*point);
-        work.get_vertex_mut(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point = new_point;
-        work.remove_point_if_orphaned(old_point);
-    }
-    for (edge, mut spec) in specs {
-        for (old, new) in &minted {
-            spec.description = crate::replace_face::remap_description(spec.description, *old, *new);
-        }
-        work.set_edge_curve(edge, spec, tol)
-            .map_err(|error| ReplaceFaceError::Op {
-                edge: Some(edge),
-                error,
-            })?;
-    }
+    crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)?;
     // Every edge OF THE SCOPE was just re-described, so its stored
     // pcurve rows are stale — re-minted here for the same reason
     // `replace_faces_offset` re-mints, and before the tier-2 gate that
@@ -996,7 +954,7 @@ mod scope_walks {
             tol,
         )
         .unwrap();
-        let second = crate::graft_disjoint(&mut body, &placed, tol).unwrap();
+        let second = crate::graft_disjoint(&mut body, &placed).unwrap();
         assert!(crate::validate::validate_closed(&body).is_ok());
         (body, first, second)
     }

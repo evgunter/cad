@@ -26,20 +26,18 @@ use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
 use viewer::frame::Tone;
 use viewer::tree::{self, RowStatus};
 
-/// A small block, as a whole part document: frame, profile, extrude,
-/// so the extrude is `fixture::resolver::PART_BODY`.
-fn block(label: &str, tol: Tol) -> ProfileDoc {
+/// A small block, as a whole part document, and its body.
+fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let (doc, profile) = common::framed_square(&doc, 0.02, tol);
-    let (doc, _) = common::inserted(
+    common::inserted(
         &doc,
         Node::Extrude {
             profile,
             distance: common::len(0.02),
         },
         tol,
-    );
-    doc
+    )
 }
 
 /// **The finding's document, through the tree the chrome draws.**
@@ -50,8 +48,8 @@ fn block(label: &str, tol: Tol) -> ProfileDoc {
 fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let tol = Tol::witness();
     let mut store = PartStore::default();
-    let leg = store.insert(block("msolve3-view-leg", tol), tol);
-    let top = store.insert(block("msolve3-view-top", tol), tol);
+    let (leg, leg_body) = store.insert_part(block("msolve3-view-leg", tol), tol);
+    let (top, top_body) = store.insert_part(block("msolve3-view-top", tol), tol);
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive("msolve3-view"), tol);
     let (doc, legs) = common::inserted(&doc, Node::instantiate_part(leg), tol);
@@ -68,11 +66,8 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         tol,
     );
     let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame =
+        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
@@ -81,10 +76,10 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
-                    of: in_part(legs, CapEnd::End).into(),
+                    of: in_part(legs, leg_body, CapEnd::End).into(),
                 }],
             }),
-            b: common::head(in_part(cap, CapEnd::Start)),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -121,11 +116,12 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "node {} failed: the mate solve refused: mate {}'s a reference has no derived pose: \
-             node {p}, which places it, refuses — repair node {p}",
-            mate.0,
-            mate.0,
-            p = pattern.0,
+            "node {} failed: the mate solve refused: mate {}'s a reference has no \
+             derived pose: node {p}, on its derivation, refuses. Recourse: repair node \
+             {p}",
+            test_utils::refusal::tag(mate.0),
+            test_utils::refusal::tag(mate.0),
+            p = test_utils::refusal::tag(pattern.0),
         ),
         "the row names the placer the evaluation typed"
     );
@@ -139,7 +135,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
             line: format!(
                 "node {} failed: the pattern direction has no finite length (a component \
                  overflows the norm or is not a number). Recourse: {}",
-                pattern.0,
+                test_utils::refusal::tag(pattern.0),
                 geom_core::RANGE_RECOURSE
             ),
         }],
@@ -163,7 +159,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     // an author goes and fixes is one click from the words, and it is
     // the only link any row draws beside a `Poisoned` pointer.
     assert_eq!(
-        row.repair_at,
+        row.repair_at.as_ref().map(|at| at.id()),
         Some(pattern),
         "the mate's row links to the placer"
     );
@@ -197,8 +193,8 @@ struct Copies {
 
 fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies {
     let mut store = PartStore::default();
-    let leg = store.insert(block(&format!("{label}-leg"), tol), tol);
-    let top = store.insert(block(&format!("{label}-top"), tol), tol);
+    let (leg, leg_body) = store.insert_part(block(&format!("{label}-leg"), tol), tol);
+    let (top, top_body) = store.insert_part(block(&format!("{label}-top"), tol), tol);
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive(label), tol);
     let (doc, legs) = common::inserted(&doc, Node::instantiate_part(leg), tol);
@@ -234,18 +230,15 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         node: pattern,
         path: vec![RoleSeg::Instance {
             i: copy,
-            of: in_part(legs, CapEnd::End).into(),
+            of: in_part(legs, leg_body, CapEnd::End).into(),
         }],
     };
     let a = match part {
         Some(part) => common::head_at(part, named),
         None => common::head(named),
     };
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame =
+        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
     // The mate must MINT while its copy is there: a refusal here would
     // be a broken fixture, not the fault the rows below read once a
     // later edit to the named node strands it.
@@ -253,7 +246,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         &doc,
         Node::Mate {
             a,
-            b: common::head(in_part(cap, CapEnd::Start)),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -292,7 +285,7 @@ fn mate_fault(ev: &Evaluation<f64>, mate: RecipeNodeId) -> MateFault {
 fn assert_no_row_links(rows: &[tree::TreeRow]) {
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .filter_map(|row| row.repair_at.as_ref().map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(linking, Vec::new(), "no row links to a node to repair");
 }
@@ -436,8 +429,11 @@ fn assert_both_loud(
     );
 }
 
-/// A `Part` re-pointed PAST its pattern's count: the mate refuses with
-/// `PartSelectsAnotherCopy`, and the `Part` fails on its own.
+/// A `Part` re-pointed PAST its pattern's count: the index selects no
+/// copy, so the mate refuses as the evaluation does — the `Part`'s own
+/// `InstanceOutOfRange`, at the `Part` — and the `Part` fails on it in
+/// its own right. Both rows are loud, the refusal is drawn once, on the
+/// `Part`'s row, and the mate's row links there.
 #[test]
 fn a_part_past_its_patterns_count_fails_beside_the_mate() {
     let tol = Tol::witness();
@@ -455,10 +451,27 @@ fn a_part_past_its_patterns_count_fails_beside_the_mate() {
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
     let fault = mate_fault(&ev, s.mate);
     assert!(
-        matches!(fault, MateFault::PartSelectsAnotherCopy { part: p, .. } if p == part),
+        matches!(fault, MateFault::PlacerRefused { placer, .. } if placer == part),
         "the fixture reaches the arm, naming the Part: {fault:?}"
     );
-    assert_both_loud(&ev, &doc, s.mate, part);
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
+    assert!(
+        matches!(common::status_of(&rows, part), RowStatus::Failed { .. }),
+        "the Part fails in its own right"
+    );
+    let RowStatus::Failed { carried, .. } = common::status_of(&rows, s.mate) else {
+        panic!("the mate's row is a failure");
+    };
+    assert!(carried.is_empty(), "the refusal is drawn once: {carried:?}");
+    let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
+        .iter()
+        .filter_map(|row| row.repair_at.as_ref().map(|at| (row.id, at.id())))
+        .collect();
+    assert_eq!(
+        linking,
+        vec![(s.mate, part)],
+        "the mate's row, and only it, links to the Part"
+    );
 }
 
 /// A pattern shrunk to ZERO copies: the mate refuses with
@@ -531,7 +544,7 @@ fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
     );
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .filter_map(|row| row.repair_at.as_ref().map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(
         linking,

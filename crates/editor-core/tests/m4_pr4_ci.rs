@@ -33,14 +33,15 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// The pinned diagnosis-corpus digest (update ONLY on a ratified
 /// resolution-semantics change — this is the replay-identity family's
 /// resolution member).
-// What the pin holds: flip-vanish → GroupResized { was: 2, now: 1 }
-// naming B's cap vertex as the one cutter gone; cascade → Cascade;
-// structural-param → StructuralParam; node-gone; ambiguous. Re-pinned
-// when profile pieces became named by minted step ids: the diagnosed
-// names spell `{ step, role }`, and every row keeps its shape; and
-// again when step ids became digests of the document's mint chain: the
-// ids the names spell moved, and every row keeps its shape.
-const DIAGNOSIS_DIGEST: u64 = 0xf656_8c12_cc7b_c381;
+///
+/// What the pin holds: flip-vanish → GroupResized { was: 2, now: 1 }
+/// naming B's cap vertex as the one cutter gone; cascade → Cascade;
+/// structural-param → StructuralParam; node-gone; ambiguous. It moves
+/// with every spelling the diagnosed names carry (node and profile step
+/// ids, `Borders` on the ambiguous row's piece, `Ends` on the probed rim
+/// pieces) as well as with a row's diagnosis; a move that keeps every
+/// row's shape is a spelling change.
+const DIAGNOSIS_DIGEST: u64 = 0xc04d_ee6e_389f_699c;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

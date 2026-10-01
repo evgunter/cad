@@ -194,16 +194,22 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
          byte for byte as its part's own tree draws it"
     );
     assert!(
-        message.contains(&format!("repair node {}", bracket_root.0))
-            && carried[0]
-                .line
-                .contains(&format!("repair node {}", boss_root.0)),
+        message.contains(&format!(
+            "repair node {}",
+            test_utils::refusal::tag(bracket_root.0)
+        )) && carried[0].line.contains(&format!(
+            "repair node {}",
+            test_utils::refusal::tag(boss_root.0)
+        )),
         "each carrying line points at the node the level under it names: {message} / {}",
         carried[0].line
     );
     let refusal = carried[1]
         .line
-        .strip_prefix(&format!("node {} failed: ", boss_root.0))
+        .strip_prefix(&format!(
+            "node {} failed: ",
+            test_utils::refusal::tag(boss_root.0)
+        ))
         .expect("the boss's line opens with its node");
     for line in [message, &carried[0].line] {
         assert!(
@@ -300,8 +306,13 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
         (&carried[0].line, broken_root, extrude),
     ] {
         assert!(
-            line.contains(&format!("its root, node {}", root.0))
-                && line.contains(&format!("repair node {}", failed.0)),
+            line.contains(&format!(
+                "its root, node {}",
+                test_utils::refusal::tag(root.0)
+            )) && line.contains(&format!(
+                "repair node {}",
+                test_utils::refusal::tag(failed.0)
+            )),
             "each carrying line names the root it cost and points at the node that failed: \
              {line}"
         );
@@ -311,7 +322,8 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
     std::fs::remove_dir_all(&dir).expect("remove the fixture directory");
 }
 
-fn block(label: &str, tol: Tol) -> ProfileDoc {
+/// A small block, as a whole part document, and its body.
+fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = common::framed_square(&Doc::empty_derived(label, tol), 0.02, tol);
     common::inserted(
         &doc,
@@ -321,15 +333,10 @@ fn block(label: &str, tol: Tol) -> ProfileDoc {
         },
         tol,
     )
-    .0
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 /// **A mate's carried level inside a part is labelled with that part.**
@@ -346,8 +353,8 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     let tol = Tol::witness();
     let dir = common::tempdir("partroot-carried-mate");
     let mut store = Workspace::open(&dir).expect("the empty workspace opens");
-    let leg = block("partroot-carried-leg", tol);
-    let top = block("partroot-carried-top", tol);
+    let (leg, leg_body) = block("partroot-carried-leg", tol);
+    let (top, top_body) = block("partroot-carried-top", tol);
     store.save_at(&leg, "leg.pncad", tol).expect("stores");
     store.save_at(&top, "top.pncad", tol).expect("stores");
 
@@ -375,10 +382,10 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
-                    of: in_part(legs, CapEnd::End).into(),
+                    of: in_part(legs, leg_body, CapEnd::End).into(),
                 }],
             }),
-            b: common::head(in_part(cap, CapEnd::Start)),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -419,9 +426,10 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         "the cap's level is sub.pncad's own line for it"
     );
     assert!(
-        carried[1]
-            .line
-            .starts_with(&format!("node {} failed: ", pattern.0)),
+        carried[1].line.starts_with(&format!(
+            "node {} failed: ",
+            test_utils::refusal::tag(pattern.0)
+        )),
         "the carried level is the pattern's refusal: {}",
         carried[1].line
     );

@@ -22,9 +22,10 @@
 //! Plus [`refile_shells`], the raw arena write that files several
 //! shells under one solid, which no operator does.
 //!
-//! Plus two whole-body observations the suites compare by —
-//! [`arena_snapshot`] (every arena's length) and [`deep_snapshot`]
-//! (key-for-key, field-for-field, provenance-for-provenance).
+//! Plus the whole-body observations the suites compare by —
+//! [`arena_snapshot`] (every arena's length), [`deep_snapshot`]
+//! (key-for-key, field-for-field, provenance-for-provenance, and each
+//! arena's next key) and [`deep_rows`] (the same less the next keys).
 //!
 //! Plus the **operator-built** family — [`ops_holed_box`] and
 //! [`ops_genus2`], the acceptance-test bodies rebuilt in-crate for
@@ -54,7 +55,7 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
     Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::euler::{MefCreated, MevCreated, MevSite, MvfsCreated};
+use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
@@ -111,8 +112,8 @@ pub(crate) fn plane_surface(
 
 /// All ten arena lengths of a body: the seven topology arenas, held as
 /// the crate's one [`ArenaCounts`], plus the three geometry arenas.
-/// The "body unchanged" snapshot of the atomicity tests, and the delta
-/// base of the operator count checks.
+/// The delta base of the operator count checks. Counts are not a
+/// "body unchanged" observation; [`deep_snapshot`] is.
 ///
 /// The topology half is *not* restated here: an `ArenaSnapshot` is an
 /// [`ArenaCounts`] extended by geometry, and the seven have exactly one
@@ -140,71 +141,132 @@ pub(crate) fn arena_snapshot(body: &Body<f64>) -> ArenaSnapshot {
     }
 }
 
-/// A deep, order-sensitive snapshot of a body: one line per arena entry
-/// (all ten arenas, in slot-index order) carrying the **full payload**
-/// plus the entity's D5 provenance record.
+/// A deep, order-sensitive snapshot of a body, and the crate's one
+/// "body unchanged" observation: one line per row of every table on
+/// [`Body`] (the ten arenas, the seven D5 provenance maps, the pcurve
+/// caches, the null-face records, the three geometry origin maps, and
+/// the field and axis source channels), each in slot-index order,
+/// carrying the row's key and its full payload through `Debug` (which
+/// prints every field). Two snapshots compare equal iff the bodies
+/// are row-for-row and field-for-field identical and every arena would
+/// mint the same next key.
 ///
-/// For atomicity and lineage-purity tests where counts-only comparison
-/// is too weak: two snapshots compare equal iff the bodies are
-/// key-for-key, field-for-field, provenance-for-provenance identical.
-/// (PR 4's kill operators will need exactly this — a kill that removes
-/// the wrong entity or leaks a provenance record still preserves
-/// counts.) Payloads are compared through their `Debug` forms, which
-/// for these types print every field.
+/// Every table is walked as a table rather than through live keys, so
+/// a row left behind for a dead key shows like any other. Each arena
+/// also gives one "next key" line: the key its next insert would mint,
+/// which is its free-list head. A key slot minted and freed again
+/// leaves every row as it was, but the last slot freed goes to the
+/// head with its version bumped past any key it held before, so the
+/// line moves (D1: a refused op consumes no key slots).
+///
+/// `Body` is destructured without `..`, so a field this walk does not
+/// read fails to compile here. The one field it skips is the debug
+/// build's surgery depth, which counts the door scopes open on the
+/// body and is not body state (a clone resets it).
 pub(crate) fn deep_snapshot(body: &Body<f64>) -> Vec<String> {
-    let mut lines = Vec::new();
-    for (k, e) in body.solids() {
-        lines.push(format!(
-            "solid {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Solid(k))
-        ));
-    }
-    for (k, e) in body.shells() {
-        lines.push(format!(
-            "shell {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Shell(k))
-        ));
-    }
-    for (k, e) in body.faces() {
-        lines.push(format!(
-            "face {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Face(k))
-        ));
-    }
-    for (k, e) in body.loops() {
-        lines.push(format!(
-            "loop {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Loop(k))
-        ));
-    }
-    for (k, e) in body.half_edges() {
-        lines.push(format!(
-            "half-edge {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::HalfEdge(k))
-        ));
-    }
-    for (k, e) in body.edges() {
-        lines.push(format!(
-            "edge {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Edge(k))
-        ));
-    }
-    for (k, e) in body.vertices() {
-        lines.push(format!(
-            "vertex {k:?}: {e:?} prov={:?}",
-            body.provenance(EntityId::Vertex(k))
-        ));
-    }
-    for (k, e) in body.points() {
-        lines.push(format!("point {k:?}: {e:?}"));
-    }
-    for (k, e) in body.curves() {
-        lines.push(format!("curve {k:?}: {e:?}"));
-    }
-    for (k, e) in body.surfaces() {
-        lines.push(format!("surface {k:?}: {e:?}"));
-    }
+    let (mut lines, next_keys) = snapshot_rows_and_next_keys(body);
+    lines.extend(next_keys);
     lines
+}
+
+/// [`deep_snapshot`] without its next-key lines: the observation for a
+/// make-then-kill round trip, which restores every row and consumes the
+/// key slots it minted.
+pub(crate) fn deep_rows(body: &Body<f64>) -> Vec<String> {
+    snapshot_rows_and_next_keys(body).0
+}
+
+fn snapshot_rows_and_next_keys(body: &Body<f64>) -> (Vec<String>, Vec<String>) {
+    fn walk<K: std::fmt::Debug, V: std::fmt::Debug>(
+        lines: &mut Vec<String>,
+        table: &str,
+        rows: impl Iterator<Item = (K, V)>,
+    ) {
+        lines.extend(rows.map(|(k, v)| format!("{table} {k:?}: {v:?}")));
+    }
+    fn walk_arena<K: slotmap::Key, V: Clone + std::fmt::Debug>(
+        lines: &mut Vec<String>,
+        next_keys: &mut Vec<String>,
+        table: &str,
+        arena: &slotmap::SlotMap<K, V>,
+    ) {
+        walk(lines, table, arena.iter());
+        // An insert whose value closure fails reports the key it would
+        // have minted and leaves the arena as it was.
+        let next = arena
+            .clone()
+            .try_insert_with_key(Err::<V, K>)
+            .expect_err("the value closure refuses");
+        next_keys.push(format!("{table} next key: {next:?}"));
+    }
+    let Body {
+        solids,
+        shells,
+        faces,
+        loops,
+        half_edges,
+        edges,
+        vertices,
+        points,
+        curves,
+        surfaces,
+        pcurves,
+        null_faces,
+        solid_provenance,
+        shell_provenance,
+        face_provenance,
+        loop_provenance,
+        half_edge_provenance,
+        edge_provenance,
+        vertex_provenance,
+        point_origins,
+        curve_origins,
+        surface_origins,
+        surface_field_sources,
+        surface_axis_sources,
+        #[cfg(debug_assertions)]
+            surgery: _,
+    } = body;
+    let mut lines = Vec::new();
+    let mut next_keys = Vec::new();
+    let keys = &mut next_keys;
+    walk_arena(&mut lines, keys, "solid", solids);
+    walk_arena(&mut lines, keys, "shell", shells);
+    walk_arena(&mut lines, keys, "face", faces);
+    walk_arena(&mut lines, keys, "loop", loops);
+    walk_arena(&mut lines, keys, "half-edge", half_edges);
+    walk_arena(&mut lines, keys, "edge", edges);
+    walk_arena(&mut lines, keys, "vertex", vertices);
+    walk_arena(&mut lines, keys, "point", points);
+    walk_arena(&mut lines, keys, "curve", curves);
+    walk_arena(&mut lines, keys, "surface", surfaces);
+    walk(&mut lines, "pcurve", pcurves.iter());
+    walk(&mut lines, "null-face", null_faces.iter());
+    walk(&mut lines, "solid-provenance", solid_provenance.iter());
+    walk(&mut lines, "shell-provenance", shell_provenance.iter());
+    walk(&mut lines, "face-provenance", face_provenance.iter());
+    walk(&mut lines, "loop-provenance", loop_provenance.iter());
+    walk(
+        &mut lines,
+        "half-edge-provenance",
+        half_edge_provenance.iter(),
+    );
+    walk(&mut lines, "edge-provenance", edge_provenance.iter());
+    walk(&mut lines, "vertex-provenance", vertex_provenance.iter());
+    walk(&mut lines, "point-origin", point_origins.iter());
+    walk(&mut lines, "curve-origin", curve_origins.iter());
+    walk(&mut lines, "surface-origin", surface_origins.iter());
+    walk(
+        &mut lines,
+        "surface-field-sources",
+        surface_field_sources.iter(),
+    );
+    walk(
+        &mut lines,
+        "surface-axis-source",
+        surface_axis_sources.iter(),
+    );
+    (lines, next_keys)
 }
 
 /// Runs `op` on `body`, asserts it fails with exactly `expected`, and
@@ -235,6 +297,29 @@ pub(crate) enum KillAnchorFault {
     HeldTwice(VertexKey),
     /// A vertex no half-edge starts at and no `Empty` loop holds.
     Orphan(VertexKey),
+    /// A half-edge whose `parent_loop` does not resolve, or a face
+    /// that lists a loop that does not.
+    DeadLoop(EntityId),
+    /// A half-edge whose start does not resolve, or an `Empty` loop
+    /// whose vertex does not.
+    DeadStart(EntityId),
+    /// A loop whose `face` does not resolve, or a shell that lists a
+    /// face that does not.
+    DeadFace(EntityId),
+    /// A face whose `shell` does not resolve, or a solid that lists a
+    /// shell that does not.
+    DeadShell(EntityId),
+    /// A shell whose `solid` does not resolve.
+    DeadSolid(ShellKey),
+    /// A half-edge whose `edge` does not resolve.
+    DeadEdge(HalfEdgeKey),
+    /// A half-edge whose `next` or `prev` does not resolve, a loop whose
+    /// `first` does not, a vertex whose `emanating` does not, or an edge
+    /// a slot of which does not.
+    DeadHalfEdge(EntityId),
+    /// A face whose null-face record names a loop that does not
+    /// resolve.
+    DeadNullFaceLoop(FaceKey),
 }
 
 /// Every [`KillAnchorFault`] on `body`.
@@ -276,7 +361,148 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
             faults.push(KillAnchorFault::LoopOff(l));
         }
     }
+    for (he, data) in body.half_edges() {
+        if body.get_loop(data.parent_loop).is_none() {
+            faults.push(KillAnchorFault::DeadLoop(EntityId::HalfEdge(he)));
+        }
+        if body.get_vertex(data.start).is_none() {
+            faults.push(KillAnchorFault::DeadStart(EntityId::HalfEdge(he)));
+        }
+        if body.get_edge(data.edge).is_none() {
+            faults.push(KillAnchorFault::DeadEdge(he));
+        }
+        if [data.next, data.prev]
+            .iter()
+            .any(|&link| body.get_half_edge(link).is_none())
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::HalfEdge(he)));
+        }
+    }
+    for (l, data) in body.loops() {
+        if let LoopBoundary::Cycle { first } = data.boundary
+            && body.get_half_edge(first).is_none()
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::Loop(l)));
+        }
+    }
+    for (v, data) in body.vertices() {
+        if data
+            .emanating
+            .is_some_and(|he| body.get_half_edge(he).is_none())
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::Vertex(v)));
+        }
+    }
+    for (e, data) in body.edges() {
+        if [data.he_plus, data.he_minus]
+            .iter()
+            .any(|&slot| body.get_half_edge(slot).is_none())
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::Edge(e)));
+        }
+    }
+    for (l, data) in body.loops() {
+        if let LoopBoundary::Empty { vertex } = data.boundary
+            && body.get_vertex(vertex).is_none()
+        {
+            faults.push(KillAnchorFault::DeadStart(EntityId::Loop(l)));
+        }
+        if body.get_face(data.face).is_none() {
+            faults.push(KillAnchorFault::DeadFace(EntityId::Loop(l)));
+        }
+    }
+    for (f, data) in body.faces() {
+        if core::iter::once(&data.outer)
+            .chain(&data.rings)
+            .any(|&l| body.get_loop(l).is_none())
+        {
+            faults.push(KillAnchorFault::DeadLoop(EntityId::Face(f)));
+        }
+        if body.get_shell(data.shell).is_none() {
+            faults.push(KillAnchorFault::DeadShell(EntityId::Face(f)));
+        }
+    }
+    for (s, data) in body.shells() {
+        if data.faces.iter().any(|&f| body.get_face(f).is_none()) {
+            faults.push(KillAnchorFault::DeadFace(EntityId::Shell(s)));
+        }
+        if body.get_solid(data.solid).is_none() {
+            faults.push(KillAnchorFault::DeadSolid(s));
+        }
+    }
+    for (solid, data) in body.solids() {
+        if data.shells.iter().any(|&s| body.get_shell(s).is_none()) {
+            faults.push(KillAnchorFault::DeadShell(EntityId::Solid(solid)));
+        }
+    }
+    for (face, record) in body.null_faces() {
+        if record.loops().iter().any(|&l| body.get_loop(l).is_none()) {
+            faults.push(KillAnchorFault::DeadNullFaceLoop(face));
+        }
+    }
     faults
+}
+
+/// Runs `door` — one call of an operator named in `doors` — on a body a
+/// test has made tier-1-invalid on purpose, inside a surgery scope the
+/// caller drops unswept: `Ok` with what the operator returned, or `Err`
+/// with the panic message of its own tier-1 postcondition.
+///
+/// The `Err` arm is the `per-op-postcondition` scalpel's: it sweeps
+/// after every operator inside a scope too, so an operator that runs to
+/// its end on a torn body fires on the input's corruption after its
+/// last write and before its `Ok`. Without the scalpel the arm is
+/// unreachable. A caught sweep prints nothing; any other panic, an
+/// operator's postcondition named outside `doors` included, prints as
+/// it would have and propagates.
+pub(crate) fn through_the_scalpel<R>(
+    doors: &[&str],
+    door: impl FnOnce() -> R,
+) -> Result<R, String> {
+    use std::cell::RefCell;
+    use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind, set_hook, take_hook};
+    thread_local! {
+        /// `Some` while this thread is inside the helper: where the
+        /// hook leaves a panic's report instead of printing it.
+        static HELD: RefCell<Option<String>> = const { RefCell::new(None) };
+    }
+    static HOOK: std::sync::Once = std::sync::Once::new();
+    if !cfg!(feature = "per-op-postcondition") {
+        return Ok(door());
+    }
+    HOOK.call_once(|| {
+        let previous = take_hook();
+        set_hook(Box::new(move |info| {
+            let held = HELD.with(|held| match held.borrow_mut().as_mut() {
+                Some(report) => {
+                    *report = info.to_string();
+                    true
+                }
+                None => false,
+            });
+            if !held {
+                previous(info);
+            }
+        }));
+    });
+    HELD.with(|held| *held.borrow_mut() = Some(String::new()));
+    let caught = catch_unwind(AssertUnwindSafe(door));
+    let report = HELD
+        .with(|held| held.borrow_mut().take())
+        .unwrap_or_default();
+    let payload = match caught {
+        Ok(got) => return Ok(got),
+        Err(payload) => payload,
+    };
+    if doors
+        .iter()
+        .any(|op| report.contains(&format!(": {op} postcondition: result is not tier-1 valid")))
+    {
+        Err(report)
+    } else {
+        eprintln!("{report}");
+        resume_unwind(payload)
+    }
 }
 
 /// Asserts that `kill` refuses exactly `expected` and leaves `body`
@@ -290,10 +516,29 @@ pub(crate) fn assert_kill_refuses<R>(
     expected: &crate::euler::EulerOpError,
     kill: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
 ) {
+    assert_torn_op_refuses(body, expected, "kill", kill);
+}
+
+/// [`assert_kill_refuses`] for a make operator, which a torn input can
+/// carry to the same anchor faults.
+pub(crate) fn assert_make_refuses<R>(
+    body: &mut Body<f64>,
+    expected: &crate::euler::EulerOpError,
+    make: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
+) {
+    assert_torn_op_refuses(body, expected, "make", make);
+}
+
+fn assert_torn_op_refuses<R>(
+    body: &mut Body<f64>,
+    expected: &crate::euler::EulerOpError,
+    what: &str,
+    op: impl FnOnce(&mut Body<f64>) -> Result<R, crate::euler::EulerOpError>,
+) {
     let before = deep_snapshot(body);
     let faults_before = kill_anchor_faults(body);
     let mut scope = body.begin_surgery();
-    let got = kill(&mut scope).map(|_| ());
+    let got = op(&mut scope).map(|_| ());
     drop(scope);
     match got {
         Ok(()) => {
@@ -301,7 +546,7 @@ pub(crate) fn assert_kill_refuses<R>(
                 .into_iter()
                 .filter(|fault| !faults_before.contains(fault))
                 .collect();
-            panic!("expected {expected:?}; the kill returned Ok, writing {written:?}");
+            panic!("expected {expected:?}; the {what} returned Ok, writing {written:?}");
         }
         Err(err) => {
             assert_eq!(&err, expected);
@@ -521,6 +766,66 @@ pub(crate) fn ngon_pillow(n: usize, tol: Tol) -> NgonPillow {
 /// The digon pillow — the minimal closed fixture (see [`ngon_pillow`]).
 pub(crate) fn pillow(tol: Tol) -> NgonPillow {
     ngon_pillow(2, tol)
+}
+
+/// The PR 4 detached-digon transient with `n` digons: a pillow, and
+/// `n` digons each grown on its own ring of the pillow's seed face and
+/// promoted (`mfkrh`) — one shell entity of `n + 1` closed components.
+/// Returns (body, shell, seed face, the promoted faces in order). The
+/// seed face is the shell's first face.
+pub(crate) fn detached_digons(n: usize) -> (Body<f64>, ShellKey, FaceKey, Vec<FaceKey>) {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    let seg = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        )
+        .unwrap();
+    body.mef_chord(
+        MefSite::Chords {
+            he1: seg.he_plus,
+            he2: seg.he_minus,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
+    let mut promoted = Vec::new();
+    for i in 0..n {
+        let x = 2.0 * (i as f64) + 2.0;
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                Point3::new(x, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let grow = body
+            .mev_line(
+                MevSite::Lone { r#loop: kill.ring },
+                Point3::new(x + 1.0, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        body.mef_chord(
+            MefSite::Chords {
+                he1: grow.he_plus,
+                he2: grow.he_minus,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        promoted.push(body.mfkrh_plug(kill.ring, true).unwrap().face);
+    }
+    assert_eq!(body.get_shell(seed.shell).unwrap().faces[0], seed.face);
+    (body, seed.shell, seed.face, promoted)
 }
 
 /// Every shell of `donor` refiled under `keeper` — appended to
@@ -949,6 +1254,67 @@ pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
     }
 }
 
+/// Key bundle for [`ops_two_ring_face`].
+pub(crate) struct OpsTwoRingFace {
+    pub body: Body<f64>,
+    /// The face holding both rings.
+    pub face: FaceKey,
+    pub outer: LoopKey,
+    /// The hole's ring.
+    pub hole: LoopKey,
+    /// The `Empty` ring the strut's tip leaves.
+    pub tip: LoopKey,
+}
+
+/// [`ops_holed_box`]'s ringed face given a second ring: a strut grown
+/// from its outer loop's first corner a tenth of the way toward the
+/// cap's centre `(0.5, 0.5)`, then killed from its tip by `kemr`,
+/// leaves the tip an `Empty` ring beside the hole's. The one valid body
+/// here with a face whose ring a null-face record on its outer and
+/// other ring does not name. Construction from the PR 3618 review's
+/// probe (`two_ring_face`).
+pub(crate) fn ops_two_ring_face(tol: Tol) -> OpsTwoRingFace {
+    let mut body = ops_holed_box(tol).body;
+    let (face, outer, hole) = body
+        .faces()
+        .find_map(|(f, data)| match data.rings[..] {
+            [ring] => Some((f, data.outer, ring)),
+            _ => None,
+        })
+        .expect("the holed box has a face with one ring");
+    let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the holed box's ringed face has a cycle outer loop")
+    };
+    let start = body.get_half_edge(first).unwrap().start;
+    let p = *body
+        .get_point(body.get_vertex(start).unwrap().point)
+        .unwrap();
+    let tip = Point3::new(p.x + 0.1 * (0.5 - p.x), p.y + 0.1 * (0.5 - p.y), p.z);
+    let site = MevSite::Fan {
+        he1: first,
+        he2: first,
+    };
+    let strut = body.mev_line(site, tip, tol).unwrap();
+    let tip = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
+    assert!(
+        matches!(
+            body.get_loop(tip).unwrap().boundary,
+            LoopBoundary::Empty { .. }
+        ),
+        "`kemr` from the tip leaves the tip an `Empty` ring"
+    );
+    let data = body.get_face(face).unwrap();
+    assert_eq!((data.outer, &data.rings[..]), (outer, &[hole, tip][..]));
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    OpsTwoRingFace {
+        body,
+        face,
+        outer,
+        hole,
+        tip,
+    }
+}
+
 /// Builds the genus-2 double-hole body: [`ops_holed_box`] plus a
 /// triangular through-hole drilled front → back
 /// ([`crate::test_support_fixtures::drill_hole`] again, entering at the
@@ -1130,6 +1496,35 @@ pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
     OpsStrutCube { body, outer, strut }
 }
 
+/// The segment body: `mvfs` at the origin, then `mev_line` at its
+/// `Lone` site to `(1, 0, 0)` — one loop `[he_plus, he_minus]`.
+pub(crate) fn ops_segment(tol: Tol) -> (Body<f64>, MvfsCreated, MevCreated) {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    let site = MevSite::Lone {
+        r#loop: seed.r#loop,
+    };
+    let seg = body
+        .mev_line(site, Point3::new(1.0, 0.0, 0.0), tol)
+        .unwrap();
+    (body, seed, seg)
+}
+
+/// [`ops_segment`] with one strut at its far vertex, to `(2, 0, 0)`:
+/// cycle `[seg+, strut+, strut−, seg−]`. Returns the body, the seed, the
+/// segment and the strut.
+pub(crate) fn ops_strutted(tol: Tol) -> (Body<f64>, MvfsCreated, MevCreated, MevCreated) {
+    let (mut body, seed, seg) = ops_segment(tol);
+    let site = MevSite::Fan {
+        he1: seg.he_minus,
+        he2: seg.he_minus,
+    };
+    let strut = body
+        .mev_line(site, Point3::new(2.0, 0.0, 0.0), tol)
+        .unwrap();
+    (body, seed, seg, strut)
+}
+
 // ---------------------------------------------------------------------
 // The offset-fit door's subject
 // ---------------------------------------------------------------------
@@ -1242,4 +1637,276 @@ pub(crate) fn approx_faced_body<T: geom_core::Decide>() -> (Body<T>, FaceKey) {
     )
     .expect("the seed face takes a fresh surface");
     (body, created.face)
+}
+
+mod tests {
+    use super::*;
+
+    /// Removes every arena entry `original` does not hold, bumping the
+    /// version of each slot it frees.
+    fn drop_entries_not_in(body: &mut Body<f64>, original: &Body<f64>) {
+        fn keep<K: slotmap::Key, V, W>(
+            arena: &mut slotmap::SlotMap<K, V>,
+            original: &slotmap::SlotMap<K, W>,
+        ) {
+            arena.retain(|k, _| original.contains_key(k));
+        }
+        keep(&mut body.solids, &original.solids);
+        keep(&mut body.shells, &original.shells);
+        keep(&mut body.faces, &original.faces);
+        keep(&mut body.loops, &original.loops);
+        keep(&mut body.half_edges, &original.half_edges);
+        keep(&mut body.edges, &original.edges);
+        keep(&mut body.vertices, &original.vertices);
+        keep(&mut body.points, &original.points);
+        keep(&mut body.curves, &original.curves);
+        keep(&mut body.surfaces, &original.surfaces);
+    }
+
+    /// Every record the snapshot claims to walk moves it: a new entry in
+    /// each of the ten arenas, then a provenance record for each new
+    /// topology entry, and, on its own, the key slot that entry consumes
+    /// once it is removed again. A walk that drops an arena, a
+    /// provenance lookup or an arena's next key leaves that row's
+    /// snapshot unmoved.
+    #[test]
+    fn deep_snapshot_sees_every_arena_and_provenance_record() {
+        let s = mvfs_state();
+        let before = deep_snapshot(&s.body);
+        type Insert<'a> = Box<dyn Fn(&mut Body<f64>) -> Option<EntityId> + 'a>;
+        let rows: [(&str, Insert); 10] = [
+            (
+                "solid",
+                Box::new(|b| Some(EntityId::Solid(b.solids.insert(Solid { shells: vec![] })))),
+            ),
+            (
+                "shell",
+                Box::new(|b| {
+                    let shell = Shell {
+                        faces: vec![],
+                        solid: s.solid,
+                    };
+                    Some(EntityId::Shell(b.shells.insert(shell)))
+                }),
+            ),
+            (
+                "face",
+                Box::new(|b| {
+                    let face = Face {
+                        sense: true,
+                        surface: s.surface,
+                        outer: s.lone_loop,
+                        rings: vec![],
+                        shell: s.shell,
+                    };
+                    Some(EntityId::Face(b.faces.insert(face)))
+                }),
+            ),
+            (
+                "loop",
+                Box::new(|b| {
+                    let loop_ = Loop {
+                        boundary: LoopBoundary::Empty { vertex: s.vertex },
+                        face: s.face,
+                    };
+                    Some(EntityId::Loop(b.loops.insert(loop_)))
+                }),
+            ),
+            (
+                "half-edge",
+                Box::new(|b| {
+                    let he = HalfEdge {
+                        edge: EdgeKey::default(),
+                        start: s.vertex,
+                        parent_loop: s.lone_loop,
+                        next: HalfEdgeKey::default(),
+                        prev: HalfEdgeKey::default(),
+                    };
+                    Some(EntityId::HalfEdge(b.half_edges.insert(he)))
+                }),
+            ),
+            (
+                "edge",
+                Box::new(|b| {
+                    let edge = Edge {
+                        he_plus: HalfEdgeKey::default(),
+                        he_minus: HalfEdgeKey::default(),
+                        curve: CurveKey::default(),
+                    };
+                    Some(EntityId::Edge(b.edges.insert(edge)))
+                }),
+            ),
+            (
+                "vertex",
+                Box::new(|b| {
+                    let vertex = Vertex {
+                        point: s.point,
+                        emanating: None,
+                    };
+                    Some(EntityId::Vertex(b.vertices.insert(vertex)))
+                }),
+            ),
+            (
+                "point",
+                Box::new(|b| {
+                    b.points.insert(Point3::new(1.0, 2.0, 3.0));
+                    None
+                }),
+            ),
+            (
+                "curve",
+                Box::new(|b| {
+                    let curve = test_curve(Point3::origin(), Tol::witness());
+                    b.curves.insert(crate::null::CurveGeom::Certified(curve));
+                    None
+                }),
+            ),
+            (
+                "surface",
+                Box::new(|b| {
+                    b.surfaces.insert(test_surface(Point3::origin()));
+                    None
+                }),
+            ),
+        ];
+
+        for (arena, insert) in &rows {
+            let mut churned = s.body.clone();
+            insert(&mut churned);
+            drop_entries_not_in(&mut churned, &s.body);
+            assert_eq!(
+                arena_snapshot(&churned),
+                arena_snapshot(&s.body),
+                "{arena}: the churn leaves every arena its length"
+            );
+            assert_ne!(
+                deep_snapshot(&churned),
+                before,
+                "{arena}: an entry minted and removed leaves the snapshot unmoved"
+            );
+
+            let mut body = s.body.clone();
+            let entity = insert(&mut body);
+            let with_entry = deep_snapshot(&body);
+            assert_ne!(
+                with_entry, before,
+                "{arena}: a new entry leaves the snapshot unmoved"
+            );
+            let Some(entity) = entity else { continue };
+            let record = Provenance::Primordial { op: "snapshot row" };
+            match entity {
+                EntityId::Solid(k) => body.solid_provenance.insert(k, record),
+                EntityId::Shell(k) => body.shell_provenance.insert(k, record),
+                EntityId::Face(k) => body.face_provenance.insert(k, record),
+                EntityId::Loop(k) => body.loop_provenance.insert(k, record),
+                EntityId::HalfEdge(k) => body.half_edge_provenance.insert(k, record),
+                EntityId::Edge(k) => body.edge_provenance.insert(k, record),
+                EntityId::Vertex(k) => body.vertex_provenance.insert(k, record),
+            };
+            assert_ne!(
+                deep_snapshot(&body),
+                with_entry,
+                "{arena}: a provenance record leaves the snapshot unmoved"
+            );
+        }
+    }
+
+    /// Every side table the snapshot claims to walk moves it: one new
+    /// row in each, on a key that table holds no row for. A walk that
+    /// drops a table leaves that row's snapshot unmoved. (The seven
+    /// provenance maps are the arena row's second half.)
+    #[test]
+    fn deep_snapshot_sees_every_side_table_row() {
+        fn fresh<K: slotmap::Key>(taken: impl Fn(K) -> bool) -> K {
+            let mut keys = slotmap::SlotMap::<K, ()>::with_key();
+            std::iter::repeat_with(|| keys.insert(()))
+                .find(|&k| !taken(k))
+                .expect("an unbounded key supply")
+        }
+        let s = mvfs_state();
+        let cache = {
+            let mut sheet = Body::<f64>::new();
+            crate::test_support_fixtures::cyl_wall_sheet(
+                &mut sheet,
+                crate::test_support_fixtures::CylFrame::canonical(1.0),
+                None,
+                (0.0, 1.0),
+                (0.0, 1.0),
+                Tol::witness(),
+            );
+            let (_, cache) = sheet
+                .pcurves
+                .iter()
+                .next()
+                .expect("the wall sheet mints pcurves");
+            cache.clone()
+        };
+        let before = deep_snapshot(&s.body);
+        type Insert<'a> = Box<dyn Fn(&mut Body<f64>) + 'a>;
+        let rows: [(&str, Insert); 7] = [
+            (
+                "pcurves",
+                Box::new(|b| {
+                    let k = fresh(|k| b.pcurves.contains_key(k));
+                    b.pcurves.insert(k, cache.clone());
+                }),
+            ),
+            (
+                "null_faces",
+                Box::new(|b| {
+                    let k = fresh(|k| b.null_faces.contains_key(k));
+                    let pair = crate::null::NullFacePair::Split {
+                        above_loop: s.lone_loop,
+                        below_loop: s.lone_loop,
+                    };
+                    b.null_faces.insert(k, pair);
+                }),
+            ),
+            (
+                "point_origins",
+                Box::new(|b| {
+                    let k = fresh(|k| b.point_origins.contains_key(k));
+                    b.point_origins.insert(k, crate::GeomOrigin::Imported);
+                }),
+            ),
+            (
+                "curve_origins",
+                Box::new(|b| {
+                    let k = fresh(|k| b.curve_origins.contains_key(k));
+                    b.curve_origins.insert(k, crate::GeomOrigin::Imported);
+                }),
+            ),
+            (
+                "surface_origins",
+                Box::new(|b| {
+                    let k = fresh(|k| b.surface_origins.contains_key(k));
+                    b.surface_origins.insert(k, crate::GeomOrigin::Imported);
+                }),
+            ),
+            (
+                "surface_field_sources",
+                Box::new(|b| {
+                    let k = fresh(|k| b.surface_field_sources.contains_key(k));
+                    b.surface_field_sources
+                        .insert(k, crate::param_source::FieldSources::default());
+                }),
+            ),
+            (
+                "surface_axis_sources",
+                Box::new(|b| {
+                    let k = fresh(|k| b.surface_axis_sources.contains_key(k));
+                    b.surface_axis_sources.insert(k, crate::AxisRecord::Cleared);
+                }),
+            ),
+        ];
+        for (table, insert) in &rows {
+            let mut body = s.body.clone();
+            insert(&mut body);
+            assert_ne!(
+                deep_snapshot(&body),
+                before,
+                "{table}: a new row leaves the snapshot unmoved"
+            );
+        }
+    }
 }

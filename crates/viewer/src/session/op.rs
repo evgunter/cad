@@ -16,12 +16,12 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, Maintenance,
-    ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId,
+    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, Label, LoopProgram,
+    Maintenance, ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::ContactClass;
+use pncad::select::{ContactClass, FlushFinding};
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
@@ -483,50 +483,51 @@ pub enum SessionOp {
         /// The loop programs, in description order.
         loops: Vec<LoopProgram>,
     },
-    /// **Write the path editor's numbers over a committed profile's**
+    /// **Write the path editor's program over a committed profile's**
     /// — the door the add-profile form's editor commits through when
     /// it is opened on an existing node instead of on nothing. A
     /// `node` that is not a `Node::Profile` refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
     /// `loops` is the whole program as the editor holds it, lowered in
-    /// the form's notation. What reaches the history is the slot write
-    /// for each argument that MOVED ([`crate::sketch::program_edits`]),
-    /// as ONE action and one undo step — and nothing at all when none
-    /// did, which is what makes opening a profile and applying it
-    /// untouched cost no history entry. A program whose structure
-    /// differs from the committed one's refuses
-    /// [`Refusal::ProfileRestructure`]: the document's edit vocabulary
-    /// writes slots and has no door that rewrites a program's shape. A
-    /// moved argument an expression drives refuses with the affordance
-    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
-    /// does.
+    /// the form's notation, and `ids` says which committed step each
+    /// of its steps is: per loop, per step, the committed step's
+    /// [`StepId`] it keeps, or `None` for a step the editor made. What
+    /// reaches the history is ONE `DocEdit::SetProgram` — one action,
+    /// one undo — whatever moved: numbers, steps inserted, removed or
+    /// reordered, verbs, arc modes, targets, a split circle's count.
+    /// Nothing at all reaches it when the program is the committed one
+    /// with every step kept in place, which is what makes opening a
+    /// profile and applying it untouched cost no history entry.
     ///
-    /// The whole program is checked once before any slot is written,
-    /// so a profile that does not close or validate refuses in the
-    /// insert door's own words ([`Refusal::Edit`]). The slot writes
-    /// then land in an order the door accepts one at a time — each
-    /// write re-validates the program, so a corner moved past another
-    /// can refuse until its neighbour follows. The order is searched
-    /// exactly up to [`crate::session::ORDER_SEARCH_CAP`] writes; a
-    /// program that is valid whole and has no such order is
-    /// [`Refusal::ProfileEditOrder`], and one past the cap whose slot
-    /// order does not land is [`Refusal::ProfileEditOrderCapped`] —
-    /// the cost of the missing whole-program door said out loud rather
-    /// than as a refusal about a state nobody wrote.
+    /// Every argument of a kept step that did not move is written as
+    /// the document holds it, so only what moved takes the editor's
+    /// notation. A kept step's argument an expression drives refuses
+    /// with the affordance if the program does not hold it unmoved
+    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
+    /// does. The program itself, and `ids`' shape, are the edit door's
+    /// to judge, and refuse in its words ([`Refusal::Edit`]).
+    ///
+    /// A name on a step the program does not keep is stranded, and the
+    /// door's report of it rides [`OpOutcome::maintenance`];
+    /// [`crate::session::DocSession::edit_profile_report`] reads the
+    /// same rows before the op is performed.
     ///
     /// `base` is the program the editor was loaded from. A document
     /// whose program is no longer that one (compared by value) refuses
-    /// [`Refusal::ProfileEditStale`]: the numbers were an edit of a
-    /// program that is not there any more.
+    /// [`Refusal::ProfileEditStale`]: the editor's program was an edit
+    /// of one that is not there any more.
     EditProfile {
         /// The profile node.
         node: RecipeNodeId,
-        /// The committed program the editor's numbers were loaded
+        /// The committed program the editor's program was loaded
         /// from.
         base: ProfileProgram,
         /// The loop programs the editor holds, in description order.
         loops: Vec<LoopProgram>,
+        /// Per loop, per step: the committed step it keeps, or `None`
+        /// for a new one (`DocEdit::SetProgram`'s `ids`).
+        ids: Vec<Vec<Option<StepId>>>,
     },
     /// Insert one extrude of an existing profile node — the extrude
     /// tool's one committed edit. A `profile` that is not a
@@ -558,7 +559,7 @@ pub enum SessionOp {
         angle: Expr,
     },
     /// Insert one regularized boolean of two existing bodies — the
-    /// boolean tool's one committed edit (GAUTH-4).
+    /// boolean tool's one committed action (GAUTH-4).
     ///
     /// **The operand order is data**: `Subtract` keeps `a` and removes
     /// `b`, so the two seats are not interchangeable and the form says
@@ -569,11 +570,19 @@ pub enum SessionOp {
     /// fact about any node's inputs, not about booleans, so it is
     /// stated once where every node kind reaches it.
     ///
-    /// `declare` is authored `None`: coincidence intent is a
-    /// `Node::Declare` input, and authoring one needs the entity picks
-    /// (a face pair) that this tool does not take. A declaration is
-    /// added afterwards through the vocabulary that owns it, never
-    /// guessed at here.
+    /// **A contact is declared in the same action or not at all.** No
+    /// edit attaches a declaration to a live node, so an empty
+    /// `declare` authors the node's `declare` as `None` and a non-empty
+    /// one commits a `Node::Declare` of exactly those findings and then
+    /// the boolean naming it — one action, one undo. The door evaluates
+    /// the boolean before recording it, and one that refuses an
+    /// undeclared contact of its own is not committed:
+    /// [`Refusal::Contact`] carries the kernel's finding back, and its
+    /// offer is this op again with that finding added. The door
+    /// declares what it is handed and guesses nothing; that the boolean
+    /// tool hands it only pairs a refusal reported and the author
+    /// accepted is the tool's gesture, not a property of the findings'
+    /// type.
     AddBoolean {
         /// The operation — the KERNEL's enum, which the recipe node
         /// carries unconverted.
@@ -582,6 +591,8 @@ pub enum SessionOp {
         a: RecipeNodeId,
         /// The second operand: the body a subtraction removes.
         b: RecipeNodeId,
+        /// The contacts declared, in the refusals' own finding shape.
+        declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum
     /// plane — the split tool's one committed edit.
@@ -792,7 +803,7 @@ pub enum SessionOp {
     /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
     /// reference into a store it has not got.
     ///
-    /// No placement is authored: A11 puts placement on the cluster and
+    /// No placement is authored: A11 puts placement on the group and
     /// an instance carries no frame of its own, so the inserted node
     /// is complete with its reference and an empty interface record
     /// (an authored instance crosses no split seam). Hiding, the
@@ -800,6 +811,43 @@ pub enum SessionOp {
     AddInstance {
         /// Which document in the open document's own directory.
         id: DocumentId,
+    },
+    /// **Accept the updated version of the part `id` names**, at every
+    /// instance of it: the edits `pncad::workspace::update_to_store`
+    /// answers — one `DocEdit::UpdateReference` per site whose pin
+    /// moves — committed as one action, so one undo.
+    ///
+    /// The pin is minted at the commit from the store's content, as
+    /// [`SessionOp::AddInstance`]'s is, so an offer drawn before the
+    /// part's file changed again accepts the version on disk now. What
+    /// the store or the elaboration refuses — no file for the id, or
+    /// every reference already on the version the store holds — is
+    /// refused in their own words ([`Refusal::Workspace`]).
+    AcceptPartVersion {
+        /// Which part, by the identity every reference to it carries.
+        id: DocumentId,
+    },
+    /// **Rename a node**: set its label, or clear it with `None`
+    /// (DESIGN.md Band 1, "Node labels") — one `DocEdit::SetLabel`,
+    /// one undo. A label is document data beside the node, so this
+    /// recomputes nothing. Writing the label the node already has is
+    /// no action and costs no undo step.
+    SetLabel {
+        /// The node renamed.
+        node: RecipeNodeId,
+        /// Its new label, `None` to clear it.
+        label: Option<Label>,
+    },
+    /// **A creation, labelled**: the creation's own edits and then a
+    /// `DocEdit::SetLabel` on the node it created last, as ONE action
+    /// and one undo. The insert carries no label, because what an
+    /// insert carries is what its node's id is minted from; the label
+    /// is the second edit of the same action.
+    CreateLabelled {
+        /// The creation.
+        creation: Creation,
+        /// The label its node is given.
+        label: Label,
     },
 }
 
@@ -975,6 +1023,64 @@ impl GestureName {
 }
 
 impl SessionOp {
+    /// **Whether this operation inserts a node** — what
+    /// [`Creation::of`] admits. Exhaustive with no wildcard arm, so an
+    /// operation added tomorrow says whether it creates.
+    #[must_use]
+    pub fn creates_a_node(&self) -> bool {
+        match self {
+            Self::AddMate { .. }
+            | Self::AddDatum { .. }
+            | Self::AddProfile { .. }
+            | Self::AddExtrude { .. }
+            | Self::AddRevolve { .. }
+            | Self::AddBoolean { .. }
+            | Self::AddSplit { .. }
+            | Self::AddTransform { .. }
+            | Self::AddPattern { .. }
+            | Self::AddPlacedUnion { .. }
+            | Self::AddFillet { .. }
+            | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
+            | Self::AddInstance { .. } => true,
+            Self::Select(_)
+            | Self::Hover(_)
+            | Self::DeleteNode { .. }
+            | Self::SetSlot { .. }
+            | Self::ProbeBounds { .. }
+            | Self::SetSlotUnit { .. }
+            | Self::SetSlotExpression { .. }
+            | Self::SetParam { .. }
+            | Self::SetParamUnit { .. }
+            | Self::SetParamText { .. }
+            | Self::CreateParam { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginParamGesture { .. }
+            | Self::PreviewGesture { .. }
+            | Self::CommitGesture { .. }
+            | Self::PreviewParamGesture { .. }
+            | Self::CommitParamGesture { .. }
+            | Self::CancelGesture
+            | Self::Undo
+            | Self::Redo
+            | Self::CancelEvaluation
+            | Self::Reevaluate
+            | Self::Open(_)
+            | Self::Save(_)
+            | Self::SetInstanceHidden { .. }
+            | Self::BeginFreeMove { .. }
+            | Self::PreviewFreeMove { .. }
+            | Self::CommitFreeMove { .. }
+            | Self::CancelFreeMove
+            | Self::NewDocument { .. }
+            | Self::EditProfile { .. }
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::CreateLabelled { .. } => false,
+        }
+    }
+
     /// **Which gesture this operation drives**, or `None` for an
     /// operation that drives none.
     ///
@@ -1040,7 +1146,10 @@ impl SessionOp {
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
-            | Self::AddInstance { .. } => None,
+            | Self::AddInstance { .. }
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::CreateLabelled { .. } => None,
         }
     }
 
@@ -1245,7 +1354,11 @@ impl SessionOp {
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
-            | Self::AddInstance { .. } => false,
+            | Self::AddInstance { .. }
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. } => false,
+            // A labelled creation is its creation, labelled.
+            Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
     }
 
@@ -1361,16 +1474,54 @@ impl SessionOp {
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
-            | Self::AddInstance { .. } => true,
+            | Self::AddInstance { .. }
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. } => true,
+            Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
+    }
+}
+
+/// **An operation that creates a node** — the only operation
+/// [`SessionOp::CreateLabelled`] labels, so a label can never be handed
+/// to an operation that has no node to give it.
+#[derive(Clone, Debug)]
+pub struct Creation(Box<SessionOp>);
+
+impl Creation {
+    /// `op` as a creation, or `op` back when it creates no node.
+    ///
+    /// # Errors
+    ///
+    /// The operation itself, when it is not one of the creating
+    /// operations.
+    pub fn of(op: SessionOp) -> Result<Self, Box<SessionOp>> {
+        let op = Box::new(op);
+        if op.creates_a_node() {
+            Ok(Self(op))
+        } else {
+            Err(op)
+        }
+    }
+
+    /// The creating operation.
+    #[must_use]
+    pub fn op(&self) -> &SessionOp {
+        &self.0
+    }
+
+    /// The creating operation, unwrapped.
+    #[must_use]
+    pub fn into_op(self) -> SessionOp {
+        *self.0
     }
 }
 
 /// What an operation did.
 #[derive(Debug, Default)]
 pub struct OpOutcome {
-    /// The edits that entered the history — at most one per op, and
-    /// exactly one for a gesture's whole drag.
+    /// The edits that entered the history, in the order they applied
+    /// — exactly one for a gesture's whole drag.
     pub committed: Vec<DocEdit<ProfileProgram>>,
     /// The edits evaluated against scratch state and NOT recorded.
     pub previewed: Vec<DocEdit<ProfileProgram>>,
@@ -1419,9 +1570,8 @@ pub struct OpOutcome {
     /// [`crate::frame::outcome_notices`].
     ///
     /// **Net over the action, not per edit.** One action can apply
-    /// several edits (a cascade delete, a profile edit's one-slot
-    /// writes), and a row an earlier edit reported can be made moot by
-    /// a later one — a strand the action went on to repair or whose
+    /// several edits (a cascade delete, a profile on a new frame), and
+    /// a row an earlier edit reported can be made moot by a later one — a strand the action went on to repair or whose
     /// carrier it deleted, an orphan it consumed again, a name it moved
     /// twice. The rows are folded through
     /// `pncad::document::MaintenanceNet`, which states which survive,

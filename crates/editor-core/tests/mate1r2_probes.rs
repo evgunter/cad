@@ -2,10 +2,10 @@
 //!
 //! These rows attack the PR #1400 claims by execution:
 //! - P1: the frame conjugation `F⁻¹·O_c⁻¹·O_p·F` at a NON-IDENTITY
-//!   cluster frame, against a pose composed by hand (Rodrigues written
+//!   group frame, against a pose composed by hand (Rodrigues written
 //!   in this file, never read back from the solver);
 //! - P1b: the same conjugation with the GATE as the independent oracle
-//!   (a consistent sibling loop under a rotated+translated cluster
+//!   (a consistent sibling loop under a rotated+translated group
 //!   frame must still verify against the evaluated geometry);
 //! - P2: a tree edge whose members are copies of TWO different
 //!   patterns — the `(Some, Some)` arm of the pair's left factor;
@@ -22,7 +22,8 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Expr, Frame,
-    MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, StableName, assemble,
+    MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName,
+    assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
@@ -30,7 +31,13 @@ use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
 
-fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
+fn block_part(
+    label: &str,
+    x: (f64, f64),
+    y: (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, p) = on_frame(
         doc,
@@ -39,26 +46,21 @@ fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> Pr
         [0.0, 1.0, 0.0],
         vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile: p,
             distance: len(dz),
         },
-    );
-    doc
+    )
 }
 
-fn leg_part(label: &str) -> ProfileDoc {
+fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 fn seat_mate(
@@ -198,10 +200,10 @@ impl Rigid {
     }
 }
 
-/// The cluster frame used by the placed probes: a quarter turn about z
+/// The group frame used by the placed probes: a quarter turn about z
 /// plus a translation — rotation AND translation, so a conjugation
 /// written in either direction (or skipped) computes a DIFFERENT pose.
-fn cluster_frame() -> Frame {
+fn group_frame() -> Frame {
     Rigid {
         r: [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
         t: [1.0, 2.0, 3.0],
@@ -212,23 +214,23 @@ fn cluster_frame() -> Frame {
 // ---- P1: hand-derived conjugation at F ≠ identity, oblique axis ----
 
 /// PROBE (claim 1): a CIRCULAR pattern about an OBLIQUE axis (direction
-/// (1,1,1), origin (1,0,0), step 2π/5), with the cluster's recorded
+/// (1,1,1), origin (1,0,0), step 2π/5), with the group's recorded
 /// frame a rotation+translation. Expected relative pose composed by
 /// hand in this file: `F⁻¹ ∘ O₁ ∘ F ∘ A` with `O₁` this file's own
 /// Rodrigues and `A` the seat translation. The solver's output is
 /// never read into the expectation.
 #[test]
-fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
+fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("r2-obl-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("r2-obl-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("r2-obl-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("r2-obl-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-obl"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, _) = step(
         doc,
         DocEdit::SetPlacement {
             node: leg,
-            frame: cluster_frame(),
+            frame: group_frame(),
         },
     );
     let (doc, axis) = insert(
@@ -255,8 +257,8 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -274,7 +276,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
     );
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
 
-    let f = Rigid::from_frame(cluster_frame());
+    let f = Rigid::from_frame(group_frame());
     let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
     let a = Rigid::translation([0.0, 0.0, 1.0]);
     let expected = f.inverse().compose(o1).compose(f).compose(a).as_frame();
@@ -288,17 +290,17 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
 
 // ---- P1b: the gate as the oracle at F ≠ identity ----
 
-/// PROBE (claims 1+3): the consistent sibling loop, with the cluster
+/// PROBE (claims 1+3): the consistent sibling loop, with the group
 /// frame rotated AND translated. The declared sibling seat is verified
 /// by the gate against the EVALUATION's geometry, so a solve-side
 /// conjugation error (either direction, or a skipped conjugation)
 /// would put the top in the wrong place and the gate would refute —
 /// an oracle independent of this reviewer's own algebra.
 #[test]
-fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
+fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("r2-loopf-leg"), Tol::witness());
-    let top_ref = store.insert(
+    let (leg_ref, leg_body) = store.insert_part(leg_part("r2-loopf-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(
         block_part("r2-loopf-top", (0.0, 2.5), (0.0, 1.0), 0.0, 0.5),
         Tol::witness(),
     );
@@ -308,7 +310,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
         doc,
         DocEdit::SetPlacement {
             node: leg,
-            frame: cluster_frame(),
+            frame: group_frame(),
         },
     );
     let (doc, pattern) = insert(
@@ -317,7 +319,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
             input: leg,
             count: Expr::count(2),
             kind: PatternKind::Linear {
-                // Document ŷ: the placed cluster frame turns the leg
+                // Document ŷ: the placed group frame turns the leg
                 // and top a quarter turn about z, so the top's long
                 // local-x side lies along WORLD ŷ — the copies must
                 // march there for the loop to be consistent. (A first
@@ -334,8 +336,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -345,8 +347,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -388,8 +390,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
 #[test]
 fn r2_two_patterns_tree_edge_composes_both_offsets() {
     let mut store = PartStore::default();
-    let l1 = store.insert(leg_part("r2-twop-l1"), Tol::witness());
-    let l2 = store.insert(leg_part("r2-twop-l2"), Tol::witness());
+    let (l1, l1_body) = store.insert_part(leg_part("r2-twop-l1"), Tol::witness());
+    let (l2, l2_body) = store.insert_part(leg_part("r2-twop-l2"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-twop"), Tol::witness());
     let (doc, leg1) = insert(doc, Node::instantiate_part(l1));
     let (doc, p1) = insert(
@@ -419,8 +421,8 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(p1, 1, in_part(leg1, CapEnd::End)),
-                in_copy(p2, 1, in_part(leg2, CapEnd::Start)),
+                in_copy(p1, 1, in_part(leg1, l1_body, CapEnd::End)),
+                in_copy(p2, 1, in_part(leg2, l2_body, CapEnd::Start)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -432,7 +434,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "{:?}", poses.fault(mate));
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
-    assert_eq!(poses.gauge(leg2), Some(leg1), "leg1 is document-first");
+    assert_eq!(poses.root(leg2), Some(leg1), "leg1 is document-first");
 
     // O_p = T(3·x̂) (parent = leg1's copy 1), O_c = T(5·ŷ) (child =
     // leg2's copy 1); F = identity. rel(leg2) = O_c⁻¹∘O_p∘T([0,0,1]).
@@ -450,7 +452,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
 
 // ---- P3: the patterned member as the tree CHILD ----
 
-/// PROBE (claims 1+8): the top is document-FIRST, so it is the gauge
+/// PROBE (claims 1+8): the top is document-FIRST, so it is the root
 /// and the patterned member is the tree CHILD — the `O_c⁻¹` arm alone.
 /// Hand-derived: rep = B∘A⁻¹ = T([0,0,−1]) (the mate reads a = copy,
 /// b = top, and the child member's frame must land on the parent's),
@@ -458,8 +460,8 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
 #[test]
 fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     let mut store = PartStore::default();
-    let top_ref = store.insert(leg_part("r2-rev-top"), Tol::witness());
-    let leg_ref = store.insert(leg_part("r2-rev-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("r2-rev-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("r2-rev-leg"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-rev"), Tol::witness());
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
@@ -478,8 +480,8 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -490,7 +492,7 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "{:?}", poses.fault(mate));
-    assert_eq!(poses.gauge(leg), Some(top), "the top is document-first");
+    assert_eq!(poses.root(leg), Some(top), "the top is document-first");
 
     let expected = Frame {
         columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
@@ -520,8 +522,8 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
 #[test]
 fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("r2-oor-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("r2-oor-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("r2-oor-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("r2-oor-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-oor"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
@@ -540,8 +542,8 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -555,8 +557,8 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -614,8 +616,8 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
 #[test]
 fn r2_nested_pattern_head_is_a_member() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("r2-nest-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("r2-nest-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("r2-nest-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("r2-nest-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-nest"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, inner) = insert(
@@ -645,8 +647,12 @@ fn r2_nested_pattern_head_is_a_member() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::End))),
-                in_part(top, CapEnd::Start),
+                in_copy(
+                    outer,
+                    1,
+                    in_copy(inner, 1, in_part(leg, leg_body, CapEnd::End)),
+                ),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -677,9 +683,9 @@ fn r2_nested_pattern_head_is_a_member() {
 #[test]
 fn r2_plain_document_pose_bits() {
     let mut store = PartStore::default();
-    let a_ref = store.insert(leg_part("r2-bits-a"), Tol::witness());
-    let b_ref = store.insert(leg_part("r2-bits-b"), Tol::witness());
-    let c_ref = store.insert(leg_part("r2-bits-c"), Tol::witness());
+    let (a_ref, a_body) = store.insert_part(leg_part("r2-bits-a"), Tol::witness());
+    let (b_ref, b_body) = store.insert_part(leg_part("r2-bits-b"), Tol::witness());
+    let (c_ref, c_body) = store.insert_part(leg_part("r2-bits-c"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-bits"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(a_ref));
     let (doc, ib) = insert(doc, Node::instantiate_part(b_ref));
@@ -688,8 +694,8 @@ fn r2_plain_document_pose_bits() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_part(ia, CapEnd::End),
-                in_part(ib, CapEnd::Start),
+                in_part(ia, a_body, CapEnd::End),
+                in_part(ib, b_body, CapEnd::Start),
                 [0.25, 0.5, 1.0],
                 AxisSense::Opposed,
             ),
@@ -699,8 +705,8 @@ fn r2_plain_document_pose_bits() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_part(ib, CapEnd::End),
-                in_part(ic, CapEnd::Start),
+                in_part(ib, b_body, CapEnd::End),
+                in_part(ic, c_body, CapEnd::Start),
                 [0.75, 0.125, 1.0],
                 AxisSense::Aligned,
             ),

@@ -37,13 +37,13 @@ use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, ValuePayload};
 use pncad::quantity::{WrittenAngle, WrittenLength};
 use viewer::props;
+use viewer::props::Notation;
 use viewer::revolvetool::RevolveTool;
 use viewer::seats::{Seat, SeatError, SeatEvent};
 use viewer::session::{
     DatumSpec, DocSession, FaceSelection, Hovered, NodeKindWanted, ProfilePlane, ProfileShape,
     Refusal, Selection, SessionOp, Step,
 };
-use viewer::sketch::Notation;
 
 /// The ring demo's constants (`demos/tour/src/ring.rs`): mean radius,
 /// tube outer radius, bore radius.
@@ -532,7 +532,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
             .flatten()
             .copied()
             .collect::<std::collections::BTreeSet<_>>(),
-        doc.step_mint().log().iter().copied().collect(),
+        doc.mint().steps().collect(),
         "the profile's steps are the document's only mints"
     );
     assert_eq!(minted.ids.iter().flatten().count(), 5, "five steps");
@@ -893,7 +893,7 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
             Some(SeatEvent::PickLost {
                 seat: Seat::RevolveAxis,
                 node
-            }) if *node == axis
+            }) if node.id() == axis
         ),
         "the event names the emptied seat and the vanished node: {events:?}"
     );
@@ -961,7 +961,7 @@ fn a_dropped_profile_does_not_promote_the_axis() {
             Some(SeatEvent::PickLost {
                 seat: Seat::RevolveProfile,
                 node
-            }) if *node == profile
+            }) if node.id() == profile
         ),
         "{events:?}"
     );
@@ -1107,7 +1107,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         "the panel row remembers the form's unit, with no picker touched"
     );
     assert_eq!(
-        props::field_text(&row),
+        props::field_text(&row, Notation::DEFAULT),
         "10",
         "and the field reads 10, not 0.01"
     );
@@ -1177,7 +1177,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         .find(|row| row.slot == SlotId::RevolveAngle)
         .expect("the revolve has an angle");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("deg"));
-    assert_eq!(props::field_text(&row), "90");
+    assert_eq!(props::field_text(&row, Notation::DEFAULT), "90");
 }
 
 /// **From nothing to a boss on a picked face, headlessly** — the
@@ -1200,12 +1200,10 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 /// evidence that a profile drew and extruded on it.
 ///
 /// **Not the union of block and boss.** A boss drawn on the face
-/// frame is FLUSH with the block at that face by construction, and
-/// this kernel refuses an undeclared coincident contact
-/// (`ValidationError::UndeclaredContact`); the declaration is a
-/// `Declare` node, which `SessionOp::AddBoolean` has no seat for. The
-/// sum-of-volumes assertion is therefore not authorable through the
-/// op vocabulary this row drives.
+/// frame is FLUSH with the block at that face by construction, so its
+/// union refuses until the contact is declared; that path, with its
+/// sum-of-volumes assertion, is `viewer::pane::create`'s
+/// `declared_union` rows.
 ///
 /// It is still a TWO-FORM trip for a person — add the datum, then draw
 /// on it — which is the residue

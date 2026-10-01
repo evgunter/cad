@@ -94,7 +94,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
@@ -172,7 +172,7 @@ const _: () = assert!(R_TUBE > (Y_SHOULDER - Y_FOOT) / 2.0);
 /// junction chord the arc bulges to. That is the whole of the sense
 /// claim, expressed where it cannot drift: two bodies, one profile
 /// builder, one pair of stations.
-fn meridian(centre_rho: f64, winding: ArcSweep, tol: Tol) -> ProfileLoop<f64> {
+fn meridian(centre_rho: f64, winding: ArcSweep, tol: Tol) -> ConstructedLoop<f64> {
     Open.at(p2(0.0, 0.0))
         .line_to(p2(R_FOOT, 0.0), tol)
         .expect("the base disc")
@@ -202,7 +202,7 @@ fn meridian(centre_rho: f64, winding: ArcSweep, tol: Tol) -> ProfileLoop<f64> {
 
 /// The meridian revolved about `+y` through the origin, so a vertex's
 /// axial coordinates are `(hypot(x, z), y)`.
-fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>, tol: Tol) -> Body<f64> {
+fn revolved(lp: ConstructedLoop<f64>, turn: Revolution<f64>, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
         RevolveAxis {
@@ -441,9 +441,8 @@ fn wall_probes(tol: Tol) {
         },
         "the props quadrature lane integrates a spiric-bounded face. Retire this probe \
          and ship the sectioned vessel as this scene's third panel, which is the \
-         picture it was always for; the klein elbow's row \
-         (`torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses`) is a second \
-         gate, its equator seams' re-author, and retires on its own",
+         picture it was always for; the klein elbow's sealed hollow \
+         (`torax_the_klein_elbow_hollows_to_the_props_door`) stands at the same gate",
     );
 }
 
@@ -806,9 +805,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  form (and the torus wall behind it routes to the quadrature lane, whose \
                  chart gate has no torus arm), so the +V invariant refuses \
                  VolumeUncomputable. The klein elbow's wall \
-                 (`torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses`) mints the \
-                 same carrier and stops one door earlier, at its equator seams' \
-                 re-author; the sectioned vessel has no such seam. The SPHERE half of the \
+                 (`torax_the_klein_elbow_hollows_to_the_props_door`) mints the same \
+                 carrier and stops at the same door. The SPHERE half of the \
                  same rim family stands at the same door on a different premise: it is \
                  the CAVITY's lens face — bounded by the moved caps' off-centre \
                  sections — whose volume the flux arm cannot give tier 3 \

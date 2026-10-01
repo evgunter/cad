@@ -1035,10 +1035,29 @@ BOUND_AS = {
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
     # `malformed_body`, `no_extent`, `no_finite_bound`,
-    # `not_an_instance`). The instance it is about crosses as
-    # `MateFault.instance`, and a face that cannot be bounded names its
+    # `not_an_instance`), or why the lever the two form is out of the
+    # format's range (`out_of_range`). The instance a part's refusal is
+    # about crosses as `MateFault.instance`, and a face that cannot be bounded names its
     # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
+    # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
+    # it (`mate_face_unresolved`), and its discriminant is the word that
+    # arm publishes: why a `from_face` frame's face answered no pose
+    # (`part_unresolved`, `no_such_name`, `ambiguous`, `not_a_face`,
+    # `readback`, `unpinned`, `not_an_instance`). The instance crosses
+    # as `MateFault.instance`, the face as `MateFault.face`.
+    "FaceRefusal": "MateFault.inner_variant",
+    # The reach's own refusal of a face pose, named against the part
+    # alone; the solve wraps it into `FaceRefusal` with the instance
+    # and the face, which is the shape Python reads.
+    "FacePoseRefusal": "MateFault.inner_variant",
+    # THE TWO ARMS OF A MATE FRAME: three authored vectors, or a face
+    # of the part resolved at the solve. `MateFrame` is one Python
+    # class whose `variant` says which (`authored`, `from_face`); the
+    # authored vectors are its `origin`/`axis`/`reference` and the face
+    # its `face`, so neither inner struct is a class of its own.
+    "AuthoredFrame": "MateFrame.variant",
+    "FaceFrame": "MateFrame.variant",
     # What a frame fails to be a placement: the word `PersistError`'s
     # `maintenance_frame` arm publishes on `inner_variant` (`non_finite`,
     # `improper`, `not_rigid`) for a recorded maintenance row held to the
@@ -1272,9 +1291,6 @@ BOUND_AS = {
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "StepMap": "SplitOutcome.step_map",
-    # What a `StepMapDiverged` refusal carries; the arm crosses as its
-    # tag word.
-    "StepMapDivergence": "SplitError.variant",
     # A profile's pieces cross as opaque text, one per canonical
     # segment, which is what the role-name doors take.
     "ProfilePieces": "Doc.pieces",
@@ -1807,7 +1823,7 @@ FAMILIES: dict[str, str] = {
 #: `MintedDeclaration`, `RefusedRef`), mates and the solve
 #: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateRole`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
-#: `Maintenance`, `clusters`, `gauge_of`, `reading_edges`,
+#: `Maintenance`, `groups`, `root_of`, `reading_edges`,
 #: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
 #: `class_admission`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,
@@ -2222,6 +2238,14 @@ NOT_BOUND = {
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
     "Dimension": SHAPE,
+    # How a sentence names a node. Python reads a node's sentence inside
+    # the error a door raises, already spoken; its machine spelling is
+    # `NodeId`'s and `StepId`'s repr, which prints the full id
+    # (`FullId`); and its kind word is `Doc.node_kind`, the snake_case
+    # vocabulary `src/node_kind.rs` keeps apart from the chrome's noun.
+    "FullId": SHAPE,
+    "SpokenNode": SHAPE,
+    "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
     # direction door refused and which of its four facts it reported.
     # It crosses as its carrier does, and its carrier does not cross
@@ -2401,6 +2425,9 @@ NOT_BOUND = {
     # name, and a Python caller holds a name as opaque TEXT. Anything
     # it appears in reaches Python as the name it wraps.
     "NameRef": SHAPE,
+    # Why a name's text did not read: crosses as the `ValueError` a
+    # name's text refuses with, its words and place in the message.
+    "NameTextError": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     # The display-unit CODE a `DocParam` carries. A one-byte index into
@@ -2527,7 +2554,9 @@ NOT_BOUND = {
     # there is no tag to split, none to pin, and nothing for a Python
     # caller to branch on. Not a `gap:` either: the debt is the blend
     # door being unprojected, which is #1479's row and not a missing
-    # binding for these four types.
+    # binding for these types. `BlendDecision` (`Escalated`'s decision)
+    # joined them on the same terms.
+    "BlendDecision": INTERIOR,
     "BlendSite": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanDeclarations": INTERIOR,
@@ -2597,7 +2626,10 @@ NOT_BOUND = {
     # a door projecting its arms' FIELDS, which is
     # `work/lib/pncad-py-seven-doors-lack-field-projection.md`'s
     # (the `path` door is one of the six it names), and not a missing
-    # binding for these five types.
+    # binding for these five types. `ArcCheck` is the sixth, on the
+    # same footing: `InconsistentArc`'s payload, crossing as the word
+    # `inconsistent_arc` with its check left behind.
+    "ArcCheck": INTERIOR,
     "ContactKind": INTERIOR,
     "EscalationSite": INTERIOR,
     "FilletLeg": INTERIOR,
@@ -2747,6 +2779,10 @@ NOT_BOUND = {
     "TargetShape": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
+    # The loop the lattice constructed, carrying that provenance into
+    # validation. Python holds a `ClosedLoop` whole and validates
+    # through the document, never taking the loop out.
+    "ConstructedLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
     "ProfileVertexRef": INTERIOR,
     "ProgramArcData": INTERIOR,
@@ -2913,6 +2949,15 @@ NOT_BOUND = {
     # type crosses, for `NotAFaceName`'s reason.
     "ParamNameFault": SHAPE,
     "ParamNameReason": SHAPE,
+    # `Label` is a node's label as a validated text, and `LabelFault`
+    # what `Label::new` refuses with. A Python caller holds a label as
+    # `str`: `Doc.label` answers one, and `DocEdit.set_label` and
+    # `label=` at insert call the constructor at the boundary and
+    # publish its refusal as `EditError.variant` (`label_blank`,
+    # `label_line_break`, `label_control_character`); neither type
+    # crosses, for `NotAFaceName`'s reason.
+    "Label": SHAPE,
+    "LabelFault": SHAPE,
     # **The clearance engine's refusal, flattened to a tag — and
     # unreachable at the lane Python evaluates on.** It reaches Python
     # as `EvaluationError.kind == "measure_clearance_refused"`
@@ -3360,6 +3405,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
+    "EditError::NodeIdCollides": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
@@ -3418,6 +3464,7 @@ MEMBERS_BOUND_AS = {
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
+    "EditError::LabelUnchanged": "EditError.variant",
     "EditError::MaintenanceRefused": "EditError.variant",
     "EditError::MaintenanceUnrecorded": "EditError.variant",
     "EvalError::UnknownParam": "EvalError.variant",
@@ -3445,7 +3492,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
-    "InlineError::StepMapDiverged": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Frame": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
@@ -3458,6 +3504,11 @@ MEMBERS_BOUND_AS = {
     "MateFault::PlacerRefused": "MateFault.variant",
     "MateFault::PartSelectsAnotherCopy": "MateFault.variant",
     "MateFault::SelfMate": "MateFault.variant",
+    "MateFault::FaceUnresolved": "MateFault.variant",
+    # A mate frame's two arms cross as `MateFrame.variant`
+    # (`authored`, `from_face`); the constructor `MateFrame(...)` is
+    # the authored arm and `MateFrame.from_face(...)` the other.
+    "MateFrame::Authored": "MateFrame.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MeasureNodeFault::RefIndexOutOfRange": "MeasureNodeFault.variant",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
@@ -3562,7 +3613,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::OperandSeveredFromMate": "SplitError.variant",
-    "SplitError::TornCluster": "SplitError.variant",
+    "SplitError::TornGroup": "SplitError.variant",
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
@@ -3571,7 +3622,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::Pin": "SplitError.variant",
     "SplitError::PartEdit": "SplitError.variant",
     "SplitError::RemainderEdit": "SplitError.variant",
-    "SplitError::StepMapDiverged": "SplitError.variant",
     "StepImportError::Syntax": "StepImportError.variant",
     "StepImportError::DanglingReference": "StepImportError.variant",
     "StepImportError::WrongEntityType": "StepImportError.variant",
@@ -3706,6 +3756,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::NullScaffoldShared": "ValidationFinding.variant",
     "ValidationError::LeakedNullFaceRecord": "ValidationFinding.variant",
     "ValidationError::StaleNullFaceLoop": "ValidationFinding.variant",
+    "ValidationError::StaleNullFaceOwnership": "ValidationFinding.variant",
     "ValidationError::NullEdgeAtRest": "ValidationFinding.variant",
     "ValidationError::NullFaceAtRest": "ValidationFinding.variant",
     # --- the analysis lane's arms, in this file's alphabet at last -

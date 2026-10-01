@@ -45,8 +45,9 @@ fn cone() -> Surface<f64> {
 fn two_axis_faces() -> (Body<f64>, [SurfaceKey; 2]) {
     let mut b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
+    // Lifts both refusals: the rows read the axis-bearing surfaces' keys, not the brick's edges.
     let cyl = b
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             faces[0],
             FaceSurface::New {
                 surface: cylinder(),
@@ -54,8 +55,9 @@ fn two_axis_faces() -> (Body<f64>, [SurfaceKey; 2]) {
             },
         )
         .unwrap();
+    // Lifts both refusals: the rows read the axis-bearing surfaces' keys, not the brick's edges.
     let cone = b
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             faces[1],
             FaceSurface::New {
                 surface: cone(),
@@ -110,7 +112,8 @@ fn the_attach_door_takes_axes_and_refuses_planes_and_stale_keys() {
         .find(|(_, f)| f.surface == stale_after)
         .map(|(k, _)| k)
         .unwrap();
-    b.set_face_surface(
+    // Lifts RechartUnvouched: the attach door's answer on a cone is the row, not the brick's boundary.
+    b.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
             surface: cone(),
@@ -233,7 +236,7 @@ fn a_graft_carries_source_and_cleared_rows() {
     src.set_surface_axis_source(src_keys[0], restamped.clone())
         .unwrap();
     let native: Vec<_> = dst.surfaces().map(|(k, _)| k).collect();
-    graft_disjoint(&mut dst, &src, tol).unwrap();
+    graft_disjoint(&mut dst, &src).unwrap();
 
     let mut carried: Vec<_> = dst
         .surfaces()
@@ -261,8 +264,9 @@ fn the_orphan_door_drops_the_row() {
         .find(|(_, f)| f.surface == cyl)
         .map(|(k, _)| k)
         .unwrap();
+    // Lifts RechartUnvouched: the orphaned key's dropped row is the subject, not the brick's boundary.
     let fresh = b
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             face,
             FaceSurface::New {
                 surface: Surface::Cylinder {

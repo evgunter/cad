@@ -40,7 +40,6 @@
 use pncad::document::{BooleanOp, Dimension, MatePrimitive};
 use pncad::profile::{ArcMode, TargetKind};
 use pncad::quantity::UnitDef;
-use pncad::select::SplitHalf;
 
 use crate::props;
 use crate::session::DatumSpec;
@@ -190,6 +189,22 @@ impl DatumKindChoice {
             Self::Plane | Self::Frame | Self::Axis | Self::Point => None,
         }
     }
+
+    /// **The kind noun of the node this choice creates** —
+    /// `node_kind_noun`'s word for it, which the form's proposed label
+    /// counts by ([`crate::tree::proposed_label`]).
+    /// `drafts::tests::each_datum_choices_noun_is_the_kind_of_the_node_it_commits`
+    /// holds each to the node the form commits.
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Plane => "Datum plane",
+            Self::Frame => "Datum frame",
+            Self::FaceFrame => "Datum frame (on face)",
+            Self::Axis => "Datum axis",
+            Self::AxisInPlane => "Datum axis (in sketch)",
+            Self::Point => "Datum point",
+        }
+    }
 }
 
 partial_mirror! {
@@ -226,24 +241,7 @@ vocabulary! {
     pub(crate) const ALL;
 }
 
-/// The word the part form shows for a half of the KERNEL's
-/// [`SplitHalf`], whose `ALL` the radio row offers.
-///
-/// **A match, not a table**, for the reason [`boolean_op_label`] is:
-/// the enum is declared in `topo`, so no list written here can be
-/// projected from its declaration — but it publishes `SplitHalf::ALL`,
-/// and the form draws one button per entry. A third half would arrive
-/// with no membership edit here and could not arrive silently, because
-/// it has no word until this match gives it one.
-///
-/// The words are the kernel's own sides — the plane's normal decides
-/// which is which, and the form does not paraphrase that.
-pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
-    match half {
-        SplitHalf::Above => "above",
-        SplitHalf::Below => "below",
-    }
-}
+pub(crate) use crate::tree::split_half_label;
 
 vocabulary! {
     /// The add-profile form's loop choice: the two templates, or a PATH
@@ -297,39 +295,6 @@ pub(crate) fn target_kind_label(kind: TargetKind) -> &'static str {
         TargetKind::StartArriving => "Start, arriving tangent",
     }
 }
-
-/// **Whether a path editor may change its program's SHAPE** — the
-/// verbs, their order and number, each arc's mode, side and winding,
-/// each target's form, a split circle's count — or only its numbers.
-///
-/// The add-profile form's editor is one editor with two doors. Opened
-/// on nothing it authors a new node and every control is live
-/// ([`ShapeEdits::Free`]). Opened on a committed profile it commits as
-/// slot writes, and the document's edit vocabulary writes a program's
-/// ARGUMENTS and has no door that rewrites its shape, so the controls
-/// that would are shown and not taken ([`ShapeEdits::Locked`], said
-/// as [`SHAPE_LOCKED`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ShapeEdits {
-    /// Every control is live.
-    Free,
-    /// The shape controls are drawn disabled.
-    Locked,
-}
-
-impl ShapeEdits {
-    /// Whether the shape controls take input.
-    pub(crate) fn free(self) -> bool {
-        self == Self::Free
-    }
-}
-
-/// What a locked editor says about its greyed controls — above the
-/// list, and on the disabled hover of each step row's glyph controls,
-/// under what that control would have done.
-pub(crate) const SHAPE_LOCKED: &str = "the numbers are editable here; the shape (the steps, \
-     their verbs and order, arc modes, sides and targets) is not — the document has no edit that \
-     rewrites a committed profile's program";
 
 /// The fewest subdivisions the `circle_split` count field offers —
 /// the kernel's own floor (`profile::Step::CircleSplit`'s `n`, which
@@ -435,10 +400,10 @@ pub struct FieldWriting {
 impl FieldWriting {
     /// How a field of `dimension` whose value remembers `stored` is
     /// written. `stored` is the row's own `unit` — the fact the
-    /// document carries, before [`props::rendering_unit`] chooses what
-    /// a value that remembers nothing reads as.
-    pub fn of(dimension: Dimension, stored: Option<UnitDef>) -> Self {
-        let unit = props::rendering_unit(dimension, stored);
+    /// document carries, before [`props::rendering_unit`] reads a value
+    /// that remembers nothing in the working `notation`.
+    pub fn of(dimension: Dimension, stored: Option<UnitDef>, notation: props::Notation) -> Self {
+        let unit = props::rendering_unit(dimension, stored, notation);
         // A COUNT field steps by one whatever it is written in: what it
         // holds is a count, and a tenth of an instance is not a value
         // it can take. Read off the dimension and not off a

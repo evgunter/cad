@@ -132,18 +132,20 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
         ),
         (
             "kind",
-            "the fillet selection name minted by node 2 denotes a face, not an edge",
+            "the fillet selection name minted by node {cube} denotes a face, not an edge",
         ),
         (
             "resolve",
-            "a fillet selection name failed to resolve: the edge name minted by node 2 no \
+            "a fillet selection name failed to resolve: the edge name minted by node {cube} no \
              longer resolves in this evaluation: the recorded reference disagrees with the \
-             recipe as it stands on the derivation path (node 2's payload differs)",
+             recipe as it stands on the derivation path (node {cube}'s payload differs)",
         ),
     ];
+    let cube = test_utils::refusal::tag(cube_doc().1.0);
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
         assert_eq!(label, wl);
-        assert_eq!(actual, expected, "the fillet's {label} refusal text moved");
+        let expected = expected.replace("{cube}", &cube);
+        assert_eq!(actual, &expected, "the fillet's {label} refusal text moved");
     }
     // The op row is pinned by PREFIX, not whole. Its tail is the
     // kernel's own `BlendError` message, which quotes an arena key

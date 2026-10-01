@@ -469,7 +469,7 @@ BOUNDS_ALLOWLIST=(
   # pre-existing seams the count is 14. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
   # compound bound.
-  'crates/topo/src/boolean/ops.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/boolean/ops.rs 15 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
@@ -569,12 +569,27 @@ BOUNDS_ALLOWLIST=(
   # in a `#[cfg(test)]` module that reads no bracket.
   'crates/geom-brep/src/fitted_lane.rs 2 M6-2, the SSI rung-3 certificate; the fitted door value `FittedLane::certified` and its wiring row at the same bound'
   'crates/geom-brep/src/ssi.rs 2 M6-2, the SSI rung-3 certificate'
-  'crates/geom-brep/src/ssi/certify.rs 16 M6-2, the SSI rung-3 certificate'
+  # 16 -> 14: the rung-3 witness helper `witness` (`Decide + Bounds +
+  # CertifiedEnclosure`, two occurrences) went: it evaluated the carrier
+  # at its domain middle and read no bracket, and its callers in
+  # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
+  # The seam is unmoved: the branch certificate keeps its bounds.
+  'crates/geom-brep/src/ssi/certify.rs 14 M6-2, the SSI rung-3 certificate'
   # M7-8, the declare-and-check edge lane.
   'crates/geom-brep/src/edge_nurbs.rs 6 M7-8, the declare-and-check edge lane'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the two
-  # DOORS that name the certified body `plane_nurbs_limbs`.
-  'crates/geom-brep/src/certify.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
+  # DOORS that name the certified body `plane_nurbs_limbs`. The second
+  # occurrence is the lane's door value, `NurbsLane::certified`'s block
+  # (`Decide + CertifiedBounds`) — the shape `FittedLane::certified`
+  # has: the certification RIGHT the value stands for, so the type
+  # cannot be written at a scalar without it; it holds one function
+  # pointer to `plane_nurbs_limbs` and reads no bracket. Same seam, the
+  # bound of the `certify_nurbs_lane` block beside it and nothing wider.
+  # The third is `wiring_rows::holds_the_certified_nurbs_lane`, which
+  # forms that constructor at each certifying scalar and so restates its
+  # bound and nothing wider, in a `#[cfg(test)]` module that reads no
+  # bracket.
+  'crates/geom-brep/src/certify.rs 3 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound'
   'crates/topo/src/euler.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
   # M9-2 PR-1, the chart-region overlap predicate.
   'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'

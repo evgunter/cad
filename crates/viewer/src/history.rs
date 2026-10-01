@@ -274,6 +274,38 @@ impl History {
         id
     }
 
+    /// **Add one more edit to the action the cursor's state recorded**:
+    /// `edit` joins that state's group, and `doc` — `apply`'s output
+    /// for it over the state's document — replaces the state's. The
+    /// state stays ONE undo step.
+    ///
+    /// For an action that finishes after its own commit door has
+    /// recorded it (a labelled creation's `SetLabel`), so it is only
+    /// sound on the state that door just recorded: `at` names it, and
+    /// it must be where the cursor is and have no children yet.
+    ///
+    /// # Panics
+    ///
+    /// When `at` is not the cursor's state, is the root, or already
+    /// has children — any of which would rewrite an action some other
+    /// state was edited from.
+    pub fn extend_current(
+        &mut self,
+        at: HistoryId,
+        edit: LoggedEdit<ProfileProgram>,
+        doc: Doc<ProfileProgram>,
+    ) {
+        assert!(
+            at == self.current
+                && self.entry(at).parent.is_some()
+                && self.entry(at).children.is_empty(),
+            "only the leaf state an action just recorded can be extended"
+        );
+        let entry = &mut self.entries[at.0];
+        entry.edits.push(edit);
+        entry.doc = doc;
+    }
+
     /// Whether a parent exists to undo to.
     pub fn can_undo(&self) -> bool {
         self.entry(self.current).parent.is_some()

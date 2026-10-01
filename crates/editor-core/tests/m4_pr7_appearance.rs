@@ -175,12 +175,16 @@ fn multi_attribute_per_entity_and_clear_semantics() {
     // Three kinds coexist on one name.
     let doc = set(doc, body.clone(), red());
     let doc = set(doc, body.clone(), Attr::Visibility(false));
-    let doc = set(doc, body.clone(), Attr::Label("housing".into()));
+    let doc = set(
+        doc,
+        body.clone(),
+        Attr::Label(editor_core::Label::new("housing").unwrap()),
+    );
     let attrs = doc.appearance_of(&body).unwrap();
     assert_eq!(attrs.attrs.len(), 3);
     assert_eq!(
         attrs.attrs.get(&AttrKind::Label),
-        Some(&Attr::Label("housing".into()))
+        Some(&Attr::Label(editor_core::Label::new("housing").unwrap()))
     );
 
     // Same-kind set replaces (one slot per kind).
@@ -296,7 +300,11 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
                 .then(|| n.clone())
         })
         .expect("final die table has a unique face");
-    let doc = set(d.doc, body.clone(), Attr::Label("die".into()));
+    let doc = set(
+        d.doc,
+        body.clone(),
+        Attr::Label(editor_core::Label::new("die").unwrap()),
+    );
     let doc = set(doc, face.clone(), red());
 
     let ev1 = run(&doc);
@@ -669,10 +677,10 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     // Review A2 (adapted from the reviewer's transform-duplicate
     // probe): a tied name passed through a Transform appears in TWO
     // tables; the loss report stays per-name — exactly ONE Ambiguous
-    // row, `at` = the first carrying node in id order (the subtract),
-    // the rest derivable by table lookup.
+    // row, `at` = the first carrying node in id order, the rest
+    // derivable by table lookup.
     let (doc, sub) = tie_fixture();
-    let (doc, _moved) = insert(
+    let (doc, moved) = insert(
         doc,
         Node::transform(
             sub,
@@ -696,7 +704,10 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     assert_eq!(ev.appearance.losses[0].name, tied);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::Ambiguous { at: sub, width: 2 }
+        AppearanceLossCause::Ambiguous {
+            at: sub.min(moved),
+            width: 2
+        }
     );
     assert!(ev.appearance.resolved.is_empty(), "ties are never painted");
 }

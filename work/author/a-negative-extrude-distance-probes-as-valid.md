@@ -2,10 +2,13 @@
 id: a-negative-extrude-distance-probes-as-valid
 kind: issue
 title: The probe reports every negative extrude distance as valid, so a length field's only floor is the single point zero
-status: open
+status: closed
 opened: 2026-09-15
 priority: P0
-cost: E
+cost: M
+design: true
+closed: 2026-10-01
+pr: 3551
 ---
 
 
@@ -89,3 +92,45 @@ only failure is a point, and any row that assumes a floor.
 CHROME, because the evidence and the affected rows are in
 `crates/viewer`. Re-home it to whichever program owns the answer once
 the question above is decided — the header move, per `work/README.md`.
+
+## Re-priced 2026-09-30: a design fork, not a drive-by
+
+Priced `E` and parked as a drive-by "waiting for a lane in `bounds.rs`", but the row's own "It may not be viewer's to fix" section is the reason it is not dispatchable. Either a negative extrude distance is meant to build, and the gap is that a thickness has no declared non-negative domain (a document/parameter question), or it isn't, and the refusal belongs in evaluation (`eval/mod.rs`, WIRE's ground). The probe reports the kernel faithfully either way. So it is re-priced `M` with `design: true`. It goes through the designer lanes (`docs/prompts/designer.md`) and then an `[ev]` PR before any lane builds it.
+
+## A depth and a side (2026-09-30)
+
+Two designers weighed this fork independently and then read each other's reports. Both now recommend the same answer. The evidence and both rounds are in `work/author/log.md` (2026-09-30, "negative-extrude fork").
+
+**What the evidence points at.** The failure is not the probe's. One slot, `Extrude.distance`, holds two intents: how thick, and which side of the sketch plane. As the value passes through zero the body shrinks to nothing and reappears on the other side. Anything built on its end cap follows it there silently. Both designers measured this: a boss on the block's `Cap(End)` rebuilds below the plane at −10 mm, and no node fails. The only trace is a zero whose failing band is the tolerance's width, which a sampling probe steps over unless a doubling happens to land in it.
+
+**The answer both recommend.** An extrude's distance is a **depth**, definitely positive at the tolerance, refused in the kernel's extrude door through the sign decision it already makes (`extrusion_normal_component`). Its direction is a separate **structural** choice on the node, `side`: along or against the sketch normal. What that makes true:
+- No expression can flip the side by changing sign.
+- Typing −5 mm refuses, and the refusal points at `side`.
+- Every failure below a thickness is a half-line, so the range probe finds the floor for every seed at every ε, with no probe change.
+
+**What is given up.** An expression can no longer choose the side by its sign (`top_z − plane_z`). "Extrude up to a plane" is the feature that says that honestly.
+
+**Rejected by both.**
+- *Keep the signed distance and have the probe ask "is this the same build?"* (compare decision logs). Measured: ordinary edits flip algorithmic decisions without anything changing that an author would call structural (78 of 138 small edits on `plate_param`, and 4 of 29 corpus documents under their own recorded bump), so the range would collapse to a point on most documents with a boolean.
+- *A declared non-negative domain on the document parameter.* The parameter does not know which slots consume it, a literal slot has no parameter to carry it, and it would be a second source of truth beside the door.
+
+**The rule behind it, and its reach.** "A size an operation covers is positive; its direction has one home." A revolve's signed angle beside a directed axis, and a pattern's signed spacing or step beside its direction, have the same shape (likely for revolve, unmeasured for patterns). Its reach was the open question; Ev ruled it below.
+
+**Not waiting on this ruling** (CHROME's, filed separately): the range panel's Open sentence claims more than the probe sampled, and a bracket's invalid end could name what refused there.
+
+## Ruled 2026-10-01 (Ev, #3551): (a)
+
+**An extrude's distance is a depth, definitely positive at the tolerance, and its direction is a structural `side`** (along or against the sketch normal). A non-positive depth refuses in the kernel's extrude door, through the sign decision it already makes.
+
+**The rule is adopted:** "a size an operation covers is positive; its direction has one home." Revolve's signed angle and a pattern's signed spacing or step are its named follow-ons, each weighed on its own.
+
+**Ev's follow-up, a requirement on the refusal.** A negative depth must refuse with a recourse that shows how to write the extrude the other way, i.e. set `side`, not merely that it refused. ("presumably one of the followups will be an error message that shows how to easily write the extrude going the other direction without using a negative distance").
+
+**Where the work went.** The design is decided, so this row closes. The work is on its owners' slates:
+- **`work/edit/extrude-distance-is-a-depth-and-a-side`** (EDIT; P0). This is the node shape, the edit vocabulary, persistence and the schema bump. Its kernel half is in `sweep::Extrusion`/`ExtrudeError` on CARVE/STRUT ground, and its eval wiring on WIRE's. It carries the refusal requirement above. Its knock-ons:
+  - `docm9_range` A2's only `DecisionFlip` fixture needs a replacement;
+  - the tests that author negative distances on purpose need re-spelling with `side`;
+  - `pncad-py`'s `Node.extrude` changes.
+- **`work/author/the-create-pane-has-no-extrude-side`** (AUTHOR; blocked on the EDIT row). The viewer half: a `side` control in the extrude form, and `SessionOp::AddExtrude` carrying it.
+- **`work/carve/revolve-angle-is-a-signed-size-beside-a-directed-axis`** and **`work/edit/pattern-spacing-is-a-signed-size-beside-a-direction`**: the rule's named follow-ons, as design rows.
+- CHROME's `the-range-panels-open-sentence-claims-values-it-never-sampled` (already filed) is independent of the ruling.

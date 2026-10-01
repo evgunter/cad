@@ -260,7 +260,7 @@ impl LeafHistogram {
         let _ = writeln!(
             s,
             "histogram measure={} rows={}",
-            self.measurement.0,
+            self.measurement.full(),
             self.rows.len()
         );
         let _ = writeln!(s, "basis {}", self.basis.word());
@@ -294,16 +294,17 @@ impl LeafHistogram {
             "ADVISORY leaf-mass histogram of node {} — leaf mass against the measure's \
              certified enclosure over that leaf. Not a density: a true output density is v2 \
              (E11.6), and nothing here claims one.",
-            self.measurement.0
+            self.measurement
         );
         let _ = writeln!(s, "{}", self.basis);
         for row in &self.rows {
+            let (lo, hi) = row.enclosure;
             let _ = writeln!(
                 s,
                 "  {:>8} of mass in [{}, {}]   {}",
                 percent(&row.mass),
-                row.enclosure.0,
-                row.enclosure.1,
+                lo,
+                hi,
                 row.leaf
             );
         }

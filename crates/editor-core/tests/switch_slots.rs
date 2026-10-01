@@ -22,10 +22,8 @@ use editor_core::{
 use fixture::{ang, len, scl};
 use geom_core::Tol;
 
-/// Every document below is a frame and then the profile drawn on it,
-/// in that order.
-const PLANE: RecipeNodeId = RecipeNodeId(0);
-const PROFILE: RecipeNodeId = RecipeNodeId(1);
+// Every document below is a frame and then the profile drawn on it,
+// in that order: `doc.order()[0]` and `doc.order()[1]`.
 
 fn circle_doc(r: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
@@ -41,7 +39,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: PLANE,
+                plane: doc.order()[0],
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
             }),
@@ -67,7 +65,7 @@ fn radius_slot() -> SlotId {
 #[test]
 fn profile_nodes_enumerate_program_slots() {
     let doc = circle_doc(0.5);
-    let Some(node) = doc.node(PROFILE) else {
+    let Some(node) = doc.node(doc.order()[1]) else {
         panic!("profile node");
     };
     let slots = node.slots();
@@ -102,7 +100,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
     let grown = doc
         .apply(
             &DocEdit::SetParam {
-                node: PROFILE,
+                node: doc.order()[1],
                 slot: radius_slot(),
                 expr: len(0.75),
             },
@@ -121,7 +119,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(v) = ev.value(PROFILE) else {
+    let Some(v) = ev.value(doc.order()[1]) else {
         panic!("profile evaluates");
     };
     let ValuePayload::Profile(pv) = &v.payload else {
@@ -146,7 +144,7 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = doc
         .apply(
             &DocEdit::SetParam {
-                node: PROFILE,
+                node: doc.order()[1],
                 slot: radius_slot(),
                 expr: sum,
             },
@@ -156,7 +154,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         .unwrap()
         .doc;
     let path = ExprPath {
-        node: PROFILE,
+        node: doc.order()[1],
         slot: radius_slot(),
         path: vec![0],
     };
@@ -189,7 +187,7 @@ fn program_slots_refuse_wrong_dimensions() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: PROFILE,
+            node: doc.order()[1],
             slot: radius_slot(),
             expr: ang(0.5),
         },
@@ -214,7 +212,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: PROFILE,
+            node: doc.order()[1],
             slot: radius_slot(),
             expr: len(0.0),
         },
@@ -222,7 +220,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node, PROFILE);
+            assert_eq!(node, doc.order()[1]);
             match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
@@ -268,7 +266,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: PLANE,
+                    plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
@@ -301,7 +299,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.nodes.get(&PROFILE) {
+    match ev.nodes.get(&doc.order()[1]) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_: 0, error } => {
                 assert_eq!(error.step, 0, "the circle step names itself");
@@ -332,7 +330,7 @@ fn insert_node_checks_program_dimensions() {
         .unwrap()
         .doc;
     let bad = ProfileProgram {
-        plane: PLANE,
+        plane: doc.order()[0],
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             // An Angle where the Radius role demands Length.
@@ -439,7 +437,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             arg: arrival,
         };
         let mut program: ProfileNode = Node::Profile(ProfileProgram {
-            plane: PLANE,
+            plane: doc.order()[0],
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At([len(0.0), len(0.0)]),
                 ProgramStep::ArcFilletArc {
@@ -772,16 +770,8 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: MateFrame {
-                    origin: [0.0; 3],
-                    axis: [0.0, 0.0, 1.0],
-                    reference: [1.0, 0.0, 0.0],
-                },
-                b: MateFrame {
-                    origin: [0.0; 3],
-                    axis: [0.0, 0.0, 1.0],
-                    reference: [1.0, 0.0, 0.0],
-                },
+                a: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                b: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
                 primitive: MatePrimitive::Coaxial,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -935,6 +925,38 @@ fn every_node_kinds_expr_mut_writes_the_field_expr_reads() {
 /// written a distinct tag through `expr_mut` and read back through
 /// `expr`, so the render names the field by what landed in it, whatever
 /// the two fields held before.
+/// **The mint's preimage is pinned for every node shape**: the id each
+/// shape draws from an empty document's mint. `mint.rs`'s pin freezes
+/// one profile's bytes; a node shape whose serde form moves — a field
+/// renamed, reordered or re-typed, a variant renamed, display units
+/// reaching the bytes — re-mints every id a saved log replays to, and
+/// goes red here on the shape that moved. The shapes are
+/// `one_of_every_node_shape`'s, which
+/// `every_node_kinds_slots_are_all_readable` welds to the roster.
+#[test]
+fn every_node_shapes_mint_is_pinned() {
+    use std::fmt::Write as _;
+    let mut text = String::new();
+    for node in one_of_every_node_shape() {
+        let id = editor_core::test_support::first_node_id(&node);
+        let kind = test_utils::f6::variant_identifier(&node);
+        writeln!(text, "{kind} {}", id.0).unwrap();
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/mint_node_ids.txt");
+    if std::env::var_os("PNCAD_BLESS").is_some() {
+        std::fs::write(&path, &text).expect("the golden writes");
+        return;
+    }
+    assert_eq!(
+        text,
+        include_str!("golden/mint_node_ids.txt"),
+        "a node shape's mint preimage moved, and with it every id a saved log replays to. \
+         Read the diff and say in the PR body which shape moved and why (regenerate: \
+         PNCAD_BLESS=1 cargo test -p editor-core --test all every_node_shapes_mint_is_pinned)"
+    );
+}
+
 #[test]
 fn every_node_shapes_slot_table_is_pinned() {
     use std::fmt::Write as _;

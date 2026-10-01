@@ -422,30 +422,45 @@ fn a_recorded_refusal_does_not_reach_the_next_load() {
 
 #[test]
 fn snapshot_invariant_violations_refuse_typed() {
-    let (_, text) = small();
-    // next_id below the live ids (a replay would re-mint id 2).
-    let clipped = text.replace("\"next_id\": 3", "\"next_id\": 2");
-    assert_ne!(clipped, text);
-    match load(&clipped, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id: 2 })) => {
-            assert_eq!(id, RecipeNodeId(2));
+    let (doc, text) = small();
+    let (header, body) = text.split_once('\n').expect("a header line, then the body");
+    let body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let edited = |edit: &dyn Fn(&mut serde_json::Value)| {
+        let mut v = body.clone();
+        edit(&mut v);
+        format!("{header}\n{v}\n")
+    };
+    // A live node the mint log does not hold (a replay could re-mint
+    // its id): the last insert's entry taken out of the log.
+    let last = *doc.order().last().expect("the fixture inserts");
+    let unlogged = edited(&|v| {
+        let log = v["snapshot"]["mint"]["log"]
+            .as_array_mut()
+            .expect("the file carries its mint log");
+        let before = log.len();
+        log.retain(|entry| entry["node"].as_u64() != Some(last.0));
+        assert_eq!(log.len() + 1, before, "the log held the node once");
+    });
+    match load(&unlogged, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
+            assert_eq!(id, last);
         }
-        other => panic!("expected IdBeyondCounter, got {other:?}"),
+        other => panic!("expected NodeNotMinted, got {other:?}"),
     }
-    // order/nodes disagreement.
-    let unordered = text.replace(
-        "\"order\": [\n      0,\n      1,\n      2\n    ]",
-        "\"order\": [0]",
+    // order/nodes disagreement: the order cut to its first entry.
+    let unordered = edited(&|v| {
+        let order = v["snapshot"]["order"]
+            .as_array_mut()
+            .expect("the file carries its order");
+        order.truncate(1);
+    });
+    assert!(
+        matches!(
+            load(&unordered, Tol::witness()),
+            Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
+        ),
+        "order mismatch must refuse"
     );
-    if unordered != text {
-        assert!(
-            matches!(
-                load(&unordered, Tol::witness()),
-                Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
-            ),
-            "order mismatch must refuse"
-        );
-    }
 }
 
 #[test]
@@ -488,7 +503,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     let meta_edit = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: RecipeNodeId(1),
+            node: doc.order()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
@@ -582,7 +597,7 @@ fn metadata_convention_doors_refuse_typed() {
     let (doc, _) = small();
     let name = editor_core::StableName {
         kind: editor_core::EntityKind::Body,
-        node: RecipeNodeId(1),
+        node: doc.order()[1],
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     // No "v" field → refused at the edit door (D7 convention).
@@ -650,10 +665,10 @@ fn program_structure_doors_refuse_typed_at_load() {
     // notation, so leaving `"m"` beside an `Angle` dim would be caught
     // one door earlier as a display-unit mismatch, and this row is
     // about the SLOT's role dimension, not the literal's own coherence.
-    v["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["dim"] =
-        serde_json::Value::String("Angle".into());
-    v["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["unit"] =
-        serde_json::Value::String("rad".into());
+    v["snapshot"]["nodes"][circle.0.to_string()]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]
+        ["dim"] = serde_json::Value::String("Angle".into());
+    v["snapshot"]["nodes"][circle.0.to_string()]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]
+        ["unit"] = serde_json::Value::String("rad".into());
     let mangled = format!("{header}\n{}\n", serde_json::to_string_pretty(&v).unwrap());
     // A program slot is a slot like any other, so the document-wide
     // slot walk decides it — the same `Node::slot_dimension_fault` the
@@ -680,7 +695,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     let text2 = save(&doc2, &[], Tol::witness()).expect("save");
     let (header2, body2) = text2.split_once('\n').expect("id line");
     let mut v2: serde_json::Value = serde_json::from_str(body2).expect("body parses");
-    let steps = v2["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Chain"]
+    let steps = v2["snapshot"]["nodes"][chain.0.to_string()]["Profile"]["loops"][0]["Chain"]
         .as_array_mut()
         .expect("chain steps");
     steps.pop(); // drop the closing LineTo(Start)
@@ -767,7 +782,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     let bad = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: RecipeNodeId(1),
+            node: doc.order()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),

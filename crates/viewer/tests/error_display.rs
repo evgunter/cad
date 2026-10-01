@@ -32,10 +32,13 @@ use editor_core::{
 };
 use pncad::document::{EditError, RecipeNodeId};
 use pncad::mesh::TessellateError;
+use test_utils::refusal::tagged;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
 use viewer::history::ReplayError;
 use viewer::matetool::MateToolError;
-use viewer::pickindex::{EdgeNameFault, IdMapError, PatchId, PickError, PickIndexError};
+use viewer::pickindex::{
+    EdgeNameFault, EdgeNamesRefused, IdMapError, PatchId, PickError, PickIndexError,
+};
 use viewer::scene::{SceneDocError, SceneError};
 
 /// Whether a rendering looks like a derived `Debug` rather than prose:
@@ -152,15 +155,26 @@ fn camera_op_renders_as_the_move_it_is() {
 
 #[test]
 fn scene_error_names_the_counts_it_carries() {
-    let delta = SceneError::InvalidDisplayTolerance { delta: -1.0 }.to_string();
-    assert!(delta.contains("-1"), "{delta}");
+    let delta = SceneError::InvalidDisplayTolerance {
+        delta: -1.0,
+        unit: pncad::quantity::MM,
+    }
+    .to_string();
+    assert!(
+        delta.contains("-1 mm"),
+        "the δ in the unit it was written in: {delta}"
+    );
     prose(&delta, "InvalidDisplayTolerance");
 
     // The second δ arm, whose whole point is that it is NOT the first:
     // the value it names is a finite, strictly positive length, and
     // what it lacks is a millimetre reading.
-    let coarse = SceneError::DisplayToleranceOverflowsMillimetres { delta: 1.0e306 }.to_string();
-    assert!(coarse.contains("1e306"), "{coarse}");
+    let coarse = SceneError::DisplayToleranceOverflowsMillimetres {
+        delta: 1.0e306,
+        unit: pncad::quantity::M,
+    }
+    .to_string();
+    assert!(coarse.contains("1e306 m"), "{coarse}");
     assert!(
         coarse.contains("millimetre"),
         "the arm says what the δ lacks, not that it is not a length: {coarse}"
@@ -232,7 +246,7 @@ fn scene_doc_error_renders_its_postcondition_arm() {
 fn id_map_error_names_the_patch_and_the_count() {
     let duplicate = IdMapError::Duplicate {
         key: PatchId {
-            node: RecipeNodeId(7),
+            node: RecipeNodeId(tagged(7)),
             body: 1,
             patch: 2,
         },
@@ -262,7 +276,7 @@ fn pick_index_error_forwards_its_id_arm() {
 /// value, no body, a tessellation refusal — is the payload's to say.
 #[test]
 fn pick_index_error_says_only_that_its_root_was_not_indexed() {
-    let node = RecipeNodeId(7);
+    let node = RecipeNodeId(tagged(7));
     let not_a_body = NodePickError::NotABody { node };
     let standing = NodeStanding::Failed { node };
     for inner in [not_a_body, NodePickError::Standing(standing)] {
@@ -271,7 +285,10 @@ fn pick_index_error_says_only_that_its_root_was_not_indexed() {
             error: inner.clone(),
         }
         .to_string();
-        assert_eq!(outer, format!("root 7 could not be indexed: {inner}"));
+        assert_eq!(
+            outer,
+            format!("root 000000000007 could not be indexed: {inner}")
+        );
     }
 }
 
@@ -280,7 +297,7 @@ fn pick_index_error_says_only_that_its_root_was_not_indexed() {
 /// other refusal is the index's own.
 #[test]
 fn pick_index_error_reads_a_standing_at_the_build_and_at_the_name_doors() {
-    let node = RecipeNodeId(7);
+    let node = RecipeNodeId(tagged(7));
     let standing = NodeStanding::Failed { node };
     let build = PickIndexError::Node {
         node,
@@ -297,7 +314,7 @@ fn pick_index_error_reads_a_standing_at_the_build_and_at_the_name_doors() {
     );
     let poisoned = NodeStanding::Poisoned {
         node,
-        through: RecipeNodeId(3),
+        through: RecipeNodeId(tagged(3)),
     };
     assert_eq!(
         names.restated(|_| poisoned),
@@ -315,7 +332,7 @@ fn pick_index_error_reads_a_standing_at_the_build_and_at_the_name_doors() {
 #[test]
 fn pick_index_error_names_the_body_drawn_twice() {
     let drawn_twice = PickIndexError::DrawnTwice {
-        node: RecipeNodeId(7),
+        node: RecipeNodeId(tagged(7)),
         body: 2,
     }
     .to_string();
@@ -337,7 +354,7 @@ fn pick_error_forwards_its_camera_arm() {
 #[test]
 fn pick_error_forwards_its_hit_test_arm() {
     let inner = HitTestError::Standing(NodeStanding::Failed {
-        node: RecipeNodeId(4),
+        node: RecipeNodeId(tagged(4)),
     });
     let outer = PickError::HitTest(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
@@ -351,7 +368,7 @@ fn pick_error_forwards_its_hit_test_arm() {
 #[test]
 fn edge_name_fault_forwards_its_unnamed_arm() {
     let inner = UnnamedEntity {
-        node: RecipeNodeId(4),
+        node: RecipeNodeId(tagged(4)),
         entity: editor_core::EntityRef {
             body: 0,
             key: editor_core::EntityKey::Edge(pncad::topo::EdgeKey::default()),
@@ -366,13 +383,37 @@ fn edge_name_fault_forwards_its_unnamed_arm() {
     assert!(!picked.contains("hit test"), "{picked}");
 }
 
+/// A body's edge-name refusal names the body and its counts, and
+/// forwards its refusal through [`EdgeNameFault::Unnamed`]'s own words
+/// rather than saying "no name" again in its own.
+#[test]
+fn edge_names_refused_forwards_its_first_refusal() {
+    let first = crate::common::unnamed_edge(RecipeNodeId(tagged(4)), 1);
+    let said = EdgeNamesRefused {
+        node: RecipeNodeId(tagged(4)),
+        body: 1,
+        first,
+        named: 11,
+        refused: 1,
+    }
+    .to_string();
+    let fault = EdgeNameFault::Unnamed(first).to_string();
+    assert_eq!(
+        said,
+        format!(
+            "the index names 11 of the 12 edges it draws on body 1 of node 000000000004; the first it cannot: {fault}"
+        )
+    );
+    prose(&said, "EdgeNamesRefused");
+}
+
 /// The replay forwards the refusal's problem and ends as a damaged
 /// file or a defect does: nobody is making the logged edit, so the edit
 /// door's recourse is not the reader's.
 #[test]
 fn replay_error_names_the_log_position_and_forwards_the_problem() {
     let inner = EditError::UnknownNode {
-        id: RecipeNodeId(4),
+        id: RecipeNodeId(tagged(4)),
     };
     let outer = ReplayError::Refused {
         index: 3,
@@ -398,7 +439,7 @@ fn indeterminate_wording_forwards_the_causes_own_words() {
 
     let cause = ResolveIndeterminate {
         standing: NodeStanding::Failed {
-            node: RecipeNodeId(6),
+            node: RecipeNodeId(tagged(6)),
         },
     };
     let shown = indeterminate_wording("face", &cause);

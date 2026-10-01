@@ -21,8 +21,12 @@ use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::display::{self, AdmissionFault, DisplayFault};
 use viewer::frame;
+use viewer::marks;
+use viewer::pickindex::IdMap;
 use viewer::scene::SceneMesh;
-use viewer::session::{DocSession, Refusal, SessionOp};
+use viewer::session::{
+    DocSession, FaceFrameFault, Refusal, Selection, SessionOp, face_frame_seat_drawn,
+};
 use viewer::tree::RowStatus;
 
 /// Every `Node::Mate` the session's document holds, document order —
@@ -56,7 +60,7 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 3);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     let (doc, eval) = session.landed_pair().expect("landed");
@@ -224,6 +228,51 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     assert_eq!(restored.stats().triangles, full.stats().triangles);
 }
 
+/// **A held face on a hidden instance is neither marked nor committed
+/// against.** Hiding edits what the picture emits and not what an id
+/// means, so the face's patch id outlives the hide; what the held mark
+/// and the add-datum form's gate both read is whether the picture
+/// DRAWS it (`marks::drawn_patch`), and after the hide it does not.
+#[test]
+fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
+    let tol = Tol::witness();
+    let bench = asm::bench("held-hide", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let index = asm::index_of(&session);
+    let face = asm::pick_face(&session, &asm::over_post_b());
+    assert_eq!(face.node, bench.post_b, "the pick is on post_b");
+    let held = marks::Held {
+        faces: [Some(&face), None, None],
+        edges: None,
+    };
+    let read = |session: &DocSession| {
+        let view = session.display_view();
+        let (marked, _) = marks::compose(&index, &view, &Selection::None, None, &held);
+        let seat = face_frame_seat_drawn(session.landed_pair(), Some(&face), Some((&index, &view)));
+        (marked.held[0], seat)
+    };
+    let (mark, seat) = read(&session);
+    assert_ne!(mark, IdMap::NOTHING, "a drawn held face is marked");
+    assert_ne!(
+        seat,
+        Err(FaceFrameFault::NotDrawn),
+        "and not refused as undrawn"
+    );
+
+    let outcome = session.perform(SessionOp::SetInstanceHidden {
+        instance: bench.post_b,
+        hidden: true,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let (mark, seat) = read(&session);
+    assert_eq!(mark, IdMap::NOTHING, "a hidden held face is not marked");
+    assert_eq!(
+        seat,
+        Err(FaceFrameFault::NotDrawn),
+        "the button would commit against a face nothing marks"
+    );
+}
+
 /// Two instances of one part consumed by a single boolean: the drawn
 /// root fuses their material, so no display operation can address
 /// either separately. The session, the two instances and the fusing
@@ -356,7 +405,9 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
         format!(
             "instance {}'s geometry is fused into node {} together with instance(s) {} — \
              a display operation cannot address it separately",
-            a.0, weld.0, b.0
+            test_utils::refusal::tag(a.0),
+            test_utils::refusal::tag(weld.0),
+            test_utils::refusal::tag(b.0)
         )
     );
 
@@ -405,7 +456,7 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     let note = session
         .tree_rows()
         .into_iter()
-        .find(|row| row.kind == "Mate")
+        .find(|row| row.spoken.kind() == Some("Mate"))
         .expect("the mate row exists")
         .note
         .expect("a Tangent mate carries its standing note");
@@ -473,7 +524,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         "a node that IS in the document and is not an instance is the \
          wrong-kind refusal, naming itself"
     );
-    let absent = RecipeNodeId(9_999);
+    let absent = RecipeNodeId(test_utils::refusal::tagged(9_999));
     assert_eq!(
         display::instance_check(doc, absent),
         Err(AdmissionFault::NoSuchNode { node: absent }),
@@ -493,12 +544,15 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         .expect_err("a mate is not an instance")
         .to_string();
     assert_eq!(
-        absent_says, "node 9999 is not in the document",
+        absent_says, "node 00000000270f is not in the document",
         "the absent id's sentence says the id denotes nothing"
     );
     assert_eq!(
         wrong_kind_says,
-        format!("node {} is not a part instance", mate.0),
+        format!(
+            "node {} is not a part instance",
+            test_utils::refusal::tag(mate.0)
+        ),
         "the wrong-kind sentence says something IS there and is the \
          wrong thing"
     );
@@ -866,6 +920,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
         op: pncad::document::BooleanOp::Union,
         a: bench.post_b,
         b: bench.post_a,
+        declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [dropped] = &outcome.withdrawn.dropped_hides[..] else {

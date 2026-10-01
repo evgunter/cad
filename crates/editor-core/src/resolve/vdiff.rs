@@ -38,31 +38,17 @@
 //! the residual IS the exact flip list. The documented blind spot:
 //! two instances of one predicate trading opposite signs in one node
 //! cancel — a pure exchange has no net population change. WITHIN one
-//! qualifier group such an exchange also swaps no name STRINGS (order
+//! qualifier group such an exchange swaps no name STRINGS (order
 //! qualifiers keep their rank vocabulary); ACROSS groups it CAN
-//! re-qualify names while this engine reports no flip (two fragments'
-//! `name_frag_side_of` probes flipping in opposite directions against
-//! different partners cancel exactly, yet both names change). A
-//! `Vanished` attribution then sees an empty [`FlipSet`] and rests on
-//! the later ladder rungs — the recorded-qualifier delta, or the
-//! cause-not-in-evidence fallback (`super` module docs, "Low-evidence
-//! diagnosis"). The PR 6 audit inherits the caveat with this
-//! paragraph as its record.
-//!
-//! **The cancelling exchange is NOT what the shadow-exec rung
-//! addresses, and the two absences must not be confused.** That rung
-//! (`super::shadow_exec_flip`) fires when a run recorded NO
-//! `name_frag_side_of` verdict at the minting node at all — the sweep
-//! pruned the pair space — and it does not diff populations: it
-//! re-derives the QUALIFIER on both sides through the emission's own
-//! rule and reports the partner whose side changed. An exchange
-//! records a population, and the same one in both runs, so the rung's
-//! trigger is false there by construction. Nor is a fragment group
-//! that changes size this blind spot (`super::group_resized`'s docs).
-//! The cancelling exchange stays exactly as
-//! this paragraph states it, with the recorded-qualifier delta
-//! (`super::qualifier_delta`, which reads the names rather than the
-//! log) as its live partial answer.
+//! re-rank names while this engine reports no flip (two groups'
+//! `name_frag_order_along` probes flipping in opposite directions cancel
+//! exactly, yet both groups' names change). A `Vanished` attribution
+//! then sees an empty [`FlipSet`] and rests on the later ladder rungs —
+//! the border delta for a face piece, which reads the names rather than
+//! the log (`super::border_delta`), the group-size rung
+//! (`super::group_resized`), or the cause-not-in-evidence fallback
+//! (`super` module docs, "Low-evidence diagnosis"). The PR 6 audit
+//! inherits the caveat with this paragraph as its record.
 //!
 //! # The two derived forms, in one module
 //!
@@ -663,6 +649,13 @@ impl VerdictVector {
 /// is the witness's by definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VerdictVectorKey(pub u128);
+
+/// The key's bits in hex, as a goldened report spells it.
+impl core::fmt::LowerHex for VerdictVectorKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::LowerHex::fmt(&self.0, f)
+    }
+}
 
 fn sign_tag(s: Sign) -> u8 {
     sign_ix(s) as u8 + 1

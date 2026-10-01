@@ -330,9 +330,10 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
         })
     );
     assert!(
-        refusal
-            .to_string()
-            .contains(&format!("the repair is upstream, at node {}", s.failed.0)),
+        refusal.to_string().contains(&format!(
+            "the repair is upstream, at node {}",
+            test_utils::refusal::tag(s.failed.0)
+        )),
         "{refusal}"
     );
 
@@ -440,7 +441,7 @@ fn a_poisoned_datum_carries_through_to_the_select_refusal() {
     assert!(
         refusal
             .to_string()
-            .contains(&format!("at node {}", s.failed.0)),
+            .contains(&format!("at node {}", test_utils::refusal::tag(s.failed.0))),
         "{refusal}"
     );
 }
@@ -542,7 +543,7 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 11] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        23,
+        24,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder",
     ),
     (
@@ -580,7 +581,8 @@ const READERS: [(&str, usize, &str); 11] = [
     (
         "crates/viewer/src/tree.rs",
         8,
-        "the tree row renders a failed node's own error, and a poisoned row its source's",
+        "the tree row renders a failed node's own error and links the node its error names \
+         for repair, and a poisoned row renders its source's",
     ),
     (
         "demos/tour/src/chaintol.rs",

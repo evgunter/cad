@@ -228,7 +228,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     terminal_sliver: false,
                 }));
             }
-            Err(diag) => return Err(sliver(diag)),
+            Err(geom_brep::LeverEscalation { diag, .. }) => return Err(sliver(diag)),
         };
         entries[k].class = class;
         entries[(k + 1) % n].class = class;

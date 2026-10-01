@@ -11,21 +11,29 @@
 //! in-process engine, via one shared core.
 //!
 //! The fixture is margin-thin by design: a profile segment with
-//! sagitta 1e-6 (bulge 2e-6 on a unit chord). At ε = 1e-9 the
+//! sagitta 7.5e-7 (bulge 1.5e-6 on a unit chord). At ε = 1e-9 the
 //! `segment_straightness` predicate decides POSITIVE (a real arc); at
 //! ε = 1e-4 it decides ZERO (straight). Both ε values keep the margin
 //! far outside the escalation band (K = 10), so both runs stay Ok;
 //! the report — the exact net flips plus the arc→straight branch's
 //! reshaped decision structure as loud divergence rows — is goldened
 //! below, field by field.
+//!
+//! The sagitta sits 25% inside ε = 1e-6 rather than on it, so the suite's
+//! own ε = 1e-6 row reads the fixture as a line with room to spare. At
+//! sagitta 1e-6 (bulge 2e-6) that row read the margin exactly at the
+//! band's edge, and an ulp of the sagitta's `sin/cos` spelling of the
+//! stored sweep escalated it. (At bulge 1.9e-6 the ε = 1e-12 row
+//! refuses the loop `NonSimple` instead: the arc's carrier sits at
+//! r ≈ 1.3e5, where a line/arc contact point is rounded past the band.
+//! 1.5e-6 is clear of both.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Node, ProfileDoc, RecipeNodeId, RunStatus, evaluate, load, save,
-    verdict_summary,
+    CancelToken, EvalOptions, Node, ProfileDoc, RunStatus, evaluate, load, save, verdict_summary,
 };
 use fixture::{desc, insert, len2, scl};
 use geom_core::Sign;
@@ -34,13 +42,13 @@ use geom_core::Tol;
 /// The env var carrying the child probe's output path.
 const PROBE_OUT: &str = "M4_PR6_EPS_PROBE_OUT";
 
-/// The two audit ε values (chosen so the 1e-6 sagitta is definite on
+/// The two audit ε values (chosen so the 7.5e-7 sagitta is definite on
 /// both sides — no escalation-band contact at K = 10).
 const EPS_OLD: &str = "1e-9";
 const EPS_NEW: &str = "1e-4";
 
 /// The margin-thin fixture: one profile whose third segment carries
-/// bulge 2e-6 (sagitta 1e-6 on the unit chord) — a single
+/// bulge 1.5e-6 (sagitta 7.5e-7 on the unit chord) — a single
 /// `segment_straightness` margin between the two audit ε values.
 fn thin_profile_doc() -> ProfileDoc {
     let (doc, plane) = insert(
@@ -62,7 +70,7 @@ fn thin_profile_doc() -> ProfileDoc {
                 // The (1,1) → (0,1) segment's thin bulge.
                 ProgramStep::ArcTo(ProgramArcData::Bulge {
                     target: ProgramTarget::Point(len2([0.0, 1.0])),
-                    b: scl(2e-6),
+                    b: scl(1.5e-6),
                 }),
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])];
@@ -148,11 +156,10 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
         1,
         "exactly one differing node: {flips:?}"
     );
-    // The profile is node 1: the frame it is drawn on goes in first.
-    let delta = flips
-        .nodes
-        .get(&RecipeNodeId(1))
-        .expect("profile node delta");
+    // The profile is the fixture's second node: the frame it is drawn
+    // on goes in first. The children built the same document.
+    let profile = thin_profile_doc().order()[1];
+    let delta = flips.nodes.get(&profile).expect("profile node delta");
     let expected = editor_core::SummaryDelta {
         old_status: RunStatus::Ok,
         new_status: RunStatus::Ok,
@@ -207,7 +214,7 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // The report surface: exactly the flipped predicates, in order.
     let report = flips.report();
     assert_eq!(report.len(), 2);
-    assert!(report.iter().all(|(node, _)| *node == RecipeNodeId(1)));
+    assert!(report.iter().all(|(node, _)| *node == profile));
 
     // The no-edit control: a summary diffs empty against itself.
     assert!(editor_core::diff_summaries(&old, &old).is_empty());

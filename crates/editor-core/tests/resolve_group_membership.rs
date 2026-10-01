@@ -103,7 +103,6 @@ fn vanished(
                     eval: ev1,
                 },
                 n,
-                Tol::witness(),
             );
             let Resolution::Failed(f) = res else {
                 panic!("{n:?}: expected Failed, got {res:?}");
@@ -401,8 +400,8 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
             let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
                 matches!(e, Entry::Unique(_))
                     && match n.path.last() {
-                        Some(RoleSeg::Fragment(editor_core::Qualifier::SideOf(_))) => !ranked,
-                        Some(RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { .. })) => {
+                        Some(RoleSeg::Fragment(editor_core::Qualifier::Borders(_))) => !ranked,
+                        Some(RoleSeg::Fragment(editor_core::Qualifier::Ends(_))) => {
                             ranked && from(n, plate)
                         }
                         _ => false,
@@ -474,17 +473,17 @@ fn a_seam_group_tied_parents_share_is_not_counted() {
     }
 }
 
-/// **A union counts what its later fold steps left of a group.**
+/// **A union names what its later fold steps left of a group.**
 ///
 /// The bar divides the plate's top into two at the first fold step,
 /// and the block C, united at the next, swallows one of the two pieces
-/// — so the published body holds ONE entity of that group, in both
-/// runs, before and after the bar slides. Its rim edges the same. A
-/// count taken where the group was formed would say 2 → 1; the
-/// published body says 1 → 1, and the rung declines. Both layouts: C
-/// over the far piece, and C over the near one.
+/// — so the published body holds ONE face of that parent, in both
+/// runs, before and after the bar slides. A parent held as one face is
+/// published under the parent's own name (N2), not as a fragment, so no
+/// name of the plate vanishes across the slide and the rung is never
+/// asked. Both layouts: C over the far piece, and C over the near one.
 #[test]
-fn a_union_group_a_later_step_partly_swallows_counts_what_is_published() {
+fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
     for (label, c) in [
         ("far", ((1.7, 4.0), (-1.5, 4.5), 0.3, 1.4)),
         ("near", ((-1.0, 1.3), (-1.5, 4.5), 0.3, 1.4)),
@@ -522,16 +521,20 @@ fn a_union_group_a_later_step_partly_swallows_counts_what_is_published() {
             u,
             |n, _| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate),
         );
-        assert!(
-            !rows.is_empty(),
-            "{label}: no fragment vanished, so the row pins nothing"
-        );
-        // 1 → 1 is no resize: the rung declines to the fallback.
-        for (n, d) in rows {
-            assert_eq!(
-                d,
-                fallback(u),
-                "{label}: {n:?} counted at the step that formed it"
+        assert!(rows.is_empty(), "{label}: {rows:?}");
+        for ev in [&ev1, &ev2] {
+            let t = &ev.value(u).expect("the union evaluates").name_table;
+            let plate_faces: Vec<_> = t
+                .iter()
+                .filter(|(n, _)| {
+                    n.kind == editor_core::EntityKind::Face
+                        && matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+                })
+                .map(|(n, _)| n.clone())
+                .collect();
+            assert!(
+                !plate_faces.is_empty() && plate_faces.iter().all(|n| n.path.len() == 1),
+                "{label}: the plate's faces are not all published whole: {plate_faces:?}"
             );
         }
     }
@@ -727,11 +730,11 @@ fn a_cutter_that_starts_cutting_is_named_new() {
 ///
 /// Slid 1.5 in x and 2.5 in y, the bar covers only the plate's far
 /// corner: its x = x1 wall stops cutting the top and its y = y0 wall
-/// starts. Of the top's two vanished fragments, the one on the far
-/// side of that x wall is answered by the flip of its side verdict
-/// against it, a cause, above this rung; the other by the rung, naming
-/// both. Slid 5 in y, clear of the plate, both x walls stop cutting the
-/// top and its rim edges. Each list holds every cutter it states.
+/// starts. The top's two vanished pieces are both the rung's to answer,
+/// naming both walls: a piece is named by the walls it borders, and no
+/// piece of the top remains to compare walls with. Slid 5 in y, clear
+/// of the plate, both x walls stop cutting the top and its rim edges.
+/// Each list holds every cutter it states.
 #[test]
 fn two_cutters_that_change_at_once_are_both_named() {
     // `slid` builds this same recipe, so its pieces are these.
@@ -739,9 +742,6 @@ fn two_cutters_that_change_at_once_are_both_named() {
     let (bar, u, rows) = slid((1.5, 2.5), &[TOP]);
     let mut answered = 0;
     for (n, d) in rows {
-        if matches!(d, Diagnosis::PredicateFlip { .. }) {
-            continue;
-        }
         answered += 1;
         assert_eq!(
             d,
@@ -749,7 +749,7 @@ fn two_cutters_that_change_at_once_are_both_named() {
             "{n:?}"
         );
     }
-    assert_eq!(answered, 1, "the near fragment is the rung's to answer");
+    assert_eq!(answered, 2, "both vanished pieces are the rung's to answer");
     let (bar, u, rows) = slid((0.0, 5.0), &[TOP, rim(&doc, plate, 0), rim(&doc, plate, 2)]);
     let mut gone = vec![wall(&doc, bar, 1), wall(&doc, bar, 3)];
     gone.sort();

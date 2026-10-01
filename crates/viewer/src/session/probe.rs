@@ -14,13 +14,14 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, DocParam, EvalOptions, Evaluation, ParamName, PartReach,
-    PartResolver, ProfileProgram, RecipeNodeId, SlotId, apply, evaluate,
+    Dimension, Doc, DocEdit, DocParam, Evaluation, ParamName, PartReach, PartResolver,
+    ProfileProgram, RecipeNodeId, SlotId, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
 
 use crate::bounds;
+use crate::evalseam::evaluate_beside;
 use crate::props::{self, SlotValue};
 use crate::session::refuse::Refusal;
 
@@ -107,9 +108,9 @@ pub(super) fn probe_bounds(
     // baseline" compares two runs of one function rather than a run
     // against the landed evaluation, which may have been taken at a
     // different memo state.
-    let baseline = bounds::Verdict::of(&evaluate_with(base, prior, resolver, tol));
+    let baseline = bounds::Verdict::of(&evaluate_beside(base, prior, resolver, tol));
     // A probe's edit is a slot value on one node — it never moves a
-    // cluster's gauge — but the door is the session's, so it levers
+    // group's root — but the door is the session's, so it levers
     // through the session's own seam like every other edit.
     let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
     let result = bounds::probe(
@@ -120,7 +121,7 @@ pub(super) fn probe_bounds(
             };
             match apply(base, &edit, tol, &reach) {
                 Ok(applied) => {
-                    let eval = evaluate_with(&applied.doc, prior, resolver, tol);
+                    let eval = evaluate_beside(&applied.doc, prior, resolver, tol);
                     bounds::Verdict::of(&eval).no_worse_than(&baseline)
                 }
                 // The edit door refused: at this value there is no
@@ -184,19 +185,18 @@ fn probe_scale(
                 .into_iter()
                 .find(|row| row.slot == *slot)
                 .and_then(|row| Some((row.value.ok()?, row.dimension, row.unit)));
-            let Some((value, dimension, remembered)) = found else {
+            let Some((value, dimension, unit)) = found else {
                 return Err(Refusal::NoSuchSlot {
                     node: *node,
                     slot: *slot,
                 });
             };
-            let value = value.as_f64();
-            // Whatever unit the field is written in — through
-            // `rendering_unit`, so a computed slot's step is the
-            // same unit the panel shows it in rather than a second
-            // answer to the same question.
-            let unit = props::rendering_unit(dimension, remembered);
-            Ok((value, unit, dimension == Dimension::Count))
+            // The unit the field is written in, which a literal
+            // remembers: a slot whose value nobody wrote is driven,
+            // and `DocSession::probe_bounds` refuses a driven slot
+            // before it reaches here, so no working notation is read.
+            // A count remembers none and steps by 1.
+            Ok((value.as_f64(), unit, dimension == Dimension::Count))
         }
         BoundsTarget::Param { name } => {
             let Some(param) = doc.params().get(name) else {
@@ -210,7 +210,7 @@ fn probe_scale(
             // a millimetre parameter is searched in millimetres. A
             // `Count` is a number rather than a quantity, has no
             // unit to name, and steps by 1.
-            let (value, remembered) = match param {
+            let (value, unit) = match param {
                 DocParam::Continuous {
                     value,
                     display_unit,
@@ -218,11 +218,6 @@ fn probe_scale(
                 } => (*value, Some(display_unit.def())),
                 DocParam::Count { value } => (*value as f64, None),
             };
-            // Through `rendering_unit` for the slot arm's reason:
-            // one function answers "what unit is this field written
-            // in" for both fields, so the panel row and the probe
-            // cannot come to two answers.
-            let unit = props::rendering_unit(param.dim(), remembered);
             Ok((value, unit, param.dim() == Dimension::Count))
         }
     }
@@ -259,33 +254,4 @@ fn probe_edit(
             ))
         }
     }
-}
-
-/// One evaluation of one document, outside the seam.
-///
-/// **The seam is for the PICTURE**; this is for a question asked about
-/// a document nobody is going to look at (a range probe's candidate).
-/// Routing it through the seam would cancel the run the viewport is
-/// waiting for — the seam's ruled cancel-and-restart policy — which is
-/// exactly the wrong trade for a query the user asked for BESIDE the
-/// picture rather than instead of it.
-///
-/// A fresh `CancelToken` per call, never set: these runs are bounded by
-/// the probe's sample cap, and nothing exists to cancel them from.
-fn evaluate_with(
-    doc: &Doc<ProfileProgram>,
-    prior: Option<&Evaluation<f64>>,
-    resolver: &Option<Arc<dyn PartResolver>>,
-    tol: Tol,
-) -> Evaluation<f64> {
-    evaluate(
-        doc,
-        prior,
-        &CancelToken::new(),
-        &EvalOptions {
-            resolver: resolver.clone(),
-            ..EvalOptions::default()
-        },
-        tol,
-    )
 }

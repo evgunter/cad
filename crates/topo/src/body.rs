@@ -178,10 +178,11 @@ pub struct Body<T: Real> {
     // derive-on-demand status, C4 verbatim), so an all-planar body
     // carries an empty map. Absence is never a claim about geometry.
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
-    // M3 PR 1 null-face annotations (F9): typed loop-role attributes on
-    // null (section-polygon) faces, parallel to the face arena like the
-    // provenance maps — a record never outlives its face (kill-op
-    // hygiene; the validator makes leaks loud). See `crate::null`.
+    // Null-face annotations (F9): typed loop-role attributes on null
+    // (section-polygon) faces, parallel to the face arena like the
+    // provenance maps. A record lives only while its face holds both
+    // loops it names (kill-op hygiene; the validator makes leaks loud).
+    // See `crate::null`.
     pub(crate) null_faces: SecondaryMap<FaceKey, NullFacePair>,
     // D5 provenance, parallel to the topology arenas (see
     // `crate::provenance` for the SecondaryMap-vs-inline rationale).
@@ -504,6 +505,17 @@ impl<T: Real> Body<T> {
             self.remove_surface_if_orphaned(surface);
         }
         true
+    }
+
+    /// Drops every null-face record naming `r#loop`, whichever face
+    /// carries it. A null-face record lives only while its face holds
+    /// both loops it names ([`crate::null`]), so every op that removes a
+    /// loop or moves it off its face calls this in its mutation phase,
+    /// as F9's kill-op hygiene. Maintenance, not a refusal, so the op
+    /// stays `Ok`.
+    pub(crate) fn drop_null_face_records_naming(&mut self, r#loop: LoopKey) {
+        self.null_faces
+            .retain(|_, pair| !pair.loops().contains(&r#loop));
     }
 
     /// Removes `surface` from the surface arena iff nothing references
@@ -1328,13 +1340,7 @@ impl<T: Real> Body<T> {
     pub fn mate(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
         let half_edge = self.half_edges.get(he)?;
         let edge = self.edges.get(half_edge.edge)?;
-        if edge.he_plus == he {
-            Some(edge.he_minus)
-        } else if edge.he_minus == he {
-            Some(edge.he_plus)
-        } else {
-            None
-        }
+        edge.claim(he).map(|claim| claim.mate)
     }
 
     /// The end vertex of `he`, derived as `start(next(he))` — end
@@ -1354,6 +1360,10 @@ impl<T: Real> Body<T> {
     /// link is stale, or if `he` itself is stale — it never spins on a
     /// corrupted body. A foreign `he` on a live slot
     /// [walks another loop's cycle](self#key-validity-stale-vs-foreign) and returns it whole.
+    ///
+    /// The walk steps `next` and reads no `parent_loop`, so on a torn
+    /// body a `Some` need not be the loop's cycle: a torn `next` can
+    /// close it through another loop's half-edges, or short of a member.
     pub fn loop_cycle(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.loop_walk(he) {
             Walk::Closed(members) => Some(members),

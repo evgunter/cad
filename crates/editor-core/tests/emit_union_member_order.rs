@@ -21,9 +21,8 @@
 //!   orders and a later step's cut of a whole seam in others, and no
 //!   name binds a different entity in any two orders;
 //! - two declared-flush members and a bar across both, in both orders
-//!   of the flush pair: the bar's cap fragments carry their `SideOf`
-//!   partners in member-space name order, so each fragment has one
-//!   name.
+//!   of the flush pair: the bar's cap pieces carry their `Borders`
+//!   walls in member space, so each piece has one name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
@@ -34,8 +33,8 @@ use crate::emit_boolean_vertex_keys::{
 use crate::fixture::{ends, fname, insert, len, member_face, on_frame, point, table};
 
 use editor_core::{
-    CapEnd, EntityKey, EntityKind, Entry, NameRef, Node, ProfileDoc, Qualifier, RecipeNodeId,
-    RoleSeg, StableName,
+    CapEnd, EntityKey, Entry, NameRef, Node, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -86,13 +85,7 @@ fn union_of(
     let doc = ProfileDoc::empty_derived("emit_union_member_order", Tol::witness());
     let (doc, x, y) = fixture(doc);
     let members = if swap { vec![y, x] } else { vec![x, y] };
-    let (doc, u) = insert(
-        doc,
-        Node::Union {
-            members,
-            declare: None,
-        },
-    );
+    let (doc, u) = crate::fixture::union_over(doc, &members, None);
     (run(&doc), u, [x, y])
 }
 
@@ -123,58 +116,62 @@ fn reordering_a_unions_two_members_rebinds_no_name() {
     }
 }
 
-/// **A union's seam chain is ranked along the canonical pair.**
+/// **A union's seam chain is named by its pieces' ends, one name per
+/// piece in both member orders.**
 ///
-/// The rib's caps meet the slab's top in two chains of two edges each.
-/// The slab's top has outward normal +z; the rib's end cap −y, its start
-/// cap +y. In canonical (name) order the slab's face comes first, so
-/// the end-cap chain runs along +z × −y = +x and the start-cap chain
-/// along +z × +y = −x. Each rank names the edge at that place along
-/// its chain, in both member orders.
+/// The rib's caps meet the slab's top in two chains of two edges each,
+/// x = 0.5..1.0 and x = 2.0..2.5. Each piece is the seam of the slab's
+/// top and the rib's cap, in name order, with `Fragment(Ends)` over its
+/// two end vertices; the two orders publish one name for each piece.
 #[test]
-fn a_unions_seam_chain_is_ranked_along_the_canonical_pair() {
+fn a_unions_seam_chain_is_named_by_its_ends() {
+    let mut named: std::collections::BTreeMap<(String, i64), StableName> =
+        std::collections::BTreeMap::new();
     for swap in [false, true] {
         let (ev, u, [slab, rib]) = union_of(slab_rib, swap);
         let top = member_face(u, slab, fname(slab, RoleSeg::Cap(CapEnd::End)));
         let body = body_of(&ev, u);
-        for (cap, rank, x) in [
-            (CapEnd::End, 0, (0.5, 1.0)),
-            (CapEnd::End, 1, (2.0, 2.5)),
-            (CapEnd::Start, 0, (2.0, 2.5)),
-            (CapEnd::Start, 1, (0.5, 1.0)),
-        ] {
+        for cap in [CapEnd::End, CapEnd::Start] {
             let rib_cap = member_face(u, rib, fname(rib, RoleSeg::Cap(cap)));
             let (a, b) = if top <= rib_cap {
                 (top.clone(), rib_cap)
             } else {
                 (rib_cap, top.clone())
             };
-            let n = StableName {
-                kind: EntityKind::Edge,
-                node: u,
-                path: vec![
-                    RoleSeg::Seam {
-                        a: NameRef::new(a),
-                        b: NameRef::new(b),
-                    },
-                    RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }),
-                ],
+            let head = RoleSeg::Seam {
+                a: NameRef::new(a),
+                b: NameRef::new(b),
             };
-            let e = match table(&ev, u).lookup(&n) {
-                Some(Entry::Unique(r)) => match r.key {
-                    EntityKey::Edge(e) => e,
-                    other => panic!("swap={swap}: {n:?} names {other:?}"),
-                },
-                other => panic!("swap={swap}: {n:?} is not uniquely named: {other:?}"),
-            };
-            let [p, q] = ends(body, e).map(|v| point(body, v));
-            let (lo, hi) = (p.x.min(q.x), p.x.max(q.x));
-            assert!(
-                (lo - x.0).abs() < 1e-9 && (hi - x.1).abs() < 1e-9,
-                "swap={swap}: {cap:?} rank {rank} binds x in [{lo}, {hi}], not {x:?}"
-            );
+            let mut found = 0;
+            for (n, entry) in table(&ev, u).iter() {
+                if n.path.first() != Some(&head) {
+                    continue;
+                }
+                assert!(
+                    matches!(
+                        n.path.as_slice(),
+                        [_, RoleSeg::Fragment(Qualifier::Ends(_))]
+                    ),
+                    "swap={swap}: a piece of the chain is named by its ends: {n:?}"
+                );
+                let Entry::Unique(r) = entry else {
+                    panic!("swap={swap}: {n:?} is not uniquely named: {entry:?}");
+                };
+                let EntityKey::Edge(e) = r.key else {
+                    panic!("swap={swap}: {n:?} names {:?}", r.key);
+                };
+                let [p, q] = ends(body, e).map(|v| point(body, v));
+                let lo = (p.x.min(q.x) * 1e6).round() as i64;
+                let key = (format!("{cap:?}"), lo);
+                if let Some(was) = named.insert(key, n.clone()) {
+                    assert_eq!(&was, n, "swap={swap}: {cap:?} at x = {lo}e-6");
+                }
+                found += 1;
+            }
+            assert_eq!(found, 2, "swap={swap}: {cap:?}'s chain is two pieces");
         }
     }
+    assert_eq!(named.len(), 4, "{named:?}");
 }
 
 /// `slab_rib` and a cutter [0.7, 2.3] × [0.3, 1.7] × [0.95, 1.05] that
@@ -296,16 +293,15 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
     }
 }
 
-/// **A seam a split passed through, cut by a later boolean, is ranked
-/// along its line.**
+/// **A seam a split passed through, cut by a later boolean, is named by
+/// its pieces' ends.**
 ///
 /// `Union(slab, rib)`, split at x = 1.5, the lower half kept and then
 /// cut by a small block across the rib arm's seam. The split renames
 /// the faces it cut (`SplitFragment { parent }`) and keeps the seam
-/// edge's name, so finding the seam pair's two faces has to see
-/// through the split's renaming. Both the subtraction and the union
-/// name the result, and each seam piece the block cut lies on its
-/// parent seam's line.
+/// edge's name. Both the subtraction and the union name the result,
+/// each piece of the seam the block cut by its two ends; no rule reads
+/// the seam's faces.
 #[test]
 fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     use crate::fixture::scl;
@@ -356,11 +352,11 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
         let ranked = named_geometry(&ev, id, false)
             .expect("a body")
             .into_iter()
-            .filter(|l| l.contains("OrderAlong") && l.contains("Seam"))
+            .filter(|l| l.contains("Ends") && l.contains("Seam"))
             .count();
         assert!(
             ranked > 0,
-            "{what}: no seam piece was ranked, so the row pins nothing"
+            "{what}: no seam piece was named by its ends, so the row pins nothing"
         );
     }
 }
@@ -369,9 +365,8 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
 ///
 /// A transform adds no segment (N1), so the U-rib and a rotated copy of
 /// it carry identical tables and their seams are `Seam { a: x, b: x }`.
-/// Such a pair names no side; its seam chains take their sides from
-/// the pair's structure, and a later cut of one ranks along the edge's
-/// own carrier. Every pair boolean of the two, both union orders
+/// Such a pair names no side; its seam chains' pieces are named by their
+/// ends, which reads no side. Every pair boolean of the two, both union orders
 /// included, names its result, as does a union node over them.
 #[test]
 fn a_seam_between_two_placements_of_one_prototype_is_named() {
@@ -435,19 +430,19 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
     }
 }
 
-/// **A fragment's `SideOf` partners are in name order whatever the
-/// member order** (the `abys` witness of
+/// **A fragment's `Borders` walls are one spelling whatever the member
+/// order** (the `abys` witness of
 /// `name-ordered-positions-in-a-path-have-no-single-home`).
 ///
 /// `a` and `b` overlap in x and are declared flush; the bar `y` crosses
-/// both, so `y`'s start cap is cut into two fragments told apart by
-/// their side of `a`'s and `b`'s faces. The pair emitter writes the
-/// partners sorted in the FOLD's space, where the first member is the
-/// A side; the collapse has to sort them again in member space. In
-/// `[a, b, y]` and `[b, a, y]` every face fragment carries the same
-/// name and binds the same face.
+/// both, so `y`'s start cap is cut into two pieces told apart by the
+/// walls of `a` and `b` each borders. The pair emitter writes the walls
+/// in the FOLD's space, where the first member is the A side; the
+/// union names them again in member space. In `[a, b, y]` and
+/// `[b, a, y]` every face piece carries the same name and binds the
+/// same face.
 #[test]
-fn a_fragments_side_of_partners_are_one_order_in_every_member_order() {
+fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
     use crate::docm7_union_declare::{declared_union, flush_pairs};
     let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
         .into_iter()
@@ -463,13 +458,13 @@ fn a_fragments_side_of_partners_are_one_order_in_every_member_order() {
             let ev = run(&doc);
             bindings(&ev, u)
                 .into_iter()
-                .filter(|(n, _)| n.contains("SideOf"))
+                .filter(|(n, _)| n.contains("Borders"))
                 .collect()
         })
         .collect();
     assert!(
         !tables[0].is_empty(),
-        "no fragment carries a SideOf, so the row pins nothing"
+        "no fragment carries a Borders, so the row pins nothing"
     );
     assert_eq!(
         tables[0], tables[1],

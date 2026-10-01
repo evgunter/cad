@@ -41,6 +41,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use super::canonical;
+use super::nest::{Descent, Kept, Stopped, descend};
 use crate::node::{RecipeNodeId, StepId};
 
 /// **The handle a role segment holds its argument [`StableName`] by**:
@@ -123,6 +124,11 @@ impl NameRef {
     #[must_use]
     pub fn name(&self) -> &StableName {
         &self.0.name
+    }
+
+    /// The name, mutably, when this handle is its only holder.
+    pub(super) fn get_mut(&mut self) -> Option<&mut StableName> {
+        Arc::get_mut(&mut self.0).map(|held| &mut held.name)
     }
 
     /// Records this name's `position` in the `epoch` walk, unless it
@@ -268,7 +274,10 @@ impl core::hash::Hash for NameRef {
 
 impl Ord for NameRef {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        // An answer the handle settles itself is recorded for a name
+        // walk comparing the level that holds it (`nest::settled`).
         if Arc::ptr_eq(&self.0, &other.0) {
+            super::nest::settled(core::cmp::Ordering::Equal);
             return core::cmp::Ordering::Equal;
         }
         // Both fields are read here — the stamp as the O(1) cache of
@@ -286,7 +295,9 @@ impl Ord for NameRef {
         // structural order. A zero stamp has epoch 0, which no walk
         // ever uses, so this arm cannot fire on an unstamped pair.
         if a != 0 && (a >> 32) == (b >> 32) {
-            return (a as u32).cmp(&(b as u32));
+            let order = (a as u32).cmp(&(b as u32));
+            super::nest::settled(order);
+            return order;
         }
         name.cmp(other_name)
     }
@@ -435,6 +446,37 @@ impl FaceName {
         self.0
     }
 
+    /// **This face as the instance that places its part names it** —
+    /// the part's own name for the face, worn inside the one
+    /// [`RoleSeg::InPart`] qualifier an instantiate node puts round
+    /// every name it places, headed at that instance. What a mate head
+    /// on a placed part is; [`FaceName::part_local`] is its inverse.
+    pub fn in_part(&self, instance: RecipeNodeId) -> FaceName {
+        Self(StableName {
+            kind: self.0.kind,
+            node: instance,
+            path: vec![RoleSeg::InPart {
+                of: self.0.clone().into(),
+            }],
+        })
+    }
+
+    /// **The part-local face a placed name wraps** — the row of the
+    /// part's own table under the one `InPart` qualifier `instance`
+    /// put round it, read INSIDE the part where no instance exists:
+    /// what a `FromFace` mate frame stores. `None` when `name` is not
+    /// of that shape (headed elsewhere, qualified otherwise, or not a
+    /// face); [`FaceName::in_part`] is its inverse.
+    pub fn part_local(name: &StableName, instance: RecipeNodeId) -> Option<FaceName> {
+        if name.node != instance {
+            return None;
+        }
+        let [RoleSeg::InPart { of }] = name.path.as_slice() else {
+            return None;
+        };
+        FaceName::new((**of).clone()).ok()
+    }
+
     /// **The one in-crate way a face name is re-made**: this face's
     /// DERIVATION rewritten, its kind untouched.
     ///
@@ -501,10 +543,13 @@ impl<'de> serde::Deserialize<'de> for FaceName {
 /// N1's stable name: a derivation path — the minting node plus an
 /// op-typed role path. Float-free and arena-key-free by construction;
 /// serialization is structural (F3, PR 6).
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-#[serde(deny_unknown_fields)]
+///
+/// A name nests whole names inside its segments, as deep as its
+/// derivation runs, so its `Drop`, `Clone`, `Debug`, `PartialEq`,
+/// `Hash`, `Ord` and serde impls are written by hand, one level at a
+/// time (`names::nest`), and none recurses on the nesting. `Clone`,
+/// `PartialEq`, `Ord`, serde and `Debug` under `{:?}` and `{:#?}` give
+/// the derived impls' answers; `Hash` is consistent with `Eq`.
 pub struct StableName {
     /// The entity kind this name denotes (N1's `K`, runtime-tagged —
     /// module docs).
@@ -527,12 +572,7 @@ pub struct StableName {
 // re-spelling it.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{} name minted by node {}",
-            self.kind.noun(),
-            self.node.0
-        )
+        write!(f, "{} name minted by node {}", self.kind.noun(), self.node)
     }
 }
 
@@ -741,90 +781,48 @@ impl SplitHalf {
     }
 }
 
-/// A recorded side-of verdict (N2: a margined predicate's SIGN, never
-/// a value). `Mixed` aggregates a fragment whose probe vertices sit
-/// definitely on both sides (wrap-around fragments) — still a
-/// verdict vector entry, still flip-localized (it changes only when
-/// a vertex's side verdict flips).
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-pub enum SideVerdict {
-    /// Every off-plane probe decided positive.
-    Positive,
-    /// Every off-plane probe decided negative.
-    Negative,
-    /// Definite probes on both sides.
-    Mixed,
-    /// Every probe coincident with the carrier (the fragment lies in
-    /// it).
-    On,
-}
-
-/// An N2 fragment discriminator: covariant margined predicate
-/// verdicts against recipe-covariant references. NO values, NO bare
-/// indices — `OrderAlong.rank` is an ordinal under the named
-/// order-along comparison (N2's sanctioned order-along(oriented
-/// parent carrier)), or for a union's member-edge piece the index of a
-/// cell of that edge, and changes only at a recorded flip.
+/// An N2 fragment discriminator against recipe-covariant references.
+/// NO values, NO bare indices: `Borders`, `Keeps` and `Ends` cite
+/// names, and `OrderAlong.rank` is an ordinal under the named
+/// order-along comparison, which changes only at a recorded flip.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub enum Qualifier {
-    /// Sign vector of side-of(partner's oriented carrier plane), one
-    /// entry per partner, sorted by partner name (`name_frag_side_of`
-    /// through `k_stats`). Partners are the cutting entities' names —
-    /// recipe-covariant by construction.
-    ///
-    /// "Oriented" means **outward**-oriented: a partner face's
-    /// reference plane takes its normal from the face's material side
-    /// — the stored chart normal with `topo::Face::sense` folded in
-    /// (M5 S10). The verdicts are signs against that plane, so the
-    /// orientation sense is part of the geometry these names are
-    /// covariant with; see `emit_topo::face_plane`.
-    SideOf(Vec<(StableName, SideVerdict)>),
-    /// Ordinal position under order-along(oriented parent line)
-    /// (`name_frag_order_along` through `k_stats`): rank `rank` of
-    /// `of` fragments, ordered along the parent's oriented line.
-    ///
-    /// Which line, and which way:
-    /// - for pieces on a SEAM line whose pair's two sides carry
-    ///   distinguishable names — a seam chain, the pieces of a seam a
-    ///   later step cut, and a seam-vertex group ranked along a seam
-    ///   edge — the seam pair's `n_a × n_b`, with the pair's `a` face
-    ///   first (`names::seam_pair`), so one line is ranked one way
-    ///   whichever step cut it;
-    /// - for pieces of any other edge, including a seam between two
-    ///   same-named faces, that edge's own direction;
-    /// - for face fragments of a split, the section line oriented by
-    ///   `n_face × n_tool`.
+    /// The divider walls a boolean's or a union's face piece borders,
+    /// each cited by its parent's name, sorted and deduplicated (N2,
+    /// `names::borders`): the faces across its edges where it meets an
+    /// obstacle — a connected part of the parent face's region no piece
+    /// holds — that borders two or more pieces. A pure function of the
+    /// result's topology and the boolean's record of what it discarded;
+    /// the pieces the wall set does not tell apart are N2's tie.
+    Borders(Vec<StableName>),
+    /// The boundary edges of its parent face a Split's same-side face
+    /// piece holds a stretch of, each cited by its name without piece
+    /// qualifiers, sorted and deduplicated (N2). Pieces with equal sets
+    /// are N2's tie.
+    Keeps(Vec<StableName>),
+    /// The names of an edge piece's two end vertices as the node
+    /// publishes them, sorted, a repeat kept (N2): the qualifier of
+    /// every piece of a parent edge its parent's name does not settle.
+    /// Pieces with equal pairs are N2's tie.
+    Ends(Vec<StableName>),
+    /// Ordinal position of a crossing VERTEX along the edge it lies on
+    /// (`name_frag_order_along` through `k_stats`): rank `rank` of `of`
+    /// crossings of one edge by one face, ordered by the crossed edge's
+    /// carrier parameter, the edge oriented as its operand body stores
+    /// it, and a seam edge as the loop of its pair's first side runs
+    /// along it (N2).
     ///
     /// A union's seam pair is in name order (`names::canonical`), and
     /// wherever putting it there swaps the pair — at the union's
     /// collapse, or at a later rewrite of the name that reorders the
     /// two sides — the rank is read from the other end.
-    ///
-    /// **A union's piece of a member edge counts cells, not
-    /// fragments.** For `FromMember(m, e)` + `OrderAlong`, the finished
-    /// body's vertices on `e`'s segment cut it into cells numbered along
-    /// `e`'s oriented carrier in `m`'s body. `of` counts CELLS, not
-    /// pieces: a cell another member holds, or none does, counts too, so
-    /// some ranks below `of` index a cell no piece of `m` holds. `rank`
-    /// is the first cell the piece covers. The count is order-free as far
-    /// as the boolean's output is (`emit_union::rank_member_edges`).
-    ///
-    /// The carrier's orientation is load-bearing — reversing it
-    /// reverses every rank — so where it is built from face normals
-    /// those are **outward** normals (M5 S10, `emit_topo::face_plane`),
-    /// never raw chart normals.
     OrderAlong {
-        /// This fragment's rank (0-based) along the carrier — for a
-        /// union's member-edge piece, its first cell's index.
+        /// This crossing's rank (0-based) along the crossed edge.
         rank: u32,
-        /// How many sibling fragments the ordering ranked — for a
-        /// union's member-edge piece, how many CELLS the edge is cut
-        /// into, held or not.
+        /// How many crossings the ordering ranked.
         of: u32,
     },
 }
@@ -981,7 +979,7 @@ pub enum RoleSeg {
     /// answer at every step, and the pair verb is not symmetric in its
     /// two operands: a declared merge keeps operand A's carrier and
     /// splits operand A's rims, so reordering the member list moves
-    /// `Fragment(OrderAlong)` rows from one member to the other and
+    /// `Fragment` rows from one member to the other and
     /// changes the merged face's carrier origin. Measured on a bare
     /// [`crate::Node::Boolean`] with no union in the picture
     /// (`work/wire/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
@@ -1018,9 +1016,10 @@ pub enum RoleSeg {
     /// face × face. A vertex is edge × edge, edge × face or
     /// face × edge, face × face (every incident seam line agreeing on
     /// one face pair), or edge × vertex / vertex × edge (the partner
-    /// read from the reduction's contact records); a pair that
-    /// crosses more than once carries a `Fragment(OrderAlong)` after
-    /// it. A seam JUNCTION — the vertex where k ≥ 2 seam lines meet
+    /// read from the reduction's contact records). Several pieces of one
+    /// seam edge carry a `Fragment(Ends)` after it, and a vertex pair
+    /// that crosses more than once a `Fragment(OrderAlong)`. A seam
+    /// JUNCTION — the vertex where k ≥ 2 seam lines meet
     /// and no operand edge does — is named by the sorted run of those
     /// lines' face × face `Seam` segments, one segment per line and
     /// nothing after them.
@@ -1082,7 +1081,8 @@ pub enum RoleSeg {
     /// by the section, edges crossing the plane. The side IS the N2
     /// discriminator (the kernel's own decided classification against
     /// the tool plane — the split node's recipe-covariant reference);
-    /// same-side face multiplicity appends `Fragment(OrderAlong)`.
+    /// same-side face multiplicity appends `Fragment(Keeps)`, and
+    /// same-side edge multiplicity `Fragment(Ends)`.
     SplitFragment {
         /// Which output half holds this fragment.
         side: SplitHalf,
@@ -1363,7 +1363,7 @@ pub fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
 /// It matters because such an id is a LOCAL node reference like the
 /// minting one — it must be re-mapped when a subgraph is copied into
 /// another document, fed to the naming key, and held to the document's
-/// mint counter when a file is read — and a walk that only visits
+/// mint log when a file is read — and a walk that only visits
 /// embedded NAMES cannot see it.
 ///
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
@@ -1578,11 +1578,14 @@ pub(crate) use name_free_seg;
 /// Every method defaults to the identity, because "not this rewrite's
 /// concern" IS the identity: the union's citing moves member edges and
 /// nothing else, the step collection reads locators and moves nothing.
-/// A rewrite that descends into a carried name does so from its own
-/// [`SegRewrite::name`], through [`StableName::rewrite_path`] — the
-/// walk itself never recurses, so a rewriter that must not (the
+/// A rewrite that descends into a carried name says so from its own
+/// [`SegRewrite::name`] ([`Carry::Descend`]); the walk then rewrites
+/// that name's path through the same rewriter and hands the result to
+/// [`SegRewrite::descended`]. A rewriter that must not descend (the
 /// union's: a member's own name is final in the member) simply does
-/// not.
+/// not say so. The walk keeps the names it is descending on its own
+/// stack ([`StableName::rewrite_path`]), since a name nests as deep as
+/// its derivation.
 pub(crate) trait SegRewrite {
     /// What stops the rewrite; [`core::convert::Infallible`] where
     /// nothing can.
@@ -1606,15 +1609,30 @@ pub(crate) trait SegRewrite {
         Ok(v)
     }
 
-    /// A name the segment carries: `None` leaves it as it is (and
-    /// costs no clone), `Some` replaces it.
+    /// What becomes of a name the segment carries ([`Carry`]).
     ///
     /// # Errors
     ///
     /// The rewriter's own.
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
+    fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
         let _ = n;
-        Ok(None)
+        Ok(Carry::Keep)
+    }
+
+    /// A carried name this rewriter descends into, once its path has
+    /// been rewritten through it (`walked`): `None` leaves `n` as it
+    /// is, `Some` replaces it.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn descended(
+        &mut self,
+        n: &StableName,
+        walked: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
+        let _ = n;
+        Ok(Some(walked))
     }
 
     /// The member edge of a [`RoleSeg::FromMember`] — a bare node id,
@@ -1629,21 +1647,129 @@ pub(crate) trait SegRewrite {
     }
 }
 
+/// What a rewrite does with a name a segment carries.
+pub(crate) enum Carry {
+    /// Leave it as it is (and cost no clone).
+    Keep,
+    /// Put this name in its place.
+    Replace(StableName),
+    /// Rewrite its path through the same rewriter, and put what
+    /// [`SegRewrite::descended`] answers in its place.
+    Descend,
+}
+
+/// A rewriter, with the answers for the carried names already
+/// descended.
+struct Deep<'d, 's, W: SegRewrite> {
+    w: &'d mut W,
+    kept: &'d Kept<Option<StableName>>,
+    /// While a level lists the names it descends into first
+    /// ([`Descent::first`]): a carried name not descended yet is listed
+    /// and left as it is, and the walk goes on.
+    listing: Option<&'d mut Vec<&'s StableName>>,
+}
+
+impl<'s, W: SegRewrite> Deep<'_, 's, W> {
+    /// `n` through the rewriter: `None` where it is kept.
+    fn carried(&mut self, n: &'s StableName) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
+        match self.w.name(n).map_err(Stopped::Refused)? {
+            Carry::Keep => Ok(None),
+            Carry::Replace(next) => Ok(Some(next)),
+            Carry::Descend => match (self.kept.get(n), &mut self.listing) {
+                (Some(answer), _) => Ok(answer.clone()),
+                (None, Some(listed)) => {
+                    listed.push(n);
+                    Ok(None)
+                }
+                (None, None) => Err(Stopped::Needs(n)),
+            },
+        }
+    }
+
+    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Stopped<'s, W::Error>> {
+        self.w.edge(e).map_err(Stopped::Refused)
+    }
+
+    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Stopped<'s, W::Error>> {
+        self.w.vertex(v).map_err(Stopped::Refused)
+    }
+
+    fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Stopped<'s, W::Error>> {
+        self.w.member(m).map_err(Stopped::Refused)
+    }
+}
+
+/// [`StableName::rewrite_path`] as a [`Descent`]: a level is its path
+/// rebuilt through the rewriter, and a carried name it descends into is
+/// kept as [`SegRewrite::descended`] answers it.
+struct Rewriting<'w, W>(&'w mut W);
+
+impl<'s, W: SegRewrite> Descent<'s> for Rewriting<'_, W> {
+    type Level = StableName;
+    type Kept = Option<StableName>;
+    type Error = W::Error;
+
+    /// The level walked as far as the rewriter lets it, every carried
+    /// name it descends into listed in the order the walk meets it. A
+    /// refusal ends the list: the level's own run meets it again after
+    /// the names listed before it are descended, which is where a walk
+    /// that recursed would have met it.
+    fn first(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<Option<StableName>>,
+        out: &mut Vec<&'s StableName>,
+    ) {
+        let listed = name.walk(&mut Deep {
+            w: self.0,
+            kept,
+            listing: Some(out),
+        });
+        drop(listed);
+    }
+
+    fn level(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<Option<StableName>>,
+    ) -> Result<StableName, Stopped<'s, W::Error>> {
+        name.walk(&mut Deep {
+            w: self.0,
+            kept,
+            listing: None,
+        })
+    }
+
+    fn keep(
+        &mut self,
+        name: &'s StableName,
+        walked: StableName,
+    ) -> Result<Option<StableName>, W::Error> {
+        self.0.descended(name, walked)
+    }
+}
+
 /// One carried name through the rewriter, kept as it is where the
 /// rewriter leaves it.
-fn rewrite_ref<W: SegRewrite>(n: NameRef, w: &mut W) -> Result<NameRef, W::Error> {
-    Ok(match w.name(n.name())? {
+fn rewrite_ref<'s, W: SegRewrite>(
+    n: &'s NameRef,
+    w: &mut Deep<'_, 's, W>,
+) -> Result<NameRef, Stopped<'s, W::Error>> {
+    Ok(match w.carried(n.name())? {
         Some(next) => NameRef::new(next),
-        None => n,
+        None => n.clone(),
     })
 }
 
 /// A SET of names through the rewriter, each kept as it is where the
 /// rewriter leaves it. The set's order is the path's canonical form's
 /// to restore, not this walk's.
-fn rewrite_set<W: SegRewrite>(v: Vec<StableName>, w: &mut W) -> Result<Vec<StableName>, W::Error> {
-    v.into_iter()
-        .map(|n| Ok(w.name(&n)?.unwrap_or(n)))
+fn rewrite_set<'s, W: SegRewrite>(
+    v: &'s [StableName],
+    w: &mut Deep<'_, 's, W>,
+) -> Result<Vec<StableName>, Stopped<'s, W::Error>> {
+    v.iter()
+        .map(|n| Ok(w.carried(n)?.unwrap_or_else(|| n.clone())))
         .collect()
 }
 
@@ -1652,8 +1778,8 @@ impl RoleSeg {
     /// [`RoleSeg`]'s shape that every rewrite of a role path goes
     /// through ([`SegRewrite`] says which three).
     ///
-    /// A segment rebuilt alone is NOT canonical: its sets, its `SideOf`
-    /// partners and a union seam's sides are in whatever order the
+    /// A segment rebuilt alone is NOT canonical: its sets, its `Borders`
+    /// walls and a union seam's sides are in whatever order the
     /// rewrite left them, and a rank may lie along a line the rewrite
     /// reversed. So the walk is private to [`StableName::rewrite_path`],
     /// which rebuilds the whole path and puts it in canonical form.
@@ -1676,41 +1802,40 @@ impl RoleSeg {
     ///
     /// Whatever `w` refuses, at the first thing it refuses.
     #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
-    fn rewrite<W: SegRewrite>(self, w: &mut W) -> Result<RoleSeg, W::Error> {
+    fn rewrite<'s, W: SegRewrite>(
+        &'s self,
+        w: &mut Deep<'_, 's, W>,
+    ) -> Result<RoleSeg, Stopped<'s, W::Error>> {
         use RoleSeg as R;
         Ok(match self {
             // Neither a locator nor a name: verbatim.
-            inert_seg!() => self,
+            inert_seg!() => self.clone(),
             // The locators.
-            R::Lateral(e) => R::Lateral(w.edge(e)?),
-            R::RimEdge(c, e) => R::RimEdge(c, w.edge(e)?),
-            R::LateralEdge(v) => R::LateralEdge(w.vertex(v)?),
-            R::CapVertex(c, v) => R::CapVertex(c, w.vertex(v)?),
-            R::LoftWall(es) => R::LoftWall(
-                es.into_iter()
-                    .map(|e| w.edge(e))
-                    .collect::<Result<_, _>>()?,
-            ),
-            R::LoftSeam(vs) => R::LoftSeam(
-                vs.into_iter()
-                    .map(|v| w.vertex(v))
-                    .collect::<Result<_, _>>()?,
-            ),
-            R::Band(e) => R::Band(w.edge(e)?),
-            R::BandRim(v) => R::BandRim(w.vertex(v)?),
-            R::BandRimPi(v) => R::BandRimPi(w.vertex(v)?),
-            R::BandPi(e) => R::BandPi(w.edge(e)?),
-            R::Meridian(m, e) => R::Meridian(m, w.edge(e)?),
-            R::MeridianVertex(m, v) => R::MeridianVertex(m, w.vertex(v)?),
-            R::Pole(v) => R::Pole(w.vertex(v)?),
-            R::AxisEdge(e) => R::AxisEdge(w.edge(e)?),
+            R::Lateral(e) => R::Lateral(w.edge(*e)?),
+            R::RimEdge(c, e) => R::RimEdge(*c, w.edge(*e)?),
+            R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
+            R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
+            R::LoftWall(es) => {
+                R::LoftWall(es.iter().map(|e| w.edge(*e)).collect::<Result<_, _>>()?)
+            }
+            R::LoftSeam(vs) => {
+                R::LoftSeam(vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?)
+            }
+            R::Band(e) => R::Band(w.edge(*e)?),
+            R::BandRim(v) => R::BandRim(w.vertex(*v)?),
+            R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
+            R::BandPi(e) => R::BandPi(w.edge(*e)?),
+            R::Meridian(m, e) => R::Meridian(*m, w.edge(*e)?),
+            R::MeridianVertex(m, v) => R::MeridianVertex(*m, w.vertex(*v)?),
+            R::Pole(v) => R::Pole(w.vertex(*v)?),
+            R::AxisEdge(e) => R::AxisEdge(w.edge(*e)?),
             // The carried names.
             R::FromA(n) => R::FromA(rewrite_ref(n, w)?),
             R::FromB(n) => R::FromB(rewrite_ref(n, w)?),
             // BOTH halves: the member edge is a local node id like the
             // minting one, and a rewrite of the id space moves it too.
             R::FromMember { member, of } => R::FromMember {
-                member: w.member(member)?,
+                member: w.member(*member)?,
                 of: rewrite_ref(of, w)?,
             },
             R::Seam { a, b } => R::Seam {
@@ -1719,28 +1844,25 @@ impl RoleSeg {
             },
             R::Merged(v) => R::Merged(rewrite_set(v, w)?),
             R::Fragment(q) => R::Fragment(match q {
-                Qualifier::SideOf(entries) => Qualifier::SideOf(
-                    entries
-                        .into_iter()
-                        .map(|(n, s)| Ok((w.name(&n)?.unwrap_or(n), s)))
-                        .collect::<Result<_, _>>()?,
-                ),
-                Qualifier::OrderAlong { .. } => q,
+                Qualifier::Borders(walls) => Qualifier::Borders(rewrite_set(walls, w)?),
+                Qualifier::Keeps(edges) => Qualifier::Keeps(rewrite_set(edges, w)?),
+                Qualifier::Ends(ends) => Qualifier::Ends(rewrite_set(ends, w)?),
+                Qualifier::OrderAlong { .. } => q.clone(),
             }),
             R::SectionEdge { side, face } => R::SectionEdge {
-                side,
+                side: *side,
                 face: rewrite_ref(face, w)?,
             },
             R::SplitFragment { side, parent } => R::SplitFragment {
-                side,
+                side: *side,
                 parent: rewrite_ref(parent, w)?,
             },
             R::CrossingVertex { side, edge } => R::CrossingVertex {
-                side,
+                side: *side,
                 edge: rewrite_ref(edge, w)?,
             },
             R::OnToolVertex { side, of } => R::OnToolVertex {
-                side,
+                side: *side,
                 of: rewrite_ref(of, w)?,
             },
             R::FromTarget(n) => R::FromTarget(rewrite_ref(n, w)?),
@@ -1761,7 +1883,7 @@ impl RoleSeg {
             R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
             R::BandTrim { edge, support } => R::BandTrim {
                 edge: rewrite_ref(edge, w)?,
-                support,
+                support: *support,
             },
             R::BandFoot(n) => R::BandFoot(rewrite_ref(n, w)?),
             R::BandCross { edge, band } => R::BandCross {
@@ -1777,12 +1899,12 @@ impl RoleSeg {
             R::Rim(n) => R::Rim(rewrite_ref(n, w)?),
             R::HoleRim { of, hole } => R::HoleRim {
                 of: rewrite_ref(of, w)?,
-                hole,
+                hole: *hole,
             },
             // The document seam.
-            R::InPart { .. } => self,
+            R::InPart { .. } => self.clone(),
             R::Instance { i, of } => R::Instance {
-                i,
+                i: *i,
                 of: rewrite_ref(of, w)?,
             },
         })
@@ -1796,7 +1918,7 @@ impl StableName {
     ///
     /// The canonical form is `names::canonical`'s, the one the emitters
     /// mint: a rewrite that moves the names in a name-ordered position
-    /// (a set, a `SideOf` vector, a junction's run, a union seam's two
+    /// (a set, a `Borders` set, a junction's run, a union seam's two
     /// sides) can change their order, and a name the emitter would not
     /// mint for the same entity resolves to nothing. A seam whose sides
     /// come out swapped — in this name, or in a name it embeds — reverses
@@ -1804,23 +1926,47 @@ impl StableName {
     /// was and as it is, with the images `w` gives the seam's sides
     /// (`names::canonical::rewritten`).
     ///
+    /// A carried name `w` descends into ([`Carry::Descend`]) is
+    /// rewritten the same way, and a name nests as deep as its
+    /// derivation, so the walk keeps the names it is descending on its
+    /// own stack (`names::nest::descend`): a level first lists the
+    /// carried names it descends into, each is descended, and the level
+    /// is then walked once, every name already descended answered from
+    /// what was kept. A rewriter is asked the same questions twice on a
+    /// level, so what it answers must be a function of the question.
+    ///
     /// # Errors
     ///
-    /// Whatever `w` refuses.
+    /// Whatever `w` refuses, at the first thing it refuses.
     pub(crate) fn rewrite_path<W: SegRewrite>(self, w: &mut W) -> Result<StableName, W::Error> {
+        descend(&self, &mut Rewriting(w))
+    }
+
+    /// One level of [`StableName::rewrite_path`]: this name's path
+    /// rebuilt through `w`, in canonical form. While the level only
+    /// lists what it descends into, the canonical form is left out: it
+    /// asks after the path, and a name it asks for that the path did not
+    /// list stops the level's own run instead.
+    fn walk<'s, W: SegRewrite>(
+        &'s self,
+        w: &mut Deep<'_, 's, W>,
+    ) -> Result<StableName, Stopped<'s, W::Error>> {
         let path = self
             .path
             .iter()
-            .cloned()
             .map(|seg| seg.rewrite(w))
             .collect::<Result<_, _>>()?;
+        let StableName { kind, node, .. } = self;
         let now = StableName {
-            kind: self.kind,
-            node: self.node,
+            kind: *kind,
+            node: *node,
             path,
         };
-        canonical::rewritten(&self, now, &mut |n| {
-            Ok(w.name(n)?.unwrap_or_else(|| n.clone()))
+        if w.listing.is_some() {
+            return Ok(now);
+        }
+        canonical::rewritten(self, now, &mut |n| {
+            Ok(w.carried(n)?.unwrap_or_else(|| n.clone()))
         })
     }
 
@@ -1857,8 +2003,15 @@ impl SegRewrite for PieceSteps {
         Ok(v)
     }
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
-        let Ok(_) = n.clone().rewrite_path(self);
+    fn name(&mut self, _: &StableName) -> Result<Carry, Self::Error> {
+        Ok(Carry::Descend)
+    }
+
+    fn descended(
+        &mut self,
+        _: &StableName,
+        _: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
         Ok(None)
     }
 }

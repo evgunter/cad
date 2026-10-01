@@ -339,7 +339,7 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
     let frustum = revolve(&validated(vec![frustum]), axis_y(), Revolution::Full, tol)
         .unwrap()
         .body;
-    topo::graft_disjoint(&mut body, &frustum, tol).expect("the frustum is disjoint");
+    topo::graft_disjoint(&mut body, &frustum).expect("the frustum is disjoint");
     let bands: Vec<FaceKey> = cone_faces(&body)
         .into_iter()
         .filter(|&f| f != tip)
@@ -350,13 +350,10 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
         format!("{:?}", body.get_surface(key)),
         "the frustum lies on the tip's cone, bit for bit"
     );
-    for &f in &bands {
-        let sense = body.get_face(f).unwrap().sense;
-        body.set_face_surface(f, topo::FaceSurface::Shared { key, sense })
-            .expect("the attach door shares a live key");
-    }
-    let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    for edge in edges {
+    // Every edge described against the frustum's key, restated on the
+    // tip's: the re-descriptions the move takes with it.
+    let mut specs = Vec::new();
+    for (edge, _) in body.edges() {
         let curve = body
             .get_curve_geom(body.get_edge(edge).unwrap().curve)
             .and_then(|g| g.certified())
@@ -389,9 +386,15 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
             param_start: curve.params().0,
             param_end: curve.params().1,
         };
-        body.set_edge_curve(edge, spec, tol)
-            .expect("the edge restates on the shared chart");
+        specs.push((edge, spec));
     }
+    let sense = |f: FaceKey| body.get_face(f).unwrap().sense;
+    let chart = bands[1..].iter().fold(
+        topo::Rechart::shared(key, bands[0], sense(bands[0])),
+        |chart, &f| chart.with(f, sense(f)),
+    );
+    body.set_face_surfaces_describing(vec![chart], &specs, tol)
+        .expect("the bands move onto the tip's key with their edges");
     assert!(body.get_surface(old).is_none(), "nothing wears the old key");
     let errors = topo::validate_geometric(&body, tol).unwrap_err();
     assert!(

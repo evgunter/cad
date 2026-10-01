@@ -73,6 +73,8 @@ mod bool4r1_probes;
 mod bool4r2_base_probe;
 #[path = "bool4r2_probes.rs"]
 mod bool4r2_probes;
+#[path = "boolean_discards.rs"]
+mod boolean_discards;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
@@ -89,6 +91,8 @@ mod contact7_touch_sweeps;
 mod contact8_dangling_seam;
 #[path = "contact9_side_codes.rs"]
 mod contact9_side_codes;
+#[path = "contained_flush_witness.rs"]
+mod contained_flush_witness;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
@@ -189,6 +193,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "review_cleave_nurbs_lane.rs"]
+mod review_cleave_nurbs_lane;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
@@ -243,6 +249,8 @@ mod review_ssiflat_r1_probes;
 mod review_ssiflat_r2_probes;
 #[path = "rigid_map_near_eps_approx.rs"]
 mod rigid_map_near_eps_approx;
+#[path = "rigid_map_near_eps_plane_nurbs.rs"]
+mod rigid_map_near_eps_plane_nurbs;
 #[path = "rim_dim_boolean_twins.rs"]
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]

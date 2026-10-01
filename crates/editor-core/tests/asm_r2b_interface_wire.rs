@@ -41,7 +41,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     // rides a LAST instance, behind the two mate ends and the mate
     // itself. That is the shape a split leaves behind.
     let mut host = ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness());
-    // Inserts alone — a Join at most, never a moved gauge — so the
+    // Inserts alone — a Join at most, never a moved root — so the
     // reach is never asked and the refusing one serves.
     let push = |doc: &ProfileDoc, node| {
         apply(
@@ -55,23 +55,20 @@ fn doc_with_a_crossing() -> ProfileDoc {
     };
     host = push(&host, Node::instantiate_part(doc_ref));
     host = push(&host, Node::instantiate_part(doc_ref));
+    let (first, second) = (host.order()[0], host.order()[1]);
     let sited = |node, cap| SitedFace {
         at: node,
         name: face(node, cap),
     };
-    let frame = MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     host = push(
         &host,
         Node::Mate {
-            a: sited(RecipeNodeId(0), CapEnd::End),
-            b: sited(RecipeNodeId(1), CapEnd::Start),
+            a: sited(first, CapEnd::End),
+            b: sited(second, CapEnd::Start),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: frame,
+                a: frame.clone(),
                 b: frame,
                 primitive: MatePrimitive::FrameCoincidence,
                 sense: AxisSense::Aligned,
@@ -82,7 +79,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             class: ContactClass::Rest,
-            outer: face(RecipeNodeId(0), CapEnd::End),
+            outer: face(first, CapEnd::End),
             // The `inner` is spelled in the PART's id space, and the
             // value is chosen to make that visible: `RecipeNodeId(7)`
             // is not a live node of this document at all, so a wire

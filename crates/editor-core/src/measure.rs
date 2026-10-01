@@ -45,7 +45,7 @@
 
 use geom_core::Decide;
 
-use crate::expr::{Dimension, DimensionError, Expr};
+use crate::expr::{Dimension, DimensionError, Expr, MAX_NESTING};
 
 /// Which closed-form measurement a leaf computes, and over which of
 /// the node's references.
@@ -160,10 +160,29 @@ impl MeasurePrimitive {
 /// Private fields and fallible constructors, exactly as [`Expr`]: an
 /// ill-dimensioned tree is unrepresentable, so the cached
 /// [`Self::dim`] is trustworthy by construction.
+///
+/// **A measurement nests at most 128 levels**, the bound it shares with
+/// [`Expr`], a value leaf counting as the expression it holds: a
+/// constructor that would pass it refuses with
+/// [`DimensionError::NestedTooDeep`], so a flat chain of more than 128
+/// terms refuses.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MeasureExpr {
     dim: Dimension,
+    /// How many levels the tree nests, a value leaf counting as the
+    /// expression it holds; never above [`MAX_NESTING`], the bound it
+    /// shares with [`Expr`].
+    nesting: u8,
     kind: MeasureKind,
+}
+
+impl Drop for MeasureExpr {
+    /// Frees the tree from a heap stack, as [`Expr`]'s drop does.
+    fn drop(&mut self) {
+        if !matches!(self.kind, MeasureKind::Primitive(_) | MeasureKind::Value(_)) {
+            crate::tree::free(self, |e, out| e.kind.detach_children(out));
+        }
+    }
 }
 
 /// The measurement AST. Crate-private so trees are only built through
@@ -189,6 +208,40 @@ pub(crate) enum MeasureKind {
     Min(Box<MeasureExpr>, Box<MeasureExpr>),
     /// Same-dimension lattice maximum.
     Max(Box<MeasureExpr>, Box<MeasureExpr>),
+}
+
+impl MeasureKind {
+    /// Moves this node's children onto `out`, leaving a leaf behind.
+    fn detach_children(&mut self, out: &mut Vec<MeasureExpr>) {
+        let leaf = MeasureKind::Primitive(MeasurePrimitive::Distance { a: 0, b: 0 });
+        match core::mem::replace(self, leaf) {
+            MeasureKind::Add(a, b)
+            | MeasureKind::Sub(a, b)
+            | MeasureKind::Mul(a, b)
+            | MeasureKind::Div(a, b)
+            | MeasureKind::Min(a, b)
+            | MeasureKind::Max(a, b) => {
+                out.push(*a);
+                out.push(*b);
+            }
+            MeasureKind::Neg(a) => out.push(*a),
+            MeasureKind::Primitive(_) | MeasureKind::Value(_) => {}
+        }
+    }
+
+    /// How many levels the node's children nest, the deeper one's.
+    fn below(&self) -> u8 {
+        match self {
+            MeasureKind::Add(a, b)
+            | MeasureKind::Sub(a, b)
+            | MeasureKind::Mul(a, b)
+            | MeasureKind::Div(a, b)
+            | MeasureKind::Min(a, b)
+            | MeasureKind::Max(a, b) => a.nesting.max(b.nesting),
+            MeasureKind::Neg(a) => a.nesting,
+            MeasureKind::Primitive(_) | MeasureKind::Value(_) => 0,
+        }
+    }
 }
 
 /// The binary operations this language shares with [`Expr`]. Naming
@@ -261,6 +314,7 @@ impl MeasureExpr {
     pub fn primitive(p: MeasurePrimitive) -> Self {
         Self {
             dim: p.dim(),
+            nesting: 1,
             kind: MeasureKind::Primitive(p),
         }
     }
@@ -268,10 +322,28 @@ impl MeasureExpr {
     /// An ordinary document expression as a leaf — a literal bound, a
     /// parameter, a whole arithmetic subtree of them.
     pub fn value(e: Expr) -> Self {
+        let Ok(nesting) = u8::try_from(e.nesting()) else {
+            unreachable!(
+                "an expression nests {} levels, past the bound of {MAX_NESTING} its every \
+                 constructor holds it to",
+                e.nesting()
+            )
+        };
         Self {
             dim: e.dim(),
+            nesting,
             kind: MeasureKind::Value(e),
         }
+    }
+
+    /// An operator node over the children `kind` holds, refused when it
+    /// would nest past [`MAX_NESTING`].
+    fn over(dim: Dimension, kind: MeasureKind) -> Result<Self, DimensionError> {
+        Ok(Self {
+            dim,
+            nesting: crate::expr::nesting_over(kind.below())?,
+            kind,
+        })
     }
 
     fn binary(
@@ -281,10 +353,7 @@ impl MeasureExpr {
         make: fn(Box<MeasureExpr>, Box<MeasureExpr>) -> MeasureKind,
     ) -> Result<Self, DimensionError> {
         let dim = lattice(op, a.dim, b.dim)?;
-        Ok(Self {
-            dim,
-            kind: make(Box::new(a), Box::new(b)),
-        })
+        Self::over(dim, make(Box::new(a), Box::new(b)))
     }
 
     /// Same-dimension addition.
@@ -298,11 +367,12 @@ impl MeasureExpr {
     }
 
     /// Negation — any dimension.
-    pub fn neg(a: MeasureExpr) -> Self {
-        Self {
-            dim: a.dim,
-            kind: MeasureKind::Neg(Box::new(a)),
-        }
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NestedTooDeep`] alone, as [`Expr::neg`].
+    pub fn neg(a: MeasureExpr) -> Result<Self, DimensionError> {
+        Self::over(a.dim, MeasureKind::Neg(Box::new(a)))
     }
 
     /// Product; at least one operand `Scalar` (F1).
@@ -393,6 +463,25 @@ impl MeasureExpr {
             | MeasureKind::Max(a, b) => {
                 a.value_leaves(out);
                 b.value_leaves(out);
+            }
+        }
+    }
+
+    /// [`Self::value_leaves`], exclusive: the same leaves in the same
+    /// order.
+    pub(crate) fn value_leaves_mut<'e>(&'e mut self, out: &mut Vec<&'e mut Expr>) {
+        match &mut self.kind {
+            MeasureKind::Primitive(_) => {}
+            MeasureKind::Value(e) => out.push(e),
+            MeasureKind::Neg(a) => a.value_leaves_mut(out),
+            MeasureKind::Add(a, b)
+            | MeasureKind::Sub(a, b)
+            | MeasureKind::Mul(a, b)
+            | MeasureKind::Div(a, b)
+            | MeasureKind::Min(a, b)
+            | MeasureKind::Max(a, b) => {
+                a.value_leaves_mut(out);
+                b.value_leaves_mut(out);
             }
         }
     }
@@ -973,3 +1062,14 @@ pub(crate) fn decide_assertion<T: Decide>(
 /// The funnel site name of the assertion comparison. A roster carrier
 /// (`docs/K-REPORT.md`) rather than a literal at the decide site.
 pub const ASSERT_BOUND: &str = "assert_bound";
+
+/// A negation over `e`, built past the constructors, which refuse it
+/// past the bound.
+#[cfg(test)]
+pub(crate) fn raw_neg(e: MeasureExpr) -> MeasureExpr {
+    MeasureExpr {
+        dim: e.dim,
+        nesting: u8::MAX,
+        kind: MeasureKind::Neg(Box::new(e)),
+    }
+}

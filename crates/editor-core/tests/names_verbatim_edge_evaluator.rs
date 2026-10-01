@@ -56,8 +56,8 @@ use crate::fixture;
 
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, MateFrame,
-    MatePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName,
+    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, EvalOptions, MateFrame, MatePrimitive,
+    Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};
@@ -112,9 +112,8 @@ const ROW_FREE: [&str; 6] = [
     "Assertion",
 ];
 
-/// The unit cube `[0,1]³` as a whole part document, its body at
-/// `fixture::resolver::PART_BODY` so `in_part` names its caps.
-fn block(label: &str) -> ProfileDoc {
+/// The unit cube `[0,1]³` as a whole part document, and its body.
+fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -130,15 +129,10 @@ fn block(label: &str) -> ProfileDoc {
             distance: len(1.0),
         },
     )
-    .0
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// **Two instanced blocks, one seated on the other** — the assembly
@@ -148,16 +142,16 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame {
 /// to read correctly.
 fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let mut store = PartStore::new();
-    let base: DocRef = store.insert(block("vedge-base"), Tol::witness());
-    let top: DocRef = store.insert(block("vedge-top"), Tol::witness());
+    let (base, base_body) = store.insert_part(block("vedge-base"), Tol::witness());
+    let (top, top_body) = store.insert_part(block("vedge-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("vedge-stack"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base));
     let (doc, top) = insert(doc, Node::instantiate_part(top));
     let (doc, _mate) = insert(
         doc,
         Node::Mate {
-            a: fixture::head(in_part(base, CapEnd::End)),
-            b: fixture::head(in_part(top, CapEnd::Start)),
+            a: fixture::head(in_part(base, base_body, CapEnd::End)),
+            b: fixture::head(in_part(top, top_body, CapEnd::Start)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame([0.0, 0.0, 1.0]),

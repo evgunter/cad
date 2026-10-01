@@ -132,14 +132,14 @@ PlacedUnion { input: RecipeNodeId(1), count: Some(#0), kind: Circular { axis: Re
   #1 Step
 PlacedUnion { input: RecipeNodeId(1), count: None, kind: Circular { axis: RecipeNodeId(0), step: #0 } }
   #0 Step
-Pattern { input: RecipeNodeId(1), count: Expr { dim: Count, kind: CountLiteral(3) }, kind: Explicit([]) }
-PlacedUnion { input: RecipeNodeId(1), count: Some(Expr { dim: Count, kind: CountLiteral(3) }), kind: Explicit([]) }
+Pattern { input: RecipeNodeId(1), count: Expr { dim: Count, nesting: 1, kind: CountLiteral(3) }, kind: Explicit([]) }
+PlacedUnion { input: RecipeNodeId(1), count: Some(Expr { dim: Count, nesting: 1, kind: CountLiteral(3) }), kind: Explicit([]) }
 PlacedUnion { input: RecipeNodeId(1), count: None, kind: Explicit([]) }
 Part { of: RecipeNodeId(1), select: Instance(#0) }
   #0 Instance
 Part { of: RecipeNodeId(1), select: SplitHalf(Above) }
 Declare { pairs: [] }
 InstantiatePart { doc_ref: DocRef { id: DocumentId(272522191089886152265255929154993748228), pin: ContentPin([205, 5, 221, 101, 178, 25, 73, 194, 233, 249, 132, 107, 246, 149, 121, 4, 119, 31, 132, 192, 233, 43, 185, 169, 63, 156, 228, 98, 7, 179, 48, 228]) }, interface: InterfaceRecord { crossings: [] } }
-Mate { a: SitedFace { at: RecipeNodeId(1), name: FaceName(StableName { kind: Face, node: RecipeNodeId(1), path: [Cap(Start)] }) }, b: SitedFace { at: RecipeNodeId(2), name: FaceName(StableName { kind: Face, node: RecipeNodeId(2), path: [Cap(End)] }) }, class: Rest, alignment: Alignment { a: MateFrame { origin: [0.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], reference: [1.0, 0.0, 0.0] }, b: MateFrame { origin: [0.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], reference: [1.0, 0.0, 0.0] }, primitive: Coaxial, sense: Aligned, clocking: None } }
-Measure { expr: MeasureExpr { dim: Length, kind: Value(Expr { dim: Length, kind: Literal(Lit { value: 1.0, display_unit: UnitSym(2) }) }) }, refs: [] }
-Assertion { measure: RecipeNodeId(1), bound: Expr { dim: Length, kind: Literal(Lit { value: 1.0, display_unit: UnitSym(2) }) }, dir: AtLeast }
+Mate { a: SitedFace { at: RecipeNodeId(1), name: FaceName(StableName { kind: Face, node: RecipeNodeId(1), path: [Cap(Start)] }) }, b: SitedFace { at: RecipeNodeId(2), name: FaceName(StableName { kind: Face, node: RecipeNodeId(2), path: [Cap(End)] }) }, class: Rest, alignment: Alignment { a: Authored(AuthoredFrame { origin: [0.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], reference: [1.0, 0.0, 0.0] }), b: Authored(AuthoredFrame { origin: [0.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], reference: [1.0, 0.0, 0.0] }), primitive: Coaxial, sense: Aligned, clocking: None } }
+Measure { expr: MeasureExpr { dim: Length, nesting: 1, kind: Value(Expr { dim: Length, nesting: 1, kind: Literal(Lit { value: 1.0, display_unit: UnitSym(2) }) }) }, refs: [] }
+Assertion { measure: RecipeNodeId(1), bound: Expr { dim: Length, nesting: 1, kind: Literal(Lit { value: 1.0, display_unit: UnitSym(2) }) }, dir: AtLeast }

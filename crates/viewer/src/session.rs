@@ -56,30 +56,29 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Applied, Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension,
-    DimensionError, Doc, DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError,
-    EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MaintenanceNet, MateReach, Node,
-    ParamName, PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
-    Subject, apply, assemble_gathered, cascade_delete_order, parse_expr, product_recorded,
-    run_checks_on,
+    Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
+    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Label,
+    LoggedEdit, LoopProgram, Maintenance, MaintenanceNet, Node, ParamName, PartReach, PartResolver,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId, StepId, Subject, apply, assemble_gathered,
+    cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::{FlushFinding, Resolution, RunCtx, declare_node, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
-use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
+use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator, evaluate_beside};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
 use crate::parts::{self, PartFiles};
 use crate::pickcache;
-use crate::props::{self, SlotDriver, SlotValue};
+use crate::props::{self, Notation, SlotDriver, SlotValue};
 use crate::sketch;
 use crate::tree::{self, TreeRow};
 
@@ -92,10 +91,13 @@ pub mod select;
 
 pub use author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
 pub use delete::DeleteAffordance;
-pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
+pub use op::{
+    CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName,
+};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, admits, face_frame_seat,
+    DeclareOffer, FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, RefusedBoolean, Step,
+    VersionOffer, admits, face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -241,6 +243,7 @@ fn guard_driven(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     slot: SlotId,
+    notation: Notation,
 ) -> Result<(), Refusal> {
     let (driver, current) = driver_of(doc, node, slot)?;
     match driver {
@@ -250,8 +253,110 @@ fn guard_driven(
             slot,
             params,
             current,
+            notation,
         }),
     }
+}
+
+/// **A profile editor's program with every unmoved argument of every
+/// kept step carried from the committed program** — the argument as
+/// the document holds it, so an argument the editor re-minted in its
+/// own notation but did not move keeps the notation it was written
+/// in, and only what moved is written in the editor's.
+///
+/// A step is the committed one when `ids` keeps its id; the argument
+/// is the same one when it has the same
+/// [`pncad::document::StepArg`] on that step, and unmoved when its
+/// value is the committed one at the bits ([`Expr::bit_eq`]).
+///
+/// # Errors
+///
+/// [`Refusal::DrivenByExpression`], with the affordance, for an
+/// argument of a kept step that an expression drives and that the
+/// editor's program does not hold unmoved: a number written over a
+/// computation, exactly as the slot field refuses it. A step the
+/// program drops takes its arguments with it, driven or not — that is
+/// not a write over them.
+///
+/// An id that is not the committed program's, or `ids` of the wrong
+/// shape, carries nothing here: the edit door refuses those typed
+/// ([`pncad::document::EditError::StepIdsRefused`]).
+fn carry_unmoved(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    current: &ProfileProgram,
+    loops: Vec<LoopProgram>,
+    ids: &[Vec<Option<StepId>>],
+    notation: Notation,
+) -> Result<Vec<LoopProgram>, Refusal> {
+    let was: std::collections::HashMap<StepId, (u32, u32)> = current
+        .ids
+        .iter()
+        .enumerate()
+        .flat_map(|(loop_, steps)| {
+            steps
+                .iter()
+                .enumerate()
+                .map(move |(step, id)| (*id, (program_index(loop_), program_index(step))))
+        })
+        .collect();
+    let was = &was;
+    let now: std::collections::HashMap<(u32, u32), (u32, u32)> = ids
+        .iter()
+        .enumerate()
+        .flat_map(|(loop_, steps)| {
+            steps.iter().enumerate().filter_map(move |(step, kept)| {
+                let at = (program_index(loop_), program_index(step));
+                was.get(&(*kept)?).map(|&was| (was, at))
+            })
+        })
+        .collect();
+    let old = Node::Profile(current.clone());
+    let mut new = Node::Profile(ProfileProgram {
+        plane: current.plane,
+        loops,
+        ids: Vec::new(),
+    });
+    for slot in old.slots() {
+        let SlotId::Profile { loop_, step, arg } = slot else {
+            unreachable!(
+                "a profile node lists only profile slots, and {} is not one",
+                slot.label()
+            )
+        };
+        // A step the program drops: nothing of it is written.
+        let Some(&(new_loop, new_step)) = now.get(&(loop_, step)) else {
+            continue;
+        };
+        let Some(committed) = old.expr(slot) else {
+            unreachable!(
+                "`Node::slots` is the domain of `Node::expr`, and {} was listed by it",
+                slot.label()
+            )
+        };
+        let moved = SlotId::Profile {
+            loop_: new_loop,
+            step: new_step,
+            arg,
+        };
+        match new.expr_mut(moved) {
+            Some(held) if held.bit_eq(committed) => *held = committed.clone(),
+            _ if committed.literal_value().is_some() => {}
+            _ => guard_driven(doc, node, slot, notation)?,
+        }
+    }
+    let Node::Profile(program) = new else {
+        unreachable!("the carried program was built as a profile node")
+    };
+    Ok(program.loops)
+}
+
+/// A position in a profile program as the slot vocabulary spells it.
+fn program_index(i: usize) -> u32 {
+    let Ok(narrowed) = u32::try_from(i) else {
+        unreachable!("a collection of {i} elements does not fit in memory")
+    };
+    narrowed
 }
 
 /// The whole of what the document panels operate on.
@@ -269,6 +374,10 @@ pub struct DocSession {
     /// landed pair and the outstanding request name the SAME document
     /// value for as long as they agree, which is most of the time.
     requested_doc: Arc<Doc<ProfileProgram>>,
+    /// The resolver that request resolves through — the landed run's
+    /// memo is only a memo for a run under the same one
+    /// ([`DocSession::memo_under`]).
+    requested_resolver: Option<Arc<dyn PartResolver>>,
     /// Everything this session knows *because of* the document under
     /// it — one value, so that replacing that document is one
     /// assignment ([`DocSession::clear_for_new_document`]).
@@ -286,6 +395,11 @@ pub struct DocSession {
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
+    /// The working notation ([`props::Notation`]): what a value nobody
+    /// wrote reads in, here because the refusals this session answers
+    /// read such values. Per person and never in
+    /// the document, so no `Open` or new document resets it.
+    notation: Notation,
 }
 
 /// What the session knows because of the document under it: what is
@@ -429,11 +543,15 @@ impl core::fmt::Debug for Derived {
 /// new thing taken at landing cannot be computed at one door and
 /// forgotten at the other.
 ///
-/// `body` is the one field the landing does not always carry, and its
-/// own docs say why — the A5 gate consumes what it judges. Everything
-/// else here is present whenever the gather was.
+/// The gather's outcome is one `Result`: a refusal carries nothing
+/// the gather would have produced, so no A5 verdict and no body can
+/// sit beside a gather refusal. That is all the shape rules out.
+/// [`Gathered`] can still spell pairs only `land` keeps out — a
+/// `Certified` badge with no body, a `Refused` one with a body.
 struct LandedRun {
     evaluation: Arc<Evaluation<f64>>,
+    /// The resolver [`LandedRun::evaluation`] resolved through.
+    resolver: Option<Arc<dyn PartResolver>>,
     /// The document [`LandedRun::evaluation`] answers.
     ///
     /// **Resolution is a question about a PAIR.** `resolve` reads the
@@ -448,42 +566,54 @@ struct LandedRun {
     /// The generation this run answered ([`DocSession::busy`] compares
     /// it against the one the session is waiting on).
     generation: Generation,
-    /// The gather's refusal for this pair ([`DocSession::product_fault`]).
-    fault: Option<ProductError>,
+    /// What the gather left this pair ([`Gathered`]), or its refusal
+    /// ([`DocSession::product_fault`]).
+    gather: Result<Gathered, ProductError>,
+    /// The advisory-check report for this pair
+    /// ([`DocSession::checks`]); `None` when the registry itself
+    /// refused, or did not run. It sits outside [`LandedRun::gather`]
+    /// because one refusal still has a report: the one
+    /// `ProductErrorKind::means_no_body` reads as an absence.
+    checks: Option<ChecksReport>,
+    /// **The part files the run's resolver could name** — one scan of
+    /// the session's directory, taken at landing ([`PartFiles`]'s doc
+    /// says why then): the file names the tree names this pair's
+    /// instances and their carried lines by. Unscanned for a document that
+    /// instantiates nothing, which never asks.
+    files: PartFiles,
+}
+
+/// What a gather that succeeded left the landing ([`LandedRun::gather`]'s
+/// `Ok`): the A5 verdict taken over the product, and the product's body
+/// where the gate did not consume it.
+struct Gathered {
     /// The A5 at-rest verdict for this pair ([`DocSession::at_rest`]);
     /// `None` where [`AtRestBadge`] says none is taken.
     at_rest: Option<AtRestBadge>,
-    /// The advisory-check report for this pair
-    /// ([`DocSession::checks`]); `None` when the registry itself
-    /// refused.
-    checks: Option<ChecksReport>,
     /// **The aggregate the landing's own gather produced**, kept so
     /// that a consumer which needs the product does not gather it a
-    /// second time ([`DocSession::landed_body`], which is also the
-    /// only writer of this field after `land`).
+    /// second time ([`DocSession::landed_body`]). Written once, by
+    /// `land`.
     ///
-    /// `None` in two cases that are not the same:
-    ///
-    /// - the gather refused, so there is no body and never was — the
-    ///   `fault` beside this says which refusal;
-    /// - the gather succeeded and the A5 gate CONSUMED it. The gate
-    ///   takes the product by value, and its refusal is the one exit
-    ///   that does not hand the body back (a certification returns it
-    ///   on `Assembly`). Nothing is cloned to close that gap: on this
-    ///   lane's measurement a body clone is 2.7% of a gather but is
-    ///   paid per LANDING, while the gather it would save is paid per
-    ///   opened document — the wrong trade for an edit session.
-    ///   [`DocSession::landed_body`] gathers once, there, and memoizes
-    ///   into this field.
+    /// `None` when the A5 gate CONSUMED it. The gate takes the product
+    /// by value, and its refusal is the one exit that does not hand
+    /// the body back (a certification returns it on `Assembly`).
+    /// Nothing is cloned to close that gap: on this lane's measurement
+    /// a body clone is 2.7% of a gather but is paid per LANDING, while
+    /// the gather it would save is paid per opened document — the
+    /// wrong trade for an edit session. The display fit gathers its
+    /// own, on the fit worker ([`DocSession::fit_request`]'s
+    /// `Ungathered`).
     ///
     /// **What those numbers are load-bearing for, and why they carry
     /// no guard.** They chose between two designs that are both
-    /// CORRECT — memoize, or clone at every gate — so nothing here
-    /// breaks if the ratio drifts; what would break is the TRADE, and
-    /// a trade is re-decided by re-measuring, not by a failing
-    /// assertion. A wall-clock guard in the gate would be a flake
-    /// rather than a witness, and a scheduled re-measure would be a
-    /// standing chore over a number no behaviour reads.
+    /// CORRECT — gather again where it is wanted, or clone at every
+    /// gate — so nothing here breaks if the ratio drifts; what would
+    /// break is the TRADE, and a trade is re-decided by re-measuring,
+    /// not by a failing assertion. A wall-clock guard in the gate
+    /// would be a flake rather than a witness, and a scheduled
+    /// re-measure would be a standing chore over a number no
+    /// behaviour reads.
     ///
     /// Half of it is re-taken anyway, and by someone else: the gather
     /// column of `editor-core/tests/m4_pr8_latency.rs` (`gather_ms`)
@@ -502,43 +632,41 @@ struct LandedRun {
     /// changing the shape; do not trust the figures to have stayed
     /// true.
     body: Option<Arc<Body<f64>>>,
-    /// **The part files the run's resolver could name** — one scan of
-    /// the session's directory, taken at landing ([`PartFiles`]'s doc
-    /// says why then): the file names the tree names this pair's
-    /// instances and their carried lines by. Unscanned for a document that
-    /// instantiates nothing, which never asks.
-    files: PartFiles,
 }
 
-/// Exhaustive by destructuring; the shared rule is
-/// `crates/viewer/README.md`'s.
+/// Exhaustive by destructuring, through [`Gathered`] too; the shared
+/// rule is `crates/viewer/README.md`'s.
 ///
 /// The two `_` arms are the run's DATA — `evaluation` is the result
 /// DAG and `doc` is the recipe DAG it answers — and everything else
-/// here is a verdict ABOUT that pair. `checks` is a `Vec` per finding
-/// and is carried as its two counts; `body` is a gathered aggregate
-/// and is carried as its presence, which is whether the landing's
-/// gather is still memoized. Both render as SUMMARIES — two counts,
-/// and the elision `Some(<Body>)` — so neither can be read as the
-/// field's own value; `finish_non_exhaustive` here is about the `_`
-/// arms and says nothing about them.
+/// here is a verdict ABOUT that pair. The gather renders as the arm it
+/// took: its refusal as `fault`, or what it left as `at_rest` and
+/// `body`. `checks` is a `Vec` per finding and is carried as its two
+/// counts; `body` is a gathered aggregate and is carried as its
+/// presence, which is whether the gate left it. Both render as
+/// SUMMARIES — two counts, and the elision `Some(<Body>)` — so neither
+/// can be read as the field's own value; `finish_non_exhaustive` here
+/// is about the `_` arms and says nothing about them.
 impl core::fmt::Debug for LandedRun {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             evaluation: _,
+            resolver: _,
             doc: _,
             generation,
-            fault,
-            at_rest,
+            gather,
             checks,
-            body,
             files,
         } = self;
         let mut out = f.debug_struct("LandedRun");
-        out.field("generation", generation)
-            .field("fault", fault)
-            .field("at_rest", at_rest)
-            .field("files", files);
+        out.field("generation", generation);
+        match gather {
+            Ok(Gathered { at_rest, body }) => out
+                .field("at_rest", at_rest)
+                .field("body", &body.as_ref().map(|_| format_args!("<Body>"))),
+            Err(fault) => out.field("fault", fault),
+        };
+        out.field("files", files);
         match checks {
             Some(report) => out.field(
                 "checks",
@@ -550,8 +678,7 @@ impl core::fmt::Debug for LandedRun {
             ),
             None => out.field("checks", &Option::<()>::None),
         };
-        out.field("body", &body.as_ref().map(|_| format_args!("<Body>")))
-            .finish_non_exhaustive()
+        out.finish_non_exhaustive()
     }
 }
 
@@ -563,12 +690,13 @@ impl core::fmt::Debug for LandedRun {
 /// between instances surfaces on the draw path instead of waiting for
 /// an export.
 ///
-/// Taken only for assembly-shaped documents (one holding at least one
-/// `InstantiatePart`) — a part document's tiers are not this badge's
-/// subject, and the gate's cost is not spent where it answers nothing
-/// the badges do not already say. Nor for a gather refusal
-/// `ProductErrorKind::means_no_body` reads as an absence: with no
-/// product there is nothing for the gate to judge.
+/// Taken only when the gate ran: an assembly-shaped document (one
+/// holding at least one `InstantiatePart`) whose product gathered. A
+/// part document's tiers are not this badge's subject, and the gate's
+/// cost is not spent where it answers nothing the badges do not
+/// already say. A gather refusal, of any class, leaves no product for
+/// the gate to judge, so it takes no badge: it is
+/// [`DocSession::product_fault`]'s, and `frame::badge_site` routes it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AtRestBadge {
     /// The gate certified the assembled product; how many declarations
@@ -577,12 +705,10 @@ pub enum AtRestBadge {
         /// The minted declaration count.
         minted: usize,
     },
-    /// The gate refused — its own rendering, never a sentence composed
-    /// here, except that a gather refusal about a root the feature tree
-    /// draws downstream of another row carries the tree's pointer
-    /// ([`crate::tree::product_refusal_wording`]).
+    /// The gate's own refusal of the product it judged, in its own
+    /// rendering, never a sentence composed here.
     Refused {
-        /// The typed refusal's `Display`, or that pointer.
+        /// The typed refusal's `Display`.
         message: String,
     },
 }
@@ -638,6 +764,7 @@ impl DocSession {
             // than a clone of `doc` because a clone here would be a
             // second copy nobody ever looks at.
             requested_doc: Arc::new(Doc::empty_derived("unsubmitted", tol)),
+            requested_resolver: None,
             history: History::new(doc),
             tol,
             gesture: g1::Slot::closed(),
@@ -647,6 +774,7 @@ impl DocSession {
             path: None,
             display: DisplayState::new(),
             resolver: None,
+            notation: Notation::DEFAULT,
         };
         session.request_eval();
         session
@@ -675,6 +803,18 @@ impl DocSession {
     /// The edit history.
     pub fn history(&self) -> &History {
         &self.history
+    }
+
+    /// The working notation a value nobody wrote reads in
+    /// ([`props::Notation`]), [`Notation::DEFAULT`] until one is set.
+    pub fn notation(&self) -> Notation {
+        self.notation
+    }
+
+    /// Read every value nobody wrote in `notation` from now on. Not an
+    /// edit: no document changes and nothing enters the history.
+    pub fn set_notation(&mut self, notation: Notation) {
+        self.notation = notation;
     }
 
     /// **What a delete of `node` would cost, said before it is paid.**
@@ -807,6 +947,17 @@ impl DocSession {
         Some((run.doc.as_ref(), run.evaluation.as_ref()))
     }
 
+    /// The part files the landed run's resolver could name
+    /// ([`PartFiles`]): what the tree names an instance's part by.
+    /// Unscanned while nothing has landed.
+    pub fn part_files(&self) -> &PartFiles {
+        static UNSCANNED: PartFiles = PartFiles::Unscanned;
+        self.derived
+            .landed
+            .as_ref()
+            .map_or(&UNSCANNED, |run| &run.files)
+    }
+
     /// Why the landed evaluation's product does not gather, if it does
     /// not — every class, whichever channel reports it
     /// (`frame::badge_site` decides that).
@@ -814,14 +965,21 @@ impl DocSession {
     /// `None` both when the product is well formed and when nothing
     /// has landed yet; [`DocSession::landed_pair`] distinguishes those.
     pub fn product_fault(&self) -> Option<&ProductError> {
-        self.derived.landed.as_ref()?.fault.as_ref()
+        self.derived.landed.as_ref()?.gather.as_ref().err()
     }
 
     /// The A5 at-rest verdict for the landed pair ([`AtRestBadge`]),
     /// when [`AtRestBadge`] says one is taken. `None` otherwise, and
     /// before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
-        self.derived.landed.as_ref()?.at_rest.as_ref()
+        self.derived
+            .landed
+            .as_ref()?
+            .gather
+            .as_ref()
+            .ok()?
+            .at_rest
+            .as_ref()
     }
 
     /// The last locally-valid-range probe, with the field it was taken
@@ -853,12 +1011,21 @@ impl DocSession {
     /// nothing has landed; the gather REFUSED, so no product exists
     /// ([`DocSession::product_fault`] says so); or the gather
     /// succeeded and the A5 gate consumed the body in refusing
-    /// ([`LandedRun::body`] carries that case). A caller that needs a
+    /// ([`Gathered::body`] carries that case). A caller that needs a
     /// body in the third case gathers one for itself and pays for it
     /// where the payment is visible — [`crate::scene::product_of_evaluation`]
     /// is that door.
     pub fn landed_body(&self) -> Option<&Body<f64>> {
-        Some(self.derived.landed.as_ref()?.body.as_ref()?)
+        Some(
+            self.derived
+                .landed
+                .as_ref()?
+                .gather
+                .as_ref()
+                .ok()?
+                .body
+                .as_ref()?,
+        )
     }
 
     /// The advisory-check report for the landed pair — findings in
@@ -899,10 +1066,25 @@ impl DocSession {
     /// a suite reading the solve back) resolves each mated part the
     /// way the landed evaluation resolved it.
     pub fn eval_options(&self) -> EvalOptions {
-        EvalOptions {
-            resolver: Some(self.resolver_seam()),
-            ..EvalOptions::default()
-        }
+        crate::evalseam::options(&self.run_resolver())
+    }
+
+    /// **The resolver every evaluation of this session's documents runs
+    /// under** — the seam's runs and the ones taken beside it alike.
+    fn run_resolver(&self) -> Option<Arc<dyn PartResolver>> {
+        Some(self.resolver_seam())
+    }
+
+    /// **The landed run as a memo for a run under `resolver`**, or
+    /// `None` when it resolved through another seam — the seam's own
+    /// priming rule ([`crate::evalseam::same_resolver`]), for the runs
+    /// taken beside it.
+    fn memo_under(&self, resolver: &Option<Arc<dyn PartResolver>>) -> Option<Arc<Evaluation<f64>>> {
+        self.derived
+            .landed
+            .as_ref()
+            .filter(|run| crate::evalseam::same_resolver(&run.resolver, resolver))
+            .map(|run| Arc::clone(&run.evaluation))
     }
 
     /// **The session's resolver as the document seam** — the directory
@@ -994,7 +1176,19 @@ impl DocSession {
         // run is outstanding the tree therefore shows the picture's
         // document, which is what the viewport shows too.
         match &self.derived.landed {
-            Some(run) => tree::rows(&run.doc, Some(&run.evaluation), &run.files),
+            Some(run) => {
+                let mut rows = tree::rows(&run.doc, Some(&run.evaluation), &run.files);
+                // An offer acts on the COMMITTED document, so one read
+                // off a run of an older document is withheld until the
+                // current one lands: the accept it made may already be
+                // the edit that run is answering.
+                if self.busy() {
+                    for row in &mut rows {
+                        row.version_offer = None;
+                    }
+                }
+                rows
+            }
             // Nothing has landed: the shown document with no
             // evaluation, which renders every row `Unevaluated`, and
             // no scan of the directory, which names a part as unread.
@@ -1073,18 +1267,17 @@ impl DocSession {
         // BORROWS the product, and the A5 badge CONSUMES it last.
         //
         // The fourth consumer is the SESSION, which keeps the body for
-        // the display fit ([`LandedRun::body`]) — and it is why the
+        // the display fit ([`Gathered::body`]) — and it is why the
         // sentence that used to end this paragraph ("nothing after the
         // badge wants a product") no longer holds. Nothing is cloned
         // for it either: it takes what the gate did not eat.
         let doc: &Doc<ProfileProgram> = &self.requested_doc;
         let cfg = ChecksConfig::default();
         // Whether the document is assembly-shaped is a fact about its
-        // nodes, so it is read once here for both arms; the other
-        // condition [`AtRestBadge`] names is read off the gather below.
+        // nodes: the `Ok` arm reads it for the gate, and the part-file
+        // scan below reads it too.
         let assembly_shaped = assembly_shaped(doc);
-        let (fault, checks, at_rest, body) = match product_recorded(doc, &done.evaluation, self.tol)
-        {
+        let (gather, checks) = match product_recorded(doc, &done.evaluation, self.tol) {
             Ok(product) => {
                 // The advisory registry. It REPORTS — a document with
                 // findings still draws, which is the whole point of
@@ -1114,32 +1307,29 @@ impl DocSession {
                 } else {
                     (None, Some(Arc::new(product.body.into_body())))
                 };
-                (None, checks, at_rest, body)
+                (Ok(Gathered { at_rest, body }), checks)
             }
             Err(fault) => {
                 // **The product's own verdict.** The gather is the only
                 // thing that answers "is this document's product well
                 // formed", so every class of refusal is kept here; which
-                // channel reports which is `frame::badge_site`'s.
+                // channel reports which is `frame::badge_site`'s. The
+                // gate never ran, so no A5 badge is taken.
                 //
                 // A refusal that `ProductErrorKind::means_no_body`
                 // reads as an absence is the one the registry still
-                // runs over, on the subject that says so, and the one
-                // no A5 badge is taken for: there is no product for
-                // the gate to judge, which is a part document's `None`
-                // and not a refusal. Every other refusal leaves the
-                // report absent, which is "not checked".
-                let no_body = fault.kind().means_no_body();
-                let checks = no_body
+                // runs over, on the subject that says so. Every other
+                // refusal leaves the report absent, which is "not
+                // checked".
+                let checks = fault
+                    .kind()
+                    .means_no_body()
                     .then(|| {
                         run_checks_on(doc, &done.evaluation, Subject::NoBodyRoots, &cfg, self.tol)
                             .ok()
                     })
                     .flatten();
-                let at_rest = (assembly_shaped && !no_body).then(|| AtRestBadge::Refused {
-                    message: crate::tree::product_refusal_wording(&fault, &done.evaluation),
-                });
-                (Some(fault), checks, at_rest, None)
+                (Err(fault), checks)
             }
         };
         // Only a document that instantiates a part has a part to name,
@@ -1153,12 +1343,11 @@ impl DocSession {
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
             evaluation: done.evaluation,
+            resolver: self.requested_resolver.clone(),
             doc: Arc::clone(&self.requested_doc),
             generation: done.generation,
-            fault,
-            at_rest,
+            gather,
             checks,
-            body,
             files,
         });
         Landing::Landed
@@ -1313,14 +1502,19 @@ impl DocSession {
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddDatum { datum } => self.add_datum(datum),
             SessionOp::AddProfile { plane, loops } => self.add_profile(plane, loops),
-            SessionOp::EditProfile { node, base, loops } => self.edit_profile(node, &base, loops),
+            SessionOp::EditProfile {
+                node,
+                base,
+                loops,
+                ids,
+            } => self.edit_profile(node, &base, loops, ids),
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
                 axis,
                 angle,
             } => self.add_revolve(profile, axis, angle),
-            SessionOp::AddBoolean { op, a, b } => self.add_boolean(op, a, b),
+            SessionOp::AddBoolean { op, a, b, declare } => self.add_boolean(op, a, b, declare),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
                 input,
@@ -1347,7 +1541,58 @@ impl DocSession {
             SessionOp::AddPart { of, select } => self.add_part(of, select),
             SessionOp::Duplicate { input } => self.add_duplicate(input),
             SessionOp::AddInstance { id } => self.add_instance(id),
+            SessionOp::AcceptPartVersion { id } => self.accept_part_version(id),
+            SessionOp::SetLabel { node, label } => {
+                self.commit_written(DocEdit::SetLabel { node, label })
+            }
+            SessionOp::CreateLabelled { creation, label } => self.create_labelled(creation, label),
         }
+    }
+
+    /// **A creation and its label as one action** ([`SessionOp::CreateLabelled`]).
+    ///
+    /// The creation is performed as it would be alone, through
+    /// whichever commit door it takes. Once it has recorded its state,
+    /// a `SetLabel` on the last node it minted is applied to that
+    /// state's document and joins that state's group
+    /// ([`History::extend_current`]), so the insert and the label are
+    /// one undo whatever door recorded the insert. A creation that
+    /// recorded nothing (refused, or declined) is answered as it is,
+    /// and its label is not applied.
+    fn create_labelled(&mut self, creation: Creation, label: Label) -> OpOutcome {
+        let before = self.history.current();
+        let mut outcome = self.perform(creation.into_op());
+        let recorded = self.history.current();
+        let Some(&node) = outcome.minted.last() else {
+            return outcome;
+        };
+        if recorded == before || outcome.refusal.is_some() {
+            return outcome;
+        }
+        let edit = DocEdit::SetLabel {
+            node,
+            label: Some(label),
+        };
+        // A label edit performs no maintenance, so its reach is never
+        // asked; the session's own is handed over for uniformity.
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
+        match apply(self.history.doc(), &edit, self.tol, &reach) {
+            Ok(applied) => {
+                self.history.extend_current(
+                    recorded,
+                    LoggedEdit {
+                        edit: edit.clone(),
+                        maintenance: applied.cluster_rows(),
+                    },
+                    applied.doc,
+                );
+                outcome.committed.push(edit);
+                self.request_eval();
+            }
+            Err(error) => outcome.refusal = Some(Refusal::Edit(Box::new(error))),
+        }
+        outcome
     }
 
     /// The documents the open document's own directory offers as
@@ -1361,12 +1606,7 @@ impl DocSession {
     /// or an unreadable sibling surfaces, at the chooser rather than
     /// at a tree badge, since no node exists yet to badge.
     pub fn part_catalogue(&self) -> Result<Vec<parts::PartEntry>, Refusal> {
-        let resolver = self
-            .resolver
-            .as_deref()
-            .ok_or(Refusal::NoDocumentDirectory)?;
-        parts::catalogue(resolver, self.committed_doc().id())
-            .map_err(|error| Refusal::Workspace(Box::new(error)))
+        self.read_store(|ws| Ok(parts::catalogue(ws, self.committed_doc().id())))
     }
 
     /// **One scan of the document's directory, as a value**
@@ -1441,10 +1681,12 @@ impl DocSession {
         requested: crate::scene::DisplayTolerance,
     ) -> Option<crate::evalseam::FitRequest> {
         let run = self.derived.landed.as_ref()?;
-        let subject = match run.body.as_ref() {
-            Some(body) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
-            None if run.fault.is_some() => return None,
-            None => crate::evalseam::FitSubject::Ungathered {
+        let subject = match &run.gather {
+            Err(_) => return None,
+            Ok(Gathered {
+                body: Some(body), ..
+            }) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
+            Ok(Gathered { body: None, .. }) => crate::evalseam::FitSubject::Ungathered {
                 doc: Arc::clone(&run.doc),
                 evaluation: Arc::clone(&run.evaluation),
             },
@@ -1481,23 +1723,47 @@ impl DocSession {
         if let Some(refusal) = Refusal::self_instance(self.committed_doc().id(), id) {
             return OpOutcome::refused(refusal);
         }
-        let Some(resolver) = self.resolver.as_deref() else {
-            return OpOutcome::refused(Refusal::NoDocumentDirectory);
-        };
-        let pin = match resolver
-            .workspace()
-            .and_then(|ws| ws.current_pin(id, self.tol))
-        {
+        let pin = match self.read_store(|ws| ws.current_pin(id, self.tol)) {
             Ok(pin) => pin,
-            Err(error) => return OpOutcome::refused(Refusal::Workspace(Box::new(error))),
+            Err(refusal) => return OpOutcome::refused(refusal),
         };
         self.commit(DocEdit::InsertNode {
             node: Node::instantiate_part(DocRef { id, pin }),
         })
     }
 
+    /// Move every reference to the part `id` onto the version its file
+    /// holds now, as one action: the store's own elaboration
+    /// ([`pncad::workspace::update_to_store`]), applied whole.
+    fn accept_part_version(&mut self, id: DocumentId) -> OpOutcome {
+        let doc = self.committed_doc();
+        match self.read_store(|ws| pncad::workspace::update_to_store(doc, id, ws, self.tol)) {
+            Ok(edits) => self.commit_action(edits),
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
+    }
+
+    /// **A read of the session's store, refused typed**: `read` over
+    /// the directory every reference resolves against
+    /// ([`DirResolver::workspace`]) — [`Refusal::NoDocumentDirectory`]
+    /// for a session with no backing file, and the store's own
+    /// refusal, scan or read, as [`Refusal::Workspace`].
+    fn read_store<T>(
+        &self,
+        read: impl FnOnce(&pncad::workspace::Workspace) -> Result<T, pncad::workspace::WorkspaceError>,
+    ) -> Result<T, Refusal> {
+        let resolver = self
+            .resolver
+            .as_deref()
+            .ok_or(Refusal::NoDocumentDirectory)?;
+        resolver
+            .workspace()
+            .and_then(|ws| read(&ws))
+            .map_err(|error| Refusal::Workspace(Box::new(error)))
+    }
+
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
-        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot) {
+        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation) {
             return OpOutcome::refused(refusal);
         }
         let unit = props::slot_unit(self.committed_doc(), node, slot);
@@ -1521,7 +1787,7 @@ impl DocSession {
         // parameters to probe instead. A parameter has no driver and
         // reaches this door unguarded.
         if let BoundsTarget::Slot { node, slot } = target
-            && let Err(refusal) = guard_driven(self.committed_doc(), node, slot)
+            && let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation)
         {
             return OpOutcome::refused(refusal);
         }
@@ -1531,15 +1797,8 @@ impl DocSession {
         // candidate is judged against, so a probe cannot seed from one
         // document and search another.
         let base = self.doc().clone();
-        let prior = self
-            .derived
-            .landed
-            .as_ref()
-            .map(|run| Arc::clone(&run.evaluation));
-        let resolver = self
-            .resolver
-            .as_ref()
-            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>);
+        let resolver = self.run_resolver();
+        let prior = self.memo_under(&resolver);
         match probe::probe_bounds(&base, target, prior.as_deref(), &resolver, self.tol) {
             Ok(reading) => {
                 self.derived.bounds = Some(reading);
@@ -1737,8 +1996,9 @@ impl DocSession {
     /// [`Self::start`]'s closure, so it answers only for a gesture
     /// that is actually being opened.
     fn begin_gesture(&mut self, node: RecipeNodeId, slot: SlotId) -> OpOutcome {
+        let notation = self.notation;
         self.start(move |doc| {
-            guard_driven(doc, node, slot)?;
+            guard_driven(doc, node, slot, notation)?;
             Ok(GestureTarget::Slot {
                 node,
                 slot,
@@ -1825,10 +2085,10 @@ impl DocSession {
                 // Applied to the gesture's BASE, so previews replace
                 // one another instead of composing, and the history
                 // never sees any of them. The reach is the session's
-                // own seam: a gesture that moved a gauge would mint a
+                // own seam: a gesture that moved a root would mint a
                 // frame from the parts' extent, and with no directory
                 // to resolve against it refuses typed. Built per tick,
-                // and lazy — a slot gesture moves no gauge, so what a
+                // and lazy — a slot gesture moves no root, so what a
                 // tick pays for it is the construction and nothing
                 // more.
                 let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
@@ -2163,78 +2423,72 @@ impl DocSession {
         node: RecipeNodeId,
         base: &ProfileProgram,
         loops: Vec<LoopProgram>,
+        ids: Vec<Vec<Option<StepId>>>,
     ) -> OpOutcome {
-        if let Err(refusal) = self.require_kind(node, NodeKindWanted::Profile) {
-            return OpOutcome::refused(refusal);
+        match self.set_program_of(node, base, loops, ids) {
+            Ok(Some(edit)) => self.commit(edit),
+            Ok(None) => OpOutcome::default(),
+            Err(refusal) => OpOutcome::refused(refusal),
         }
+    }
+
+    /// **What [`SessionOp::EditProfile`] would report, without
+    /// committing it** — the edit door's own `Applied::maintenance` for
+    /// the one `SetProgram` the op would commit, netted by
+    /// [`MaintenanceNet`] as the commit nets it: every name on a step
+    /// the reshaping drops, stranded. Empty when the op would write
+    /// nothing.
+    ///
+    /// The profile editor reads it BEFORE its Apply, while the person
+    /// can still keep the step; the op's outcome carries the same rows
+    /// after.
+    ///
+    /// # Errors
+    ///
+    /// The refusal the op itself would give.
+    pub fn edit_profile_report(
+        &self,
+        node: RecipeNodeId,
+        base: &ProfileProgram,
+        loops: Vec<LoopProgram>,
+        ids: Vec<Vec<Option<StepId>>>,
+    ) -> Result<Vec<Maintenance>, Refusal> {
+        let Some(edit) = self.set_program_of(node, base, loops, ids)? else {
+            return Ok(Vec::new());
+        };
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
+        let applied = apply(self.committed_doc(), &edit, self.tol, &reach)
+            .map_err(|error| Refusal::Edit(Box::new(error)))?;
+        let mut net = MaintenanceNet::new();
+        net.push(&applied);
+        Ok(net.finish(&applied.doc))
+    }
+
+    /// **The one `SetProgram` [`SessionOp::EditProfile`] commits**, or
+    /// `None` when it would write nothing.
+    fn set_program_of(
+        &self,
+        node: RecipeNodeId,
+        base: &ProfileProgram,
+        loops: Vec<LoopProgram>,
+        ids: Vec<Vec<Option<StepId>>>,
+    ) -> Result<Option<DocEdit<ProfileProgram>>, Refusal> {
+        self.require_kind(node, NodeKindWanted::Profile)?;
         let doc = self.committed_doc();
         let Some(Node::Profile(current)) = doc.node(node) else {
-            unreachable!("`require_kind` admitted feature {} as a profile", node.0)
+            unreachable!("`require_kind` admitted node {} as a profile", node)
         };
-        // The editor's numbers are an edit OF the program it loaded;
-        // over any other program they would be a guess about what the
+        // The editor's program is an edit OF the program it loaded;
+        // over any other program it would be a guess about what the
         // person meant. Compared by value, so a unit rewrite since the
         // load does not refuse.
         if current != base {
-            return OpOutcome::refused(Refusal::ProfileEditStale { node });
+            return Err(Refusal::ProfileEditStale { node });
         }
-        let moved = match sketch::program_edits(current, &loops) {
-            Ok(moved) => moved,
-            Err(why) => return OpOutcome::refused(Refusal::ProfileRestructure { node, why }),
-        };
-        // Nothing moved: nothing to write, and nothing to record.
-        if moved.is_empty() {
-            return OpOutcome::default();
-        }
-        for &(slot, _) in &moved {
-            if let Err(refusal) = guard_driven(doc, node, slot) {
-                return OpOutcome::refused(refusal);
-            }
-        }
-        // The whole program, judged once in the insert door's own
-        // words, before any one-slot write is — so a program that does
-        // not close refuses as itself rather than as whichever slot
-        // write first noticed.
-        let whole = ProfileProgram {
-            plane: current.plane,
-            loops,
-            ids: Vec::new(),
-        };
-        if let Err(refusal) = whole.check(&doc.param_env::<f64>(), self.tol) {
-            return OpOutcome::refused(Refusal::Edit(Box::new(EditError::ProfileProgramRefused {
-                node,
-                refusal: Box::new(refusal),
-            })));
-        }
-        // A profile's arguments are all continuous (no `StepArg` is a
-        // `Count`), so every write is a `SetParam`.
-        let edits = moved
-            .into_iter()
-            .map(|(slot, expr)| DocEdit::SetParam { node, slot, expr })
-            .collect();
-        // The order search applies the writes itself, so it carries
-        // the session's reach as `commit_action` does, and each entry
-        // it lands records what the door's maintenance did. A profile
-        // write moves no cluster's gauge, so the rows are empty in
-        // practice; the entry is still the logged one, so the history
-        // replays pure over the log.
-        let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        match accepted_order(doc, edits, self.tol, &reach) {
-            Ok(landing) => self.record_action(landing),
-            Err(OrderFault::Refused(error)) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
-            Err(OrderFault::NoOrder(error)) => OpOutcome::refused(Refusal::ProfileEditOrder {
-                node,
-                error: Box::new(error),
-            }),
-            Err(OrderFault::Capped { writes }) => {
-                OpOutcome::refused(Refusal::ProfileEditOrderCapped {
-                    node,
-                    writes,
-                    cap: ORDER_SEARCH_CAP,
-                })
-            }
-        }
+        let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
+        let unchanged = sketch::is_committed(current, &loops, &ids);
+        Ok((!unchanged).then_some(DocEdit::SetProgram { node, loops, ids }))
     }
 
     /// Insert one extrude of an existing profile
@@ -2266,9 +2520,16 @@ impl DocSession {
         })
     }
 
-    /// Insert one regularized boolean of two existing bodies
+    /// Insert one regularized boolean of two existing bodies, and the
+    /// declaration of the contacts it names
     /// ([`SessionOp::AddBoolean`]).
-    fn add_boolean(&mut self, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> OpOutcome {
+    fn add_boolean(
+        &mut self,
+        op: BooleanOp,
+        a: RecipeNodeId,
+        b: RecipeNodeId,
+        declare: Vec<FlushFinding>,
+    ) -> OpOutcome {
         for seat in [a, b] {
             if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
@@ -2282,14 +2543,43 @@ impl DocSession {
         // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        self.commit(DocEdit::InsertNode {
-            node: Node::Boolean {
-                op,
-                a,
-                b,
-                declare: None,
-            },
-        })
+        let declaration = if declare.is_empty() {
+            None
+        } else {
+            Some(declare_node(&declare).unwrap_or_else(|error| {
+                unreachable!(
+                    "`declare_node` refuses only an empty list, and this one is not: {error}"
+                )
+            }))
+        };
+        let boolean = |declare| DocEdit::InsertNode {
+            node: Node::Boolean { op, a, b, declare },
+        };
+        let staged = self.stage_run(|minted| match (minted, &declaration) {
+            ([], None) => Some(boolean(None)),
+            ([], Some(node)) => Some(DocEdit::InsertNode { node: node.clone() }),
+            ([Some(declared)], Some(_)) => Some(boolean(Some(*declared))),
+            _ => None,
+        });
+        let staged = match staged {
+            Ok(staged) => staged,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        let Some(Some(node)) = staged.minted.last().copied() else {
+            unreachable!("the run ends on the boolean's `InsertNode`")
+        };
+        // Judged before it is recorded: the one recourse to a contact
+        // refusal is a declaration in the same action, which cannot be
+        // added to a committed node.
+        let resolver = self.run_resolver();
+        let memo = self.memo_under(&resolver);
+        let judged = evaluate_beside(&staged.doc, memo.as_deref(), &resolver, self.tol);
+        if let Some(refused) =
+            RefusedBoolean::read(&judged, node, (op, [a, b]), declare, self.generation)
+        {
+            return OpOutcome::refused(Refusal::Contact(Box::new(refused)));
+        }
+        self.record_run(staged)
     }
 
     /// Insert one split of an existing body by an existing datum plane
@@ -2543,6 +2833,8 @@ impl DocSession {
                 doc.params().get(name),
                 Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
             ),
+            // The rename field's text, against the label the node has.
+            DocEdit::SetLabel { node, label } => doc.label(*node) == label.as_ref(),
             // Every other edit submits. The structure of the recipe and
             // the shape of the product: a node inserted, deleted,
             // re-parented or re-pointed has no standing value of its
@@ -2642,22 +2934,28 @@ impl DocSession {
         )
     }
 
-    /// The same door for an action that takes SEVERAL edits: apply
-    /// them in order, and record the whole run as one history state,
-    /// so one user action is one undo.
-    ///
-    /// **All or nothing**: each edit is applied to the value the last
-    /// one produced and nothing is recorded until every one has
-    /// succeeded, so a refusal anywhere leaves the session on the
-    /// document it started from. That is purity doing the work — no
-    /// rollback exists to be got wrong.
+    /// The same door for an action that takes SEVERAL edits, a fixed
+    /// list of them: one run of [`Self::commit_run`], so one user
+    /// action is one undo.
     fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
         let mut edits = edits.into_iter();
         self.commit_run(|_| edits.next())
     }
 
     /// The same door again, for an action whose later edits name the
-    /// ids its earlier ones MINTED.
+    /// ids its earlier ones MINTED: [`Self::stage_run`], then
+    /// [`Self::record_run`].
+    fn commit_run<F>(&mut self, next: F) -> OpOutcome
+    where
+        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
+    {
+        match self.stage_run(next) {
+            Ok(staged) => self.record_run(staged),
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
+    }
+
+    /// **An action's edits, applied and not yet recorded.**
     ///
     /// `next` is handed what each edit so far minted, in order — an
     /// `InsertNode`'s new id, `None` for every edit that creates no
@@ -2667,18 +2965,18 @@ impl DocSession {
     /// with a fixed list ([`Self::commit_action`]) ignores it.
     ///
     /// **All or nothing**: each edit is applied to the value the last
-    /// one produced and nothing is recorded until every one has
-    /// succeeded, so a refusal anywhere leaves the session on the
-    /// document it started from. That is purity doing the work — no
-    /// rollback exists to be got wrong. The whole run is one history
-    /// state, so one user action is one undo.
-    fn commit_run<F>(&mut self, mut next: F) -> OpOutcome
+    /// one produced and nothing is recorded until [`Self::record_run`]
+    /// takes the result, so a refusal anywhere — or a caller that
+    /// drops the staged run — leaves the session on the document it
+    /// started from. That is purity doing the work — no rollback
+    /// exists to be got wrong.
+    fn stage_run<F>(&self, mut next: F) -> Result<StagedRun, Refusal>
     where
         F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
     {
         // ONE reach for the whole action, over the session's own seam
         // (the directory rule; `None` refuses typed): each edit's
-        // maintenance asks it only when a cluster's gauge moves, and
+        // maintenance asks it only when a group's root moves, and
         // what it decided rides the logged entry into the history.
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
@@ -2705,46 +3003,44 @@ impl DocSession {
                     net.push(&applied);
                     produced = Some(applied.doc);
                 }
-                Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
+                Err(error) => return Err(Refusal::Edit(Box::new(error))),
             }
         }
         let Some(doc) = produced else {
             unreachable!("an action commits at least one edit")
         };
-        let mut outcome = self.record_action(ActionLanding { logged, net, doc });
-        // The ids the run minted, out to whoever asked for the action
-        // — in the order the edits applied, which is the order a
-        // caller that built one edit from another's id reasoned in.
-        outcome.minted = minted.into_iter().flatten().collect();
-        outcome
+        Ok(StagedRun {
+            doc,
+            logged,
+            net,
+            minted,
+        })
     }
 
-    /// **Record an action whose document is already produced** — the
-    /// second half of [`Self::commit_action`], for a door that had to
-    /// apply the edits itself to learn which order they land in
-    /// ([`accepted_order`]), so the one pass that found the order is
-    /// the pass whose output is committed.
-    ///
-    /// The landing's `doc` must be its `logged` edits applied in order
-    /// to the committed document, and each entry carries the cluster
-    /// maintenance its edit performed — the same shape
-    /// [`Self::commit_action`] records, so the history replays pure
-    /// over the log whichever half produced the entry; both callers
-    /// produce it that way. Its maintenance goes out on the outcome,
-    /// net over the action ([`MaintenanceNet`]).
-    fn record_action(&mut self, landing: ActionLanding) -> OpOutcome {
-        let committed = landing
-            .logged
-            .iter()
-            .map(|entry| entry.edit.clone())
-            .collect();
-        let maintenance = landing.net.finish(&landing.doc);
-        self.history.commit_group(landing.logged, landing.doc);
+    /// **A staged run, recorded**: the whole run is one history state,
+    /// so one user action is one undo.
+    fn record_run(&mut self, staged: StagedRun) -> OpOutcome {
+        let StagedRun {
+            doc,
+            logged,
+            net,
+            minted,
+        } = staged;
+        let committed = logged.iter().map(|entry| entry.edit.clone()).collect();
+        // Net over the action: a row an earlier edit reported can be
+        // made moot by a later one ([`MaintenanceNet`]).
+        let maintenance = net.finish(&doc);
+        self.history.commit_group(logged, doc);
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
         OpOutcome {
             committed,
             maintenance,
+            // The ids the run minted, out to whoever asked for the
+            // action — in the order the edits applied, which is the
+            // order a caller that built one edit from another's id
+            // reasoned in.
+            minted: minted.into_iter().flatten().collect(),
             ..OpOutcome::from_prune(pruned)
         }
     }
@@ -2770,206 +3066,27 @@ impl DocSession {
         // takes a value so a worker owns its copy) and is not a
         // retained copy — the session keeps exactly one.
         self.requested_doc = Arc::new(self.doc().clone());
+        self.requested_resolver = self.run_resolver();
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
-            resolver: Some(self.resolver_seam()),
+            resolver: self.requested_resolver.clone(),
         });
     }
 }
 
-/// **The most one-slot writes [`accepted_order`] searches the orders
-/// of.** The search is over which writes have landed — `2^n` states,
-/// each trying up to `n` writes at the edit door — so twelve writes is
-/// at most 4 096 states, a fraction of a second at the door's cost. A
-/// profile edit moving more arguments than this is still tried in slot
-/// order; only the search for another order is capped, and a refusal
-/// past the cap says so.
-pub const ORDER_SEARCH_CAP: usize = 12;
-
-/// **An order the edit door accepts `edits` in, one at a time, and the
-/// document they produce** — the one-slot writes of
-/// [`SessionOp::EditProfile`], each of which re-validates the whole
-/// profile program at the door. The order comes back as logged
-/// entries: each write with the cluster maintenance the door performed
-/// for it, through `reach`, so the pass that found the order is the
-/// pass the history records — and every row the door reported for each
-/// write rides beside them, for the outcome.
-///
-/// Exact up to [`ORDER_SEARCH_CAP`] writes: a depth-first search over
-/// the set of writes already applied, trying the pending ones in slot
-/// order and remembering every applied set from which no order
-/// finishes. The document at a set does not depend on the order that
-/// reached it (each write sets a different slot), which is what makes
-/// the set a sound memo key. A write the door refuses as a PROGRAM
-/// ([`EditError::ProfileProgramRefused`]) is a fact about the state it
-/// was tried in and is tried again from others; any other refusal is a
-/// fact about the write itself and ends the search at once.
-///
-/// Past the cap only slot order is tried.
-///
-/// # Errors
-///
-/// [`OrderFault::Refused`] for a refusal no order can change;
-/// [`OrderFault::NoOrder`], carrying the last program refusal met,
-/// when no order of the writes lands; [`OrderFault::Capped`] when slot
-/// order does not land and there are too many writes to search.
-fn accepted_order(
-    doc: &Doc<ProfileProgram>,
-    edits: Vec<DocEdit<ProfileProgram>>,
-    tol: Tol,
-    reach: &dyn MateReach,
-) -> Result<ActionLanding, OrderFault> {
-    if edits.len() > ORDER_SEARCH_CAP {
-        let writes = edits.len();
-        let mut landing = ActionLanding {
-            logged: Vec::with_capacity(writes),
-            net: MaintenanceNet::new(),
-            doc: doc.clone(),
-        };
-        for edit in edits {
-            match apply(&landing.doc, &edit, tol, reach) {
-                Ok(applied) => {
-                    landing.logged.push(LoggedEdit {
-                        edit,
-                        maintenance: applied.cluster_rows(),
-                    });
-                    landing.net.push(&applied);
-                    landing.doc = applied.doc;
-                }
-                Err(EditError::ProfileProgramRefused { .. }) => {
-                    return Err(OrderFault::Capped { writes });
-                }
-                Err(error) => return Err(OrderFault::Refused(error)),
-            }
-        }
-        return Ok(landing);
-    }
-    let mut search = OrderSearch {
-        edits: &edits,
-        tol,
-        reach,
-        dead: std::collections::HashSet::new(),
-        last: None,
-    };
-    match search.from(0, doc)? {
-        Some(found) => {
-            let mut net = MaintenanceNet::new();
-            for step in &found.steps {
-                net.push(step);
-            }
-            Ok(ActionLanding {
-                logged: found.logged,
-                net,
-                doc: found.doc,
-            })
-        }
-        None => {
-            let Some(error) = search.last else {
-                unreachable!("a search with no order met at least one program refusal")
-            };
-            Err(OrderFault::NoOrder(error))
-        }
-    }
-}
-
-/// **Where an action lands**: its edits as the log records them, each
-/// with the cluster maintenance the door performed for it; every row
-/// the door REPORTED for them, folded as they applied — the log keeps
-/// only the cluster acts, and these are what the outcome carries out;
-/// and the document they end at.
-struct ActionLanding {
+/// An action's edits applied in order and not yet recorded
+/// ([`DocSession::stage_run`]).
+struct StagedRun {
+    /// The document the last edit produced.
+    doc: Doc<ProfileProgram>,
+    /// Each edit with the maintenance it performed, for the history.
     logged: Vec<LoggedEdit<ProfileProgram>>,
+    /// The maintenance, netted over the whole action.
     net: MaintenanceNet,
-    doc: Doc<ProfileProgram>,
-}
-
-/// Where the order search lands: the writes still to apply, in order,
-/// as logged entries; each write's accepted edit, which
-/// [`MaintenanceNet::push`] folds once the order is known; and the
-/// document they end at.
-struct SearchLanding {
-    logged: Vec<LoggedEdit<ProfileProgram>>,
-    steps: Vec<Applied<ProfileProgram>>,
-    doc: Doc<ProfileProgram>,
-}
-
-/// [`accepted_order`]'s search state.
-struct OrderSearch<'a> {
-    edits: &'a [DocEdit<ProfileProgram>],
-    tol: Tol,
-    /// The reach every write applies through — the session's.
-    reach: &'a dyn MateReach,
-    /// Applied sets from which no order finishes.
-    dead: std::collections::HashSet<u32>,
-    /// The last program refusal met.
-    last: Option<EditError>,
-}
-
-impl OrderSearch<'_> {
-    /// An order finishing from the applied set `applied` (a bit per
-    /// write), at `doc`: the writes still to apply, in order, as logged
-    /// entries, and the document they end at — or `None` when there is
-    /// none.
-    fn from(
-        &mut self,
-        applied: u32,
-        doc: &Doc<ProfileProgram>,
-    ) -> Result<Option<SearchLanding>, OrderFault> {
-        let all = (1_u32 << self.edits.len()) - 1;
-        if applied == all {
-            return Ok(Some(SearchLanding {
-                logged: Vec::new(),
-                steps: Vec::new(),
-                doc: doc.clone(),
-            }));
-        }
-        if self.dead.contains(&applied) {
-            return Ok(None);
-        }
-        for (index, edit) in self.edits.iter().enumerate() {
-            let bit = 1_u32 << index;
-            if applied & bit != 0 || self.dead.contains(&(applied | bit)) {
-                continue;
-            }
-            match apply(doc, edit, self.tol, self.reach) {
-                Ok(next) => {
-                    if let Some(mut rest) = self.from(applied | bit, &next.doc)? {
-                        rest.logged.insert(
-                            0,
-                            LoggedEdit {
-                                edit: edit.clone(),
-                                maintenance: next.cluster_rows(),
-                            },
-                        );
-                        rest.steps.insert(0, next);
-                        return Ok(Some(rest));
-                    }
-                }
-                Err(error @ EditError::ProfileProgramRefused { .. }) => self.last = Some(error),
-                Err(error) => return Err(OrderFault::Refused(error)),
-            }
-        }
-        self.dead.insert(applied);
-        Ok(None)
-    }
-}
-
-/// Why [`accepted_order`] found no order.
-#[derive(Debug)]
-enum OrderFault {
-    /// A write the door refuses whatever precedes it.
-    Refused(EditError),
-    /// No order of the writes keeps every intermediate program valid;
-    /// the last program refusal the search met.
-    NoOrder(EditError),
-    /// Slot order does not land, and there are more writes than
-    /// [`ORDER_SEARCH_CAP`] to search the other orders of.
-    Capped {
-        /// How many writes there were.
-        writes: usize,
-    },
+    /// What each edit minted, in the order the edits applied.
+    minted: Vec<Option<RecipeNodeId>>,
 }
 
 /// Whether a document is assembly-shaped — one of the two conditions
@@ -3024,7 +3141,7 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
 /// The gate CONSUMES the product it judges. A certification returns
 /// the same body on its `Assembly` and a refusal returns nothing, so
 /// the body is an `Option` here for the same reason
-/// [`LandedRun::body`] is one, and this is the one place that fact is
+/// [`Gathered::body`] is one, and this is the one place that fact is
 /// read off the gate's own result type.
 fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> (AtRestBadge, Option<Arc<Body<f64>>>) {
     match verdict {
@@ -3079,10 +3196,12 @@ impl core::fmt::Debug for DocSession {
             eval: _,
             generation,
             requested_doc: _,
+            requested_resolver: _,
             derived,
             path,
             display: _,
             resolver,
+            notation,
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)
@@ -3097,130 +3216,7 @@ impl core::fmt::Debug for DocSession {
                 &resolver.as_ref().map(|_| format_args!("<DirResolver>")),
             )
             .field("derived", derived)
+            .field("notation", notation)
             .finish_non_exhaustive()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    // Panicking is a test's failure mechanism (workspace lint note).
-    #![allow(clippy::expect_used)]
-    #![allow(clippy::panic)]
-
-    use pncad::document::{
-        Doc, DocEdit, EditError, Expr, Node, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
-        StepArg, apply,
-    };
-    use pncad::geom_core::{Point2, Tol};
-    use pncad::profile::{Step, Target};
-
-    use super::{OrderFault, accepted_order};
-    use crate::session::ProfileShape;
-    use crate::sketch::{self, Notation};
-    use crate::test_support::{ang, inserted, len, xy_frame};
-
-    /// A document holding a frame and a unit square profile; answers
-    /// the document and the profile node.
-    fn square() -> (Doc<ProfileProgram>, RecipeNodeId) {
-        let tol = Tol::witness();
-        let (doc, plane) = inserted(&Doc::empty_derived("order", tol), xy_frame(), tol);
-        let steps = vec![
-            Step::At(Point2::new(0.0, 0.0)),
-            Step::LineTo(Target::Point(Point2::new(1.0, 0.0))),
-            Step::LineTo(Target::Point(Point2::new(1.0, 1.0))),
-            Step::LineTo(Target::Point(Point2::new(0.0, 1.0))),
-            Step::LineTo(Target::Start),
-        ];
-        let loops = vec![
-            sketch::loop_program(&ProfileShape::Path { steps }, Notation::CANONICAL)
-                .expect("finite"),
-        ];
-        let node = Node::Profile(ProfileProgram {
-            plane,
-            loops,
-            ids: Vec::new(),
-        });
-        inserted(&doc, node, tol)
-    }
-
-    fn corner_x(node: RecipeNodeId, step: u32, expr: Expr) -> DocEdit<ProfileProgram> {
-        DocEdit::SetParam {
-            node,
-            slot: SlotId::Profile {
-                loop_: 0,
-                step,
-                arg: if step == 0 {
-                    StepArg::PointX
-                } else {
-                    StepArg::TargetX
-                },
-            },
-            expr,
-        }
-    }
-
-    /// **A refusal no order can change ends the search as itself**: a
-    /// write of the wrong dimension is refused whatever precedes it,
-    /// so the walk does not go looking for an order and does not call
-    /// it an order problem.
-    #[test]
-    fn a_write_refused_for_itself_is_refused_not_reordered() {
-        let (doc, profile) = square();
-        let edits = vec![
-            corner_x(profile, 1, len(1.5)),
-            corner_x(profile, 2, ang(0.5)),
-        ];
-        match accepted_order(&doc, edits, Tol::witness(), &RefusingReach) {
-            Err(OrderFault::Refused(EditError::SlotDimensionMismatch { .. })) => {}
-            Err(OrderFault::Refused(other)) => panic!("refused for another reason: {other:?}"),
-            Err(_) => panic!("reported as an order problem"),
-            Ok(_) => panic!("a wrong-dimension write landed"),
-        }
-    }
-
-    /// **The search lands an order slot order does not**, and the
-    /// document it hands back is the writes applied in that order.
-    #[test]
-    fn the_search_finds_the_order_and_returns_its_document() {
-        let tol = Tol::witness();
-        let (doc, profile) = square();
-        // Slide the square right by 2: its first corner alone crosses it.
-        let edits = vec![
-            corner_x(profile, 0, len(2.0)),
-            corner_x(profile, 1, len(3.0)),
-            corner_x(profile, 2, len(3.0)),
-            corner_x(profile, 3, len(2.0)),
-        ];
-        assert!(
-            apply(&doc, &edits[0], tol, &RefusingReach).is_err(),
-            "the premise"
-        );
-        let landing =
-            accepted_order(&doc, edits.clone(), tol, &RefusingReach).expect("an order lands");
-        let (order, landed) = (landing.logged, landing.doc);
-        assert_ne!(
-            order.first().map(|entry| &entry.edit),
-            edits.first(),
-            "not slot order"
-        );
-        let replayed = order.iter().fold(doc, |doc, entry| {
-            apply(&doc, &entry.edit, tol, &RefusingReach)
-                .expect("the order it named lands")
-                .doc
-        });
-        assert!(replayed.bit_eq(&landed));
-    }
-
-    /// **No order is said as no order** when every order was searched:
-    /// one write that no other write can make valid.
-    #[test]
-    fn a_write_no_order_admits_is_no_order() {
-        let (doc, profile) = square();
-        // Corner 1 onto corner 0: a zero-length leg, whatever else lands.
-        let edits = vec![corner_x(profile, 1, len(0.0))];
-        assert!(matches!(
-            accepted_order(&doc, edits, Tol::witness(), &RefusingReach),
-            Err(OrderFault::NoOrder(EditError::ProfileProgramRefused { .. }))
-        ));
     }
 }

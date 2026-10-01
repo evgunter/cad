@@ -111,8 +111,7 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
 fn a_multi_solid_body_gives_body_advice_and_no_chain_advice() {
     let mut body = cube(L, Tol::witness());
     let other = cube(L, Tol::witness());
-    topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
-        .expect("a disjoint graft");
+    topo::instance::graft_disjoint_all(&mut body, &other).expect("a disjoint graft");
     let edges = query::all_edges(&body);
     let err = fillet_edges(&body, &edges[..1], R, Tol::witness())
         .expect_err("the in-place surgery is built for one solid");

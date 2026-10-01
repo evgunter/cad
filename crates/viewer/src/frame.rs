@@ -21,8 +21,10 @@
 //! the types decide which, not the caller — and [`frame_status`]'s
 //! ranking over a frame's news. **The toolbar
 //! badge for the landed product** ([`product_badge`]) and the rest of
-//! the badge family beside it. **The draft and the offer a refused
-//! batch leaves behind** ([`retype_draft`], [`creation_offer`]).
+//! the badge family beside it. **The draft and the offers a refused
+//! batch leaves behind** ([`retype_draft`], [`creation_offer`],
+//! [`declare_offer`]), **and the one a failed instance makes**
+//! ([`version_offer`]).
 //! **What a folded event stream amounts to** ([`folded_moved`],
 //! [`fold_status`]), **what a frame says about work outstanding**
 //! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
@@ -203,7 +205,8 @@
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
 //! store that keeps no preferences ([`prefs_badge`]), the datums this
 //! view draws nothing of ([`datums_badge`]), the profiles it draws
-//! nothing of ([`profiles_badge`]), and the three display seams that
+//! nothing of ([`profiles_badge`]), the held edges the index cannot
+//! name ([`held_edges_badge`]), and the three display seams that
 //! hold a refusal — the scene ([`scene_badge`]), the pick index
 //! ([`index_badge`]) and the projection ([`projection_badge`]).
 //! The population is every function here returning `Option<Badge>`,
@@ -226,9 +229,10 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, NodeStanding, ParamName, ParseError, ProductError,
-    ProductErrorKind, RecipeNodeId, SlotId,
+    ChecksReport, Doc, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
+    PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, SlotId,
 };
+use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
 
 use crate::blend::BlendEvent;
@@ -237,13 +241,16 @@ use crate::camera::Folded;
 use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
+use crate::parts::PartFiles;
 use crate::pickcache::NotIndexed;
-use crate::pickindex::{PickError, PickIndexError};
+use crate::pickindex::{EdgeNamesRefused, PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
-use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
+use crate::session::{
+    AtRestBadge, DeclareOffer, OpOutcome, Outstanding, Refusal, SessionOp, VersionOffer,
+};
 use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
 
@@ -790,7 +797,10 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. } => true,
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. }
+        | SessionOp::SetLabel { .. } => true,
+        SessionOp::CreateLabelled { creation, .. } => acts(creation.op()),
     }
 }
 
@@ -1571,19 +1581,21 @@ pub fn cursor_status(step: IdStep) -> StatusUpdate {
 ///
 /// The toolbar's badges are drawn in two colours and the split is a
 /// real rule: `weak` for a report a reader need not act on, the
-/// theme's `unresolved` for a verdict they may. The feature tree's
+/// theme's `actionable` for a verdict they may. The feature tree's
 /// rows follow the same rule, stated by [`crate::tree::RowStatus::tone`]
 /// — a poisoned row is [`Tone::Advisory`], deliberately QUIET, so the
 /// eye goes to the failed row a reader can do something about. A
 /// badge, a row, and a pane message drawn through
 /// `widgets::message_toned` each hand over a `Tone` rather than a
 /// style, and `app::toned` is where a tone becomes one: `weak` for
-/// `Advisory`, the theme's `unresolved` for `Actionable`.
+/// `Advisory`, the theme's `actionable` for `Actionable`.
 ///
-/// **The colour is REDUNDANT either way**, which is
-/// [`crate::theme::Theme::unresolved`]'s own stated contract: every
-/// badge says its own words, so nothing depends on the colour being
-/// read.
+/// **Meaning is the words', salience is the colour's.** Every badge
+/// says its own words, so what a verdict MEANS never depends on the
+/// colour being read. Which row is LOUD does, and a theme claiming
+/// [`crate::theme::Safety::ColorblindSafe`] keeps it: the actionable
+/// colour stays apart from the panel, plain text and weak text under
+/// the three dichromacies (`crates/viewer/GUI-DESIGN.md`, Colour (G5)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tone {
     /// A report. The reader may want to know; there is nothing to do
@@ -1773,10 +1785,12 @@ trait SeamSubject {
 }
 
 /// **The pick-index seam's subject**, named by both of the types its
-/// refusals arrive as. One edit here moves both channels; that is the
-/// "by construction" the trait's argument rests on, and it is written
+/// build refusals arrive as. One edit here moves both channels; that is
+/// the "by construction" the trait's argument rests on, and it is written
 /// as a constant because a seam whose two impls each spelled a literal
-/// would be back to the convention.
+/// would be back to the convention. A built index's refusal to NAME an
+/// edge ([`EdgeNamesRefused`]) is not one of them: its subject is the
+/// document's, and its impl says why.
 const PICK_INDEX_SEAM: Subject = Subject::Display;
 
 /// **The scene seam's subject**, named by the rebuild's refusal and by
@@ -1806,6 +1820,16 @@ impl SeamSubject for PickIndexError {
 /// door.
 impl SeamSubject for NotIndexed {
     const SUBJECT: Subject = PICK_INDEX_SEAM;
+}
+
+/// **The document, not the pick-index seam.** The index reads the
+/// names off the evaluation's tables, so an index rebuilt over the same
+/// evaluation refuses the same edge again; what can change the answer is
+/// an edit the document accepts. The refused load says it on the line
+/// through [`tool_notice`], which is [`Subject::Document`] too, so the
+/// one fault wears one subject on both channels.
+impl SeamSubject for EdgeNamesRefused {
+    const SUBJECT: Subject = Subject::Document;
 }
 
 // # The subject-assigning doors
@@ -2070,7 +2094,9 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
         ToolNotice::Blend(
-            BlendEvent::NoEdgesOnTarget { .. } | BlendEvent::TargetHasNoValue { .. },
+            BlendEvent::NoEdgesOnTarget { .. }
+            | BlendEvent::EdgesUnnamed { .. }
+            | BlendEvent::TargetHasNoValue { .. },
         ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.to_string(), retold)
@@ -2184,21 +2210,25 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
 /// say (`wording` absent, which is a fit that did not move δ). The
 /// second was a second condition at the call site.
 ///
-/// **The δ is rendered, not formatted**
-/// ([`crate::scene::DisplayTolerance::render_mm`]). The badge's whole
+/// **The δ is rendered, not formatted**, in `unit` — the working
+/// notation's length unit
+/// ([`crate::scene::DisplayTolerance::render_in`]). The badge's whole
 /// sentence is which δ the picture is at, and the δ it announces is the
 /// budget's own choice — `constant / TRIANGLE_BUDGET`, a quotient with
-/// no short spelling — so a fixed `{:.3}` read `δ 0.000 mm chosen` for
-/// every body whose cost constant is under a triangle·millimetre. A
+/// no short spelling — so a fixed precision would read it as zero. A
 /// label wide enough for the render is the price, and a badge is a
 /// label rather than a fixed-width field.
-pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
+pub fn delta_badge(fitted: Option<&FittedDelta>, unit: LengthUnit) -> Option<Badge> {
     let fitted = fitted?;
-    let wording = fitted.wording()?;
+    let wording = fitted.wording(unit)?;
     Some(
         Badge::read(
             Subject::Display,
-            format!("δ {} mm chosen", fitted.delta.render_mm()),
+            format!(
+                "δ {} {} chosen",
+                fitted.delta.render_in(unit),
+                unit.symbol()
+            ),
             Tone::Advisory,
         )
         .detailed(wording),
@@ -2224,7 +2254,9 @@ enum BadgeSite {
     NotAFault,
 }
 
-/// Which channel reports a refusal of this class, if any.
+/// Which channel reports a refusal of this class, if any. The at-rest
+/// badge ([`at_rest_badge`]) is not one: it reports the A5 gate, which
+/// never runs on a product that did not gather.
 ///
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
@@ -2297,11 +2329,11 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 /// that also re-frames the camera, so the line is the one place a
 /// fault raised by a landing cannot survive the landing.
 ///
-/// **Redundant colour beside its own words.** It is
-/// [`Tone::Actionable`], the tone the at-rest refusal and the checks
-/// findings already carry, and that tone's stated contract is that its
-/// colour is REDUNDANT — every badge using it says its own words, so
-/// nothing depends on the colour being read. This badge satisfies it,
+/// **Its meaning is in its own words.** It is [`Tone::Actionable`],
+/// the tone the at-rest refusal and the checks findings already carry,
+/// and that tone's stated contract is that no MEANING rests on its
+/// colour — every badge using it says its own words, and the colour
+/// carries only salience. This badge satisfies it,
 /// because [`ProductError`]'s `Display` opens every arm with
 /// "product: ".
 ///
@@ -2374,8 +2406,8 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// DERIVED: the failure it follows from is already on screen, as the
 /// one [`Tone::Actionable`] row the tree draws for it. So it takes the
 /// tree's own reading of a downstream row — [`Tone::Advisory`], naming
-/// the row that carries the cause ([`crate::tree::cause_row`], spelled
-/// [`crate::tree::node_number`]) — and the index's own words move to
+/// the row that carries the cause ([`crate::tree::cause_row`], as the
+/// document speaks it) — and the index's own words move to
 /// the tooltip, unaltered.
 ///
 /// **It is placed under the cause, not dropped**, because it carries
@@ -2408,6 +2440,7 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// where the louder news it defers to is actually drawn.
 pub fn index_badge(
     error: Option<&PickIndexError>,
+    doc: &Doc<ProfileProgram>,
     evaluation: Option<&Evaluation<f64>>,
 ) -> Option<Badge> {
     let error = error?;
@@ -2424,7 +2457,7 @@ pub fn index_badge(
             format!(
                 "pick index: waits on {}, which failed — until the index builds, no pick is \
                  answered and the picture is not redrawn",
-                crate::tree::node_number(cause)
+                doc.spoken(cause)
             ),
             Tone::Advisory,
         )
@@ -2562,6 +2595,28 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
     })
 }
 
+/// **What the chrome badges about a held edge set whose body the index
+/// cannot wholly name**, and `None` while it can, or while nothing is
+/// held.
+///
+/// The held mark lights the drawn edges whose names a tool holds
+/// ([`crate::marks::HeldEdges::mark`]), and a drawn edge with no name
+/// cannot be told held or not, so the mark may be short by it. This is
+/// what says so. Per-frame and unlatched, for [`datums_badge`]'s
+/// reasons: the viewport writes it from the marks it composes. The
+/// refusal is the naming layer's bug report, which no reader can act
+/// on, so [`Tone::Advisory`]; its subject is the document's
+/// (`SeamSubject for EdgeNamesRefused` says why).
+pub fn held_edges_badge(refused: Option<&EdgeNamesRefused>) -> Option<Badge> {
+    refused.map(|refused| {
+        Badge::read(
+            EdgeNamesRefused::SUBJECT,
+            format!("held edges: the mark may leave some out — {refused}"),
+            Tone::Advisory,
+        )
+    })
+}
+
 /// **What the chrome badges about a store that keeps nothing**, and
 /// `None` while preferences are kept.
 ///
@@ -2682,6 +2737,81 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
         | ParseError::UnknownFunction { .. }
         | ParseError::WrongArity { .. }
         | ParseError::Dimension { .. } => None,
+    }
+}
+
+/// **The declare offer a refused batch leaves behind** — the offer a
+/// boolean's undeclared-contact refusal makes
+/// ([`crate::session::RefusedBoolean::offer`]), for the frame loop to
+/// hold for the boolean tool the way it holds [`creation_offer`]'s name
+/// for the add-parameter form. `None` for every other refusal and for a
+/// clean batch.
+///
+/// The two offers go stale differently, and each says how where it is
+/// shown: a name to create stands until the name field moves past it,
+/// while a declaration is sited in one document, so it stands only at
+/// the generation it was refused at ([`DeclareOffer::is_for`]).
+pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
+    match refusal? {
+        Refusal::Contact(refused) => refused.offer(),
+        Refusal::DrivenByExpression { .. }
+        | Refusal::NoSuchSlot { .. }
+        | Refusal::NoSuchParam(_)
+        | Refusal::ParamNotANumber { .. }
+        | Refusal::ParamExists { .. }
+        | Refusal::EmptyName
+        | Refusal::WrongNodeKind { .. }
+        | Refusal::Duplicate(_)
+        | Refusal::Edit(_)
+        | Refusal::Dimension(_)
+        | Refusal::Parse(_)
+        | Refusal::NoGesture
+        | Refusal::GestureInFlight
+        | Refusal::WrongGesture
+        | Refusal::Io(_)
+        | Refusal::NothingToDo { .. }
+        | Refusal::Display(_)
+        | Refusal::SlotUnit(_)
+        | Refusal::NoDocumentDirectory
+        | Refusal::Workspace(_)
+        | Refusal::SelfInstance { .. }
+        | Refusal::ProfileEditStale { .. } => None,
+    }
+}
+
+/// **The accept offer an instance's own failure makes** — the offer to
+/// move its part's references onto the version the store holds, when
+/// the failure is that the reference's pin no longer holds. The part is
+/// named by its file in `files`, as the instance's row names it. `None`
+/// for every other failure.
+///
+/// The outer pattern takes the one [`NodeErrorKind`] arm a part's
+/// resolution fails through; the decision is over that arm's faults.
+pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionOffer> {
+    let NodeErrorKind::Part { doc_ref, fault } = kind else {
+        return None;
+    };
+    match fault {
+        PartFault::Unresolved { fault, .. } => match fault {
+            ResolveFault::PinMismatch => Some(VersionOffer::new(
+                doc_ref.id,
+                files.name(doc_ref.id).to_owned(),
+            )),
+            // The part's file cannot be read here, or records another
+            // ε: there is no version of it this process could accept.
+            ResolveFault::EpsilonSeam | ResolveFault::Unresolved => None,
+        },
+        // The reference resolved, or was never tried: the pin is not
+        // what failed. A part root failing on a mismatch of its OWN
+        // references is repaired in that part, not here.
+        PartFault::NoResolver
+        | PartFault::PartRootFailed { .. }
+        | PartFault::PartRootPoisoned { .. }
+        | PartFault::RootFailureUnrecorded { .. }
+        | PartFault::PartProduct { .. }
+        | PartFault::ReferenceCycle { .. }
+        | PartFault::DepthExceeded
+        | PartFault::NotEntered => None,
     }
 }
 
@@ -3015,7 +3145,7 @@ mod tests {
 
     #[test]
     fn the_gather_verdict_badges_only_the_faults_nothing_else_carries() {
-        let node = RecipeNodeId(2);
+        let node = RecipeNodeId(test_utils::refusal::tagged(2));
 
         // The item's own reproduction: two roots colliding in the name
         // table. Not a node failure, so no per-node badge carries it —
@@ -3060,7 +3190,7 @@ mod tests {
             (
                 ProductError::Root(NodeStanding::Poisoned {
                     node,
-                    through: RecipeNodeId(1),
+                    through: RecipeNodeId(test_utils::refusal::tagged(1)),
                 }),
                 BadgeSite::FeatureTree,
             ),
@@ -3124,7 +3254,7 @@ mod tests {
                 carried: Vec::new(),
             },
             RowStatus::Poisoned {
-                through: RecipeNodeId(1),
+                through: RecipeNodeId(test_utils::refusal::tagged(1)),
                 message: None,
             },
             RowStatus::Unevaluated,
@@ -3199,10 +3329,13 @@ mod tests {
     /// commonest arm, and the one whose `Display` carries a remedy.
     fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
         Withdrawn {
-            instance: RecipeNodeId(instance),
+            instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::MateConstrained {
-                instance: RecipeNodeId(instance),
-                mates: mates.iter().copied().map(RecipeNodeId).collect(),
+                instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
+                mates: mates
+                    .iter()
+                    .map(|&mate| RecipeNodeId(test_utils::refusal::tagged(mate)))
+                    .collect(),
             },
         }
     }
@@ -3216,7 +3349,7 @@ mod tests {
         // line instead of to the notices is erased by its own cause.
         let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
         assert!(
-            notice.contains("instance 7"),
+            notice.contains("instance 000000000007"),
             "the notice names which of the user's placements went — here in \
              the part-instance vocabulary, because the MateConstrained arm's \
              subject is an instance. That is `AdmissionFault`'s per-arm rule \
@@ -3256,8 +3389,8 @@ mod tests {
         // sentence names the mates AND the remedy, and neither string
         // is written here — both come from `AdmissionFault`'s `Display`.
         let cause = AdmissionFault::MateConstrained {
-            instance: RecipeNodeId(3),
-            mates: vec![RecipeNodeId(5)],
+            instance: RecipeNodeId(test_utils::refusal::tagged(3)),
+            mates: vec![RecipeNodeId(test_utils::refusal::tagged(5))],
         };
         let notice = superseded_text(&[constrained(3, &[5])]).expect("news");
         assert!(
@@ -3273,15 +3406,15 @@ mod tests {
         // not say: an instance that is GONE says so, rather than being
         // named as if the tree still drew it.
         let gone = superseded_text(&[Withdrawn {
-            instance: RecipeNodeId(4),
+            instance: RecipeNodeId(test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: RecipeNodeId(4),
+                node: RecipeNodeId(test_utils::refusal::tagged(4)),
             },
         }])
         .expect("news");
         assert_eq!(
             gone,
-            "free move: a committed placement was discarded — node 4 is not in the document"
+            "free move: a committed placement was discarded — node 000000000004 is not in the document"
         );
     }
 
@@ -3293,11 +3426,11 @@ mod tests {
         // free-move preamble are both absent, and the fault says which
         // of the two things happened to the picture.
         let fused = Withdrawn {
-            instance: RecipeNodeId(3),
+            instance: RecipeNodeId(test_utils::refusal::tagged(3)),
             cause: AdmissionFault::FusedGeometry {
-                instance: RecipeNodeId(3),
-                root: RecipeNodeId(8),
-                others: vec![RecipeNodeId(5)],
+                instance: RecipeNodeId(test_utils::refusal::tagged(3)),
+                root: RecipeNodeId(test_utils::refusal::tagged(8)),
+                others: vec![RecipeNodeId(test_utils::refusal::tagged(5))],
             },
         };
         let notice = dropped_hide_text(core::slice::from_ref(&fused)).expect("news");
@@ -3343,17 +3476,17 @@ mod tests {
         // Reachable in production: one boolean fusing two hidden
         // instances withdraws both hides in one prune.
         let fused = |instance: u64, other: u64| Withdrawn {
-            instance: RecipeNodeId(instance),
+            instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::FusedGeometry {
-                instance: RecipeNodeId(instance),
-                root: RecipeNodeId(8),
-                others: vec![RecipeNodeId(other)],
+                instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
+                root: RecipeNodeId(test_utils::refusal::tagged(8)),
+                others: vec![RecipeNodeId(test_utils::refusal::tagged(other))],
             },
         };
         let gone = Withdrawn {
-            instance: RecipeNodeId(4),
+            instance: RecipeNodeId(test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: RecipeNodeId(4),
+                node: RecipeNodeId(test_utils::refusal::tagged(4)),
             },
         };
 
@@ -3383,7 +3516,7 @@ mod tests {
         assert_eq!(
             dropped_hide_text(core::slice::from_ref(&gone)).expect("news"),
             "hide: a hide was dropped with the instance it was on — \
-             node 4 is not in the document"
+             node 000000000004 is not in the document"
         );
     }
 
@@ -3397,7 +3530,7 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             instance 3 is mate-constrained (mate node(s) 5): its pose is \
+             instance 000000000003 is mate-constrained (mate node(s) 000000000005): its pose is \
              mate-derived, so the free-move probe refuses — delete the mate(s) if \
              free relative motion is intended"
         );
@@ -3515,5 +3648,100 @@ mod tests {
         // `Withdrawal::of`'s decision, executed through the one door
         // rather than asserted of each constructor.
         assert_eq!(Withdrawal::all(&PruneReport::default()).count(), 0);
+    }
+
+    /// **Which arm of [`PartFault`] a census witness stands for** — an
+    /// exhaustive match, so a new arm does not compile until it has an
+    /// index here and a witness below.
+    fn part_fault_arm(fault: &PartFault) -> usize {
+        match fault {
+            PartFault::NoResolver => 0,
+            PartFault::Unresolved { fault, .. } => match fault {
+                ResolveFault::PinMismatch => 1,
+                ResolveFault::EpsilonSeam => 2,
+                ResolveFault::Unresolved => 3,
+            },
+            PartFault::PartRootFailed { .. } => 4,
+            PartFault::PartRootPoisoned { .. } => 5,
+            PartFault::RootFailureUnrecorded { .. } => 6,
+            PartFault::PartProduct { .. } => 7,
+            PartFault::ReferenceCycle { .. } => 8,
+            PartFault::DepthExceeded => 9,
+            PartFault::NotEntered => 10,
+        }
+    }
+
+    /// **Only a pin that no longer holds offers the accept**, over one
+    /// witness of every [`PartFault`] arm, naming the part by the file
+    /// the scan found. The part-root arms carry a NESTED pin mismatch:
+    /// that pin is the part's own reference, repaired in the part, so
+    /// it offers nothing here. Red if any other arm offers, or the
+    /// offer names another part.
+    #[test]
+    fn only_a_pin_that_no_longer_holds_offers_the_accept() {
+        use pncad::document::{NodeRefusal, ProductErrorKind};
+
+        use crate::test_support::{PART_FILE, part_refused};
+        let unresolved = |fault| PartFault::Unresolved {
+            fault,
+            message: "the store's own words".to_owned(),
+        };
+        let (mismatch, _) = part_refused(unresolved(ResolveFault::PinMismatch));
+        let NodeErrorKind::Part { doc_ref, .. } = &mismatch else {
+            unreachable!("the fixture is a part refusal")
+        };
+        let nested = || NodeRefusal::from(part_refused(unresolved(ResolveFault::PinMismatch)).0);
+        let witnesses = [
+            PartFault::NoResolver,
+            unresolved(ResolveFault::PinMismatch),
+            unresolved(ResolveFault::EpsilonSeam),
+            unresolved(ResolveFault::Unresolved),
+            PartFault::PartRootFailed {
+                node: RecipeNodeId(test_utils::refusal::tagged(7)),
+                refusal: nested(),
+            },
+            PartFault::PartRootPoisoned {
+                root: RecipeNodeId(test_utils::refusal::tagged(8)),
+                through: RecipeNodeId(test_utils::refusal::tagged(7)),
+                refusal: nested(),
+            },
+            PartFault::RootFailureUnrecorded {
+                node: RecipeNodeId(test_utils::refusal::tagged(7)),
+            },
+            PartFault::PartProduct {
+                kind: ProductErrorKind::RootFailed,
+                message: "the part's product refused".to_owned(),
+            },
+            PartFault::ReferenceCycle {
+                cycle: vec![*doc_ref],
+            },
+            PartFault::DepthExceeded,
+            PartFault::NotEntered,
+        ];
+        let mut seen = [false; 11];
+        for fault in witnesses {
+            let arm = part_fault_arm(&fault);
+            assert!(!seen[arm], "two witnesses for arm {arm}: {fault:?}");
+            seen[arm] = true;
+            let offers = arm == part_fault_arm(&unresolved(ResolveFault::PinMismatch));
+            let (kind, files) = part_refused(fault);
+            match version_offer(&kind, &files) {
+                Some(offer) => {
+                    assert!(offers, "only a pin mismatch offers: {kind:?}");
+                    assert!(
+                        matches!(offer.accept(), SessionOp::AcceptPartVersion { id } if id == doc_ref.id),
+                        "{:?}",
+                        offer.accept()
+                    );
+                    assert!(
+                        Refusal::version_question(&offer).contains(PART_FILE),
+                        "{}",
+                        Refusal::version_question(&offer)
+                    );
+                }
+                None => assert!(!offers, "a pin mismatch offers the accept"),
+            }
+        }
+        assert!(seen.iter().all(|&s| s), "arms with no witness: {seen:?}");
     }
 }

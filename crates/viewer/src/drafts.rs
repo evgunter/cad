@@ -11,21 +11,26 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use std::collections::BTreeMap;
+
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    RecipeNodeId, RecordedProgramError, SlotId,
+    BooleanOp, Dimension, DimensionError, Doc, Expr, Label, LabelFault, LoopProgram, Maintenance,
+    Node, ParamName, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
 use pncad::profile::{Step, Target};
-use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 use pncad::select::SplitHalf;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
 use crate::forms::{DatumKindChoice, PartSelectChoice, PatternKindChoice, ShapeKind};
+use crate::history::HistoryId;
+use crate::props::Notation;
 use crate::seats::SeatError;
-use crate::session::{DatumSpec, FaceSelection, ProfilePlane, ProfileShape, SessionOp};
+use crate::session::{
+    DatumSpec, DeclareOffer, FaceSelection, ProfilePlane, ProfileShape, SessionOp,
+};
 use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
@@ -35,14 +40,14 @@ use crate::sketch::{self, HeldRefusal};
 /// abandoned by selecting elsewhere leaves nothing behind.
 #[derive(Debug)]
 pub(crate) struct Drafts {
-    /// The View pane's δ field, in millimetres AS TYPED: `Some` only
+    /// The View pane's δ field, in the working length unit AS TYPED: `Some` only
     /// once a keystroke has landed in it, and only while it holds the
     /// focus that keystroke arrived under. `None` otherwise, so a
     /// field nobody has typed into shows the δ actually in force —
     /// including one the triangle budget chose after this field last
     /// committed — and has nothing of its own to commit when the focus
     /// leaves it.
-    pub(crate) delta_mm: Option<String>,
+    pub(crate) delta_text: Option<String>,
     /// The slot whose value field is holding REFUSED text.
     ///
     /// The field's text is egui's while it has focus and the
@@ -140,40 +145,21 @@ pub(crate) struct Drafts {
     /// ([`crate::session::face_frame_seat`]), so a face an undo took
     /// away is refused rather than authored.
     ///
-    /// **Across documents it is, and the hazard is the form's known
-    /// one.** The gate cannot tell one document's names from another's
-    /// — a `RecipeNodeId` is a small integer and a `StableName` carries
-    /// no document identity — and nothing resets `Drafts` when the
-    /// session opens a new document, so a pick held here can resolve
-    /// against a second document whose ids coincide. That is true of
-    /// [`Self::datum_frame`] and of every other held pick on this
-    /// struct, so it is the form's class rather than this seat's:
+    /// **Across documents it would be**: the gate cannot tell one
+    /// document's names from another's — a `RecipeNodeId` is a small
+    /// integer and a `StableName` carries no document identity — and
+    /// the viewport marks this pick, so a stale one would light, and
+    /// the button commit against, a same-numbered face of the next
+    /// document. A document replacement therefore drops it
+    /// ([`Self::document_replaced`]). The form's other held picks keep
+    /// the hazard:
     /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
-    /// carries it.
+    /// carries them.
     pub(crate) datum_face: Option<FaceSelection>,
     /// The frame-on-face form's spin, radians — sketch +x's rotation
     /// about the face's outward normal. Opens at zero, the
     /// carrier's own u-reference.
     pub(crate) datum_spin: f64,
-    /// **The unit every creation form's LENGTH field is written in.**
-    ///
-    /// ONE choice for all the forms, not one per form. The panel's
-    /// pickers are per literal because a literal is a thing in a
-    /// document that remembers its own notation; a form's is a
-    /// statement about how the person at the keyboard is working, and
-    /// somebody who authors a datum in millimetres is not then
-    /// authoring the extrude that consumes it in metres. The drafts
-    /// behind the fields stay canonical either way ([`crate::widgets::unit_field`]),
-    /// so moving the picker re-writes what is on screen and changes
-    /// no value.
-    /// Not optional: an authored value always names the notation it is
-    /// written in (`quantity::written`'s module docs), so the field and
-    /// the picker beside it read one fact rather than each resolving an
-    /// absence its own way.
-    pub(crate) length_unit: LengthUnit,
-    /// The same for every ANGLE field. Defaults to half turns
-    /// (`pi rad`), the notation this editor says angles in.
-    pub(crate) angle_unit: AngleUnit,
     /// The add-profile form's shape choice — `None` until the user
     /// makes one.
     ///
@@ -217,6 +203,10 @@ pub(crate) struct Drafts {
     pub(crate) revolve_angle: f64,
     /// The boolean tool's operation choice.
     pub(crate) boolean_op: BooleanOp,
+    /// The offer an undeclared-contact refusal made
+    /// ([`crate::frame::declare_offer`]); shown in the boolean tool
+    /// while it stands ([`DeclareOffer::is_for`]).
+    pub(crate) declare_offer: Option<DeclareOffer>,
     /// The transform tool's translation, metres.
     pub(crate) transform_translation: [f64; 3],
     /// Its rotation axis (unitless).
@@ -263,6 +253,29 @@ pub(crate) struct Drafts {
     /// selected, and dropped the moment the selection leaves the node
     /// it was loaded from ([`Drafts::abandon_profile_edit_off`]).
     pub(crate) profile_edit: Option<ProfileEdit>,
+    /// **The rename field's text, as typed**, and the node it renames:
+    /// `Some` once a keystroke has landed, taken when the field
+    /// commits. `None` shows the label the node has.
+    pub(crate) label_text: Option<(RecipeNodeId, String)>,
+    /// **A create form's label, as typed**, by the kind noun the form
+    /// creates. A form nobody has typed into has no entry and shows
+    /// the proposal ([`crate::tree::proposed_label`]) for that moment;
+    /// the entry is taken when the form commits.
+    pub(crate) creation_labels: BTreeMap<&'static str, String>,
+}
+
+/// **A label field's text, as the document's label**: blank clears
+/// (`None`); anything else is held to the label rule.
+///
+/// # Errors
+///
+/// [`LabelFault`] for a text the rule refuses — one with a line break
+/// or another control character.
+pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    Label::new(text).map(Some)
 }
 
 /// **One value per door of the profile editor** — the add-profile
@@ -332,9 +345,11 @@ impl DoorLoops {
 /// currency** — the kernel's [`Step`] at plain numbers, one list per
 /// loop — so the one editor that authors a new profile edits this one.
 ///
-/// It keeps the program it was loaded FROM, which is what an edit is
-/// measured against ([`sketch::program_edits`]) and what tells the
-/// holder the document has moved under it.
+/// It keeps the program it was loaded FROM, which is what tells the
+/// holder the document has moved under it, and beside every held step
+/// the committed step it was loaded as ([`Self::ids`]) — which is what
+/// the edit door is told each step IS, so a name on a committed step
+/// follows it through the reshaping or is reported stranded.
 #[derive(Debug)]
 pub(crate) struct ProfileEdit {
     /// The profile node.
@@ -342,10 +357,63 @@ pub(crate) struct ProfileEdit {
     /// The committed program the loops were loaded from.
     base: ProfileProgram,
     /// The loops as the editor holds them, in description order.
-    pub(crate) loops: Vec<Vec<Step<f64>>>,
+    loops: Vec<Vec<Step<f64>>>,
+    /// Per held loop, per held step: the committed step it was loaded
+    /// as, carried through every row edit ([`Self::edit_row`]); `None`
+    /// for a row the editor made. The same shape as `loops`, always.
+    loaded_as: Vec<Vec<Option<StepId>>>,
+    /// The base program's steps as the editor first held them, by id
+    /// — what [`Self::ids`] asks a held step whether it still draws.
+    base_steps: BTreeMap<StepId, Step<f64>>,
+    /// The edit door's report for the last held state it was asked
+    /// about ([`Self::report`]).
+    report: Option<HeldReport>,
+}
+
+/// What the edit door would report for one held state, and the state:
+/// the history state it was asked over, the held program and its ids.
+#[derive(Debug)]
+struct HeldReport {
+    at: HistoryId,
+    loops: Vec<LoopProgram>,
+    ids: Vec<Vec<Option<StepId>>>,
+    rows: Vec<Maintenance>,
 }
 
 impl ProfileEdit {
+    /// The draft of `program`, held as `loops` ([`sketch::held_loops`]
+    /// of it), every step loaded as itself.
+    fn load(node: RecipeNodeId, program: &ProfileProgram, loops: Vec<Vec<Step<f64>>>) -> Self {
+        let loaded_as = sketch::kept_in_place(program);
+        let shaped = program.ids.len() == loops.len()
+            && program
+                .ids
+                .iter()
+                .zip(&loops)
+                .all(|(ids, steps)| ids.len() == steps.len());
+        if !shaped {
+            unreachable!(
+                "a program at rest carries one id per authored step, and `held_loops` holds one \
+                 step per authored step"
+            )
+        }
+        let base_steps = program
+            .ids
+            .iter()
+            .flatten()
+            .copied()
+            .zip(loops.iter().flatten().copied())
+            .collect();
+        Self {
+            node,
+            base: program.clone(),
+            loops,
+            loaded_as,
+            base_steps,
+            report: None,
+        }
+    }
+
     /// The frame the profile is drawn on — a reference the edit door
     /// does not rewrite.
     pub(crate) fn plane(&self) -> RecipeNodeId {
@@ -357,6 +425,76 @@ impl ProfileEdit {
     /// loaded from a program the document no longer holds.
     pub(crate) fn base(&self) -> &ProfileProgram {
         &self.base
+    }
+
+    /// The held loops, in description order.
+    pub(crate) fn loops(&self) -> &[Vec<Step<f64>>] {
+        &self.loops
+    }
+
+    /// One held loop's steps, for their fields to write — a slice, so
+    /// the list's SHAPE changes only through [`Self::edit_row`].
+    pub(crate) fn steps_mut(&mut self, loop_: usize) -> &mut [Step<f64>] {
+        &mut self.loops[loop_]
+    }
+
+    /// Apply a row edit to held loop `loop_`, and to what each of its
+    /// rows was loaded as.
+    pub(crate) fn edit_row(&mut self, loop_: usize, edit: RowEdit) {
+        edit.shape(&mut self.loaded_as[loop_], |_| None);
+        edit.apply(&mut self.loops[loop_]);
+    }
+
+    /// **Which committed step each held step is** — `SetProgram`'s
+    /// `ids`: per loop, per step, the id it was loaded as while it
+    /// still draws that step's pieces (`draws_as`), else `None`, so
+    /// a kept id never hands a name a piece of another role.
+    pub(crate) fn ids(&self) -> Vec<Vec<Option<StepId>>> {
+        self.loops
+            .iter()
+            .zip(&self.loaded_as)
+            .map(|(steps, loaded_as)| {
+                steps
+                    .iter()
+                    .zip(loaded_as)
+                    .map(|(step, id)| {
+                        let id = (*id)?;
+                        let was = self.base_steps.get(&id)?;
+                        draws_as(was, step).then_some(id)
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// **What committing the held program would report**, asked of
+    /// `door` — the edit door's own rows for the `SetProgram` it would
+    /// be — once per held state: the answer is kept until the program,
+    /// its ids or the history state `at` moves. A held state that does
+    /// not lower reports nothing; its refusal is the preview's.
+    pub(crate) fn report(
+        &mut self,
+        at: HistoryId,
+        door: impl FnOnce(Vec<LoopProgram>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
+    ) -> &[Maintenance] {
+        let Ok(loops) = self.programs(Notation::CANONICAL) else {
+            return &[];
+        };
+        let ids = self.ids();
+        let fresh = self
+            .report
+            .as_ref()
+            .is_some_and(|held| held.at == at && held.loops == loops && held.ids == ids);
+        if !fresh {
+            let rows = door(loops.clone(), ids.clone());
+            self.report = Some(HeldReport {
+                at,
+                loops,
+                ids,
+                rows,
+            });
+        }
+        self.report.as_ref().map_or(&[], |held| &held.rows)
     }
 
     /// The held loops as the shapes the preview and the lowering take.
@@ -372,22 +510,20 @@ impl ProfileEdit {
     /// [`sketch::loop_program`]'s: a non-finite field.
     pub(crate) fn programs(
         &self,
-        notation: sketch::Notation,
+        notation: Notation,
     ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
         sketch::loop_programs(&self.shapes(), notation)
     }
 
-    /// **Whether applying would write anything** — the edit door's own
-    /// question ([`sketch::program_edits`]) asked of the loaded
-    /// program. A held state that does not lower, or does not have the
-    /// committed program's structure, counts as moved: applying it is
-    /// how the refusal is said.
+    /// **Whether applying would write anything**: the held program,
+    /// every step kept where it was loaded, is not the committed one
+    /// (by value, blind to notation — the door's own no-op). A held
+    /// state that does not lower counts as moved: applying it is how
+    /// its refusal is said.
     pub(crate) fn moved(&self) -> bool {
         let untouched = self
-            .programs(sketch::Notation::CANONICAL)
-            .ok()
-            .and_then(|loops| sketch::program_edits(&self.base, &loops).ok())
-            .is_some_and(|edits| edits.is_empty());
+            .programs(Notation::CANONICAL)
+            .is_ok_and(|loops| sketch::is_committed(&self.base, &loops, &self.ids()));
         !untouched
     }
 
@@ -398,8 +534,66 @@ impl ProfileEdit {
     /// Never in practice — the base was loadable once — but typed
     /// rather than assumed: [`sketch::held_loops`]'s refusal.
     pub(crate) fn revert(&mut self, doc: &Doc<ProfileProgram>) -> Result<(), HeldRefusal> {
-        self.loops = sketch::held_loops(doc, self.node)?;
+        let loops = sketch::held_loops(doc, self.node)?;
+        *self = Self::load(self.node, &self.base, loops);
         Ok(())
+    }
+}
+
+/// Whether `now` draws the pieces `was` drew: the same verb, whose
+/// role list it draws from, and the same piece count
+/// ([`Step::pieces`]).
+fn draws_as(was: &Step<f64>, now: &Step<f64>) -> bool {
+    was.verb() == now.verb() && was.pieces() == now.pieces()
+}
+
+/// **A change to the SHAPE of one step list** — what a step row's
+/// glyph controls, its verb picker and the list's own controls ask
+/// for, applied once the list has been drawn (a list cannot be
+/// reshaped while its rows are being iterated).
+#[derive(Clone, Debug)]
+pub(crate) enum RowEdit {
+    /// Row `index` becomes `step`: a fresh step of the verb the row's
+    /// picker chose, with no number carried across.
+    Replace {
+        /// The row.
+        index: usize,
+        /// The fresh step.
+        step: Step<f64>,
+    },
+    /// Row `index` goes.
+    Remove(usize),
+    /// `step` is inserted at `at`.
+    Insert {
+        /// Where it lands.
+        at: usize,
+        /// The fresh step.
+        step: Step<f64>,
+    },
+    /// Two rows trade places.
+    Swap(usize, usize),
+    /// Every row goes.
+    Clear,
+}
+
+impl RowEdit {
+    /// The edit, made to `steps`.
+    pub(crate) fn apply(&self, steps: &mut Vec<Step<f64>>) {
+        self.shape(steps, |step| *step);
+    }
+
+    /// The edit made to a list of one entry per row, where a replaced
+    /// or inserted row holds `fresh` of its step.
+    fn shape<T>(&self, rows: &mut Vec<T>, fresh: impl FnOnce(&Step<f64>) -> T) {
+        match self {
+            Self::Replace { index, step } => rows[*index] = fresh(step),
+            Self::Remove(index) => {
+                rows.remove(*index);
+            }
+            Self::Insert { at, step } => rows.insert(*at, fresh(step)),
+            Self::Swap(a, b) => rows.swap(*a, *b),
+            Self::Clear => rows.clear(),
+        }
     }
 }
 
@@ -411,7 +605,7 @@ impl Default for Drafts {
     fn default() -> Self {
         let (_, xy_u, xy_v) = ProfilePlane::xy_numbers();
         Self {
-            delta_mm: None,
+            delta_text: None,
             expr_target: None,
             expr_text: String::new(),
             new_param_name: String::new(),
@@ -438,8 +632,6 @@ impl Default for Drafts {
             datum_in_frame_direction: [0.0, 1.0],
             datum_face: None,
             datum_spin: 0.0,
-            length_unit: quantity::M,
-            angle_unit: quantity::PI,
             profile_shape: None,
             profile_path: vec![
                 Step::At(Point2::origin()),
@@ -456,6 +648,7 @@ impl Default for Drafts {
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
             boolean_op: BooleanOp::Union,
+            declare_offer: None,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,
@@ -476,6 +669,8 @@ impl Default for Drafts {
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
             profile_edit: None,
+            label_text: None,
+            creation_labels: BTreeMap::new(),
         }
     }
 }
@@ -555,6 +750,11 @@ impl Drafts {
     /// untouched again, and still open on the node, which is where the
     /// person is still working.
     pub(crate) fn accepted(&mut self, op: &SessionOp, minted: &[RecipeNodeId]) {
+        // A labelled creation settles the form its creation came from.
+        let op = match op {
+            SessionOp::CreateLabelled { creation, .. } => creation.op(),
+            op => op,
+        };
         let SessionOp::AddProfile { plane, .. } = op else {
             return;
         };
@@ -569,12 +769,31 @@ impl Drafts {
         }
     }
 
-    /// **The notation these forms are authoring in** — the two pickers,
-    /// as the lowering wants them.
-    pub(crate) fn notation(&self) -> sketch::Notation {
-        sketch::Notation {
-            length: self.length_unit,
-            angle: self.angle_unit,
+    /// **The rename field is showing `shown`'s label** (`None`: no
+    /// rename field is showing). A rename typed for any other node is
+    /// dropped, so it can neither reappear on a later visit nor commit
+    /// against a node it was not typed for.
+    pub(crate) fn rename_shown_for(&mut self, shown: Option<RecipeNodeId>) {
+        if self
+            .label_text
+            .as_ref()
+            .is_some_and(|(typed_for, _)| Some(*typed_for) != shown)
+        {
+            self.label_text = None;
+        }
+    }
+
+    /// **A creation landed**: the label its form held is spent, so the
+    /// next creation of that kind proposes afresh. The form is found by
+    /// the kind noun of the last node the action minted — the noun a
+    /// form's label field is keyed by, which is that node's kind
+    /// (`each_datum_choices_noun_is_the_kind_of_the_node_it_commits`,
+    /// `creation_nouns`). Called only for an op that committed, so a
+    /// refused creation keeps what was typed.
+    pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
+        if let Some(node) = minted.last().and_then(|id| doc.node(*id)) {
+            self.creation_labels
+                .remove(pncad::document::node_kind_noun(node));
         }
     }
 
@@ -611,13 +830,9 @@ impl Drafts {
             self.profile_edit = None;
             let loops = sketch::held_loops(doc, node)?;
             let Some(base) = current else {
-                unreachable!("`held_loops` loaded feature {} as a profile", node.0)
+                unreachable!("`held_loops` loaded node {} as a profile", node)
             };
-            self.profile_edit = Some(ProfileEdit {
-                node,
-                base: base.clone(),
-                loops,
-            });
+            self.profile_edit = Some(ProfileEdit::load(node, base, loops));
         }
         let Some(held) = self.profile_edit.as_mut() else {
             unreachable!("the edit draft was kept or loaded just above")
@@ -663,19 +878,21 @@ impl Drafts {
     }
 
     /// **The committed profile the edit door is drawing in place of
-    /// its committed loops** — the draft's node, when the edit door's
-    /// preview this frame REPLAYED (`edit_preview`, taken from
+    /// its committed loops** — the draft's node, whenever the edit
+    /// door took a preview this frame (`edit_preview`, taken from
     /// [`Self::door_loops`]'s `edit`). The committed-profile pass
     /// leaves it out (`sketch::committed`'s `except`), so the node
-    /// shows only its live preview; a preview that refused draws
-    /// nothing, and then the committed drawing stays up.
+    /// shows only the edit: what its preview draws, which for a
+    /// refused step is the prefix before it and may be nothing, beside
+    /// the form's sentence. Whether the committed shape shows does not
+    /// turn on whether a prefix happened to replay.
     pub(crate) fn edited_in_place(
         &self,
         edit_preview: Option<&Result<sketch::ProfilePreview, sketch::PreviewError>>,
     ) -> Option<RecipeNodeId> {
         self.profile_edit
             .as_ref()
-            .filter(|_| matches!(edit_preview, Some(Ok(_))))
+            .filter(|_| edit_preview.is_some())
             .map(|edit| edit.node)
     }
 
@@ -693,62 +910,44 @@ impl Drafts {
     }
 
     /// The loop PROGRAMS the add-profile form would author right now:
-    /// [`Drafts::profile_loops`] lowered in this form's notation, which
+    /// [`Drafts::profile_loops`] lowered in the working `notation`, which
     /// is what the op carries.
     ///
     /// # Errors
     ///
     /// A non-finite field, or a path that is not a program's shape
     /// ([`sketch::loop_program`]'s refusals).
-    pub(crate) fn profile_programs(&self) -> Result<Vec<LoopProgram>, RecordedProgramError> {
-        sketch::loop_programs(&self.profile_loops(), self.notation())
+    pub(crate) fn profile_programs(
+        &self,
+        notation: Notation,
+    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+        sketch::loop_programs(&self.profile_loops(), notation)
     }
 
-    /// A `Length` literal from a draft field, remembering the form's
-    /// notation. The draft is already canonical — a picker re-writes
-    /// what is on screen and changes no value — so this attaches the
-    /// unit without applying it.
-    ///
-    /// # Errors
-    ///
-    /// A non-finite draft (the literal door's refusal).
-    pub(crate) fn length(&self, metres: f64) -> Result<Expr, DimensionError> {
-        Expr::written_length(WrittenLength::canonical_in(metres, self.length_unit))
+    /// **Another document replaced the one the held face was picked
+    /// in** (an open, a new document): the latch names nothing in it.
+    pub(crate) fn document_replaced(&mut self) {
+        self.datum_face = None;
     }
 
-    /// An `Angle` literal from a draft field — [`Drafts::length`]'s
-    /// twin.
+    /// **The face this form holds**: [`Self::datum_face`] while the
+    /// chosen kind is the one that reads it, `None` under every other.
     ///
-    /// # Errors
-    ///
-    /// A non-finite draft.
-    pub(crate) fn angle(&self, radians: f64) -> Result<Expr, DimensionError> {
-        Expr::written_angle(WrittenAngle::canonical_in(radians, self.angle_unit))
-    }
-
-    /// Three `Length` literals — a datum origin, a translation.
-    ///
-    /// # Errors
-    ///
-    /// A non-finite component.
-    pub(crate) fn lengths(&self, v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
-        Ok([self.length(v[0])?, self.length(v[1])?, self.length(v[2])?])
-    }
-
-    /// Two `Length` literals — a point in a sketch frame.
-    ///
-    /// # Errors
-    ///
-    /// A non-finite component.
-    pub(crate) fn lengths2(&self, p: Point2<f64>) -> Result<[Expr; 2], DimensionError> {
-        Ok([self.length(p.x)?, self.length(p.y)?])
+    /// Under another kind the latch is kept, not held — nothing the
+    /// form commits reads it — so switching kind releases the pick,
+    /// and switching back holds it again. What the viewport marks as
+    /// held (`crate::marks::Held`).
+    pub(crate) fn held_face(&self) -> Option<&FaceSelection> {
+        self.datum_face
+            .as_ref()
+            .filter(|_| self.datum_kind == DatumKindChoice::FaceFrame)
     }
 
     /// **The add-datum form's drafts as a spec**, for the kind chosen:
     /// lengths in the form's notation, a normal or a direction
     /// dimensionless. `Ok(None)` is a SEAT still unfilled — an axis in
     /// a sketch with no frame chosen, a frame on a face whose gate has
-    /// not answered — and the form holds its button until it is
+    /// not answered — and the form withholds its button until it is
     /// filled, saying which pick it wants in that kind's own words
     /// ([`DatumKindChoice::unmet_seat`]).
     ///
@@ -760,7 +959,7 @@ impl Drafts {
     /// another, which is the defect this seat exists to close. `None`
     /// is every reason the gate did not answer — no face picked, a
     /// curved carrier, a name that no longer resolves — and the gate's
-    /// own sentence is what the form draws beside the held button.
+    /// own sentence is what the form draws beside the withheld button.
     ///
     /// # Errors
     ///
@@ -768,19 +967,20 @@ impl Drafts {
     pub(crate) fn datum_spec(
         &self,
         face_seat: Option<&(RecipeNodeId, StableName)>,
+        notation: Notation,
     ) -> Result<Option<DatumSpec>, DimensionError> {
         Ok(Some(match self.datum_kind {
             DatumKindChoice::Plane => DatumSpec::Plane {
-                origin: self.lengths(self.datum_origin)?,
+                origin: notation.length_literals(self.datum_origin)?,
                 normal: scalars(self.datum_direction)?,
             },
             DatumKindChoice::Frame => DatumSpec::Frame {
-                origin: self.lengths(self.datum_origin)?,
+                origin: notation.length_literals(self.datum_origin)?,
                 u: scalars(self.datum_u)?,
                 v: scalars(self.datum_v)?,
             },
             DatumKindChoice::Axis => DatumSpec::Axis {
-                origin: self.lengths(self.datum_origin)?,
+                origin: notation.length_literals(self.datum_origin)?,
                 direction: scalars(self.datum_direction)?,
             },
             DatumKindChoice::AxisInPlane => {
@@ -789,7 +989,10 @@ impl Drafts {
                 };
                 DatumSpec::AxisInPlane {
                     plane,
-                    origin: self.lengths2(self.datum_in_frame_origin)?,
+                    origin: notation.point_literals([
+                        self.datum_in_frame_origin.x,
+                        self.datum_in_frame_origin.y,
+                    ])?,
                     direction: scalars2(self.datum_in_frame_direction)?,
                 }
             }
@@ -803,11 +1006,11 @@ impl Drafts {
                 DatumSpec::FaceFrame {
                     at: *at,
                     face: face.clone(),
-                    spin: self.angle(self.datum_spin)?,
+                    spin: notation.angle_literal(self.datum_spin)?,
                 }
             }
             DatumKindChoice::Point => DatumSpec::Point {
-                position: self.lengths(self.datum_origin)?,
+                position: notation.length_literals(self.datum_origin)?,
             },
         }))
     }
@@ -888,12 +1091,13 @@ mod tests {
         CancelToken, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram, RecipeNodeId, evaluate,
     };
     use pncad::geom_core::{Point2, Tol};
-    use pncad::profile::{Step, Target};
+    use pncad::profile::{ArcData, Step, Target};
 
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
-    use super::{Drafts, ProfileEdit};
+    use super::{Drafts, ProfileEdit, RowEdit};
     use crate::forms::{DatumKindChoice, ShapeKind};
+    use crate::props::Notation;
     use crate::seats::Seat;
     use crate::session::SessionOp;
     use crate::session::author::datum_node;
@@ -920,7 +1124,7 @@ mod tests {
             ..Drafts::default()
         };
         let loops = drafts
-            .profile_programs()
+            .profile_programs(Notation::DEFAULT)
             .expect("the default circle lowers");
         drafts.accepted(
             &SessionOp::AddProfile {
@@ -937,6 +1141,68 @@ mod tests {
         assert_eq!(drafts.profile_shape, None, "the shape still rests");
     }
 
+    /// A rename draft survives only while its own node's field shows.
+    #[test]
+    fn a_rename_draft_is_dropped_when_the_pane_moves_off_its_node() {
+        let (typed_for, other) = (RecipeNodeId(3), RecipeNodeId(4));
+        let mut drafts = Drafts {
+            label_text: Some((typed_for, "lid".to_owned())),
+            ..Drafts::default()
+        };
+        drafts.rename_shown_for(Some(typed_for));
+        assert!(drafts.label_text.is_some(), "kept while its node shows");
+        drafts.rename_shown_for(Some(other));
+        assert_eq!(drafts.label_text, None, "dropped on another node");
+        drafts.label_text = Some((typed_for, "lid".to_owned()));
+        drafts.rename_shown_for(None);
+        assert_eq!(drafts.label_text, None, "dropped with no node shown");
+    }
+
+    /// A labelled creation settles its form as the bare creation does,
+    /// and spends the label draft of the kind it minted — only once it
+    /// has landed, and only that kind's.
+    #[test]
+    fn a_landed_creation_spends_its_kinds_label_draft_and_settles_its_form() {
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("drafts-creation-landed", tol);
+        let (doc, frame) = inserted(&doc, xy_frame(), tol);
+        let mut drafts = Drafts {
+            profile_plane: Some(ProfilePlane::NewXy),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+        drafts
+            .creation_labels
+            .insert("Datum frame", "floor".to_owned());
+        drafts.creation_labels.insert("Extrude", "plate".to_owned());
+        let loops = drafts
+            .profile_programs(Notation::DEFAULT)
+            .expect("the default circle lowers");
+        let creation = crate::session::Creation::of(SessionOp::AddProfile {
+            plane: ProfilePlane::NewXy,
+            loops,
+        })
+        .expect("adding a profile creates a node");
+        drafts.accepted(
+            &SessionOp::CreateLabelled {
+                creation,
+                label: pncad::document::Label::new("sketch").expect("a label"),
+            },
+            &[frame],
+        );
+        assert_eq!(
+            drafts.profile_plane,
+            Some(ProfilePlane::Existing(frame)),
+            "the labelled add settles the form as the bare one does"
+        );
+        drafts.creation_landed(&doc, &[frame]);
+        assert_eq!(
+            drafts.creation_labels.keys().copied().collect::<Vec<_>>(),
+            vec!["Extrude"],
+            "the frame's draft is spent, the extrude's kept"
+        );
+    }
+
     /// An accepted add on an EXISTING frame leaves the pick where it
     /// was — the arm that must not follow the rule above, since the
     /// one id it minted is the profile.
@@ -949,7 +1215,7 @@ mod tests {
             ..Drafts::default()
         };
         let loops = drafts
-            .profile_programs()
+            .profile_programs(Notation::DEFAULT)
             .expect("the default circle lowers");
         drafts.accepted(
             &SessionOp::AddProfile {
@@ -981,7 +1247,7 @@ mod tests {
             ..Drafts::default()
         };
         let form = drafts
-            .datum_spec(None)
+            .datum_spec(None, Notation::DEFAULT)
             .expect("the default frame lowers")
             .expect("the frame kind needs no pick");
         let mint = ProfilePlane::world_xy().expect("the mint's own numbers lower");
@@ -1044,6 +1310,40 @@ mod tests {
         )
     }
 
+    /// **A datum choice's noun is the kind of the node it lowers to**:
+    /// the add-datum form's proposed label counts by
+    /// [`DatumKindChoice::noun`], so it has to be `node_kind_noun`'s
+    /// word for what the form commits.
+    #[test]
+    fn each_datum_choices_noun_is_the_kind_of_the_node_it_commits() {
+        for (datum_kind, _) in DatumKindChoice::ALL {
+            let spec = picked(datum_kind)
+                .datum_spec(Some(&seated()), Notation::DEFAULT)
+                .expect("the default drafts are finite")
+                .expect("every pick is filled");
+            assert_eq!(
+                pncad::document::node_kind_noun(&datum_node(spec)),
+                datum_kind.noun(),
+                "{datum_kind:?}"
+            );
+        }
+    }
+
+    /// Blank clears; a label is kept as typed; a text the rule refuses
+    /// is refused.
+    #[test]
+    fn a_label_field_reads_blank_as_clear_and_holds_the_rest_to_the_rule() {
+        assert_eq!(super::label_typed(" \t "), Ok(None));
+        assert_eq!(
+            super::label_typed(" lid ").map(|label| label.map(|l| l.as_str().to_owned())),
+            Ok(Some(" lid ".to_owned()))
+        );
+        assert!(matches!(
+            super::label_typed("a\u{7}b"),
+            Err(pncad::document::LabelFault::Control { at: 1, .. })
+        ));
+    }
+
     /// **Every seat a datum fills can be filled from the add-datum
     /// form.** Each choice the form offers is lowered from its default
     /// drafts, with a frame picked, and every datum seat must admit at
@@ -1059,7 +1359,7 @@ mod tests {
             .into_iter()
             .map(|(datum_kind, _)| {
                 let spec = picked(datum_kind)
-                    .datum_spec(Some(&seated()))
+                    .datum_spec(Some(&seated()), Notation::DEFAULT)
                     .expect("the default drafts are finite");
                 datum_node(spec.expect("every pick is filled"))
             })
@@ -1119,7 +1419,7 @@ mod tests {
         assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
 
         let loops = drafts
-            .profile_programs()
+            .profile_programs(Notation::DEFAULT)
             .expect("the default circle lowers");
         let (doc, profile) = inserted(
             &doc,
@@ -1184,7 +1484,7 @@ mod tests {
                 datum_kind: kind,
                 ..Drafts::default()
             };
-            let waiting = matches!(empty.datum_spec(None), Ok(None));
+            let waiting = matches!(empty.datum_spec(None, Notation::DEFAULT), Ok(None));
             assert_eq!(
                 waiting,
                 kind.unmet_seat().is_some(),
@@ -1194,7 +1494,10 @@ mod tests {
             // And a kind whose picks ARE filled lowers, so the
             // sentence is about the PICK and not about the kind.
             assert!(
-                matches!(picked(kind).datum_spec(Some(&seated())), Ok(Some(_))),
+                matches!(
+                    picked(kind).datum_spec(Some(&seated()), Notation::DEFAULT),
+                    Ok(Some(_))
+                ),
                 "the {label} kind lowers once its picks are filled",
             );
             if let Some(sentence) = kind.unmet_seat() {
@@ -1228,7 +1531,6 @@ mod tests {
         let drafts = Drafts {
             datum_kind: DatumKindChoice::FaceFrame,
             datum_spin: core::f64::consts::FRAC_PI_2,
-            angle_unit: pncad::quantity::DEG,
             ..picked(DatumKindChoice::FaceFrame)
         };
         let held = drafts.datum_face.clone().expect("the form holds a pick");
@@ -1237,7 +1539,13 @@ mod tests {
             at,
             face: name,
             spin,
-        })) = drafts.datum_spec(Some(&seat))
+        })) = drafts.datum_spec(
+            Some(&seat),
+            Notation {
+                angle: pncad::quantity::DEG,
+                ..Notation::DEFAULT
+            },
+        )
         else {
             panic!("a filled seat lowers");
         };
@@ -1271,7 +1579,9 @@ mod tests {
             profile_plane: Some(ProfilePlane::Existing(plane)),
             ..Drafts::default()
         };
-        let loops = drafts.profile_programs().expect("the default path lowers");
+        let loops = drafts
+            .profile_programs(Notation::DEFAULT)
+            .expect("the default path lowers");
         let node = Node::Profile(ProfileProgram {
             plane,
             loops,
@@ -1282,29 +1592,21 @@ mod tests {
         (doc, drafts, profile)
     }
 
-    /// `doc` with the slot writes the edit door would make for `edit`'s
-    /// held loops — [`sketch::program_edits`], applied in order.
+    /// `doc` with the one `SetProgram` the edit door would make for
+    /// `edit`'s held program.
     fn applied(
         doc: &Doc<ProfileProgram>,
         edit: &ProfileEdit,
-        notation: sketch::Notation,
+        notation: Notation,
     ) -> Doc<ProfileProgram> {
-        let loops = edit.programs(notation).expect("finite");
-        let Some(Node::Profile(current)) = doc.node(edit.node) else {
-            panic!("the edited node is a profile")
+        let edit = DocEdit::SetProgram {
+            node: edit.node,
+            loops: edit.programs(notation).expect("finite"),
+            ids: edit.ids(),
         };
-        let edits = sketch::program_edits(current, &loops).expect("same shape");
-        assert_eq!(edits.len(), 1, "one argument moved: {edits:?}");
-        edits.into_iter().fold(doc.clone(), |doc, (slot, expr)| {
-            let edit = DocEdit::SetParam {
-                node: edit.node,
-                slot,
-                expr,
-            };
-            try_edited(&doc, edit, Tol::witness())
-                .expect("the edit door takes it")
-                .0
-        })
+        try_edited(doc, edit, Tol::witness())
+            .expect("the edit door takes it")
+            .0
     }
 
     /// **The create form's profile opens in the edit door untouched**:
@@ -1314,17 +1616,23 @@ mod tests {
     fn the_forms_profile_opens_untouched_and_would_write_nothing() {
         let (doc, mut drafts, profile) = authored_by_the_form();
         let authored = drafts.profile_loops();
-        let notation = drafts.notation();
+        let notation = Notation::DEFAULT;
         let edit = drafts
             .profile_edit(&doc, profile)
             .expect("the editor holds the form's profile");
         assert!(!edit.moved(), "a fresh load has nothing to apply");
         assert!(sketch::authors_same_loops(&edit.shapes(), &authored));
-        let loops = edit.programs(notation).expect("finite");
         let Some(Node::Profile(current)) = doc.node(profile) else {
             panic!("a profile")
         };
-        assert_eq!(sketch::program_edits(current, &loops), Ok(Vec::new()));
+        assert!(
+            sketch::is_committed(
+                current,
+                &edit.programs(notation).expect("finite"),
+                &edit.ids()
+            ),
+            "the held program, every step its committed self, is the committed one"
+        );
     }
 
     /// **The draft follows the document, not the other way round.** A
@@ -1335,7 +1643,7 @@ mod tests {
     #[test]
     fn the_edit_draft_reloads_on_undo_and_is_abandoned_off_selection() {
         let (before, mut drafts, profile) = authored_by_the_form();
-        let notation = drafts.notation();
+        let notation = Notation::DEFAULT;
         let moved_to = Step::LineTo(Target::Point(Point2::new(0.02, 0.0)));
         let same_step = |a: Step<f64>, b: Step<f64>| {
             sketch::authors_same_loops(
@@ -1344,7 +1652,7 @@ mod tests {
             )
         };
         let edit = drafts.profile_edit(&before, profile).expect("held");
-        edit.loops[0][1] = moved_to;
+        edit.steps_mut(0)[1] = moved_to;
         assert!(edit.moved());
         // Held across frames while the document stands still.
         let edit = drafts.profile_edit(&before, profile).expect("held");
@@ -1352,16 +1660,16 @@ mod tests {
         let after = applied(&before, edit, notation);
         let edit = drafts.profile_edit(&after, profile).expect("held");
         assert!(!edit.moved(), "the applied program is the new base");
-        assert!(same_step(edit.loops[0][1], moved_to));
+        assert!(same_step(edit.loops()[0][1], moved_to));
         // Undo: the document the history steps back to.
         let edit = drafts.profile_edit(&before, profile).expect("held");
         assert!(!edit.moved());
         assert!(
-            !same_step(edit.loops[0][1], moved_to),
+            !same_step(edit.loops()[0][1], moved_to),
             "the undone number is gone from the draft"
         );
         // Revert puts typed numbers back.
-        edit.loops[0][2] = Step::LineTo(Target::Point(Point2::new(0.03, 0.03)));
+        edit.steps_mut(0)[2] = Step::LineTo(Target::Point(Point2::new(0.03, 0.03)));
         assert!(edit.moved());
         edit.revert(&before).expect("revertible");
         assert!(!edit.moved());
@@ -1374,10 +1682,151 @@ mod tests {
         assert!(drafts.profile_edit.is_none());
     }
 
+    /// A draft of a one-loop profile of `steps`, committed on a fresh
+    /// document; `(doc, drafts, profile)`.
+    fn held_path(steps: Vec<Step<f64>>) -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
+        let tol = Tol::witness();
+        let (doc, plane) = inserted(&Doc::empty_derived("drafts-ids", tol), xy_frame(), tol);
+        let loops = vec![
+            sketch::loop_program(
+                &crate::session::ProfileShape::Path { steps },
+                Notation::CANONICAL,
+            )
+            .expect("finite"),
+        ];
+        let node = Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        });
+        let (doc, profile) = try_inserted(&doc, node, tol).expect("a profile");
+        (doc, Drafts::default(), profile)
+    }
+
+    /// **A held step is its committed step through every row edit
+    /// around it**: an insert is new, a removal is dropped, a reorder
+    /// moves the id with its row, and a moved number or a changed
+    /// target form is still the step. A verb re-picked in the row's
+    /// combo is a fresh step, and so is a verb changed any other way.
+    #[test]
+    fn a_held_step_keeps_its_id_through_row_edits_and_loses_it_with_its_verb() {
+        let (doc, mut drafts, profile) = authored_by_the_form();
+        let edit = drafts.profile_edit(&doc, profile).expect("held");
+        let &[a, b, c, d, e] = edit.base().ids[0].as_slice() else {
+            panic!("the form's default chain is five steps")
+        };
+        let point = |x, y| Step::LineTo(Target::Point(Point2::new(x, y)));
+        edit.edit_row(
+            0,
+            RowEdit::Insert {
+                at: 2,
+                step: point(0.02, 0.005),
+            },
+        );
+        assert_eq!(
+            edit.ids(),
+            vec![vec![Some(a), Some(b), None, Some(c), Some(d), Some(e)]],
+            "an inserted row is new"
+        );
+        edit.edit_row(0, RowEdit::Swap(3, 4));
+        assert_eq!(
+            edit.ids(),
+            vec![vec![Some(a), Some(b), None, Some(d), Some(c), Some(e)]],
+            "a reordered row carries its id"
+        );
+        edit.edit_row(0, RowEdit::Remove(1));
+        assert_eq!(
+            edit.ids(),
+            vec![vec![Some(a), None, Some(d), Some(c), Some(e)]],
+            "a removed row's id is dropped"
+        );
+        edit.steps_mut(0)[2] = point(0.0, 0.02);
+        edit.steps_mut(0)[4] = Step::LineTo(Target::StartArriving);
+        assert_eq!(
+            edit.ids(),
+            vec![vec![Some(a), None, Some(d), Some(c), Some(e)]],
+            "a moved number and a changed target form are the same step"
+        );
+        edit.edit_row(
+            0,
+            RowEdit::Replace {
+                index: 3,
+                step: point(0.01, 0.01),
+            },
+        );
+        edit.steps_mut(0)[2] = Step::ContinueTo(Target::Point(Point2::new(0.0, 0.02)));
+        assert_eq!(
+            edit.ids(),
+            vec![vec![Some(a), None, None, None, Some(e)]],
+            "a re-picked verb is a fresh step, even back to the same verb, and a changed verb is \
+             one however it changed"
+        );
+        edit.revert(&doc).expect("revertible");
+        assert_eq!(
+            edit.ids(),
+            vec![vec![Some(a), Some(b), Some(c), Some(d), Some(e)]],
+            "a revert loads every step as itself again"
+        );
+        assert!(!edit.moved());
+        let same = edit.loops()[0][1];
+        edit.edit_row(
+            0,
+            RowEdit::Replace {
+                index: 1,
+                step: same,
+            },
+        );
+        assert!(
+            edit.moved(),
+            "a step re-made with the numbers it had is still a new step, which Apply writes"
+        );
+    }
+
+    /// **An arc's mode is the step; a split circle's count is not.** An
+    /// arc drawn another way still draws its one leg. A circle split
+    /// into another number of pieces draws other pieces — its
+    /// `Piece(k)` is another arc — so it keeps nothing, while its
+    /// radius and phase are numbers like any other.
+    #[test]
+    fn an_arc_mode_keeps_the_step_and_a_split_count_does_not() {
+        let (doc, mut drafts, profile) = held_path(vec![
+            Step::At(Point2::new(-0.01, 0.0)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(Point2::new(0.01, 0.0)),
+                b: 1.0,
+            }),
+            Step::LineTo(Target::Start),
+        ]);
+        let edit = drafts.profile_edit(&doc, profile).expect("held");
+        let kept = sketch::kept_in_place(edit.base());
+        edit.steps_mut(0)[1] = Step::ArcTo(ArcData::Via {
+            q: Point2::new(0.0, 0.01),
+            target: Target::Point(Point2::new(0.01, 0.0)),
+        });
+        assert_eq!(edit.ids(), kept, "an arc mode moved");
+
+        let split = |radius, n, phase| Step::CircleSplit {
+            centre: Point2::origin(),
+            radius,
+            n,
+            phase,
+        };
+        let (doc, mut drafts, profile) = held_path(vec![split(0.01, 3, 0.0)]);
+        let edit = drafts.profile_edit(&doc, profile).expect("held");
+        let kept = sketch::kept_in_place(edit.base());
+        edit.steps_mut(0)[0] = split(0.02, 3, 0.5);
+        assert_eq!(edit.ids(), kept, "a split circle's radius and phase moved");
+        edit.steps_mut(0)[0] = split(0.02, 4, 0.5);
+        assert_eq!(edit.ids(), vec![vec![None]], "its count moved");
+    }
+
     /// **The profile being edited shows only its live preview.** The
-    /// edit door's replayed preview stands in for the node, which the
-    /// committed-profile pass then leaves out; a preview that refused
-    /// stands in for nothing, and the committed drawing stays.
+    /// edit door's preview stands in for the node, which the
+    /// committed-profile pass then leaves out; with no preview taken,
+    /// nothing stands in and the committed drawing stays. A refused
+    /// preview's rows are the viewport's
+    /// (`a_refused_edit_hides_the_committed_profile_with_or_without_a_prefix`),
+    /// where the lanes it paints can be read.
     #[test]
     fn the_edited_profile_is_drawn_only_as_its_preview() {
         let tol = Tol::witness();
@@ -1416,14 +1865,6 @@ mod tests {
         let except = drafts.edited_in_place(Some(&preview));
         assert_eq!(except, Some(profile));
         assert!(drawn(except).is_empty(), "the committed loops are left out");
-        // A preview that refuses stands in for nothing.
-        if let Some(edit) = drafts.profile_edit.as_mut() {
-            edit.loops[0] = vec![Step::At(Point2::origin())];
-        }
-        let held = drafts.door_loops().edit.expect("held");
-        let refused = sketch::preview(placement, &held.loops, tol, chord);
-        assert!(refused.is_err(), "a one-point chain does not replay");
-        assert_eq!(drafts.edited_in_place(Some(&refused)), None);
         assert_eq!(drafts.edited_in_place(None), None, "no preview taken");
     }
 }

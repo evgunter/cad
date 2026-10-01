@@ -1,6 +1,7 @@
 //! Deterministic scheduling of the recipe DAG (spec D2): the
-//! evaluation `order` is a pure function of the DAG — Kahn's algorithm
-//! with a min-heap of ready nodes, tiebreak `RecipeNodeId` ascending.
+//! evaluation `order` is a pure function of the document — Kahn's
+//! algorithm with a min-heap of ready nodes, ties broken by position in
+//! [`Doc::order`], the recipe's presentation order.
 //! The parallel path (spec D6) additionally groups nodes into
 //! longest-path LEVELS: every node's inputs live in strictly earlier
 //! levels, so a level's nodes are pairwise independent and may run as
@@ -18,13 +19,13 @@ use crate::node::RecipeNodeId;
 /// `apply`, which only ever inserts back-references, but the evaluator
 /// refuses them TYPED rather than trusting the door).
 pub(crate) struct Schedule {
-    /// Topological order, Kahn min-id (spec D2's documented tiebreak).
+    /// Topological order, ties to the earlier node in [`Doc::order`].
     pub order: Vec<RecipeNodeId>,
     /// Longest-path levels; concatenated they are ALSO a topological
-    /// order (level ascending, id ascending within a level).
+    /// order (level ascending, [`Doc::order`] within a level).
     pub levels: Vec<Vec<RecipeNodeId>>,
-    /// Nodes Kahn never released (in-cycle or downstream of one), id
-    /// ascending.
+    /// Nodes Kahn never released (in-cycle or downstream of one), in
+    /// [`Doc::order`].
     pub unschedulable: Vec<RecipeNodeId>,
 }
 
@@ -34,6 +35,7 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
     // no edge and the node fails later at operand lookup.
     let mut indegree: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut dependents: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
+    let position = doc.positions();
     for &id in doc.order() {
         let Some(node) = doc.node(id) else {
             continue; // doc.order() lists live nodes; defensive skip
@@ -49,14 +51,17 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
         }
     }
 
-    let mut ready: BinaryHeap<Reverse<RecipeNodeId>> = indegree
+    // Every key of `indegree` came from `doc.order()`, so every node
+    // the heap sees has a position.
+    let at = |id: RecipeNodeId| Reverse((position[&id], id));
+    let mut ready: BinaryHeap<Reverse<(usize, RecipeNodeId)>> = indegree
         .iter()
         .filter(|&(_, &d)| d == 0)
-        .map(|(&id, _)| Reverse(id))
+        .map(|(&id, _)| at(id))
         .collect();
     let mut order = Vec::with_capacity(indegree.len());
     let mut level: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
-    while let Some(Reverse(id)) = ready.pop() {
+    while let Some(Reverse((_, id))) = ready.pop() {
         order.push(id);
         let lvl = doc
             .node(id)
@@ -73,15 +78,16 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
             if let Some(d) = indegree.get_mut(&dep) {
                 *d -= 1;
                 if *d == 0 {
-                    ready.push(Reverse(dep));
+                    ready.push(at(dep));
                 }
             }
         }
     }
 
-    let unschedulable: Vec<RecipeNodeId> = indegree
-        .keys()
-        .filter(|id| !level.contains_key(id))
+    let unschedulable: Vec<RecipeNodeId> = doc
+        .order()
+        .iter()
+        .filter(|id| indegree.contains_key(id) && !level.contains_key(id))
         .copied()
         .collect();
 
@@ -93,9 +99,6 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
             }
             levels[lvl].push(id);
         }
-    }
-    for lv in &mut levels {
-        lv.sort_unstable();
     }
 
     Schedule {

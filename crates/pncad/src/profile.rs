@@ -96,8 +96,9 @@ pub use ::profile::{
 // `ValidatedLoop::blend_arcs` hands back — a read-back door on a type
 // this list carries, whose return type a caller must be able to name.
 pub use ::profile::{
-    BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
-    ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
+    ArcCheck, BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole,
+    NoCornerReason, ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile,
+    ValidatedSegment,
 };
 
 // **The structure record and the guided doors.** One vocabulary, and
@@ -108,12 +109,14 @@ pub use ::profile::{
 // refusal about a record but cannot name the record it refused about
 // has half a door. The record types are also the driver's input: a
 // bisecting lane records at f64 and replays guided at its own scalar
-// through exactly these two functions.
+// through exactly these two functions, and validates what the guided
+// replay built as a `ConstructedProfile` of its `ConstructedLoop`s.
 pub use ::profile::{
-    CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
-    LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
-    RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces,
-    replay_guided, replay_recording, structure,
+    CIRCLE_PIECES, CanonicalStructure, ConstructedLoop, ConstructedProfile, CornerGate, Decision,
+    DecisionValue, FilletDecision, LoopCanonical, Piece, PieceRole, ProfileStructure,
+    RadiusEmission, RadiusRole, ReplayStructure, RoleList, SegmentShape, StepSpan,
+    StructureRefusal, StructureRefusalKind, carrier_pieces, replay_guided, replay_recording,
+    structure,
 };
 
 // The lift door (recorded programs back to loops) and its verdicts.

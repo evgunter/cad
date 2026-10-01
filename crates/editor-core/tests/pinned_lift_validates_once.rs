@@ -8,7 +8,7 @@
 //! computed the way the arm computes it (an authored frame's `f64`
 //! placement lifted; a derived frame's lane value): the same loops,
 //! every stored scalar the same bits in every value channel (`Dual64`'s
-//! value, `Interval`'s bounds — the arc carriers the lift rebuilds
+//! value, `Interval`'s bounds — the arc carriers the lift copies
 //! included), and a derivative channel that is zero either way. The
 //! evaluator makes the validation decisions once (`kstats_bracket_rows`
 //! pins the log); these rows pin that skipping the second validation
@@ -34,8 +34,7 @@ fn embed<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 
 /// Every scalar a validated profile stores, in one fixed order: the
 /// plane's placement, then per loop each vertex's position, then each
-/// segment's endpoints, bulge and (for an arc) center, radius and
-/// sweep. (`profile`'s `validated_map` suite carries the same walk:
+/// segment's endpoints and (for an arc) centre, radius and sweep. (`profile`'s `validated_map` suite carries the same walk:
 /// `test-utils` is a dependency-free leaf and cannot host a walk over
 /// `profile`'s types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
@@ -59,18 +58,18 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
             out.extend([v.x, v.y]);
         }
         for s in lp.segments() {
-            out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
+            out.extend([s.start.x, s.start.y, s.end.x, s.end.y]);
             if let SegmentKind::Arc {
                 arc:
                     Arc2 {
-                        centre: center,
+                        centre,
                         radius,
                         sweep,
                     },
                 ..
             } = s.kind
             {
-                out.extend([center.x, center.y, radius, sweep]);
+                out.extend([centre.x, centre.y, radius, sweep]);
             }
         }
     }
@@ -160,7 +159,13 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
                 .resolve(&env)
                 .expect("the corpus program resolves at f64")
                 .iter()
-                .map(|steps| embed::<T>(&profile::replay(steps, tol).expect("replays at f64")))
+                .map(|steps| {
+                    embed::<T>(
+                        profile::replay(steps, tol)
+                            .expect("replays at f64")
+                            .as_loop(),
+                    )
+                })
                 .collect();
             let revalidated = Profile::new(plane, loops)
                 .validate(tol)
@@ -321,5 +326,53 @@ fn a_margin_definite_at_f64_and_indeterminate_at_interval_is_pinned_and_guided_a
         ["path_junction_turn"],
         "the junction the tiny edge levers escalates at Interval: {}",
         err.kind
+    );
+}
+
+/// **The default `Interval` evaluation of an extruded arc builds.** A
+/// D-shape whose f64 arc carrier, copied into `Interval` by the pinned
+/// lift, has its rim and radius enclose disjointly: the extrude at
+/// `Interval` must place that carrier without the sweep claiming its
+/// start lies on it, which the exact witness would disprove (an abort,
+/// live in release).
+#[test]
+fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
+    use crate::fixture::{self, Recorder, len, len2, scl};
+    use editor_core::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
+    use geom_core::Interval;
+    let mut r = Recorder::new();
+    let chain = LoopProgram::Chain(vec![
+        ProgramStep::At(len2([-79.674_068_761_865_71, -8.743_422_184_344_226])),
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: ProgramTarget::Point(len2([-79.456_229_843_363_16, -7.494_651_585_468_935])),
+            b: scl(1.649_230_685_601_469_6),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let plane = r.insert(fixture::xy_frame());
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![chain],
+        ids: Vec::new(),
+    }));
+    let solid = r.insert(Node::Extrude {
+        profile,
+        distance: len(1.0),
+    });
+    let tol = Tol::witness();
+    let at = |doc| {
+        (
+            evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
+                .value(solid)
+                .is_some(),
+            evaluate::<Interval>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol)
+                .value(solid)
+                .is_some(),
+        )
+    };
+    assert_eq!(
+        at(&r.doc),
+        (true, true),
+        "the extrude builds at f64 and at Interval"
     );
 }

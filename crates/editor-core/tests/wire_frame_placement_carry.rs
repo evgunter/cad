@@ -52,7 +52,10 @@ fn carried(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Option<Fram
 fn unreadable(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> DirectionRefusal {
     match carried(ev, node) {
         Some(FramePlacement::Unreadable(r)) => r,
-        other => panic!("node {} carries {other:?}, not a refusal", node.0),
+        other => panic!(
+            "node {} carries {other:?}, not a refusal",
+            test_utils::refusal::tag(node.0)
+        ),
     }
 }
 
@@ -63,7 +66,7 @@ fn authored(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> profile::S
         Some(FramePlacement::Authored(p)) => p,
         other => panic!(
             "node {} carries {other:?}, not an authored placement",
-            node.0
+            test_utils::refusal::tag(node.0)
         ),
     }
 }
@@ -89,7 +92,7 @@ fn assert_same_plane(
 /// The world points of a node's body, sorted by bits.
 fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64, u64, u64)> {
     let Some(ValuePayload::Body(b)) = ev.value(node).map(|v| &v.payload) else {
-        panic!("node {} has no body", node.0)
+        panic!("node {} has no body", test_utils::refusal::tag(node.0))
     };
     let mut out: Vec<(u64, u64, u64)> = b
         .vertices()
@@ -386,7 +389,7 @@ fn the_frames_axes_are_decided_once_per_frame_not_once_per_profile() {
             axis_decisions(&ev_four, profile),
             0,
             "profile {} reads the frame's placement and decides no axis",
-            profile.0
+            test_utils::refusal::tag(profile.0)
         );
     }
 }
@@ -544,8 +547,13 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         .kind
         .to_string();
     assert!(
-        shown.contains(&format!("datum frame node {}", frame.0))
-            && shown.contains(&format!("profile node {}", profile.0)),
+        shown.contains(&format!(
+            "datum frame node {}",
+            test_utils::refusal::tag(frame.0)
+        )) && shown.contains(&format!(
+            "profile node {}",
+            test_utils::refusal::tag(profile.0)
+        )),
         "the sentence the user reads names both nodes by id: {shown}"
     );
     // The ids come BEFORE the fact: three of the four facts end in a
@@ -553,7 +561,10 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
     // characters, so a locator at the tail is one nobody reads.
     let at = |needle: &str| shown.find(needle).expect(needle);
     assert!(
-        at(&format!("datum frame node {}", frame.0)) < at("zero length"),
+        at(&format!(
+            "datum frame node {}",
+            test_utils::refusal::tag(frame.0)
+        )) < at("zero length"),
         "the locator trails the fact it qualifies: {shown}"
     );
     assert!(

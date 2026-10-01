@@ -151,7 +151,7 @@ use core::f64::consts::PI;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane, Via};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
@@ -348,7 +348,7 @@ fn meridian<S: Scalar>(
     lip_drop: f64,
     neck: Option<(f64, f64)>,
     tol: Tol,
-) -> ProfileLoop<S> {
+) -> ConstructedLoop<S> {
     let r_top = (globe.powi(2) - top.powi(2)).sqrt();
     let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
     let shoulder = neck.map_or(0.0, |(nr, a)| neck_drop(globe, top, nr, a));
@@ -458,7 +458,7 @@ fn corm<S: Scalar>(
     let r_top = (globe.powi(2) - shoulder.powi(2)).sqrt();
     let r_base = (globe.powi(2) - base.powi(2)).sqrt();
     let t_base = shoulder + base;
-    let lp: ProfileLoop<S> = Open
+    let lp: ConstructedLoop<S> = Open
         .at(p2(bore_r, 0.0))
         .line_to(p2(r_top, 0.0), tol)
         .expect("corm shoulder annulus")
@@ -783,7 +783,7 @@ fn leaf<S: Scalar>(
     let place = authored_frame(base, u, v, tol).to_affine();
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
-    let loops: Vec<ProfileLoop<f64>> = vec![
+    let loops: Vec<ConstructedLoop<f64>> = vec![
         polygon(
             &[
                 (-0.5 * section.width, 0.0),
@@ -881,7 +881,7 @@ struct Section {
 impl Section {
     /// The eight-vertex outline, wound counterclockwise in the sketch
     /// `(s, t)` frame from the `+s` margin.
-    fn outline(self, tol: Tol) -> Vec<ProfileLoop<f64>> {
+    fn outline(self, tol: Tol) -> Vec<ConstructedLoop<f64>> {
         // The shoulder between tips `a` and `b`: their midpoint at
         // `shoulder = 0`, their vector sum (the rectangle corner) at 1.
         let shoulder = |a: Vec2<f64>, b: Vec2<f64>| {
@@ -1104,7 +1104,7 @@ fn try_lofted_blade<S: Scalar>(
 ) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
     let (d, v, u) = blade_frame(dir, up, tol);
     let r = len / curl;
-    let mut sections: Vec<Vec<ProfileLoop<f64>>> = Vec::with_capacity(stations);
+    let mut sections: Vec<Vec<ConstructedLoop<f64>>> = Vec::with_capacity(stations);
     let mut places: Vec<Affine3<f64>> = Vec::with_capacity(stations);
     for k in 0..stations {
         #[allow(clippy::cast_precision_loss)]
@@ -2184,10 +2184,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    clears the ball's, so no unsupported KIND can enter the
     //    operation. The F7 door used to answer next; it no longer
     //    does, because the scene REPAIRS the operand first (below) and
-    //    a repaired lantern is maximal-faced. What answers now is the
-    //    reduction's curved PIERCE arm — wall 12's door — and the
-    //    payload is quoted rather than described, the wall-7 lesson
-    //    about reading a locus off a comment instead of a dump.
+    //    a repaired lantern is maximal-faced. The crossing layer has
+    //    circle × sphere roots now, so the sweep gets through and the
+    //    JOIN answers: the sphere pair's chord rides the two spheres'
+    //    radical plane, and this ball sits off the lantern's axis, so
+    //    that plane is tilted against the lantern's polar axis and the
+    //    arc-side rule refuses it typed
+    //    (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+    //    The payload is quoted rather than described, the wall-7
+    //    lesson about reading a locus off a comment instead of a dump.
     //
     //    **#1031's POLE HALF has landed, and this is what it bought.**
     //    The lantern's two axis-touching caps were each two half-faces
@@ -2213,10 +2218,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    VERBS-PLAN Wave 2 items 6 (VERBS-GATE, the per-face-kind gate
     //    re-scope) and 9 (VERBS-SPHSPH, the sphere × sphere germ lane)
     //    — the ruling that put it there is M9-5's, and the demand
-    //    signal is this probe. NOTE for those items: on this
-    //    measurement a sphere × sphere germ arm alone does not flip
-    //    this wall, because the F7 refusal happens first and is about
-    //    the caps.
+    //    signal is this probe.
     wall(
         7,
         "carve a tepal seam into the lantern (sphere x sphere by geometry; the \
@@ -2229,10 +2231,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedPierceUnsupported {
-                    operand: Operand::A,
-                    ..
-                }
+                BooleanError::Join(pncad::topo::SplitJoinError::SectionNotPolar { .. })
             )
         },
         "give the lanterns their three tepal seams",
@@ -2314,40 +2313,23 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     the detector was planar and had nothing to say about a mate
     //     with no planar contact anywhere on it.
     //
-    //     It refuses one door short of the zip, and the door is the
-    //     reduction's curved-face arm rather than the declaration
-    //     gate: an edge lying ON the shared carrier decides zero
-    //     clearance and takes `CurvedPierceUnsupported` before any
-    //     patch is discovered.
-    //
-    //     **Which edge is not the claim, and it has moved once.** The
-    //     first measurement here was the corm's own annulus rim
-    //     CIRCLE, on operand A. Since the curved pierce RING lane
-    //     landed, the A-side pairs that used to raise first are
-    //     resolved, and the sweep gets one pair further before the same
-    //     wall stops it: the refusal is now operand B's seam RULING —
-    //     `EdgeKey(4v1)`, a straight chart curve at azimuth 0 on the
-    //     foot's own bore wall — against the corm's bore face
-    //     `FaceKey(3v1)` (`r = 0.06`), both of its endpoints exactly on
-    //     the shared carrier. It reaches the declared-cover rung's
-    //     on-carrier `(Zero, Zero)` arm and refuses there because the
-    //     curved containment door does not place both endpoints. So the
-    //     operand below records which SIDE the sweep reaches first, not
-    //     what the wall is about; a later crossing lane may move it
-    //     again, and that is a measurement to re-take rather than a
-    //     regression. What has not moved is the wall itself.
-    //     M9-3 PR-A's rung teaches that arm to consult declarations —
-    //     but the two-peg path it was measured on carries a PLANAR
-    //     `Rest` at the rim plane as well, and the plant has none to
-    //     offer: a stem passes THROUGH its corm, it does not sit on
-    //     it. So the honest statement of this wall is narrow, testable
-    //     and NOT about plants: a purely cylindrical mate, with no
-    //     planar contact anywhere on it, does not reach the rest lane
-    //     today. Filed as **#1032** with the measurement that isolates
-    //     it — the refusal survives full engagement, partial
-    //     engagement, and the two-peg fixture's own 3-arc face
-    //     structure, so neither the minted rim nor the full-period
-    //     face a revolve makes is the cause.
+    //     It refuses one door short of the zip, at the reduction's
+    //     curved-face arm rather than the declaration gate, and the
+    //     edge it names is a measurement of how far the sweep gets,
+    //     not what the wall is about. The bore itself is placed:
+    //     the cylinder chart's full-turn band gives every endpoint on
+    //     the corm's bore wall a verdict. The sweep then stops at
+    //     operand B's seam ruling `EdgeKey(4v1)` against the corm's
+    //     SPHERE zone `FaceKey(5v1)`: in the reduction's working copy,
+    //     split at the bore's rims, the fragment keeping that key runs
+    //     `z ∈ [-0.92, -0.72]` at azimuth 0 and straddles the sphere
+    //     (the authored ruling, `z ∈ [-0.92, 0]`, does not), and the
+    //     reduction has no
+    //     line × sphere root lane to place the crossing
+    //     (`work/reach/line-edge-crossing-a-sphere-face-has-no-root-lane.md`).
+    //     Behind it, a purely cylindrical mate on a full-turn bore does
+    //     not union on its own either
+    //     (`work/reach/full-turn-bore-rest-mate-does-not-union.md`).
     let (corm_body, foot_body) = (by("lily_corm"), by("lily_foot"));
     let bore_decls = crate::booleans::flush_declarations(corm_body, foot_body, tol);
     wall(
@@ -2359,7 +2341,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         // an edge — NOT the declaration gate, which admitted the pair,
         // and not a carrier refusal. The operand is pinned too, as the
         // measurement of which side the sweep reaches first (see the
-        // note above: it moved from A to B when the ring lane landed).
+        // note above).
         |e| {
             matches!(
                 e,
@@ -3954,18 +3936,23 @@ mod verbs_gate_r1_probes {
         // same-key CURVED adjacency is the canonical maximal form —
         // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
         //
-        // So the sphere×sphere germ arm is not even reached. This
-        // wall's dependency is #1031's pole half (the repair op), and
-        // only THEN row 9.
+        // With the repair landed and the crossing layer's circle ×
+        // sphere roots, the pair reaches the join: the section rides the
+        // radical plane, tilted against the lantern's polar axis, and the
+        // arc-side rule's polar gate refuses it
+        // (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
         assert!(
             tightest < 0.0,
             "the pucker's box must clear the ball's for the gate to admit; it does \
              not, so this row's reading of the refusal below is wrong"
         );
         assert!(
-            matches!(refusal, BooleanError::CurvedPierceUnsupported { .. }),
-            "the gate admits and the REPAIRED lantern is maximal-faced, so what \
-             refuses is the curved pierce arm — got {refusal:?}"
+            matches!(
+                &refusal,
+                BooleanError::Join(pncad::topo::SplitJoinError::SectionNotPolar { .. })
+            ),
+            "the gate admits, the REPAIRED lantern is maximal-faced and the crossing \
+             layer pierces, so what refuses is the join's polar gate — got {refusal:?}"
         );
     }
 

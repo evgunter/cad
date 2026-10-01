@@ -1,5 +1,5 @@
 //! M4 PR 3 naming tests, part 2 (spec D3/D5/D6): boolean roles
-//! (FromA/FromB/Seam), N2 discriminators (SideOf sign vectors,
+//! (FromA/FromB/Seam), N2 discriminators (`Borders` wall sets,
 //! OrderAlong sub-edge ranks), the genuine-tie fixture, and
 //! discriminator-flip localization (counted).
 #![allow(
@@ -65,7 +65,7 @@ fn block(
 // ---- FromA/FromB + Seam + OrderAlong on the overlapping union. ----
 
 #[test]
-fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
+fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
@@ -139,20 +139,19 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             "missing surviving x-wall of {node:?}"
         );
     }
-    // Cut rims carry OrderAlong ranks 0 and 1 (never bare indices —
-    // ordinal positions under the named order-along predicate).
-    let ranked = t
+    // Cut rims are told apart by their ends (never bare indices).
+    let pieces = t
         .iter()
         .filter(|(n, _)| {
             matches!(
                 n.path.last(),
-                Some(RoleSeg::Fragment(Qualifier::OrderAlong { of: 2, .. }))
+                Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
             )
         })
         .count();
     assert_eq!(
-        ranked, 8,
-        "ranked rim fragments (per-operand rims cut in two)"
+        pieces, 8,
+        "rim pieces named by their ends (per-operand rims cut in two)"
     );
     // Seam vertices exist, with operand-name arguments.
     let seams = t
@@ -166,10 +165,10 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
     assert!(t.iter().all(|(_, e)| matches!(e, Entry::Unique(_))));
 }
 
-// ---- SideOf sign vectors on the through-slot subtract. ----
+// ---- Borders wall sets on the through-slot subtract. ----
 
 #[test]
-fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
+fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     // A: 3×3×1 block; B: a slot crossing the top cap fully in y.
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
@@ -186,9 +185,9 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
     let ev = run(&doc);
     let t = table(&ev, sub);
     let end = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
-    // Exactly two fragments of A's end cap, SideOf-qualified, with
-    // DISTINCT vectors (each Unique — no tie: the slot walls
-    // discriminate).
+    // Exactly two pieces of A's end cap, `Borders`-qualified, with
+    // DISTINCT wall sets (each Unique — no tie: each borders its own
+    // slot wall).
     let frags: Vec<&StableName> = t
         .iter()
         .filter_map(|(n, e)| {
@@ -197,25 +196,24 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
                     n.path.first(),
                     Some(RoleSeg::FromA(inner)) if **inner == end
                 )
-                && matches!(n.path.get(1), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
+                && matches!(
+                    n.path.get(1),
+                    Some(RoleSeg::Fragment(Qualifier::Borders(_)))
+                );
             (is_frag && matches!(e, Entry::Unique(_))).then_some(n)
         })
         .collect();
-    assert_eq!(
-        frags.len(),
-        2,
-        "expected two SideOf-qualified cap fragments"
-    );
+    assert_eq!(frags.len(), 2, "expected two Borders-qualified cap pieces");
     assert_ne!(frags[0], frags[1]);
-    // The vectors' partners are B lateral names (recipe-covariant
-    // references), and every verdict is a definite sign.
+    // The walls are B lateral names (recipe-covariant references),
+    // one per piece: the slot wall on its side.
     for f in frags {
-        let Some(RoleSeg::Fragment(Qualifier::SideOf(vec))) = f.path.get(1) else {
+        let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = f.path.get(1) else {
             unreachable!()
         };
-        assert!(!vec.is_empty());
-        for (partner, _verdict) in vec {
-            assert_eq!(partner.node, b, "partner is not a B-operand carrier");
+        assert_eq!(walls.len(), 1, "{f:?}");
+        for wall in walls {
+            assert_eq!(wall.node, b, "a wall is not a B-operand face");
         }
     }
 }
@@ -230,9 +228,9 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
     // B: U-shaped prongs along −x, base OUTSIDE A (x ∈ [5,6]), prong
     // tips crossing A's wall x = 4; z ∈ [1,3] (inside A). B's caps
     // (z = 1 and z = 3, U-shaped, horizontal) are each cut by A's
-    // wall x = 4 into TWO prong fragments on the SAME side of the
-    // only cutting carrier — no covariant qualifier separates them:
-    // the N2 tie, recorded, naming total.
+    // wall x = 4 into TWO prong fragments that border the same one
+    // wall — no covariant qualifier separates them: the N2 tie,
+    // recorded, naming total.
     let (doc, p) = on_frame(
         doc,
         [0.0, 0.0, 1.0],
@@ -288,6 +286,19 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
 
 // ---- Flip localization (D5), node-granular and counted. ----
 
+/// `node`'s translation along x, value-edited to `to`: every id stays.
+fn slide(doc: ProfileDoc, node: RecipeNodeId, to: f64) -> ProfileDoc {
+    fixture::step(
+        doc,
+        editor_core::DocEdit::SetParam {
+            node,
+            slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
+            expr: len(to),
+        },
+    )
+    .0
+}
+
 #[test]
 fn no_flip_translation_edit_leaves_every_table_identical() {
     // B placed by a Transform whose translation is the edited knob.
@@ -317,13 +328,12 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
                 declare: Some(decl),
             },
         );
-        (doc, u)
+        (doc, u, tb)
     };
-    // 0.5 → 0.25: still overlapping, same verdict vector ⇒ N4 demands
-    // IDENTICAL tables everywhere (names AND keys).
-    let (doc1, u1) = build(0.5);
-    let (doc2, u2) = build(0.25);
-    assert_eq!(u1, u2);
+    // 0.5 → 0.25, a value edit: still overlapping, same verdict vector
+    // ⇒ N4 demands IDENTICAL tables everywhere (names AND keys).
+    let (doc1, _, tb) = build(0.5);
+    let doc2 = slide(doc1.clone(), tb, 0.25);
     let ev1 = run(&doc1);
     let ev2 = run(&doc2);
     let mut changed = 0usize;
@@ -363,13 +373,13 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
                 declare: Some(decl),
             },
         );
-        (doc, u)
+        (doc, u, tb)
     };
     // 0.5 (overlapping, Seamed) → 2.5 (disjoint, Assembly): verdicts
     // flip AT THE BOOLEAN; every upstream derivation is untouched, so
     // exactly one node's table may change (counted, not vibes).
-    let (doc1, u1) = build(0.5);
-    let (doc2, u2) = build(2.5);
+    let (doc1, u1, tb) = build(0.5);
+    let (doc2, u2) = (slide(doc1.clone(), tb, 2.5), u1);
     let ev1 = run(&doc1);
     let ev2 = run(&doc2);
     let changed: Vec<RecipeNodeId> = ev1
@@ -379,7 +389,6 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
         .filter(|id| table(&ev1, *id) != table(&ev2, *id))
         .collect();
     assert_eq!(changed, vec![u1], "flip cone wider than the boolean");
-    assert_eq!(u1, u2);
     // And the flipped table's names differ in SHAPE: the disjoint
     // union has no fragments at all.
     assert!(

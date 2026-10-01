@@ -398,13 +398,14 @@ fn row4_doc_metadata_in_preimage_via_crafted_save() {
     );
 }
 
-/// The spec's stated `next_id` consequence (D-3 as amended; R2
-/// MINOR-3, ruled compliant): an undone INSERT moves the pin —
-/// delete never decrements the monotone counter, and the counter is
-/// document state in the include-by-default preimage. "Undo must not
-/// move pins" holds exactly for value edits (row 2b); structural
-/// insert/delete pairs leave counter residue. Documented behavior,
-/// pinned so a silent preimage change is caught in both directions.
+/// The spec's stated mint consequence (D-3 as amended; R2 MINOR-3,
+/// ruled compliant): an undone INSERT moves the pin — the insert
+/// extended the mint's chain and log, a delete takes neither back, and
+/// the mint is document state in the include-by-default preimage.
+/// "Undo must not move pins" holds exactly for value edits (row 2b);
+/// structural insert/delete pairs leave mint residue. Documented
+/// behavior, pinned so a silent preimage change is caught in both
+/// directions.
 #[test]
 fn stated_consequence_undone_insert_moves_pin() {
     let (doc, _, _) = exemplar("asm1-next-id");
@@ -426,6 +427,6 @@ fn stated_consequence_undone_insert_moves_pin() {
     assert_ne!(
         content_pin(&undone, Tol::witness()).unwrap(),
         before,
-        "counter residue pins as a new version — the spec's stated consequence"
+        "mint residue pins as a new version — the spec's stated consequence"
     );
 }

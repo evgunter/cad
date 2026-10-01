@@ -36,35 +36,21 @@ use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, run, square};
 use geom_core::Tol;
 use std::sync::Arc;
+use test_utils::own_thread::on_the_smallest_stack;
 
 /// The deepest nesting that evaluates: `PartFault::DepthExceeded`'s
 /// sentence names it.
 const BOUND: usize = 1024;
 
-/// The wasm32 build's default stack, the smallest an evaluating door
-/// runs on (the viewer's workers, a Rust test thread and a Python
-/// thread all get more).
-const WASM_STACK: usize = 1 << 20;
-
-/// Runs `f` on a thread with the wasm32 build's stack.
-fn on_the_smallest_stack<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> R {
-    std::thread::Builder::new()
-        .stack_size(WASM_STACK)
-        .spawn(f)
-        .expect("the thread starts")
-        .join()
-        .expect("the subject returns")
-}
-
 /// The leaf part: a block with a boss unioned onto it, so the leaf's
 /// own evaluation runs a boolean on top of whatever the chain costs.
 fn leaf() -> ProfileDoc {
-    leaf_labelled("part-depth-leaf")
+    leaf_labelled("part-depth-leaf").0
 }
 
 /// [`leaf`] under its own identity, so a store holds it as a distinct
-/// part.
-fn leaf_labelled(label: &str) -> ProfileDoc {
+/// part; and the block extrude whose caps the leaf's product names.
+fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -94,7 +80,7 @@ fn leaf_labelled(label: &str) -> ProfileDoc {
             distance: len(1.0),
         },
     );
-    insert(
+    let (doc, _) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
@@ -102,8 +88,8 @@ fn leaf_labelled(label: &str) -> ProfileDoc {
             b: boss,
             declare: None,
         },
-    )
-    .0
+    );
+    (doc, block)
 }
 
 /// A document whose one node instantiates `below`.
@@ -409,25 +395,22 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
-/// A document instantiating `first` and `second` with a mate between
-/// them, admitted at the insert door over `authoring`'s reach.
+/// A document instantiating `first` and `second` — each a reference
+/// with the block its caps are named on — with a mate between them,
+/// admitted at the insert door over `authoring`'s reach.
 fn mated(
     label: &str,
-    first: DocRef,
-    second: DocRef,
+    (first, first_block): (DocRef, RecipeNodeId),
+    (second, second_block): (DocRef, RecipeNodeId),
     authoring: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, ids) = instantiating_all(label, &[first, second]);
     let mate = Node::Mate {
-        a: fixture::head(in_part(ids[0], CapEnd::End)),
-        b: fixture::head(in_part(ids[1], CapEnd::Start)),
+        a: fixture::head(in_part(ids[0], first_block, CapEnd::End)),
+        b: fixture::head(in_part(ids[1], second_block, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, 1.0]),
@@ -451,8 +434,8 @@ fn mated(
 #[test]
 fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_entered() {
     let mut store = PartStore::new();
-    let first = store.insert(leaf_labelled("part-descent-first"), Tol::witness());
-    let second = store.insert(leaf_labelled("part-descent-second"), Tol::witness());
+    let first = store.insert_part(leaf_labelled("part-descent-first"), Tol::witness());
+    let second = store.insert_part(leaf_labelled("part-descent-second"), Tol::witness());
     let (assembly, ids) = mated(
         "part-descent-mated",
         first,
@@ -501,12 +484,13 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
 #[test]
 fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let mut authoring = PartStore::new();
-    let asked_ref = authoring.insert(leaf_labelled("part-descent-asked"), Tol::witness());
-    let lost_ref = authoring.insert(leaf_labelled("part-descent-lost"), Tol::witness());
+    let asked = authoring.insert_part(leaf_labelled("part-descent-asked"), Tol::witness());
+    let lost = authoring.insert_part(leaf_labelled("part-descent-lost"), Tol::witness());
+    let asked_ref = asked.0;
     let (holder, ids) = mated(
         "part-descent-holder",
-        lost_ref,
-        asked_ref,
+        lost,
+        asked,
         &with_resolver(authoring),
     );
     let holder_ref = unpinned_ref("part-descent-holder");

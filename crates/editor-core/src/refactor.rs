@@ -21,21 +21,21 @@
 //! edge, refused typed naming the edge. (Closure under inputs is A4's
 //! "ancestor-closed"; closure under consumers is what makes every cut
 //! sink a document sink, i.e. an A10 root.) The cut must also be a
-//! union of whole placement clusters — vacuously true in the mate-less
-//! v1, where every instantiate node is its own singleton cluster
+//! union of whole placement groups — vacuously true in the mate-less
+//! v1, where every instantiate node is its own singleton group
 //! (A11), and re-checked for real when mates land.
 //!
 //! # Placements move with the cut (A11), one frame is hoisted
 //!
-//! The cut must be a union of WHOLE placement clusters — a torn
-//! cluster refuses [`SplitError::TornCluster`], because A11 puts the
-//! frame on the cluster and a torn one has one frame and two homes.
-//! When the cut is EXACTLY one placement cluster — its instances and
+//! The cut must be a union of WHOLE placement groups — a torn
+//! group refuses [`SplitError::TornGroup`], because A11 puts the
+//! frame on the group and a torn one has one frame and two homes.
+//! When the cut is EXACTLY one placement group — its instances and
 //! the mates holding them together, nothing else (ASM-4 D-2 rider ii,
-//! re-keyed by ASM-R2a now that mates make a cluster multi-node) — its
+//! re-keyed by ASM-R2a now that mates make a group multi-node) — its
 //! frame is HOISTED: the part document holds the copy
 //! unplaced (identity) and the remainder's new instance is placed at
-//! the cluster's old frame — D-2's "placed at the cluster's old
+//! the group's old frame — D-2's "placed at the group's old
 //! frame", and the shape a reusable part wants (its world pose belongs
 //! to the assembly). Every other cut moves its recorded placements
 //! into the part document VERBATIM and leaves the remainder instance
@@ -49,9 +49,9 @@
 //! The remainder receives ONE `InstantiatePart` for the whole cut
 //! (the D-2 amendment, adjudicated at review ordinal 40): each
 //! remainder instance materializes the ENTIRE new document's product,
-//! so per-cluster instances of one pinned document would duplicate
-//! every other cluster's material N times. The single instance carries
-//! all cut clusters at their moved placements. Consequence (amendment
+//! so per-group instances of one pinned document would duplicate
+//! every other group's material N times. The single instance carries
+//! all cut groups at their moved placements. Consequence (amendment
 //! rider i): the cut roots COLLAPSE onto the instance's root-list
 //! position, so `inline(split(d))` restores the root SET and the
 //! spliced block's relative order but NOT the original interleaving of
@@ -60,6 +60,14 @@
 //! within D-4's ratified identity (census, bit-equal volumes, name
 //! re-resolution; root order is unnamed there), and it is pinned by
 //! test rather than left implicit.
+//!
+//! # Labels follow their nodes
+//!
+//! A node label (DESIGN.md Band 1, "Node labels") is keyed by the node,
+//! so it moves with the node: split labels each cut node's copy in the
+//! part as the original was, inline labels each spliced node as its
+//! part-side original was, and the instance a split leaves behind is a
+//! new node with no label.
 //!
 //! # Names re-anchor across the seam (the bridge, both directions)
 //!
@@ -85,8 +93,8 @@
 //! remainder instance's [`crate::InterfaceRecord`] (ASM-R2b D-4, the
 //! hook ASM-4 left) — but **no accepted cut puts them there, so split
 //! always mints the EMPTY record**. The cut rules make it unreachable:
-//! an edge welds its two members into one placement cluster and
-//! `TornCluster` refuses to tear one. The collector below carries the
+//! an edge welds its two members into one placement group and
+//! `TornGroup` refuses to tear one. The collector below carries the
 //! argument in full; the door that would make a crossing reachable is
 //! banked as ASM-XSPLIT. A mate that is not an edge — a dangling or
 //! nested-pattern head — contributes nothing however its names fall,
@@ -107,16 +115,15 @@ use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
 use crate::names::{
-    EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
+    Carry, EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
     StableName,
 };
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
-use crate::program::{ProfileDoc, ProfilePayload as _, ProfileProgram};
+use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
 use crate::sentence::{PASS_A_RESOLVER, Recourse};
-use crate::step_mint::StepMint;
 use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
@@ -175,108 +182,76 @@ impl InlineError {
     }
 }
 
-/// **A step the insert door minted other than as precomputed**: the
-/// source document's step, the id the refactoring predicted for it,
-/// and the id the carried profile holds after its insert (`None` where
-/// it holds none there).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StepMapDivergence {
-    /// The step, in the source document.
-    pub step: StepId,
-    /// The id the step map holds for it.
-    pub precomputed: Option<StepId>,
-    /// The id the insert minted for it.
-    pub minted: Option<StepId>,
-}
-
-impl core::fmt::Display for StepMapDivergence {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let id = |s: Option<StepId>| s.map_or_else(|| "none".to_owned(), |s| format!("#{}", s.0));
-        write!(
-            f,
-            "the profile step minted #{} was predicted to be re-minted as {} and was minted as \
-             {}, which is a kernel bug",
-            self.step.0,
-            id(self.precomputed),
-            id(self.minted)
-        )
-    }
-}
-
-/// **The step map checked against what the inserts minted**: every
-/// profile of `source` that `node_map` carries into `target`, step by
-/// step in loop then step order, holds the id `step_map` predicted.
-/// The first step that does not is the divergence.
-fn step_map_check(
-    source: &ProfileDoc,
-    node_map: &NodeMap,
-    step_map: &StepMap,
-    target: &ProfileDoc,
-) -> Result<(), StepMapDivergence> {
-    for (&old, &new) in node_map {
-        let Some(Node::Profile(carried)) = source.node(old) else {
-            continue;
-        };
-        let minted: Vec<StepId> = match target.node(new) {
-            Some(Node::Profile(p)) => p.ids.iter().flatten().copied().collect(),
-            _ => Vec::new(),
-        };
-        for (k, &step) in carried.ids.iter().flatten().enumerate() {
-            let precomputed = step_map.get(&step).copied();
-            let got = minted.get(k).copied();
-            if precomputed.is_none() || precomputed != got {
-                return Err(StepMapDivergence {
-                    step,
-                    precomputed,
-                    minted: got,
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
-/// The step map a refactoring's inserts will mint, precomputed: every
-/// profile among `nodes`, in the order they are inserted and under the
-/// id `node_map` gives it, has its steps minted from `mint` by the insert
-/// door's own minting ([`crate::ProfilePayload::mint_step_ids`]) — the
-/// same canonical bytes, so the same ids — which [`step_map_check`]
-/// confirms once the inserts are done. A profile whose plane or node
-/// `node_map` does not carry ends the map there: its insert refuses
-/// under its own name.
+/// **The carried nodes, inserted one at a time**: each of `olds`, a
+/// node of `source`, is remapped through the maps the inserts before it
+/// built and inserted into `target`, and maps to the id the insert door
+/// minted for it; a profile's steps map to the ids the door minted for
+/// them. The maps are read off the door, never predicted, so they
+/// cannot disagree with what it minted.
+///
+/// A name the maps lack whose missing id belongs to a node still to
+/// come is a FORWARD reference (a Declare or a blend selection rebound
+/// onto a later node): no order of inserts satisfies it, and it refuses
+/// as the insert door would, [`EditError::DeclareNamesMissingNode`],
+/// spelled in `source`'s ids. Every other miss is `miss`'s.
 ///
 /// # Errors
 ///
-/// The mint's refusal, as the insert would report it.
-fn step_map_of<'a>(
-    nodes: impl Iterator<Item = (RecipeNodeId, &'a Node<ProfileProgram>)>,
-    node_map: &NodeMap,
-    mint: &StepMint,
-) -> Result<StepMap, EditError> {
-    let mut mint = mint.clone();
-    let mut map = StepMap::new();
-    for (old, node) in nodes {
-        let Node::Profile(p) = node else { continue };
-        let (Some(&id), Some(&plane)) = (node_map.get(&old), node_map.get(&p.plane)) else {
-            break;
+/// `edit` over the insert door's refusal; `miss` over a remap miss.
+fn carry<E>(
+    source: &ProfileDoc,
+    olds: &[RecipeNodeId],
+    target: &mut Recording,
+    (tol, reach): (Tol, &dyn crate::mate::MateReach),
+    edit: impl Fn(EditError) -> E,
+    miss: impl Fn(RecipeNodeId, RemapMiss) -> E,
+) -> Result<(NodeMap, StepMap), E> {
+    let mut node_map = NodeMap::new();
+    let mut step_map = StepMap::new();
+    for (k, &old) in olds.iter().enumerate() {
+        let Some(node) = source.node(old) else {
+            continue;
         };
-        let mut carried = ProfileProgram {
-            plane,
-            loops: p.loops.clone(),
-            ids: Vec::new(),
+        let later = &olds[k..];
+        let forward = |missing: &Unmapped| match *missing {
+            Unmapped::Node(n) => later.contains(&n),
+            Unmapped::Step(step) => later.iter().any(|n| {
+                matches!(source.node(*n), Some(Node::Profile(p))
+                    if p.ids.iter().flatten().any(|s| *s == step))
+            }),
         };
-        carried
-            .mint_step_ids(id, &mut mint)
-            .map_err(|fault| EditError::StepIdsRefused { node: id, fault })?;
-        map.extend(
-            p.ids
-                .iter()
-                .flatten()
-                .copied()
-                .zip(carried.ids.iter().flatten().copied()),
-        );
+        let carried = match remap_node(node, &node_map, &step_map) {
+            Ok(carried) => carried,
+            Err(RemapMiss::Name { name, missing }) if forward(&missing) => {
+                return Err(edit(EditError::DeclareNamesMissingNode { name: *name }));
+            }
+            Err(other) => return Err(miss(old, other)),
+        };
+        let new = target
+            .apply(DocEdit::InsertNode { node: carried }, tol, reach)
+            .map_err(&edit)?
+            .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
+        node_map.insert(old, new);
+        if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc.node(new)) {
+            let shape = |ids: &[Vec<StepId>]| ids.iter().map(Vec::len).collect::<Vec<_>>();
+            if shape(&from.ids) != shape(&to.ids) {
+                unreachable!(
+                    "the insert door mints one id per authored step, so a carried profile's step \
+                     ids have its source's shape: carried {:?}, source {:?}",
+                    shape(&to.ids),
+                    shape(&from.ids)
+                );
+            }
+            step_map.extend(
+                from.ids
+                    .iter()
+                    .flatten()
+                    .copied()
+                    .zip(to.ids.iter().flatten().copied()),
+            );
+        }
     }
-    Ok(map)
+    Ok((node_map, step_map))
 }
 
 /// Why [`split`] refused. Typed and specific (spec D-2): every arm
@@ -323,8 +298,8 @@ pub enum SplitError {
     /// operand — the repair is to widen the cut, or to re-author the
     /// mate at a node on the side it is staying.
     ///
-    /// A mate that WELDS a cluster meets `TornCluster` first, because
-    /// the cut also splits the cluster its two members share. This
+    /// A mate that WELDS a group meets `TornGroup` first, because
+    /// the cut also splits the group its two members share. This
     /// arm is what catches the rest: a mate whose reference resolves
     /// to no member welds nothing, and its operand still crosses.
     OperandSeveredFromMate {
@@ -337,27 +312,27 @@ pub enum SplitError {
         /// Whether the MATE is the cut-side endpoint.
         mate_is_cut: bool,
     },
-    /// The cut TEARS a placement cluster: some of the cluster's
+    /// The cut TEARS a placement group: some of the group's
     /// instances are cut and some are kept (ASM-R2a; review MAJOR-2).
     ///
-    /// A11 puts the frame on the CLUSTER, so a torn cluster has one
+    /// A11 puts the frame on the GROUP, so a torn group has one
     /// frame and two homes; splitting it would have to invent which
     /// side keeps it and re-mint the other from a relative pose that
     /// now crosses a document seam — machinery no ratified rule
-    /// supplies. The cut must be a union of WHOLE clusters, which is
+    /// supplies. The cut must be a union of WHOLE groups, which is
     /// what this module's docs have promised since ASM-4 and what
-    /// mates made checkable. Refused naming the cluster and the
+    /// mates made checkable. Refused naming the group and the
     /// instance on the far side of the tear; the repair is to widen
-    /// the cut to the whole cluster, or to delete the mates that hold
+    /// the cut to the whole group, or to delete the mates that hold
     /// it together first.
-    TornCluster {
-        /// The cluster's gauge (its document-order-first instance).
-        gauge: RecipeNodeId,
+    TornGroup {
+        /// The group's root (its document-order-first instance).
+        root: RecipeNodeId,
         /// The first member, in document order, on the opposite side
-        /// of the cut from the gauge.
+        /// of the cut from the root.
         instance: RecipeNodeId,
-        /// Whether the GAUGE is the cut-side endpoint.
-        gauge_is_cut: bool,
+        /// Whether the ROOT is the cut-side endpoint.
+        root_is_cut: bool,
     },
     /// A cut node references a document parameter that a kept node
     /// also references. The parameter can move or stay, but it cannot
@@ -446,12 +421,6 @@ pub enum SplitError {
         /// The refusing edit's own diagnosis.
         error: Box<EditError>,
     },
-    /// The part document's insert door minted a cut profile's step
-    /// under an id other than the one the split precomputed for it —
-    /// a construction bug in this module, surfaced typed: every name
-    /// the split rewrote through its step map would spell the wrong
-    /// step.
-    StepMapDiverged(StepMapDivergence),
 }
 
 impl core::fmt::Display for SplitError {
@@ -459,25 +428,25 @@ impl core::fmt::Display for SplitError {
         match self {
             Self::EmptyCut => f.write_str("split: the cut set is empty"),
             Self::UnknownCutNode { id } => {
-                write!(f, "split: cut entry {} is not a live node", id.0)
+                write!(f, "split: cut entry {} is not a live node", id)
             }
-            Self::TornCluster {
-                gauge,
+            Self::TornGroup {
+                root,
                 instance,
-                gauge_is_cut,
+                root_is_cut,
             } => {
-                let (cut, kept) = if *gauge_is_cut {
-                    (gauge.0, instance.0)
+                let (cut, kept) = if *root_is_cut {
+                    (root.0, instance.0)
                 } else {
-                    (instance.0, gauge.0)
+                    (instance.0, root.0)
                 };
                 write!(
                     f,
-                    "split: the cut tears the placement cluster gauged at node {} (node {cut} is \
-                     cut, node {kept} is kept) — the frame lives on the CLUSTER, so the cut \
-                     must be a union of WHOLE clusters; widen the cut, or delete the mates \
-                     holding the cluster together first",
-                    gauge.0
+                    "split: the cut tears the placement group rooted at node {} (node {cut} is \
+                     cut, node {kept} is kept) — the frame lives on the GROUP, so the cut \
+                     must be a union of WHOLE groups; widen the cut, or delete the mates \
+                     holding the group together first",
+                    root
                 )
             }
             Self::PartIdCollides { id } => write!(
@@ -501,9 +470,9 @@ impl core::fmt::Display for SplitError {
                     "split: the cut severs mate {}'s {} reference from the node it is read at \
                      (node {} — node {cut} is cut, node {kept} is kept); widen the cut, or \
                      re-author the mate at a node on its own side",
-                    mate.0,
+                    mate,
                     side.name(),
-                    operand.0
+                    operand
                 )
             }
             Self::SeveredEdge {
@@ -520,7 +489,7 @@ impl core::fmt::Display for SplitError {
                     f,
                     "split: the cut severs the edge from node {} to node {} (node {cut} is cut, \
                      node {kept} is kept) — a cut must be closed under inputs and consumers",
-                    consumer.0, input.0
+                    consumer, input
                 )
             }
             Self::UncutParamReference {
@@ -531,7 +500,7 @@ impl core::fmt::Display for SplitError {
                 f,
                 "split: parameter {param} is referenced by cut node {} and kept node {} — one \
                  parameter cannot silently become two documents' parameters",
-                cut_node.0, kept_node.0
+                cut_node, kept_node
             ),
             Self::PartNameReachesRemainder {
                 node,
@@ -541,7 +510,7 @@ impl core::fmt::Display for SplitError {
                 f,
                 "split: cut node {}'s reference (the {name}) derives from node {}, which is \
                  outside the cut — the new document could not express it",
-                node.0, missing.0
+                node, missing
             ),
             Self::NameStraddlesCut { name, missing } => {
                 write!(
@@ -552,15 +521,15 @@ impl core::fmt::Display for SplitError {
                 match missing {
                     // The rewrite stopped at ONE node, which for a
                     // nested name is not the name's own mint.
-                    Some(id) => write!(f, " — the rewrite stopped at node {}", id.0),
+                    Some(id) => write!(f, " — the rewrite stopped at node {}", id),
                     None => Ok(()),
                 }
             }
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "split: the {name} spells a piece of the profile step minted #{}, which no profile of this \
+                "split: the {name} spells a piece of the profile step {}, which no profile of this \
                  document draws any more — repair the stranded reference before splitting",
-                step.0
+                step
             ),
             Self::BodyNameCrossesCut { name } => write!(
                 f,
@@ -585,7 +554,6 @@ impl core::fmt::Display for SplitError {
                 error.problem(),
                 ReplayTail(error, Replay::SplitRemainder)
             ),
-            Self::StepMapDiverged(d) => write!(f, "split: {d}"),
         }
     }
 }
@@ -699,24 +667,20 @@ pub enum InlineError {
         /// The refusing edit's own diagnosis.
         error: Box<EditError>,
     },
-    /// The host's insert door minted a spliced profile's step under an
-    /// id other than the one the inline precomputed for it — the same
-    /// construction bug as [`SplitError::StepMapDiverged`].
-    StepMapDiverged(StepMapDivergence),
 }
 
 impl core::fmt::Display for InlineError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { id } => write!(f, "inline: node {} is not live", id.0),
+            Self::UnknownNode { id } => write!(f, "inline: node {} is not live", id),
             Self::NotAnInstance { node } => {
-                write!(f, "inline: node {} does not instantiate a part", node.0)
+                write!(f, "inline: node {} does not instantiate a part", node)
             }
             Self::InstanceConsumed { node, by } => write!(
                 f,
                 "inline: instance {} is consumed by node {} — the recipe cannot rewire a \
                  consumer onto a spliced product",
-                node.0, by.0
+                node, by
             ),
             Self::Unresolved { failure } => {
                 write!(f, "inline: the reference did not resolve: {failure}")
@@ -740,7 +704,7 @@ impl core::fmt::Display for InlineError {
                 "inline: the instance is placed at a non-identity frame, but part root {} is \
                  plain recipe geometry with no placement of its own — the frame is not \
                  expressible locally",
-                root.0
+                root
             ),
             Self::InstanceBodyNameReferenced { name } => write!(
                 f,
@@ -754,16 +718,16 @@ impl core::fmt::Display for InlineError {
             ),
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "inline: the {name} spells a piece of the profile step minted #{}, which no profile of the \
+                "inline: the {name} spells a piece of the profile step {}, which no profile of the \
                  referenced document draws any more — repair the stranded reference before \
                  inlining",
-                step.0
+                step
             ),
             Self::StrandedPartName { name, missing } => write!(
                 f,
                 "inline: the {name} derives from node {}, which the referenced document no \
                  longer has — repair the stranded reference before inlining",
-                missing.0
+                missing
             ),
             Self::Edit { error } => write!(
                 f,
@@ -771,7 +735,6 @@ impl core::fmt::Display for InlineError {
                 error.problem(),
                 ReplayTail(error, Replay::Inline)
             ),
-            Self::StepMapDiverged(d) => write!(f, "inline: {d}"),
         }
     }
 }
@@ -871,6 +834,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SetMembersOnNonList { .. }
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::StepIdsRefused { .. }
+            | EditError::NodeIdCollides { .. }
             | EditError::TooFewMembers { .. }
             | EditError::DeleteWouldDangle { .. }
             | EditError::UnknownSlot { .. }
@@ -926,7 +890,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PlacementAxis { .. }
             | EditError::NonFiniteAlignment { .. }
             | EditError::UpdateOnNonInstance { .. }
-            | EditError::PinUnchanged { .. } => defect(f),
+            | EditError::PinUnchanged { .. }
+            | EditError::LabelUnchanged { .. } => defect(f),
         }
     }
 }
@@ -951,7 +916,7 @@ pub struct SplitOutcome {
     /// re-anchored onto the instance (a kept mate that welded nothing
     /// while its far end was a local body welds the instance to its
     /// near end once the name is instance-qualified — a join) and as
-    /// the cut nodes left (a cut cluster's mates and members going is
+    /// the cut nodes left (a cut group's mates and members going is
     /// its splits and drops), and every payload name a departing cut
     /// node stranded behind it (DM7). An accepted edit travels whole, so the
     /// outcome carries what its edits DID beside what they produced: a
@@ -964,8 +929,8 @@ pub struct SplitOutcome {
     /// The maintenance `part_edits` performed, in edit order
     /// ([`Maintenance`]). The part is built by inserting the cut nodes, and a cut
     /// mate welds its two members as it lands, so a multi-member
-    /// cluster cut whole re-forms in the part as one join per mate
-    /// that welded two clusters still separate when it landed. That
+    /// group cut whole re-forms in the part as one join per mate
+    /// that welded two groups still separate when it landed. That
     /// insert is the one part-side edit that moves a mate graph: the
     /// tolerance, parameter, witness, placement and root edits
     /// reconcile nothing.
@@ -996,7 +961,7 @@ pub struct InlineOutcome {
     /// instance
     /// welded onto the spliced node (a split, where the spliced node
     /// is no member), and the instance's delete drops or re-keys its
-    /// cluster's row. An accepted edit travels whole; a caller holding
+    /// group's row. An accepted edit travels whole; a caller holding
     /// a document with the maintenance of its last accepted edit swaps
     /// `doc` and this in together.
     pub maintenance: Vec<Maintenance>,
@@ -1115,7 +1080,7 @@ fn remap_derivation(
         path: path.to_vec(),
     }
     .rewrite_path(&mut Remapping(map, steps))?;
-    Ok((to, rewritten.path))
+    Ok((to, rewritten.into_path()))
 }
 
 /// **The split re-map as a [`SegRewrite`]**: every carried name is
@@ -1157,8 +1122,21 @@ impl SegRewrite for Remapping<'_> {
         })
     }
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
-        remap_name(n, self.0, self.1).map(Some)
+    // [`remap_name`], one level at a time: the minting node is mapped
+    // (and an unmapped one refused) before the path is walked, and the
+    // walked path is then put under it.
+    fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
+        self.member(n.node)?;
+        Ok(Carry::Descend)
+    }
+
+    fn descended(
+        &mut self,
+        n: &StableName,
+        mut walked: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
+        walked.node = self.member(n.node)?;
+        Ok(Some(walked))
     }
 
     fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Self::Error> {
@@ -1307,7 +1285,7 @@ fn remap_node(
         //
         // Its step ids do NOT cross: the other document's insert door
         // mints its own, and the names that spell them cross through
-        // the step map precomputed from that minting (`step_map_of`).
+        // the step map read off that minting ([`carry`]).
         Node::Profile(p) => Node::Profile(ProfileProgram {
             plane: id(p.plane)?,
             loops: p.loops.clone(),
@@ -1476,7 +1454,12 @@ fn remap_node(
                 name: face(&b.name)?,
             },
             class: *class,
-            alignment: *alignment,
+            // The datum crosses verbatim: its vectors are numbers, and
+            // a `FromFace` side's name is a row of the PART's table,
+            // in the part's own id space, which no cut of this
+            // document moves — it crosses as the instance's own
+            // reference does.
+            alignment: alignment.clone(),
         },
         // A measure's references are BOTH names and edges, so they
         // remap through the name door exactly once — `nm` rewrites the
@@ -1588,22 +1571,22 @@ pub fn split(
             }
         }
     }
-    // A11's cluster precondition, checked FOR REAL now that mates can
-    // make a cluster multi-node (this module's docs have promised the
+    // A11's group precondition, checked FOR REAL now that mates can
+    // make a group multi-node (this module's docs have promised the
     // re-check since ASM-4; review MAJOR-2 found it missing). Run
     // beside the severed-edge check, before anything moves: a torn
-    // cluster is a refusal, not a case the hoist below silently
+    // group is a refusal, not a case the hoist below silently
     // declines to handle.
-    for members in crate::mate::clusters(doc) {
-        let Some(&gauge) = members.first() else {
+    for members in crate::mate::groups(doc) {
+        let Some(&root) = members.first() else {
             continue;
         };
-        let gauge_is_cut = cut.contains(&gauge);
-        if let Some(&instance) = members.iter().find(|id| cut.contains(id) != gauge_is_cut) {
-            return Err(SplitError::TornCluster {
-                gauge,
+        let root_is_cut = cut.contains(&root);
+        if let Some(&instance) = members.iter().find(|id| cut.contains(id) != root_is_cut) {
+            return Err(SplitError::TornGroup {
+                root,
                 instance,
-                gauge_is_cut,
+                root_is_cut,
             });
         }
     }
@@ -1617,9 +1600,9 @@ pub fn split(
     // The exception is the interface crossing (below): a kept mate
     // whose name re-anchors carries its at-mint operand with it.
     //
-    // AFTER the cluster precondition on purpose: a mate that WELDS
-    // its two members is the case `TornCluster` already speaks to,
-    // and it is the more informative refusal — it names the cluster
+    // AFTER the group precondition on purpose: a mate that WELDS
+    // its two members is the case `TornGroup` already speaks to,
+    // and it is the more informative refusal — it names the group
     // the cut tears rather than one of its edges. This arm catches
     // what is left: a mate whose reference resolves to no member
     // welds nothing, and its operand still crosses.
@@ -1653,23 +1636,23 @@ pub fn split(
             });
         }
     }
-    // The hoisted-frame case: the cut is exactly one placement CLUSTER
+    // The hoisted-frame case: the cut is exactly one placement GROUP
     // (ASM-4's D-2 amendment, rider ii — re-keyed here now that A12's
-    // mates make a cluster multi-node; the pre-mate reading, "exactly
+    // mates make a group multi-node; the pre-mate reading, "exactly
     // one instantiate node", is the singleton case of this one).
     //
     // Two conditions, and each says something the frame move needs:
-    // the cut's instances all belong to ONE cluster (else there is no
+    // the cut's instances all belong to ONE group (else there is no
     // single frame to hoist), and the cut carries nothing but that
-    // cluster and the mates holding it together (else the part
+    // group and the mates holding it together (else the part
     // document owns material the hoisted frame does not place).
     //
-    // WHOLENESS is not a third condition here — the torn-cluster
-    // precondition above already refused every partial cluster, so a
-    // cluster reached by the cut is entirely inside it. That is the
+    // WHOLENESS is not a third condition here — the torn-group
+    // precondition above already refused every partial group, so a
+    // group reached by the cut is entirely inside it. That is the
     // load-bearing difference from the shape this predicate had before
-    // the review: it used to FILTER torn clusters out of the count,
-    // which made a torn cluster look like an absent one and let the
+    // the review: it used to FILTER torn groups out of the count,
+    // which made a torn group look like an absent one and let the
     // hoist proceed while the torn frame was dropped (MAJOR-2).
     let hoisted = {
         let cut_instances: Vec<RecipeNodeId> = cut
@@ -1677,16 +1660,16 @@ pub fn split(
             .copied()
             .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
             .collect();
-        let gauges: BTreeSet<RecipeNodeId> = crate::mate::clusters(doc)
+        let group_roots: BTreeSet<RecipeNodeId> = crate::mate::groups(doc)
             .into_iter()
             .filter(|members| members.iter().any(|m| cut_instances.contains(m)))
             .filter_map(|members| members.first().copied())
             .collect();
-        let only_cluster_and_its_mates = cut.iter().all(|&id| {
+        let only_group_and_its_mates = cut.iter().all(|&id| {
             cut_instances.contains(&id) || matches!(doc.node(id), Some(Node::Mate { .. }))
         });
-        match gauges.iter().next() {
-            Some(&gauge) if gauges.len() == 1 && only_cluster_and_its_mates => Some(gauge),
+        match group_roots.iter().next() {
+            Some(&root) if group_roots.len() == 1 && only_group_and_its_mates => Some(root),
             _ => None,
         }
     };
@@ -1788,32 +1771,9 @@ pub fn split(
             NameCarrier::Store { name } => classify(name)?,
         }
     }
-    // The deterministic id remap: cut nodes in document order mint
-    // part ids 0, 1, 2, … (D9 — two runs agree byte for byte).
-    let node_map: NodeMap = doc
-        .order()
-        .iter()
-        .filter(|id| cut.contains(id))
-        .enumerate()
-        .map(|(i, &old)| (old, RecipeNodeId(i as u64)))
-        .collect();
-    // The same for the cut profiles' steps: the part's insert door
-    // mints them from the empty document's mint, in insertion order.
-    let step_map = step_map_of(
-        doc.order()
-            .iter()
-            .filter(|id| cut.contains(id))
-            .filter_map(|id| doc.node(*id).map(|node| (*id, node))),
-        &node_map,
-        &StepMint::empty(),
-    )
-    .map_err(|error| SplitError::PartEdit {
-        error: Box::new(error),
-    })?;
-
     // ---- The part document, as recorded edits from empty ----
     // The part side's edits are inserts into a document being built —
-    // a Join at most, never a moved gauge — so they lever through the
+    // a Join at most, never a moved root — so they lever through the
     // caller's own seam; the remainder side, below, needs more.
     let part_reach = crate::eval::PartReach::<f64>::with_resolver(resolver, tol);
     let mut part = Recording::start(Doc::empty(part_id, tol));
@@ -1844,25 +1804,37 @@ pub fn split(
             )?;
         }
     }
-    for &old in doc.order().iter().filter(|id| cut.contains(id)) {
-        let Some(node) = doc.node(old) else { continue };
-        let node = remap_node(node, &node_map, &step_map).map_err(|miss| match miss {
+    // The cut nodes in document order, each under the id the part's
+    // insert door mints for it (D9 — two runs agree byte for byte).
+    let olds: Vec<RecipeNodeId> = doc
+        .order()
+        .iter()
+        .filter(|id| cut.contains(id))
+        .copied()
+        .collect();
+    let (node_map, step_map) = carry(
+        doc,
+        &olds,
+        &mut part,
+        (tol, &part_reach),
+        |error| SplitError::PartEdit {
+            error: Box::new(error),
+        },
+        |old, miss| match miss {
             RemapMiss::Input(input) => SplitError::PartEdit {
                 error: Box::new(EditError::UnresolvedInput { input }),
             },
             RemapMiss::Name { name, missing } => SplitError::reaches(old, name, missing),
-        })?;
-        part_apply(&mut part, DocEdit::InsertNode { node })?;
-    }
-    step_map_check(doc, &node_map, &step_map, &part.doc).map_err(SplitError::StepMapDiverged)?;
+        },
+    )?;
     // Witness DATA copies VERBATIM while node ids remap: sound because
     // a witness datum is sketch-self-relative — it selects among the
     // owning profile's own solution branches and embeds no other
     // node's identity, so there is no cross-id-space reference for the
     // remap to miss. A future witness vocabulary that embeds foreign
     // stable names must remap here or refuse.
-    for (&old, &new) in &node_map {
-        if let Some(witness) = doc.witness(old) {
+    for &old in &olds {
+        if let (Some(&new), Some(witness)) = (node_map.get(&old), doc.witness(old)) {
             part_apply(
                 &mut part,
                 DocEdit::ReWitness {
@@ -1872,8 +1844,20 @@ pub fn split(
             )?;
         }
     }
+    // A label follows the node it names into the part.
+    for &old in &olds {
+        if let (Some(&new), Some(label)) = (node_map.get(&old), doc.label(old)) {
+            part_apply(
+                &mut part,
+                DocEdit::SetLabel {
+                    node: new,
+                    label: Some(label.clone()),
+                },
+            )?;
+        }
+    }
     if hoisted.is_none() {
-        // A11: the cut clusters' placements move verbatim (module
+        // A11: the cut groups' placements move verbatim (module
         // docs) — every recorded row whose instance is cut, explicit
         // identities included (semantics unchanged; the row's
         // explicitness is not).
@@ -1920,13 +1904,13 @@ pub fn split(
     // instance, or a pattern-placed instance (`Pattern` node +
     // `Instance(i)`). The gate is `crate::mate::member_of`
     // ITSELF, not a re-spelling of it: this collector, A12's reading
-    // edges and A11's clusters ask ONE predicate.
+    // edges and A11's groups ask ONE predicate.
     //
     // # Why no accepted cut reaches this record
     //
     // The record is unreachable, and predicate identity alone does not
     // establish that — the loop below tests NAMES
-    // (`derivation_nodes ⊆ cut`) while the cluster precondition tests
+    // (`derivation_nodes ⊆ cut`) while the group precondition tests
     // INSTANCES. Three facts carry the argument, and the second is the
     // one that ties those two readings together:
     //
@@ -1941,11 +1925,11 @@ pub fn split(
     //    `pattern.input ∈ cut`. A pattern-placed head's derivation
     //    nodes and the MEMBER it resolves to therefore always land on
     //    the same side, which is what makes (1)'s name reading agree
-    //    with the cluster precondition's instance reading. For a plain
+    //    with the group precondition's instance reading. For a plain
     //    head the two are the same node and this is trivial.
-    // 3. An edge's two members are welded into one placement cluster
-    //    (`mate::clusters`, on this same predicate), and `TornCluster`
-    //    above refuses any cut that is not a union of WHOLE clusters.
+    // 3. An edge's two members are welded into one placement group
+    //    (`mate::groups`, on this same predicate), and `TornGroup`
+    //    above refuses any cut that is not a union of WHOLE groups.
     //
     // Together: an edge's two ends are never on opposite sides of an
     // accepted cut, so this loop mints nothing for one and the record
@@ -1959,7 +1943,7 @@ pub fn split(
     // names fall across the cut. Such a mate never solved, so a record
     // minted from it would be trusted-at-rest state. Unlike (1)-(3),
     // this arm is NOT forced by the cut rules: a nested-pattern head
-    // welds no cluster, so its mate's ends do reach opposite sides of
+    // welds no group, so its mate's ends do reach opposite sides of
     // an accepted cut, and the gate is the only thing that skips it.
     // That is AQ8 option (b), SKIP — its home is
     // `crates/editor-core/ASSEMBLY.md`'s AQ8 clause, and `row5_d` in
@@ -2007,7 +1991,7 @@ pub fn split(
     // **The remainder's reach knows the part this split is minting.**
     // Rebinding a mate's heads onto the new instance one name at a time
     // passes through documents where that mate stands on the new part,
-    // and the maintenance that re-keys the clusters those rebinds
+    // and the maintenance that re-keys the groups those rebinds
     // split solves through the mate's lever — the new part's own
     // extent, which no store holds yet because this call is what
     // creates it. The reach is therefore composed here: the part in
@@ -2147,8 +2131,8 @@ pub fn inline(
     resolver: &std::sync::Arc<dyn PartResolver>,
     tol: Tol,
 ) -> Result<InlineOutcome, InlineError> {
-    // Deleting the instance moves its cluster's gauge, and the
-    // maintenance that re-keys the cluster levers through the parts
+    // Deleting the instance moves its group's root, and the
+    // maintenance that re-keys the group levers through the parts
     // the same resolver holds.
     let reach = crate::eval::PartReach::<f64>::with_resolver(Some(resolver), tol);
     let Some(node) = doc.node(instance) else {
@@ -2217,30 +2201,6 @@ pub fn inline(
     }
     wrapped.sort();
     wrapped.dedup();
-    // The id remap is precomputed from the mint counter: parameter
-    // edits mint nothing, so the part's nodes land on consecutive ids
-    // starting at the host's next mint, in part document order — which
-    // is what lets payloads with FORWARD name references (a rebound
-    // Declare) remap before their targets are inserted.
-    let node_map: NodeMap = part
-        .order()
-        .iter()
-        .enumerate()
-        .map(|(i, &old)| (old, RecipeNodeId(doc.next_id + i as u64)))
-        .collect();
-    // The part's profile steps are minted from the host's mint, which
-    // inserts of the part's nodes alone extend.
-    let step_map = step_map_of(
-        part.order()
-            .iter()
-            .filter_map(|id| part.node(*id).map(|node| (*id, node))),
-        &node_map,
-        doc.step_mint(),
-    )
-    .map_err(|error| InlineError::Edit {
-        error: Box::new(error),
-    })?;
-
     let mut current = Recording::start(doc.clone());
     let step =
         |current: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), InlineError> {
@@ -2270,24 +2230,29 @@ pub fn inline(
             )?,
         }
     }
-    for &old in part.order() {
-        let Some(node) = part.node(old) else { continue };
-        let node = remap_node(node, &node_map, &step_map).map_err(|miss| match miss {
+    // The part's nodes in its document order, each under the id the
+    // host's insert door mints for it.
+    let (node_map, step_map) = carry(
+        &part,
+        part.order(),
+        &mut current,
+        (tol, &reach),
+        |error| InlineError::Edit {
+            error: Box::new(error),
+        },
+        |_, miss| match miss {
             RemapMiss::Input(input) => InlineError::Edit {
                 error: Box::new(EditError::UnresolvedInput { input }),
             },
             RemapMiss::Name { name, missing } => InlineError::stranded(name, missing),
-        })?;
-        step(&mut current, DocEdit::InsertNode { node })?;
-    }
-    step_map_check(&part, &node_map, &step_map, &current.doc)
-        .map_err(InlineError::StepMapDiverged)?;
+        },
+    )?;
     // Witness data copies VERBATIM while ids remap — the same
     // invariant as split's copy: a witness datum is sketch-self-
     // relative and embeds no other node's identity (see split's
     // witness loop).
-    for (&old, &new) in &node_map {
-        if let Some(witness) = part.witness(old) {
+    for &old in part.order() {
+        if let (Some(&new), Some(witness)) = (node_map.get(&old), part.witness(old)) {
             step(
                 &mut current,
                 DocEdit::ReWitness {
@@ -2297,7 +2262,19 @@ pub fn inline(
             )?;
         }
     }
-    // D-3's placement rule: the instance's cluster frame composes onto
+    // A label follows the node it names into the host.
+    for &old in part.order() {
+        if let (Some(&new), Some(label)) = (node_map.get(&old), part.label(old)) {
+            step(
+                &mut current,
+                DocEdit::SetLabel {
+                    node: new,
+                    label: Some(label.clone()),
+                },
+            )?;
+        }
+    }
+    // D-3's placement rule: the instance's group frame composes onto
     // the part's own placements. Every spliced instance is placed at
     // the composition (identity compositions stay unrecorded — a
     // missing row IS the identity).
@@ -2639,14 +2616,14 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
 /// The split's node map follows document order, which a loaded
 /// document need not keep in id order, so two ids can come out in the
 /// other order. Every name-ordered position then has to be put back in
-/// order, and a union seam whose sides swap reads its ranks from the
-/// other end — the form the emitters would mint for the same entity
-/// under the new ids.
+/// order, and a crossing ranked along a union seam whose sides swap
+/// reads its rank from the other end — the form the emitters would mint
+/// for the same entity under the new ids.
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod a_remap_that_reorders_ids_republishes_the_canonical_form {
     use super::{NodeMap, StepMap, remap_name};
-    use crate::names::{NameRef, Qualifier, RoleSeg, SideVerdict, StableName};
+    use crate::names::{NameRef, Qualifier, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
 
@@ -2697,23 +2674,36 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
         }
     }
 
-    /// A union seam edge between members 1 and 2, first of three.
-    fn union_edge(u: u64, (m1, m2): (u64, u64), r: u32) -> StableName {
+    /// A union seam edge between members 1 and 2.
+    fn union_edge(u: u64, (m1, m2): (u64, u64)) -> StableName {
         let (x, y) = (
             member(EntityKind::Face, u, m1),
             member(EntityKind::Face, u, m2),
         );
         let (x, y) = if x <= y { (x, y) } else { (y, x) };
-        name(EntityKind::Edge, u, vec![seam(x, y), rank(r, 3)])
+        name(EntityKind::Edge, u, vec![seam(x, y)])
+    }
+
+    /// A piece of that seam, ending at members 1's and 2's start-cap
+    /// vertices.
+    fn union_piece(u: u64, (m1, m2): (u64, u64)) -> StableName {
+        let mut piece = union_edge(u, (m1, m2));
+        let mut ends = vec![
+            member(EntityKind::Vertex, u, m1),
+            member(EntityKind::Vertex, u, m2),
+        ];
+        ends.sort();
+        piece.path.push(RoleSeg::Fragment(Qualifier::Ends(ends)));
+        piece
     }
 
     #[test]
-    fn a_union_seam_edge_swaps_its_sides_and_reverses_its_rank() {
-        let out = remap_name(&union_edge(9, (1, 2), 0), &map(), &StepMap::new()).expect("covered");
+    fn a_union_seam_edge_piece_swaps_its_sides_and_reorders_its_ends() {
+        let out = remap_name(&union_piece(9, (1, 2)), &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out,
-            union_edge(20, (31, 30), 2),
-            "the pair in name order under the new ids, the rank from the other end"
+            union_piece(20, (31, 30)),
+            "the pair and the ends in name order under the new ids"
         );
     }
 
@@ -2728,13 +2718,13 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             };
             name(EntityKind::Vertex, u, vec![seam(x, y), rank(r, 2)])
         };
-        let was = vertex(9, union_edge(9, (1, 2), 0), 3, 0);
+        let was = vertex(9, union_edge(9, (1, 2)), 3, 0);
         let out = remap_name(&was, &map(), &StepMap::new()).expect("covered");
-        assert_eq!(out, vertex(20, union_edge(20, (31, 30), 2), 32, 1));
+        assert_eq!(out, vertex(20, union_edge(20, (31, 30)), 32, 1));
     }
 
     #[test]
-    fn a_pair_booleans_sets_side_of_and_junction_are_resorted_and_its_seams_stay_sided() {
+    fn a_pair_booleans_sets_borders_and_junction_are_resorted_and_its_seams_stay_sided() {
         // Boolean 5 over operands 1 and 2, with 3 a third name.
         let face = |n| cap(EntityKind::Face, n);
         let was = name(
@@ -2742,10 +2732,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             5,
             vec![
                 RoleSeg::Merged(vec![face(1), face(2)]),
-                RoleSeg::Fragment(Qualifier::SideOf(vec![
-                    (face(1), SideVerdict::Positive),
-                    (face(2), SideVerdict::Negative),
-                ])),
+                RoleSeg::Fragment(Qualifier::Borders(vec![face(1), face(2)])),
             ],
         );
         let out = remap_name(&was, &map(), &StepMap::new()).expect("covered");
@@ -2753,10 +2740,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             out.path,
             vec![
                 RoleSeg::Merged(vec![face(30), face(31)]),
-                RoleSeg::Fragment(Qualifier::SideOf(vec![
-                    (face(30), SideVerdict::Negative),
-                    (face(31), SideVerdict::Positive),
-                ])),
+                RoleSeg::Fragment(Qualifier::Borders(vec![face(30), face(31)])),
             ]
         );
         let junction = name(
@@ -2771,14 +2755,14 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             "the run re-sorted, each line A-first"
         );
         let sided = name(
-            EntityKind::Edge,
+            EntityKind::Vertex,
             5,
-            vec![seam(face(1), face(2)), rank(0, 3)],
+            vec![seam(cap(EntityKind::Edge, 1), face(2)), rank(0, 3)],
         );
         let out = remap_name(&sided, &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out.path,
-            vec![seam(face(31), face(30)), rank(0, 3)],
+            vec![seam(cap(EntityKind::Edge, 31), face(30)), rank(0, 3)],
             "a pair boolean's seam is sided: no swap, no reversal"
         );
     }

@@ -14,7 +14,7 @@ use geom_core::Tol;
 // v4: `Doc<P>` requires `P: ProfilePayload` (defaults = the retired
 // opaque behavior), which a foreign `&str` cannot implement here — a
 // transparent local newtype carries the same test payloads.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 struct Fake(&'static str);
 impl editor_core::ProfilePayload for Fake {}
 type Doc = editor_core::Doc<Fake>;
@@ -93,8 +93,12 @@ fn r1_replay_bit_identity_adversarial() {
     let a = doc
         .apply(&e, Tol::witness(), &editor_core::RefusingReach)
         .unwrap();
-    // D3: ids strictly increase even after deleting the highest one.
-    assert!(a.record.minted.unwrap() > *minted.iter().max().unwrap());
+    // D3: an id is never reused, even after deleting the newest one.
+    let fresh = a.record.minted.unwrap();
+    assert!(
+        !minted.contains(&fresh),
+        "{fresh:?} was minted before and deleted, and is handed out again"
+    );
     doc = a.doc;
     log.push(e);
     // Re-insert a last-ulp carrier after the churn — replay must
@@ -128,9 +132,15 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
         &[point_edit(len(0.0))],
     );
+    // The signed zero written by a value edit, so the point keeps its
+    // id (an insert of -0.0 mints another id: the mint reads bits).
     let (neg, _) = apply_all(
-        Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        &[point_edit(len(-0.0))],
+        pos.clone(),
+        &[DocEdit::SetParam {
+            node: pos.order()[0],
+            slot: SlotId::Origin(editor_core::Axis3::X),
+            expr: len(-0.0),
+        }],
     );
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
@@ -227,7 +237,7 @@ fn r2_dimension_smuggling_probes() {
         Dimension::Angle
     );
     // Neg is dimension-transparent: Neg(Length) still refuses ×Length.
-    let neg_l = Expr::neg(len(1.0));
+    let neg_l = Expr::neg(len(1.0)).expect("a shallow negation");
     assert!(Expr::mul(neg_l, len(1.0)).is_err());
     // Trig on promoted Count refused (Scalar, not Angle).
     assert!(Expr::sin(inner).is_err());
@@ -555,7 +565,17 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     let doc = a.doc;
     // Forward ref to a FUTURE id (the only way to seed a cycle at
     // insert) is refused: the id isn't live yet.
-    let next_would_be = RecipeNodeId(extrude.0 + 1);
+    // The id the next insert would mint, read by making it on a copy.
+    let next_would_be = doc
+        .apply(
+            &point_edit(len(0.0)),
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .record
+        .minted
+        .unwrap();
     let res = doc.apply(
         &Edit::InsertNode {
             node: Node::Boolean {
@@ -788,7 +808,8 @@ fn r8_interval_lane_representative_and_zero_divisor() {
         Expr::min(ang(1.0), Expr::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
         Expr::max(len(-0.0), len(0.0)).unwrap(),
         Expr::mul(Expr::count_to_scalar(Expr::count(21)).unwrap(), len(0.002)).unwrap(),
-        Expr::neg(Expr::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap()),
+        Expr::neg(Expr::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap())
+            .expect("a shallow negation"),
     ];
     for (i, e) in cases.iter().enumerate() {
         let vf = eval::<f64>(e, &env_f).unwrap();

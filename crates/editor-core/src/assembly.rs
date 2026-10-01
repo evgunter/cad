@@ -147,13 +147,9 @@ impl Route {
 // each instance below it.
 impl core::fmt::Display for Route {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "document {} through instance {}",
-            self.of, self.through.0
-        )?;
+        write!(f, "document {} through instance {}", self.of, self.through)?;
         for node in &self.via {
-            write!(f, " → instance {}", node.0)?;
+            write!(f, " → instance {}", node)?;
         }
         Ok(())
     }
@@ -429,7 +425,7 @@ impl core::fmt::Display for Attribution {
                 write!(
                     f,
                     "mate {}'s declared {} contact, {}",
-                    m.mate.0,
+                    m.mate,
                     m.class.name(),
                     relation.name()
                 )
@@ -566,7 +562,7 @@ impl core::fmt::Display for MintRefusal {
             } => write!(
                 f,
                 "mate {}'s {} reference ({} {name}) does not name a face of the product: {why}",
-                mate.0,
+                mate,
                 side.name(),
                 name.kind.article(),
             ),
@@ -574,7 +570,7 @@ impl core::fmt::Display for MintRefusal {
                 f,
                 "mate {}'s class {} has no at-rest kernel record — {why}; the record is \
                  not minted with an invented witness — {NO_AT_REST_RECORD_RECOURSE}",
-                mate.0,
+                mate,
                 class.name()
             ),
         }
@@ -697,7 +693,7 @@ impl core::fmt::Display for RefusedRef {
                 f,
                 "it is read at node {}, which is not a root of the product, and a reference \
                  resolves against a root's own rows",
-                at.0
+                at
             ),
             Self::Ambiguous { width } => write!(
                 f,
@@ -708,25 +704,10 @@ impl core::fmt::Display for RefusedRef {
     }
 }
 
-impl AssemblyError {
-    /// How this door renders a document that did not gather: the
-    /// [`AssemblyError::Product`] arm's own sentence, over a refusal
-    /// the caller still owns.
-    ///
-    /// One copy of that sentence, and [`Display`](core::fmt::Display)
-    /// reads it from here: a caller that gathered for itself and holds
-    /// the refusal reports the gate's verdict in the gate's words
-    /// without re-spelling them.
-    #[must_use]
-    pub fn product_refusal(source: &crate::ProductError) -> String {
-        source.to_string()
-    }
-}
-
 impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Product(e) => f.write_str(&Self::product_refusal(e)),
+            Self::Product(e) => write!(f, "{e}"),
             Self::Mint { refusals } => {
                 write!(
                     f,
@@ -1433,6 +1414,7 @@ fn attribute(
         | ValidationError::NullScaffoldShared { .. }
         | ValidationError::LeakedNullFaceRecord { .. }
         | ValidationError::StaleNullFaceLoop { .. }
+        | ValidationError::StaleNullFaceOwnership { .. }
         | ValidationError::NullEdgeAtRest { .. }
         | ValidationError::NullFaceAtRest { .. } => Attribution::Unattributed,
     }

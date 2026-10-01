@@ -19,9 +19,9 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
     Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, clusters,
+    RoleSeg, StableName, assemble, groups,
 };
-use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
     ang, door_refusal, in_copy, insert, len, on_frame, relations, run, scl, solve, step,
 };
@@ -31,7 +31,13 @@ use geom_core::Tol;
 
 // ---- Documents ----
 
-fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
+fn block_part(
+    label: &str,
+    x: (f64, f64),
+    y: (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, p) = on_frame(
         doc,
@@ -40,27 +46,22 @@ fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> Pr
         [0.0, 1.0, 0.0],
         vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile: p,
             distance: len(dz),
         },
-    );
-    doc
+    )
 }
 
 /// The unit cube `[0,1]³` — the leg.
-fn leg_part(label: &str) -> ProfileDoc {
+fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 /// A determining `Rest` mate by frame coincidence: `b`'s bottom frame
@@ -92,7 +93,7 @@ fn seat_mate(
 /// Returns (doc, leg, pattern, top, mate, store).
 fn four_legs(
     label: &str,
-    top_part: ProfileDoc,
+    top_part: (ProfileDoc, RecipeNodeId),
     spacing: f64,
     i: u32,
     sense: AxisSense,
@@ -105,8 +106,8 @@ fn four_legs(
     PartStore,
 ) {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part(&format!("{label}-leg")), Tol::witness());
-    let top_ref = store.insert(top_part, Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part(&format!("{label}-leg")), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(top_part, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
@@ -125,8 +126,8 @@ fn four_legs(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, i, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, i, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 sense,
             ),
@@ -160,23 +161,23 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
 
     // The reading edges: the pattern-member mate reads through the
     // pattern's INPUT instance — the vertex that joins the top into
-    // the pattern's cluster.
+    // the pattern's group.
     assert_eq!(
         editor_core::reading_edges(&doc),
         vec![(mate, leg), (mate, top)],
         "a pattern-placed head contributes the reading edge at the pattern's input instance"
     );
     assert_eq!(
-        clusters(&doc),
+        groups(&doc),
         vec![vec![leg, top]],
-        "the mate joins the top into the pattern's cluster; the gauge is the leg (document-first)"
+        "the mate joins the top into the pattern's group; the root is the leg (document-first)"
     );
 
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
-    assert_eq!(poses.gauge(top), Some(leg));
+    assert_eq!(poses.root(top), Some(leg));
 
     // Hand-composed: copy 2 sits at `translation(spacing·2 · x̂)` (the
     // pattern's own parameters, nothing read back from the solve); the
@@ -218,8 +219,8 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
 #[test]
 fn a_circular_pattern_copy_rotates_the_solved_member() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-circ-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("mate1-circ-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-circ-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("mate1-circ-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-circ"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, axis) = insert(
@@ -246,8 +247,8 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.5, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -299,8 +300,8 @@ fn two_seats(
     top_x: (f64, f64),
 ) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], PartStore) {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part(&format!("{label}-leg")), Tol::witness());
-    let top_ref = store.insert(
+    let (leg_ref, leg_body) = store.insert_part(leg_part(&format!("{label}-leg")), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(
         block_part(&format!("{label}-top"), top_x, (0.0, 1.0), 0.0, 0.5),
         Tol::witness(),
     );
@@ -322,8 +323,8 @@ fn two_seats(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -333,8 +334,8 @@ fn two_seats(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -494,8 +495,8 @@ fn mates_never_solve_pattern_parameters() {
 #[test]
 fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-contra-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("mate1-contra-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-contra-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("mate1-contra-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-contra"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
@@ -512,8 +513,8 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let seat = |origin| {
         seat_mate(
-            in_copy(pattern, 1, in_part(leg, CapEnd::End)),
-            in_part(top, CapEnd::Start),
+            in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
             origin,
             AxisSense::Aligned,
         )
@@ -559,8 +560,8 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
 #[test]
 fn the_master_name_spelling_refuses_read_below_a_root() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-pin-master-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("mate1-pin-master-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-pin-master-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("mate1-pin-master-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-pin-master"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, _pattern) = insert(
@@ -580,8 +581,8 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_part(leg, CapEnd::End),
-                in_part(top, CapEnd::Start),
+                in_part(leg, leg_body, CapEnd::End),
+                in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -624,8 +625,8 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
 #[test]
 fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-fence-leg"), Tol::witness());
-    let top_ref = store.insert(leg_part("mate1-fence-top"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-fence-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg_part("mate1-fence-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-fence"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
@@ -647,8 +648,8 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     let fault = door_refusal(
         &doc,
         seat_mate(
-            in_copy(pattern, 5, in_part(leg, CapEnd::End)),
-            in_part(top, CapEnd::Start),
+            in_copy(pattern, 5, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
             [0.0, 0.0, 1.0],
             AxisSense::Aligned,
         ),
@@ -664,8 +665,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
 
     // A pattern of a non-instance body (an extrude patterned in the
     // same document): its copies stand on no instance — no member.
-    let doc2 = block_part("mate1-fence-body", (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let extrude = PART_BODY;
+    let (doc2, extrude) = block_part("mate1-fence-body", (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc2, body_pattern) = insert(
         doc2,
         Node::Pattern {
@@ -678,7 +678,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         },
     );
     let mut store2 = PartStore::default();
-    let other_ref = store2.insert(leg_part("mate1-fence-other"), Tol::witness());
+    let (other_ref, other_body) = store2.insert_part(leg_part("mate1-fence-other"), Tol::witness());
     let (doc2, other) = insert(doc2, Node::instantiate_part(other_ref));
     let master_face = StableName {
         kind: EntityKind::Face,
@@ -689,7 +689,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         &doc2,
         seat_mate(
             in_copy(body_pattern, 0, master_face),
-            in_part(other, CapEnd::Start),
+            in_part(other, other_body, CapEnd::Start),
             [0.0, 0.0, 1.0],
             AxisSense::Aligned,
         ),
@@ -714,7 +714,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
 #[test]
 fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
     let mut store = PartStore::default();
-    let leg_ref = store.insert(leg_part("mate1-selfpair-leg"), Tol::witness());
+    let (leg_ref, leg_body) = store.insert_part(leg_part("mate1-selfpair-leg"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-selfpair"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
@@ -734,8 +734,8 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
-                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+                in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -747,8 +747,8 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
     let fault = door_refusal(
         &doc,
         seat_mate(
-            in_copy(pattern, 2, in_part(leg, CapEnd::End)),
-            in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+            in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
+            in_copy(pattern, 2, in_part(leg, leg_body, CapEnd::End)),
             [0.0, 0.0, 1.0],
             AxisSense::Aligned,
         ),

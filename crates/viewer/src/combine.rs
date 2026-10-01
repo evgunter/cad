@@ -11,9 +11,8 @@
 //! face or edge pick reaches the node whose DRAWN body the ray met
 //! (`Selection::seat_node`). Everything before the commit is tool
 //! state; the document transition is one [`SessionOp`], committed
-//! through the session's ordinary commit door as one action — one
-//! `DocEdit::InsertNode` for every tool but the duplicate tool, whose
-//! op inserts a pattern and its two projections as one undo.
+//! through the session's ordinary commit door as one action
+//! ([`crate::tools`] says which actions take more than one edit).
 //!
 //! The seat vocabulary, the pick rule, the survival step and the
 //! id-reuse hazard it does not cover (issue #1384) are all
@@ -40,7 +39,7 @@ use crate::vocab::vocabulary;
 /// The operand order is DATA, not a convenience: `Subtract` keeps the
 /// first pick and removes the second, so the panel says which held pick
 /// is which and the seats are named for it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BooleanTool {
     seats: Seats,
 }
@@ -91,7 +90,9 @@ impl BooleanTool {
     }
 
     /// **The one committed edit**: the session op that inserts the
-    /// boolean node through the ordinary commit door.
+    /// boolean node through the ordinary commit door, declaring no
+    /// contact. A contact the door refuses is declared through the
+    /// offer its refusal makes ([`crate::session::DeclareOffer`]).
     ///
     /// # Errors
     ///
@@ -103,6 +104,7 @@ impl BooleanTool {
             op,
             a: self.seats.require(0)?,
             b: self.seats.require(1)?,
+            declare: Vec::new(),
         })
     }
 }
@@ -114,7 +116,7 @@ impl BooleanTool {
 /// tool operand is the plane the cut is taken on, which is why this
 /// tool's two seats want different kinds where the boolean's want the
 /// same one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitTool {
     seats: Seats,
 }
@@ -179,7 +181,7 @@ impl SplitTool {
 
 /// **The transform tool**: one body pick plus the placement fields,
 /// committing one [`SessionOp::AddTransform`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransformTool {
     seats: Seats,
 }
@@ -298,7 +300,7 @@ vocabulary! {
 /// would either carry an axis the linear arm ignores or an `Option`
 /// every caller has to fill. The chrome's rule choice picks the door,
 /// which is the same decision it was already making.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatternTool {
     seats: Seats,
 }
@@ -488,7 +490,7 @@ fn rule_kind(rule: PatternRuleSpec) -> PatternKind {
 /// either, and the half-against-a-pattern pairing checked somewhere
 /// below — would be a second authority on a question the seat already
 /// answers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartTool {
     seats: Seats,
 }
@@ -580,7 +582,7 @@ impl PartTool {
 /// numbers
 /// land in ordinary slots of the pattern node the gesture authors,
 /// editable in the property panel the moment the edit lands.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateTool {
     seats: Seats,
 }
@@ -741,20 +743,18 @@ impl core::fmt::Display for DuplicateFault {
             Self::NoValue(standing) => write!(f, "there is no body to copy: {standing}"),
             Self::NotOneBody { input } => write!(
                 f,
-                "feature {}'s value is several bodies; a duplicate copies ONE — project the one \
+                "node {}'s value is several bodies; a duplicate copies ONE — project the one \
                  you mean first",
-                input.0
+                input
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
-                "feature {}'s body could not be measured for the copy's step: {error}",
-                input.0
+                "node {}'s body could not be measured for the copy's step: {error}",
+                input
             ),
-            Self::NoExtent { input } => write!(
-                f,
-                "feature {}'s body has no width to step a copy by",
-                input.0
-            ),
+            Self::NoExtent { input } => {
+                write!(f, "node {}'s body has no width to step a copy by", input)
+            }
         }
     }
 }

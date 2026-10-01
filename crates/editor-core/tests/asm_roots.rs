@@ -234,7 +234,8 @@ fn row2a_ancestor_freedom_names_both() {
     // The prose names both too (the bindings' message surface).
     let text = format!("{err}");
     assert!(
-        text.contains(&format!("{}", profile.0)) && text.contains(&format!("{}", extrude.0)),
+        text.contains(&format!("root {}", test_utils::refusal::tag(profile.0)))
+            && text.contains(&format!("root {}", test_utils::refusal::tag(extrude.0))),
         "both nodes must be named: {text}"
     );
 }
@@ -566,25 +567,30 @@ fn row6c_replay_rebuilds_the_root_list() {
     let id = editor_core::DocumentId::derive("asm-roots-6c");
     let mut doc: Doc<ProfileProgram> = Doc::empty(id, Tol::witness());
     // Both blocks are sketched on the same plane, so ONE frame node
-    // serves both; being the first insert, it is also the id the
-    // profile/extrude counting below is measured from.
-    let mut nodes = vec![xy_frame()];
-    let plane = RecipeNodeId(0);
-    for cx in [0.0, 5.0] {
-        let profile = RecipeNodeId(nodes.len() as u64);
-        nodes.push(Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)])));
-        nodes.push(Node::Extrude {
-            profile,
-            distance: len(1.0),
-        });
-    }
-    for node in nodes {
+    // serves both. Each insert's id is read back from the door it went
+    // through, and the log records exactly the edits applied.
+    let mut insert = |doc: &mut Doc<ProfileProgram>, node| {
         let edit = DocEdit::InsertNode { node };
-        doc = doc
+        let applied = doc
             .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
-            .expect("insert")
-            .doc;
+            .expect("insert");
+        *doc = applied.doc;
         log.push(edit);
+        applied.record.minted.expect("an insert mints")
+    };
+    let plane = insert(&mut doc, xy_frame());
+    for cx in [0.0, 5.0] {
+        let profile = insert(
+            &mut doc,
+            Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)])),
+        );
+        insert(
+            &mut doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
     }
     let swap = DocEdit::SetRoots {
         roots: doc.roots().iter().rev().copied().collect(),

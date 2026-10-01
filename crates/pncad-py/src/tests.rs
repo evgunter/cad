@@ -982,10 +982,16 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     carries(
         &F::Unleverable {
             mate: id(1),
-            refusal: LeverRefusal::PartUnresolved {
+            refusal: Box::new(LeverRefusal::Reach {
                 instance: id(0),
-                fault: pncad::document::PartFault::NoResolver,
-            },
+                part: pncad::document::DocRef {
+                    id: pncad::document::DocumentId::derive("unleverable"),
+                    pin: pncad::document::ContentPin([0u8; 32]),
+                },
+                refusal: pncad::document::ReachRefusal::PartUnresolved {
+                    fault: pncad::document::PartFault::NoResolver,
+                },
+            }),
         },
         &["mate", "instance", "inner_variant"],
     );
@@ -1168,10 +1174,16 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     let unleverable = F::Unleverable {
         mate: id(1),
-        refusal: LeverRefusal::PartUnresolved {
+        refusal: Box::new(LeverRefusal::Reach {
             instance: id(0),
-            fault: pncad::document::PartFault::NoResolver,
-        },
+            part: pncad::document::DocRef {
+                id: pncad::document::DocumentId::derive("unleverable"),
+                pin: pncad::document::ContentPin([0u8; 32]),
+            },
+            refusal: pncad::document::ReachRefusal::PartUnresolved {
+                fault: pncad::document::PartFault::NoResolver,
+            },
+        }),
     };
     let payload = mate_payload(&unleverable);
     assert_eq!(payload.inner_variant, Some("part_unresolved"));
@@ -2382,6 +2394,7 @@ fn node_error_tags_are_the_published_words() {
         MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
         MateSelf => "mate_self",
         MateUnleverable => "mate_unleverable",
+        MateFaceUnresolved => "mate_face_unresolved",
         CrossingUnverified => "crossing_unverified",
         MeasureRefResolve => "measure_ref_resolve",
         MeasureRefUnreadable => "measure_ref_unreadable",
@@ -2515,8 +2528,8 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {
-        profile: RecipeNodeId(7),
-        frame: RecipeNodeId(3),
+        profile: RecipeNodeId(test_utils::refusal::tagged(7)),
+        frame: RecipeNodeId(test_utils::refusal::tagged(3)),
         refusal: DirectionRefusal {
             role: "datum frame x axis",
             error,
@@ -2565,7 +2578,7 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
     // And the two ids the arm exists for reach the prose.
     let shown = carried(UnitVec3Error::Degenerate).to_string();
     assert!(
-        shown.contains("node 7") && shown.contains("node 3"),
+        shown.contains("node 000000000007") && shown.contains("node 000000000003"),
         "the arm names the profile that read and the frame that refused: {shown}"
     );
 }
@@ -3318,51 +3331,49 @@ fn the_prose_rule_separates_a_display_from_a_debug_dump() {
     assert!(reads_as_prose("Tessellate refused"));
 }
 
-/// A blend escalation names its site in prose at every site.
+/// A blend escalation reads as prose for every decision.
 ///
-/// `BlendSite::Link` and `::Joint` are struct variants, so rendering
-/// the site through `Debug` puts the field-brace fingerprint in the
-/// message and the refusal PANICS `crate::py::typed_err` instead of
-/// raising. The escalation arm is the one an indeterminate predicate
-/// is for, so that panic sits behind an ordinary fillet or chamfer
-/// request; the site renders through its own `Display`, and this is
-/// the rendering that says so.
+/// What the refusal renders is chosen by its decision alone (the site
+/// is payload and is not rendered), so each decision is rendered once,
+/// at a site whose `Debug` carries a field: a payload rendered through
+/// `Debug` would put the field-brace fingerprint in the message and
+/// PANIC `crate::py::typed_err` instead of raising, behind an ordinary
+/// fillet or chamfer request.
 #[test]
-fn a_blend_escalation_reads_as_prose_at_every_site() {
-    use pncad::prelude::{Band, BlendError, BlendSite, EdgeKey, Indeterminate};
-    use pncad::prelude::{MarginDiag, VertexKey};
+fn a_blend_escalation_reads_as_prose_for_every_decision() {
+    use pncad::prelude::MarginDiag;
+    use pncad::prelude::{Band, BlendDecision, BlendError, BlendSite, EdgeKey, Indeterminate};
 
     let band = Band::new(1e-9, 1e-6).expect("a band");
-    for site in [
-        BlendSite::Link {
-            edge: EdgeKey::default(),
-        },
-        BlendSite::Joint {
-            vertex: VertexKey::default(),
-        },
-        BlendSite::Chain,
+    for decision in [
+        BlendDecision::RadiusHeadroom,
+        BlendDecision::FaceClearance,
+        BlendDecision::SpineRegularity,
+        BlendDecision::ChainG1,
+        BlendDecision::ChainArm,
+        BlendDecision::ConvexitySign,
+        BlendDecision::RingClearance,
+        BlendDecision::SupportCoaxiality,
+        BlendDecision::ContactSecondOrder,
+        BlendDecision::CornerIndependence,
+        BlendDecision::CapTransverse,
     ] {
         let refused = BlendError::Escalated {
-            site,
+            site: BlendSite::Link {
+                edge: EdgeKey::default(),
+            },
+            decision,
             source: Indeterminate {
-                margin: MarginDiag::value(0.0),
+                margin: MarginDiag::value(5e-7),
                 band,
-                // A name no recourse table routes: the sentence then
-                // names the site, which is what this row reads.
-                predicate: Some("a_name_no_table_routes"),
+                predicate: Some(decision.predicate()),
                 terminal_sliver: false,
             },
         };
         let text = refused.to_string();
         assert!(
-            reads_as_prose(&text),
-            "a fillet or chamfer escalation at {site:?} panics the binding \
-             rather than raising: {text}"
-        );
-        assert!(
-            text.starts_with("at ") && !text.contains("Key("),
-            "the site names itself after the preposition the sentence supplies, \
-             and no arena key: {text}"
+            reads_as_prose(&text) && !text.contains("Key("),
+            "a {decision:?} escalation panics the binding rather than raising: {text}"
         );
     }
 }
@@ -4578,6 +4589,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "classification_invariant",
             "contact_contradicted",
             "containment",
+            "coplanar_neighbours",
             "corrupt_operand",
             "crossing_insertion",
             "curved_boolean_unsupported",
@@ -4611,11 +4623,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rim_seam_not_declarable",
             "scaffolding_operand",
             "seam_orientation",
+            "shell_witness_exhausted",
+            "spheres_meet",
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
             "unrepresentable_result",
             "unsupported_declaration_class",
+            "volume_corrupt",
+            "volume_undecided",
+            "volume_unmeasured",
             "zip_correspondence",
         ],
         delegates: &[],
@@ -4627,7 +4644,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_serialize",
             "param_name_not_an_identifier",
         ],
-        delegates: &["declare_error_tag", "placement_rule_fault_tag"],
+        delegates: &[
+            "declare_error_tag",
+            "label_fault_tag",
+            "placement_rule_fault_tag",
+        ],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -4749,6 +4770,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
+            "label_unchanged",
             "maintenance_refused",
             "maintenance_unrecorded",
             "mate_refused",
@@ -4758,6 +4780,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_unversioned",
             "name_step_never_minted",
             "name_unresolved_in_evaluation",
+            "node_id_collides",
             "non_finite_alignment",
             "non_finite_doc_param",
             "non_finite_placement",
@@ -4872,6 +4895,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "div_needs_scalar_divisor",
             "mismatch",
             "mul_needs_scalar",
+            "nested_too_deep",
             "non_finite",
             "not_count",
             "trig_needs_angle",
@@ -4895,6 +4919,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "smooth_join_refuted",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "face_pose_refusal_tag",
+        values: &[
+            "ambiguous",
+            "no_such_name",
+            "not_a_face",
+            "part_unresolved",
+            "readback",
+            "unpinned",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "face_refusal_tag",
+        values: &["not_an_instance"],
+        delegates: &["face_pose_refusal_tag"],
     },
     TagEntry {
         function: "fmt_quantity_error_tag",
@@ -4943,7 +4984,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
-            "step_map_diverged",
             "stranded_part_name",
             "unknown_node",
             "unplaceable_frame",
@@ -4968,16 +5008,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["node_standing_tag", "readback_error_tag"],
     },
     TagEntry {
-        function: "lever_refusal_tag",
-        values: &[
-            "face_unbounded",
-            "malformed_body",
-            "no_extent",
-            "no_finite_bound",
-            "not_an_instance",
-            "part_unresolved",
-        ],
+        function: "label_fault_tag",
+        values: &["label_blank", "label_control_character", "label_line_break"],
         delegates: &[],
+    },
+    TagEntry {
+        function: "lever_refusal_tag",
+        values: &["not_an_instance", "out_of_range"],
+        delegates: &["reach_refusal_tag"],
     },
     TagEntry {
         function: "loft_error_tag",
@@ -5070,8 +5108,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "merged_chord_constituents",
             "merged_chord_off_rim",
             "missing_upstream",
-            "narrow_band",
-            "seam_line_sides",
             "seam_vertex_parentage",
             "seam_vertex_partners",
             "split_lineage_cycle",
@@ -5118,6 +5154,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_class_not_admitted",
             "mate_contradictory",
             "mate_dangling_head",
+            "mate_face_unresolved",
             "mate_frame_degenerate",
             "mate_indeterminate",
             "mate_part_selects_another_copy",
@@ -5373,10 +5410,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "profile_error_tag",
         values: &[
+            "arc_below_scene_resolution",
             "band",
             "degenerate_segment",
             "empty_profile",
             "escalated",
+            "inconsistent_arc",
             "multiple_outer_loops",
             "near_full_arc",
             "nesting_too_deep",
@@ -5418,6 +5457,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "promoted_kind_tag",
         values: &["cylinder", "plane"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "reach_refusal_tag",
+        values: &[
+            "face_unbounded",
+            "malformed_body",
+            "no_extent",
+            "no_finite_bound",
+            "part_unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5653,13 +5703,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_input",
             "epsilon_invalid",
             "forward_input",
-            "id_beyond_counter",
             "input_list",
+            "label_on_missing_node",
             "mate_alignment",
             "measure_refs",
             "metadata_unversioned",
             "mint_log_order",
             "name_step_not_minted",
+            "node_not_minted",
             "order_mismatch",
             "payload_doc_param_dimension",
             "payload_unknown_doc_param",
@@ -5697,8 +5748,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "remainder_edit",
             "severed_edge",
             "split_pin",
-            "step_map_diverged",
-            "torn_cluster",
+            "torn_group",
             "uncut_param_reference",
             "unknown_cut_node",
         ],
@@ -5837,6 +5887,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_map",
             "not_rigid",
             "null_scaffold",
+            "nurbs_lane_unsupported",
             "nurbs_placeholder",
             "pcurve",
         ],
@@ -5944,6 +5995,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "split_vertex_orbit",
             "stale_contact_declaration",
             "stale_null_face_loop",
+            "stale_null_face_ownership",
             "tangent_not_intrinsic",
             "transverse_not_intrinsic",
             "uncertifiable_surface",
@@ -5998,7 +6050,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// whenever a map does, and a prose count of it has gone stale twice.
 ///
 /// The row does not say which of the entries below are one concept and
-/// which are coincidence — all but twelve are unread, and `work/census/`'s
+/// which are coincidence — most are unread, and `work/census/`'s
 /// `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
 /// is where that question lives. What it does is make the population
 /// OBSERVED: a word that starts colliding, or stops, or picks up a
@@ -6012,7 +6064,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// the guard on THAT is this row's two directions: an entry no longer
 /// shared fails exactly as a new sharing does.
 const SHARED_TAG_WORDS: &[(&str, usize)] = &[
-    ("ambiguous", 3),
+    ("ambiguous", 4),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
     ("assertion_target", 2),
@@ -6060,19 +6112,20 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("name_on_dropped_step", 2),
     ("no_at_rest_record", 2),
     ("no_such_body", 2),
+    ("no_such_name", 2),
     ("node_failed", 2),
     ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
     ("not_a_body", 2),
-    ("not_an_instance", 2),
+    ("not_an_instance", 3),
     // One predicate (`topo::check_rigid`), one word: the kernel's own
     // refusal of a map, and a frame a document door refuses by it.
     ("not_rigid", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
-    ("part_unresolved", 2),
+    ("part_unresolved", 3),
     // ONE concept, and pinned as one: the param-ref convention
     // `editor_core::EditError`'s enum doc states. That the two maps
     // agree word for word is held by
@@ -6096,7 +6149,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("smooth_join_refuted", 2),
     ("split", 2),
     ("step_ids", 3),
-    ("step_map_diverged", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
@@ -6151,6 +6203,67 @@ fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
             detail.join("\n  ")
         );
     }
+}
+
+/// **A face refusal spells the facts it shares the way their own maps
+/// do** — four of `SHARED_TAG_WORDS`' entries are one fact, not a
+/// coincidence. The two reach refusals meet a part that does not
+/// resolve while levering and while reading a face, and the two
+/// carriers meet a member on no instance: the same refusal, met by two
+/// readers. A face's name arms are the name table's own answers that
+/// `InterrogateError` publishes (no row, a tie). A binding reading
+/// `inner_variant` across `mate_unleverable` and `mate_face_unresolved`,
+/// or across a mate and a measure, reads one word for one fact.
+#[test]
+fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
+    use crate::tags::{face_refusal_tag, interrogate_error_tag, lever_refusal_tag};
+    use pncad::document::{
+        ContentPin, DocRef, DocumentId, FaceName, FacePoseRefusal, FaceRefusal, LeverRefusal,
+        PartFault, ReachRefusal, RecipeNodeId,
+    };
+    use pncad::select::{EntityKind, InterrogateError};
+
+    let instance = RecipeNodeId(0);
+    let part = DocRef {
+        id: DocumentId::derive("face-refusal-words"),
+        pin: ContentPin([0u8; 32]),
+    };
+    let face = FaceName::new(pncad::prelude::StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(1),
+        path: vec![],
+    })
+    .expect("a face");
+    let read = |refusal| FaceRefusal::Reach {
+        instance,
+        part,
+        face: face.clone(),
+        refusal,
+    };
+    assert_eq!(
+        face_refusal_tag(&read(FacePoseRefusal::PartUnresolved {
+            fault: PartFault::NoResolver,
+        })),
+        lever_refusal_tag(&LeverRefusal::Reach {
+            instance,
+            part,
+            refusal: ReachRefusal::PartUnresolved {
+                fault: PartFault::NoResolver,
+            },
+        }),
+    );
+    assert_eq!(
+        face_refusal_tag(&FaceRefusal::NotAnInstance { node: instance }),
+        lever_refusal_tag(&LeverRefusal::NotAnInstance { node: instance }),
+    );
+    assert_eq!(
+        face_refusal_tag(&read(FacePoseRefusal::NoSuchName)),
+        interrogate_error_tag(&InterrogateError::NoSuchName),
+    );
+    assert_eq!(
+        face_refusal_tag(&read(FacePoseRefusal::Ambiguous { candidates: 2 })),
+        interrogate_error_tag(&InterrogateError::Ambiguous { candidates: 2 }),
+    );
 }
 
 /// The committed inventory of `src/tags.rs`'s `pub const` tag words —

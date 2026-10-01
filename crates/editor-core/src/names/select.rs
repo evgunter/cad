@@ -365,7 +365,12 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::FromMember { .. }
         | RoleSeg::Seam { .. }
         | RoleSeg::Merged(_)
-        | RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. })
+        | RoleSeg::Fragment(
+            Qualifier::Borders(_)
+            | Qualifier::Keeps(_)
+            | Qualifier::Ends(_)
+            | Qualifier::OrderAlong { .. },
+        )
         | RoleSeg::FromTarget(_)
         | RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
@@ -432,8 +437,13 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(&**edge).chain(band).collect()
         }
-        // A verdict qualifier, not a role argument (see the doc note).
-        RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. }) => Vec::new(),
+        // A qualifier, not a role argument (see the doc note).
+        RoleSeg::Fragment(
+            Qualifier::Borders(_)
+            | Qualifier::Keeps(_)
+            | Qualifier::Ends(_)
+            | Qualifier::OrderAlong { .. },
+        ) => Vec::new(),
         name_free_seg!() => Vec::new(),
     }
 }
@@ -509,6 +519,17 @@ impl SegPat {
     /// Whether `seg` matches.
     #[must_use]
     pub fn matches(&self, seg: &RoleSeg) -> bool {
+        let mut pending = Vec::new();
+        self.level_matches(seg, &mut pending) && all_match(pending)
+    }
+
+    /// Whether `seg` matches this pattern's own axes, its argument
+    /// patterns set aside in `pending` with the names they must match.
+    fn level_matches<'a>(
+        &'a self,
+        seg: &'a RoleSeg,
+        pending: &mut Vec<(&'a NamePat, &'a StableName)>,
+    ) -> bool {
         let tag = SegTag::of(seg);
         let tag_ok = match self.tag {
             TagPat::Any => true,
@@ -519,18 +540,40 @@ impl SegPat {
             return false;
         }
         let args = name_args(seg);
-        self.args.len() <= args.len()
-            && self
-                .args
-                .iter()
-                .zip(args)
-                .all(|(pat, name)| pat.matches(name))
+        if self.args.len() > args.len() {
+            return false;
+        }
+        pending.extend(self.args.iter().zip(args));
+        true
     }
+}
+
+/// Whether every pattern in `pending` matches its name, and every
+/// pattern those set aside, as deep as they nest — from this walk's own
+/// stack.
+fn all_match<'a>(mut pending: Vec<(&'a NamePat, &'a StableName)>) -> bool {
+    while let Some((pat, name)) = pending.pop() {
+        if !pat.level_matches(name, &mut pending) {
+            return false;
+        }
+    }
+    true
 }
 
 /// A pattern over a whole [`StableName`]: kind, minting node, and the
 /// exact shape of the role path.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+///
+/// A pattern nests one whole pattern per argument it constrains, as
+/// deep as its author builds it, so its `Drop`, `Clone`, `PartialEq`,
+/// `Debug` and [`NamePat::matches`] are written one level at a time
+/// and none recurses on the nesting. `Clone`, `PartialEq` and `Debug`
+/// are the walks a [`StableName`] runs (`names::nest`'s `copy_nested`,
+/// `eq_nested` and `render_nested`). `Drop` and `matches` are their
+/// own: a pattern owns every pattern it holds, where a name shares what
+/// it holds through handles and asks each whether it is the last
+/// holder, and matching walks a pattern and a name in step, which no
+/// walk over a name alone does.
+#[derive(Default)]
 pub struct NamePat {
     /// If set, the name's entity kind must be exactly this.
     pub kind: Option<EntityKind>,
@@ -555,7 +598,8 @@ impl NamePat {
     pub fn of_kind(kind: EntityKind) -> Self {
         Self {
             kind: Some(kind),
-            ..Self::default()
+            node: None,
+            path: None,
         }
     }
 
@@ -582,6 +626,16 @@ impl NamePat {
     /// Whether `name` matches.
     #[must_use]
     pub fn matches(&self, name: &StableName) -> bool {
+        all_match(vec![(self, name)])
+    }
+
+    /// Whether `name` matches this pattern's own level, its segment
+    /// patterns' argument patterns set aside in `pending`.
+    fn level_matches<'a>(
+        &'a self,
+        name: &'a StableName,
+        pending: &mut Vec<(&'a NamePat, &'a StableName)>,
+    ) -> bool {
         if self.kind.is_some_and(|k| k != name.kind) || self.node.is_some_and(|n| n != name.node) {
             return false;
         }
@@ -589,9 +643,118 @@ impl NamePat {
             None => true,
             Some(pats) => {
                 pats.len() == name.path.len()
-                    && pats.iter().zip(&name.path).all(|(p, s)| p.matches(s))
+                    && pats
+                        .iter()
+                        .zip(&name.path)
+                        .all(|(p, s)| p.level_matches(s, pending))
             }
         }
+    }
+
+    /// The patterns this one holds, one level down, in declaration
+    /// order.
+    fn held(&self) -> Vec<&NamePat> {
+        self.path.iter().flatten().flat_map(|s| &s.args).collect()
+    }
+}
+
+impl Drop for NamePat {
+    fn drop(&mut self) {
+        // Every pattern below this one is moved here before it goes, so
+        // each dropped in the loop holds none.
+        fn take(pat: &mut NamePat, into: &mut Vec<NamePat>) {
+            for seg in pat.path.iter_mut().flatten() {
+                into.append(&mut seg.args);
+            }
+        }
+        let mut pats = Vec::new();
+        take(self, &mut pats);
+        while let Some(mut pat) = pats.pop() {
+            take(&mut pat, &mut pats);
+        }
+    }
+}
+
+impl Clone for NamePat {
+    fn clone(&self) -> Self {
+        super::nest::copy_nested(self, NamePat::held, |pat, copies| {
+            let NamePat { kind, node, path } = pat;
+            NamePat {
+                kind: *kind,
+                node: *node,
+                path: path.as_ref().map(|segs| {
+                    segs.iter()
+                        .map(|seg| {
+                            let SegPat { tag, side, args } = seg;
+                            SegPat {
+                                tag: *tag,
+                                side: *side,
+                                args: copies.take(args.len()).collect(),
+                            }
+                        })
+                        .collect()
+                }),
+            }
+        })
+    }
+}
+
+impl PartialEq for NamePat {
+    fn eq(&self, other: &Self) -> bool {
+        use super::nest::{Family, Walk, eq_nested, shallow};
+        if shallow(Walk::Eq, Family::Pattern) {
+            return true;
+        }
+        // Every field is bound, so a field added to the pattern is an
+        // E0027 here until equality says what it does with it.
+        let same = |a: &NamePat, b: &NamePat| {
+            let NamePat { kind, node, path } = a;
+            let NamePat {
+                kind: b_kind,
+                node: b_node,
+                path: b_path,
+            } = b;
+            kind == b_kind && node == b_node && path == b_path
+        };
+        eq_nested(Family::Pattern, self, other, same, NamePat::held)
+    }
+}
+
+impl Eq for NamePat {}
+
+/// One level of a pattern as the derived impl renders it.
+struct PatLevel<'a>(&'a NamePat);
+
+impl core::fmt::Debug for PatLevel<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let NamePat { kind, node, path } = self.0;
+        f.debug_struct("NamePat")
+            .field("kind", kind)
+            .field("node", node)
+            .field("path", path)
+            .finish()
+    }
+}
+
+impl core::fmt::Debug for NamePat {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use super::nest::{Family, Walk, render_nested, shallow};
+        if shallow(Walk::Debug, Family::Pattern) {
+            return core::fmt::Write::write_char(f, super::nest::HOLE);
+        }
+        render_nested(
+            self,
+            f,
+            Family::Pattern,
+            |p, alternate| {
+                if alternate {
+                    format!("{:#?}", PatLevel(p))
+                } else {
+                    format!("{:?}", PatLevel(p))
+                }
+            },
+            NamePat::held,
+        )
     }
 }
 

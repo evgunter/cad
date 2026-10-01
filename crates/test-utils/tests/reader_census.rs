@@ -367,6 +367,10 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
+        path: "crates/topo/src/boolean/offer_rows.rs",
+        disposition: Shared, // the Boolean's decision sites, code view
+    },
+    Entry {
         path: "crates/topo/src/boolean/wall_section_rows.rs",
         disposition: Shared, // the window-construction site list, code view
     },
@@ -378,6 +382,11 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/chord_join.rs",
         disposition: Unconverted("Track Q — whitespace-stripped raw text, no reader"),
+    },
+    Entry {
+        path: "crates/topo/src/euler.rs",
+        disposition: Shared, // the removal census over validate.rs's tier-1 pass and
+                             // the kill helpers' bodies, code view
     },
     Entry {
         path: "crates/topo/src/face_normal.rs",

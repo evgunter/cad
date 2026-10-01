@@ -30,7 +30,7 @@ fn a_ball_inside_a_ball_of_its_own_solid_refuses() {
     let mut body = ball_poled_z(2.0, Vec3::new(0.0, 0.0, 0.0), tol());
     let solid = only_solid(&body);
     let small = ball_poled_z(0.5, Vec3::new(0.25, -0.125, 0.375), tol());
-    topo::graft_disjoint_all_onto_keyed(&mut body, &[solid], &small, tol()).expect("the graft");
+    topo::graft_disjoint_all_onto_keyed(&mut body, &[solid], &small).expect("the graft");
 
     let classes = topo::classify_shells(&body, tol()).expect("both balls classify");
     assert!(
@@ -63,6 +63,6 @@ fn two_disjoint_balls_under_one_solid_certify() {
     let mut body = ball_poled_z(2.0, Vec3::new(0.0, 0.0, 0.0), tol());
     let solid = only_solid(&body);
     let beside = ball_poled_z(0.5, Vec3::new(5.0, -0.125, 0.375), tol());
-    topo::graft_disjoint_all_onto_keyed(&mut body, &[solid], &beside, tol()).expect("the graft");
+    topo::graft_disjoint_all_onto_keyed(&mut body, &[solid], &beside).expect("the graft");
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
 }

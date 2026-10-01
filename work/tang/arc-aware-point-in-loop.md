@@ -82,8 +82,10 @@ in-chat direction): the plan's lane that carries this item is in
 
 - **`chord_join::rehome_rings`** reads a split's run through
   `point_in_loop` with no shape dispatch; filed on REACH's slate as
-  `work/reach/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`
+  `work/cleave/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`
   (unreproduced; the reachable class is mostly `ArcParity`).
+  **2026-10-01:** reproduced and moved onto `point_in_carrier_loop`
+  (PR 3660; the dated note at the end of this file).
 - **`solid_contain::point_in_face`**, already listed above: its `Disc`
   class no longer needs this issue's walk. `boolean::contain::disc_side`
   is `pub(crate)` as of ATREST-5, so that third can close by the same
@@ -150,7 +152,7 @@ and the D-rod's cap are rows). **This site is closed.** Two sites are
 left on the polygon walk with arc-bearing loops: `contain::contfp`
 (CONTACT's ground; `ArcParity` walks the polygon, `NoWalk` refuses)
 and `chord_join::rehome_rings` (REACH's row,
-`work/reach/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`).
+`work/cleave/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`).
 
 ## 2026-09-26 — the `contfp` site moves onto the carrier walk (CONTACT-4)
 
@@ -166,3 +168,8 @@ refusal, `ContainError::ArcLoopUnsupported`.
 Still on the polygon walk with an arc-bearing loop: `chord_join::rehome_rings`
 (REACH's row, above) alone. Check 9's site closed first (ATREST-12,
 above).
+
+**2026-10-01 (CLEAVE, PR 3660):** `chord_join::rehome_rings` reads the
+run through `point_in_carrier_loop` too, so no arc-bearing loop is left
+on the polygon walk among the sites this row lists. Whether this row
+can close is TANG's call.

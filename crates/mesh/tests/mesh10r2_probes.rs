@@ -149,7 +149,7 @@ fn m10r2_split_lineage_after_graft() {
     );
     // (a) into an empty body.
     let mut empty = Body::<f64>::new();
-    topo::graft_disjoint(&mut empty, &src, tol).expect("graft into an empty body");
+    topo::graft_disjoint(&mut empty, &src).expect("graft into an empty body");
     let v_empty = volume(&empty);
     let mesh_empty = mesh::tessellate(&empty, 0.1, tol).map(|m| m.positions.len());
     println!("M10R2 graft into EMPTY: V = {v_empty:?}, mesh = {mesh_empty:?}");
@@ -157,7 +157,7 @@ fn m10r2_split_lineage_after_graft() {
     // in the donut's hole).
     let mut held = ball();
     let v_ball = volume(&held).unwrap();
-    topo::graft_disjoint(&mut held, &src, tol).expect("graft into the ball's body");
+    topo::graft_disjoint(&mut held, &src).expect("graft into the ball's body");
     let v_held = volume(&held);
     let mesh_held = mesh::tessellate(&held, 0.1, tol).map(|m| m.positions.len());
     println!(

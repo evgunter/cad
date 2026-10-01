@@ -14,11 +14,16 @@
 //!   why deriving it was tried and refused.
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
+//! - [`offer`], an offered tolerance executed: the refusal re-raised
+//!   in a process of its own just below the value it offered, and the
+//!   chain followed until it passes or the offer is shown false.
 //! - [`mod@own_thread`] and [`panic_capture`], the two halves of one
 //!   capture: the panic MESSAGE an assertion produced, taken from a
 //!   panic hook rather than by downcasting the unwind payload, and the
 //!   same thing for a subject that has to run on a thread of its own
-//!   because a panic leaves process- or thread-state behind it.
+//!   because a panic leaves process- or thread-state behind it;
+//!   [`mod@own_thread`] also names the wasm32 build's stack, the
+//!   smallest a door runs on, and runs a subject on it.
 //! - [`mod@roster`], the weld between a file's `//!` roster of its own
 //!   `#[test]` rows and the rows libtest says the binary holds — one
 //!   ident per row, so a retired name is a compile error.
@@ -30,6 +35,9 @@
 //!   only, code with literals, prose alone) plus the traversals and
 //!   balanced-text operations that read them. The readers still
 //!   outside it are enumerated in `tests/reader_census.rs`.
+//! - [`seam_census`], the classification of a planar normal against
+//!   `Vec3::orthonormal_basis`'s seam, which three corpus instruments
+//!   in three crates each need and none of them owns.
 //! - [`vacuity`], the **anti-vacuity floor** — a statement of how much a
 //!   sampling guard actually exercised, printed every run and asserted,
 //!   so a run that exercised nothing goes red instead of green.
@@ -54,10 +62,12 @@
 pub mod census;
 pub mod f6;
 pub mod fuzz;
+pub mod offer;
 pub mod own_thread;
 pub mod panic_capture;
 pub mod refusal;
 pub mod roster;
+pub mod seam_census;
 pub mod source;
 pub mod tightness;
 pub mod vacuity;

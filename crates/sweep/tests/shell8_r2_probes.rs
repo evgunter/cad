@@ -270,7 +270,7 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
             })
             .collect(),
     };
-    topo::insert_void(&mut host, host_solid, pre_reverted, &evidence, tol()).expect("inserts");
+    topo::insert_void(&mut host, host_solid, pre_reverted, &evidence).expect("inserts");
     println!("[r2] two-outer host roles: {:?}", roles(&host));
     let (body, _) = beside_raw(
         &host,
@@ -535,7 +535,7 @@ fn r2_e2e_consumer_seat() {
         tol(),
     )
     .unwrap();
-    let b_solid = topo::graft_disjoint(&mut assembly, &placed, tol()).expect("placed");
+    let b_solid = topo::graft_disjoint(&mut assembly, &placed).expect("placed");
     let a_solid = assembly.solids().next().unwrap().0;
     let hollowed = topo::shell(&assembly, 0.05, tol()).expect("both parts hollow in one call");
     let want = one_wall(0.05) + PI * (1.0 * 2.0 - 0.95 * 0.95 * 1.9);
@@ -889,26 +889,32 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
         })
         .collect();
     assert_eq!(rims.len(), 4, "the bottom's four edges");
-    body.set_face_surface(bottom, topo::FaceSurface::Shared { key, sense })
-        .expect("the attach door shares a live key");
-    for (edge, wall, p, q) in rims {
-        let len = p.distance(q);
-        let spec = geom_brep::EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::Intersection {
-                s1: wall,
-                s2: key,
-                witness: p + (q - p) * 0.5,
-            },
-            carrier: geom::Curve3::Line {
-                origin: p,
-                dir: (q - p) / len,
-            },
-            param_start: 0.0,
-            param_end: len,
-        };
-        body.set_edge_curve(edge, spec, tol())
-            .expect("the edge re-states on the shared chart");
-    }
+    let specs: Vec<_> = rims
+        .into_iter()
+        .map(|(edge, wall, p, q)| {
+            let len = p.distance(q);
+            let spec = geom_brep::EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1: wall,
+                    s2: key,
+                    witness: p + (q - p) * 0.5,
+                },
+                carrier: geom::Curve3::Line {
+                    origin: p,
+                    dir: (q - p) / len,
+                },
+                param_start: 0.0,
+                param_end: len,
+            };
+            (edge, spec)
+        })
+        .collect();
+    body.set_face_surfaces_describing(
+        vec![topo::Rechart::shared(key, bottom, sense)],
+        &specs,
+        tol(),
+    )
+    .expect("the bottom moves onto the shared chart with its edges");
     assert_ne!(
         body.get_face(top).unwrap().sense,
         body.get_face(bottom).unwrap().sense,

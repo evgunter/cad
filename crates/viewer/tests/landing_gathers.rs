@@ -36,6 +36,7 @@ use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::evalseam::EvalDone;
 use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
+use viewer::tree::RowStatus;
 
 /// Re-land the result a session already holds, and answer how many
 /// times the gather ran while it did.
@@ -301,7 +302,7 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
         session
             .tree_rows()
             .iter()
-            .all(|row| !matches!(row.status, viewer::tree::RowStatus::Failed { .. })),
+            .all(|row| !matches!(row.status, RowStatus::Failed { .. })),
         "and no node failed, so no other channel carries this"
     );
     assert!(
@@ -348,13 +349,16 @@ fn a_document_with_no_body_lands_a_clean_report() {
 /// measure is, and it denotes no body — so the gather says
 /// `NoBodyRoots` while the document still holds an `InstantiatePart`.
 /// The landing reads that refusal as an absence for the registry, and
-/// the A5 badge has to agree with it: there is no product for the gate
-/// to judge, and an at-rest badge reading "assembly: product: …" would
+/// the A5 badge agrees with it: there is no product for the gate to
+/// judge, and an at-rest badge reading "at rest: product: …" would
 /// show a failure the line above it says is not one.
 ///
-/// Build `at_rest` for every gather fault of an assembly-shaped
-/// document again and this row goes red on the last assertion, where
-/// the part-document row above stays green.
+/// This is one instance of the rule the row below witnesses for a
+/// refusal proper — a gather refusal takes no at-rest badge, whatever
+/// its class. `LandedRun`'s shape already keeps a badge off the
+/// refusal; what this row adds is the end-to-end reading at the
+/// session's door, over the one class the registry treats as an
+/// absence.
 #[test]
 fn a_body_less_assembly_takes_no_at_rest_badge() {
     let tol = Tol::witness();
@@ -396,23 +400,26 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     );
 }
 
-/// **The other side of that guard: an assembly whose gather REALLY
-/// refuses still takes the refused at-rest badge.** Beside an instance,
-/// an extrude whose distance divides by zero fails at evaluation, so
-/// the gather refuses with a class `ProductErrorKind::means_no_body`
-/// does not claim, in a document that is assembly-shaped.
+/// **An assembly whose gather REALLY refuses takes no at-rest badge
+/// either.** Beside an instance, an extrude whose distance divides by
+/// zero fails at evaluation, so the gather refuses with a class
+/// `ProductErrorKind::means_no_body` does not claim, in a document that
+/// is assembly-shaped. The A5 gate never ran, so it gave no verdict:
+/// the refusal is `DocSession::product_fault`'s, and
+/// `frame::badge_site` routes it (a failed root to the feature tree).
 ///
-/// Widen the landing's guard so no gather refusal takes the badge
-/// (`false && …`) and this row goes red, where the body-less row above
-/// stays green: the two pin the two arms of one condition.
+/// The badge's absence is the type's doing, so the row witnesses the
+/// whole path rather than guarding one arm: the gather refuses, the
+/// session says nothing at rest, and the refusal is still loud where
+/// it belongs — the root's tree row reads `Failed`.
 #[test]
-fn an_assembly_whose_gather_refuses_keeps_the_refused_at_rest_badge() {
+fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let tol = Tol::witness();
     let bench = common::asm::bench("refused-gather-assembly", tol);
     let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
     let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
     common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
-    common::insert_into(
+    let extrude = common::insert_into(
         &mut asm,
         Node::Extrude {
             profile,
@@ -438,10 +445,16 @@ fn an_assembly_whose_gather_refuses_keeps_the_refused_at_rest_badge() {
         "the premise: a failed root, which is a refusal and not an absence: {:?}",
         session.product_fault()
     );
+    assert_eq!(
+        session.at_rest(),
+        None,
+        "and the A5 badge takes no verdict on a product the gate never saw"
+    );
+    let rows = session.tree_rows();
     assert!(
-        matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
-        "so the A5 badge still carries it: {:?}",
-        session.at_rest()
+        matches!(common::status_of(&rows, extrude), RowStatus::Failed { .. }),
+        "not silent everywhere: the failed root reads Failed at its tree row, got {:?}",
+        common::status_of(&rows, extrude)
     );
 }
 

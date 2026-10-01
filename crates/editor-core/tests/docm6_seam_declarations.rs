@@ -41,10 +41,8 @@ use geom_core::Tol;
 
 // ---- This suite's own documents, over the shared store ----
 
-/// A block part: `w` × `d` footprint, extruded `h`. Three nodes — the
-/// sketch frame, the profile, the extrude — so the body's names carry
-/// `PART_BODY`, which the store checks on the way in.
-fn block_part(label: &str, w: f64, d: f64, h: f64) -> ProfileDoc {
+/// A block part: `w` × `d` footprint, extruded `h`, and its body.
+fn block_part(label: &str, w: f64, d: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         [0.0, 0.0, 0.0],
@@ -52,17 +50,16 @@ fn block_part(label: &str, w: f64, d: f64, h: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (w, 0.0), (w, d), (0.0, d)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(h),
         },
-    );
-    doc
+    )
 }
 
-fn cube_part(label: &str) -> ProfileDoc {
+fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, 1.0, 1.0, 1.0)
 }
 
@@ -77,11 +74,7 @@ fn wrap(node: RecipeNodeId, inner: StableName) -> StableName {
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 fn mate_node(
@@ -127,29 +120,47 @@ fn stand(
     class: ContactClass,
     seat: [f64; 3],
     axis: [f64; 3],
-) -> (DocRef, DocumentId, Vec<RecipeNodeId>, RecipeNodeId) {
-    let cube = store.insert(cube_part(&format!("{label}-cube")), Tol::witness());
+) -> (
+    DocRef,
+    DocumentId,
+    Vec<RecipeNodeId>,
+    RecipeNodeId,
+    RecipeNodeId,
+) {
+    let (cube, cube_body) = store.insert_part(cube_part(&format!("{label}-cube")), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, c0) = insert(doc, Node::instantiate_part(cube));
     let (doc, c1) = insert(doc, Node::instantiate_part(cube));
     let (doc, mate) = insert(
         doc,
         mate_node(
-            in_part(c0, CapEnd::End),
-            in_part(c1, CapEnd::Start),
+            in_part(c0, cube_body, CapEnd::End),
+            in_part(c1, cube_body, CapEnd::Start),
             class,
             frame(seat, axis),
         ),
     );
     let id = doc.id();
-    (store.insert(doc, Tol::witness()), id, vec![c0, c1], mate)
+    (
+        store.insert(doc, Tol::witness()),
+        id,
+        vec![c0, c1],
+        mate,
+        cube_body,
+    )
 }
 
 /// A resting stand: the ordinary carried declaration.
 fn resting(
     store: &mut PartStore,
     label: &str,
-) -> (DocRef, DocumentId, Vec<RecipeNodeId>, RecipeNodeId) {
+) -> (
+    DocRef,
+    DocumentId,
+    Vec<RecipeNodeId>,
+    RecipeNodeId,
+    RecipeNodeId,
+) {
     stand(
         store,
         label,
@@ -161,15 +172,27 @@ fn resting(
 
 /// A part whose only mate is a `Tangent` — a class that solves and
 /// mints NO record at rest, so the part refuses its own gate.
-fn broken_part(store: &mut PartStore, label: &str) -> (DocRef, DocumentId, RecipeNodeId) {
-    let (r, id, _, mate) = stand(
+///
+/// Returns the reference, the document id, the mate, and the stand's
+/// cube instances with the cube's body.
+fn broken_part(
+    store: &mut PartStore,
+    label: &str,
+) -> (
+    DocRef,
+    DocumentId,
+    RecipeNodeId,
+    Vec<RecipeNodeId>,
+    RecipeNodeId,
+) {
+    let (r, id, cubes, mate, cube_body) = stand(
         store,
         label,
         ContactClass::Tangent,
         [0.0, 0.0, 5.0],
         [0.0, 0.0, 1.0],
     );
-    (r, id, mate)
+    (r, id, mate, cubes, cube_body)
 }
 
 /// `count` instances of `part` in a row, `spacing` apart along +x and
@@ -271,7 +294,7 @@ fn rows(
 #[test]
 fn every_carried_row_is_keyed_to_what_its_own_names_resolve_to() {
     let mut store = PartStore::default();
-    let (inner_ref, inner_id, _, inner_mate) = resting(&mut store, "docm6-a1-stand");
+    let (inner_ref, inner_id, _, inner_mate, _) = resting(&mut store, "docm6-a1-stand");
     let (outer, instances) = row_of("docm6-a1-row", inner_ref, 3, 4.0);
 
     let ev = run(&outer, &with_resolver(store));
@@ -315,16 +338,18 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let mut store = PartStore::default();
 
     // S1: a cube resting on a slab.
-    let slab = store.insert(block_part("docm6-deep-slab", 2.0, 2.0, 0.5), Tol::witness());
-    let cube = store.insert(block_part("docm6-deep-cube", 1.0, 1.0, 1.0), Tol::witness());
+    let (slab, slab_body) =
+        store.insert_part(block_part("docm6-deep-slab", 2.0, 2.0, 0.5), Tol::witness());
+    let (cube, cube_body) =
+        store.insert_part(block_part("docm6-deep-cube", 1.0, 1.0, 1.0), Tol::witness());
     let s1 = ProfileDoc::empty(DocumentId::derive("docm6-deep-s1"), Tol::witness());
     let (s1, s1_slab) = insert(s1, Node::instantiate_part(slab));
     let (s1, s1_cube) = insert(s1, Node::instantiate_part(cube));
     let (s1, s1_mate) = insert(
         s1,
         mate_node(
-            in_part(s1_slab, CapEnd::End),
-            in_part(s1_cube, CapEnd::Start),
+            in_part(s1_slab, slab_body, CapEnd::End),
+            in_part(s1_cube, cube_body, CapEnd::Start),
             ContactClass::Rest,
             frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
         ),
@@ -344,8 +369,8 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let (mid, mid_mate) = insert(
         mid,
         mate_node(
-            in_part(m_c0, CapEnd::End),
-            in_part(m_c1, CapEnd::Start),
+            in_part(m_c0, cube_body, CapEnd::End),
+            in_part(m_c1, cube_body, CapEnd::Start),
             ContactClass::Rest,
             frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
         ),
@@ -411,7 +436,7 @@ fn a_refuted_carried_declaration_names_its_mate_and_route() {
     let mut store = PartStore::default();
     // Seat 0.5: the two cubes interpenetrate, so the declared rest is
     // definite counter-evidence.
-    let (inner_ref, inner_id, _, inner_mate) = stand(
+    let (inner_ref, inner_id, _, inner_mate, _) = stand(
         &mut store,
         "docm6-a2-stand",
         ContactClass::Rest,
@@ -464,7 +489,7 @@ fn a_refuted_carried_declaration_names_its_mate_and_route() {
 #[test]
 fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
     let mut store = PartStore::default();
-    let (inner_ref, inner_id, _, inner_mate) = stand(
+    let (inner_ref, inner_id, _, inner_mate, _) = stand(
         &mut store,
         "docm6-decline-stand",
         ContactClass::Rest,
@@ -611,7 +636,7 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
 #[test]
 fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
     let mut store = PartStore::default();
-    let (inner_ref, inner_id, inner_instances, _) = stand(
+    let (inner_ref, inner_id, inner_instances, _, cube_body) = stand(
         &mut store,
         "docm6-precedence-stand",
         ContactClass::Rest,
@@ -626,8 +651,14 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
         .apply(
             &DocEdit::InsertNode {
                 node: mate_node(
-                    wrap(instance, in_part(inner_instances[0], CapEnd::End)),
-                    wrap(instance, in_part(inner_instances[1], CapEnd::Start)),
+                    wrap(
+                        instance,
+                        in_part(inner_instances[0], cube_body, CapEnd::End),
+                    ),
+                    wrap(
+                        instance,
+                        in_part(inner_instances[1], cube_body, CapEnd::Start),
+                    ),
                     ContactClass::Rest,
                     frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
                 ),
@@ -660,7 +691,7 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
 #[test]
 fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     let mut store = PartStore::default();
-    let (inner_ref, inner_id, inner_mate) = broken_part(&mut store, "docm6-a4-stand");
+    let (inner_ref, inner_id, inner_mate, ..) = broken_part(&mut store, "docm6-a4-stand");
     let (outer, instances) = row_of("docm6-a4-row", inner_ref, 1, 4.0);
 
     // The inner document alone: unchanged, its own class refusal.
@@ -690,7 +721,7 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     let rendered = result.unwrap_err().to_string();
     assert!(
         rendered.contains(&inner_id.to_string())
-            && rendered.contains(&format!("mate {}", inner_mate.0)),
+            && rendered.contains(&format!("mate {}", test_utils::refusal::tag(inner_mate.0))),
         "the badge names the document and the mate: {rendered}"
     );
 }
@@ -702,8 +733,9 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
 #[test]
 fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     let mut store = PartStore::default();
-    let (broken, broken_id, _) = broken_part(&mut store, "docm6-order-broken");
-    let (good, ..) = resting(&mut store, "docm6-order-good");
+    let (broken, broken_id, _, broken_cubes, broken_body) =
+        broken_part(&mut store, "docm6-order-broken");
+    let (good, _, good_cubes, _, cube_body) = resting(&mut store, "docm6-order-good");
 
     // The three documents share a shape: two instances a unit apart,
     // so their cubes MEET on a face no mate declared (the at-rest
@@ -711,18 +743,20 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // own (its unminted head).
     let build = |label: &str, part: DocRef| row_of(label, part, 2, 1.0);
     // The instances here are of a STAND, so a face of one is named one
-    // wrapper deeper: through the stand's own instance of the cube.
-    let with_own_mate = |doc: ProfileDoc, ids: &[RecipeNodeId]| {
-        insert(
-            doc,
-            mate_node(
-                wrap(ids[0], in_part(RecipeNodeId(1), CapEnd::End)),
-                wrap(ids[1], in_part(RecipeNodeId(0), CapEnd::Start)),
-                ContactClass::Tangent,
-                frame([0.0, 0.0, 5.0], [0.0, 0.0, 1.0]),
-            ),
-        )
-    };
+    // wrapper deeper: through the stand's own instance of the cube,
+    // `cubes` and `body` being the instantiated stand's.
+    let with_own_mate =
+        |doc: ProfileDoc, ids: &[RecipeNodeId], (cubes, body): (&[RecipeNodeId], RecipeNodeId)| {
+            insert(
+                doc,
+                mate_node(
+                    wrap(ids[0], in_part(cubes[1], body, CapEnd::End)),
+                    wrap(ids[1], in_part(cubes[0], body, CapEnd::Start)),
+                    ContactClass::Tangent,
+                    frame([0.0, 0.0, 5.0], [0.0, 0.0, 1.0]),
+                ),
+            )
+        };
 
     // (a) The at-rest gate alone: good parts, no mate of this
     // document's own — the undeclared contact is what refuses.
@@ -735,7 +769,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
 
     // (b) Add this document's own unminted mate: it preempts the gate.
     let (doc, ids) = build("docm6-order-own", good);
-    let (doc, own_mate) = with_own_mate(doc, &ids);
+    let (doc, own_mate) = with_own_mate(doc, &ids, (&good_cubes, cube_body));
     let ev = run(&doc, &with_resolver(store.clone()));
     assert!(matches!(
         assemble(&doc, &ev, Tol::witness()),
@@ -746,7 +780,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // (c) The same document over a BROKEN part: the carried refusal
     // preempts both, because the file to open is the inner one.
     let (doc, ids) = build("docm6-order-carried", broken);
-    let (doc, _) = with_own_mate(doc, &ids);
+    let (doc, _) = with_own_mate(doc, &ids, (&broken_cubes, broken_body));
     let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     assert!(
@@ -760,7 +794,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
 #[test]
 fn a_refusal_two_levels_down_names_its_route() {
     let mut store = PartStore::default();
-    let (broken, broken_id, broken_mate) = broken_part(&mut store, "docm6-route-stand");
+    let (broken, broken_id, broken_mate, ..) = broken_part(&mut store, "docm6-route-stand");
     let (mid, mid_instances) = row_of("docm6-route-mid", broken, 1, 4.0);
     let mid_ref = store.insert(mid, Tol::witness());
     let (outer, outer_instances) = row_of("docm6-route-outer", mid_ref, 1, 12.0);
@@ -797,8 +831,8 @@ fn a_refusal_two_levels_down_names_its_route() {
 #[test]
 fn every_carried_refusal_is_raised_in_gather_order() {
     let mut store = PartStore::default();
-    let (first, first_id, first_mate) = broken_part(&mut store, "docm6-head-first");
-    let (second, second_id, second_mate) = broken_part(&mut store, "docm6-head-second");
+    let (first, first_id, first_mate, ..) = broken_part(&mut store, "docm6-head-first");
+    let (second, second_id, second_mate, ..) = broken_part(&mut store, "docm6-head-second");
     assert_ne!(first_id, second_id);
 
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-head-row"), Tol::witness());
@@ -893,7 +927,7 @@ fn no_carried_declaration_can_reach_a_boolean_operand() {
             [0.0, 0.0, seat],
             [0.0, 0.0, 1.0],
         );
-        let cube = store.insert(
+        let (cube, _) = store.insert_part(
             cube_part(&format!("docm6-bool-{label}-cube")),
             Tol::witness(),
         );
@@ -930,7 +964,7 @@ fn no_carried_declaration_can_reach_a_boolean_operand() {
 #[test]
 fn a_certified_assembly_names_the_carried_mates_it_certified_over() {
     let mut store = PartStore::default();
-    let (inner_ref, inner_id, _, inner_mate) = resting(&mut store, "docm6-ok-stand");
+    let (inner_ref, inner_id, _, inner_mate, _) = resting(&mut store, "docm6-ok-stand");
     let (outer, instances) = row_of("docm6-ok-row", inner_ref, 2, 4.0);
     let ev = run(&outer, &with_resolver(store));
     let assembly = assemble(&outer, &ev, Tol::witness()).expect("the row certifies");

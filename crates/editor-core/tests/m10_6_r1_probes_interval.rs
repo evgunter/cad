@@ -1042,7 +1042,8 @@ fn bracket(
             len(0.0),
             Expr::sub(
                 len(1.0),
-                Expr::neg(Expr::param(name("lift"), Dimension::Length)),
+                Expr::neg(Expr::param(name("lift"), Dimension::Length))
+                    .expect("a shallow negation"),
             )
             .expect("length"),
         ],

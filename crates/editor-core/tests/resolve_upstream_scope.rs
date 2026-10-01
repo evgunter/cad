@@ -128,7 +128,6 @@ fn diagnosis(
             eval: ev1,
         },
         name,
-        Tol::witness(),
     );
     let Resolution::Failed(f) = res else {
         panic!("{name:?}: expected Failed, got {res:?}");
@@ -207,14 +206,16 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
 
 #[test]
 fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
-    // The cutter is itself a union of two bars (`cutter`), and the
-    // plate's rim edges are ranked fragments (`OrderAlong`, which
-    // mention no partner), so the cutter's union is UPSTREAM of the
-    // cut but not on those names' derivation path. Sliding the second
-    // bar clear of the first records a flip at the cutter's union and
-    // leaves the rim edges undivided. The flip is a candidate cause —
-    // it fed the cut — and it is reported as that, with its node, in
-    // the upstream scope rather than as a path flip.
+    // The cutter is itself a union of two bars (`cutter`). Sliding the
+    // second bar clear of the first records a flip at the cutter's
+    // union and leaves the plate's far rim undivided. A piece of that
+    // rim is named by its ends, which are crossings of the cutter's
+    // faces, so the cutter is on ITS derivation path: the flip answers
+    // it on the path. A name of the cut that mentions no partner has
+    // the cutter upstream of it and off its path, and the same flip is
+    // a candidate cause there — it fed the cut — reported as that,
+    // with its node, in the upstream scope (hand-built tables at the
+    // cut over the real documents).
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 2.0), 0.5, 1.0);
@@ -241,33 +242,56 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let ev1 = run(&doc, None);
     let doc2 = slide(doc.clone(), tr, Axis3::Y, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
-    let ranked: Vec<StableName> = fragments(&ev1, cut)
+    let pieces: Vec<StableName> = fragments(&ev1, cut)
         .into_iter()
         .filter(|n| {
-            matches!(
-                n.path.last(),
-                Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
-            ) && ev2.value(cut).unwrap().name_table.lookup(n).is_none()
+            matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
+                && ev2.value(cut).unwrap().name_table.lookup(n).is_none()
         })
         .collect();
-    assert!(!ranked.is_empty(), "some ranked rim edge vanishes");
-    for name in &ranked {
+    assert!(!pieces.is_empty(), "some rim piece vanishes");
+    for name in &pieces {
         assert!(
-            !editor_core::derivation_nodes(name).contains(&cutter),
-            "the cutter's union is not on {name:?}'s derivation path"
+            editor_core::derivation_nodes(name).contains(&cutter),
+            "{name:?}'s ends cite the cutter"
         );
-        match diagnosis((&doc2, &ev2), (&doc, &ev1), name) {
-            Diagnosis::Upstream {
-                node,
-                cause: UpstreamCause::PredicateFlip { predicate, at, .. },
-            } => {
-                assert_eq!(node, cut, "upstream of the minting node");
-                assert_eq!(at, cutter, "the flip is the cutter's own");
-                assert_eq!(predicate, "bool_point_in_solid_plane");
-            }
-            other => panic!("{name:?}: expected the upstream flip, got {other:?}"),
-        }
+        let Diagnosis::PredicateFlip {
+            predicate,
+            from,
+            to,
+        } = diagnosis((&doc2, &ev2), (&doc, &ev1), name)
+        else {
+            panic!("{name:?}: expected the flip on its path");
+        };
+        // It is the cutter's flip: the one the verdict diff records there.
+        let flips = editor_core::diff_verdicts(&ev1, &ev2).report();
+        assert!(
+            flips.iter().any(|(n, f)| {
+                *n == cutter && f.predicate == predicate && f.from == from && f.to == to
+            }),
+            "{name:?}: {predicate} {from:?} -> {to:?} is not the cutter's: {flips:?}"
+        );
     }
+    let verdict = |sign| Verdict {
+        predicate: "bool_point_in_solid_plane",
+        sign,
+    };
+    let (before, after, name) = collapsing_group(cut);
+    let prior = two_node_eval(&doc, (cutter, vec![verdict(Sign::Negative)]), (cut, before));
+    let now = two_node_eval(&doc2, (cutter, vec![verdict(Sign::Positive)]), (cut, after));
+    assert!(!editor_core::derivation_nodes(&name).contains(&cutter));
+    assert_eq!(
+        diagnosis((&doc2, &now), (&doc, &prior), &name),
+        Diagnosis::Upstream {
+            node: cut,
+            cause: UpstreamCause::PredicateFlip {
+                predicate: "bool_point_in_solid_plane",
+                at: cutter,
+                from: Sign::Negative,
+                to: Sign::Positive,
+            },
+        }
+    );
 }
 
 fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) -> ProfileDoc {
@@ -288,29 +312,25 @@ fn ancestors_in(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> BTreeSet<R
     seen
 }
 
-/// The first vanished ranked (`OrderAlong`) fragment of `cut`'s prior
-/// table — names that mention no partner, so nothing but `cut` and
-/// the plate's own extrude is on their derivation path.
-fn vanished_ranked(ev1: &Evaluation<f64>, ev2: &Evaluation<f64>, cut: RecipeNodeId) -> StableName {
+/// The first vanished piece of `cut`'s prior table named by its ends.
+fn vanished_piece(ev1: &Evaluation<f64>, ev2: &Evaluation<f64>, cut: RecipeNodeId) -> StableName {
     fragments(ev1, cut)
         .into_iter()
         .find(|n| {
-            matches!(
-                n.path.last(),
-                Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
-            ) && ev2
-                .value(cut)
-                .expect("the cut evaluates")
-                .name_table
-                .lookup(n)
-                .is_none()
+            matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
+                && ev2
+                    .value(cut)
+                    .expect("the cut evaluates")
+                    .name_table
+                    .lookup(n)
+                    .is_none()
         })
-        .expect("some ranked fragment of the cut vanishes")
+        .expect("some piece of the cut vanishes")
 }
 
 /// The reviewer's two-run chain. Last-good: `cut = a − X`, `X =
 /// Union[tr, P]`, `P = Union[c1, c2]`; `R`, an unrelated plate-with-
-/// bar, is built first (lowest id). The edit re-lists `X → [tr, c3]`
+/// bar, is built first. The edit re-lists `X → [tr, c3]`
 /// and `P → [c1, R]`, and slides `R`'s bar (a flip at `R`) and the
 /// cutter along y. `R` feeds `cut` in NEITHER run — only a walk that
 /// crosses from the old `X → P` edge to the new `P → R` edge reaches
@@ -348,21 +368,41 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
             declare: None,
         },
     );
-    let ev1 = run(&doc, None);
     let doc2 = set_members(set_members(doc.clone(), x, vec![tr, c3]), p, vec![c1, r]);
     let doc2 = slide(slide(doc2, r_tr, Axis3::X, 5.0), tr, Axis3::Y, 2.5);
-    let ev2 = run(&doc2, Some(&ev1));
     // The premises, each read per document.
     assert!(!ancestors_in(&doc, cut).contains(&r) && !ancestors_in(&doc2, cut).contains(&r));
     assert!(ancestors_in(&doc, cut).contains(&p) && !ancestors_in(&doc2, cut).contains(&p));
-    let flips = editor_core::diff_verdicts(&ev1, &ev2).report();
-    assert!(flips.iter().any(|(n, _)| *n == r), "R flips: {flips:?}");
+    let at = |n| doc2.order().iter().position(|&m| m == n);
     assert!(
-        r < p,
-        "R is first in deterministic order: a walk reaching it reports it"
+        at(r) < at(p),
+        "R is first in document order: a walk reaching it reports it"
     );
-    let name = vanished_ranked(&ev1, &ev2, cut);
-    match diagnosis((&doc2, &ev2), (&doc, &ev1), &name) {
+    // Hand-built runs at the cut over those documents, R and P each
+    // flipping: a name that mentions no partner, so only the scope
+    // rule decides which flip answers it.
+    let verdict = |sign| Verdict {
+        predicate: "bool_point_in_solid_plane",
+        sign,
+    };
+    let (before, after, name) = collapsing_group(cut);
+    let prior = hand_eval(
+        &doc,
+        vec![
+            (r, vec![verdict(Sign::Negative)]),
+            (p, vec![verdict(Sign::Negative)]),
+        ],
+        (cut, before),
+    );
+    let now = hand_eval(
+        &doc2,
+        vec![
+            (r, vec![verdict(Sign::Positive)]),
+            (p, vec![verdict(Sign::Positive)]),
+        ],
+        (cut, after),
+    );
+    match diagnosis((&doc2, &now), (&doc, &prior), &name) {
         Diagnosis::Upstream {
             node,
             cause: UpstreamCause::PredicateFlip { at, .. },
@@ -396,29 +436,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let (doc, n) = placed(doc, x);
     let doc2 = set_members(doc.clone(), x, vec![b1, w]);
     assert!(!ancestors_in(&doc, n).contains(&w) && ancestors_in(&doc2, n).contains(&w));
-    let body = |i: u32| editor_core::EntityRef {
-        body: i,
-        key: editor_core::EntityKey::Body,
-    };
-    let f = fixture::minted(EntityKind::Body, n, RoleSeg::OutputBody);
-    let base = StableName {
-        kind: EntityKind::Body,
-        node: n,
-        path: vec![RoleSeg::FromA(f.clone().into())],
-    };
-    let ranked = |rank| {
-        let mut name = base.clone();
-        name.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
-        name
-    };
-    let mut before = NameTable::new();
-    before.insert(ranked(0), body(0)).unwrap();
-    before.insert(ranked(1), body(1)).unwrap();
-    before.insert(f.clone(), body(2)).unwrap();
-    let mut after = NameTable::new();
-    after.insert(base.clone(), body(0)).unwrap();
-    after.insert(f.clone(), body(2)).unwrap();
+    let (before, after, name) = collapsing_group(n);
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
@@ -426,7 +444,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let prior = two_node_eval(&doc, (w, vec![verdict(Sign::Negative)]), (n, before));
     let now = two_node_eval(&doc2, (w, vec![verdict(Sign::Positive)]), (n, after));
     assert_eq!(
-        diagnosis((&doc2, &now), (&doc, &prior), &ranked(0)),
+        diagnosis((&doc2, &now), (&doc, &prior), &name),
         Diagnosis::Upstream {
             node: n,
             cause: UpstreamCause::PredicateFlip {
@@ -443,8 +461,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
 /// f])` with `f` strictly inside the bar; the edit swaps `f` for an
 /// identical block (a recipe edit at the union, which changes no
 /// verdict) and slides the transform along y so the rim edges stop
-/// being divided (no flip either). The union is upstream of the cut
-/// and not in the ranked names.
+/// being divided (no flip either). The union is upstream of the cut.
 #[test]
 fn a_recipe_edit_upstream_is_reported_as_upstream() {
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
@@ -469,17 +486,22 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
             declare: None,
         },
     );
-    let ev1 = run(&doc, None);
     let doc2 = slide(
         set_members(doc.clone(), u, vec![bar, f2]),
         tr,
         Axis3::Y,
         2.5,
     );
-    let ev2 = run(&doc2, Some(&ev1));
-    let name = vanished_ranked(&ev1, &ev2, cut);
+    // Hand-built runs at the cut over those documents: a name that
+    // mentions no partner, so the union is off its path. (A piece of
+    // the rim is named by its ends, which cite the union's faces, so
+    // there the union is on the path.)
+    let (before, after, name) = collapsing_group(cut);
+    let prior = hand_eval(&doc, vec![], (cut, before));
+    let now = hand_eval(&doc2, vec![], (cut, after));
+    assert!(!editor_core::derivation_nodes(&name).contains(&u));
     assert_eq!(
-        diagnosis((&doc2, &ev2), (&doc, &ev1), &name),
+        diagnosis((&doc2, &now), (&doc, &prior), &name),
         Diagnosis::Upstream {
             node: cut,
             cause: UpstreamCause::RecipeEdit {
@@ -538,7 +560,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     )
     .0;
     let ev2 = run(&doc2, Some(&ev1));
-    let name = vanished_ranked(&ev1, &ev2, cut);
+    let name = vanished_piece(&ev1, &ev2, cut);
     assert_eq!(
         diagnosis((&doc2, &ev2), (&doc, &ev1), &name),
         Diagnosis::Upstream {
@@ -551,14 +573,14 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     );
 }
 
-/// The ORDER among causes: the qualifier delta — a flip of the name's
-/// own qualifier, recovered from the names on its path — outranks an
+/// The ORDER among causes: the border delta — a change of the name's
+/// own walls, read off the names at its minting node — outranks an
 /// upstream flip. Hand-built runs over a real two-node chain: the
-/// name is minted at `n = Transform(u)`, its qualifier re-signed in
-/// the current table (a clean one-entry `SideOf` delta), and `u`'s
-/// verdict log flips. Both rungs have evidence; the path's wins.
+/// name is minted at `n = Transform(u)`, its piece borders one more
+/// wall in the current table, and `u`'s verdict log flips. Both rungs
+/// have evidence; the path's wins.
 #[test]
-fn the_qualifier_delta_outranks_an_upstream_flip() {
+fn the_border_delta_outranks_an_upstream_flip() {
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, u) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, n) = placed(doc, u);
@@ -570,15 +592,16 @@ fn the_qualifier_delta_outranks_an_upstream_flip() {
     };
     let f = fixture::minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let p = fixture::minted(EntityKind::Body, m, RoleSeg::OutputBody);
-    let frag = |v| StableName {
+    let q = fixture::minted(EntityKind::Body, u, RoleSeg::OutputBody);
+    let frag_of = |ws: &[&StableName]| StableName {
         kind: EntityKind::Body,
         node: n,
         path: vec![
             RoleSeg::FromA(f.clone().into()),
-            RoleSeg::Fragment(Qualifier::SideOf(vec![(p.clone(), v)])),
+            RoleSeg::Fragment(Qualifier::Borders(ws.iter().map(|&w| w.clone()).collect())),
         ],
     };
-    let old = frag(editor_core::SideVerdict::Negative);
+    let old = frag_of(&[&p]);
     let table = |name: &StableName| {
         let mut t = NameTable::new();
         t.insert(name.clone(), body(0)).unwrap();
@@ -594,7 +617,7 @@ fn the_qualifier_delta_outranks_an_upstream_flip() {
     let now = two_node_eval(
         &doc,
         (u, vec![verdict(Sign::Positive)]),
-        (n, table(&frag(editor_core::SideVerdict::Positive))),
+        (n, table(&frag_of(&[&p, &q]))),
     );
     assert!(
         editor_core::diff_verdicts(&prior, &now)
@@ -605,11 +628,10 @@ fn the_qualifier_delta_outranks_an_upstream_flip() {
     );
     assert_eq!(
         diagnosis((&doc, &now), (&doc, &prior), &old),
-        Diagnosis::PredicateFlip {
-            predicate: "name_frag_side_of",
-            from: Sign::Negative,
-            to: Sign::Positive,
-            source: editor_core::FlipSource::VerdictLog,
+        Diagnosis::BorderDelta {
+            node: n,
+            gone: vec![],
+            new: vec![q],
         }
     );
 }
@@ -619,6 +641,16 @@ fn the_qualifier_delta_outranks_an_upstream_flip() {
 fn two_node_eval(
     doc: &ProfileDoc,
     (upstream, log): (RecipeNodeId, Vec<Verdict>),
+    (named, table): (RecipeNodeId, NameTable),
+) -> Evaluation<f64> {
+    hand_eval(doc, vec![(upstream, log)], (named, table))
+}
+
+/// [`two_node_eval`] with any number of upstream nodes, each with its
+/// verdict log and an empty table.
+fn hand_eval(
+    doc: &ProfileDoc,
+    logs: Vec<(RecipeNodeId, Vec<Verdict>)>,
     (named, table): (RecipeNodeId, NameTable),
 ) -> Evaluation<f64> {
     let value = |table: NameTable, log: Vec<Verdict>| {
@@ -637,18 +669,57 @@ fn two_node_eval(
         })
     };
     let mut nodes = std::collections::BTreeMap::new();
-    nodes.insert(upstream, value(NameTable::new(), log));
+    let mut order = Vec::new();
+    for (upstream, log) in logs {
+        nodes.insert(upstream, value(NameTable::new(), log));
+        order.push(upstream);
+    }
     nodes.insert(named, value(table, vec![]));
+    order.push(named);
+    let recomputed = order.len();
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
         document: doc.id(),
         prior_refused: None,
-        order: vec![upstream, named],
+        order,
         nodes,
         outcome: EvalOutcome::Completed,
-        recomputed: 2,
+        recomputed,
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
     }
+}
+
+/// Hand-built tables at `cut` for a fragment group that stops being
+/// divided: before, two ranked fragments of the cut's output body —
+/// names that mention no partner, so nothing but `cut` is on their
+/// derivation path — and after, the undivided base. Returns the
+/// tables and the first fragment.
+fn collapsing_group(cut: RecipeNodeId) -> (NameTable, NameTable, StableName) {
+    let body = |i: u32| editor_core::EntityRef {
+        body: i,
+        key: editor_core::EntityKey::Body,
+    };
+    let f = fixture::minted(EntityKind::Body, cut, RoleSeg::OutputBody);
+    let base = StableName {
+        kind: EntityKind::Body,
+        node: cut,
+        path: vec![RoleSeg::FromA(f.clone().into())],
+    };
+    let ranked = |rank| {
+        let mut name = base.clone();
+        name.path
+            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
+        name
+    };
+    let mut before = NameTable::new();
+    before.insert(ranked(0), body(0)).unwrap();
+    before.insert(ranked(1), body(1)).unwrap();
+    before.insert(f.clone(), body(2)).unwrap();
+    let first = ranked(0);
+    let mut after = NameTable::new();
+    after.insert(base, body(0)).unwrap();
+    after.insert(f, body(2)).unwrap();
+    (before, after, first)
 }

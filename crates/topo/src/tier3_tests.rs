@@ -206,7 +206,8 @@ fn without_surface_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
 fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::entity::FaceKey) {
     let (mut body, split) = coplanar_pillow(tol);
     assert_eq!(validate_geometric(&body, tol), Ok(()));
-    body.set_face_surface(
+    // Lifts both refusals: tier 3's surface verdicts on the swapped face are the row's, whatever it strands.
+    body.set_face_surface_stranding_for_tests(
         split.face,
         FaceSurface::New {
             surface,
@@ -829,7 +830,8 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
     ];
     for (name, surface) in cases {
         let (mut body, split) = coplanar_pillow(tol);
-        body.set_face_surface(
+        // Lifts both refusals: the datum verdicts are the row's, whatever else the swap costs the body.
+        body.set_face_surface_stranding_for_tests(
             split.face,
             FaceSurface::New {
                 surface,
@@ -1495,7 +1497,8 @@ fn description_references_keep_a_surface_alive() {
     body.set_edge_curve(split.edge, spec, tol).unwrap();
     // Repoint the split face to a NEW surface: the old one is now
     // referenced only by the description — and must survive.
-    body.set_face_surface(
+    // Lifts both refusals: the stranded description keeping the old surface alive is the row.
+    body.set_face_surface_stranding_for_tests(
         split.face,
         FaceSurface::New {
             surface: Surface::Plane {
@@ -2618,7 +2621,7 @@ fn check_10_reads_past_a_witness_where_two_shells_touch() {
     let outer = body.shells_of_solid(outer_solid).expect("live")[0];
     let inner_body: Body<f64> =
         crate::test_support_fixtures::brick((1.0, 2.0), (1.0, 2.0), (2.0, 3.0), tol);
-    crate::graft_disjoint_all_onto_keyed(&mut body, &[outer_solid], &inner_body, tol)
+    crate::graft_disjoint_all_onto_keyed(&mut body, &[outer_solid], &inner_body)
         .expect("the graft");
     let inner = *body
         .shells_of_solid(outer_solid)

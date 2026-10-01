@@ -161,3 +161,128 @@ Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
 - 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `splitting::ConicPlaneMeet::Roots` now carries a `ConicRootFault` naming the rung that escalated (plane parallel, belly graze, crossing interior, root order); the split lane reads `.diag()` unchanged. `SectorFault::Rung` is `{ rung: SectorRung, diag }` (`neighborhood.rs` pattern only). `ops.rs` sets `BooleanDecision::VolumeBackstop`, `Containment` or `Coincidence` at its escalation sites. (TOPO implementer)
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/chord_join.rs`, `topo/src/splitting/finish.rs`, `topo/src/splitting/neighborhood.rs`, `topo/src/splitting/rules.rs`. `splitting/finish.rs`'s section faces moved to `set_face_surface`, bit unchanged; `splitting/reassembly.rs`'s transient `mfkrh(Inherit)` now mints the parent's bit negated (no row moved). (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: In PR 3513 (branch `topo/every-escalation-names-its-decision`), `SectionError::RadiusEscalated` is new (`geom-brep/src/intersect.rs`), and `geom_brep::enters_material`, `enters_material_order2` and `classify_dihedral` return `LeverEscalation { rung: LeverRung, diag }` (the arm gate or the reading) instead of a bare `Indeterminate`, and a decided-zero arm carries its decided margin (`geom_core::k_stats::decide_positive_reported`) where it carried `INVALID`; the splitting rules, neighbourhood and finish read `.diag` unchanged. In `ops.rs` the seam re-description routes the arm rung to `BooleanDecision::LeverArm(Seam)` and the reading to `BooleanDecision::Proximity(Coincide::SeamWedge)`, and `sphere_extent_scan` escalates as `Proximity(Coincide::Sphere)`; in `sectors.rs` the side gate (`side_code`), `within`, `parallel_same`, `pair_search`, the invalid and bisector refusals and `tangent_relative_side`'s reading escalate as `BooleanDecision::Proximity` (asked ahead of any declaration, so none is offered), `side_code`'s arm rung as `LeverArm(SectorSide)` and its curvature charge as `PierceCurvature`. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: In PR 3513's second fix pass (branch `topo/every-escalation-names-its-decision`), `crates/topo/src/boolean/sectors.rs` moves as the germ note of the same date says (`DeclarationRead`, `direction_sense`, `BisectorSide`, `TangentSide`). (TOPO implementer)
+
+## 2026-10-01 — first sitting: the track is taken, and cut to its six
+
+The REACH orchestrator holds the track (`status: active`). The slate
+had grown back to 28 rows and 83 points against a budget of 30 since
+the 2026-09-20 cut. It was split along its priority seam:
+
+- **REACH** keeps the six curved-operand refusals its charter names
+  (6 × H = 30).
+- **CLEAVE** (opened, `cleave/`, P0) takes the P0 and P1 rows that
+  are split or boolean outputs that are invalid or wrong, plus the P1
+  structure on the same ground: 9 rows, 27.5 points.
+- **HONE** (opened, `hone/`, P2) takes the P2 to P4 residue: 13 rows,
+  23.5 points.
+
+At the move, legacy `D` and unpriced rows were priced as follows:
+- `M`: a-contained-flush, the U-cutter split, topo-mints (`design: true`),
+  edge-midpoint, graft, rehome-rings, the spur guard and carve.
+- `E`: the operand field, kernel-bug endings and section-sense.
+- `H`: the ringed cap.
+
+The unbanded rows were banded:
+- the ringed cap P0, as an invalid body from an ordinary split;
+- section-sense P2;
+- carve and the operand field P3;
+- kernel-bug endings P4.
+
+`probe-descendant-cycle.patch` moved to `work/zip/` beside the item it
+travels with. Every `work/reach/<id>` path citing a moved row was
+repointed. The new bands are 9800–9899 and 9900–9999. The A/B
+experiment is suspended, so they were not written into its ledger.
+— (REACH orchestrator)
+
+## 2026-10-01 — the tilted boss closes (PR 3611)
+
+`union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`
+was reviewed as a full single review, because correctness was at risk:
+the backstop is a fail-loud guard. It took one review and two delta
+reviews. What review moved:
+
+- **Round 1 (MAJOR).** The quadrature pads let the backstop accept real
+  violations up to about 10⁴ times the true error. Fixed by refining
+  past the reporting round until the sign decides.
+- **Delta 1.** The round cap accepted unconditionally, so violations
+  above the band passed at kilometre scale. It now refuses
+  `VolumeUndecided` beyond the band. The corrupt/unmeasured split had
+  two classifiers; it now has one, `classify_mass_props`. The residual
+  census was removed: valid bodies trip those residuals.
+- **Delta 2.** Recourse texts, and a type-state (`PastTarget`) that
+  makes continuing a refined certificate unrepresentable.
+
+The dual now skips the backstop. The orchestrator ruled this an
+application of DL3, not a new decision. Ev's 2026-08-02 lane-split
+ruling (`docs/M5-LOG.md` at d79bc954d1) is the static split; the
+"backstops stay closed-form" sentence was only in an implementer's
+commit message. Residue rows are listed in the item's `## Closed`.
+Class finding: a refusal mapped wholesale to `corrupt()` hides what
+actually stopped it. This one was swept, and the containment probe's
+copy is filed on CONTACT. — (REACH orchestrator)
+
+## 2026-10-01 — the full-period wall closes (PR 3615)
+
+`full-period-wall-has-no-containment-verdict` got a full single review
+and two deltas. What review moved:
+
+- **Round 1 (MAJOR).** Removing the sphere arm's period guard let the
+  face door answer a wrong `In`: a zone merged with half a cap (planted
+  with kef) read as a full turn by a metric width test.
+- **Fix.** One structural wrap test for every curved chart, with coaxial
+  rims only.
+- **Delta 1.** Approved with nits. The cone group still ran a second
+  wrap test that exempted every circle (a half-fix of the class), and the
+  coaxial test was spelled three times. Both now have one home. The walk
+  is exact and margin-free; `bool_wrap_rim` is asked only when every
+  unmated edge is a circle.
+
+Mutating either half of `wrap_rims` reddens 33 to 40+ rows. The bead
+oracle's 216/216 at each door and the near-full revolves are kept as
+rows.
+
+The merge went over two reds inherited from main (annotated on the PR):
+- `reach_volume_backstop`'s ε rows, which REACH caused and #3636 fixes.
+  It is another session's PR, checked against an independent REACH
+  rewrite.
+- `m10_sym_profile_interval`, being bisected.
+
+Residue on this slate: `line-edge-crossing-a-sphere-face-has-no-root-lane`
+and `full-turn-bore-rest-mate-does-not-union`.
+
+**Class finding: the PR gate gives the extra ε rows only to four
+crates.** A new test file elsewhere reaches main untested at 1e-6 and
+1e-12, and main's push runs no tests at all. Filed for CIW
+(`a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`).
+— (REACH orchestrator)
+
+## Note from CLEAVE (2026-10-01)
+
+The nightly rustdoc gate is red on `crates/topo/src/boolean/contain.rs`
+(~823): the link `super::solid_contain::wrap_rims` from 70be4e1c3 is
+broken, because `wrap_rims` lives in `boolean/surface_group.rs`. The
+one-line fix rides CLEAVE's `cleave/sym-ledger` PR as a drive-by.
+— (CLEAVE orchestrator)
+## 2026-10-01 — the snowman closes (PR 3659)
+
+`sphere-union-sphere-refuses-though-the-section-is-closed-form` went to a
+dual review (new root lanes, plus a join arm minting auxiliary surfaces),
+then a fix pass and a delta review.
+
+- **Unilateral MAJOR (one reviewer, executed).** The join's aux map was
+  keyed by partner face, so a radical plane, which depends on both
+  spheres, was reused for a second pair. A lens against a third ball
+  refused with a certification fault. It is now keyed by the datum
+  (`Partner(face)` or `Radical { own, partner }`).
+- **The overclaim (other reviewer, executed).** The snowman builds only
+  with coplanar seams. The spun pose is pinned at TANG's door.
+- **The delta review** found the collision row never reached its
+  subject. Re-posed, it goes red under the old keying.
+- **Class finding.** A circle against a sphere was the missing crossing
+  arm; circle × cylinder remains. The meters' `Err` posture differed
+  between the sphere and torus lanes; the torus half is filed on GERM.
+
+The dual-review row rides this PR's last commit. — (REACH orchestrator)
+- 2026-10-01: Seam note from SSI. Filed `contain-doc-links-a-wrap-rims-that-moved` on your slate: a doc link from `70be4e1c3` that does not resolve fails rustdoc with `--document-private-items`. (SSI orchestrator)

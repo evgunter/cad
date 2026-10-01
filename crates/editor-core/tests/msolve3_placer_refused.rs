@@ -37,8 +37,8 @@ use geom_core::Tol;
 
 // ---- the scene ----
 
-/// A `1 x 1 x 1` block, as a whole part document.
-fn block(label: &str) -> ProfileDoc {
+/// A `1 x 1 x 1` block, as a whole part document, and its body.
+fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -47,23 +47,19 @@ fn block(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
         },
-    );
-    doc
+    )
 }
 
 /// The seat every row's mate declares.
 fn seat(a: StableName, b: StableName) -> Node<ProfileProgram> {
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame =
+        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -147,7 +143,7 @@ impl Scene {
 /// copy `i` — the name carries the `Instance(i)` qualifier the walk
 /// consumes.
 fn patterned(label: &str, kind: PatternKind, count: i64, i: u32) -> Scene {
-    build(label, |doc, legs| {
+    build(label, |doc, legs, leg_body| {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
@@ -156,7 +152,7 @@ fn patterned(label: &str, kind: PatternKind, count: i64, i: u32) -> Scene {
                 kind,
             },
         );
-        let name = in_copy(pattern, i, in_part(legs, CapEnd::End));
+        let name = in_copy(pattern, i, in_part(legs, leg_body, CapEnd::End));
         (doc, pattern, name, Vec::new())
     })
     .0
@@ -171,23 +167,25 @@ fn unevaluable() -> Expr {
 
 /// The scene builder both shapes share: two part documents, the
 /// placed instance, the placer with the name the mate reads it by,
-/// the capping instance, and the mate.
+/// the capping instance, and the mate. `place` is handed the placed
+/// instance and its part's body.
 fn build<F>(label: &str, place: F) -> (Scene, Vec<RecipeNodeId>)
 where
     F: FnOnce(
         ProfileDoc,
         RecipeNodeId,
+        RecipeNodeId,
     ) -> (ProfileDoc, RecipeNodeId, StableName, Vec<RecipeNodeId>),
 {
     let mut store = PartStore::new();
-    let leg = store.insert(block(&format!("{label}-leg")), Tol::witness());
-    let top = store.insert(block(&format!("{label}-top")), Tol::witness());
+    let (leg, leg_body) = store.insert_part(block(&format!("{label}-leg")), Tol::witness());
+    let (top, top_body) = store.insert_part(block(&format!("{label}-top")), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, legs) = insert(doc, Node::instantiate_part(leg));
-    let (doc, placer, name, extra) = place(doc, legs);
+    let (doc, placer, name, extra) = place(doc, legs, leg_body);
     let (doc, cap) = insert(doc, Node::instantiate_part(top));
     let twin = doc.clone();
-    let mut node = seat(name, in_part(cap, CapEnd::Start));
+    let mut node = seat(name, in_part(cap, top_body, CapEnd::Start));
     if let Node::Mate { a, .. } = &mut node {
         // The reference is read AT the placer: that operand is what
         // puts the placer on the walk's chain.
@@ -333,11 +331,11 @@ fn a1_a_slot_that_does_not_evaluate_names_the_slot() {
 /// door, a different vector.
 #[test]
 fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
-    let (scene, _) = build("msolve3-transform", |doc, legs| {
+    let (scene, _) = build("msolve3-transform", |doc, legs, leg_body| {
         let (doc, moved) = insert(doc, xform(legs, [0.0, 0.0, 0.0], [1e200, 0.0, 0.0], 0.5));
         // A transform mints no name segment: the reference is the
         // part's own face, read AT the transform.
-        (doc, moved, in_part(legs, CapEnd::End), Vec::new())
+        (doc, moved, in_part(legs, leg_body, CapEnd::End), Vec::new())
     });
     let f = scene.fault();
     let (placer, kind) = carried(&f);
@@ -380,7 +378,7 @@ fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
             NodeErrorClass::Expr,
         ),
     ] {
-        let (scene, _) = build(label, |doc, legs| {
+        let (scene, _) = build(label, |doc, legs, leg_body| {
             let chain = editor_core::Placement {
                 steps: vec![
                     editor_core::Step::Literal(Frame::translation([0.0, 0.0, 2.0])),
@@ -388,7 +386,7 @@ fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
                 ],
             };
             let (doc, moved) = insert(doc, Node::transform(legs, chain));
-            (doc, moved, in_part(legs, CapEnd::End), Vec::new())
+            (doc, moved, in_part(legs, leg_body, CapEnd::End), Vec::new())
         });
         let f = scene.fault();
         let (placer, kind) = carried(&f);
@@ -418,13 +416,13 @@ fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
 /// own evaluation.
 #[test]
 fn a1_two_faults_on_one_placer_pick_the_same_winner() {
-    let (scene, _) = build("msolve3-two-faults", |doc, legs| {
+    let (scene, _) = build("msolve3-two-faults", |doc, legs, leg_body| {
         let mut t = xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.5);
         if let Some(angle) = t.expr_mut(SlotId::RotationAngle) {
             *angle = Expr::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
         }
         let (doc, moved) = insert(doc, t);
-        (doc, moved, in_part(legs, CapEnd::End), Vec::new())
+        (doc, moved, in_part(legs, leg_body, CapEnd::End), Vec::new())
     });
     let f = scene.fault();
     let (_, kind) = carried(&f);
@@ -443,7 +441,7 @@ fn a1_two_faults_on_one_placer_pick_the_same_winner() {
 /// one.
 #[test]
 fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
-    let (scene, _) = build("msolve3-circular-plane", |doc, legs| {
+    let (scene, _) = build("msolve3-circular-plane", |doc, legs, leg_body| {
         let (doc, plane) = insert(
             doc,
             Node::Datum(Datum::Plane {
@@ -462,7 +460,7 @@ fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
                 },
             },
         );
-        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
         (doc, pattern, name, vec![plane])
     });
     let f = scene.fault();
@@ -483,7 +481,7 @@ fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
 /// more than one answer.
 #[test]
 fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
-    let (scene, _) = build("msolve3-circular-body", |doc, legs| {
+    let (scene, _) = build("msolve3-circular-body", |doc, legs, leg_body| {
         // A body where an axis datum belongs — a second node, because
         // one input may not be the same node twice.
         let (doc, body) = insert(doc, xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
@@ -498,7 +496,7 @@ fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
                 },
             },
         );
-        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
         (doc, pattern, name, Vec::new())
     });
     let f = scene.fault();
@@ -518,33 +516,36 @@ fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
 /// one-body word a reader holding only the transform node would give.
 #[test]
 fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
-    let (scene, _) = build("msolve3-circular-transform-of-pattern", |doc, legs| {
-        let (doc, array) = insert(
-            doc,
-            Node::Pattern {
-                input: legs,
-                count: Expr::count(2),
-                kind: PatternKind::Linear {
-                    direction: [scl(1.0), scl(0.0), scl(0.0)],
-                    spacing: len(2.0),
+    let (scene, _) = build(
+        "msolve3-circular-transform-of-pattern",
+        |doc, legs, leg_body| {
+            let (doc, array) = insert(
+                doc,
+                Node::Pattern {
+                    input: legs,
+                    count: Expr::count(2),
+                    kind: PatternKind::Linear {
+                        direction: [scl(1.0), scl(0.0), scl(0.0)],
+                        spacing: len(2.0),
+                    },
                 },
-            },
-        );
-        let (doc, moved) = insert(doc, xform(array, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-        let (doc, pattern) = insert(
-            doc,
-            Node::Pattern {
-                input: legs,
-                count: Expr::count(4),
-                kind: PatternKind::Circular {
-                    axis: moved,
-                    step: ang(0.5),
+            );
+            let (doc, moved) = insert(doc, xform(array, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
+            let (doc, pattern) = insert(
+                doc,
+                Node::Pattern {
+                    input: legs,
+                    count: Expr::count(4),
+                    kind: PatternKind::Circular {
+                        axis: moved,
+                        step: ang(0.5),
+                    },
                 },
-            },
-        );
-        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
-        (doc, pattern, name, Vec::new())
-    });
+            );
+            let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
+            (doc, pattern, name, Vec::new())
+        },
+    );
     let f = scene.fault();
     let (placer, kind) = carried(&f);
     assert_eq!(placer, scene.placer, "the pattern's wiring refuses: {f:?}");
@@ -559,7 +560,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
 /// BODY is a body on both roads, through two placers.
 #[test]
 fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_operand() {
-    let (scene, _) = build("msolve3-circular-transform-twice", |doc, legs| {
+    let (scene, _) = build("msolve3-circular-transform-twice", |doc, legs, leg_body| {
         let (doc, moved) = insert(doc, xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
         let (doc, again) = insert(doc, xform(moved, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
         let (doc, pattern) = insert(
@@ -573,7 +574,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_oper
                 },
             },
         );
-        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
         (doc, pattern, name, Vec::new())
     });
     let f = scene.fault();
@@ -594,7 +595,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_oper
 /// is legible.
 #[test]
 fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
-    let (scene, extra) = build("msolve3-circular-datum-slot", |doc, legs| {
+    let (scene, extra) = build("msolve3-circular-datum-slot", |doc, legs, leg_body| {
         let (doc, axis) = insert(
             doc,
             Node::Datum(Datum::Axis {
@@ -613,7 +614,7 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
                 },
             },
         );
-        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
         (doc, pattern, name, vec![axis])
     });
     let datum = extra[0];
@@ -633,7 +634,8 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
         "{kind}"
     );
     assert!(
-        f.to_string().contains(&format!("node {}", datum.0)),
+        f.to_string()
+            .contains(&format!("node {}", test_utils::refusal::tag(datum.0))),
         "and the message names that node: {f}"
     );
     // Off the chain, the datum is not poisoned by the fault: its own
@@ -655,7 +657,7 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
 /// refusal is reported at the datum and carries the datum's role word.
 #[test]
 fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
-    let (scene, extra) = build("msolve3-circular-datum-zero", |doc, legs| {
+    let (scene, extra) = build("msolve3-circular-datum-zero", |doc, legs, leg_body| {
         let (doc, axis) = insert(
             doc,
             Node::Datum(Datum::Axis {
@@ -674,7 +676,7 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
                 },
             },
         );
-        let name = in_copy(pattern, 1, in_part(legs, CapEnd::End));
+        let name = in_copy(pattern, 1, in_part(legs, leg_body, CapEnd::End));
         (doc, pattern, name, vec![axis])
     });
     let datum = extra[0];
@@ -703,7 +705,7 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
 #[test]
 fn an_explicit_pattern_rule_never_reaches_the_solve() {
     let mut store = PartStore::new();
-    let leg = store.insert(block("msolve3-explicit-leg"), Tol::witness());
+    let leg = store.insert(block("msolve3-explicit-leg").0, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("msolve3-explicit"), Tol::witness());
     let (doc, legs) = insert(doc, Node::instantiate_part(leg));
     let refused = editor_core::apply(
@@ -778,7 +780,7 @@ fn a_stranded_operand_is_still_a_dangling_head() {
     );
     let o = scene.opts();
     // Deleting the placer strands the mate's operand and splits the
-    // cluster: the edit levers through the store's reach.
+    // group: the edit levers through the store's reach.
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step_with(scene.doc, DocEdit::DeleteNode { id: scene.placer }, &reach);
     let f = solve(&doc, &o, Tol::witness())
@@ -800,7 +802,7 @@ fn a_stranded_operand_is_still_a_dangling_head() {
 #[test]
 fn the_placement_axis_refuses_in_its_own_voice() {
     let mut store = PartStore::new();
-    let part = store.insert(block("msolve3-rider-part"), Tol::witness());
+    let part = store.insert(block("msolve3-rider-part").0, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("msolve3-rider"), Tol::witness());
     let (doc, instance) = insert(doc, Node::instantiate_part(part));
 

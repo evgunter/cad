@@ -163,7 +163,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
     /// The document's mate solve, run once per evaluation (ASM-R2a
-    /// D-5): every instance's pose relative to its cluster gauge, and
+    /// D-5): every instance's pose relative to its group root, and
     /// every mate's role.
     pub poses: &'a crate::mate::SolvedPoses,
     /// Where profile geometry comes from, and over which environment.
@@ -1373,11 +1373,14 @@ pub(crate) fn prepare_profile(
         loops.push(lp);
         replay_records.push(record);
     }
-    let profile_f64 = profile::Profile::new(plane, loops);
-    let (validated_f64, canonical) = profile_f64
+    // The loops are the replay's own construction, so validation
+    // decides no arc's consistency checks (D1).
+    let replayed = profile::ConstructedProfile::new(plane, loops);
+    let (validated_f64, canonical) = replayed
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
-    let naming = anchor::derive_naming(&validated_f64, &profile_f64.loops).ok_or({
+    let profile_f64 = replayed;
+    let naming = anchor::derive_naming(&validated_f64, profile_f64.loops()).ok_or({
         // A canonical loop matched no program loop: an internal break.
         // The loop coordinate is not recoverable; 0 names the walk.
         NodeErrorKind::ProfileAnchor { loop_: 0 }
@@ -1446,7 +1449,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         })?;
         loops.push(lp);
     }
-    profile::Profile::new(plane, loops)
+    profile::ConstructedProfile::new(plane, loops)
         .validate_guided(tol, &pre.structure.canonical)
         .map_err(NodeErrorKind::Profile)
 }
@@ -2073,8 +2076,8 @@ fn resolve_open_faces(
 /// ([`ladder::resolve_in`]):
 ///
 /// 1. [`ladder::live`] — the minting node must still be in the
-///    document. Ids are never reused, so an id below the mint counter
-///    was DELETED and one at/above it was never this document's
+///    document. Ids are never reused, so an id the mint log holds was
+///    DELETED and one it does not hold was never this document's
 ///    (`ForeignNode`). The [`ladder::Live`] token makes this rung
 ///    outrank every later refusal, a door's own included.
 /// 2. [`ladder::Landing::Tied`] → `Ambiguous`: the tie row IS the
@@ -2595,7 +2598,6 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         target,
         &target_table,
         &body,
-        plane.normal,
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
@@ -2864,6 +2866,9 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         },
     )?;
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
+    // What the end pass reads of every step: each face's member faces
+    // and each step's discards.
+    let mut fold = names::UnionFold::new(members[0], &acc_body);
     // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
     let mut step_groups = Vec::with_capacity(rest.len());
     for step in 0..rest.len() {
@@ -2927,6 +2932,8 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
+                fold.step(rest[step], &naming, &out.body)
+                    .map_err(NodeErrorKind::Naming)?;
                 acc_table = emitted.table;
                 step_groups.push(emitted.groups);
                 acc_body = Arc::new(out.body);
@@ -2948,8 +2955,9 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             table,
         })
         .collect();
-    let table = names::name_union(id, &acc_body, &acc_table, &member_views, tol)
-        .map_err(NodeErrorKind::Naming)?;
+    let (table, published_groups) =
+        names::name_union(id, &acc_body, &acc_table, &member_views, &fold, tol)
+            .map_err(NodeErrorKind::Naming)?;
     let mut body = (*acc_body).clone();
     // ONCE, over the finished body: the stamp numbers from zero, so a
     // per-step pass would reuse an earlier step's index.
@@ -2972,7 +2980,11 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         }),
         table,
     )
-    .grouped(Arc::new(names::FragmentGroups::folded(id, &step_groups))))
+    .grouped(Arc::new(names::FragmentGroups::folded(
+        id,
+        &step_groups,
+        &published_groups,
+    ))))
 }
 
 /// **DM4's contact rule: every member pair is judged as its own
@@ -3285,7 +3297,9 @@ fn member_site(
 ///
 /// A face merged at an earlier step is in exactly one `[Merged(set)]`
 /// row (`names::merged::covers`): the one consumption with a unique
-/// successor, so the one looked through.
+/// successor, so the one looked through. A face one step cut and
+/// partly merged is in that row and in a fragment of its own beside
+/// it, so it is a split.
 ///
 /// A split, and a merge a later step fragmented, have no unique
 /// successor, so the pair refuses `Vanished` with
@@ -3307,8 +3321,8 @@ fn member_site(
 /// disagree about which composition consumed it (the first
 /// composition retires the bare name). Disagreement is read across
 /// rows only; within a row [`fold_descent`]'s first reading decides,
-/// so a merged row whose constituents disagree, and a bare merged row
-/// beside a fragment, go unseen: shapes the mint cannot produce either.
+/// so a merged row whose constituents disagree goes unseen: a shape
+/// the mint cannot produce either.
 fn look_through_fold<'n>(
     bucket: &[SidedPair<'n>],
     acc_table: &NameTable,
@@ -3322,6 +3336,9 @@ fn look_through_fold<'n>(
         if *op == topo::Operand::B || acc_table.lookup(name).is_some() {
             return Ok(None);
         }
+        let split = acc_table
+            .iter()
+            .any(|(row, _)| fold_descent(row, name) == Some(FoldConsumption::Split));
         let mut rows = acc_table
             .iter()
             .filter_map(|(row, _)| match row.path.as_slice() {
@@ -3329,13 +3346,13 @@ fn look_through_fold<'n>(
                 _ => None,
             });
         match (rows.next(), rows.next()) {
-            (Some(row), None) => return Ok(Some(row.clone())),
+            (Some(row), None) if !split => return Ok(Some(row.clone())),
             (Some(_), Some(_)) => {
                 return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: MEMBER_FACE_IN_TWO_MERGES,
                 }));
             }
-            (None, _) => {}
+            _ => {}
         }
         let mut ways = acc_table
             .iter()
@@ -3389,31 +3406,38 @@ fn look_through_fold<'n>(
 /// covering the name is the look-through's, and `None` here.
 fn fold_descent(row: &names::StableName, name: &names::StableName) -> Option<FoldConsumption> {
     use crate::names::RoleSeg;
-    if !names::face_descends_from(row, name) {
-        return None;
+    // A worklist in the order the first answer is looked for: a row's
+    // constituents in set order, each's own before the next's.
+    let mut rows = vec![row];
+    while let Some(row) = rows.pop() {
+        if !names::face_descends_from(row, name) {
+            continue;
+        }
+        let tail = row
+            .path
+            .iter()
+            .rev()
+            .take_while(|seg| matches!(seg, RoleSeg::Fragment(_)))
+            .count();
+        let head = &row.path[..row.path.len() - tail];
+        let fragmented = tail > 0;
+        // No node or kind test needed: the guard's other routes descend
+        // into names nested inside the path, and no name descends from a
+        // name that contains it, so a head equal to the name's path is the
+        // name's own node and kind.
+        if fragmented && head == name.path.as_slice() {
+            return Some(FoldConsumption::Split);
+        }
+        let [RoleSeg::Merged(set)] = head else {
+            continue;
+        };
+        if !names::merged::covers(set, name) {
+            rows.extend(set.iter().rev());
+        } else if fragmented {
+            return Some(FoldConsumption::FragmentedMerge);
+        }
     }
-    let tail = row
-        .path
-        .iter()
-        .rev()
-        .take_while(|seg| matches!(seg, RoleSeg::Fragment(_)))
-        .count();
-    let head = &row.path[..row.path.len() - tail];
-    let fragmented = tail > 0;
-    // No node or kind test needed: the guard's other routes descend
-    // into names nested inside the path, and no name descends from a
-    // name that contains it, so a head equal to the name's path is the
-    // name's own node and kind.
-    if fragmented && head == name.path.as_slice() {
-        return Some(FoldConsumption::Split);
-    }
-    let [RoleSeg::Merged(set)] = head else {
-        return None;
-    };
-    if names::merged::covers(set, name) {
-        return fragmented.then_some(FoldConsumption::FragmentedMerge);
-    }
-    set.iter().find_map(|c| fold_descent(c, name))
+    None
 }
 
 /// A union's accumulation lists one member face in the constituent
@@ -3463,9 +3487,9 @@ const UNION_FOLD_CONTACT_VERDICT: &str =
 /// no published table holds. Every name the refusal carries is
 /// therefore put through [`names::collapse_name`], the collapse the
 /// node's own table gets from `name_union`. A member-EDGE piece would
-/// still carry the fold's rank, which `name_union` renumbers over the
+/// still carry the fold's `Ends`, which `name_union` re-reads over the
 /// finished body, so one refuses as an emission bug
-/// ([`UNION_REFUSAL_FOLD_RANKED_EDGE`]); a flush finding names faces.
+/// ([`UNION_REFUSAL_FOLD_QUALIFIED_EDGE`]); a flush finding names faces.
 ///
 /// The recourse offered is the pair boolean's: a `Declare` on the
 /// union's own input, each side SITED at the member that carries it
@@ -3512,9 +3536,9 @@ fn union_refusal<T: geom_core::Bounds>(
     // refusal that has one has no pair to offer.
     for subject in [&a, &b] {
         if let DeclarationSubject::FoldMinted(row) = subject {
-            if names::is_fold_ranked_member_edge(row) {
+            if names::is_fold_qualified_member_edge(row) {
                 return NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_REFUSAL_FOLD_RANKED_EDGE,
+                    what: UNION_REFUSAL_FOLD_QUALIFIED_EDGE,
                 });
             }
             return NodeErrorKind::UndeclarableContact {
@@ -3625,9 +3649,9 @@ fn sited_member(
     })
 }
 
-/// A union's refusal named a piece of a member edge by the fold's rank.
-const UNION_REFUSAL_FOLD_RANKED_EDGE: &str = "a union fold's refusal names a piece of a member \
-     edge by the fold's rank, which no published table holds";
+/// A union's refusal named a piece of a member edge by the fold's qualifier.
+const UNION_REFUSAL_FOLD_QUALIFIED_EDGE: &str = "a union fold's refusal names a piece of a member \
+     edge by the fold's qualifier, which no published table holds";
 
 /// A union's refusal named a row its own fold table cannot collapse.
 const UNION_REFUSAL_FOREIGN: &str =
@@ -3661,15 +3685,14 @@ fn refusal_menu<T: geom_core::Bounds>(
         return verb_refused(err);
     };
     // The finding orders the pair (a-side, b-side); raise sites order
-    // it by discovery. Relation is orientation-symmetric. A
-    // same-operand pair (the F7 gate) keeps its raise order.
+    // it by discovery. Relation is orientation-symmetric.
     let ordered = if pair[0].0 == topo::Operand::B && pair[1].0 == topo::Operand::A {
         [pair[1], pair[0]]
     } else {
         pair
     };
     // A finding is SITED, so the pair a caller declares back is
-    // buildable from the refusal alone, same-operand pairs included.
+    // buildable from the refusal alone.
     let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
         let (at, table) = match operand {
             topo::Operand::A => a,
@@ -4264,12 +4287,12 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         // a union of separated bodies has, and the only one the seamed
         // boolean path accepts as an operand.
         let keys = if i == 0 {
-            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed, tol)
+            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed)
                 .map_err(NodeErrorKind::Boolean)?;
             targets = keys.solids().to_vec();
             keys
         } else {
-            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed, tol)
+            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed)
                 .map_err(NodeErrorKind::Boolean)?
         };
         bridges.push(keys);
@@ -4296,6 +4319,9 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
      joined-path composition lane; the swept BODY machinery itself is \
      live — sweep::sweep_body at the library API";
 
+/// A loft section of loops the path lattice constructed (the replay's).
+type ConstructedSection = sweep::Section<profile::ConstructedLoop<f64>>;
+
 /// One section of a loft, taken from the RECIPE's own `f64`
 /// description rather than from the evaluated `T` payload.
 ///
@@ -4309,7 +4335,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<(sweep::Section, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
+) -> Result<(ConstructedSection, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
@@ -4369,7 +4395,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         .placement;
     // The REPLAYED loops in program order (LIB-U3), and the canonical
     // positions' names the skin's walls and seams are named by.
-    Ok((pre.profile_f64.loops, place, pre.pieces))
+    Ok((pre.profile_f64.into_parts().1, place, pre.pieces))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -4849,6 +4875,12 @@ mod route_tests {
         }
     }
 
+    /// `name`, minted by `node` instead.
+    fn renode(node: RecipeNodeId, mut name: StableName) -> StableName {
+        name.node = node;
+        name
+    }
+
     /// The rewrite touches ONE shape: an ACCUMULATION-side member face
     /// that is no row and sits in a merged row's set goes to that row.
     /// A face the accumulation still holds, and a face no row holds or
@@ -4863,14 +4895,14 @@ mod route_tests {
         let f = |m, e| member_face(union, m, e);
         // Step 2's row: the merge of step 1's `{m0, m1}` with `m2`,
         // flat, minted in the union's space.
-        let wide = StableName {
-            node: union,
-            ..merged(vec![
+        let wide = renode(
+            union,
+            merged(vec![
                 f(ms[0], CapEnd::Start),
                 f(ms[1], CapEnd::Start),
                 f(ms[2], CapEnd::Start),
-            ])
-        };
+            ]),
+        );
         let mut acc = NameTable::new();
         acc.insert(wide.clone(), face_ref(key)).unwrap();
         acc.insert(
@@ -4917,10 +4949,10 @@ mod route_tests {
     fn the_joining_members_side_never_looks_through() {
         let (_doc, union, ms) = doc_with_members(4);
         let f = |m, e| member_face(union, m, e);
-        let row = StableName {
-            node: union,
-            ..merged(vec![f(ms[0], CapEnd::Start), f(ms[3], CapEnd::Start)])
-        };
+        let row = renode(
+            union,
+            merged(vec![f(ms[0], CapEnd::Start), f(ms[3], CapEnd::Start)]),
+        );
         let mut acc = NameTable::new();
         acc.insert(row, face_ref(a_face_key())).unwrap();
         let p = routed(
@@ -4941,20 +4973,20 @@ mod route_tests {
         let f = |m, e| member_face(union, m, e);
         let mut acc = NameTable::new();
         acc.insert(
-            StableName {
-                node: union,
-                ..merged(vec![f(ms[0], CapEnd::Start), f(ms[1], CapEnd::Start)])
-            },
+            renode(
+                union,
+                merged(vec![f(ms[0], CapEnd::Start), f(ms[1], CapEnd::Start)]),
+            ),
             face_ref(key),
         )
         .unwrap();
         // A second entity for the second row: the table refuses two
         // names on one entity, and the shape under test is two rows.
         acc.insert(
-            StableName {
-                node: union,
-                ..merged(vec![f(ms[0], CapEnd::Start), f(ms[2], CapEnd::Start)])
-            },
+            renode(
+                union,
+                merged(vec![f(ms[0], CapEnd::Start), f(ms[2], CapEnd::Start)]),
+            ),
             EntityRef {
                 body: 1,
                 key: EntityKey::Face(key),
@@ -5036,10 +5068,7 @@ mod route_tests {
             (Operand::A, named.clone()),
             (Operand::B, f(ms[3], CapEnd::End)),
         );
-        let merged_u = |set| StableName {
-            node: union,
-            ..merged(set)
-        };
+        let merged_u = |set| renode(union, merged(set));
         let cases = [
             (
                 "split, both fragments rows",
@@ -5051,6 +5080,14 @@ mod route_tests {
                 table_of(vec![
                     fragment(named.clone(), 0),
                     merged_u(vec![fragment(named.clone(), 1), f(ms[1], CapEnd::End)]),
+                ]),
+                FoldConsumption::Split,
+            ),
+            (
+                "split and partly merged in one step",
+                table_of(vec![
+                    fragment(named.clone(), 0),
+                    merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]),
                 ]),
                 FoldConsumption::Split,
             ),
@@ -5096,10 +5133,7 @@ mod route_tests {
             (Operand::A, named.clone()),
             (Operand::B, f(ms[3], CapEnd::End)),
         );
-        let merged_u = |set| StableName {
-            node: union,
-            ..merged(set)
-        };
+        let merged_u = |set| renode(union, merged(set));
         let inner = || merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]);
         let cases = [
             (
@@ -5140,10 +5174,7 @@ mod route_tests {
             (Operand::A, named.clone()),
             (Operand::B, f(ms[3], CapEnd::End)),
         );
-        let elsewhere = StableName {
-            node: ms[1],
-            ..named
-        };
+        let elsewhere = renode(ms[1], named);
         let acc = table_of(vec![fragment(elsewhere.clone(), 0), fragment(elsewhere, 1)]);
         let out = look_through_fold(std::slice::from_ref(&pair), &acc);
         assert_eq!(out.unwrap(), vec![pair]);
@@ -5160,10 +5191,7 @@ mod route_tests {
         let acc = table_of(vec![
             fragment(named.clone(), 0),
             fragment(
-                StableName {
-                    node: union,
-                    ..merged(vec![named.clone(), f(ms[1], CapEnd::End)])
-                },
+                renode(union, merged(vec![named.clone(), f(ms[1], CapEnd::End)])),
                 0,
             ),
         ]);
@@ -5315,8 +5343,14 @@ mod place_tests {
             },
             sense: true,
         };
-        let stamped = b.set_face_surface(faces[0], cylinder(0.25)).unwrap();
-        let pending = b.set_face_surface(faces[1], cylinder(0.3)).unwrap();
+        // Lifts both refusals: the rows read the cylinder keys' axis stamps, not the brick's edges.
+        let stamped = b
+            .set_face_surface_stranding_for_tests(faces[0], cylinder(0.25))
+            .unwrap();
+        // Lifts both refusals: the rows read the cylinder keys' axis stamps, not the brick's edges.
+        let pending = b
+            .set_face_surface_stranding_for_tests(faces[1], cylinder(0.3))
+            .unwrap();
         let axis = AxisSource::from_lowered(b"D");
         b.set_surface_axis_source(stamped, axis.clone()).unwrap();
         b.set_surface_axis_source(pending, axis.clone()).unwrap();

@@ -81,7 +81,7 @@ pub struct Evaluation<T: Decide> {
     /// The pairing doors read this field to refuse a mispairing typed,
     /// before reading anything of the value; the memo reads it too and
     /// refuses differently, below. Node ids alone could not decide any
-    /// of it: they are minted by a per-document counter, so two
+    /// of it: they are minted from the edits that inserted them, so two
     /// documents built from one recipe carry the SAME ids for the same
     /// nodes, and every lookup would hit.
     ///
@@ -107,8 +107,8 @@ pub struct Evaluation<T: Decide> {
     /// prior" and "a prior of this document".
     pub prior_refused: Option<Mispaired>,
     /// Deterministic topological order of the live nodes (spec D2:
-    /// a pure function of the DAG; Kahn's algorithm, tiebreak
-    /// `RecipeNodeId` ascending). Always the FULL order, even when
+    /// a pure function of the document; Kahn's algorithm, ties to the
+    /// earlier node in [`Doc::order`]). Always the FULL order, even when
     /// canceled — order is data, not schedule.
     pub order: Vec<RecipeNodeId>,
     /// Per-node results. On cancelation this holds the completed
@@ -288,24 +288,24 @@ impl core::fmt::Display for NodeStanding {
                 f,
                 "node {} has no result in this evaluation: the run was canceled before it \
                  reached the node — re-evaluate the document to completion",
-                node.0
+                node
             ),
             Self::NotInDocument { node } => write!(
                 f,
                 "node {} is not a node of the document this evaluation ran over — ask about \
                  one of that document's nodes, or evaluate the document the node is in",
-                node.0
+                node
             ),
             Self::Failed { node } => write!(
                 f,
                 "node {} failed, so it has no value — fix the node's own failure",
-                node.0
+                node
             ),
             Self::Poisoned { node, through } => write!(
                 f,
                 "node {} is poisoned by the failure at node {}, so it has no value — the \
                  repair is upstream, at node {}",
-                node.0, through.0, through.0
+                node, through, through
             ),
         }
     }
@@ -996,7 +996,7 @@ impl NodeRefusal {
 /// one spelling [`NodeError`]'s `Display` and [`NodeRefusal::line_at`]
 /// share.
 fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind) -> String {
-    format!("node {} failed: {kind}", node.0)
+    format!("node {} failed: {kind}", node)
 }
 
 impl From<NodeErrorKind> for NodeRefusal {
@@ -1024,7 +1024,7 @@ impl From<NodeErrorKind> for NodeRefusal {
 impl PartialEq for NodeRefusal {
     fn eq(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.0, &other.0)
-            || format!("{:?}", self.0) == format!("{:?}", other.0)
+            || format!("{:?}", self.kind()) == format!("{:?}", other.kind())
     }
 }
 
@@ -1453,18 +1453,15 @@ pub enum NodeErrorKind {
     /// A revolve whose axis and profile are written against DIFFERENT
     /// sketch frames.
     ///
-    /// This replaced `AxisNotInSketchPlane`, which said that a 3-D
-    /// axis had a decided out-of-plane component. That refusal was a
-    /// tolerance verdict on a projection — and the direction half of
-    /// it was the dimension audit's F15, a bare sine judged against
-    /// the metre band. An axis authored IN a frame cannot leave it, so
-    /// the only question left is whether it is the frame the profile
-    /// was drawn on, and that is an equality of node ids: exact, and
-    /// the same answer at every model scale.
+    /// An axis authored IN a frame cannot leave it, so the only
+    /// question is whether it is the frame the profile was drawn on,
+    /// and that is an equality of node ids: exact, and the same answer
+    /// at every model scale — no tolerance verdict on a projection.
     ///
-    /// Both frames are named because the fix depends on which one is
-    /// wrong, and a reader looking at two node numbers can tell. Each
-    /// is optional for one reason: a node that is neither a profile
+    /// Both frames are named so a reader can see which of the axis or
+    /// the profile sits on the frame they meant. They are not repair
+    /// sites: no edit to a frame's pose makes two ids equal. Each is
+    /// optional for one reason: a node that is neither a profile
     /// nor an in-plane axis is written against no frame at all, and
     /// `None` says that rather than inventing an id.
     AxisInDifferentPlane {
@@ -1824,7 +1821,7 @@ pub enum NodeErrorKind {
         fault: parts::PartFault,
     },
     /// The mate solve refused for this node (ASM-R2a D-4): the mate
-    /// itself, or an instance whose cluster the refusal left without a
+    /// itself, or an instance whose group the refusal left without a
     /// pose. The fault names its own subject — the pair, the residual
     /// subgroup, the failed predicate and its measured clash.
     Mate(Box<crate::mate::MateFault>),
@@ -2135,11 +2132,11 @@ impl core::fmt::Display for NodeErrorKind {
                  {} {} of the part (minted by its node {}), which the pinned part's \
                  product does not name — the crossing does not re-verify against this \
                  version of the part",
-                instance.0,
+                instance,
                 outer,
                 name.kind.article(),
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
@@ -2157,7 +2154,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
             Self::MissingInput { input } => {
-                write!(f, "input {} names no live node", input.0)
+                write!(f, "input {} names no live node", input)
             }
             Self::ToleranceConflict {
                 document_eps,
@@ -2174,7 +2171,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "the seed on parameter {param} reaches section profile node {}, which stays f64 \
                  in every lane (a loft's or a sweep's section is structure) — the tangent \
                  cannot ride through it, so this node refuses rather than embed a zero",
-                section.0
+                section
             ),
             Self::WrongOperand {
                 input,
@@ -2183,12 +2180,12 @@ impl core::fmt::Display for NodeErrorKind {
             } => write!(
                 f,
                 "input {} carries kind {found}; the operand needs kind {expected}",
-                input.0
+                input
             ),
             Self::EmptyOperand { input } => write!(
                 f,
                 "input {} is the empty value — the body ops take real bodies",
-                input.0
+                input
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
@@ -2197,7 +2194,7 @@ impl core::fmt::Display for NodeErrorKind {
                     crate::names::SplitHalf::Above => "above",
                     crate::names::SplitHalf::Below => "below",
                 },
-                input.0
+                input
             ),
             Self::InstanceOutOfRange {
                 input,
@@ -2207,7 +2204,7 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "instance index {index} is outside the pattern's {count} instances (node {}; \
                  the admitted indices are 0 to {})",
-                input.0,
+                input,
                 count.saturating_sub(1)
             ),
             // Every role word is already a complete noun phrase for
@@ -2267,13 +2264,13 @@ impl core::fmt::Display for NodeErrorKind {
                 profile_plane,
             } => {
                 let frame = |f: &Option<RecipeNodeId>| {
-                    f.map_or_else(|| "no frame".to_owned(), |n| format!("frame {}", n.0))
+                    f.map_or_else(|| "no frame".to_owned(), |n| format!("frame {}", n))
                 };
                 write!(
                     f,
                     "revolve axis (node {}) is written in {}, but the profile is drawn on {} \
                      — an axis revolves the sketch it lives in",
-                    axis.0,
+                    axis,
                     frame(axis_plane),
                     frame(profile_plane)
                 )
@@ -2309,7 +2306,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "a declared entity is sited at node {}, which is not an operand of this \
                  node — site each side at the member (or the boolean operand) whose table \
                  holds it",
-                at.0
+                at
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -2344,7 +2341,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
                 "the {verb} selection name minted by node {} denotes {} {}, not an edge",
-                name.node.0,
+                name.node,
                 found.article(),
                 found.noun()
             ),
@@ -2359,7 +2356,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::ShellOpenKind { name, found } => write!(
                 f,
                 "the shell open-face name minted by node {} denotes {} {}, not a face",
-                name.node.0,
+                name.node,
                 found.article(),
                 found.noun()
             ),
@@ -2378,7 +2375,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::FaceFrameKind { name, found } => write!(
                 f,
                 "the derived frame's name minted by node {} denotes {} {}, not a face",
-                name.node.0,
+                name.node,
                 found.article(),
                 found.noun()
             ),
@@ -2404,8 +2401,8 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "profile node {} is drawn on datum frame node {}, and the frame refused \
                  its own direction: {}",
-                profile.0,
-                frame.0,
+                profile,
+                frame,
                 refusal.node_error()
             ),
             Self::DerivedFrameSection { profile, frame } => write!(
@@ -2413,7 +2410,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "section profile node {} is drawn on derived frame node {}, and a loft's or a \
                  sweep's section is placed only in the plain (f64) evaluation, so this \
                  evaluation refuses rather than guess where the frame lies",
-                profile.0, frame.0
+                profile, frame
             ),
             Self::MeasureRefResolve { error } => {
                 write!(f, "a measure reference failed to resolve: {error}")
@@ -2421,7 +2418,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MeasureRefUnreadable { name, error } => write!(
                 f,
                 "the measure reference minted by node {} could not be read back: {error}",
-                name.node.0
+                name.node
             ),
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
             Self::MeasureNotParallel {
@@ -2643,8 +2640,9 @@ impl CancelToken {
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
-/// which answers the three injected doors — the offset fit's, the
-/// fitted pcurves' and the shell verb's — and names the scalar; the
+/// which answers the four injected doors — the offset fit's, the
+/// fitted pcurves', the plane × NURBS lane's and the shell verb's — and
+/// names the scalar; the
 /// part seam gathers a referenced document's product, so evaluation
 /// owns a gate policy per scalar), the two per-scalar
 /// analysis capabilities
@@ -2710,8 +2708,15 @@ pub(crate) mod leaf {
         /// Plain `Interval`, the pre-E12 replay.
         Numeric,
         /// `Sym<Interval>` inside a fresh session at this budget, with
-        /// these atom-algebra rules.
-        Symbolic(geom_core::SymBudget, geom_core::SymRules),
+        /// these atom-algebra rules and this retry ladder
+        /// (`geom_core::SymRetry`) — the three dials
+        /// `drive::SymbolicDials` carries, so a leaf read back here
+        /// runs the tier the drive certified at and not a narrower one.
+        Symbolic(
+            geom_core::SymBudget,
+            geom_core::SymRules,
+            geom_core::SymRetry,
+        ),
     }
 
     /// A shared memo prior over the nominal box, for the numeric lane.
@@ -2816,8 +2821,8 @@ pub(crate) mod leaf {
                     evaluate(doc, prior, &CancelToken::new(), opts, tol);
                 read_leaf(&ev, want, |v| v)
             }
-            LeafLane::Symbolic(budget, rules) => {
-                let (out, _) = geom_core::sym::with_session_rules(budget, rules, || {
+            LeafLane::Symbolic(budget, rules, retry) => {
+                let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, &CancelToken::new(), opts, tol);
                     read_leaf(&ev, want, |v: geom_core::Sym<geom_core::Interval>| v.value)
@@ -3054,9 +3059,9 @@ impl Default for EvalOptions {
     }
 }
 
-/// **The mate solve's reach over a part cache** — the one geometric
-/// read the solve makes (A11), answered from the parts this
-/// evaluation resolves.
+/// **The mate solve's reach over a part cache** — the two geometric
+/// reads the solve makes (A11 rule 5: a part's extent, a face's pose),
+/// answered from the parts this evaluation resolves.
 ///
 /// The evaluation's own run reads the cache it has already built
 /// ([`CacheReach`]); every caller outside a run — the viewer's mate
@@ -3085,6 +3090,53 @@ fn reach_over_cache<T: EvalScalar>(
     Ok(hi)
 }
 
+/// **A named face's canonical pose over a part cache** — the other
+/// read `ASSEMBLY.md` A11 rule 5 lets into the solve, answered from
+/// the same cached product the reach reads: the part's own product
+/// table resolves the PART-LOCAL name to its face through the name
+/// doors' own table ladder (`names::interrogate::key_in`, the rungs
+/// every read door asks, in their order), and `topo::readback::
+/// face_pose` reads the carrier's frame off the part's own body, in
+/// the part's own coordinates — no placement enters, since the frames
+/// a mate authors are in those coordinates already. The product is one
+/// aggregate body that every row of its table indexes, so the row's
+/// output-body index is not read.
+///
+/// The pose crosses to the solve as `f64`, the scalar the solve's
+/// frames are: at `f64` the product's coordinates are the value, and
+/// on an analysis scalar — an enclosure, a sensitivity — there is no
+/// single `f64` that is not a fabricated choice ([`SectionScalar`]'s
+/// rule), so the read refuses typed rather than picking one.
+fn face_pose_over_cache<T: EvalScalar>(
+    parts: &parts::PartCache<'_, T>,
+    part: &crate::ident::DocRef,
+    face: &crate::FaceName,
+    tol: Tol,
+) -> Result<topo::readback::Pose<f64>, crate::mate::FacePoseRefusal> {
+    use crate::mate::FacePoseRefusal as R;
+    use crate::names::interrogate::{TableRefusal, key_in};
+    let value = parts
+        .get(part, tol)
+        .map_err(|fault| R::PartUnresolved { fault })?;
+    let (_, key) =
+        key_in::<topo::FaceKey>(&value.names, face).map_err(|refusal| match refusal {
+            TableRefusal::NoSuchName => R::NoSuchName,
+            TableRefusal::Ambiguous { candidates } => R::Ambiguous { candidates },
+            TableRefusal::Kind { found } => R::NotAFace { found },
+        })?;
+    let pose = topo::readback::face_pose(value.body.as_ref(), key).map_err(R::Readback)?;
+    let pin = |x: T| x.pinned_f64().ok_or(R::Unpinned);
+    let point =
+        |p: geom_core::Point3<T>| Ok(geom_core::Point3::new(pin(p.x)?, pin(p.y)?, pin(p.z)?));
+    let vec = |v: geom_core::Vec3<T>| Ok(geom_core::Vec3::new(pin(v.x)?, pin(v.y)?, pin(v.z)?));
+    Ok(topo::readback::Pose {
+        origin: point(pose.origin)?,
+        axis: vec(pose.axis)?,
+        u_ref: pose.u_ref.map(vec).transpose()?,
+        sense: pose.sense,
+    })
+}
+
 /// The running evaluation's reach: its own cache, borrowed.
 struct CacheReach<'r, 'a, T: EvalScalar> {
     parts: &'r parts::PartCache<'a, T>,
@@ -3094,6 +3146,14 @@ struct CacheReach<'r, 'a, T: EvalScalar> {
 impl<T: EvalScalar> crate::mate::MateReach for CacheReach<'_, '_, T> {
     fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
         reach_over_cache(self.parts, part, self.tol)
+    }
+
+    fn face_pose(
+        &self,
+        part: &crate::ident::DocRef,
+        face: &crate::FaceName,
+    ) -> Result<topo::readback::Pose<f64>, crate::mate::FacePoseRefusal> {
+        face_pose_over_cache(self.parts, part, face, self.tol)
     }
 }
 
@@ -3150,6 +3210,14 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
 impl<T: EvalScalar> crate::mate::MateReach for PartReach<'_, T> {
     fn reach(&self, part: &crate::ident::DocRef) -> Result<f64, crate::mate::ReachRefusal> {
         reach_over_cache(&self.parts, part, self.tol)
+    }
+
+    fn face_pose(
+        &self,
+        part: &crate::ident::DocRef,
+        face: &crate::FaceName,
+    ) -> Result<topo::readback::Pose<f64>, crate::mate::FacePoseRefusal> {
+        face_pose_over_cache(&self.parts, part, face, self.tol)
     }
 }
 
@@ -3296,15 +3364,15 @@ where
         tol,
     );
     // The mate solve is a WHOLE-DOCUMENT computation over recipe data
-    // (A11): one spanning tree per cluster, folded once, read by every
+    // (A11): one spanning tree per group, folded once, read by every
     // instance and every mate below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
-    // answer to "where does this cluster sit". Its one geometric read
-    // — each mated part's extent, the lever — comes off THIS run's
-    // part cache: at the top a mated part is evaluated on its first
-    // ask, once, under the cache's shielding bracket, and below the
-    // top the descent has already entered it. Either way its
-    // instantiate node then hits the cache.
+    // answer to "where does this group sit". Its two geometric
+    // reads — each mated part's extent (the lever) and a `FromFace`
+    // side's face pose — come off THIS run's part cache: at the top a
+    // mated part is evaluated on its first ask, once, under the cache's
+    // shielding bracket, and below the top the descent has already
+    // entered it. Either way its instantiate node then hits the cache.
     let reach = CacheReach { parts: &parts, tol };
     let poses = crate::mate::solve_with_env(doc, &nominal_env, &reach, tol);
     let op_env = wire::OpEnv {
@@ -3534,7 +3602,7 @@ fn resolve_appearance<T: Decide>(
             (id, state.map(|v| &*v.name_table))
         })
         .collect();
-    appearance::resolve(doc.appearance(), &states)
+    appearance::resolve(doc.appearance(), order, &states)
 }
 
 /// One node's evaluation step: the result plus whether it was a memo
@@ -3605,6 +3673,22 @@ where
         // Unreachable: the schedule only lists live nodes.
         return fail(bracket, NodeErrorKind::MissingInput { input: id });
     };
+    // A mate's log opens with what the solve decided about it: the
+    // solve ran before any frame was open and kept each decision for
+    // the one mate whose answer it decided
+    // (`mate::solve::SolvedPoses::take_recordings`), so the decision
+    // is on this mate's log whether the mate evaluates `Ok` or not.
+    let spliced = matches!(node, crate::node::Node::Mate { .. }).then(|| {
+        let mut kept = geom_core::k_stats::Recorded::default();
+        for recording in op_env.poses.take_recordings(id) {
+            kept.verdicts
+                .extend_from_slice(&recording.recorded().verdicts);
+            kept.escalations
+                .extend_from_slice(&recording.recorded().escalations);
+            geom_core::k_stats::splice(recording);
+        }
+        kept
+    });
 
     // Poison propagation (spec D2, GQ2): first blocking input in the
     // node's deterministic input order; `through` always names a
@@ -3808,6 +3892,23 @@ where
         // dozen verdicts per hit, beside a precompute that just
         // replayed and validated the profile.
         let fresh = bracket.finish();
+        // A mate's log is the solve's recording for it and nothing
+        // else (its op decides nothing), and the solve runs afresh
+        // every evaluation: what it decides about a mate reads the
+        // mates folded before it, which the mate's key does not. So a
+        // reused mate carries this run's recording, the log a fresh
+        // evaluation of it would carry.
+        if let Some(spliced) = &spliced {
+            mate_log_is_the_solves(id, &fresh, spliced);
+            return NodeStep {
+                result: NodeResult::Ok(NodeValue {
+                    verdicts: Arc::new(fresh.verdicts),
+                    escalations: Arc::new(fresh.escalations),
+                    ..v.clone()
+                }),
+                reused: true,
+            };
+        }
         assert!(
             v.verdicts.starts_with(&fresh.verdicts)
                 && v.escalations.starts_with(&fresh.escalations),
@@ -3853,6 +3954,9 @@ where
         Err(_) => Ok(None),
     };
     let recorded = bracket.finish();
+    if let Some(spliced) = &spliced {
+        mate_log_is_the_solves(id, &recorded, spliced);
+    }
     let escalations = Arc::new(recorded.escalations);
     match (op, placement) {
         (Ok(out), Ok(placement)) => NodeStep {
@@ -3890,6 +3994,27 @@ where
             reused: false,
         },
     }
+}
+
+/// **A mate's frame holds exactly what the solve recorded for it.** A
+/// mate's key and its op decide nothing, which is what lets a reused
+/// mate carry this run's recording in place of its prior log (the memo
+/// hit's mate arm, which bypasses the prefix assert). A mate op or key
+/// that comes to decide anything breaks that, and trips here. The
+/// escalations compare by predicate, since a margin that is no number
+/// compares unequal to itself.
+fn mate_log_is_the_solves(
+    id: RecipeNodeId,
+    frame: &geom_core::k_stats::Recorded,
+    spliced: &geom_core::k_stats::Recorded,
+) {
+    let named = |r: &geom_core::k_stats::Recorded| -> Vec<&'static str> {
+        r.escalations.iter().map(|e| e.predicate()).collect()
+    };
+    assert!(
+        frame.verdicts == spliced.verdicts && named(frame) == named(spliced),
+        "mate {id}'s frame holds decisions the solve did not record for it"
+    );
 }
 
 /// **The content key's structural tags, declared by vocabulary.**
@@ -3993,11 +4118,11 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v7: every slot writes its nominal beside its lane bits
-            /// and the profile payload's loop and step lists write
-            /// their counts — two channels every existing node of
-            /// their kinds writes into.
-            VERSION = 7,
+            /// v8: a mate frame writes its arm word before its
+            /// payload, and a mate writes the parts its face frames
+            /// resolve against — two channels every existing mate
+            /// writes into.
+            VERSION = 8,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4019,6 +4144,18 @@ mod tag {
         fault {
             CLEAR = 0,
             FAULTED = 1,
+        }
+        /// A mate's axis sense, read after its authored lengths.
+        axis_sense {
+            ALIGNED = 1,
+            OPPOSED = 2,
+        }
+        /// A mate frame's arm, read before that side's payload: an
+        /// authored frame's nine coordinates, or a face frame's
+        /// part-local name.
+        mate_frame {
+            AUTHORED = 1,
+            FROM_FACE = 2,
         }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
@@ -4283,7 +4420,7 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
 struct SolveAnswer {
     /// The instance's solved world placement, `None` when the node is
     /// not a placed instance — which includes an instance whose
-    /// cluster refused.
+    /// group refused.
     placement: Option<crate::placement::Frame>,
     /// The role the solve assigned. `None` covers BOTH "not a live
     /// mate" and a live mate the solve never reached — a `Band`
@@ -4292,19 +4429,61 @@ struct SolveAnswer {
     role: Option<crate::mate::MateRole>,
     /// Whether the solve recorded a fault against the node.
     faulted: bool,
+    /// **The part each `FromFace` side of a mate resolves through**,
+    /// by reference — `None` for an authored side, for a side whose
+    /// walk reaches no member, and for every node that is not a mate.
+    /// A face frame's value is the part's product, so the part's
+    /// content pin is what the mate's key must carry for that side
+    /// (a part edit that moves the face moves the pin; one that leaves
+    /// the part alone leaves it): the pin over-approximates the face
+    /// — an edit elsewhere in the part moves it too — in the direction
+    /// that re-reads rather than serves a stale pose.
+    face_parts: [Option<crate::ident::DocRef>; 2],
 }
 
 impl SolveAnswer {
     /// What `poses` answers for `id`.
     fn of<P>(poses: &crate::mate::SolvedPoses, doc: &crate::doc::Doc<P>, id: RecipeNodeId) -> Self {
+        let face_parts = match doc.node(id) {
+            Some(crate::node::Node::Mate {
+                a, b, alignment, ..
+            }) => {
+                // The solve's own derivation of the part a face side
+                // resolves against (`mate::solve::part_of`), so the key
+                // and the solve name one part for one side.
+                let part_of = |reference, frame: &crate::mate::MateFrame| {
+                    frame.face()?;
+                    let member = crate::mate::member_of(doc, reference)?;
+                    crate::mate::solve::part_of(doc, &member).ok()
+                };
+                [part_of(a, &alignment.a), part_of(b, &alignment.b)]
+            }
+            _ => [None, None],
+        };
         Self {
             placement: poses.placement(doc, id).ok(),
             role: poses.role(id),
             faulted: poses.fault(id).is_some(),
+            face_parts,
         }
     }
 
-    /// The placement's tags: one for "no pose" so a refusing cluster
+    /// The `FromFace` sides' parts, each as its content pin behind a
+    /// presence word — read after the alignment, so a face frame's key
+    /// carries the product it resolves against.
+    fn feed_face_parts(self, h: &mut KeyHasher) {
+        for part in self.face_parts {
+            match part {
+                Some(doc_ref) => {
+                    h.write_tag(tag::presence::PRESENT);
+                    feed_doc_ref(h, &doc_ref);
+                }
+                None => h.write_tag(tag::presence::ABSENT),
+            }
+        }
+    }
+
+    /// The placement's tags: one for "no pose" so a refusing group
     /// keys distinctly from any pose, else the frame's bits.
     fn feed_placement(self, h: &mut KeyHasher) {
         match self.placement {
@@ -4672,7 +4851,7 @@ where
         }
         // ASM-2A D-1/D-2: WHICH document (id + pin — the pin IS the
         // referenced content, so nothing about the part needs hashing
-        // here) and WHERE its cluster sits. The placement is document
+        // here) and WHERE its group sits. The placement is document
         // data, not node data, which is exactly why it must feed the
         // key: a `SetPlacement` moves this node's value and nothing
         // else about the node changes. The INTERFACE RECORD feeds the
@@ -4684,15 +4863,9 @@ where
         Node::InstantiatePart {
             doc_ref, interface, ..
         } => {
-            h.write_u64((doc_ref.id.0 >> 64) as u64);
-            h.write_u64(doc_ref.id.0 as u64);
-            for chunk in doc_ref.pin.0.chunks(8) {
-                let mut byte8 = [0u8; 8];
-                byte8[..chunk.len()].copy_from_slice(chunk);
-                h.write_u64(u64::from_be_bytes(byte8));
-            }
+            feed_doc_ref(&mut h, doc_ref);
             // The SOLVED placement (ASM-R2a D-5): a mate edit that
-            // moves this instance's pose moves its key, and a cluster
+            // moves this instance's pose moves its key, and a group
             // that refuses to solve keys DISTINCTLY from any pose —
             // otherwise a repaired document could hit the memo on a
             // stale success.
@@ -4731,6 +4904,7 @@ where
             // all write, so the three cannot key a class inconsistently.
             h.write_u64(class.content_tag());
             feed_alignment(&mut h, alignment);
+            solve_answer.feed_face_parts(&mut h);
             solve_answer.feed_mate(&mut h);
         }
         Node::Declare { pairs } => {
@@ -5363,6 +5537,19 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
     }
 }
 
+/// Feeds a document reference: the id's two words, then the content
+/// pin's four — what an instantiate node keys its part by, and what a
+/// mate's `FromFace` side keys the part it resolves against by.
+fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
+    h.write_u64((doc_ref.id.0 >> 64) as u64);
+    h.write_u64(doc_ref.id.0 as u64);
+    for chunk in doc_ref.pin.0.chunks(8) {
+        let mut byte8 = [0u8; 8];
+        byte8[..chunk.len()].copy_from_slice(chunk);
+        h.write_u64(u64::from_be_bytes(byte8));
+    }
+}
+
 /// Feeds a mate's alignment datum: the structural choices as tags, the
 /// authored coordinates as bits — the same (tag, payload) convention
 /// every other structural payload uses here.
@@ -5394,8 +5581,8 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
         }
     }
     h.write_tag(match a.sense {
-        AxisSense::Aligned => 1,
-        AxisSense::Opposed => 2,
+        AxisSense::Aligned => tag::axis_sense::ALIGNED,
+        AxisSense::Opposed => tag::axis_sense::OPPOSED,
     });
     match a.clocking {
         Some(theta) => {
@@ -5404,14 +5591,28 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
         }
         None => h.write_tag(tag::presence::ABSENT),
     }
+    // Each side's arm as a word, then its payload: an authored frame's
+    // nine coordinates; a face frame's PART-LOCAL name, the whole of
+    // what it authors. The part the face resolves against is the
+    // mate's other channel (`SolveAnswer::feed_face_parts`), read after
+    // this.
     for frame in [&a.a, &a.b] {
-        for x in frame
-            .origin
-            .iter()
-            .chain(frame.axis.iter())
-            .chain(frame.reference.iter())
-        {
-            h.write_f64_bits(*x);
+        match frame {
+            crate::mate::MateFrame::Authored(frame) => {
+                h.write_tag(tag::mate_frame::AUTHORED);
+                for x in frame
+                    .origin
+                    .iter()
+                    .chain(frame.axis.iter())
+                    .chain(frame.reference.iter())
+                {
+                    h.write_f64_bits(*x);
+                }
+            }
+            crate::mate::MateFrame::FromFace(face) => {
+                h.write_tag(tag::mate_frame::FROM_FACE);
+                feed_stable_name(h, &face.face);
+            }
         }
     }
 }
@@ -5515,18 +5716,59 @@ fn feed_scalar_join(
 /// a name is an identity, and two names differing anywhere are two
 /// different recipe payloads. Names are float-free by construction
 /// (pure tags and integers), so nothing here is eps-dependent.
+///
+/// A name holds names as deep as its derivation runs, so the feed keeps
+/// its own stack: each level's segments are fed into a [`SegFeed`],
+/// which holds a name it meets in place, and the stream is then fed in
+/// order, each held name fed where it stands.
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
-    h.write_tag(match name.kind {
-        EntityKind::Body => 1,
-        EntityKind::Face => 2,
-        EntityKind::Edge => 3,
-        EntityKind::Vertex => 4,
-    });
-    h.write_u64(name.node.0);
-    h.write_u64(name.path.len() as u64);
-    for seg in &name.path {
-        feed_role_seg(h, seg);
+    let mut fed = vec![Fed::Name(name)];
+    while let Some(item) = fed.pop() {
+        match item {
+            Fed::Tag(tag) => h.write_tag(tag),
+            Fed::U64(x) => h.write_u64(x),
+            Fed::Name(name) => {
+                h.write_tag(match name.kind {
+                    EntityKind::Body => 1,
+                    EntityKind::Face => 2,
+                    EntityKind::Edge => 3,
+                    EntityKind::Vertex => 4,
+                });
+                h.write_u64(name.node.0);
+                h.write_u64(name.path.len() as u64);
+                let mut level = SegFeed(Vec::new());
+                for seg in &name.path {
+                    feed_role_seg(&mut level, seg);
+                }
+                fed.extend(level.0.into_iter().rev());
+            }
+        }
+    }
+}
+
+/// One item of a name's content-key stream.
+enum Fed<'a> {
+    Tag(u8),
+    U64(u64),
+    /// A held name, fed whole where it stands.
+    Name(&'a StableName),
+}
+
+/// One level of a name's content-key stream, in order.
+struct SegFeed<'a>(Vec<Fed<'a>>);
+
+impl<'a> SegFeed<'a> {
+    fn write_tag(&mut self, tag: u8) {
+        self.0.push(Fed::Tag(tag));
+    }
+
+    fn write_u64(&mut self, x: u64) {
+        self.0.push(Fed::U64(x));
+    }
+
+    fn name(&mut self, name: &'a StableName) {
+        self.0.push(Fed::Name(name));
     }
 }
 
@@ -5603,8 +5845,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
 
 /// Feeds one role segment: its word from [`seg_content_tag`], then the
 /// payload its variant carries.
-fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
-    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict};
+fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
+    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg};
     let cap = |c: CapEnd| match c {
         CapEnd::End => 1u8,
         CapEnd::Start => 2,
@@ -5622,7 +5864,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
     };
     // A locator: its form's word, then the step's minted id or the
     // section's circle, then the role (its word, and a piece's index).
-    let role = |h: &mut KeyHasher, r: crate::names::PieceRole| {
+    let role = |h: &mut SegFeed<'a>, r: crate::names::PieceRole| {
         use crate::names::PieceRole;
         match r {
             PieceRole::Leg => h.write_tag(1),
@@ -5639,7 +5881,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         crate::names::SectionCircle::Outer => 1u8,
         crate::names::SectionCircle::Bore => 2,
     };
-    let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| match e {
+    let pe = |h: &mut SegFeed<'a>, e: crate::names::ProfileEdgeRef| match e {
         crate::names::ProfileEdgeRef::Piece { step, role: r } => {
             h.write_tag(1);
             h.write_u64(step.0);
@@ -5651,7 +5893,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             role(h, r);
         }
     };
-    let pv = |h: &mut KeyHasher, v: crate::names::ProfileVertexRef| match v {
+    let pv = |h: &mut SegFeed<'a>, v: crate::names::ProfileVertexRef| match v {
         crate::names::ProfileVertexRef::Piece { step, role: r } => {
             h.write_tag(1);
             h.write_u64(step.0);
@@ -5663,22 +5905,18 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             role(h, r);
         }
     };
-    let qual = |h: &mut KeyHasher, q: &Qualifier| {
+    let qual = |h: &mut SegFeed<'a>, q: &'a Qualifier| {
         h.write_tag(match q {
-            Qualifier::SideOf(..) => 1,
             Qualifier::OrderAlong { .. } => 2,
+            Qualifier::Borders(..) => 3,
+            Qualifier::Keeps(..) => 4,
+            Qualifier::Ends(..) => 5,
         });
         match q {
-            Qualifier::SideOf(vec) => {
-                h.write_u64(vec.len() as u64);
-                for (name, v) in vec {
-                    feed_stable_name(h, name);
-                    h.write_tag(match v {
-                        SideVerdict::Positive => 1,
-                        SideVerdict::Negative => 2,
-                        SideVerdict::Mixed => 3,
-                        SideVerdict::On => 4,
-                    });
+            Qualifier::Borders(walls) | Qualifier::Keeps(walls) | Qualifier::Ends(walls) => {
+                h.write_u64(walls.len() as u64);
+                for name in walls {
+                    h.name(name);
                 }
             }
             Qualifier::OrderAlong { rank, of } => {
@@ -5688,8 +5926,8 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         }
     };
     // The segment's word first, from `seg_content_tag`; the match
-    // below feeds payloads only. The closures above (qualifier,
-    // verdict, cap end, meridian end, split half, rim support) are
+    // below feeds payloads only. The closures above (qualifier, cap
+    // end, meridian end, split half, rim support) are
     // vocabularies of their own, each read under a segment word.
     h.write_tag(seg_content_tag(SegTag::of(seg)));
     match seg {
@@ -5753,19 +5991,19 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             pe(h, *e);
         }
         RoleSeg::FromA(inner) => {
-            feed_stable_name(h, inner);
+            h.name(inner);
         }
         RoleSeg::FromB(inner) => {
-            feed_stable_name(h, inner);
+            h.name(inner);
         }
         RoleSeg::Seam { a, b } => {
-            feed_stable_name(h, a);
-            feed_stable_name(h, b);
+            h.name(a);
+            h.name(b);
         }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);
             for n in names {
-                feed_stable_name(h, n);
+                h.name(n);
             }
         }
         RoleSeg::Fragment(q) => {
@@ -5780,69 +6018,69 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         }
         RoleSeg::SectionEdge { side, face } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, face);
+            h.name(face);
         }
         RoleSeg::SplitFragment { side, parent } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, parent);
+            h.name(parent);
         }
         RoleSeg::CrossingVertex { side, edge } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, edge);
+            h.name(edge);
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, of);
+            h.name(of);
         }
         RoleSeg::InPart { of } => {
-            feed_stable_name(h, of);
+            h.name(of);
         }
         RoleSeg::Instance { i, of } => {
             h.write_u64(u64::from(*i));
-            feed_stable_name(h, of);
+            h.name(of);
         }
         RoleSeg::FromTarget(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::BlendFace(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::CornerFace(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::TrimEdge { edge, support } => {
-            feed_stable_name(h, edge);
-            feed_stable_name(h, support);
+            h.name(edge);
+            h.name(support);
         }
         RoleSeg::FootVertex { vertex, support } => {
-            feed_stable_name(h, vertex);
-            feed_stable_name(h, support);
+            h.name(vertex);
+            h.name(support);
         }
         RoleSeg::EndArc { vertex, edge } => {
-            feed_stable_name(h, vertex);
-            feed_stable_name(h, edge);
+            h.name(vertex);
+            h.name(edge);
         }
         RoleSeg::BandFace(names) => {
             h.write_u64(names.len() as u64);
             for n in names {
-                feed_stable_name(h, n);
+                h.name(n);
             }
         }
         RoleSeg::BandTrim { edge, support } => {
-            feed_stable_name(h, edge);
+            h.name(edge);
             h.write_tag(rim(*support));
         }
         RoleSeg::BandFoot(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::BandCut(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
-            feed_stable_name(h, edge);
+            h.name(edge);
             h.write_u64(band.len() as u64);
             for n in band {
-                feed_stable_name(h, n);
+                h.name(n);
             }
         }
         // The n-ary union's member key. BOTH halves feed: two members
@@ -5853,16 +6091,16 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         // exists to prevent.
         RoleSeg::FromMember { member, of } => {
             h.write_u64(member.0);
-            feed_stable_name(h, of);
+            h.name(of);
         }
         // The shell's three roles. Each wraps one source name; the hole
         // rim carries its pairing index beside it, the way `Instance`
         // carries `i`.
-        RoleSeg::Inner(n) => feed_stable_name(h, n),
-        RoleSeg::Rim(n) => feed_stable_name(h, n),
+        RoleSeg::Inner(n) => h.name(n),
+        RoleSeg::Rim(n) => h.name(n),
         RoleSeg::HoleRim { of, hole } => {
             h.write_u64(u64::from(*hole));
-            feed_stable_name(h, of);
+            h.name(of);
         }
     }
 }
@@ -6183,7 +6421,7 @@ mod tag_vocabulary_tests {
     /// sharing a tag make two different names hash alike, and a content
     /// key that collides serves one node's cached geometry for
     /// another's. The nested vocabularies a segment carries (qualifier,
-    /// verdict, cap end, meridian end, split half, rim support) are
+    /// cap end, meridian end, split half, rim support) are
     /// each read under a segment word this row holds unique.
     #[test]
     fn seg_content_tags_are_injective() {
@@ -6381,13 +6619,9 @@ mod alignment_key {
     use crate::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
 
     fn datum(primitive: MatePrimitive) -> Alignment {
-        let frame = MateFrame {
-            origin: [0.0, 0.0, 0.0],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        };
+        let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
         Alignment {
-            a: frame,
+            a: frame.clone(),
             b: frame,
             primitive,
             sense: AxisSense::Opposed,
@@ -6445,4 +6679,105 @@ pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
     h.write_tag(tag);
     h.write_str(serialized);
     h.finish()
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod name_feed_tests {
+    //! A name's content-key feed keeps its own stack, and feeds the
+    //! stream a descent level by level would.
+
+    use super::memo::ContentKey;
+    use super::{Fed, KeyHasher, SegFeed, feed_role_seg, feed_stable_name};
+    use crate::names::{CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
+    use crate::node::RecipeNodeId;
+
+    fn key(name: &StableName) -> ContentKey {
+        let mut h = KeyHasher::new();
+        feed_stable_name(&mut h, name);
+        h.finish()
+    }
+
+    /// The feed as a descent: each held name fed, whole, where its
+    /// holder's segment meets it.
+    fn descending(h: &mut KeyHasher, name: &StableName) {
+        h.write_tag(match name.kind {
+            EntityKind::Body => 1,
+            EntityKind::Face => 2,
+            EntityKind::Edge => 3,
+            EntityKind::Vertex => 4,
+        });
+        h.write_u64(name.node.0);
+        h.write_u64(name.path.len() as u64);
+        for seg in &name.path {
+            let mut level = SegFeed(Vec::new());
+            feed_role_seg(&mut level, seg);
+            for item in level.0 {
+                match item {
+                    Fed::Tag(tag) => h.write_tag(tag),
+                    Fed::U64(x) => h.write_u64(x),
+                    Fed::Name(n) => descending(h, n),
+                }
+            }
+        }
+    }
+
+    fn leaf(node: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        }
+    }
+
+    /// `name` one level deeper, held in turn by each shape a segment
+    /// holds a name in, beside payload the feed writes around it.
+    fn wrap(name: StableName, level: usize) -> StableName {
+        let r = NameRef::new(name.clone());
+        let seg = match level % 5 {
+            0 => RoleSeg::Instance { i: 3, of: r },
+            1 => RoleSeg::Fragment(Qualifier::Borders(vec![leaf(7), name])),
+            2 => RoleSeg::BandCross {
+                edge: NameRef::new(leaf(8)),
+                band: vec![name],
+            },
+            3 => RoleSeg::SectionEdge {
+                side: SplitHalf::Below,
+                face: r,
+            },
+            _ => RoleSeg::Seam {
+                a: r,
+                b: NameRef::new(leaf(9)),
+            },
+        };
+        StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId(level as u64 + 10),
+            path: vec![
+                seg,
+                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_name_feeds_the_stream_a_descent_feeds() {
+        let mut name = leaf(1);
+        for level in 0..12 {
+            name = wrap(name, level);
+            let mut h = KeyHasher::new();
+            descending(&mut h, &name);
+            assert_eq!(key(&name), h.finish(), "at depth {level}");
+        }
+    }
+
+    #[test]
+    fn a_name_nested_past_every_stack_keys_on_the_smallest_stack() {
+        test_utils::own_thread::on_the_smallest_stack(|| {
+            let deep = |bottom| (0..20_000).fold(leaf(bottom), wrap);
+            let (a, again, b) = (deep(1), deep(1), deep(2));
+            assert_eq!(key(&a), key(&again), "one name, one key");
+            assert_ne!(key(&a), key(&b), "a difference at the bottom moves the key");
+        });
+    }
 }

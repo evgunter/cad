@@ -60,15 +60,51 @@
 //! own — threading the sense onto both factors would cancel.
 
 use geom_brep::EdgeCurve;
-use geom_core::{Decide, Indeterminate, Margin, Real, Sign, Vec3};
+use geom_core::{Decide, Decided, Indeterminate, Margin, Real, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::LoopKey;
+use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, LoopKey};
+use crate::readback::DanglingRef;
 
-/// A lookup on the way from the loop to a point or a carrier failed —
-/// the body is torn under the call (unreachable on tier-1 input).
+/// The winding decision's predicate name: the K-stats key its margin is
+/// recorded under, and the name an escalation of it carries.
+pub(crate) const WINDING_PREDICATE: &str = "bool_ring_run_winding";
+
+/// The walk from the loop to its points and carriers found the body
+/// torn. A tier-1 body has none of these, but a caller that reads a
+/// body mid-surgery (the merge's role pass) holds no tier-1 proof, so
+/// each says what it found and a caller that announces it names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TornLoop;
+pub(crate) enum TornLoop {
+    /// A key on the walk does not resolve. A stale `next` link (or the
+    /// loop's own `first`) is the half-edge it names.
+    Dangling(DanglingRef),
+    /// A half-edge on the walk that its own edge does not claim, so
+    /// which way it runs along the carrier is not known.
+    Unclaimed {
+        /// The half-edge.
+        he: HalfEdgeKey,
+        /// Its edge, which claims neither it as `he_plus` nor as
+        /// `he_minus`.
+        edge: EdgeKey,
+    },
+    /// Every link resolves, and the walk does not return to the loop's
+    /// first half-edge within the arena's length.
+    Unclosed,
+}
+
+/// What [`Body::planar_loop_winding_decided`] reads of a loop, `W` the
+/// winding when one is read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LoopWinding<W> {
+    /// An empty loop: a lone vertex, which bounds no area.
+    Empty,
+    /// A cycle carrying a NURBS or spiric edge or a null-edge scaffold,
+    /// which the kernel does not wind (module docs).
+    Unsupported,
+    /// The winding of a cycle the kernel reads.
+    Wound(W),
+}
 
 /// **The conic term of one traversed edge** — the one statement of it:
 /// `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
@@ -133,36 +169,86 @@ impl<T: Decide> Body<T> {
         normal: Vec3<T>,
         band: geom_core::Band,
     ) -> Result<Option<Result<Sign, Indeterminate>>, TornLoop> {
-        let crate::entity::LoopBoundary::Cycle { first } =
-            self.get_loop(l).ok_or(TornLoop)?.boundary
+        Ok(match self.planar_loop_winding_decided(l, normal, band)? {
+            LoopWinding::Empty | LoopWinding::Unsupported => None,
+            LoopWinding::Wound(w) => Some(w.map(|d| d.sign)),
+        })
+    }
+
+    /// [`Body::planar_loop_winding`], keeping the margin the sign was
+    /// decided on (a caller that refuses a zero winding quotes it,
+    /// [`geom_core::k_stats::decide_reported`]) and telling an empty
+    /// loop from a cycle it does not wind.
+    pub(crate) fn planar_loop_winding_decided(
+        &self,
+        l: LoopKey,
+        normal: Vec3<T>,
+        band: geom_core::Band,
+    ) -> Result<LoopWinding<Result<Decided, Indeterminate>>, TornLoop> {
+        let dangling = |what| TornLoop::Dangling(what);
+        let crate::entity::LoopBoundary::Cycle { first } = self
+            .get_loop(l)
+            .ok_or(dangling(DanglingRef::Entity(EntityId::Loop(l))))?
+            .boundary
         else {
-            return Ok(None);
+            return Ok(LoopWinding::Empty);
         };
-        let cycle = self.loop_cycle(first).ok_or(TornLoop)?;
+        // The cycle in `next` order, bounded as `Body::loop_cycle` is,
+        // each member resolved by the step that reached it: a stale
+        // link is named, not folded into "the cycle does not close".
+        let cap = self.half_edges.len();
+        let mut cycle = Vec::new();
+        let mut he = first;
+        loop {
+            let hd = self
+                .get_half_edge(he)
+                .ok_or(dangling(DanglingRef::Entity(EntityId::HalfEdge(he))))?;
+            cycle.push((he, hd));
+            if hd.next == first {
+                break;
+            }
+            if cycle.len() == cap {
+                return Err(TornLoop::Unclosed);
+            }
+            he = hd.next;
+        }
         // One walk per half-edge: its start point, its certified curve
         // and whether it runs with the carrier's parameter.
         let mut walked = Vec::with_capacity(cycle.len());
         // Whether some carrier is a conic: the one fact about the
         // carrier set the sum reads (the correction block below).
         let mut any_conic = false;
-        for &he in &cycle {
-            let hd = self.get_half_edge(he).ok_or(TornLoop)?;
-            let edge = self.get_edge(hd.edge).ok_or(TornLoop)?;
+        for (he, hd) in cycle {
+            let edge = self
+                .get_edge(hd.edge)
+                .ok_or(dangling(DanglingRef::Entity(EntityId::Edge(hd.edge))))?;
+            let claim = edge
+                .claim(he)
+                .ok_or(TornLoop::Unclaimed { he, edge: hd.edge })?;
             // A null-edge scaffold states no geometry: nothing here can
             // wind it.
-            let Some(curve) = self.get_curve_geom(edge.curve).ok_or(TornLoop)?.certified() else {
-                return Ok(None);
+            let Some(curve) = self
+                .get_curve_geom(edge.curve)
+                .ok_or(dangling(DanglingRef::Geometry(GeomRef::Curve(edge.curve))))?
+                .certified()
+            else {
+                return Ok(LoopWinding::Unsupported);
             };
             any_conic |= match curve.carrier() {
                 geom::Curve3::Line { .. } => false,
                 geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => true,
-                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => return Ok(None),
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                    return Ok(LoopWinding::Unsupported);
+                }
             };
-            let start = self
+            let point = self
                 .get_vertex(hd.start)
-                .and_then(|vd| self.get_point(vd.point).copied())
-                .ok_or(TornLoop)?;
-            walked.push((start, curve, edge.he_plus == he));
+                .ok_or(dangling(DanglingRef::Entity(EntityId::Vertex(hd.start))))?
+                .point;
+            let start = *self
+                .get_point(point)
+                .ok_or(dangling(DanglingRef::Geometry(GeomRef::Point(point))))?;
+            walked.push((start, curve, claim.plus));
         }
         let p0 = walked[0].0;
         let mut newell = Vec3::new(T::zero(), T::zero(), T::zero());
@@ -194,8 +280,8 @@ impl<T: Decide> Body<T> {
             }
             newell = newell + bulge;
         }
-        Ok(Some(crate::validate::decide(
-            "bool_ring_run_winding",
+        Ok(LoopWinding::Wound(crate::validate::decide_reported(
+            WINDING_PREDICATE,
             Margin::over_lever(normal.dot(newell), perimeter),
             band,
         )))

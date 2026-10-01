@@ -103,6 +103,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: sweep::blend::BlendDecision::RingClearance,
             source: Indeterminate {
                 margin: MarginDiag::value(0.0),
                 band,
@@ -112,6 +113,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: sweep::blend::BlendDecision::RadiusHeadroom,
             source: Indeterminate {
                 margin: MarginDiag::value(0.0),
                 band,
@@ -119,14 +121,11 @@ fn seeds() -> Vec<BlendError> {
                 terminal_sliver: false,
             },
         },
-        // The site is the payload one level below the variant, and
-        // two of its three arms carry a field: a roster that samples
-        // only the fieldless one reports green over whatever the other
-        // two render.
         BlendError::Escalated {
             site: BlendSite::Link {
                 edge: EdgeKey::default(),
             },
+            decision: sweep::blend::BlendDecision::RingClearance,
             source: Indeterminate {
                 margin: MarginDiag::value(0.0),
                 band,
@@ -138,6 +137,7 @@ fn seeds() -> Vec<BlendError> {
             site: BlendSite::Joint {
                 vertex: VertexKey::default(),
             },
+            decision: sweep::blend::BlendDecision::ChainG1,
             source: Indeterminate {
                 margin: MarginDiag::value(0.0),
                 band,
@@ -171,6 +171,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::RingClearance {
             face: FaceKey::default(),
+            chain: sweep::blend::Convexity::Convex,
             margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
         },
         BlendError::Certify {

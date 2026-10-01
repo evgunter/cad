@@ -23,7 +23,8 @@
 //! representable only *by type*, and the type is transient:
 //!
 //! - **Tier 1 accepts** null entities (mid-op states are legal, as for
-//!   every other scaffolding shape — empty loops, struts).
+//!   every other scaffolding shape — empty loops, struts), checking
+//!   only that a null-face record's loops are live and its face's own.
 //! - **Tier 2 refuses** them at rest, by name
 //!   ([`crate::ValidationError::NullEdgeAtRest`] /
 //!   [`crate::ValidationError::NullFaceAtRest`]): a body carrying null
@@ -45,6 +46,12 @@
 //! *replaces* its geometry (no carrier exists, by type), while a
 //! face's null-ness *annotates* loop roles on an otherwise complete
 //! face.
+//!
+//! A record's two loops are therefore its face's own: the door refuses
+//! any other ([`crate::Body::set_null_face_pair`]), and an op that
+//! removes a loop, or moves it off its face, drops each record naming
+//! it, since that face no longer holds the two loops the record
+//! describes. Every such op stays `Ok`.
 //!
 //! # Consumers (one line each, per the M3 doc convention)
 //!
@@ -199,15 +206,17 @@ impl<T: geom_core::Decide> Body<T> {
     /// ([`crate::ValidationError::NullEdgeAtRest`]).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): the null edge has no
-    /// carrier to derive its halves' rows from, so this door returns a
-    /// minted face half-minted, missing those two. The edge's first
-    /// description ([`Body::set_edge_curve`]) is the first door that can
-    /// derive them: once no null edge is left on the face, it re-mints
-    /// the face whole, and on a spline chart leaves it as found. A null
-    /// edge killed undescribed — as the boolean and splitting pipelines
-    /// kill theirs — leaves the face half-minted until the producer's
-    /// final pass
-    /// (`work/topo/a-null-edge-that-is-killed-leaves-its-face-half-minted`).
+    /// carrier to derive its halves' rows from, so the loop it joins is
+    /// held open, missing those two, and the site mint cannot walk it.
+    /// The door that releases the loop mints it whole, with the rows of
+    /// any half an operator added to it meanwhile: an Euler operator
+    /// that rewires the loop out from under the edge — the boolean's and
+    /// the splitting lane's joins, whose chord `mef`s cut the section's
+    /// null halves off the faces they cross — or the edge's first
+    /// description ([`Body::set_edge_curve`]); on a spline chart either
+    /// leaves the face as found. A kill that releases the loop leaves
+    /// those rows missing
+    /// (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`).
     ///
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to
     /// `mev` (a null edge is an edge).
@@ -283,29 +292,39 @@ impl<T: Real> Body<T> {
     /// attribute (replacing any existing mark — the record is data the
     /// splitting/boolean pipeline maintains as it builds the pair).
     ///
-    /// Structural preconditions only: the face resolves, both role
-    /// loops resolve, and they are distinct. Whether the loops belong
-    /// to the face is deliberately **not** checked here or at tier 1 —
-    /// Euler surgery legitimately re-homes loops mid-sequence, and the
-    /// minting/consuming ops of PRs 2–5 own the record's currency
-    /// (module docs). Tier 2 refuses marked faces at rest
+    /// Preconditions: the face resolves, both role loops resolve, they
+    /// are distinct, and both are the face's own — its outer loop or
+    /// one of its rings. A null face is one face's two coincident loops
+    /// (module docs), so a record naming another face's loop describes
+    /// none, and the door refuses it before it writes. The type cannot
+    /// say it instead: the record names its loops by explicit key
+    /// (F9), not by outer-vs-ring designation.
+    ///
+    /// Every op that removes a named loop, or moves it off its face,
+    /// drops the record rather than refusing (module docs), so no op
+    /// leaves a record naming a loop its face does not hold, and tier 1
+    /// checks ownership too
+    /// ([`crate::ValidationError::StaleNullFaceOwnership`]). Tier 2
+    /// refuses marked faces at rest
     /// ([`crate::ValidationError::NullFaceAtRest`]).
     ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] if the face or a role loop does not
     /// resolve; [`EulerOpError::SameLoop`] if the two role loops are
-    /// one loop. The body is untouched on `Err`.
+    /// one loop; [`EulerOpError::NullPairForeignLoop`] naming the first
+    /// role loop, in declaration order, that is not the face's own. The
+    /// body is untouched on `Err`.
     pub fn set_null_face_pair(
         &mut self,
         face: FaceKey,
         pair: NullFacePair,
     ) -> Result<(), EulerOpError> {
-        if !self.faces.contains_key(face) {
+        let Some(face_data) = self.faces.get(face) else {
             return Err(EulerOpError::StaleKey {
                 key: EntityId::Face(face),
             });
-        }
+        };
         let [a, b] = pair.loops();
         for l in [a, b] {
             if !self.loops.contains_key(l) {
@@ -316,6 +335,11 @@ impl<T: Real> Body<T> {
         }
         if a == b {
             return Err(EulerOpError::SameLoop { r#loop: a });
+        }
+        for l in [a, b] {
+            if face_data.outer != l && !face_data.rings.contains(&l) {
+                return Err(EulerOpError::NullPairForeignLoop { face, r#loop: l });
+            }
         }
         self.null_faces.insert(face, pair);
         Ok(())
@@ -441,61 +465,49 @@ mod tests {
     }
 
     /// Null-face records: set/clear roundtrip, tier-2 refusal by name,
-    /// structural preconditions, and kill-op hygiene through `kfmrh`.
+    /// structural preconditions, and a kill that leaves both of a
+    /// record's loops on its face keeps the record.
     #[test]
     fn null_face_record_lifecycle() {
-        let cube = declined_cube::<f64>(Tol::witness());
-        let mut body = cube.body;
-        let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
-        let outer1 = body.get_face(f1).unwrap().outer;
-        let outer2 = body.get_face(f2).unwrap().outer;
+        let mut body = crate::fixtures::ops_holed_box(Tol::witness()).body;
+        let (face, outer, ring) = ringed_face(&body);
         // Distinctness is checked.
         assert_eq!(
             body.set_null_face_pair(
-                f1,
+                face,
                 NullFacePair::Split {
-                    above_loop: outer1,
-                    below_loop: outer1,
+                    above_loop: outer,
+                    below_loop: outer,
                 },
             ),
-            Err(EulerOpError::SameLoop { r#loop: outer1 })
+            Err(EulerOpError::SameLoop { r#loop: outer })
         );
         // A valid record: tier 1 fine, tier 2 refuses by name.
-        body.set_null_face_pair(
-            f1,
-            NullFacePair::Boolean {
-                in_copy: outer1,
-                out_copy: outer2,
-            },
-        )
-        .unwrap();
+        let pair = NullFacePair::Boolean {
+            in_copy: outer,
+            out_copy: ring,
+        };
+        body.set_null_face_pair(face, pair).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(
             validate_closed(&body),
-            Err(vec![ValidationError::NullFaceAtRest { face: f1 }])
+            Err(vec![ValidationError::NullFaceAtRest { face }])
         );
-        assert_eq!(
-            body.null_face_pair(f1),
-            Some(&NullFacePair::Boolean {
-                in_copy: outer1,
-                out_copy: outer2,
-            })
-        );
+        assert_eq!(body.null_face_pair(face), Some(&pair));
         // Clearing restores tier 2.
-        assert!(body.clear_null_face_pair(f1).is_some());
+        assert_eq!(body.clear_null_face_pair(face), Some(pair));
         assert_eq!(validate_closed(&body), Ok(()));
-        // Kill-op hygiene: a record on kfmrh's dying face is removed
-        // with it (no LeakedNullFaceRecord).
-        body.set_null_face_pair(
-            f2,
-            NullFacePair::Split {
-                above_loop: outer1,
-                below_loop: outer2,
-            },
-        )
-        .unwrap();
-        body.kfmrh(f1, f2).unwrap();
-        assert_eq!(body.null_face_pair(f2), None);
+        // `kfmrh` demoting another face's outer into the marked face
+        // keeps both named loops there, so the record stands.
+        body.set_null_face_pair(face, pair).unwrap();
+        let shell = body.get_face(face).unwrap().shell;
+        let other = body
+            .faces()
+            .find(|&(f, data)| f != face && data.shell == shell && data.rings.is_empty())
+            .unwrap()
+            .0;
+        body.kfmrh(face, other).unwrap();
+        assert_eq!(body.null_face_pair(face), Some(&pair));
         assert_eq!(validate(&body), Ok(()));
     }
 
@@ -550,6 +562,345 @@ mod tests {
         );
     }
 
+    /// Pass 13's ownership check: a record naming a live loop its face
+    /// does not hold is reported typed (`StaleNullFaceOwnership`),
+    /// naming each such loop and not the face's own: another face's
+    /// outer loop, and another face's ring. The door refuses the record
+    /// ([`the_door_refuses_a_record_naming_a_loop_not_the_faces_own`]),
+    /// so it is built on the crate-internal map, modelling an op that
+    /// moved a named loop off its face and kept the record.
+    #[test]
+    fn stale_null_face_ownership_reported() {
+        let mut body = crate::fixtures::ops_holed_box(Tol::witness()).body;
+        let (face, outer, ring) = ringed_face(&body);
+        let (other, other_outer) = body
+            .faces()
+            .find(|&(f, _)| f != face)
+            .map(|(f, data)| (f, data.outer))
+            .unwrap();
+        for (marked, pair, named_loop) in [
+            (
+                face,
+                NullFacePair::Boolean {
+                    in_copy: outer,
+                    out_copy: other_outer,
+                },
+                other_outer,
+            ),
+            (
+                other,
+                NullFacePair::Split {
+                    above_loop: other_outer,
+                    below_loop: ring,
+                },
+                ring,
+            ),
+        ] {
+            let mut body = body.clone();
+            body.null_faces.insert(marked, pair);
+            assert_eq!(
+                validate(&body),
+                Err(vec![ValidationError::StaleNullFaceOwnership {
+                    face: marked,
+                    named_loop,
+                }]),
+                "{pair:?} on {marked:?}"
+            );
+        }
+        body.null_faces.insert(
+            face,
+            NullFacePair::Split {
+                above_loop: outer,
+                below_loop: ring,
+            },
+        );
+        assert_eq!(validate(&body), Ok(()), "the face's own two loops");
+    }
+
+    /// The first face with exactly one ring, its outer loop and the
+    /// ring.
+    fn ringed_face(body: &Body<f64>) -> (FaceKey, LoopKey, LoopKey) {
+        body.faces()
+            .find_map(|(f, data)| match data.rings[..] {
+                [ring] => Some((f, data.outer, ring)),
+                _ => None,
+            })
+            .expect("the fixture has a face with one ring")
+    }
+
+    /// The `first` half-edge of a cycle loop.
+    fn first_of(body: &Body<f64>, l: LoopKey) -> crate::entity::HalfEdgeKey {
+        match body.get_loop(l).unwrap().boundary {
+            crate::LoopBoundary::Cycle { first } => first,
+            crate::LoopBoundary::Empty { .. } => panic!("{l:?} is a cycle"),
+        }
+    }
+
+    /// **A kill drops each record naming the loop it removes, and stays
+    /// `Ok`.** A null face is one face's two coincident loops (module
+    /// docs), so a record whose loop dies no longer describes one. Here
+    /// the declined cube's seventh half-edge is killed, a third loop's
+    /// face naming its loop.
+    ///
+    /// `kef`'s dying loop is its face's only loop, so with the door's
+    /// ownership check no reachable record but that face's own names
+    /// it, and the face's own dies with the face. This row and the
+    /// `kvfs` and `kfmrh` ones therefore build the record on the
+    /// crate-internal map, a state no public door builds and tier 1
+    /// refuses ([`stale_null_face_ownership_reported`]), and stay as
+    /// defence in depth: the drop reads every face's record, not only
+    /// the dying loop's face's.
+    #[test]
+    fn kef_drops_each_record_naming_the_loop_it_removes() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let he = body.half_edges().nth(6).unwrap().0;
+        let l1 = body.get_half_edge(he).unwrap().parent_loop;
+        let l2 = body
+            .get_half_edge(body.mate(he).unwrap())
+            .unwrap()
+            .parent_loop;
+        let (third, marked) = body
+            .loops()
+            .find(|&(l, _)| l != l1 && l != l2)
+            .map(|(l, data)| (l, data.face))
+            .unwrap();
+        body.null_faces.insert(
+            marked,
+            NullFacePair::Split {
+                above_loop: third,
+                below_loop: l1,
+            },
+        );
+        assert_eq!(body.kef(he).unwrap().killed_loop, l1);
+        assert_eq!(body.null_face_pair(marked), None, "kef drops the record");
+        assert_eq!(validate(&body), Ok(()), "kef");
+    }
+
+    /// [`kef_drops_each_record_naming_the_loop_it_removes`]'s `kvfs`
+    /// row: a segment's face marked naming a lone solid's loop. The
+    /// lone loop is its face's only loop, so this is defence in depth on
+    /// a state only the crate-internal map builds, as the `kef` row is.
+    #[test]
+    fn kvfs_drops_each_record_naming_the_loop_it_removes() {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let p = |x: f64| geom_core::Point3::new(x, 0.0, 0.0);
+        let seg = body.mvfs(p(0.0), true).unwrap();
+        let site = MevSite::Lone { r#loop: seg.r#loop };
+        body.mev_line(site, p(1.0), tol).unwrap();
+        let lone = body.mvfs(p(5.0), true).unwrap();
+        body.null_faces.insert(
+            seg.face,
+            NullFacePair::Split {
+                above_loop: seg.r#loop,
+                below_loop: lone.r#loop,
+            },
+        );
+        body.kvfs(lone.solid).unwrap();
+        assert_eq!(body.null_face_pair(seg.face), None, "kvfs drops the record");
+        assert_eq!(validate(&body), Ok(()), "kvfs");
+    }
+
+    /// [`kef_drops_each_record_naming_the_loop_it_removes`]'s `mekr`
+    /// row: the holed box's ringed face marked with its own outer and
+    /// ring, through the door, the ring joined into the outer.
+    #[test]
+    fn mekr_drops_each_record_naming_the_loop_it_removes() {
+        let tol = Tol::witness();
+        let mut body = crate::fixtures::ops_holed_box(tol).body;
+        let (face, outer, ring) = ringed_face(&body);
+        body.set_null_face_pair(
+            face,
+            NullFacePair::Split {
+                above_loop: outer,
+                below_loop: ring,
+            },
+        )
+        .unwrap();
+        let site = crate::MekrSite::Cycles {
+            target: first_of(&body, outer),
+            ring: first_of(&body, ring),
+        };
+        body.mekr_chord(site, tol).unwrap();
+        assert_eq!(body.null_face_pair(face), None, "mekr drops the record");
+        assert_eq!(validate(&body), Ok(()), "mekr");
+    }
+
+    /// The holed box with its ringed face marked by its own two loops,
+    /// through the door: the face, and its ring.
+    fn marked_holed_box() -> (Body<f64>, FaceKey, LoopKey) {
+        let mut body = crate::fixtures::ops_holed_box(Tol::witness()).body;
+        let (face, outer, ring) = ringed_face(&body);
+        let pair = NullFacePair::Boolean {
+            in_copy: ring,
+            out_copy: outer,
+        };
+        body.set_null_face_pair(face, pair).unwrap();
+        (body, face, ring)
+    }
+
+    /// **An op that moves a loop off its face drops the record naming
+    /// it.** The marked face no longer has that loop, so the record no
+    /// longer describes one face's two coincident loops: here `mfkrh`
+    /// promotes the holed box's ring to a face of its own.
+    #[test]
+    fn mfkrh_drops_the_record_naming_the_ring_it_promotes() {
+        let (mut body, face, ring) = marked_holed_box();
+        body.mfkrh_plug(ring, true).unwrap();
+        assert_eq!(body.null_face_pair(face), None, "mfkrh drops the record");
+        assert_eq!(validate(&body), Ok(()), "mfkrh");
+    }
+
+    /// [`mfkrh_drops_the_record_naming_the_ring_it_promotes`]'s
+    /// `ring_move` row: the ring moved to another face of its shell.
+    #[test]
+    fn ring_move_drops_the_record_naming_the_ring_it_moves() {
+        let (mut body, face, ring) = marked_holed_box();
+        let shell = body.get_face(face).unwrap().shell;
+        let to = body
+            .faces()
+            .find(|&(f, data)| f != face && data.shell == shell)
+            .unwrap()
+            .0;
+        body.ring_move(ring, to).unwrap();
+        assert_eq!(
+            body.null_face_pair(face),
+            None,
+            "ring_move drops the record"
+        );
+        assert_eq!(validate(&body), Ok(()), "ring_move");
+    }
+
+    /// **A drop is keyed on the loop, not the face.** A ring of the
+    /// marked face that the record does not name dies by `mekr`, or
+    /// leaves by `mfkrh` or `ring_move`, and the record stands: its two
+    /// loops are still the face's own. From the PR 3618 review's probe.
+    #[test]
+    fn ops_on_an_unnamed_ring_of_the_marked_face_keep_the_record() {
+        let tol = Tol::witness();
+        let crate::fixtures::OpsTwoRingFace {
+            body: base,
+            face,
+            outer,
+            hole,
+            tip,
+        } = crate::fixtures::ops_two_ring_face(tol);
+        let pair = NullFacePair::Split {
+            above_loop: outer,
+            below_loop: hole,
+        };
+        let mut marked = base;
+        marked.set_null_face_pair(face, pair).unwrap();
+        let mut body = marked.clone();
+        let site = crate::MekrSite::EmptyRing {
+            target: first_of(&body, outer),
+            ring: tip,
+        };
+        body.mekr_chord(site, tol).unwrap();
+        assert_eq!(body.null_face_pair(face), Some(&pair), "mekr keeps");
+        assert_eq!(validate(&body), Ok(()), "mekr");
+        let mut body = marked.clone();
+        body.mfkrh_plug(tip, true).unwrap();
+        assert_eq!(body.null_face_pair(face), Some(&pair), "mfkrh keeps");
+        assert_eq!(validate(&body), Ok(()), "mfkrh");
+        let mut body = marked;
+        let shell = body.get_face(face).unwrap().shell;
+        let to = body
+            .faces()
+            .find(|&(f, data)| f != face && data.shell == shell)
+            .unwrap()
+            .0;
+        body.ring_move(tip, to).unwrap();
+        assert_eq!(body.null_face_pair(face), Some(&pair), "ring_move keeps");
+        assert_eq!(validate(&body), Ok(()), "ring_move");
+    }
+
+    /// **A `ring_move` within one face stays a deep no-op**, the record
+    /// naming the ring included: the ring does not leave its face. From
+    /// the PR 3618 review's probe.
+    #[test]
+    fn ring_move_within_one_face_is_a_deep_no_op() {
+        let crate::fixtures::OpsTwoRingFace {
+            mut body,
+            face,
+            outer,
+            hole,
+            ..
+        } = crate::fixtures::ops_two_ring_face(Tol::witness());
+        let pair = NullFacePair::Split {
+            above_loop: outer,
+            below_loop: hole,
+        };
+        body.set_null_face_pair(face, pair).unwrap();
+        let before = deep_snapshot(&body);
+        body.ring_move(hole, face).unwrap();
+        assert_eq!(deep_snapshot(&body), before, "ring_move within one face");
+    }
+
+    /// [`mfkrh_drops_the_record_naming_the_ring_it_promotes`]'s `kfmrh`
+    /// row: `f2`'s outer, re-homed onto `f1`, named by a third face's
+    /// record built on the crate-internal map (a ring-free `f2` holds
+    /// one loop, so no record the door accepts names it). Defence in
+    /// depth on a state no public door builds, as the `kef` row is.
+    #[test]
+    fn kfmrh_drops_the_record_naming_the_loop_it_demotes() {
+        let cube = declined_cube::<f64>(Tol::witness());
+        let mut body = cube.body;
+        let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
+        let outer2 = body.get_face(f2).unwrap().outer;
+        let (third, third_outer) = body
+            .faces()
+            .find(|&(f, _)| f != f1 && f != f2)
+            .map(|(f, data)| (f, data.outer))
+            .unwrap();
+        body.null_faces.insert(
+            third,
+            NullFacePair::Split {
+                above_loop: third_outer,
+                below_loop: outer2,
+            },
+        );
+        body.kfmrh(f1, f2).unwrap();
+        assert_eq!(body.null_face_pair(third), None, "kfmrh drops the record");
+        assert_eq!(validate(&body), Ok(()), "kfmrh");
+    }
+
+    /// **The door refuses a record naming a loop that is not the face's
+    /// own**, naming the first such role loop in declaration order, and
+    /// leaves the body deep-unchanged: another face's outer in either
+    /// role, and the ringed face's loops named on a face that holds
+    /// neither.
+    #[test]
+    fn the_door_refuses_a_record_naming_a_loop_not_the_faces_own() {
+        let mut body = crate::fixtures::ops_holed_box(Tol::witness()).body;
+        let (face, outer, ring) = ringed_face(&body);
+        let (other, other_outer) = body
+            .faces()
+            .find(|&(f, _)| f != face)
+            .map(|(f, data)| (f, data.outer))
+            .unwrap();
+        let split = |above_loop, below_loop| NullFacePair::Split {
+            above_loop,
+            below_loop,
+        };
+        let boolean = |in_copy, out_copy| NullFacePair::Boolean { in_copy, out_copy };
+        let cases = [
+            (face, split(other_outer, ring), other_outer),
+            (face, boolean(outer, other_outer), other_outer),
+            (other, split(other_outer, ring), ring),
+            (other, boolean(outer, ring), outer),
+        ];
+        for (marked, pair, named) in cases {
+            let expected = EulerOpError::NullPairForeignLoop {
+                face: marked,
+                r#loop: named,
+            };
+            crate::fixtures::assert_err_deep_unchanged(&mut body, &expected, |b| {
+                b.set_null_face_pair(marked, pair).unwrap_err()
+            });
+        }
+    }
+
     /// **A refusal inside the re-mint leaves the body untouched.** A
     /// null strut on a minted cylinder wall, described by the wall's
     /// own circle through its vertex: the description re-mints the
@@ -601,8 +952,7 @@ mod tests {
             .unwrap()
             .curve;
         body.curves.remove(torn).unwrap();
-        let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
-        let (before, rows_before) = (deep_snapshot(&body), rows(&body));
+        let before = deep_snapshot(&body);
         let err = body.set_edge_curve(null.edge, spec(), tol).unwrap_err();
         assert_eq!(
             err,
@@ -611,8 +961,11 @@ mod tests {
                 refusal: crate::pcurves::SiteRowRefusal::Corrupt,
             }
         );
-        assert_eq!(deep_snapshot(&body), before, "the body is untouched");
-        assert_eq!(rows(&body), rows_before, "every row is where it was");
+        assert_eq!(
+            deep_snapshot(&body),
+            before,
+            "the body is untouched, every pcurve row included"
+        );
     }
 
     /// A null edge between the two faces of the minted wall sheet — the
@@ -775,8 +1128,7 @@ mod tests {
         );
         let torn = body.get_edge(spur.edge).unwrap().curve;
         body.curves.remove(torn).unwrap();
-        let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
-        let (before, rows_before) = (deep_snapshot(&body), rows(&body));
+        let before = deep_snapshot(&body);
         let err = body
             .set_edge_curve(null.edge, spec, Tol::witness())
             .unwrap_err();
@@ -787,7 +1139,429 @@ mod tests {
                 refusal: crate::pcurves::SiteRowRefusal::Corrupt,
             }
         );
-        assert_eq!(deep_snapshot(&body), before, "the body is untouched");
-        assert_eq!(rows(&body), rows_before, "every row is where it was");
+        assert_eq!(
+            deep_snapshot(&body),
+            before,
+            "the body is untouched, every pcurve row included"
+        );
+    }
+
+    /// The vertex `split_edge` puts on the wall's rim at height `z`,
+    /// where the ruling `u` meets it. The split carries the rows.
+    fn rim_vertex_on_the_ruling(body: &mut Body<f64>, u: f64, z: f64) -> crate::entity::VertexKey {
+        use crate::test_support_fixtures::CylFrame;
+        let want: geom_core::Point3<f64> = CylFrame::canonical(1.0).at(u, z);
+        let (rim, t) = body
+            .edges()
+            .find_map(|(e, data)| {
+                let c = body.get_curve_geom(data.curve)?.certified()?;
+                let geom::Curve3::Circle {
+                    center,
+                    axis,
+                    u_ref,
+                    ..
+                } = *c.carrier()
+                else {
+                    return None;
+                };
+                if center.z != z {
+                    return None;
+                }
+                let d = want - center;
+                let angle = d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref));
+                let (t0, t1) = c.params();
+                let (lo, hi) = (t0.min(t1), t0.max(t1));
+                let tau = core::f64::consts::TAU;
+                let t = angle + tau * ((lo - angle) / tau).ceil();
+                (t < hi).then_some((e, t))
+            })
+            .unwrap();
+        body.split_edge(rim, t, Tol::witness()).unwrap().vertex
+    }
+
+    /// The minted wall sheet with both rims split on the ruling
+    /// `u = 0.8`, a null strut hung at a corner — so a null edge holds
+    /// the wall's one loop open and its only missing rows are the
+    /// strut's two — and the `mef` along the ruling that cuts the wall
+    /// in two, the strut on one side.
+    struct RulingCut {
+        body: Body<f64>,
+        wall: FaceKey,
+        null: crate::MevCreated,
+        site: crate::MefSite,
+        chord: geom_brep::EdgeCurveSpec<f64>,
+    }
+
+    fn ruling_cut() -> RulingCut {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let wall = cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol,
+        );
+        let bottom = rim_vertex_on_the_ruling(&mut body, 0.8, 0.0);
+        let top = rim_vertex_on_the_ruling(&mut body, 0.8, 1.0);
+        let cycle = |body: &Body<f64>| {
+            let outer = body.get_face(wall).unwrap().outer;
+            let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+            else {
+                panic!("the wall is bounded by a cycle")
+            };
+            body.loop_cycle(first).unwrap()
+        };
+        let start = |body: &Body<f64>, he: crate::entity::HalfEdgeKey| {
+            body.get_half_edge(he).unwrap().start
+        };
+        let corner = *cycle(&body)
+            .iter()
+            .find(|&&he| ![bottom, top].contains(&start(&body, he)))
+            .unwrap();
+        let null = body
+            .mev_null(
+                crate::MevSite::Fan {
+                    he1: corner,
+                    he2: corner,
+                },
+                NewVertexSide::Above,
+            )
+            .unwrap();
+        let leaving = |v| {
+            *cycle(&body)
+                .iter()
+                .find(|&&he| start(&body, he) == v)
+                .unwrap()
+        };
+        let site = crate::MefSite::Chords {
+            he1: leaving(bottom),
+            he2: leaving(top),
+        };
+        let point = |v: crate::entity::VertexKey| {
+            *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+        };
+        let chord = geom_brep::EdgeCurveSpec::line_between(point(bottom), point(top));
+        RulingCut {
+            body,
+            wall,
+            null,
+            site,
+            chord,
+        }
+    }
+
+    /// The half-edges `validate_pcurves` names as missing a row, sorted.
+    fn missing_rows(body: &Body<f64>) -> Vec<crate::entity::HalfEdgeKey> {
+        let mut out: Vec<_> = findings(body)
+            .into_iter()
+            .map(|f| match f {
+                crate::pcurves::PcurveMintError::MissingCache { half_edge } => half_edge,
+                other => panic!("only missing rows are reported, got {other:?}"),
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// Every stored row of `face`'s loops, sorted.
+    fn face_rows(body: &Body<f64>, face: FaceKey) -> Vec<String> {
+        let f = body.get_face(face).unwrap();
+        let mut out: Vec<String> = core::iter::once(f.outer)
+            .chain(f.rings.iter().copied())
+            .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+                crate::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
+                crate::LoopBoundary::Empty { .. } => None,
+            })
+            .flatten()
+            .filter_map(|he| {
+                let c = body.pcurve(he)?;
+                Some(format!(
+                    "{he:?} {:?} {:?} {:?}",
+                    c.params(),
+                    c.pcurve(),
+                    c.certificate()
+                ))
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// **An operator that cuts a null edge off a loop mints the loop it
+    /// releases.** The `mef` along the ruling leaves the strut on one
+    /// piece and the other piece's loop running through no null edge:
+    /// that piece leaves complete, with the minting pass's rows byte for
+    /// byte, and the piece the strut still holds open misses exactly the
+    /// strut's two rows and the chord half on its loop. Before the site
+    /// mint read a face held open by a null edge, the `mef` left the
+    /// wall as found and both pieces missed their chord halves' rows.
+    #[test]
+    fn a_mef_that_cuts_a_null_strut_off_mints_the_piece_it_releases() {
+        let RulingCut {
+            mut body,
+            wall,
+            null,
+            site,
+            chord,
+        } = ruling_cut();
+        let mut held_open = vec![null.he_plus, null.he_minus];
+        held_open.sort();
+        assert_eq!(
+            missing_rows(&body),
+            held_open,
+            "the null strut holds the wall open"
+        );
+        let made = body
+            .mef(site, chord, crate::FaceSurface::Inherit, Tol::witness())
+            .unwrap();
+        let held = face_of(&body, null.he_plus);
+        let released = if held == wall { made.face } else { wall };
+        let chord_on_held = if face_of(&body, made.he_plus) == held {
+            made.he_plus
+        } else {
+            made.he_minus
+        };
+        held_open.push(chord_on_held);
+        held_open.sort();
+        assert_eq!(
+            missing_rows(&body),
+            held_open,
+            "only the loop the strut holds open misses rows"
+        );
+        let released_rows = face_rows(&body, released);
+        let mut pass = body.clone();
+        crate::pcurves::mint_pcurves_of(&mut pass, &[released], Tol::witness()).unwrap();
+        assert_eq!(
+            released_rows,
+            face_rows(&pass, released),
+            "the released piece's rows are the minting pass's, byte for byte"
+        );
+    }
+
+    /// **A half of the cut wall that does not resolve refuses typed,
+    /// and leaves the body untouched.** The same cut, with the curve
+    /// entry of a half-edge gone — tier 1's corruption — on either side
+    /// of the chord: on the side the cut releases, whose loop the site
+    /// mint walks, and on the side the strut still holds open, whose
+    /// loop it never walks but reads for the null edge. Either way the
+    /// `mef` refuses naming the wall, before it mutates.
+    #[test]
+    fn a_torn_half_on_either_side_of_the_cut_refuses_before_the_mef_mutates() {
+        for side in ["released", "held"] {
+            let RulingCut {
+                mut body,
+                wall,
+                null,
+                site,
+                chord,
+            } = ruling_cut();
+            let mut control = body.clone();
+            let made = control
+                .mef(
+                    site,
+                    chord.clone(),
+                    crate::FaceSurface::Inherit,
+                    Tol::witness(),
+                )
+                .unwrap();
+            let held = face_of(&control, null.he_plus);
+            let released = if held == wall { made.face } else { wall };
+            let piece = if side == "released" { released } else { held };
+            let outer = control.get_face(piece).unwrap().outer;
+            let crate::LoopBoundary::Cycle { first } = control.get_loop(outer).unwrap().boundary
+            else {
+                panic!("the {side} piece is bounded by a cycle")
+            };
+            let scaffolding = [made.he_plus, made.he_minus, null.he_plus, null.he_minus];
+            let torn_half = *control
+                .loop_cycle(first)
+                .unwrap()
+                .iter()
+                .find(|he| !scaffolding.contains(he))
+                .unwrap();
+            let torn = body
+                .get_edge(body.get_half_edge(torn_half).unwrap().edge)
+                .unwrap()
+                .curve;
+            body.curves.remove(torn).unwrap();
+            let before = deep_snapshot(&body);
+            let err = body
+                .mef(site, chord, crate::FaceSurface::Inherit, Tol::witness())
+                .unwrap_err();
+            assert_eq!(
+                err,
+                EulerOpError::PcurveMint {
+                    face: wall,
+                    refusal: crate::pcurves::SiteRowRefusal::Corrupt,
+                },
+                "torn on the {side} side"
+            );
+            assert_eq!(
+                deep_snapshot(&body),
+                before,
+                "{side}: the body is untouched, every pcurve row included"
+            );
+        }
+    }
+
+    /// The minted wall sheet with both rims split on the ruling
+    /// `u = 0.8`, a two-half ring standing on the ruling `u = 0.5` — a
+    /// strut up it from the bottom rim, a second strut from its tip, the
+    /// first cut away with `kemr` — and a null strut hung at a corner
+    /// of the run the `mef` along `u = 0.8` moves onto its new face. So
+    /// that cut leaves the strut on the new face and the ring on the
+    /// wall. Returns the cut and the ring.
+    fn ringed_ruling_cut() -> (RulingCut, crate::entity::LoopKey) {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        let tol = Tol::witness();
+        let frame = CylFrame::canonical(1.0);
+        let mut body = Body::<f64>::new();
+        let wall = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let bottom = rim_vertex_on_the_ruling(&mut body, 0.8, 0.0);
+        let top = rim_vertex_on_the_ruling(&mut body, 0.8, 1.0);
+        let foot = rim_vertex_on_the_ruling(&mut body, 0.5, 0.0);
+        let cycle = |body: &Body<f64>| {
+            let outer = body.get_face(wall).unwrap().outer;
+            let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+            else {
+                panic!("the wall is bounded by a cycle")
+            };
+            body.loop_cycle(first).unwrap()
+        };
+        let leaving = |body: &Body<f64>, v| {
+            *cycle(body)
+                .iter()
+                .find(|&&he| body.get_half_edge(he).unwrap().start == v)
+                .unwrap()
+        };
+        let from_foot = leaving(&body, foot);
+        let lower = body
+            .mev_line(
+                crate::MevSite::Fan {
+                    he1: from_foot,
+                    he2: from_foot,
+                },
+                frame.at(0.5, 0.3),
+                tol,
+            )
+            .unwrap();
+        body.mev_line(
+            crate::MevSite::Fan {
+                he1: lower.he_minus,
+                he2: lower.he_minus,
+            },
+            frame.at(0.5, 0.6),
+            tol,
+        )
+        .unwrap();
+        let ring = body.kemr(lower.he_plus, lower.he_minus).unwrap().ring;
+        assert_eq!(findings(&body), vec![], "the ringed wall is complete");
+        let (he1, he2) = (leaving(&body, bottom), leaving(&body, top));
+        let corner = body.get_half_edge(he1).unwrap().next;
+        let null = body
+            .mev_null(
+                crate::MevSite::Fan {
+                    he1: corner,
+                    he2: corner,
+                },
+                NewVertexSide::Above,
+            )
+            .unwrap();
+        let point = |v: crate::entity::VertexKey| {
+            *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+        };
+        let chord = geom_brep::EdgeCurveSpec::line_between(point(bottom), point(top));
+        let cut = RulingCut {
+            body,
+            wall,
+            null,
+            site: crate::MefSite::Chords { he1, he2 },
+            chord,
+        };
+        (cut, ring)
+    }
+
+    /// **The piece the `mef` takes the last null edge off is re-minted
+    /// whatever else it misses.** On the ringed wall, one ring half's
+    /// row detached — a gap no null edge holds — the cut moves the strut
+    /// onto the new face and leaves the wall running through no null
+    /// edge. The site mint re-mints the loop it rewires on the wall, so
+    /// the wall misses only the ring's detached row, on the loop it
+    /// keeps, and its other rows are the minting pass's, byte for byte;
+    /// the new face misses the strut's two rows and its chord half. At
+    /// this unit's first review head the wall, found with a gap no null
+    /// edge holds, was left as found and missed its chord half too.
+    #[test]
+    fn a_mef_that_takes_the_last_null_edge_off_a_face_with_another_gap_mints_its_loop() {
+        let (
+            RulingCut {
+                mut body,
+                wall,
+                null,
+                site,
+                chord,
+            },
+            ring,
+        ) = ringed_ruling_cut();
+        let crate::LoopBoundary::Cycle { first: on_ring } = body.get_loop(ring).unwrap().boundary
+        else {
+            panic!("the ring is a cycle")
+        };
+        assert!(body.detach_pcurve(on_ring).is_some());
+        let made = body
+            .mef(site, chord, crate::FaceSurface::Inherit, Tol::witness())
+            .unwrap();
+        assert_eq!(face_of(&body, null.he_plus), made.face, "the strut moves");
+        assert_eq!(face_of(&body, on_ring), wall, "the ring stays");
+        let chord_on_new = if face_of(&body, made.he_plus) == made.face {
+            made.he_plus
+        } else {
+            made.he_minus
+        };
+        let mut want = vec![on_ring, null.he_plus, null.he_minus, chord_on_new];
+        want.sort();
+        assert_eq!(
+            missing_rows(&body),
+            want,
+            "the wall misses only its ring's detached row"
+        );
+        let mut pass = body.clone();
+        crate::pcurves::mint_pcurves_of(&mut pass, &[wall], Tol::witness()).unwrap();
+        let ring_row = format!("{on_ring:?} ");
+        let passs: Vec<String> = face_rows(&pass, wall)
+            .into_iter()
+            .filter(|row| !row.starts_with(&ring_row))
+            .collect();
+        assert_eq!(
+            face_rows(&body, wall),
+            passs,
+            "the wall's other rows are the minting pass's, byte for byte"
+        );
+    }
+
+    /// **A face with a loop that does not walk is not the site mint's.**
+    /// The ringed wall, held open by its null strut, is read further by
+    /// the site mint. With its ring's loop record gone — tier 1's
+    /// corruption — it is not, even though the strut's release would
+    /// otherwise take it whatever it misses.
+    #[test]
+    fn a_held_open_face_with_a_loop_that_does_not_walk_is_left_as_found() {
+        let (RulingCut { mut body, wall, .. }, ring) = ringed_ruling_cut();
+        let read_further = |body: &Body<f64>| {
+            let face = body.get_face(wall).unwrap();
+            let surface = body.get_surface(face.surface).unwrap();
+            crate::pcurves::site_rows_from(body, face, surface)
+                .unwrap()
+                .is_some()
+        };
+        assert!(read_further(&body), "the held-open wall is read further");
+        body.loops.remove(ring).unwrap();
+        assert!(
+            !read_further(&body),
+            "a loop that does not walk keeps the wall from the site mint"
+        );
     }
 }

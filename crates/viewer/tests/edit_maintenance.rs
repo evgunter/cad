@@ -20,6 +20,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use test_utils::refusal::tagged;
 
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
@@ -43,7 +44,7 @@ fn wall(
     segment: usize,
 ) -> StableName {
     let Some(Node::Extrude { profile, .. }) = doc.node(node) else {
-        panic!("node {} is an extrude", node.0);
+        panic!("node {} is an extrude", test_utils::refusal::tag(node.0));
     };
     let Some(Node::Profile(program)) = doc.node(*profile) else {
         panic!("an extrude's operand is a profile");
@@ -236,17 +237,17 @@ fn every_maintenance_row_rides_beside_a_refusal() {
 
     let face = |node: u64| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(node),
+        node: RecipeNodeId(tagged(node)),
         path: vec![],
     };
     let rows = [
         Maintenance::Strand {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId(tagged(3)),
             name: face(7),
         },
         Maintenance::StrandedAppearance { name: face(8) },
         Maintenance::OrphanedDeclare {
-            declare: RecipeNodeId(5),
+            declare: RecipeNodeId(tagged(5)),
         },
     ];
     let notices: Vec<frame::Message> = rows
@@ -272,12 +273,12 @@ fn every_maintenance_row_rides_beside_a_refusal() {
     };
     assert_eq!(
         line.text(),
-        "nothing to undo \u{2022} node 3 carries a face name minted by node 7; this edit removed \
+        "nothing to undo \u{2022} node 000000000003 carries a face name minted by node 000000000007; this edit removed \
          what it denoted (its minting node, or the profile segment it named), so the name \
          resolves to nothing until it is rebound \u{2022} the appearance store holds an \
-         attachment under a face name minted by node 8; this edit removed what it denoted (its \
+         attachment under a face name minted by node 000000000008; this edit removed what it denoted (its \
          minting node, or the profile segment it named), so the name resolves to nothing until \
-         it is rebound or cleared \u{2022} node 5 declares contacts and this edit deleted the \
+         it is rebound or cleared \u{2022} node 000000000005 declares contacts and this edit deleted the \
          last node that consumed it, so no node consumes the declaration until a boolean or \
          union names it again"
     );
@@ -492,10 +493,10 @@ fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
     assert_quiet(&landed, op);
 }
 
-/// **The path editor's door moves no name either.** `EditProfile`
-/// lands its program as one-slot writes through an order search, a
-/// different road to the history from the single-edit door, and every
-/// write keeps every step.
+/// **The path editor's door moves no name either** when it keeps
+/// every step: `EditProfile` lands its program as one `SetProgram`,
+/// and a program whose steps are all kept strands nothing, whichever
+/// way its numbers turn it.
 #[test]
 fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let (doc, profile, _) = framed_triangle("maint-profile-flip");
@@ -511,11 +512,16 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let mut session = DocSession::inline(doc, Tol::witness());
     let op = SessionOp::EditProfile {
         node: profile,
+        ids: viewer::sketch::kept_in_place(&base),
         base,
         loops,
     };
     let outcome = session.perform(op.clone());
-    assert_eq!(outcome.committed.len(), 1, "one write moved");
+    assert!(
+        matches!(outcome.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+        "one whole-program edit: {:?}",
+        outcome.committed
+    );
     assert_quiet(&outcome, op);
 }
 
@@ -584,17 +590,17 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
 /// is on that function. Every other arm is its own sentence.
 #[test]
 fn a_cluster_act_is_carried_but_not_worded() {
-    let gauge = RecipeNodeId(7);
+    let gauge = RecipeNodeId(tagged(7));
     let act =
         Maintenance::Cluster(pncad::document::ClusterMaintenance::Drop { gauge, frame: None });
     assert_eq!(frame::maintenance_notice(&act), None);
     let strand = Maintenance::Strand {
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         name: StableName {
             kind: EntityKind::Face,
             node: gauge,
             path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: StepId(1),
+                step: StepId(tagged(1)),
                 role: PieceRole::Leg,
             })],
         },

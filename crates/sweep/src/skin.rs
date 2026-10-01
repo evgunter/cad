@@ -56,7 +56,10 @@ use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
 use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
-use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
+use profile::{
+    ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop, SketchPlane,
+    ValidatedProfile,
+};
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
 /// sub-arc of a converted profile arc is at most this wide, so the
@@ -300,7 +303,7 @@ pub fn segment_curve(
             b,
             arc:
                 Arc2 {
-                    centre: center,
+                    centre,
                     radius,
                     sweep: theta,
                 },
@@ -316,7 +319,7 @@ pub fn segment_curve(
             }
             // The segment's own carrier and signed sweep; the start
             // angle is read off the stored start vertex.
-            let start = (a.y - center.y).atan2(a.x - center.x);
+            let start = (a.y - centre.y).atan2(a.x - centre.x);
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let m = ((theta.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
             #[allow(clippy::cast_precision_loss)]
@@ -326,14 +329,14 @@ pub fn segment_curve(
             let on = |ang: f64| {
                 let (s, c) = ang.sin_cos();
                 world(Point2::new(
-                    radius.mul_add(c, center.x),
-                    radius.mul_add(s, center.y),
+                    radius.mul_add(c, centre.x),
+                    radius.mul_add(s, centre.y),
                 ))
             };
             let tangent_point = |ang: f64| {
                 let (s, c) = ang.sin_cos();
                 let r = radius / half_w;
-                world(Point2::new(r.mul_add(c, center.x), r.mul_add(s, center.y)))
+                world(Point2::new(r.mul_add(c, centre.x), r.mul_add(s, centre.y)))
             };
             let mut control = vec![on(start)];
             let mut weights = vec![1.0f64];
@@ -759,7 +762,46 @@ pub struct LoftGeometry {
 /// — the same vocabulary extrude and revolve speak. Each
 /// interior joint has exactly one naming, so a walls-vs-caps
 /// disagreement is unrepresentable.
-pub type Section = Vec<ProfileLoop<f64>>;
+pub type Section<L = ProfileLoop<f64>> = Vec<L>;
+
+/// **A loop a section is made of**, and the provenance its validation
+/// reads: a [`ProfileLoop`] is a table, whose arcs [`Profile::validate`]
+/// checks against their vertices, and a [`ConstructedLoop`] is the path
+/// lattice's own output, whose arcs were verified at their construction
+/// (D1) and validate through [`ConstructedProfile::validate`] without
+/// being decided again. A section is all one or all the other.
+pub trait SectionLoop: Clone {
+    /// Validates `loops` as one section on `plane`, by their provenance.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`], as [`Profile::validate`].
+    fn validate_section(
+        plane: SketchPlane<f64>,
+        loops: Vec<Self>,
+        tol: Tol,
+    ) -> Result<ValidatedProfile<f64>, ProfileError>;
+}
+
+impl SectionLoop for ProfileLoop<f64> {
+    fn validate_section(
+        plane: SketchPlane<f64>,
+        loops: Vec<Self>,
+        tol: Tol,
+    ) -> Result<ValidatedProfile<f64>, ProfileError> {
+        Profile::new(plane, loops).validate(tol)
+    }
+}
+
+impl SectionLoop for ConstructedLoop<f64> {
+    fn validate_section(
+        plane: SketchPlane<f64>,
+        loops: Vec<Self>,
+        tol: Tol,
+    ) -> Result<ValidatedProfile<f64>, ProfileError> {
+        ConstructedProfile::new(plane, loops).validate(tol)
+    }
+}
 
 /// The section's world-space traversal data for segment `j`, as the
 /// [`SketchSegment`] [`segment_curve`] consumes (`segment_curve` stays
@@ -768,17 +810,17 @@ pub type Section = Vec<ProfileLoop<f64>>;
 /// selected by the validated segment's kind; an arc crosses into the
 /// sketch-segment form with its carrier and sweep.
 fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
-    crate::swept::sketch_segment(&lp.segments()[j])
+    crate::swept::sketch_segment(&crate::swept::SweptSeg::forward(lp, j))
 }
 
-/// Validates every section at the door: each section runs
-/// through [`Profile::validate`] against its own placement — the
-/// same gate extrude and revolve profiles pass — and the CANONICAL
+/// Validates every section at the door: each section runs through
+/// its loops' validation ([`SectionLoop`]) against its own placement —
+/// the same gate extrude and revolve profiles pass — and the CANONICAL
 /// loops (outer counterclockwise first, holes clockwise, canonical
 /// start vertex) are what the skin consumes, so the walls and the
 /// body assembly's caps read the same traversal by construction.
-fn validate_sections(
-    sections: &[Section],
+fn validate_sections<L: SectionLoop>(
+    sections: &[Section<L>],
     places: &[Affine3<f64>],
     tol: Tol,
 ) -> Result<Vec<ValidatedProfile<f64>>, SkinError> {
@@ -787,8 +829,7 @@ fn validate_sections(
         .zip(places)
         .enumerate()
         .map(|(i, (loops, place))| {
-            Profile::new(SketchPlane::new(*place), loops.clone())
-                .validate(tol)
+            L::validate_section(SketchPlane::new(*place), loops.clone(), tol)
                 .map_err(|source| SkinError::SectionProfile { section: i, source })
         })
         .collect()
@@ -828,8 +869,8 @@ fn validate_sections(
 /// [`SkinError::SectionProfile`] for a section the profile door
 /// refuses, [`SkinError::BadDegree`], and every refusal
 /// [`segment_curve`], [`make_compatible`] and [`skin`] carry.
-pub fn loft_geometry(
-    sections: &[Section],
+pub fn loft_geometry<L: SectionLoop>(
+    sections: &[Section<L>],
     places: &[Affine3<f64>],
     v_degree: usize,
     tol: Tol,
@@ -985,8 +1026,8 @@ pub fn loft_geometry(
 /// assert_eq!(params[2], 1.0);
 /// assert_eq!(params[1], 0.34419950074181277);
 /// ```
-pub fn loft_parameters(
-    sections: &[Section],
+pub fn loft_parameters<L: SectionLoop>(
+    sections: &[Section<L>],
     places: &[Affine3<f64>],
     v_degree: usize,
     tol: Tol,
@@ -1089,8 +1130,8 @@ fn first_strip_parameters(
 // geom-core::spline::algebra note): a poisoned coordinate must take
 // the refusal arm, not slip through a negated comparison.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-pub fn sweep_geometry(
-    profile: &[ProfileLoop<f64>],
+pub fn sweep_geometry<L: SectionLoop>(
+    profile: &[L],
     place: Affine3<f64>,
     path: &NurbsCurve3<f64>,
     stations: usize,
@@ -1098,7 +1139,7 @@ pub fn sweep_geometry(
     tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
     let places = sweep_places(place, path, stations)?;
-    let sections: Vec<Section> = core::iter::repeat_n(profile.to_vec(), stations).collect();
+    let sections: Vec<Section<L>> = core::iter::repeat_n(profile.to_vec(), stations).collect();
     loft_geometry(&sections, &places, v_degree, tol)
 }
 

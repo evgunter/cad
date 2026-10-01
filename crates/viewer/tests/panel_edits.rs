@@ -362,6 +362,7 @@ fn an_expression_driven_dimension_refuses_with_the_affordance() {
             slot,
             params,
             current,
+            ..
         }) => {
             assert_eq!(node, extrude);
             assert_eq!(slot, SlotId::Distance);
@@ -675,6 +676,7 @@ test_utils::f6_variants! {
         EmptyName,
         WrongNodeKind,
         Duplicate,
+        Contact,
         Edit,
         Dimension,
         Parse,
@@ -688,9 +690,6 @@ test_utils::f6_variants! {
         NoDocumentDirectory,
         Workspace,
         SelfInstance,
-        ProfileRestructure,
-        ProfileEditOrder,
-        ProfileEditOrderCapped,
         ProfileEditStale,
     ];
 }

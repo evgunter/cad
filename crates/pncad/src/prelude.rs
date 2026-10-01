@@ -181,18 +181,19 @@ pub use quantity::{
 
 // --- 2. Profile authoring -------------------------------------
 // NAMEABLE, NOT MINTABLE:
-// `ProfileLoop` stays here because read-back hands it back,
-// `ProfileError` payloads point into it, and `validated`
-// takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
-// the ladder passes around. What left is the raw MINTING tier:
+// `ProfileLoop` stays here because read-back hands it back and
+// `ProfileError` payloads point into it, and `ConstructedLoop` because
+// `validated` and `polygon` take and return one — a prelude user must be
+// able to name what the ladder passes around. What left is the raw
+// MINTING tier:
 // `ProfileLoop::new`/`polygon` live on `profile::RawLoop`, which is a
 // FIXTURE door behind that crate's `test-support` feature — absent from
 // every shipped build, so there is nothing here to decline. Loops are
 // authored through the lattice below, and a table that already exists
 // crosses scalars through `ProfileLoop::map_scalar`.
 pub use ::profile::{
-    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind, SketchPlane,
-    ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, ConstructedLoop, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind,
+    SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 // The PATHS authoring algebra: `circle` (the one-step closed-carrier
 // program form) and the
@@ -239,12 +240,19 @@ pub use ::profile::{
 //   `PathError::Escalated`, whose Display selects the gate's own
 //   recourse from the predicate name rather than from a site
 //   discriminant.
-// - `SegmentRef` is the rung under that one, and under four arms
-//   besides: `DegenerateSegment` and `NearFullArc` carry one,
-//   `NonSimple` and `TangentialContact` two apiece. It is where in
+// - `SegmentRef` is the rung under that one, and under six arms
+//   besides: `DegenerateSegment`, `NearFullArc`, `InconsistentArc` and
+//   `ArcBelowSceneResolution` carry one, `NonSimple` and
+//   `TangentialContact` two apiece. It is where in
 //   the INPUT profile a refusal points — a loop index and a segment
 //   index, in the input's own ordering — so a caller that cannot name
 //   it cannot hold the site it was handed.
+// - `ArcCheck` is `InconsistentArc`'s and `ArcBelowSceneResolution`'s:
+//   which of the three consistency conditions a stored arc failed
+//   against its vertices — its start off the carrier, its sweep landing
+//   off its end, or its sweep out of range — or which one read a
+//   difference the scene could not resolve. Three conditions, and those
+//   arms are the only place the profile says which.
 // - `FilletLeg` is which side of a corner a fillet did not fit,
 //   incoming or outgoing: `CornerReason` names it in two arms and
 //   `PathError` in a third, and it is the one thing a caller
@@ -286,7 +294,7 @@ pub use ::profile::{
 // first. Stated so the next curation pass re-measures rather than
 // re-derives.
 pub use ::profile::{
-    ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
+    ArcCheck, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -330,6 +338,8 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //   of its own: a seam vertex is not a corner, so no run-out helps.
 // - `BlendSite` is `Escalated`'s: link, joint, or the chain whole —
 //   the payload half of the two-tolerance shape (D4 ¶1 addendum).
+// - `BlendDecision` is `Escalated`'s too: the question that could not
+//   be taken, which alone decides the refusal's recourse.
 // - `Convexity` is `ConvexitySignFlip`'s: which way the chain's
 //   material wedge turns. It is NOT one of the three the CUR3 bank
 //   named — the struct-payload sweep found it — and leaving it out
@@ -343,7 +353,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{BlendSite, CornerConfig, RunOutPolicy};
+pub use sweep::blend::{BlendDecision, BlendSite, CornerConfig, RunOutPolicy};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability
@@ -721,7 +731,7 @@ pub use crate::document::{
     ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace,
     SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
 };
-pub use editor_core::StableName;
+pub use editor_core::{NameTextError, StableName};
 
 // --- 9. Names: obtain them, inspect them, select them ---------
 // `StableName` sits in group 8 with no door there to obtain or read a

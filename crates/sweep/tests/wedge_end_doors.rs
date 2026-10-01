@@ -199,7 +199,7 @@ fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
     let on_the_ruling = |p: &Point3<f64>| p.x.abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9;
     // Normal `+y` refuses earlier, at the reduction
     // (`ConsecutiveOnSectors`), for a reason of its own:
-    // `work/reach/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
+    // `work/hone/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
     let plane = SplitPlane {
         origin: Point3::new(0.0, 1.0, 0.0),
         normal: Vec3::new(0.0, -1.0, 0.0),

@@ -54,8 +54,8 @@ def slab(doc, x0, x1):
     return doc.insert(Node.extrude(profile, Expr.length_in(1.0, m)))
 
 
-def one_box(label="memo-one-box"):
-    doc = Doc(label)
+def one_box(seed="memo-one-box"):
+    doc = Doc(seed)
     slab(doc, 0.0, 1.0)
     return doc
 

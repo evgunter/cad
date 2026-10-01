@@ -71,6 +71,7 @@ pub(crate) mod order;
 pub(crate) mod reassembly;
 pub mod rules;
 mod section;
+mod section_loops;
 
 use geom_core::{BandError, Indeterminate, Point3, Real, Vec3};
 
@@ -85,7 +86,7 @@ pub use crate::chord_join::{ArcWindowCase, SplitJoinError};
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
-pub use section::{Section, SectionPolygon, plane_section};
+pub use section::{Section, SectionError, SectionPolygon, SectionRegion, plane_section};
 
 /// The splitting plane: a point on the plane and its **unit** normal
 /// (conventional, unchecked — same posture as `Surface::Plane`). The
@@ -612,6 +613,23 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
     let (completed, fragments) = join::split_connect(&mut red, band, tol)?;
     red.body.leave_surgery_and_sweep();
     Ok((red, completed, fragments))
+}
+
+/// **The direct split run through its join**: the scratch body as the
+/// join leaves it, every null edge killed, before the finish and the
+/// closing mint. Test vocabulary (`topo::test_support`), for the rows
+/// that read the rows a face carries at that point.
+///
+/// # Errors
+///
+/// The reduction's or the join's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn through_the_join<T: geom_core::Decide>(
+    operand: &Body<T>,
+    plane: &SplitPlane<T>,
+    tol: Tol,
+) -> Result<Body<T>, SplitError> {
+    Ok(split_scratch(operand, plane, tol)?.0.body)
 }
 
 /// **`split`** — plane-splitting of a solid (ch. 14 end to end):

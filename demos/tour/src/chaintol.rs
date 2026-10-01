@@ -115,7 +115,8 @@ use pncad::document::{
 use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, Tol};
 
 use crate::chain::{
-    CERTIFIABLE_FRACTION_BY_LINKS, Chain, JOINT_SIGMA, LINK_LENGTH, LINKS, POSITION_BOUND, chain,
+    CERTIFIABLE_FRACTION_BY_LINKS, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_LENGTH, LINKS,
+    POSITION_BOUND, chain,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -161,11 +162,9 @@ fn failures<T: pncad::geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .filter_map(|id| match ev.result(*id) {
             // The payload's `Debug` carries the predicate key; the
             // user-facing sentence no longer names it.
-            Some(NodeResult::Failed(e)) => {
-                Some(format!("node {} — {} [{:?}]", id.0, e.kind, e.kind))
-            }
+            Some(NodeResult::Failed(e)) => Some(format!("node {} — {} [{:?}]", id, e.kind, e.kind)),
             Some(NodeResult::Poisoned { through }) => {
-                Some(format!("node {} poisoned through {}", id.0, through.0))
+                Some(format!("node {} poisoned through node {}", id, through))
             }
             _ => None,
         })
@@ -271,6 +270,15 @@ fn print_row(r: &Row) {
 }
 
 /// The tour's certified chain cell.
+///
+/// **It asserts what its table and header claim, not only prints
+/// them** ([`assert_row`], the drive's verdicts, and at the default ε
+/// the published box and pin enclosures), so `demo-tour certified`'s
+/// exit 0 in `tests/eps_regression.rs` carries those findings and no
+/// unit row re-computes them. The rows below are the MEASUREMENTS the
+/// narration only reads back — the bisection behind
+/// [`CERTIFIABLE_FRACTION_BY_LINKS`], the wall just past it, and the
+/// tip ratio at every link count.
 pub fn narration(tol: Tol) {
     println!(
         "   the study: {LINKS} links, each joint an independent normal at σ = {JOINT_SIGMA} rad, \
@@ -291,6 +299,7 @@ pub fn narration(tol: Tol) {
             sym_leaf(links, &built.doc),
         ] {
             print_row(&row);
+            assert_row(&row);
             rows.push((links, row));
         }
     }
@@ -347,6 +356,14 @@ pub fn narration(tol: Tol) {
         tol,
     );
     if !sym_leaf(LINKS, &narrow.doc).certifies {
+        // At the default ε the published box IS this run's box, so a
+        // refusal there is the finding moving, not the frontier.
+        assert!(
+            !crate::tolerance::at_the_ci_row(tol),
+            "the published {LINKS}-link box ({} of the study) is the default ε's \
+             measurement, and at the default ε it no longer certifies",
+            crate::chain::CERTIFIABLE_FRACTION
+        );
         println!(
             "   the published box does NOT certify at this run's ε — it is the default ε's \
              number, and the box moves with ε (1.083e-1 at 1e-6, measured). No enclosure is \
@@ -365,6 +382,15 @@ pub fn narration(tol: Tol) {
     let boxes = certified_pin_boxes(LINKS, crate::chain::CERTIFIABLE_FRACTION, tol);
     for (k, (dx, dy)) in boxes.iter().enumerate() {
         println!("     pin {}: {:.5} mm × {:.5} mm", k + 1, dx * MM, dy * MM);
+    }
+    // **The published per-pin enclosures are these, at the default ε.**
+    // [`CERTIFIED_PIN_BOX`] is drawn to scale by the density sheet as
+    // the certified half of the picture, so a number that drifted from
+    // what the tier encloses would be a box on the sheet that no leaf
+    // ever certified. Pinned at the default ε only: the box itself
+    // moves with ε.
+    if crate::tolerance::at_the_ci_row(tol) {
+        assert_pin_boxes_are_published(&boxes);
     }
     // …and WHAT that tip half-width is: half the pin radius, which is
     // the invariant the four fractions are four spellings of. Printed
@@ -385,6 +411,103 @@ pub fn narration(tol: Tol) {
     // lane reach the FOUR-link tip's assertion at any box. It does, at
     // that one — so the drive is run there and the verdict printed.
     drive_and_report(LINKS, crate::chain::CERTIFIABLE_FRACTION, tol);
+}
+
+/// **What the table claims, asserted per row** — the cell panics when
+/// the kernel stops doing what it narrates.
+///
+/// The plain interval lane refuses at EVERY link count, at the FIRST
+/// transform, on the rigid map's own isometry check: an interval
+/// `cos`/`sin` makes `cos² + sin²` a bracket around 1 rather than 1,
+/// and the column-unit predicate is what notices. The symbolic tier
+/// discharges that identity, so the ONE-link chain certifies whole over
+/// the study a user actually has — and the wall MOVES rather than going
+/// away: from two links on it is a transversality margin during the
+/// mapped edge's re-certification, not the isometry. The table names
+/// WHICH predicate per link count, so that is what is asserted, not
+/// merely that some dihedral refused: the two are different predicates
+/// with different answers, and the header once said the wrong one.
+fn assert_row(row: &Row) {
+    let links = row.links;
+    let first = || {
+        row.first
+            .as_deref()
+            .expect("a refusing row names its first refusal")
+    };
+    match (row.lane, links) {
+        (Lane::Interval, _) => {
+            assert!(
+                !row.certifies,
+                "the header says a widened rotation angle does not survive the plain \
+                 interval lane at any link count; {links} link(s) certified"
+            );
+            assert!(
+                first().contains("transform_rigid_col0_unit"),
+                "the header names `transform_rigid_col0_unit` as the plain lane's wall; at \
+                 {links} link(s) the first refusal was: {}",
+                first()
+            );
+        }
+        (Lane::Symbolic, 1) => {
+            assert!(
+                row.certifies,
+                "the header says the symbolic tier carries the one-link chain over the \
+                 whole study; it refused at: {:?}",
+                row.first
+            );
+            assert!(
+                row.counts.symbolic_zero > 0,
+                "the tier is what carries it, so the leaf discharged identities: {:?}",
+                row.counts
+            );
+        }
+        (Lane::Symbolic, _) => {
+            let predicate = if links == 2 {
+                "dihedral_wedge"
+            } else {
+                "dihedral_arm"
+            };
+            assert!(
+                !row.certifies,
+                "the header says the symbolic tier stops at two links over the whole \
+                 study; {links} link(s) certified"
+            );
+            assert!(
+                !first().contains("transform_rigid_col0_unit"),
+                "the header says the isometry wall is GONE on the symbolic lane; at \
+                 {links} link(s) it was still the first refusal: {}",
+                first()
+            );
+            assert!(
+                first().contains(predicate),
+                "the table says the first refusal at {links} link(s) over the whole study \
+                 is `{predicate}`; it was: {}",
+                first()
+            );
+        }
+    }
+}
+
+/// [`CERTIFIED_PIN_BOX`] against the measured enclosures, within 2%,
+/// with the whole array in the message in the literal's own shape so a
+/// re-baseline is a paste rather than five readings.
+fn assert_pin_boxes_are_published(measured: &[(f64, f64)]) {
+    assert_eq!(measured.len(), CERTIFIED_PIN_BOX.len());
+    let literal: String = measured
+        .iter()
+        .map(|(x, y)| format!("    ({x:e}, {y:e}),\n"))
+        .collect();
+    let drifted = measured
+        .iter()
+        .zip(CERTIFIED_PIN_BOX)
+        .any(|((mx, my), (px, py))| {
+            (mx - px).abs() > 0.02 * px.max(1e-9) || (my - py).abs() > 0.02 * py.max(1e-9)
+        });
+    assert!(
+        !drifted,
+        "chain::CERTIFIED_PIN_BOX is {CERTIFIED_PIN_BOX:?}; the certified leaf \
+         encloses\n[\n{literal}];\nre-baseline the constant and say in the PR what moved."
+    );
 }
 
 /// The drive over a chain's analyzed box at a stated fraction of the
@@ -420,6 +543,15 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
                 }
             }
             let leaves = verdict.certified().len();
+            // The tip assertion is what a CI row would gate on, and
+            // the cell says it HOLDS, certified, wherever the drive
+            // reaches it.
+            assert!(
+                leaves > 0 && holds == leaves,
+                "the header says the drive at {links} link(s) over {fraction} of the study \
+                 certifies and the tip assertion HOLDS on every certified leaf: {leaves} \
+                 certified, {holds} hold, {violated} violated, {undecided} undecided"
+            );
             println!(
                 "   the drive at {links} link{} over {} of the study, leaf budget {} \
                  ({:.1} s): {leaves} certified leaf/leaves{} — the tip assertion HOLDS on \
@@ -441,9 +573,7 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
             );
         }
         Err(refusal) => {
-            println!(
-                "   the drive at {links} links over {fraction} of the study refused: {refusal}"
-            )
+            panic!("the drive at {links} link(s) over {fraction} of the study refused: {refusal}")
         }
     }
 }
@@ -590,116 +720,6 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chain::CERTIFIED_PIN_BOX;
-
-    /// **The cell's own row, so it EXECUTES on hosted CI.**
-    ///
-    /// The narration runs in `demo-tour certified`, which asserts
-    /// nothing. This row is what puts the cell inside
-    /// `ci.yml`'s `demos tour suite` step, and it asserts the
-    /// findings the header claims rather than merely running the code.
-    #[test]
-    fn the_certified_table_says_what_the_header_says() {
-        let tol = Tol::witness();
-
-        // The plain interval lane refuses at EVERY link count, at the
-        // FIRST transform, on the rigid map's own isometry check: an
-        // interval `cos`/`sin` makes `cos² + sin²` a bracket around 1
-        // rather than 1, and the column-unit predicate is what notices.
-        for links in 1..=LINKS {
-            let built = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
-            let row = interval_leaf(links, &built.doc);
-            assert!(
-                !row.certifies,
-                "the header says a widened rotation angle does not survive the plain \
-                 interval lane at any link count; {links} link(s) certified"
-            );
-            let first = row.first.expect("a refusing row names its first refusal");
-            assert!(
-                first.contains("transform_rigid_col0_unit"),
-                "the header names `transform_rigid_col0_unit` as the plain lane's wall; \
-                 at {links} link(s) the first refusal was: {first}"
-            );
-        }
-
-        // The symbolic tier discharges that identity — the ONE-link
-        // chain certifies whole, over the study a user actually has.
-        let one = chain(1, JOINT_SIGMA, POSITION_BOUND, tol);
-        let row = sym_leaf(1, &one.doc);
-        assert!(
-            row.certifies,
-            "the header says the symbolic tier carries the one-link chain over the whole \
-             study; it refused at: {:?}",
-            row.first
-        );
-        assert!(
-            row.counts.symbolic_zero > 0,
-            "the tier is what carries it, so the leaf discharged identities: {:?}",
-            row.counts
-        );
-
-        // …and the wall MOVES rather than going away: from two links on
-        // it is a transversality margin during the mapped edge's
-        // re-certification, not the isometry. The table names WHICH
-        // predicate per link count, so this asserts that and not
-        // merely that some dihedral refused — the two are different
-        // predicates with different answers, and the header used to
-        // say the wrong one.
-        for (links, predicate) in [
-            (2usize, "dihedral_wedge"),
-            (3, "dihedral_arm"),
-            (4, "dihedral_arm"),
-        ] {
-            let built = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
-            let row = sym_leaf(links, &built.doc);
-            assert!(
-                !row.certifies,
-                "the header says the symbolic tier stops at two links over the whole \
-                 study; {links} link(s) certified"
-            );
-            let first = row.first.expect("a refusing row names its first refusal");
-            assert!(
-                !first.contains("transform_rigid_col0_unit"),
-                "the header says the isometry wall is GONE on the symbolic lane; at \
-                 {links} link(s) it was still the first refusal: {first}"
-            );
-            assert!(
-                first.contains(predicate),
-                "the table says the first refusal at {links} link(s) over the whole study \
-                 is `{predicate}`; it was: {first}"
-            );
-        }
-
-        // The one-link chain's drive reaches the TIP ASSERTION, which
-        // is the thing a CI row would gate on and the one place this
-        // document's certified lane gets all the way there.
-        let analyzed = analyzed_box(&one.doc, &AnalysisPolicy::default());
-        let config = DriveConfig {
-            max_leaves: 64,
-            ..DriveConfig::default()
-        };
-        let verdict = drive(&one.doc, &analyzed, &config, tol).expect("the nominal builds");
-        assert!(
-            !verdict.certified().is_empty(),
-            "the header says the one-link drive certifies: {:?}",
-            verdict.receipt()
-        );
-        let holds = verdict
-            .certified()
-            .iter()
-            .filter(|leaf| {
-                assertion_at(&one.doc, one.assertion, &leaf.box_, verdict.symbolic(), tol)
-                    .and_then(|v| v.holds())
-                    == Some(true)
-            })
-            .count();
-        assert_eq!(
-            holds,
-            verdict.certified().len(),
-            "the header says the tip assertion HOLDS on every certified leaf of the \
-             one-link chain"
-        );
-    }
 
     /// **What BOUNDS the certifiable box is `dihedral_wedge`.**
     ///
@@ -735,86 +755,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    /// **The certified lane reaches the FOUR-link tip's assertion.**
-    ///
-    /// This is the question
-    /// `work/sym/a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`
-    /// asks, and the answer is yes at the box
-    /// [`crate::chain::CERTIFIABLE_FRACTION`] names — which is what
-    /// makes the sheet's certified half a real enclosure rather than a
-    /// caption about one.
-    #[test]
-    fn the_four_link_tip_assertion_is_certified_over_the_certifiable_box() {
-        let tol = Tol::witness();
-        let narrow = chain(
-            LINKS,
-            JOINT_SIGMA * crate::chain::CERTIFIABLE_FRACTION,
-            POSITION_BOUND,
-            tol,
-        );
-        let analyzed = analyzed_box(&narrow.doc, &AnalysisPolicy::default());
-        let config = DriveConfig {
-            max_leaves: 64,
-            ..DriveConfig::default()
-        };
-        let verdict = drive(&narrow.doc, &analyzed, &config, tol).expect("the nominal builds");
-        assert!(
-            !verdict.certified().is_empty(),
-            "the header says the {LINKS}-link chain certifies over that box: {:?}",
-            verdict.receipt()
-        );
-        let holds = verdict
-            .certified()
-            .iter()
-            .filter(|leaf| {
-                assertion_at(
-                    &narrow.doc,
-                    narrow.assertion,
-                    &leaf.box_,
-                    verdict.symbolic(),
-                    tol,
-                )
-                .and_then(|v| v.holds())
-                    == Some(true)
-            })
-            .count();
-        assert_eq!(
-            holds,
-            verdict.certified().len(),
-            "the header says the tip assertion HOLDS, certified, on every leaf of that box"
-        );
-    }
-
-    /// **The published per-pin enclosures are the measured ones.**
-    ///
-    /// [`CERTIFIED_PIN_BOX`] is drawn to scale by the density sheet as
-    /// the certified half of the picture, so a number that drifted
-    /// from what the tier actually encloses would be a box on the
-    /// sheet that no leaf ever certified.
-    #[test]
-    fn the_published_certified_pin_boxes_are_the_measured_ones() {
-        let measured =
-            certified_pin_boxes(LINKS, crate::chain::CERTIFIABLE_FRACTION, Tol::witness());
-        assert_eq!(measured.len(), CERTIFIED_PIN_BOX.len());
-        // The whole array, in the message and in the literal's own
-        // shape: a re-baseline is a paste rather than five readings.
-        let literal: String = measured
-            .iter()
-            .map(|(x, y)| format!("    ({x:e}, {y:e}),\n"))
-            .collect();
-        let drifted = measured
-            .iter()
-            .zip(CERTIFIED_PIN_BOX)
-            .any(|((mx, my), (px, py))| {
-                (mx - px).abs() > 0.02 * px.max(1e-9) || (my - py).abs() > 0.02 * py.max(1e-9)
-            });
-        assert!(
-            !drifted,
-            "chain::CERTIFIED_PIN_BOX is {CERTIFIED_PIN_BOX:?}; the certified leaf \
-             encloses\n[\n{literal}];\nre-baseline the constant and say in the PR what moved."
-        );
     }
 
     /// **The tip's certified box is half the PIN RADIUS**, at every

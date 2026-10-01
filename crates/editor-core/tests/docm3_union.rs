@@ -50,7 +50,7 @@ fn cube(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// Three disjoint boxes, and a union of them in the given member
-/// order. Returns the document, the three box nodes in construction
+/// order (one union node for every order, [`crate::fixture::union_over`]). Returns the document, the three box nodes in construction
 /// order, and the union node.
 fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("docm3_union", Tol::witness());
@@ -58,13 +58,7 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
     let (doc, b) = cube(doc, 2.0);
     let (doc, c) = cube(doc, 4.0);
     let boxes = [a, b, c];
-    let (doc, u) = insert(
-        doc,
-        Node::Union {
-            members: order.map(|i| boxes[i]).to_vec(),
-            declare: None,
-        },
-    );
+    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]), None);
     (doc, boxes, u)
 }
 
@@ -309,7 +303,8 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         .expect_err("a duplicate member must refuse");
     let said = format!("{err}");
     assert!(
-        said.contains("pairwise distinct") && said.contains(&format!("{}", u.0)),
+        said.contains("pairwise distinct")
+            && said.contains(&format!("node {}", test_utils::refusal::tag(u.0))),
         "{said}"
     );
     // And a list left under two.

@@ -298,6 +298,7 @@ fn the_parametric_living_walk() {
             op: BooleanOp::Union,
             a: base,
             b: tower_up,
+            declare: Vec::new(),
         },
     );
     let r1 = BASE_R * TAPER;
@@ -338,7 +339,12 @@ fn the_parametric_living_walk() {
     assert_eq!(
         in_written(
             after_unit.value.expect("a value").as_f64(),
-            rendering_unit(after_unit.dimension, after_unit.unit).expect("a length row"),
+            rendering_unit(
+                after_unit.dimension,
+                after_unit.unit,
+                props::Notation::DEFAULT
+            )
+            .expect("a length row"),
         ),
         12.0,
         "shown as twelve millimetres"
@@ -367,6 +373,7 @@ fn the_parametric_living_walk() {
             op: BooleanOp::Union,
             a: hull,
             b: lamp_up,
+            declare: Vec::new(),
         },
     );
     assert_eq!(
@@ -403,6 +410,7 @@ fn the_parametric_living_walk() {
             slot,
             ref params,
             current,
+            ..
         }) => {
             assert_eq!(node, tower);
             assert_eq!(slot, SlotId::Distance);

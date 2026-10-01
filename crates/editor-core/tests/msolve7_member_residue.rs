@@ -124,8 +124,8 @@ fn a1_the_solve_builds_its_nominal_environment_exactly_once() {
 
 // ---- A1: the environment is the document's nominal ----
 
-/// A slab `w × w × h`, as a whole part document.
-fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
+/// A slab `w × w × h`, as a whole part document, and its body.
+fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -134,14 +134,13 @@ fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (w, 0.0), (w, w), (0.0, w)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(h),
         },
-    );
-    doc
+    )
 }
 const BASE_HEIGHT: f64 = 1.0;
 const BASE_WIDTH: f64 = 3.0;
@@ -154,16 +153,8 @@ fn seat(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame {
-                origin: [1.0, 1.0, BASE_HEIGHT],
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
-            b: MateFrame {
-                origin: [0.0, 0.0, 0.0],
-                axis: [0.0, 0.0, -1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
+            a: MateFrame::authored([1.0, 1.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -190,11 +181,11 @@ type Rule = (fn(RecipeNodeId) -> PatternKind, Expr);
 /// over an axis datum inserted before it), and the mate.
 fn scene(label: &str, params: &[(&'static str, DocParam)], rule: Option<Rule>, copy: u32) -> Scene {
     let mut store = PartStore::default();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let top_ref = store.insert(
+    let (top_ref, top_body) = store.insert_part(
         slab(&format!("{label}-top"), 1.0, TOP_HEIGHT),
         Tol::witness(),
     );
@@ -212,9 +203,9 @@ fn scene(label: &str, params: &[(&'static str, DocParam)], rule: Option<Rule>, c
     }
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
-    let a = head(in_part(base, CapEnd::End));
+    let a = head(in_part(base, base_body, CapEnd::End));
     let (doc, pattern, b) = match rule {
-        None => (doc, None, head(in_part(top, CapEnd::Start))),
+        None => (doc, None, head(in_part(top, top_body, CapEnd::Start))),
         Some((kind, count)) => {
             let (doc, axis) = insert(
                 doc,
@@ -231,7 +222,10 @@ fn scene(label: &str, params: &[(&'static str, DocParam)], rule: Option<Rule>, c
                     kind: kind(axis),
                 },
             );
-            let b = head_at(pattern, in_copy(pattern, copy, in_part(top, CapEnd::Start)));
+            let b = head_at(
+                pattern,
+                in_copy(pattern, copy, in_part(top, top_body, CapEnd::Start)),
+            );
             (doc, Some(pattern), b)
         }
     };
@@ -455,11 +449,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
             .into(),
         }],
     };
-    let f = MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let f = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
@@ -468,7 +458,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
                 b: crate::fixture::head(name(ids[1])),
                 class: ContactClass::Rest,
                 alignment: Alignment {
-                    a: f,
+                    a: f.clone(),
                     b: f,
                     primitive: MatePrimitive::PlanarRest { offset: 0.5 },
                     sense: AxisSense::Opposed,

@@ -433,12 +433,15 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece));
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
+    let blank = test_utils::refusal::tag(blank_of(&doc).0);
     assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
     assert_eq!(
         e.to_string(),
-        "a shell open-face name failed to resolve: the face name minted by node 2 no longer \
-         resolves in this evaluation: the recorded reference disagrees with the recipe as it \
-         stands on the derivation path (node 2's payload differs)"
+        format!(
+            "a shell open-face name failed to resolve: the face name minted by node {blank} no \
+             longer resolves in this evaluation: the recorded reference disagrees with the recipe \
+             as it stands on the derivation path (node {blank}'s payload differs)"
+        )
     );
 
     // (b) a name of the wrong KIND: an edge that really is there, so
@@ -460,7 +463,10 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     );
     assert_eq!(
         e.to_string(),
-        "the shell open-face name minted by node 2 denotes an edge, not a face"
+        format!(
+            "the shell open-face name minted by node {} denotes an edge, not a face",
+            test_utils::refusal::tag(blank_of(&doc).0)
+        )
     );
 
     // (c) a non-positive thickness: the kernel's gate, carried WITH its

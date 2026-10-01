@@ -47,6 +47,7 @@ from pncad import (
     m,
     rad,
 )
+from spoken import tag
 
 
 def unit_box(doc, width, depth, height):
@@ -517,7 +518,7 @@ class TestD9BitReplaySeed(unittest.TestCase):
             # the SAME part on purpose — the labelled constructor is
             # what says that. `Doc()` mints a fresh id and would (and
             # should) compare unequal.
-            doc = Doc(label="replay-of-the-same-recipe")
+            doc = Doc(seed="replay-of-the-same-recipe")
             box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
             return doc, evaluate(doc).value(box).body().mass_properties()
 
@@ -576,9 +577,9 @@ class TestDocumentIdentity(unittest.TestCase):
         self.assertEqual(doc.id, before, "an edit does not change which part")
 
     def test_a_labelled_document_is_the_same_part_every_time(self):
-        self.assertEqual(Doc(label="plate-param").id, Doc(label="plate-param").id)
-        self.assertEqual(Doc("plate-param").id, Doc(label="plate-param").id)
-        self.assertNotEqual(Doc(label="plate-param").id, Doc(label="bracket").id)
+        self.assertEqual(Doc(seed="plate-param").id, Doc(seed="plate-param").id)
+        self.assertEqual(Doc("plate-param").id, Doc(seed="plate-param").id)
+        self.assertNotEqual(Doc(seed="plate-param").id, Doc(seed="bracket").id)
 
     def test_a_loaded_document_keeps_the_id_it_was_saved_under(self):
         doc = Doc()
@@ -741,14 +742,17 @@ class TestPersistence(unittest.TestCase):
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
         text = doc.save()
-        # Wind the mint counter back behind ids the document holds.
-        tampered = text.replace('"next_id": 3', '"next_id": 1')
-        self.assertNotEqual(tampered, text, "the tamper found its slot")
+        # Take a node the document holds out of its mint log.
+        header, body = text.split("\n", 1)
+        wire = json.loads(body)
+        log = wire["snapshot"]["mint"]["log"]
+        held = wire["snapshot"]["order"][-1]
+        log.remove({"node": held})
         with self.assertRaises(pncad.PersistError) as caught:
-            load(tampered)
+            load(f"{header}\n{json.dumps(wire)}")
         refusal = caught.exception
         self.assertEqual(refusal.variant, "snapshot")
-        self.assertEqual(refusal.inner_variant, "id_beyond_counter")
+        self.assertEqual(refusal.inner_variant, "node_not_minted")
         # The snapshot refusal's own node ids are the snapshot door's
         # surface, not this one's: the word crosses, the payload does
         # not.
@@ -859,7 +863,7 @@ class TestStepExport(unittest.TestCase):
             ev.step_string(profile_node)
         message = str(caught.exception)
         self.assertNotIn("RecipeNodeId", message)
-        self.assertRegex(message, r"node \d+ ")
+        self.assertIn(f"node {tag(profile_node)} ", message)
 
     def test_every_step_option_reaches_the_written_file(self):
         """The whole `StepOptions` record is the door's keywords.
@@ -1939,6 +1943,85 @@ class TestTheEditDoorsPayload(unittest.TestCase):
             Node.placed_union(box, Expr.count(3), PatternKind.explicit([]))
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
         self.assertEqual(self.set_of(caught.exception), {"variant"})
+
+
+class TestNodeLabels(unittest.TestCase):
+    """A node's label is document data beside the node: set by
+    `DocEdit.set_label` or `label=` at insert, read by `Doc.label`,
+    not unique, dropped with its node, saved, and said by the kernel's
+    sentences as kind, quoted label and tag."""
+
+    def test_insert_labels_in_one_call_and_set_label_renames_and_clears(self):
+        doc = Doc()
+        frame = doc.sketch_frame(label="floor plane")
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        self.assertEqual(doc.label(frame), "floor plane")
+        self.assertIsNone(doc.label(box))
+        doc.apply(DocEdit.set_label(box, "base plate"))
+        self.assertEqual(doc.label(box), "base plate")
+        doc.apply(DocEdit.set_label(box, "plinth"))
+        self.assertEqual(doc.label(box), "plinth")
+        doc.apply(DocEdit.set_label(box, None))
+        self.assertIsNone(doc.label(box))
+
+    def test_two_nodes_may_share_a_label(self):
+        doc = Doc()
+        a = doc.sketch_frame(label="Bolt")
+        b = doc.sketch_frame(label="Bolt")
+        self.assertNotEqual(a, b)
+        self.assertEqual((doc.label(a), doc.label(b)), ("Bolt", "Bolt"))
+
+    def test_a_text_that_is_not_a_label_refuses_before_anything_is_applied(self):
+        doc = Doc()
+        frame = doc.sketch_frame()
+        cases = [
+            ("", "label_blank"),
+            ("  ", "label_blank"),
+            ("two\nlines", "label_line_break"),
+            ("tab\there", "label_control_character"),
+        ]
+        for text, variant in cases:
+            with self.subTest(text=text):
+                with self.assertRaises(EditError) as caught:
+                    DocEdit.set_label(frame, text)
+                self.assertEqual(caught.exception.variant, variant)
+                count = doc.node_count
+                with self.assertRaises(EditError) as caught:
+                    doc.sketch_frame(label=text)
+                self.assertEqual(caught.exception.variant, variant)
+                self.assertEqual(doc.node_count, count, "nothing was inserted")
+
+    def test_the_edit_door_refuses_a_dead_node_and_a_no_op(self):
+        doc = Doc()
+        frame = doc.sketch_frame(label="datum")
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_label(frame, "datum"))
+        self.assertEqual(caught.exception.variant, "label_unchanged")
+        self.assertEqual(caught.exception.node, frame)
+        doc.apply(DocEdit.delete_node(frame))
+        for door in (
+            lambda: doc.apply(DocEdit.set_label(frame, "back")),
+            lambda: doc.label(frame),
+        ):
+            with self.assertRaises(EditError) as caught:
+                door()
+            self.assertEqual(caught.exception.variant, "unknown_node")
+
+    def test_a_label_round_trips_through_save_and_load(self):
+        doc = Doc("node-labels-save")
+        frame = doc.sketch_frame(label="floor plane")
+        loaded = load(doc.save()).doc
+        self.assertEqual(loaded.label(frame), "floor plane")
+
+    def test_a_sentence_names_a_labelled_node_by_kind_label_and_tag(self):
+        doc = Doc()
+        frame = doc.sketch_frame(label="floor plane")
+        with self.assertRaises(ValueError) as caught:
+            doc.step_ids(frame)
+        self.assertIn(
+            f'Datum frame "floor plane" ({tag(frame)}) is not a profile',
+            str(caught.exception),
+        )
 
 
 class TestParamNameAdmissibility(unittest.TestCase):

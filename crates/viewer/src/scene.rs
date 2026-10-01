@@ -35,31 +35,27 @@ use pncad::document::{
 };
 use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
+use pncad::quantity::LengthUnit;
 use pncad::topo::Body;
 
 use crate::narrowing::Narrow;
 
-/// Millimetres per world unit, as the δ render and the δ door form it.
+/// Millimetres per world unit: the factor of the FINEST length row of
+/// the closed unit table, which is the bound [`DisplayTolerance::new`]
+/// holds a δ to.
 ///
-/// **Spelled once because those two have to agree.**
-/// [`DisplayTolerance::new`] refuses a δ whose millimetre value is not
-/// an `f64` and [`DisplayTolerance::render_mm`] forms that value; a
-/// second literal at either site would be a bound on one number
-/// guarding a conversion by another.
-///
-/// **It is not every metre-to-millimetre factor in the crate, and the
-/// inverse is not held here at all.** A field that parses millimetres
-/// commits `mm * 1.0e-3` and spells that itself, at four production
-/// sites ([`crate::pane::view`]'s δ request and its
-/// `DisplayTolerance::new` beside it, `pane::viewport`'s, and
-/// `widgets`' `frame_of`); the panel fields convert through
-/// [`crate::props::in_written`] and the unit table instead. What ties
-/// the commit factor to this one is that the two are inverses —
-/// which is the coincidence [`DisplayTolerance::new`]'s bound is
-/// argued from, and which `display_budget.rs`'s
+/// **The finest row is the one that matters.** A δ is read in the
+/// working notation ([`DisplayTolerance::render_in`]), and writing a
+/// canonical length in a unit divides it by that unit's factor — a
+/// multiplication UP by up to three decades, and most for `mm`. A δ
+/// whose millimetre value is an `f64` therefore has a value in every
+/// length row of the table, so the door that checks this one product
+/// makes the render total in every notation a person can pick.
+/// `display_budget.rs`'s `millimetres_are_the_finest_length_row`
+/// reads that claim off the table, and its
 /// `the_door_refuses_a_delta_whose_millimetre_value_is_not_one`
-/// measures against its own literals rather than this constant, so a
-/// change here that the commit sites did not follow reds there.
+/// measures the bound against its own literals rather than this
+/// constant.
 pub const MM_PER_METRE: f64 = 1.0e3;
 
 /// The chordal display tolerance δ: how far the drawn triangles may
@@ -80,22 +76,23 @@ impl DisplayTolerance {
     /// `chordal.is_finite() && chordal > 0.0` — hoisted so a caller
     /// meets it once at construction rather than at every call. The
     /// second is this crate's own: a δ whose millimetre value is not an
-    /// `f64` has no reading, and [`DisplayTolerance::render_mm`]
-    /// multiplies by [`MM_PER_METRE`] before any spelling is chosen, so
-    /// such a δ used to render as `inf` — not a δ this door accepts,
-    /// and infinitely far from the value. No text repairs that, because
-    /// the millimetre value does not exist; the door is the only place
-    /// the render's domain can be made total, and
-    /// [`SceneError::DisplayToleranceOverflowsMillimetres`] is what it
-    /// says instead.
+    /// `f64` has no reading in the finest length notation a person can
+    /// pick ([`MM_PER_METRE`]), and a render in it would be `inf` — not
+    /// a δ this door accepts, and infinitely far from the value. No
+    /// text repairs that, because the millimetre value does not exist;
+    /// the door is the only place the render's domain can be made
+    /// total, and [`SceneError::DisplayToleranceOverflowsMillimetres`]
+    /// is what it says instead.
     ///
-    /// **The bound takes nothing a person could have typed.** The δ
-    /// field parses millimetres and commits `mm * 1.0e-3`
-    /// (`crate::pane::view`'s `delta_field`), so the coarsest δ it can
-    /// name is `f64::MAX * 1.0e-3` — which is exactly the coarsest δ
-    /// whose millimetre product is finite.
+    /// **The bound takes nothing a person could have typed in
+    /// millimetres.** The δ field commits its number times the working
+    /// unit's factor (`crate::pane::view`'s `delta_field`), so the
+    /// coarsest δ it can name in `mm` is `f64::MAX * 1.0e-3` — exactly
+    /// the coarsest δ whose millimetre product is finite.
     /// `the_door_refuses_a_delta_whose_millimetre_value_is_not_one`
-    /// measures that the two coincide rather than restating it.
+    /// measures that the two coincide rather than restating it. A
+    /// coarser notation can type a δ past it, and the door refuses
+    /// that typed.
     ///
     /// **What it does NOT foreclose**, stated because the first
     /// version of this sentence implied it did: a δ that is a valid
@@ -117,11 +114,31 @@ impl DisplayTolerance {
     /// [`SceneError::DisplayToleranceOverflowsMillimetres`] for one
     /// that is, but whose millimetre value is not.
     pub fn new(delta: f64) -> Result<Self, SceneError> {
+        Self::typed(delta, pncad::quantity::M)
+    }
+
+    /// The δ a person typed: `written` in `unit`, judged at
+    /// [`DisplayTolerance::new`]'s door, whose refusal then names
+    /// `written` in `unit` — the number and the unit the field showed —
+    /// rather than the world-unit value it converts to.
+    ///
+    /// # Errors
+    ///
+    /// As [`DisplayTolerance::new`], on `written` converted to world
+    /// units.
+    pub fn typed(written: f64, unit: LengthUnit) -> Result<Self, SceneError> {
+        let delta = crate::props::from_written(written, unit.def());
         if !delta.is_finite() || delta <= 0.0 {
-            return Err(SceneError::InvalidDisplayTolerance { delta });
+            return Err(SceneError::InvalidDisplayTolerance {
+                delta: written,
+                unit,
+            });
         }
         if !(delta * MM_PER_METRE).is_finite() {
-            return Err(SceneError::DisplayToleranceOverflowsMillimetres { delta });
+            return Err(SceneError::DisplayToleranceOverflowsMillimetres {
+                delta: written,
+                unit,
+            });
         }
         Ok(Self(delta))
     }
@@ -131,41 +148,47 @@ impl DisplayTolerance {
         self.0
     }
 
-    /// This δ in millimetres, as text a person reads.
+    /// This δ written in `unit`, as the number a person reads — the
+    /// working notation's, so δ reads in the unit every other value
+    /// nobody wrote reads in.
     ///
     /// **The δ-facing door onto [`crate::readout::number`]**, which is
     /// the crate's one rule for a number a person reads: the shortest
     /// decimal spelling that reads back as this value, and a scientific
     /// one when no decimal spelling does. What this method adds is the
-    /// millimetre conversion the δ field's own commit path uses, and
-    /// nothing else.
+    /// conversion into `unit` the δ field's own commit path inverts,
+    /// and nothing else.
     ///
     /// **The conversion is total on this type**, which is the door's
     /// doing rather than this method's: [`DisplayTolerance::new`]
-    /// refuses a δ whose millimetre value is not an `f64`, so the
-    /// product below is finite for every δ that reaches here and
-    /// [`crate::readout::number`] never sees a value with no reading.
+    /// refuses a δ whose millimetre value is not an `f64`, and
+    /// millimetres are the finest length row ([`MM_PER_METRE`]), so
+    /// the quotient is finite in every length unit; no length row's
+    /// factor is above one, so none flushes a δ to zero. The
+    /// [`crate::props::no_reading`] arm is the conversion's own
+    /// refusal, kept rather than unwrapped.
     ///
     /// **No δ renders as `0.000`.** The rule refuses it without knowing
     /// anything about δ: a text reading zero is a hundred percent away
     /// from a strictly positive value, and every arm of the render's
     /// grid ([`crate::readout::reads_back`]) is proportional to the
-    /// value or finer. So the thing that used to be a second predicate
-    /// here — that the text read back as a δ
-    /// [`DisplayTolerance::new`] accepts — is implied by the first for
-    /// every δ this type can hold, and
-    /// `no_delta_renders_as_a_number_a_delta_cannot_be` is where that
-    /// implication is checked rather than restated.
+    /// value or finer. `no_delta_renders_as_a_number_a_delta_cannot_be`
+    /// is where that is checked.
     ///
-    /// **What it is not is exact, and what it no longer is is coarse.**
-    /// The grid is capped one decade below ε, so a δ the triangle
-    /// budget chose — `constant / TRIANGLE_BUDGET`, seventeen figures —
-    /// is now shown to the figures that tell it from the next δ rather
-    /// than to four. It is still a render and never a commit path: the
+    /// **What it is not is exact.** The grid is the finer of a tenth of
+    /// ε, applied to the written number, and four significant figures
+    /// of it. So a δ the triangle budget chose — `constant /
+    /// TRIANGLE_BUDGET`, seventeen figures — reads to within a tenth of
+    /// ε in every length unit (closer below 2·10⁻⁷ of `unit`, where the
+    /// four figures are the finer arm). How many figures that takes is
+    /// the unit's: the δ that reads `0.0003746123` in `mm` reads
+    /// `0.0000003746` in `m`. Either way it is a render and never a commit path: the
     /// number a δ moves to is the one a user types, never one the
     /// chrome echoed at them.
-    pub fn render_mm(self) -> String {
-        crate::readout::number(self.0 * MM_PER_METRE)
+    pub fn render_in(self, unit: LengthUnit) -> String {
+        let unit = unit.def();
+        crate::props::written(self.0, unit)
+            .map_or_else(|| crate::props::no_reading(unit), crate::readout::number)
     }
 
     /// This tolerance scaled by `factor` — the coarsen/refine step the
@@ -188,8 +211,10 @@ impl DisplayTolerance {
 pub enum SceneError {
     /// δ was not a finite, strictly positive length.
     InvalidDisplayTolerance {
-        /// The offending value.
+        /// The offending value, in `unit`.
         delta: f64,
+        /// The unit `delta` was written in.
+        unit: LengthUnit,
     },
     /// δ was a length, but so coarse that its millimetre value is not
     /// an `f64` — so nothing this crate could write would name it.
@@ -198,13 +223,14 @@ pub enum SceneError {
     /// [`SceneError::InvalidDisplayTolerance`]: this δ IS finite and
     /// strictly positive, and `mesh::tessellate` would take it. What
     /// refuses it is the reading rather than the tessellation — the δ a
-    /// person sees and types is in millimetres
-    /// ([`DisplayTolerance::render_mm`]), and past `f64::MAX` divided by
-    /// [`MM_PER_METRE`] there is no millimetre value to show or to type
-    /// back.
+    /// person sees and types is in the working notation
+    /// ([`DisplayTolerance::render_in`]), and past `f64::MAX` divided by
+    /// [`MM_PER_METRE`] there is no value to show in its finest unit.
     DisplayToleranceOverflowsMillimetres {
-        /// The offending value, in world units.
+        /// The offending value, in `unit`.
         delta: f64,
+        /// The unit `delta` was written in.
+        unit: LengthUnit,
     },
     /// The document's roots did not gather into a product body, for
     /// any of the gather's reasons (`ProductErrorKind::means_no_body`
@@ -270,19 +296,21 @@ impl core::fmt::Display for SceneError {
     /// it.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidDisplayTolerance { delta } => write!(
+            Self::InvalidDisplayTolerance { delta, unit } => write!(
                 f,
-                "{delta} is not a finite, strictly positive display tolerance"
+                "{delta} {} is not a finite, strictly positive display tolerance",
+                unit.symbol()
             ),
             // Scientific, and not the plain `Display` the arm above
             // uses: every value that reaches this arm is within three
             // decades of `f64::MAX`, so `{delta}` is three hundred
             // digits of decimal expansion — a sentence nobody can read,
             // about a number nobody can read.
-            Self::DisplayToleranceOverflowsMillimetres { delta } => write!(
+            Self::DisplayToleranceOverflowsMillimetres { delta, unit } => write!(
                 f,
-                "{delta:e} is past the coarsest display tolerance this viewer can read: \
-                 its value in millimetres is not a finite number"
+                "{delta:e} {} is past the coarsest display tolerance this viewer can read: \
+                 its value in millimetres is not a finite number",
+                unit.symbol()
             ),
             Self::NoProduct(error) => write!(f, "{error}"),
             Self::NotTessellated(error) => {
@@ -530,9 +558,9 @@ impl SceneMesh {
     /// `focus` with [`SceneMesh::FLAG_FOCUS`].
     ///
     /// **Why the marking is a per-corner attribute and not a shader
-    /// uniform**, which is how the selected and hovered patches are
-    /// marked: those are one patch each, so an id fits in a uniform
-    /// slot; a focus is a SET, of no bounded size, and the only place a
+    /// uniform**, which is how the selected, hovered and held patches
+    /// are marked: those are a few patches of a fixed count, so their
+    /// ids fit uniform slots; a focus is a SET, of no bounded size, and the only place a
     /// set of that shape can be tested per fragment without new GPU
     /// plumbing is the vertex data the picture is already carrying.
     ///
@@ -1105,22 +1133,20 @@ impl FittedDelta {
     /// choose, and a chosen default that read as a clamp would be
     /// worse than no default at all.
     ///
-    /// **Both δ are rendered, not formatted.** A sentence whose whole
-    /// job is to name the two δ in play is the last place a number may
-    /// read as one δ cannot be, and a fixed `{:.3}` over millimetres
-    /// carried both as `0.000` below half a micrometre
-    /// ([`DisplayTolerance::render_mm`]). What that costs is that the
-    /// sentence is as wide as the δ are awkward — a budget δ reads
-    /// `0.0003746` where it used to read `0.000`, and a δ of a few
-    /// picometres reads `4.000e-9` — which is the right trade for a
-    /// status line, where a long true number is readable and a short
-    /// false one is not.
-    pub fn wording(&self) -> Option<String> {
+    /// **Both δ are rendered, not formatted**, in `unit` — the working
+    /// notation's length unit ([`DisplayTolerance::render_in`]). A
+    /// sentence whose whole job is to name the two δ in play is the
+    /// last place a number may read as one δ cannot be. What that costs
+    /// is that the sentence is as wide as the δ are awkward, which is
+    /// the right trade for a status line, where a long true number is
+    /// readable and a short false one is not.
+    pub fn wording(&self, unit: LengthUnit) -> Option<String> {
         let requested = self.requested_cost?;
-        let opened = self.delta.render_mm();
-        let asked = self.requested.render_mm();
+        let opened = self.delta.render_in(unit);
+        let asked = self.requested.render_in(unit);
+        let symbol = unit.symbol();
         Some(format!(
-            "opened at δ = {opened} mm: {asked} mm needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. A finer δ typed in the View pane is still honoured — this is a starting point, not a cap"
+            "opened at δ = {opened} {symbol}: {asked} {symbol} needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. A finer δ typed in the View pane is still honoured — this is a starting point, not a cap"
         ))
     }
 }
@@ -1243,7 +1269,7 @@ pub enum ProbeStop {
 /// document (dev profile, this lane): 87 ms to gather, against 2.4 ms
 /// to clone the body that gather produced. What that measurement
 /// decides, and why it carries no guard, is stated where the decision
-/// is (`session`'s `LandedRun::body`).
+/// is (`session`'s `Gathered::body`).
 ///
 /// # Errors
 ///
@@ -1491,7 +1517,7 @@ fn insert(
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
     // The scene's document has no instance and no mate, so no edit
-    // here can move a cluster's gauge: the refusing reach is never
+    // here can move a group's root: the refusing reach is never
     // asked.
     let applied = apply(
         &doc,

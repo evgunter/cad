@@ -145,10 +145,11 @@ use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
 
+use crate::attach::Rechart;
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, SolidKey, VertexKey};
-use crate::euler::{EulerOpError, FaceSurface};
+use crate::euler::EulerOpError;
 use crate::geometry::SurfaceKey;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::validate::{ValidationError, validate_closed};
@@ -526,7 +527,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// An attach-layer door refused the planned mutation.
     Op {
-        /// The edge the attach door refused (absent for the surface).
+        /// The edge the attach door refused; absent for the re-chart,
+        /// whose refusal names the edges itself.
         edge: Option<EdgeKey>,
         /// The attach layer's typed refusal.
         error: EulerOpError,
@@ -1361,58 +1363,15 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     // whole-body check is the tier-2 gate the clone is adopted on.
     let mut staged = body.clone();
     let mut work = staged.begin_surgery();
-    // `FaceSurface::New` mints a fresh arena key, so every planned
-    // description that names the replaced surface is re-pointed at it
-    // before it is attached — the same re-description step the stale-key
-    // rule forces on any surface replacement.
-    // The offset is a statement about the surface (module docs), so
-    // every face keeps the side its material lies on.
-    let sense = work.get_face(face).ok_or(ReplaceFaceError::Corrupt)?.sense;
-    let new_key = work
-        .set_face_surface(
-            face,
-            FaceSurface::New {
-                surface: new_surface,
-                sense,
-            },
-        )
-        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-    // The rest of the chart's faces adopt the SAME key: the group wore
-    // one surface before and wears one after, which is what keeps their
-    // shared seams describable.
-    for &member in &faces[1..] {
-        let sense = work
-            .get_face(member)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .sense;
-        work.set_face_surface(
-            member,
-            FaceSurface::Shared {
-                key: new_key,
-                sense,
-            },
-        )
-        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-    }
-    for (vertex, point) in &moved {
-        let old_point = work
-            .get_vertex(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point;
-        let new_point = work.add_point(*point);
-        work.get_vertex_mut(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point = new_point;
-        work.remove_point_if_orphaned(old_point);
-    }
-    for mut plan in plans {
-        plan.spec.description = remap_description(plan.spec.description, old_key, new_key);
-        work.set_edge_curve(plan.edge, plan.spec, tol)
-            .map_err(|error| ReplaceFaceError::Op {
-                edge: Some(plan.edge),
-                error,
-            })?;
-    }
+    // The whole group moves onto one new chart: it wore one surface
+    // before and wears one after, which is what keeps its shared seams
+    // describable, and a plan's `old_key` stands for that chart.
+    let chart = offset_rechart(&work, new_surface, faces)?;
+    let specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = plans
+        .into_iter()
+        .map(|plan| (plan.edge, plan.spec))
+        .collect();
+    move_points_then_rechart(&mut work, &moved, vec![chart], &specs, tol)?;
     for (edge, spec) in anchored {
         work.set_edge_curve(edge, spec, tol)
             .map_err(|error| ReplaceFaceError::Op {
@@ -1706,7 +1665,7 @@ fn plan_edge<T: Decide>(
     let (t0, t1) = curve.params();
     let old_carrier = curve.carrier().clone();
     let description = curve.description().clone();
-    let mid = old_carrier.eval((t0 + t1) * T::from_f64(0.5));
+    let mid = curve.mid_point();
 
     // The one description that gets an EXACT carrier rather than a
     // transported one: an iso-curve of a fitted chart is a row of the
@@ -1829,7 +1788,7 @@ fn plan_edge<T: Decide>(
             edge,
             what: "this (surface kind, carrier kind) pair has no closed-form offset action",
         })?;
-    let new_mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+    let new_mid = carrier.mid_point(t0, t1);
 
     // **The declaring pushforward travels with the face** (PCURVE
     // P-1b), and it travels the same way whichever arm below the
@@ -1942,7 +1901,8 @@ fn plan_edge<T: Decide>(
             let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
             let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
                 .map_err(|e| match e {
-                geom_brep::SectionError::Escalated(source) => {
+                geom_brep::SectionError::Escalated(source)
+                | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
                     ReplaceFaceError::Escalated { source }
                 }
                 // `route_pose` returns only an escalation or a
@@ -2116,6 +2076,35 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
             angle,
             breaks: breaks.clone(),
         },
+        // Both spiric images are affine in the chart's SECOND channel
+        // — the cap's `v` coordinate is its constant term's, the
+        // wall's is `v0` — so the shift lands on one field exactly, as
+        // it does on the three arms above. The shift this door
+        // computes is the cone's `d·cot α` and zero on every other
+        // chart kind, so on the two charts a spiric lives on it is
+        // zero; the arm is written for the action, not for the value.
+        Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            ref image,
+        } => Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image: match *image {
+                geom_brep::SpiricImage::Cap { p0, pm, pa } => geom_brep::SpiricImage::Cap {
+                    p0: geom_core::Point2::new(p0.x, p0.y + shift),
+                    pm,
+                    pa,
+                },
+                geom_brep::SpiricImage::Wall { u0, v0, sense } => geom_brep::SpiricImage::Wall {
+                    u0,
+                    v0: v0 + shift,
+                    sense,
+                },
+            },
+        },
         Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
@@ -2144,6 +2133,57 @@ pub(crate) fn translate_mapped<T: Real>(
         }
         _ => return None,
     })
+}
+
+/// `faces` onto one fresh chart, `surface`, each keeping the material
+/// side it has now: an offset moves a chart along its own normal, so
+/// the side the material lies on does not change.
+pub(crate) fn offset_rechart<T: Real>(
+    body: &Body<T>,
+    surface: Surface<T>,
+    faces: &[FaceKey],
+) -> Result<Rechart<T>, ReplaceFaceError<T>> {
+    let sense = |face: FaceKey| {
+        body.get_face(face)
+            .map(|f| f.sense)
+            .ok_or(ReplaceFaceError::Corrupt)
+    };
+    let (&first, rest) = faces.split_first().ok_or(ReplaceFaceError::EmptyGroup)?;
+    let mut chart = Rechart::new(surface, first, sense(first)?);
+    for &face in rest {
+        chart = chart.with(face, sense(face)?);
+    }
+    Ok(chart)
+}
+
+/// **The points move first, then one re-chart**: every vertex in
+/// `moved` takes its new point, and then every chart moves in ONE
+/// [`Body::set_face_surfaces_describing`] with every spec, which so
+/// certifies each at the endpoints the offset leaves it. One call,
+/// because an edge between two moving charts certifies on neither pair
+/// of mixed charts; a spec names a chart by the key its face wears now.
+/// The offset doors' shared mutation step, run on their staged clone.
+pub(crate) fn move_points_then_rechart<T: Decide>(
+    work: &mut Body<T>,
+    moved: &[(VertexKey, Point3<T>)],
+    charts: Vec<Rechart<T>>,
+    specs: &[(EdgeKey, EdgeCurveSpec<T>)],
+    tol: Tol,
+) -> Result<(), ReplaceFaceError<T>> {
+    for (vertex, point) in moved {
+        let old_point = work
+            .get_vertex(*vertex)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .point;
+        let new_point = work.add_point(*point);
+        work.get_vertex_mut(*vertex)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .point = new_point;
+        work.remove_point_if_orphaned(old_point);
+    }
+    work.set_face_surfaces_describing(charts, specs, tol)
+        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+    Ok(())
 }
 
 /// `description` with every occurrence of `old` re-pointed at `new` —
@@ -2341,7 +2381,7 @@ fn plan_reanchors<T: Decide>(
         // fails `WitnessMidpoint` at the very gate that re-attaches it.
         // The carrier did not move, so the new witness is that carrier
         // read at the new midpoint.
-        let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+        let mid = carrier.mid_point(t0, t1);
         description = match description {
             EdgeDescriptionSpec::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
                 s1,

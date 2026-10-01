@@ -42,6 +42,7 @@
 use crate::fixture;
 
 use crate::wire::doctored;
+use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocRef, DocumentId,
     EditError, EntityKind, Expr, FaceName, Frame, InterfaceCrossing, InterfaceRecord, MateFrame,
@@ -49,7 +50,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load, save,
 };
 use editor_core::{LoggedEdit, ParamNameReason, parse_expr};
-use fixture::resolver::{PART_BODY, PartStore};
+use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 use std::collections::BTreeMap;
@@ -96,10 +97,10 @@ fn assertion(measure: RecipeNodeId, bound: Expr) -> Node<ProfileProgram> {
 #[test]
 fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
     let (doc, measure) = with_measure();
-    // The sketch frame (node 0) is live and precedes any assertion, so
-    // the only thing wrong with the document is that it is not a
-    // measure.
-    let frame_node = RecipeNodeId(0);
+    // The sketch frame (the first node) is live and precedes any
+    // assertion, so the only thing wrong with the document is that it
+    // is not a measure.
+    let frame_node = doc.order()[0];
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -226,7 +227,7 @@ fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
 /// **`n` instances of a part document that exists**: the reference is
 /// minted by inserting a real part into a [`PartStore`], so its content
 /// pin is that part's digest and the faces `in_part` names are faces
-/// the part actually has.
+/// the part actually has. The part's body comes back beside them.
 ///
 /// That is what distinguishes it from the same-shaped fixture beside
 /// `persist::check`'s in-crate rows, which mints a `DocRef` by hand
@@ -235,9 +236,12 @@ fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
 /// two cannot be one function — an integration suite cannot reach a
 /// `#[cfg(test)]` item in the library, and the library cannot reach
 /// `tests/fixture` — so they are two, named for the difference.
-fn instances_of_a_stored_part(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, _, ids) = instances_and_ref_of_a_stored_part(label, n);
-    (doc, ids)
+fn instances_of_a_stored_part(
+    label: &str,
+    n: usize,
+) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
+    let (doc, _, ids, body) = instances_and_ref_of_a_stored_part(label, n);
+    (doc, ids, body)
 }
 
 /// The same fixture, keeping the reference it minted the instances
@@ -246,9 +250,9 @@ fn instances_of_a_stored_part(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeN
 fn instances_and_ref_of_a_stored_part(
     label: &str,
     n: usize,
-) -> (ProfileDoc, DocRef, Vec<RecipeNodeId>) {
+) -> (ProfileDoc, DocRef, Vec<RecipeNodeId>, RecipeNodeId) {
     let mut store = PartStore::default();
-    let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
+    let (doc_ref, body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..n {
@@ -256,10 +260,10 @@ fn instances_and_ref_of_a_stored_part(
         doc = next;
         ids.push(id);
     }
-    (doc, doc_ref, ids)
+    (doc, doc_ref, ids, body)
 }
 
-fn part(label: &str) -> ProfileDoc {
+fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -268,52 +272,40 @@ fn part(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
         },
-    );
-    doc
+    )
 }
 
-fn in_part(instance: RecipeNodeId) -> StableName {
+/// The part-local face every head here wears under its instance — the
+/// start cap of the part's `body`, as `in_part(.., body, CapEnd::Start)`
+/// spells it — so a crossing built here names the same face on both
+/// sides of the seam.
+fn part_face(body: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: part_face().into(),
-        }],
-    }
-}
-
-/// The part-local face `in_part` wraps: one spelling, so a crossing
-/// built here names the same face on both sides of the seam.
-fn part_face() -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: PART_BODY,
+        node: body,
         path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
     }
 }
 
-fn mate(a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Node<ProfileProgram> {
+fn mate(
+    body: RecipeNodeId,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    origin: [f64; 3],
+) -> Node<ProfileProgram> {
     Node::Mate {
-        a: crate::fixture::head(in_part(a)),
-        b: crate::fixture::head(in_part(b)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame {
-                origin,
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
-            b: MateFrame {
-                origin: [0.0, 0.0, 0.0],
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
+            a: MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
@@ -332,14 +324,14 @@ fn mate(a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Node<ProfileProgr
 /// pinned in-crate beside the validator.
 #[test]
 fn a_non_finite_alignment_is_refused_at_the_edit_door() {
-    let (doc, ids) = instances_of_a_stored_part("onepred-align", 2);
+    let (doc, ids, body) = instances_of_a_stored_part("onepred-align", 2);
     // Finite, the same mate is accepted — so the refusal below is the
     // coordinate's and not the fixture's.
-    let (doc, _) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
+    let (doc, _) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: mate(ids[0], ids[1], [f64::NAN, 0.0, 0.0]),
+            node: mate(body, ids[0], ids[1], [f64::NAN, 0.0, 0.0]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -355,8 +347,8 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
 /// loaded once — the control the rows below corrupt, and the round
 /// trip in its own right.
 fn saved_mate(label: &str) -> (String, RecipeNodeId) {
-    let (doc, ids) = instances_of_a_stored_part(label, 2);
-    let (doc, id) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
+    let (doc, ids, body) = instances_of_a_stored_part(label, 2);
+    let (doc, id) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
     (text, id)
@@ -449,12 +441,12 @@ fn face(name: StableName) -> FaceName {
 /// by `fix_pattern_mate_crossing`, and what this seat needs is a
 /// crossing on the WIRE, which the door is public for.
 fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
-    let (doc, doc_ref, ids) = instances_and_ref_of_a_stored_part(label, 2);
+    let (doc, doc_ref, ids, body) = instances_and_ref_of_a_stored_part(label, 2);
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             class: ContactClass::Rest,
-            outer: face(in_part(ids[0])),
-            inner: face(part_face()),
+            outer: face(in_part(ids[0], body, CapEnd::Start)),
+            inner: face(part_face(body)),
         }],
     };
     let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record));
@@ -599,7 +591,7 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
 /// door `PlacementSite`.
 #[test]
 fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
-    let (doc, ids) = instances_of_a_stored_part("onepred-site", 1);
+    let (doc, ids, _) = instances_of_a_stored_part("onepred-site", 1);
     // A live NON-instance node, so the refusal is the placement rule's
     // and not a dangling id's.
     let (doc, other) = on_frame(
@@ -638,7 +630,7 @@ fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
 /// with a coordinate no predicate can read.
 #[test]
 fn an_improper_placement_is_refused_at_both_doors() {
-    let (doc, ids) = instances_of_a_stored_part("onepred-improper", 1);
+    let (doc, ids, _) = instances_of_a_stored_part("onepred-improper", 1);
     let mirror = Frame {
         columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
@@ -681,7 +673,7 @@ fn an_improper_placement_is_refused_at_both_doors() {
 /// it.
 #[test]
 fn a_non_rigid_placement_is_refused_at_both_doors() {
-    let (doc, ids) = instances_of_a_stored_part("onepred-non-rigid", 1);
+    let (doc, ids, _) = instances_of_a_stored_part("onepred-non-rigid", 1);
     let mut stretched = Frame::IDENTITY;
     stretched.columns[0] = [2.0, 0.0, 0.0];
     assert!(stretched.determinant() > 0.0, "the fixture is proper");
@@ -731,10 +723,10 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
 /// and normalises.
 #[test]
 fn a_placement_off_the_gauge_is_keyed_on_it_rather_than_refused() {
-    let (doc, ids) = instances_of_a_stored_part("onepred-gauge", 2);
+    let (doc, ids, body) = instances_of_a_stored_part("onepred-gauge", 2);
     // Mate the two instances: one cluster, whose gauge is its
     // document-order-first member.
-    let (doc, _) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
+    let (doc, _) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
     let frame = Frame::translation([2.0, 0.0, 0.0]);
     // The placement is authored on the LATER instance, which is not the
     // gauge.
@@ -848,11 +840,11 @@ fn rekey_witness(text: &str, from: RecipeNodeId, to: RecipeNodeId) -> String {
 /// `WitnessOnNonSketch` and the load door `SnapshotError::WitnessSite`.
 #[test]
 fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
-    // `with_measure` lays down a frame (0), a profile (1), an extrude
-    // (2) and a measure (3): the profile is the only sketch-bearing
+    // `with_measure` lays down a frame, a profile, an extrude and a
+    // measure, in that order: the profile is the only sketch-bearing
     // node in it, and the extrude is a live node that is not one.
     let (doc, _) = with_measure();
-    let (sketch, non_sketch) = (RecipeNodeId(1), RecipeNodeId(2));
+    let (sketch, non_sketch) = (doc.order()[1], doc.order()[2]);
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -884,10 +876,10 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
 #[test]
 fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let (doc, _) = with_measure();
-    let (sketch, gone) = (RecipeNodeId(1), RecipeNodeId(2));
-    // Deleted rather than invented, so the id stays BELOW the mint
-    // counter and the load door's id walk passes it — the refusal read
-    // is then the site rule's and not `IdBeyondCounter`.
+    let (sketch, gone) = (doc.order()[1], doc.order()[2]);
+    // Deleted rather than invented, so the id stays one the document
+    // has minted and the load door's id walk passes it — the refusal read
+    // is then the site rule's and not `NodeNotMinted`.
     let doc = apply(
         &doc,
         &DocEdit::DeleteNode { id: gone },

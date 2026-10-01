@@ -123,6 +123,8 @@ mod msolve3_placer_refused;
 mod msolve4_blame_rows;
 #[path = "msolve5_read_below_a_root.rs"]
 mod msolve5_read_below_a_root;
+#[path = "node_labels.rs"]
+mod node_labels;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]
@@ -141,8 +143,6 @@ mod prefs;
 mod profile_draw;
 #[path = "profile_edit.rs"]
 mod profile_edit;
-#[path = "profile_edit_order.rs"]
-mod profile_edit_order;
 #[path = "refusal_concision_edits.rs"]
 mod refusal_concision_edits;
 #[path = "review_gui0_r1.rs"]

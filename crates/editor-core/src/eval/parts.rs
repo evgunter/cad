@@ -290,25 +290,25 @@ impl core::fmt::Display for PartFault {
             Self::PartRootFailed { node, .. } => write!(
                 f,
                 "the part's node {} failed, so the part has no body. {}",
-                node.0,
-                InThePart(format_args!("repair node {}", node.0)),
+                node,
+                InThePart(format_args!("repair node {}", node)),
             ),
             Self::PartRootPoisoned { root, through, .. } => write!(
                 f,
                 "the part's node {} failed and poisoned its root, node {}, so the part has \
                  no body. {}",
-                through.0,
-                root.0,
-                InThePart(format_args!("repair node {}", through.0)),
+                through,
+                root,
+                InThePart(format_args!("repair node {}", through)),
             ),
             Self::RootFailureUnrecorded { node } => write!(
                 f,
                 "the part's product names its node {} as failed and the part's evaluation holds \
                  no failure there; the two disagree, so this is a kernel bug. {}",
-                node.0,
+                node,
                 InThePart(format_args!(
                     "see node {} as it evaluates, then report it with the part's file",
-                    node.0
+                    node
                 )),
             ),
             Self::PartProduct { kind, message } => {
@@ -651,9 +651,11 @@ impl<T: Decide> Reached<T> {
 /// cache for**: the reference `id` instantiates, when `id` is an
 /// instantiate node. Both askers read it: the instantiate node's own op
 /// (`wire::wire_instantiate_part`) and the mate solve's reach over a
-/// member's instance (`mate::solve`'s `pair_reach`). The descent enters
-/// every reference it names before the document evaluates, and a nested
-/// cache refuses any other ask ([`PartFault::NotEntered`]).
+/// member's instance (`mate::solve`'s `part_of`, which the lever's
+/// `pair_reach` and a `FromFace` side's face pose both ask through).
+/// The descent enters every reference it names before the document
+/// evaluates, and a nested cache refuses any other ask
+/// ([`PartFault::NotEntered`]).
 pub(crate) fn instantiated<P>(doc: &crate::Doc<P>, id: RecipeNodeId) -> Option<DocRef> {
     match doc.node(id) {
         Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => Some(*doc_ref),
@@ -794,9 +796,9 @@ mod tests {
         }
     }
 
-    fn doc_ref(label: &str) -> DocRef {
+    fn doc_ref(seed: &str) -> DocRef {
         DocRef {
-            id: DocumentId::derive(label),
+            id: DocumentId::derive(seed),
             pin: ContentPin([1; 32]),
         }
     }

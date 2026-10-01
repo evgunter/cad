@@ -37,6 +37,7 @@ use super::sectors::{BoolSector, PairRecord, within};
 use super::{
     BoolNullEdgeRecord, BooleanError, NullEdgePairRecord, Operand, PairSite, SideCode, VvContact,
 };
+use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::MevSite;
@@ -219,7 +220,13 @@ fn mint_directed<T: Decide>(
         match crate::validate::decide("bool_strut_order", m, band) {
             Ok(Sign::Positive) => true,
             Ok(_) => false,
-            Err(diag) => return Err(BooleanError::coincidence(diag)),
+            Err(diag) => {
+                return Err(BooleanError::coincidence(
+                    Coincide::Sectors,
+                    DeclarationRead::Moot,
+                    diag,
+                ));
+            }
         }
     } else {
         false
@@ -278,10 +285,15 @@ fn record_germ_dir<T: Decide>(
     declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
-    if declared.class_of(super::Operand::A, sa.face, super::Operand::B, sb.face)
-        != Some(crate::contact::ContactClass::Tangent)
-    {
-        return germ_dir(sa, sb, band);
+    // What the door read of the pair, which the questions below refuse
+    // alike declared or not: no class settles them.
+    let read = declared.read(
+        &[(super::Operand::A, sa.face, super::Operand::B, sb.face)],
+        Coincide::TangentLocus,
+        &[],
+    );
+    if read != DeclarationRead::Spent(crate::contact::ContactClass::Tangent) {
+        return germ_dir(sa, sb, read, band);
     }
     let surface_of = |body: &Body<T>, face| {
         body.get_face(face)
@@ -296,7 +308,11 @@ fn record_germ_dir<T: Decide>(
     let d = match super::rest::tangent_locus(&s_a, &s_b, band) {
         Ok(super::rest::TangentLocus::Line { dir, .. }) => dir.normalize(),
         Err(super::rest::TangentLocusError::Escalated(diag)) => {
-            return Err(BooleanError::coincidence(diag));
+            return Err(BooleanError::coincidence(
+                Coincide::TangentLocus,
+                read,
+                diag,
+            ));
         }
         // Both remaining arms mean the same thing to this door: the
         // declaration promised a locus the closed-form lane does not
@@ -311,8 +327,8 @@ fn record_germ_dir<T: Decide>(
             });
         }
     };
-    let plus = within(sa, d, false, band)? && within(sb, d, false, band)?;
-    let minus = within(sa, -d, false, band)? && within(sb, -d, false, band)?;
+    let plus = within(sa, d, false, read, band)? && within(sb, d, false, read, band)?;
+    let minus = within(sa, -d, false, read, band)? && within(sb, -d, false, read, band)?;
     match (plus, minus) {
         (true, false) => Ok(d),
         (false, true) => Ok(-d),
@@ -335,6 +351,7 @@ fn record_germ_dir<T: Decide>(
 fn germ_dir<T: Decide>(
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
+    read: DeclarationRead,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     let int = sa.normal.vec().cross(sb.normal.vec());
@@ -349,11 +366,18 @@ fn germ_dir<T: Decide>(
                 what: "surviving crossing record on coplanar sector faces",
             });
         }
-        Err(diag) => return Err(BooleanError::coincidence(diag)),
+        // The same margin, re-read: its escalation is the kernel's, as its
+        // zero is.
+        Err(diag) => {
+            return Err(BooleanError::Escalated {
+                decision: BooleanDecision::SelfCheck(SelfCheck::GermLine),
+                diag,
+            });
+        }
     }
     let d = int.normalize();
-    let plus = within(sa, d, false, band)? && within(sb, d, false, band)?;
-    let minus = within(sa, -d, false, band)? && within(sb, -d, false, band)?;
+    let plus = within(sa, d, false, read, band)? && within(sb, d, false, read, band)?;
+    let minus = within(sa, -d, false, read, band)? && within(sb, -d, false, read, band)?;
     match (plus, minus) {
         (true, false) => Ok(d),
         (false, true) => Ok(-d),
@@ -735,5 +759,53 @@ mod tests {
         }
         crate::validate::validate(&abody).unwrap();
         crate::validate::validate(&bbody).unwrap();
+    }
+
+    /// **The germ line is the kernel's own re-reading**: two sector
+    /// faces whose normals part by an in-band angle at the sectors' arm
+    /// escalate as [`SelfCheck::GermLine`], ending as a defect (their
+    /// crossing record needed this margin definitely positive upstream),
+    /// never as a coincidence with a tolerance.
+    #[test]
+    fn an_in_band_germ_line_is_the_kernels_own_check() {
+        use super::super::sectors::Reach;
+        use geom_brep::OutwardNormal;
+        use geom_core::{KERNEL_DEFECT_ENDING, Point3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let sector = |normal: Vec3<f64>| BoolSector {
+            he: HalfEdgeKey::default(),
+            start: x,
+            end: y,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + x,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + y,
+            },
+            face: FaceKey::default(),
+            normal: OutwardNormal::from_chart(normal, true),
+            arm: 1.0,
+        };
+        let (sa, sb) = (
+            sector(Vec3::new(0.0, 0.0, 1.0)),
+            sector(Vec3::new(mid.sin(), 0.0, mid.cos())),
+        );
+        let err = germ_dir(&sa, &sb, DeclarationRead::Moot, band).expect_err("in band");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::SelfCheck(SelfCheck::GermLine),
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+        assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
     }
 }

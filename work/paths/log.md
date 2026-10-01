@@ -464,3 +464,71 @@ MAJOR. Two small fixes went in (the reversal names every kind; `Arc2`
 states D1's range). The review's S1–S4 go to 5a. Next is 5a
 (`retire-the-stored-bulge`), with a dual review whose builds are
 staggered.
+
+## 2026-09-30 — 5a stops on three findings; rulings
+
+The 5a work in progress is on the branch at 5a6f2ebf; no PR is open.
+
+1. **The span identity does not fully chain** without the sweep's span
+   registration: d_tab `carrier_endpoint_end` goes 12/0 → 8/4. The
+   suspected cause is stacked reversals (`0 − (0 − sweep)`).
+   - Ruling: attribute the loss first. Then carry the traversal's
+     orientation relative to the lowered arc, so reversals never stack.
+   - Pass condition: 12/0 with no sweep span registration.
+2. **sym11's far stadium goes built → refused** at d = 1e6. It is
+   fixture-built, and fixtures cannot register.
+   - Ruling (per #3453: a table-built arc claims nothing): re-author the
+     row through the path algebra; do not thread `Tol` through
+     `bulge_loop`.
+3. **The door-off dial now moves verdicts.** The new consistency checks
+   need registrations to decide at `Sym<Interval>`.
+   - The implementer is investigating the provenance of "the door moves
+     only numeric" and which leaves refuse.
+   - This is a DECIDE/SYM seam, and goes to Ev if the rule is ratified.
+   - The PR waits on this.
+
+## 2026-09-30 — 5a round 2 rulings
+
+- **d_tab.** The loss is not stacked reversals. It comes from the
+  bulge-2/parameter residue: frozen nodes and `abs(signed_radius)`.
+  - Ruling: add the landing half of the sweep's rigidity registration
+    (#3453 round 3). `circle_at(param_end) ≡ place(landing(a))` then
+    chains through the lowering's `landing(a) ≡ b` to `q_to`.
+- **sym11 far stadium (fixture-built).** Ruling: accept the typed
+  refusal as a disclosed decision move (a table claims nothing, per
+  #3453).
+  - The path algebra at `Sym<Interval>` refuses the stadium at the
+    junction over the row's r box.
+  - Filed `fixture-built-sym-rows-lose-registered-discharges`.
+- **The door-off invariant is agent-written** (M10-9's commits).
+  Ruling: restate it to Ev's ratified E12 property (no registration
+  turns a proved non-zero margin into Zero), with counts compared over
+  common decisions only. Announced on DECIDE's log.
+
+## 2026-09-30 — 5a is PR #3527; CI red on four ε-row flips
+
+**A (the near-full apex error).** The implementer fixed this: the
+clearance is now `2r·(1 − sin(|Δθ|/4))`.
+
+**B (`m4_pr6`, a fixture exactly on the ε band edge, one ulp over).**
+Pending: check the test's intent. Move the fixture off the edge unless
+the edge is its point.
+
+**C (q1's consistency checks escalate at Interval).** On hairline
+guided replays at ε 1e-12, the checks escalate from dependency width.
+The failing tests are:
+- `cert4r2_e2e` (it loses its construction);
+- `generic_replay` rows 1 and 13;
+- `guided_replay`.
+
+At `Sym` the registrations discharge these checks. At `Interval` there
+is no registry. This consequence of #3453 q1 was not weighed at the
+time, so it goes to designer round 6 and may go to Ev. #3527 waits.
+
+- 2026-09-30 — 5a (#3527) round-3 opens, orchestrator rulings.
+  - m4_pr6 at ε 1e-12: plain `replay` shares `drive` with the guided replay, so every arc a replay constructs is verified at its construction. The D1 sentence reads "a replay constructs".
+  - On the Decide path, an unresolvable difference (M·2^-52 > band) refuses as a typed scene-resolution error, never `InconsistentArc`.
+  - m10_9 pad 122/128 (six Registered → NumericZero): a loss of proof strength, so not re-baselinable; root-cause by Sym tree diff.
+- 2026-09-30 — Seam note from AUTH-11 (`author/binder-prefix`, PR 3563). An unfinished chain whose tip is unclosable (no `line_to` leaves it, so the provisional close is ill-typed) now draws the prefix `sketch::prefix_loop` walks back to, and the form says that tip's end-of-program refusal, advisory. `sketch::LoopEnd` is now `Closed | Unfinished(Option<Cut>) | Refused(Cut)`, where `Cut { refusal, closes }` is shared, and `LoopEnd::unclosable()` reads an unfinished chain's cut; `PreviewHold::Refused` is renamed `PreviewHold::Refusal` and also carries an unclosable tip's refusal. `crates/profile/src/test_support.rs` gains `every_state`, `way_in` and `prefix`, moved from `tests/arc_spec_census.rs` so the viewer's census of unclosable tips reads the same ways in rather than a second copy. `crates/profile/tests/arc_spec_census.rs`: `prefix` and `every_state` moved to `profile::test_support` with every program byte-identical, `prefix` is now a lead plus the new `way_in(state)` (the steps that take a leg end into a state), and `every_prefix_reaches_its_state` also holds that every way in reaches its state from a leg end. (AUTH-11 implementer)
+
+- 2026-10-01 — 5a (#3527): Ev approved ("looks good!") D1's consistency sentence, rewritten as the principle at Ev's request: each condition is checked at validate or holds by construction, and none is decided twice. The specifics (tables against `ConstructedLoop`, scene resolution, exact and point scalars) live in `crates/profile/README.md`, "Where an arc's consistency is decided". Fork row 35 is filled (it was 21, then 33, then 34, as merges with main renumbered it; no row on main was renumbered). The dual review at `262f0d380` had one bilateral MAJOR (the copied-carrier abort), fixed; the DR row is the PR's last commit.

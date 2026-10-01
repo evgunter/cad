@@ -35,7 +35,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::props::quad::{RoundOutcome, RoundWindow};
+use geom_brep::props::quad::{self, RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
 };
@@ -318,8 +318,8 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
 /// `T: Decide`: no bracket is read anywhere on this path, so no bracket
 /// term is spelled. It IS `mass_properties_closed_form` with the band
 /// built inside from `tol`, the one public door onto that walk (the
-/// band-outside entry is `pub(crate)`, for the boolean engine's
-/// backstops, which hold a band already). Every closed-form face
+/// band-outside entry is `pub(crate)`, for the containment door's
+/// at-infinity probe, which holds a band already). Every closed-form face
 /// computes exactly as it does through the certified door, and a face
 /// that needs the certified quadrature refuses typed rather than
 /// passing unbounded, so on a closed-form body this door answers the
@@ -596,6 +596,78 @@ pub struct SignCertificate<'b, T: Decide> {
     quad: Option<QuadLane<T>>,
     runs: Vec<FaceRun<T>>,
     refused: Option<(FaceKey, PropsError)>,
+}
+
+impl<'b, T: Decide> SignCertificate<'b, T> {
+    /// This certificate's faces, to be refined PAST the reporting
+    /// target — consumed, because what comes back no longer keeps this
+    /// type's promises: its enclosures are no longer the reporting
+    /// walk's bits, and a later round's budget refusal is not the
+    /// target-level refusal [`Self::refine_to_target`] reports. Only
+    /// the enclosure can be read from it.
+    pub(crate) fn past_target(self) -> PastTarget<'b, T> {
+        PastTarget { walk: self }
+    }
+}
+
+/// **A volume enclosure being refined past the reporting target** —
+/// for a caller whose sign the reporting enclosure leaves open. It is
+/// read as an enclosure and nothing else: no number, no refusal, no
+/// continuation to the target, so the reporting door's bit-identity
+/// cannot be asked of it.
+pub(crate) struct PastTarget<'b, T: Decide> {
+    walk: SignCertificate<'b, T>,
+}
+
+impl<T: Decide> PastTarget<'_, T> {
+    /// The enclosure as it stands, as properties whose `volume_pad`
+    /// and `area_pad` are its half-widths.
+    pub(crate) fn props(&self) -> MassProperties<T> {
+        fold_runs(&self.walk.runs).0
+    }
+
+    /// **One round further** on every face that met the target at a
+    /// round below [`quad::LAST_ROUND_EVERY_LANE_RUNS`]. A face's
+    /// rounds are independent recomputations, so each later round's
+    /// enclosure is as sound as the reporting one and, until interval
+    /// rounding floors it, narrower. Answers whether any face moved:
+    /// `false` is the end of the refinement. A round that refuses
+    /// leaves every face as it was and ends the refinement — the
+    /// enclosures held are sound either way.
+    pub(crate) fn refine(&mut self) -> bool {
+        let walk = &mut self.walk;
+        let next: Vec<(usize, FaceKey, usize)> = walk
+            .runs
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, run)| {
+                run.converged_at
+                    .filter(|&round| round < quad::LAST_ROUND_EVERY_LANE_RUNS)
+                    .map(|round| (slot, run.face, round + 1))
+            })
+            .collect();
+        if next.is_empty() {
+            return false;
+        }
+        let hook = round_hook(walk.quad);
+        let (body, band, tol) = (walk.body, walk.band, walk.tol);
+        match decide_faces(&next, |&(_, face, round)| {
+            face_flux(body, face, band, &hook, tol, RoundWindow::at(round))
+        }) {
+            Ok(runs) => {
+                for ((slot, _, _), run) in next.iter().zip(runs) {
+                    walk.runs[*slot] = run;
+                }
+                true
+            }
+            Err(_) => {
+                for (slot, _, _) in &next {
+                    walk.runs[*slot].converged_at = None;
+                }
+                false
+            }
+        }
+    }
 }
 
 impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
@@ -1048,9 +1120,9 @@ impl<T: Real> fmt::Display for TargetUnreached<T> {
 }
 
 /// The closed-form-only walk against a caller-held band: plain
-/// `T: Decide`, no quadrature lane and no bracket read — the boolean
-/// engine's internal backstops (`volume_backstop`, `at_infinity_side`)
-/// take it with the band they already hold, and
+/// `T: Decide`, no quadrature lane and no bracket read — the
+/// containment door's at-infinity probe (`at_infinity_side`)
+/// takes it with the band it already holds, and
 /// [`mass_properties_structural`] is this door with the band built
 /// inside, the public spelling of the same walk. On a conic-trimmed
 /// face the closed form refuses typed (fail-loud). The at-rest
@@ -1258,6 +1330,7 @@ mod face_walk_composition_tests {
                 area_pad: 0.0,
             },
             open_at: None,
+            converged_at: None,
             refusal: None,
         }
     }
@@ -1424,6 +1497,7 @@ mod continuation_refusal_order_tests {
                 area_pad: 0.0,
             },
             open_at,
+            converged_at: None,
             refusal,
         }
     }
@@ -1621,6 +1695,11 @@ struct FaceRun<T> {
     /// and for one whose schedule has nothing further to offer — in
     /// every case there is no round to resume at.
     open_at: Option<usize>,
+    /// The round a single-round window met the reporting target at —
+    /// where [`PastTarget::refine`] resumes. `None`
+    /// for a closed-form face, for one that has not met the target, and
+    /// for one read through the whole schedule at once.
+    converged_at: Option<usize>,
     /// The refusal a target-level reading of this face earns. A face
     /// can carry one and still contribute a sound enclosure: that is
     /// the whole difference between the two levels.
@@ -1657,6 +1736,7 @@ fn face_flux<T: Decide>(
     let mut flux_pad = 0.0f64;
     let mut area_pad = 0.0f64;
     let mut open_at = None;
+    let mut converged_at = None;
     let mut refusal = None;
     let contribution: FaceContribution<T> = match *surface {
         Surface::Plane { origin, .. } => {
@@ -1703,7 +1783,13 @@ fn face_flux<T: Decide>(
             match quad_out {
                 Some(outcome) => {
                     let bounds = match outcome {
-                        RoundOutcome::Converged(bounds) => bounds,
+                        RoundOutcome::Converged(bounds) => {
+                            // A window of one round returns at that
+                            // round: the lane tests convergence before
+                            // it would end the window.
+                            converged_at = (window.first == window.last).then_some(window.first);
+                            bounds
+                        }
                         RoundOutcome::Open {
                             bounds,
                             round,
@@ -1746,6 +1832,7 @@ fn face_flux<T: Decide>(
             area_pad,
         },
         open_at,
+        converged_at,
         refusal,
     })
 }
@@ -2188,14 +2275,15 @@ fn classify_shells_via<T: Decide>(
         };
         // The low end first; the high end only when the low end decides
         // nothing. Closed-form shells (pad = 0) reuse the one verdict.
-        let lo = sign_at(volume - T::from_f64(volume_pad));
+        let ends = sums.enclosure();
+        let lo = sign_at(ends.volume_lo);
         let role = match role_at(BracketEnd::Low, lo) {
             Some(role) => role,
             None => {
                 let hi = if volume_pad == 0.0 {
                     lo
                 } else {
-                    sign_at(volume + T::from_f64(volume_pad))
+                    sign_at(ends.volume_hi)
                 };
                 match role_at(BracketEnd::High, hi) {
                     Some(role) => role,
@@ -2543,14 +2631,18 @@ mod wiring_rows {
 /// The **scalar policy for the certified at-rest gates**
 /// (`docs/DUAL-DESIGN.md` DL3): whether an evaluation-service
 /// consumer of [`crate::validate_geometric`] /
-/// [`crate::validate_pseudomanifold`] runs them at this scalar.
+/// [`crate::validate_pseudomanifold`] runs them at this scalar, and
+/// whether the boolean engine runs its volume backstop
+/// ([`AtRestPolicy::gate_volume_backstop`]), which measures its
+/// operands and its result through the certified quadrature.
 ///
 /// Certified validation is an act of certification — its tier-3
 /// battery re-derives surface certificates
 /// ([`geom_brep::OffsetFitLane::recertify`]), encloses volume flux
 /// through the quadrature lane, and certifies the contact census —
 /// so it belongs to the scalars with certification rights (`f64`,
-/// the telemetry probe, the interval scalar), whose impls here
+/// the telemetry probe, the interval scalar, and the symbolic tier
+/// over any of them), whose impls here
 /// delegate to the validation doors verbatim. At a
 /// [`Dual`](geom_core::Dual) the gate is **structurally absent**:
 /// the impl calls nothing, and its success arm SAYS so — the outcome
@@ -2579,11 +2671,12 @@ mod wiring_rows {
 /// bounds admit; this trait only decides which scalars'
 /// evaluation-service gates consult them.
 ///
-/// The trait also carries the three INJECTED DOORS whose presence is a
+/// The trait also carries the four INJECTED DOORS whose presence is a
 /// per-scalar fact, for the same reason it carries the gates: it is
 /// the per-scalar policy home. [`AtRestPolicy::offset_fit_lane`] is
 /// the offset fit's, [`AtRestPolicy::fitted_lane`] is the fitted
-/// pcurve derivations', and [`AtRestPolicy::shell_door`] is the
+/// pcurve derivations', [`AtRestPolicy::nurbs_lane`] is the plane ×
+/// NURBS edge certificate's, and [`AtRestPolicy::shell_door`] is the
 /// hollowing verb's; each answers `None` for its own reason — a
 /// derivation written at one scalar, or certification rights (DL1) —
 /// and the doc on each method says which. What a reader gets from the
@@ -2616,9 +2709,10 @@ pub trait AtRestPolicy: Decide {
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds
-    /// of the fitted-pcurve and shell doors beside it
-    /// ([`AtRestPolicy::fitted_lane`], [`AtRestPolicy::shell_door`]) —
-    /// three doors, one policy, no trait apiece.
+    /// of the fitted-pcurve, plane × NURBS and shell doors beside it
+    /// ([`AtRestPolicy::fitted_lane`], [`AtRestPolicy::nurbs_lane`],
+    /// [`AtRestPolicy::shell_door`]) — four doors, one policy, no trait
+    /// apiece.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
 
     /// **This scalar's fitted-pcurve door, or `None` where it may not
@@ -2640,6 +2734,22 @@ pub trait AtRestPolicy: Decide {
     /// at the mint's rim arms, keeps the refusal the arm already had,
     /// since no foot is measured.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>>;
+
+    /// **This scalar's plane × NURBS lane, or `None` where it may not
+    /// certify** — the ONE seam the `Some` comes from for an operation
+    /// generic over its scalar that re-certifies edge carriers (the
+    /// transform, [`crate::transform_rigid`]).
+    ///
+    /// `None` is certification rights (DL1), the same fact as
+    /// [`AtRestPolicy::fitted_lane`]'s: the certificate of an
+    /// `Intersection` between a plane and a described NURBS wall (M7-8)
+    /// is C9 certification arithmetic, and
+    /// [`geom_brep::NurbsLane`]'s one constructor is bounded on
+    /// [`geom_core::CertifiedBounds`]. An operation holding `None`
+    /// refuses that class typed, naming the scalar
+    /// ([`crate::TransformError::NurbsLaneUnsupported`] at the
+    /// transform).
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
@@ -2697,6 +2807,23 @@ pub trait AtRestPolicy: Decide {
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>>;
+
+    /// The boolean engine's volume backstop over an op's two operands
+    /// and its result (`crate::boolean::volume_backstop`, measuring
+    /// through [`QuadLane::certified`], at certifying scalars; absent at
+    /// duals, and the outcome says which).
+    ///
+    /// # Errors
+    ///
+    /// The backstop's own refusal, verbatim, where the scalar runs it.
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError>;
 }
 
 /// What an [`AtRestPolicy`] gate's success MEANS — the word that keeps
@@ -2725,6 +2852,12 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::FittedLane::certified())
     }
 
+    /// The decide-with-escalation lane certifies, so it derives the
+    /// plane × NURBS limbs.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
+    }
+
     /// The decide-with-escalation lane certifies, so it runs the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
@@ -2749,6 +2882,18 @@ impl AtRestPolicy for f64 {
         body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
+
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+            .map(|()| AtRestOutcome::Validated)
+    }
 }
 
 #[cfg(feature = "probe")]
@@ -2767,6 +2912,12 @@ impl AtRestPolicy for geom_core::Probe {
     /// where the offset fit above, written at `f64` alone, stays out.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
         Some(geom_brep::FittedLane::certified())
+    }
+
+    /// As the fitted door above: certification rights decide it, and
+    /// the recording scalar holds them.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     /// The recording scalar is `f64` with a sink attached, so it
@@ -2794,6 +2945,18 @@ impl AtRestPolicy for geom_core::Probe {
         body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
+
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+            .map(|()| AtRestOutcome::Validated)
+    }
 }
 
 impl AtRestPolicy for geom_core::interval::Interval {
@@ -2808,6 +2971,12 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// brackets are what the C2 certificate's hull bound is made of.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
         Some(geom_brep::FittedLane::certified())
+    }
+
+    /// The certified interval scalar derives the plane × NURBS limbs:
+    /// its brackets are what their hull bounds are made of.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     /// The certified interval scalar runs the door: its brackets are
@@ -2833,6 +3002,18 @@ impl AtRestPolicy for geom_core::interval::Interval {
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2861,6 +3042,12 @@ where
         Some(geom_brep::FittedLane::certified())
     }
 
+    /// The base scalar's lane, run at `Sym<T>`, for the reason the
+    /// fitted door above gives.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
+    }
+
     /// For the reason [`QuadLane`] gives at the symbolic tier: the
     /// tier changes how an identically-zero margin decides and
     /// nothing else, so wrapping a certifying base must not demote a
@@ -2887,6 +3074,18 @@ where
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2922,6 +3121,13 @@ where
         None
     }
 
+    /// **A dual does not certify** (DL1), and the plane × NURBS limbs
+    /// are certification arithmetic, so no `Dual` can hold the lane
+    /// ([`geom_brep::NurbsLane::certified`]'s bound).
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        None
+    }
+
     /// **A dual does not certify** (the DL3 ruling, unmoved), and the
     /// shell door's last act is a certified validation of what it
     /// built, so no `Dual` can hold one: a document evaluated for
@@ -2947,6 +3153,20 @@ where
         _contacts: &ContactRecords,
         _tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        Ok(AtRestOutcome::NotRunAtThisScalar)
+    }
+
+    /// The backstop is a validation of the result, and the quadrature
+    /// it measures with is certification arithmetic: absent here, the
+    /// base-scalar run of the same recipe is the check of record.
+    fn gate_volume_backstop(
+        _op: crate::BooleanOp,
+        _a: &Body<Self>,
+        _b: &Body<Self>,
+        _result: &Body<Self>,
+        _band: Band,
+        _tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
     }
 }
@@ -3061,6 +3281,33 @@ mod at_rest_policy_tests {
             T::fitted_lane().is_some(),
             "a certifying scalar holds the fitted-pcurve door"
         );
+        // The plane × NURBS lane likewise: `NurbsLane::certified()` or
+        // nothing.
+        assert!(
+            T::nurbs_lane().is_some(),
+            "a certifying scalar holds the plane x NURBS lane"
+        );
+        // The volume backstop runs, on a planted wrong result: a union
+        // "result" half the size of an operand.
+        let (cube, half) = planted_union::<T>(tol);
+        let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
+        assert!(
+            matches!(
+                T::gate_volume_backstop(crate::BooleanOp::Union, &cube, &cube, &half, band, tol),
+                Err(crate::BooleanError::ResultVolumeImplausible { .. })
+            ),
+            "the certifying arm runs the volume backstop"
+        );
+    }
+
+    /// A unit cube and a half-height brick on it, the second standing
+    /// in as a union's "result" that is smaller than an operand.
+    fn planted_union<T: Decide>(tol: Tol) -> (Body<T>, Body<T>) {
+        let brick = crate::test_support_fixtures::brick::<T>;
+        (
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 0.5), tol),
+        )
     }
 
     #[test]
@@ -3124,12 +3371,31 @@ mod at_rest_policy_tests {
             ),
             Ok(AtRestOutcome::NotRunAtThisScalar)
         );
+        let (cube, half) = planted_union::<geom_core::Dual64>(tol);
+        let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
+        assert_eq!(
+            <geom_core::Dual64 as AtRestPolicy>::gate_volume_backstop(
+                crate::BooleanOp::Union,
+                &cube,
+                &cube,
+                &half,
+                band,
+                tol
+            )
+            .map_err(|e| e.kind()),
+            Ok(AtRestOutcome::NotRunAtThisScalar),
+            "a dual runs no volume backstop, even on a result a certifying scalar refuses"
+        );
         // The shell door's absence is the same fact one step earlier:
         // the call is never formed at all, so there is no refusal to
         // read and nothing validated the caller could mistake for one.
         assert!(
             <geom_core::Dual64 as AtRestPolicy>::shell_door().is_none(),
             "a dual may not certify, so it holds no shell door"
+        );
+        assert!(
+            <geom_core::Dual64 as AtRestPolicy>::nurbs_lane().is_none(),
+            "a dual may not certify, so it holds no plane x NURBS lane"
         );
     }
 }
@@ -3219,10 +3485,10 @@ mod face_list_door_tests {
         let skew = quad_prism(&[(0.0, 0.0), (2.0, 0.3), (1.7, 1.9), (-0.4, 1.2)], 0.7, tol);
         let tall = quad_prism(&[(3.0, 3.0), (3.5, 3.0), (3.5, 3.5), (3.0, 3.5)], 4.0, tol);
         let mut pair = unit.clone();
-        crate::instance::graft_disjoint(&mut pair, &tall, tol).unwrap();
+        crate::instance::graft_disjoint(&mut pair, &tall).unwrap();
         let mut trio = skew.clone();
-        crate::instance::graft_disjoint(&mut trio, &tall, tol).unwrap();
-        crate::instance::graft_disjoint(&mut trio, &unit, tol).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &tall).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &unit).unwrap();
         vec![
             ("unit", unit),
             ("skew", skew),
