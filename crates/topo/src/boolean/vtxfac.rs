@@ -259,7 +259,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 surface(piercing_body, s.face),
                 surface(pierced_body, contact.face),
             ) {
-                (Some(a), Some(b)) => super::rest::tangent_locus(a, b, band).is_ok(),
+                (Some(a), Some(b)) => geom_brep::tangent_locus(a, b, band).is_ok(),
                 _ => false,
             };
             let admitted: &[crate::contact::ContactClass] = match (plane.is_some(), tangent) {
@@ -298,7 +298,11 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // Declared-`Tangent` (distinct carriers touching): the lump
         // verdict is the second-order sector trilean — which side the
         // sector's carrier CURVES to relative to the pierced face's
-        // material ([`super::sectors::tangent_lump`]).
+        // material ([`super::sectors::tangent_lump`]). It is read for the
+        // WHOLE sector, not per bound as `recl_sectors` reads it: a bound
+        // riding the tangency locus reads `On` per bound, and this door
+        // has no edge engine to adjudicate one — two `On` bounds are the
+        // consecutive-`On` refusal below.
         if class == Some(crate::contact::ContactClass::Tangent) {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)

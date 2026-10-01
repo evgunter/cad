@@ -374,3 +374,93 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
         panic!("the tube chain must be pseudomanifold-clean: {errs:?}");
     }
 }
+
+/// A slab under the upper quarter round, wide enough that the round's
+/// rim vertices land INSIDE its top face (x ∈ [0, 5], y ∈ [−1, 5],
+/// z ∈ [0, 1]).
+fn wide_slab_below() -> Body<f64> {
+    let plane = SketchPlane::new(Affine3::from_parts(
+        geom_core::Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
+        Vec3::new(0.0, -1.0, 0.0),
+    ));
+    let profile = Profile::new(
+        plane,
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 5.0), 0.0),
+            (Point2::new(0.0, 5.0), 0.0),
+        ])],
+    )
+    .validate(Tol::witness())
+    .unwrap();
+    extrude(&profile, Extrusion::Distance(6.0), Tol::witness())
+        .unwrap()
+        .body
+}
+
+/// **A declared-`Tangent` CURVED sector at a vertex on a face is lumped
+/// whole.** The quarter round rests on a slab whose top face contains
+/// its rim vertices, so the vertex-on-face door meets the round's wall
+/// sector with both bounds `On`: the tangency ruling, and the arc,
+/// which departs in the plane. Undeclared, that curved on-carrier
+/// sector is the typed frontier; declared `Tangent`, the door lumps it
+/// and the classification completes — the slab minus the round is the
+/// slab, their intersection is empty, and the union reaches the zip.
+/// Read per bound (as the v-v door reads it) both bounds stay `On`
+/// (the ruling exactly; the arc at a lever arm the in-band crossing
+/// split cut short), which this door refuses as consecutive `On`
+/// entries.
+#[test]
+fn a_tangent_curved_sector_on_a_face_lumps_whole() {
+    let a = wide_slab_below();
+    let b = quarter_round_above();
+    let va = mass_properties(&a, Tol::witness()).unwrap().volume;
+    let mut decls = BooleanDeclarations::none();
+    decls.coincident_faces.push(FacePairDeclaration::new(
+        plane_face(&a, 1.0, true),
+        plane_face(&b, 1.0, false),
+        ContactClass::Rest,
+    ));
+    let undeclared = topo::subtract_with(&a, &b, &decls, Tol::witness())
+        .expect_err("an undeclared curved on-carrier sector is the typed frontier");
+    assert!(
+        matches!(
+            undeclared,
+            topo::BooleanError::CurvedBooleanUnsupported { face, .. } if face == cyl_face(&b)
+        ),
+        "the frontier names the round's wall: {undeclared:?}"
+    );
+    decls.coincident_faces.push(FacePairDeclaration::new(
+        plane_face(&a, 1.0, true),
+        cyl_face(&b),
+        ContactClass::Tangent,
+    ));
+    let diff = topo::subtract_with(&a, &b, &decls, Tol::witness())
+        .expect("the declared tangent sector lumps and the difference runs");
+    let BooleanResult::Body(diff) = diff else {
+        panic!("the slab minus a body resting on it is the slab, not empty");
+    };
+    let v = mass_properties(&diff.body, Tol::witness()).unwrap().volume;
+    assert!(
+        (v - va).abs() <= 4.0 * va * f64::EPSILON,
+        "the slab minus the round is the slab: {v} vs {va}"
+    );
+    let meet = topo::intersect_with(&a, &b, &decls, Tol::witness())
+        .expect("the declared tangent sector lumps and the intersection runs");
+    assert!(
+        matches!(meet, BooleanResult::Empty),
+        "a resting contact encloses no volume"
+    );
+    let union = topo::union_with(&a, &b, &decls, Tol::witness())
+        .expect_err("the union classifies, then meets the rest zip's frontier");
+    assert!(
+        matches!(
+            union,
+            topo::BooleanError::RestZipUnsupported {
+                what: topo::RestZipFrontier::ChordBetweenIsolatedPierces
+            }
+        ),
+        "past classification, at the zip: {union:?}"
+    );
+}

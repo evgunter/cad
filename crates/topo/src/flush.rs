@@ -108,7 +108,7 @@
 //! (`CurvedPierceUnsupported` on a purely cylindrical mate, for one),
 //! and a true declaration meets them unchanged. `Tangent` findings
 //! wait on a locus the verifier can check
-//! ([`tangent_locus`](crate::boolean::tangent_locus)), per
+//! ([`geom_brep::tangent_locus`]), per
 //! SELECT-DESIGN §3's closing note — tangency, unlike cosurfacing, is
 //! a class the ladder has no verdict for yet.
 //!

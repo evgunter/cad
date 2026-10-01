@@ -1,6 +1,6 @@
 //! **#974's residual one-sign story, measured.**
 //!
-//! `boolean::rest::tangent_locus`'s CONTRACT is the separation
+//! `geom_brep::tangent_locus`'s CONTRACT is the separation
 //! invariant: every configuration the lane mints a locus for has each
 //! carrier wholly in ONE closed residual half-space of the other. #974
 //! recorded the coaxial cylinder×sphere circle arm as blocked on that
