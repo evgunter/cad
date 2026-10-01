@@ -169,6 +169,7 @@ pub fn node_kind_noun<P>(node: &Node<P>) -> &'static str {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use geom_core::Tol;
 
