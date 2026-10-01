@@ -1267,8 +1267,8 @@ mod tests {
     /// `&'static str`, empty finding lists, and one unit arm of the
     /// kernel's own refusal), so no arm is left unbuilt.
     fn every_arm() -> Vec<ProductError> {
-        let node = RecipeNodeId(3);
-        let through = RecipeNodeId(1);
+        let node = RecipeNodeId(test_utils::refusal::tagged(3));
+        let through = RecipeNodeId(test_utils::refusal::tagged(1));
         vec![
             ProductError::EvaluationOfAnotherDocument {
                 expected: crate::ident::DocumentId::derive("expected"),
@@ -1279,16 +1279,16 @@ mod tests {
             ProductError::Root(NodeStanding::Failed { node }),
             ProductError::Root(NodeStanding::Poisoned { node, through }),
             ProductError::PlacedUnderTwoRoots {
-                placed: RecipeNodeId(1),
+                placed: RecipeNodeId(test_utils::refusal::tagged(1)),
                 select: None,
                 first: node,
-                second: RecipeNodeId(4),
+                second: RecipeNodeId(test_utils::refusal::tagged(4)),
             },
             ProductError::Naming {
                 node,
                 name: Box::new(StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(1),
+                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
                     path: Vec::new(),
                 }),
             },
@@ -1442,8 +1442,8 @@ mod tests {
     #[test]
     fn a_root_without_a_value_renders_its_standing() {
         let standing = NodeStanding::Poisoned {
-            node: RecipeNodeId(4),
-            through: RecipeNodeId(2),
+            node: RecipeNodeId(test_utils::refusal::tagged(4)),
+            through: RecipeNodeId(test_utils::refusal::tagged(2)),
         };
         assert_eq!(
             ProductError::Root(standing).to_string(),
@@ -1462,10 +1462,10 @@ mod tests {
     fn the_naming_refusal_claims_rootedness_only_on_the_per_root_path() {
         let named = |node: u64, minted: u64| {
             ProductError::Naming {
-                node: RecipeNodeId(node),
+                node: RecipeNodeId(test_utils::refusal::tagged(node)),
                 name: Box::new(StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(minted),
+                    node: RecipeNodeId(test_utils::refusal::tagged(minted)),
                     path: Vec::new(),
                 }),
             }

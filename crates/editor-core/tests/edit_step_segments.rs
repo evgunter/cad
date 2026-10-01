@@ -917,16 +917,27 @@ fn a_loft_whose_outer_and_hole_start_off_their_lex_min_names_its_walls() {
 }
 
 /// **Memo: re-authoring a section re-derives its answer.** Section 1
-/// re-authored clockwise (the same point set) against a prior
-/// evaluation: its anchor changes, the loft is recomputed, and the door
-/// asked with the NEW section's naming names the walls its steps bound.
+/// re-authored clockwise (the same point set, by `SetProgram`) against
+/// a prior evaluation: its anchor changes, the loft is recomputed, and
+/// the door asked with the NEW section's naming names the walls its
+/// steps bound.
 #[test]
 fn a_reauthored_section_is_answered_after_a_memoized_reevaluation() {
     let before = [vec![rect_ccw()], vec![rect_ccw()]];
-    let after = [vec![rect_ccw()], vec![rect_cw()]];
     let (a, ids, loft) = loft_of_loops("loft-memo", &before);
-    let (b, ids_b, loft_b) = loft_of_loops("loft-memo", &after);
-    assert_eq!((&ids, loft), (&ids_b, loft_b));
+    let loops = crate::fixture::desc(ids[1], vec![rect_cw()]).loops;
+    let fresh = loops
+        .iter()
+        .map(|lp| vec![None; lp.authored_steps()])
+        .collect();
+    let (b, _) = crate::fixture::step(
+        a.clone(),
+        editor_core::DocEdit::SetProgram {
+            node: ids[1],
+            loops,
+            ids: fresh,
+        },
+    );
     let ea = run(&a);
     let again = evaluate::<f64>(
         &a,

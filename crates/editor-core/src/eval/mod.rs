@@ -81,7 +81,7 @@ pub struct Evaluation<T: Decide> {
     /// The pairing doors read this field to refuse a mispairing typed,
     /// before reading anything of the value; the memo reads it too and
     /// refuses differently, below. Node ids alone could not decide any
-    /// of it: they are minted by a per-document counter, so two
+    /// of it: they are minted from the edits that inserted them, so two
     /// documents built from one recipe carry the SAME ids for the same
     /// nodes, and every lookup would hit.
     ///
@@ -3602,7 +3602,7 @@ fn resolve_appearance<T: Decide>(
             (id, state.map(|v| &*v.name_table))
         })
         .collect();
-    appearance::resolve(doc.appearance(), &states)
+    appearance::resolve(doc.appearance(), order, &states)
 }
 
 /// One node's evaluation step: the result plus whether it was a memo

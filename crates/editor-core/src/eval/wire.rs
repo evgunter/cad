@@ -2076,8 +2076,8 @@ fn resolve_open_faces(
 /// ([`ladder::resolve_in`]):
 ///
 /// 1. [`ladder::live`] — the minting node must still be in the
-///    document. Ids are never reused, so an id below the mint counter
-///    was DELETED and one at/above it was never this document's
+///    document. Ids are never reused, so an id the mint log holds was
+///    DELETED and one it does not hold was never this document's
 ///    (`ForeignNode`). The [`ladder::Live`] token makes this rung
 ///    outrank every later refusal, a door's own included.
 /// 2. [`ladder::Landing::Tied`] → `Ambiguous`: the tie row IS the

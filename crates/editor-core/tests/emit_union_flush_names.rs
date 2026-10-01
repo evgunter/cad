@@ -476,13 +476,7 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
         );
         for order in permutations(&[0, 1]) {
             let members: Vec<_> = order.iter().map(|&i| [u1, ids[2]][i]).collect();
-            let (docx, top) = insert(
-                doc.clone(),
-                Node::Union {
-                    members,
-                    declare: None,
-                },
-            );
+            let (docx, top) = crate::fixture::union_over(doc.clone(), &members, None);
             let ev = run(&docx);
             let at = format!("{touch:?} {third:?} {order:?}");
             for union in [u1, top] {

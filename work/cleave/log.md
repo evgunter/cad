@@ -215,3 +215,4 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   dispatchable. Known gap: `PcurveCertifyError::FittedLaneUnsupported`
   has the same conflation of causes, though its claim holds in
   production today; not filed.
+- Unit 2 (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) dispatched on `cleave/mint-doors`; it also takes TOPO's `euler-rebased-run-...` row. Review: single, full.

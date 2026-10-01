@@ -54,6 +54,10 @@
 //! off the hosted `interval` lane, which is the only place this
 //! workspace builds that backend.
 //!
+//! **The stream hashes each node's id and walks the nodes in id
+//! order**, so a change to how the mint draws ids moves all three
+//! numbers with no point moving.
+//!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
 //! carrier used to be spelled three times, two of them SELECTING a `2π`
@@ -702,7 +706,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x97fe_b092_656c_fa0d, 0xd212_c9de_f577_4961),
+        (0x878a_0902_5cea_b61a, 0x9a41_6437_2c4f_8eee),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -728,7 +732,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x53ed_e59f_0253_e647, 0xc7a5_900d_2ed2_4d63),
+        (0x9224_8bd0_be1e_7d68, 0x2921_a5ca_5a26_b4d4),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -752,7 +756,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x97fe_b092_656c_fa0d, 0xd212_c9de_f577_4961),
+        (0x878a_0902_5cea_b61a, 0x9a41_6437_2c4f_8eee),
         "the corpus's Probe evaluation moved"
     );
 }
