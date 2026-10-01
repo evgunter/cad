@@ -677,6 +677,16 @@ pub enum LeverRefusal {
         /// The datum's own terms ([`Alignment::lever_arm`]).
         datum: f64,
     },
+    /// The lever is formed, but it is no longer than the band's zero
+    /// threshold, so every tilt levered over it reads zero and no
+    /// angle can be decided ([`coset::Arm::decides_over`]): the parts
+    /// are smaller than the tolerance can see.
+    BelowZeroBand {
+        /// The lever, in metres.
+        arm: f64,
+        /// The band's zero threshold, in metres.
+        zero: f64,
+    },
 }
 
 impl core::fmt::Display for LeverRefusal {
@@ -711,6 +721,12 @@ impl core::fmt::Display for LeverRefusal {
                     geom_core::RANGE_RECOURSE
                 )
             }
+            Self::BelowZeroBand { arm, zero } => write!(
+                f,
+                "its lever, {arm} m, is no longer than the tolerance's zero threshold, {zero} m, \
+                 so no tilt can be decided over it: the mated parts are smaller than the \
+                 tolerance can see. Recourse: commit a tolerance finer than the parts"
+            ),
         }
     }
 }
@@ -943,8 +959,11 @@ pub enum MateFault {
     /// length. The mates can both hold; the place they meet is past the
     /// session's range.
     PoseOutOfRange {
-        /// The mate being folded when the pose was solved.
-        mate: RecipeNodeId,
+        /// The mate already folded. **Equal to `added` when the pair
+        /// has no earlier mate**, as [`Self::Contradictory`] spells it.
+        held: RecipeNodeId,
+        /// The mate whose intersection named the meeting point.
+        added: RecipeNodeId,
     },
     /// The run's tolerance could not yield a band.
     Band {
@@ -1357,13 +1376,19 @@ impl core::fmt::Display for MateFault {
                 diag.payload(),
                 geom_core::NO_DECLARATION_RECOURSE
             ),
-            Self::PoseOutOfRange { mate } => write!(
-                f,
-                "mate {}: the mates meet at a pose too far away for the number format to hold. \
-                 Recourse: {}",
-                mate,
-                geom_core::RANGE_RECOURSE
-            ),
+            Self::PoseOutOfRange { held, added } => {
+                if held == added {
+                    write!(f, "mate {added}'s constraints meet")?;
+                } else {
+                    write!(f, "mates {held} and {added} meet")?;
+                }
+                write!(
+                    f,
+                    " at a point further away than the solve can measure a distance to. \
+                     Recourse: {}",
+                    geom_core::RANGE_RECOURSE
+                )
+            }
             Self::Band { error } => write!(f, "the mate solve could not build a band: {error}"),
             Self::Contradictory {
                 held,

@@ -978,7 +978,10 @@ mod tests {
                 mate: n(9),
                 diag: Box::new(diag()),
             }),
-            C::MatePoseOutOfRange => mate(crate::MateFault::PoseOutOfRange { mate: n(9) }),
+            C::MatePoseOutOfRange => mate(crate::MateFault::PoseOutOfRange {
+                held: n(8),
+                added: n(9),
+            }),
             C::MateBand => mate(crate::MateFault::Band {
                 error: band_error(),
             }),

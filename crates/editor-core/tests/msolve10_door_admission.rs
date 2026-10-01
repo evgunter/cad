@@ -841,7 +841,10 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             error,
         },
         MateFault::ClassNotAdmitted { mate } => MateFault::ClassNotAdmitted { mate: r(mate) },
-        MateFault::PoseOutOfRange { mate } => MateFault::PoseOutOfRange { mate: r(mate) },
+        MateFault::PoseOutOfRange { held, added } => MateFault::PoseOutOfRange {
+            held: r(held),
+            added: r(added),
+        },
         MateFault::TableLacks { mate, what } => MateFault::TableLacks {
             mate: r(mate),
             what,

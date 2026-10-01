@@ -1036,7 +1036,8 @@ BOUND_AS = {
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
     # `malformed_body`, `no_extent`, `no_finite_bound`,
     # `not_an_instance`), or why the lever the two form is out of the
-    # format's range (`out_of_range`). The instance a part's refusal is
+    # format's range (`out_of_range`) or under the band's zero threshold
+    # (`below_zero_band`). The instance a part's refusal is
     # about crosses as `MateFault.instance`, and a face that cannot be bounded names its
     # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",

@@ -817,7 +817,13 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         &["expected_document", "found_document"],
     );
     carries(&F::ClassNotAdmitted { mate: id(1) }, &["mate"]);
-    carries(&F::PoseOutOfRange { mate: id(1) }, &["mate"]);
+    carries(
+        &F::PoseOutOfRange {
+            held: id(1),
+            added: id(2),
+        },
+        &["held", "added"],
+    );
     // The four arms whose payload is a NESTED refusal. Each crosses
     // under the inner refusal's own word, with the numbers that word
     // qualifies beside it — the frame door's vocabulary, spelled the
@@ -5006,7 +5012,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "lever_refusal_tag",
-        values: &["not_an_instance", "out_of_range"],
+        values: &["below_zero_band", "not_an_instance", "out_of_range"],
         delegates: &["reach_refusal_tag"],
     },
     TagEntry {

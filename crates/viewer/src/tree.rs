@@ -1244,7 +1244,6 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::ClassNotAdmitted { mate }
         | MateFault::TableLacks { mate, .. }
         | MateFault::Indeterminate { mate, .. }
-        | MateFault::PoseOutOfRange { mate }
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PlacerRefused { mate, .. }
@@ -1258,10 +1257,12 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         // Names no mate and reaches NO row (`MateFault`'s doc says
         // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
-        // A contradiction is a claim about a PAIR of mates: neither is
-        // the wrong one on the fault's own telling, so both read as
-        // causes and the user picks which to relax.
-        MateFault::Contradictory { held, added, .. } => {
+        // A contradiction is a claim about a PAIR of mates, and so is
+        // a meeting point past the format: neither is the wrong one on
+        // the fault's own telling, so both read as causes and the user
+        // picks which to relax.
+        MateFault::Contradictory { held, added, .. }
+        | MateFault::PoseOutOfRange { held, added } => {
             if held == added {
                 vec![*held]
             } else {

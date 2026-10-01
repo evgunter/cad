@@ -569,7 +569,12 @@ fn mate_coset(
             // The lever is asked HERE and nowhere else in the table:
             // no rider, no ask.
             if let Some(theta) = alignment.clocking {
-                let arm = lever()?;
+                let arm = lever()?.decides_over(band).map_err(|refusal| {
+                    Box::new(MateFault::Unleverable {
+                        mate,
+                        refusal: Box::new(refusal),
+                    })
+                })?;
                 let roll = Measured::Lever(Lever::Roll {
                     radians: theta,
                     arm: arm.get(),
@@ -1066,7 +1071,16 @@ fn fold_pair<P: crate::ProfilePayload>(
                     return Err(Box::new(MateFault::Indeterminate { mate, diag }));
                 }
                 Err(FoldStop::OutOfRange) => {
-                    return Err(Box::new(MateFault::PoseOutOfRange { mate }));
+                    return Err(Box::new(MateFault::PoseOutOfRange {
+                        held: held_mate.unwrap_or(mate),
+                        added: mate,
+                    }));
+                }
+                Err(FoldStop::Unleverable(refusal)) => {
+                    return Err(Box::new(MateFault::Unleverable {
+                        mate,
+                        refusal: Box::new(refusal),
+                    }));
                 }
                 Err(FoldStop::Clash { predicate, clash }) => {
                     return Err(Box::new(MateFault::Contradictory {

@@ -1728,6 +1728,7 @@ pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
         LeverRefusal::Reach { refusal, .. } => reach_refusal_tag(refusal),
         LeverRefusal::NotAnInstance { .. } => "not_an_instance",
         LeverRefusal::OutOfRange { .. } => "out_of_range",
+        LeverRefusal::BelowZeroBand { .. } => "below_zero_band",
     }
 }
 

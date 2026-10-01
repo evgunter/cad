@@ -403,12 +403,10 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             },
             error,
         ),
-        MateFault::ClassNotAdmitted { mate } | MateFault::PoseOutOfRange { mate } => {
-            MateFaultPayload {
-                mate: Some(*mate),
-                ..none
-            }
-        }
+        MateFault::ClassNotAdmitted { mate } => MateFaultPayload {
+            mate: Some(*mate),
+            ..none
+        },
         // A struct, not an enum: the escalation has no inner WORD,
         // and its shape is which margin attribute is set.
         MateFault::Indeterminate { mate, diag } => with_escalation(
@@ -437,7 +435,9 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                     },
                 ),
                 LeverRefusal::NotAnInstance { node } => (Some(*node), None),
-                LeverRefusal::OutOfRange { .. } => (None, None),
+                LeverRefusal::OutOfRange { .. } | LeverRefusal::BelowZeroBand { .. } => {
+                    (None, None)
+                }
             };
             MateFaultPayload {
                 mate: Some(*mate),
@@ -496,6 +496,11 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
         // set — a roll's tilt or a residual — and a length measured
         // outright, or the structural refusal, carries none of the
         // three.
+        MateFault::PoseOutOfRange { held, added } => MateFaultPayload {
+            held: Some(*held),
+            added: Some(*added),
+            ..none
+        },
         MateFault::Contradictory {
             held,
             added,

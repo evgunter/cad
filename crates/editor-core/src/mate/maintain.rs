@@ -315,10 +315,12 @@ fn unsolved_because(poses: &SolvedPoses, gauge: RecipeNodeId) -> Option<Box<Mate
 /// frame, which is what deleting the offending mate — the recourse
 /// every such refusal names — has always done. When the solve could
 /// NOT decide — no band, an in-band case split, a part whose extent
-/// or resolution is not in hand, a placer whose pose could not be
-/// derived, a read mispaired against another document's solve — a
-/// pose may well exist and nothing here knows it, so the edit refuses
-/// rather than record a frame nothing decided.
+/// or resolution is not in hand, a lever no longer than the band's zero
+/// threshold, a placer whose pose could not be derived, a meeting point
+/// further away than a distance can be measured to, a read mispaired
+/// against another document's solve — a pose may well exist and
+/// nothing here knows it, so the edit refuses rather than record a
+/// frame nothing decided.
 fn undecided(fault: &MateFault) -> bool {
     match fault {
         MateFault::Band { .. }
