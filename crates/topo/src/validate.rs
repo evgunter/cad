@@ -2699,6 +2699,12 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
         M::Band(b) => (classify_band(b), TOLERANCE),
+        // Never produced at rest (the pass skips a placeholder face);
+        // classified as its Display states it.
+        M::PlaceholderChart { .. } => (
+            geom::PLACEHOLDER_SURFACE,
+            crate::pcurves::PLACEHOLDER_RECOURSE,
+        ),
         M::Certify { error, .. } => {
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
@@ -2706,6 +2712,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
                 | C::FittedMateMissing => (KIND, NOT_YET),
+                C::PlaceholderChart => (
+                    geom::PLACEHOLDER_SURFACE,
+                    crate::pcurves::PLACEHOLDER_RECOURSE,
+                ),
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",
                     "Recourse: check the body at a certifying scalar",

@@ -375,6 +375,12 @@ pub fn require_ring_torus<T: geom_core::Decide>(
     )
 }
 
+/// What a refusal of the placeholder chart
+/// ([`Surface::is_placeholder_chart`]) says, wherever it is refused —
+/// one text, so every reader sees the same fact in the same words.
+pub const PLACEHOLDER_SURFACE: &str =
+    "the surface has no description yet: it is only the placeholder a construction starts from";
+
 impl<T: Real> Surface<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
@@ -407,6 +413,18 @@ impl<T: Real> Surface<T> {
             Surface::Nurbs(n) => Some(n),
             Surface::Approx(a) => Some(a.fit()),
         }
+    }
+
+    /// Is this surface's chart the placeholder — the
+    /// [`NurbsSurface::placeholder`] payload a construction starts from,
+    /// or an approximating surface whose fit is one? Such a chart has no
+    /// locus (its net is all-poison), so nothing can be imaged on it or
+    /// metred through it. The ONE spelling of the question: every door
+    /// that refuses the placeholder asks here, so `Nurbs` and `Approx`
+    /// cannot drift apart. The refusal text is [`PLACEHOLDER_SURFACE`].
+    pub fn is_placeholder_chart(&self) -> bool {
+        self.spline_chart()
+            .is_some_and(NurbsSurface::is_placeholder)
     }
 
     /// **The representability margins of this surface's datum
