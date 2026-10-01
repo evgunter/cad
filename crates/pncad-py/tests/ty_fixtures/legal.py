@@ -8,6 +8,7 @@ the guide's own executed blocks.
 
 from pncad import (
     MeasurePrimitive,
+    Placement,
     MeasureExpr,
     AssertionDir,
     Advisory,
@@ -574,15 +575,20 @@ recomputed_nodes: int = both.recomputed
 crossings: int = both.part_evaluations
 
 # LIB-G18b: the assembly authoring vocabulary. A reference becomes an
-# instance, an edit places its group, a mate says how two instances
-# meet, and the gate says whether the result is valid at rest.
+# instance, an offset or a gauge places it, a mate says how two
+# instances meet, and the gate says whether the result is valid at
+# rest.
 instance: NodeId = doc.insert(Node.instantiate_part(reference))
-placed: DocEdit = DocEdit.set_placement(instance, here)
+placed: DocEdit = DocEdit.set_offset(instance, Placement.literal(here))
+unplaced_edit: DocEdit = DocEdit.set_offset(instance, None)
+stand_on: NodeId = doc.insert(Node.gauge(Placement.identity()))
+on_gauge: DocEdit = DocEdit.set_gauge(instance, stand_on)
+to_world: DocEdit = DocEdit.set_gauge(instance, None)
 designated: DocEdit = DocEdit.set_roots([instance])
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
 product_roots: list[NodeId] = doc.roots
-group_frame: Frame = doc.placement(instance)
-registry: dict[NodeId, Frame] = doc.placements()
+offset_read: Placement | None = doc.offset(instance)
+gauge_read: NodeId | None = doc.gauge(instance)
 carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
 after_edit: list[Maintenance] = doc.last_maintenance
@@ -601,6 +607,9 @@ seat_pose: Frame = side_a.placement()
 joint: NodeId = doc.insert(
     Node.mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
 )
+regauged: NodeId = doc.regauge_then_mate(
+    Node.mate(instance, "a-name", instance, "b-name", ContactClass.Rest, datum)
+)
 
 # The solve's read side, and the admission table a tool asks first.
 poses: SolvedPoses = solve_document(doc)
@@ -608,6 +617,8 @@ root: NodeId | None = poses.root(instance)
 role: MateRole | None = poses.role(joint)
 refusal: MateFault | None = poses.fault(joint)
 world: Frame = poses.placement(doc, instance)
+why_unplaced: str | None = poses.unplaced(instance)
+in_space: tuple[NodeId, str] | None = evaluate(doc).unplaced(instance)
 placed_groups: list[list[NodeId]] = groups(doc)
 keyed_by: NodeId = root_of(doc, instance)
 edges: list[tuple[NodeId, NodeId]] = reading_edges(doc)

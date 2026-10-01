@@ -100,9 +100,9 @@ fn mate_node(
 fn place(doc: ProfileDoc, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetPlacement {
-            node,
-            frame: Frame::translation(at),
+        DocEdit::SetOffset {
+            instance: node,
+            offset: Some(editor_core::Placement::literal(&Frame::translation(at))),
         },
     )
     .0
@@ -344,7 +344,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
         store.insert_part(block_part("docm6-deep-cube", 1.0, 1.0, 1.0), Tol::witness());
     let s1 = ProfileDoc::empty(DocumentId::derive("docm6-deep-s1"), Tol::witness());
     let (s1, s1_slab) = insert(s1, Node::instantiate_part(slab));
-    let (s1, s1_cube) = insert(s1, Node::instantiate_part(cube));
+    let (s1, s1_cube) = insert(s1, crate::fixture::mated_instance(cube));
     let (s1, s1_mate) = insert(
         s1,
         mate_node(
@@ -365,7 +365,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let mid = place(mid, m_s1b, [10.0, 0.0, 0.0]);
     let (mid, m_c0) = insert(mid, Node::instantiate_part(cube));
     let mid = place(mid, m_c0, [30.0, 0.0, 0.0]);
-    let (mid, m_c1) = insert(mid, Node::instantiate_part(cube));
+    let (mid, m_c1) = insert(mid, crate::fixture::mated_instance(cube));
     let (mid, mid_mate) = insert(
         mid,
         mate_node(
@@ -650,7 +650,7 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate_node(
+                node: Box::new(mate_node(
                     wrap(
                         instance,
                         in_part(inner_instances[0], cube_body, CapEnd::End),
@@ -661,7 +661,7 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
                     ),
                     ContactClass::Rest,
                     frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

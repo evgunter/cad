@@ -7,7 +7,7 @@ opened: 2026-08-23
 github: 975
 refs: [967, 971, 974]
 priority: P1
-cost: D
+cost: M
 ---
 
 ## From GitHub issue 975

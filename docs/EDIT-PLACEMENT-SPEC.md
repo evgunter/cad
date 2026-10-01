@@ -121,13 +121,17 @@ Announce each crossing.
    - A group is a component of instances under placing mates.
    - Its root is its earliest member, in document order, that carries an offset. Pattern-placed instances cannot be roots: implement this, or show that a pattern never yields an `InstantiatePart` and say so in A11 (3)'s code table.
    - A group with no member carrying an offset, or whose gauge chain reaches a deleted gauge, is **unplaced** (ruling 6).
-   - The solve runs in group-local coordinates and never reads a gauge frame (`pair_left_factor` stops reading the registry). So a parametric gauge frame does not widen the nominal-only solve class (`work/msolve/a-mate-through-a-parametric-placer-…`).
-   - World pose = the gauge chain's frame ∘ the root's offset ∘ the solved relative pose. It is evaluated in every lane, and the gauge chain and the offset feed the memo key.
-   - **Checked offsets.** A non-root member's offset is a checked statement. It is verified against the solve within the solve's tolerance, never ignored. A mismatch faults that instance, typed, naming the offset, with the recourse "clear the offset, or change the mate".
+   - World pose = A∘F∘B, composed in one home (`Pose::compose_around`):
+     - A, the derived offsets of the placers on the mate path, which is the identity bit for bit when no placer is on the path;
+     - F, the gauge chain's frame composed with the root's offset;
+     - B, the composed representatives.
+
+     The solve is gauge-free; F enters only through this composition, so a parametric gauge frame does not widen the nominal-only solve class (`work/msolve/a-mate-through-a-parametric-placer-…`). (The build found that "the solve never reads a gauge frame" could not hold with a placer on the path: A conjugates through F.) The pose is evaluated in every lane, and the gauge chain and the offset feed the memo key.
+   - **Checked offsets.** A non-root member's offset is a checked statement. It is verified against the solve within the solve's tolerance, never skipped: an unplaced group checks its offsets in its own space, and a member the spanning tree cannot reach faults `OffsetCheck::Unreached`, naming the mate. A mismatch faults that instance, typed, naming the offset, with the recourse "clear the offset, or change the mate". With a placer on the path, the check reads the gauge frame at the nominal; that is inside the nominal-only class above.
 4. **Edits.**
    - `SetPlacement` goes. `DocEdit::SetOffset { instance, offset: Option<Placement> }` and `DocEdit::SetGauge { node, gauge: Option<RecipeNodeId> }` (an instance's gauge or a gauge's parent) replace it. Each is refused, typed, on the wrong node kind, with a recourse.
-   - **The mate door.** Inserting a placing mate that joins two groups clears the offset of the `b` side's group root in the same edit. The mate places `b`'s group on `a`'s. So the merged group keeps one root, and a freshly inserted part never carries a stray checked identity offset. This is a compound edit, recorded as its edits, and replay re-applies them without solving.
-   - **"Copy x's gauge to y, then mate"** is one compound edit: `SetGauge` on every member of `y`'s group, then the mate insert above. Provide it as one door in `editor-core` and bind it in Python.
+   - **The mate door.** Inserting a placing mate that joins two groups clears every offset in `a`'s group, the root's and each checked member's, in the same edit, each reported `OffsetCleared`. The mate places `a`'s group on `b`'s: the first pick moves, as the viewer's stories pick the mover first, and no ratified clause chose a side. `b`'s root, read through `root_and_cause`, roots the merged group, so `b` does not move whatever `a`'s group held, and a freshly inserted part never carries a stray checked identity offset. When `b`'s group is unplaced nothing is cleared, and `a`'s root roots the merged group. This is a compound edit, recorded as its edits, and replay re-applies them without solving.
+   - **"Copy b's gauge to a, then mate"** (`regauge_then_mate`) is one compound edit: `SetGauge` on every member of `a`'s group, then the mate insert above. It refuses, typed (`EditError::WouldStartPlacing`, naming the mate), when the re-gauge would make any other mate start placing. It is one door in `editor-core`, bound in Python.
    - Deleting a gauge, a placed member or a placing mate is never refused. What stays placed is recomputed.
    - **References to a deleted gauge are kept, dangling.** Then the unplaced group can name its cause, and split can refuse a dead reference as A4 says; the recourse names `SetGauge`. Check `roots::check` and the DAG's invariants against dangling reading edges, and state what you changed.
 5. **What goes.**
@@ -135,14 +139,17 @@ Announce each crossing.
    - `ClusterMaintenance`, `Maintain`, `maintain`, `reconcile`, `registry_after`, and the edit door's maintenance solve. `apply` keeps the reach only for the mate insert's clocking rider (`admit_mate`);
    - `LoggedEdit.maintenance`: the log becomes plain edits, and `LoggedEdit` goes if nothing else needs it;
    - `EditError::MaintenanceRefused` and `MaintenanceUnrecorded`, `PersistError::MaintenanceFrame`, and `SnapshotError::PlacementSite` and `PlacementNotGauge`, with every match site (`refactor.rs` ReplayTail ~857–879, `pncad/src/workspace.rs` ~784, `pncad-py` `tags.rs` and `py/doc.rs`, `edit_payload.rs`);
-   - Python's `Doc.placement`, `Doc.placements`, `Doc.last_maintenance`, the `Maintenance` class and `DocEdit.set_placement`. Their replacements are `set_offset`, `set_gauge`, the gauge node and the compound door.
+   - Python's `Doc.placement`, `Doc.placements` and `DocEdit.set_placement`. Their replacements are `set_offset`, `set_gauge`, the gauge node and the compound door.
+
+   `Doc.last_maintenance` and the Python `Maintenance` class stay: DM7's strand reports live there. They carry no placement maintenance; the mate door's `offset_cleared` is added.
 6. **The unplaced group** (A9, A11 (2), Ev's #3441 and #3505).
    - **One derived fact per group: its space**, either the world or its own. It is evaluated in its own frame with its tree root at the origin, and it solves and checks internally as usual.
-   - **Product.** `product::product` gathers only world-space bodies. An unplaced group is not part of that body (A9).
-   - **The at-rest gate** mints pairs only within one space.
-   - **A measure** whose references lie in two spaces refuses, typed, naming the unplaced group, with the recourse "place it (a gauge, an offset or a placing mate)". It never answers a number across spaces.
-   - **STEP.** `export_document_step`, and `step_for_node` on an unplaced instance, refuse naming the unplaced parts, the cause (no offset, or the deleted gauge), and how to place them (A11 (2)).
-   - No other door changes behaviour. Show this with a sweep: list every reader of world poses and state which space it reads.
+   - **One representation:** `Space { World, Own { group, cause } }`, asked through one cross-space predicate (`Evaluation::across_spaces`).
+   - **Product.** `product::product` gathers only world-space bodies. An unplaced group is not part of that body (A9). A document with no world body refuses `ProductError::Unplaced`, naming the unplaced groups, with the place-it recourse.
+   - **The at-rest gate** mints pairs only within one space, and it checks every own space. The per-space loop lives in the one shared core every caller goes through (`Product::spaces`, `own_spaces`, `gate_spaces`), so the kernel, the viewer badge and Python all run it.
+   - **Readers.** A measure, the flush detector, selection, clearance and pick whose references lie in two spaces refuse, typed, naming the unplaced group, with the recourse "place it (a gauge, an offset or a placing mate)". None answers across spaces.
+   - **The document seam.** An unplaced group inside a part crosses as a fact (`CarriedUnplaced`, `Evaluation::unplaced_below`), routed like a carried mint refusal. The outer product holds the world only, and the outer gate does not re-run an inner part's own spaces.
+   - **STEP.** `export_document_step`, and `step_for_node` on an unplaced instance, refuse naming the unplaced parts, the cause (no offset, or the deleted gauge), and how to place them (A11 (2)). An unplaced group below refuses `UnplacedBelow`, naming the part, its route and the cause.
 7. **Split and inline: A4 as written.** The clause is the contract; build it. In particular:
    - split's refusals: `TornGroup`, two anchors, a severed gauge, a declaring mate that would start placing, a dead gauge reference, and a cut of unplaced material alone;
    - the two hoist shapes;
@@ -152,14 +159,18 @@ Announce each crossing.
    - the frame rule and the fold rule, each refusing the mate by name;
    - declaring crossing mates filling `InterfaceRecord` (AQ8).
 
-   Every refusal is typed and carries a one-edit recourse (the refusal standard). Replace `InlineError::UnplaceableFrame` only if a new arm states the same refusal more truly.
+   - a cut that leaves a group's placing mate behind refuses `PlacingMateLeft`;
+   - every reference leaving the cut votes for an anchor, and plain geometry votes for the world; a group unplaced for lack of an offset casts no vote;
+   - a `FromFace` side whose frame would cross the seam refuses `MateFaceFrameCrosses`, at split and at inline. Its frame is written in the reading instance's coordinates; `work/msolve/a-mate-frame-is-written-in-the-reading-instances-coordinates.md` (M1) is the uniform fix.
+
+   Every refusal is typed and carries a one-edit recourse (the refusal standard), guarded by `refusal_concision_refactor.rs`. Replace `InlineError::UnplaceableFrame` only if a new arm states the same refusal more truly.
 
    The defects on main that the designers found close here, each pinned by a row:
    - inline reads the group's frame, not the instance's pose;
    - inline rebinds mate heads without re-coordinating their frames.
-8. **Cross-gauge contact at the gate.** A declaring mate across gauges goes through the gate's existing declared-contact path. P2 neither widens nor narrows what the gate can certify; today that path answers `Uncertified` for instance pairs. Report what a cross-gauge declaration yields on your head. If no tracker row already owns the `Uncertified` limit, file one on MSOLVE.
+8. **Cross-gauge contact at the gate.** A declaring mate across gauges goes through the gate's existing declared-contact path. P2 neither widens nor narrows what the gate can certify. That path certifies a declared instance pair at rest within tolerance and refuses one beyond it, so a cross-gauge declaration certifies. (The premise that it answers `Uncertified` for instance pairs was false.)
 9. **Persistence.**
-   - `Doc` loses `placements`. Instances gain their two fields, and the gauge node gets a wire shape.
+   - `Doc` loses `placements`. Instances gain their two fields, both required on the wire, and the gauge node gets a wire shape.
    - An old file refuses, typed (`Unreadable`, with the regenerate recourse); it never loads with a different meaning.
    - A dangling gauge reference loads; it is a legal state.
    - Regenerate every file the change moves from its source, and name each one with what moved it. Re-baseline every pin that moves and list them in the PR body. A golden that changes is never a cost to weigh against the change (`docs/prompts/implementer-discipline.md`).
@@ -171,7 +182,7 @@ Announce each crossing.
 **Rows.** Each is red on `origin/main` (or absent there, where the door is new), then green:
 - an instance on a gauge under a gauge is placed by the composed chain, and a document parameter driving the outer gauge moves both levels;
 - inserting an instance places it at the world origin, and mating it to a placed instance clears its offset in the same logged edit, which replays without solving;
-- the compound "copy x's gauge to y, then mate" re-gauges y's whole group;
+- the compound "copy b's gauge to a, then mate" re-gauges a's whole group, and refuses when the re-gauge would make another mate start placing;
 - a checked offset that disagrees with the solve faults that instance, typed;
 - deleting a gauge, a placed member or a placing mate is not refused, and the group becomes unplaced: it evaluates in its own frame, the gate mints none of its cross-space pairs, a cross-space measure refuses typed, and STEP export refuses naming the parts and the cause;
 - the A4 table, one row per arm: every split refusal and both hoists; inline's gauge, its sugar, its mate-placed admission and refusal, and the moved-member refusal; and the frame-rule and fold-rule refusals;
@@ -183,7 +194,7 @@ Announce each crossing.
 
 **Mutants** (plant, run, revert; report which rows go red):
 - the solve reads the gauge frame;
-- the mate door forgets to clear `b`'s root offset;
+- the mate door forgets to clear an offset in `a`'s group;
 - a checked offset ignored;
 - an unplaced group gathered into the product;
 - STEP export of an unplaced part allowed;

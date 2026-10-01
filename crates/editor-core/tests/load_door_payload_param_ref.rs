@@ -155,10 +155,10 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Measure {
+            node: Box::new(Node::Measure {
                 expr: MeasureExpr::value(Expr::param(missing.clone(), Dimension::Length)),
                 refs: Vec::new(),
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -253,7 +253,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: bound(&missing),
+            node: Box::new(bound(&missing)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -398,11 +398,11 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: extrude,
                 bound: Expr::param(name.clone(), Dimension::Length),
                 dir: editor_core::AssertionDir::AtLeast,
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

@@ -2,7 +2,8 @@
 id: mate-solve-carries-the-cluster-maintenance-half
 kind: issue
 title: mate/solve.rs holds the D-3 cluster-record maintenance beside the solve, a second concern the module doc gives one bullet
-status: open
+status: closed
+closed: 2026-10-01
 opened: 2026-09-19
 priority: P1
 cost: D
@@ -28,3 +29,12 @@ solve with no verdict refuses the edit), `solve.rs` keeping the solve
 and the module doc it already has. Not taken in MSOLVE-7: the fence
 was the solve's cost and seats, and a file split is a review of its
 own.
+
+## Closed
+
+By PR #3676 (EDIT P2-core, `edit/placement-gauges`): the cluster-record
+maintenance is deleted whole — `ClusterMaintenance`, `Maintain`,
+`maintain`, `registry_after`, `reconcile` and the edit door's
+maintenance solve, with the placement registry they kept. No edit
+records a frame (A11 (2)), so `mate/solve.rs` holds the solve alone and
+there is no second concern to move out.

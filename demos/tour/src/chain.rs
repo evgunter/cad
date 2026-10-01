@@ -297,8 +297,15 @@ fn scl(v: f64) -> Expr {
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }

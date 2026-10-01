@@ -259,3 +259,41 @@ The code's A11 vocabulary follows A4, A9 and A11: a cluster is a group, and its 
 - ASSEMBLY.md's code table names them.
 
 Nothing changed meaning: no golden, pin or saved byte moved. The identifiers P2 deletes keep their old words (`ClusterMaintenance`, `Maintain`, `Maintenance::Cluster`, `EditError::Maintenance*`, `PersistError::MaintenanceFrame`, `SnapshotError::PlacementNotGauge`/`PlacementSite`, `Doc::placements`). A11 (3)–(4)'s clause prose still says "cluster" and is P2's to re-word.
+
+## Built (P2-core, 2026-10-01, PR 3676)
+
+P2 is cut in two, on the orchestrator's approval: P2-core here, and P2-split on `edit/placement-split-inline`. PR 3676's body holds the record: each ruling, how it is built, its evidence and its mutants.
+- **The gauge node and the instance.** `Node::Gauge { parent, placement }`, and `InstantiatePart { gauge, offset }`. An instance is inserted at the world origin.
+- **Groups.** A mate places when both members name the same gauge. The root is the earliest member that carries an offset on a live chain. Otherwise the group is unplaced (`NoOffset`, `DeadGauge`).
+- **The pose.** The world pose is `A ∘ F ∘ B`, and the solve never reads `F`. A non-root member's offset is checked against the solve (`OffsetDisagrees` / `OffsetUnchecked`).
+- **Edits.** `SetOffset` and `SetGauge` replace `SetPlacement`.
+- **The mate door** places the FIRST operand's group on the second's and clears the first's root offset (ruling C). It reports `Maintenance::OffsetCleared`.
+- **The compound door.** `regauge_then_mate` re-gauges the first operand's group onto the second's gauge.
+- **What goes.** The registry, the cluster maintenance and `LoggedEdit` are deleted. The log is plain edits.
+- **The unplaced group.** It lives in its own space. A node across two spaces refuses `Unplaced`. The product gathers the world, the gate takes each space alone, and STEP refuses `ExportError::Unplaced`.
+- **Split and inline, interim.** Admitted: the group hoist, the verbatim move of a cut with no gauge, inline's sugar and `o = ∅`. Built in full: the frame rule and the fold rule.
+- **The interim refusal set**, which P2-split lifts (`work/edit/placement-split-and-inline-at-a-gauge-are-refused-until-p2-split.md`): `SplitError::CutHoldsGauge`, `InlineError::NeedsAGauge` and `InlineError::MatePlaced`. A `FromFace` side across the seam also refuses (`MateFaceFrameCrosses`), because its name is not re-spelled for the new member's part.
+
+The row stays open for P2-split.
+
+## Fix pass (P2-core, 2026-10-01, PR 3676)
+
+The dual review's union, as the orchestrator ruled it. PR 3676's body holds each item with its evidence and mutants.
+- **The mate door** clears every offset in the first operand's group when the second's is placed, one `OffsetCleared` row each; the second's root roots the merged group.
+- **The compound door** refuses `EditError::WouldStartPlacing` when the re-gauge would turn a declaring mate placing.
+- **Own spaces.** A `Product` carries each unplaced group's own space, and `assemble_gathered` gates them, so the viewer badge and Python check them; `assemble` checks them when the world has no body, and the world gather of unplaced material alone refuses `ProductError::Unplaced` naming the groups.
+- **The seam.** An unplaced group below crosses as a routed fact (`CarriedUnplaced`, `Evaluation::unplaced_below`); STEP refuses `ExportError::UnplacedBelow`.
+- **Split** refuses `PlacingMateLeft`, and every reference leaving the cut votes for the anchor (a plain or placer root votes the world; a group unplaced for lack of a root casts none).
+- **Readers across spaces** refuse typed (`across_spaces`): the flush detector, the clearance door, the kernel pick. The viewer picks each space by itself.
+- **Checked offsets** are checked in every group, unplaced or not, through `Pose::compose_around`; a member the tree cannot reach faults `OffsetCheck::Unreached`.
+- **Recourses** of `MatePlaced`, `NeedsAGauge`, `UnplaceableFrame` and `PartDeadGauge` are honourable; `refusal_concision_refactor.rs` guards every split and inline arm (older arms filed: `work/edit/split-and-inline-refusals-short-of-the-shape-guard.md`).
+- **Also:** the hoisted root's parameters stay in the host; `gauge`/`offset` are required on the wire; gauge references are reading edges; `DocEdit::InsertNode` boxes its node; one space fact (`Space`), one frame-rule predicate.
+
+
+## Merged (P2-core, 2026-10-01, PR 3676)
+
+- Merged `a772283dd` after the dual review (DR-34: tally 5, MAJOR found by both) and the fix pass.
+- Main was merged in three more times before the merge.
+- It merged over one red of main's at ε 1e-6, `sweep reach_volume_backstop::an_open_sign…` (REACH P0), with Ev's leave.
+- The spec's P2 section now records the rulings as built.
+- Next is P2-split (`placement-split-and-inline-at-a-gauge-are-refused-until-p2-split`), an L unit and a concurrent dual under the protocol at `7cb05367e`. P3 goes to the viewer owner's slate.

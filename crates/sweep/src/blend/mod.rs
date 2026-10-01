@@ -929,11 +929,17 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
      band)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
-/// refusals: what remains outside is junction carry-through and rims
+/// refusals: what remains outside is junction carry-through (save
+/// consecutive plane–plane links on one support pair) and rims
 /// that are not whole circular rings between two coaxial surfaces of
 /// revolution.
 ///
-/// **Its open clause names BOTH terminations the surgery carves.** A
+/// **Its open clause names the one junction the surgery carves
+/// through**: consecutive plane–plane links on the same two support
+/// faces, the joint a coplanar-face merge leaves where a wall was
+/// subdivided — the band is one surface the joint only splits.
+///
+/// **And it names BOTH terminations the surgery carves.** A
 /// plane\u{2013}plane link ends at a uniform trivalent corner; a RULED link —
 /// a cylinder with a plane or another cylinder, along the ruling they
 /// share — ends at transverse caps, which is the OQ6 scope decision
@@ -974,10 +980,11 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// A merged flat top that is an ANNULUS carves through this clause:
 /// `ring_clearance_forms::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
 /// `blend_recourse_followability` follows the clause to a carve.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend one-link open chains ending at fully requested trivalent plane\u{2013}plane \
-     corners of one convexity or at TRANSVERSE CAPS on a cylinder's ruling. For a fillet, \
-     a whole latitude rim between coaxial surfaces of revolution carves too, its rings \
-     clear of the band's setback; junction carry-through and run-outs are not implemented";
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both faces between fully requested trivalent \
+     plane\u{2013}plane corners of one convexity, or single cylinder-ruling links at TRANSVERSE \
+     CAPS. For a fillet, a whole latitude rim of coaxial surfaces of revolution carves, its \
+     rings clear of the band's setback; junction carry-through and run-outs are not \
+     implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
@@ -1348,6 +1355,7 @@ pub enum BlendError {
     ///
     /// Two families, and the second is not a shape of the chain in
     /// isolation: (a) the chain's own form — multi-link open chains
+    /// whose links do not share both supports, or are not plane–plane
     /// (junction carry-through), support pairs no arm covers, one-edge
     /// chains (a closed rim on EITHER material side is inside the door:
     /// the band adds material on a concave rim through the same carve);

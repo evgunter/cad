@@ -831,12 +831,7 @@ fn a_value_edit_round_trips_through_the_file() {
         name: p("bore"),
         value: DocParamValue::Continuous(0.011),
     }];
-    let text = save(
-        &doc,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect("saves");
+    let text = save(&doc, edits.as_ref(), Tol::witness()).expect("saves");
     let back = load(&text, Tol::witness()).expect("loads");
     match back.doc.params()[&p("bore")] {
         DocParam::Continuous {

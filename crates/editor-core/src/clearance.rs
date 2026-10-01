@@ -729,6 +729,15 @@ pub enum SelectionRefusal {
         /// The name, rendered.
         name: String,
     },
+    /// The two selections live in different spaces (A9, A11 (2)): one
+    /// is in an unplaced group's own space, and nothing outside an
+    /// unplaced group is compared with it.
+    AcrossSpaces {
+        /// The unplaced group, by its root.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: crate::mate::Unplaced,
+    },
 }
 
 impl core::fmt::Display for SelectionRefusal {
@@ -749,6 +758,14 @@ impl core::fmt::Display for SelectionRefusal {
             Self::NotAFace { name } => {
                 write!(f, "{name} resolves, but not to a face of the selected body")
             }
+            Self::AcrossSpaces { group, cause } => write!(
+                f,
+                "the two selections live in different spaces — one is in the own space of the \
+                 group rooted at node {}, unplaced because {cause}, and nothing outside an \
+                 unplaced group is compared with it. {}",
+                group,
+                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
+            ),
         }
     }
 }
@@ -1182,6 +1199,11 @@ pub fn clearance_with(
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
 
+    if let Some((group, cause)) = ev.across_spaces(a.at, b.at) {
+        return ClearanceReport::refused(ClearanceRefusal::Selection(
+            SelectionRefusal::AcrossSpaces { group, cause },
+        ));
+    }
     let windows_a = match windows_of(&ev, a, Some(band)) {
         Ok(w) => w,
         Err(r) => return ClearanceReport::refused(r),

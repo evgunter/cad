@@ -302,3 +302,18 @@ a different question that keeps its own code, argued once at `arc_trim`.
 its domain (pinned against an oracle with a census row). `CircleMargins`
 stays: an unsigned per-piece distance reads an enclosing ring as clear.
 Single review, fix pass, delta review, last pass.
+
+## 2026-10-01 — `subdivided-rim-fillet-refuses-at-the-collinear-joint` closed (PR #3701)
+
+A rim of collinear plane–plane links between the same two faces, meeting
+at valence-2 joints, fillets and chamfers as ONE band face
+(`OpenBand::admit`'s `Joint`, one `joint_verdict` shared with predicate 2;
+per joint one kef of the lower strut and one kev of the spur), named
+`BandFace` of the chain's sorted edge names. Predicate 2's clearance screen
+groups a joined run as one feature and checks each joint's foot exactly
+against the trimlines at the run's ends; nothing it cannot read is skipped.
+Full review, fix pass, delta review, last pass. Merged with two red rows
+that are main's own (filed there: REACH's 1e-6 `SectionLoopMixed`, PROPS'
+thread-count golden); every other row green. Filed:
+`ruled-band-refuses-a-joint-on-one-support-pair`,
+`unmerged-subdivided-wall-rim-fillet-names-no-merge-recourse`.
