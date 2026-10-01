@@ -2196,9 +2196,8 @@ const NOT_YET: &str = "There is no way through yet";
 const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 
 /// The recourse for a curve whose parameter range its image on a
-/// spline face cannot be expressed on (`geom_brep::CarrierDomainRefusal`).
-const REPARAMETERIZE: &str = "Recourse: give the curve a parameter range of moderate width near \
-                              zero, such as 0 to 1; that moves no point of it";
+/// spline face cannot be expressed on — the lane's own.
+const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
 
 /// The recourse for a margin the band could not decide, where a
 /// coincidence between two things has an object to declare: the

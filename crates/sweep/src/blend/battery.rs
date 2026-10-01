@@ -152,11 +152,10 @@ pub(crate) fn classified<T: Bounds>(
     }
 }
 
-/// The number of interior samples the chain predicates take along
-/// each link. Nine, matching the certification schedule's
-/// `CERT_SAMPLES` — the battery and the certificate look at the same
-/// places, on purpose.
-pub const CHAIN_SAMPLES: u32 = 9;
+/// The number of samples, ends included, the chain predicates take
+/// along each link: the certification schedule's, so the battery and
+/// the certificate look at the same places.
+pub const CHAIN_SAMPLES: u32 = geom_brep::CERT_SAMPLES;
 
 /// Which way the material wedge turns along a chain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

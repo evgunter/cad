@@ -8,10 +8,7 @@ use core::num::NonZeroUsize;
 
 /// A typed construction failure for spline structure — fail-loud per
 /// D4: every invalid input is a named refusal, never a silent repair.
-///
-/// `Copy`: every payload is plain data, so a `Copy` refusal can carry
-/// one whole (`geom_brep`'s carrier-domain refusal does).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SplineError {
     /// The knot vector fails the clamped-v1 contract; `reason` names
     /// the exact violation.

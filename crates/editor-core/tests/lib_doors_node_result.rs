@@ -436,7 +436,9 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
 
     let cases: Vec<(K, String)> = vec![
         (
-            K::Loft(sweep::LoftError::SeamStructure { source: spline }),
+            K::Loft(sweep::LoftError::SeamStructure {
+                source: spline.clone(),
+            }),
             spline.to_string(),
         ),
         (

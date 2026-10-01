@@ -43,3 +43,16 @@ the image-schedule index `4k` from `t` against the carrier's domain
 (it does not have the domain in hand today). The first changes the
 variant's payload and every reader of `sample`; the second keeps the
 vocabulary. Not decided here.
+
+## A second instance: `chart_foot`
+
+`crates/geom-brep/src/edge_nurbs.rs`, `chart_foot` (the single-point
+foot the pcurve mint's rim arms read) maps a non-converging projection
+to `PlaneNurbsRefusal::FootPointInconclusive { sample: 0, .. }`. The
+point it projects is an edge endpoint, on no schedule at all, so the
+`sample` it reports names a schedule position it never visited. Its
+mint-side caller (`pcurve_cache::chart_foot_lane`) already drops the
+index for `FittedMagnitude::EndpointFootDistance`, which carries none;
+the lane's own vocabulary still says "schedule sample 0". The same fork
+as above decides it (a parameter, or no position, rather than an index
+standing in for one).

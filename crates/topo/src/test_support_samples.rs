@@ -203,10 +203,7 @@ fn carrier_domain_invalid() -> geom_brep::CarrierDomainRefusal {
     geom_brep::CarrierDomainRefusal {
         lo: -f64::MAX,
         hi: f64::MAX,
-        source: geom_core::spline::SplineError::DomainInvalid {
-            lo: -f64::MAX,
-            hi: f64::MAX,
-        },
+        fault: geom_brep::CarrierDomainFault::Interval,
     }
 }
 
@@ -215,9 +212,9 @@ fn carrier_domain_collapsed() -> geom_brep::CarrierDomainRefusal {
     geom_brep::CarrierDomainRefusal {
         lo: 1.0e6,
         hi: 1.0e6 + 1.0e-9,
-        source: geom_core::spline::SplineError::KnotVectorInvalid {
-            reason: geom_core::spline::KnotVectorIssue::InteriorMultiplicityTooHigh { index: 2 },
-        },
+        fault: geom_brep::CarrierDomainFault::Collapse(
+            geom_core::spline::KnotVectorIssue::InteriorMultiplicityTooHigh { index: 2 },
+        ),
     }
 }
 

@@ -932,7 +932,7 @@ mod tests {
                 tolerance: f64::NAN,
             },
             FitError::Lsq(lsq.clone()),
-            FitError::Structure(structure),
+            FitError::Structure(structure.clone()),
             FitError::KnotAlgebra(knot_algebra.clone()),
             FitError::ParamCountMismatch {
                 params: 3,

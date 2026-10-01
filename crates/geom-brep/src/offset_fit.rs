@@ -3041,7 +3041,7 @@ mod recourse_tests {
             OffsetFitError::Meter(meter),
             OffsetFitError::PatchBound(patch_bound),
             OffsetFitError::Fit(fit.clone()),
-            OffsetFitError::Structure(structure),
+            OffsetFitError::Structure(structure.clone()),
             OffsetFitError::InvalidRequest {
                 d: 0.0,
                 tolerance: 0.0,

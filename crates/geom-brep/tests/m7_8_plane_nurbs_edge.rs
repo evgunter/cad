@@ -385,53 +385,72 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_indistinguishable_from_th
 }
 
 /// **The domain door's refusal is its own, at both consumers of the
-/// one producer.** The true locus, on a carrier domain `[1e6, 1e6 +
-/// 1e-9]` far narrower than an ulp of its ends times the schedule's 32
-/// steps: every foot converges and the interpolation succeeds, and
-/// re-expressing the image on that domain collapses its knots under
-/// `f64` rounding. The plane × NURBS lane and the pcurve mint both
-/// refuse with the domain door's typed reason and the carrier's exact
-/// domain — not the interpolation's refusal, whose recourse is a defect
-/// report rather than a reparameterization.
+/// one producer, in both of its shapes.** The true locus, on two
+/// carrier domains:
+///
+/// - `[1e6, 1e6 + 1e-9]`, far narrower than an ulp of its ends times
+///   the schedule's 32 steps: every foot converges and the
+///   interpolation succeeds, and re-expressing the image on that domain
+///   collapses its knots under `f64` rounding;
+/// - `[−f64::MAX, f64::MAX]`, whose width overflows: the door is asked
+///   before the schedule, so the carrier's own fault is reported rather
+///   than a foot that did not converge at a NaN parameter.
+///
+/// The plane × NURBS lane and the pcurve mint both refuse with the
+/// door's fault and the carrier's exact domain, never the
+/// interpolation's or the projection's refusal.
 #[test]
-fn a_carrier_domain_too_narrow_for_its_ends_refuses_as_the_domain_door() {
-    use geom_brep::{CarrierDomainRefusal, FittedLane, PcurveCertifyError};
-    use geom_core::spline::{KnotVector, SplineError};
-    let (lo, hi) = (1.0e6, 1.0e6 + 1.0e-9);
-    let knots = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();
-    let carrier = NurbsCurve3::new(
-        knots,
-        vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)],
-        vec![1.0, 1.0],
-    )
-    .unwrap();
+fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
+    use geom_brep::{CarrierDomainFault, CarrierDomainRefusal, FittedLane, PcurveCertifyError};
+    use geom_core::spline::KnotVector;
     let wall = quarter_cylinder_wall();
-    let refused = |r: &CarrierDomainRefusal| {
-        r.lo.to_bits() == lo.to_bits()
-            && r.hi.to_bits() == hi.to_bits()
-            && matches!(r.source, SplineError::KnotVectorInvalid { .. })
-    };
+    // (lo, hi, whether the fault is the knot collapse, what it says)
+    let rows = [
+        (1.0e6, 1.0e6 + 1.0e-9, true, "collapsed"),
+        (
+            -f64::MAX,
+            f64::MAX,
+            false,
+            "not a finite increasing interval",
+        ),
+    ];
+    for (lo, hi, collapse, says) in rows {
+        let fault = |f: &CarrierDomainFault| match f {
+            CarrierDomainFault::Collapse(_) => collapse,
+            CarrierDomainFault::Interval => !collapse,
+        };
+        let knots = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();
+        let carrier = NurbsCurve3::new(
+            knots,
+            vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let refused = |r: &CarrierDomainRefusal| {
+            r.lo.to_bits() == lo.to_bits() && r.hi.to_bits() == hi.to_bits() && fault(&r.fault)
+        };
 
-    let lane = plane_nurbs_limbs::<f64>(&carrier, &transverse_plane(), &wall, 1.0, band());
-    let Err(PlaneNurbsRefusal::CarrierDomain(r)) = lane else {
-        panic!("the lane must refuse as the domain door: {lane:?}");
-    };
-    assert!(
-        refused(&r),
-        "lane: the carrier's domain and a clamp clause: {r:?}"
-    );
-    let msg = PlaneNurbsRefusal::CarrierDomain(r).to_string();
-    assert!(
-        msg.contains("collapsed") && msg.matches("Recourse:").count() == 1,
-        "lane: the domain's own condition and one recourse: {msg}"
-    );
+        let lane = plane_nurbs_limbs::<f64>(&carrier, &transverse_plane(), &wall, 1.0, band());
+        let Err(PlaneNurbsRefusal::CarrierDomain(r)) = lane else {
+            panic!("[{lo:e}, {hi:e}] the lane must refuse as the domain door: {lane:?}");
+        };
+        assert!(
+            refused(&r),
+            "[{lo:e}, {hi:e}] lane: domain and fault: {r:?}"
+        );
+        let msg = PlaneNurbsRefusal::CarrierDomain(r).to_string();
+        assert!(
+            msg.contains(says) && msg.matches("Recourse:").count() == 1,
+            "[{lo:e}, {hi:e}] lane: its own condition and one recourse: {msg}"
+        );
 
-    let mint = FittedLane::<f64>::certified().general_image(&carrier, &wall);
-    let Err(PcurveCertifyError::CarrierDomain(r)) = mint else {
-        panic!("the mint must refuse as the domain door: {mint:?}");
-    };
-    assert!(
-        refused(&r),
-        "mint: the carrier's domain and a clamp clause: {r:?}"
-    );
+        let mint = FittedLane::<f64>::certified().general_image(&carrier, &wall);
+        let Err(PcurveCertifyError::CarrierDomain(r)) = mint else {
+            panic!("[{lo:e}, {hi:e}] the mint must refuse as the domain door: {mint:?}");
+        };
+        assert!(
+            refused(&r),
+            "[{lo:e}, {hi:e}] mint: domain and fault: {r:?}"
+        );
+    }
 }

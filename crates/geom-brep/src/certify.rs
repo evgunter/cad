@@ -1587,9 +1587,9 @@ pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
 
 /// The fraction `i / (samples − 1)` of a uniform `samples`-point
 /// schedule — an exact dyadic when `samples − 1` is a power of two, as
-/// every fixed schedule in this crate's certificates is.
-#[must_use]
-pub fn schedule_fraction(i: u32, samples: u32) -> f64 {
+/// every fixed schedule in this crate's certificates is. The same
+/// precondition as [`schedule_param`].
+pub(crate) fn schedule_fraction(i: u32, samples: u32) -> f64 {
     f64::from(i) / f64::from(samples - 1)
 }
 
@@ -1597,16 +1597,30 @@ pub fn schedule_fraction(i: u32, samples: u32) -> f64 {
 /// `i` of `samples` (both ends included) over `[t₀, t₁]`.
 ///
 /// The ends are ASSIGNED — `t₀` at sample 0, `t₁` at the last — and
-/// the interior is `t₀ + (t₁ − t₀)·`[`schedule_fraction`] in that
+/// the interior is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in that
 /// association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in `f64` in
 /// general, and an image re-expressed on `[t₀, t₁]` exactly has its
 /// last knot at `t₁` itself, so a last sample computed rather than
-/// assigned sits an ulp outside it. Every schedule over a carrier's
-/// interval reads this: the certification schedule
-/// ([`sample_param`]), the plane × NURBS chart image's foot schedule
-/// and the parameter its refusals report, and the SSI certificate's
-/// limb 1.
+/// assigned sits an ulp outside it.
+///
+/// Every fixed sample schedule over a carrier's parameter interval
+/// reads this: the certification schedule ([`sample_param`], and
+/// through it the SSI certificate's limb 1, tier 3, the contact
+/// verifier, the importer's plane and arc-rim checks and the blend
+/// battery), the plane × NURBS chart image's foot schedule and the
+/// parameter its refusals report, and the ellipse-on-cylinder pcurve
+/// fit. A tessellation's chords and a quadrature's pieces partition an
+/// interval rather than sample it, and assign their ends themselves.
+///
+/// # Panics
+///
+/// When `samples < 2` or `i ≥ samples`: a schedule names both of its
+/// ends, and every caller passes a fixed count.
 pub fn schedule_param<T: Real>(t0: T, t1: T, i: u32, samples: u32) -> T {
+    assert!(
+        samples >= 2 && i < samples,
+        "schedule_param: sample {i} of a {samples}-point schedule"
+    );
     if i == 0 {
         t0
     } else if i == samples - 1 {

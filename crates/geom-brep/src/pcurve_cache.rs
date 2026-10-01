@@ -1562,14 +1562,13 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
         P::Unsupported { what } => certificate(what),
-        // The per-sample hook is a no-op and the certificate is not run
-        // here, so the producer cannot return these.
-        P::NotTransverse { .. }
+        other @ (P::NotTransverse { .. }
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
         | P::TubeStraddles { .. }
-        | P::Escalated(_) => certificate(
-            "the chart-image producer refused for a reason outside the mint's vocabulary",
+        | P::Escalated(_)) => unreachable!(
+            "chart_image returns these only from its per-sample hook or the certificate, and \
+             the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
     })
 }

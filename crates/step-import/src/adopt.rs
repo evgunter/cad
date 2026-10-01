@@ -1024,8 +1024,7 @@ fn arc_rim_on_wall_boundary(
         }
         let mut worst = 0.0f64;
         for i in 0..geom_brep::CERT_SAMPLES {
-            let f = f64::from(i) / f64::from(geom_brep::CERT_SAMPLES - 1);
-            let q = iso.eval(d0 + (d1 - d0) * f);
+            let q = iso.eval(geom_brep::sample_param(d0, d1, i));
             let w = q - center;
             // The axial component, bound by name (the tripwire note
             // in [`line_frame`], same shape).
