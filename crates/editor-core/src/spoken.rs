@@ -188,7 +188,11 @@ mod tests {
         assert_eq!(RecipeNodeId(0xab).to_string(), "0000000000ab");
         assert_eq!(StepId(0x10).to_string(), "000000000010");
         let wide = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
-        assert_eq!(wide.to_string(), "c1d2a0b10042", "the tag drops the high digits");
+        assert_eq!(
+            wide.to_string(),
+            "c1d2a0b10042",
+            "the tag drops the high digits"
+        );
         assert_eq!(wide.full().to_string(), "3fa9c1d2a0b10042");
         assert_eq!(StepId(7).full(), FullId(7));
         assert_eq!(FullId(7).to_string(), "0000000000000007");
