@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, Maintenance,
-    ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId,
+    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, Label, LoopProgram,
+    Maintenance, ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -827,6 +827,28 @@ pub enum SessionOp {
         /// Which part, by the identity every reference to it carries.
         id: DocumentId,
     },
+    /// **Rename a node**: set its label, or clear it with `None`
+    /// (DESIGN.md Band 1, "Node labels") — one `DocEdit::SetLabel`,
+    /// one undo. A label is document data beside the node, so this
+    /// recomputes nothing. Writing the label the node already has is
+    /// no action and costs no undo step.
+    SetLabel {
+        /// The node renamed.
+        node: RecipeNodeId,
+        /// Its new label, `None` to clear it.
+        label: Option<Label>,
+    },
+    /// **A creation, labelled**: the creation's own edits and then a
+    /// `DocEdit::SetLabel` on the node it created last, as ONE action
+    /// and one undo. The insert carries no label, because what an
+    /// insert carries is what its node's id is minted from; the label
+    /// is the second edit of the same action.
+    CreateLabelled {
+        /// The creation.
+        creation: Creation,
+        /// The label its node is given.
+        label: Label,
+    },
 }
 
 /// **Which VALUE drag an operation names**: the slot or the document
@@ -1001,6 +1023,64 @@ impl GestureName {
 }
 
 impl SessionOp {
+    /// **Whether this operation inserts a node** — what
+    /// [`Creation::of`] admits. Exhaustive with no wildcard arm, so an
+    /// operation added tomorrow says whether it creates.
+    #[must_use]
+    pub fn creates_a_node(&self) -> bool {
+        match self {
+            Self::AddMate { .. }
+            | Self::AddDatum { .. }
+            | Self::AddProfile { .. }
+            | Self::AddExtrude { .. }
+            | Self::AddRevolve { .. }
+            | Self::AddBoolean { .. }
+            | Self::AddSplit { .. }
+            | Self::AddTransform { .. }
+            | Self::AddPattern { .. }
+            | Self::AddPlacedUnion { .. }
+            | Self::AddFillet { .. }
+            | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
+            | Self::AddInstance { .. } => true,
+            Self::Select(_)
+            | Self::Hover(_)
+            | Self::DeleteNode { .. }
+            | Self::SetSlot { .. }
+            | Self::ProbeBounds { .. }
+            | Self::SetSlotUnit { .. }
+            | Self::SetSlotExpression { .. }
+            | Self::SetParam { .. }
+            | Self::SetParamUnit { .. }
+            | Self::SetParamText { .. }
+            | Self::CreateParam { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginParamGesture { .. }
+            | Self::PreviewGesture { .. }
+            | Self::CommitGesture { .. }
+            | Self::PreviewParamGesture { .. }
+            | Self::CommitParamGesture { .. }
+            | Self::CancelGesture
+            | Self::Undo
+            | Self::Redo
+            | Self::CancelEvaluation
+            | Self::Reevaluate
+            | Self::Open(_)
+            | Self::Save(_)
+            | Self::SetInstanceHidden { .. }
+            | Self::BeginFreeMove { .. }
+            | Self::PreviewFreeMove { .. }
+            | Self::CommitFreeMove { .. }
+            | Self::CancelFreeMove
+            | Self::NewDocument { .. }
+            | Self::EditProfile { .. }
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::CreateLabelled { .. } => false,
+        }
+    }
+
     /// **Which gesture this operation drives**, or `None` for an
     /// operation that drives none.
     ///
@@ -1067,7 +1147,9 @@ impl SessionOp {
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
-            | Self::AcceptPartVersion { .. } => None,
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::CreateLabelled { .. } => None,
         }
     }
 
@@ -1273,7 +1355,9 @@ impl SessionOp {
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
-            | Self::AcceptPartVersion { .. } => false,
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::CreateLabelled { .. } => false,
         }
     }
 
@@ -1390,8 +1474,44 @@ impl SessionOp {
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
-            | Self::AcceptPartVersion { .. } => true,
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::CreateLabelled { .. } => true,
         }
+    }
+}
+
+/// **An operation that creates a node** — the only operation
+/// [`SessionOp::CreateLabelled`] labels, so a label can never be handed
+/// to an operation that has no node to give it.
+#[derive(Clone, Debug)]
+pub struct Creation(Box<SessionOp>);
+
+impl Creation {
+    /// `op` as a creation, or `op` back when it creates no node.
+    ///
+    /// # Errors
+    ///
+    /// The operation itself, when it is not one of the creating
+    /// operations.
+    pub fn of(op: SessionOp) -> Result<Self, SessionOp> {
+        if op.creates_a_node() {
+            Ok(Self(Box::new(op)))
+        } else {
+            Err(op)
+        }
+    }
+
+    /// The creating operation.
+    #[must_use]
+    pub fn op(&self) -> &SessionOp {
+        &self.0
+    }
+
+    /// The creating operation, unwrapped.
+    #[must_use]
+    pub fn into_op(self) -> SessionOp {
+        *self.0
     }
 }
 

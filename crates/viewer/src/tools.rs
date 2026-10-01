@@ -194,7 +194,10 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         // whichever selector authored it.
         SessionOp::AddPart { .. } => Some(ToolKind::Part),
         SessionOp::Duplicate { .. } => Some(ToolKind::Duplicate),
-        SessionOp::AddMate { .. }
+        // A labelled creation is its creation's commit, labelled.
+        SessionOp::CreateLabelled { creation, .. } => committed_by(creation.op()),
+        SessionOp::SetLabel { .. }
+        | SessionOp::AddMate { .. }
         | SessionOp::Select(_)
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }

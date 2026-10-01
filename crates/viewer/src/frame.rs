@@ -798,7 +798,9 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. } => true,
+        | SessionOp::AcceptPartVersion { .. }
+        | SessionOp::SetLabel { .. }
+        | SessionOp::CreateLabelled { .. } => true,
     }
 }
 
