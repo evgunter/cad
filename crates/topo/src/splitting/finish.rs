@@ -377,12 +377,14 @@ pub(super) fn split_finish<T: Decide>(
         let ring_sense = section_sense(&body, section.face, ring, &plane_for(ring_side), band)?;
         let outer_sense = section_sense(&body, section.face, outer, &plane_for(other_side), band)?;
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
-        body.set_face_surface(
-            promoted.face,
-            FaceSurface::New {
-                surface: plane_for(ring_side),
-                sense: ring_sense,
-            },
+        body.set_face_surfaces_describing(
+            vec![Rechart::new(
+                plane_for(ring_side),
+                promoted.face,
+                ring_sense,
+            )],
+            &[],
+            tol,
         )?;
         // The face the null pair leaves on its old chart moves last, and
         // the edges still described against that chart move with it,
