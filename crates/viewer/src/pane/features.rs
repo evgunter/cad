@@ -3,7 +3,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{AssertionVerdict, RecipeNodeId, UnevaluatedReason};
+use pncad::document::{AssertionVerdict, RecipeNodeId, SpokenNode, UnevaluatedReason};
 
 use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
 use crate::frame;
@@ -48,19 +48,17 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
     (indent(depth) + INDENT_STEP).min(spare)
 }
 
-/// **What one feature-tree row reads as, drawn**: the node's kind,
-/// which one of its kind it is, and the root glyph.
+/// **What one feature-tree row reads as, drawn**: the node as the
+/// document speaks it (kind noun and tag), which one of its kind it
+/// is, and the root glyph.
 ///
 /// **The kind alone is not a name.** A tree of rows reading `Datum
 /// frame` twice asks a person to tell two frames apart by clicking;
-/// the pose the node itself states is what separates them
-/// ([`crate::tree::frame_pose`]), and it is the same sentence the
-/// creation forms' picker puts after that node's number.
+/// the tag tells them apart, and the pose the node itself states is
+/// what tells a person WHICH frame ([`crate::tree::frame_pose`]) — the
+/// same words the creation forms' picker reads ([`crate::tree::node_label`]).
 pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egui::Response {
-    let named = match &row.pose {
-        Some(pose) => format!("{} — {pose}", row.kind),
-        None => row.kind.to_owned(),
-    };
+    let named = tree::named(row.spoken, row.pose.as_deref());
     let label = if row.root {
         format!("{named} {GLYPH_ROOT}")
     } else {
@@ -96,7 +94,7 @@ pub(crate) fn feature_row_ui(
         if row_label(ui, row, selected).clicked() {
             clicks.select = Some(row.id);
         }
-        if row.kind == "InstantiatePart" {
+        if row.spoken.kind() == Some("InstantiatePart") {
             let mut shown = !hidden;
             if ui.checkbox(&mut shown, "shown").changed() {
                 clicks.hide = Some(!shown);
@@ -271,11 +269,11 @@ fn advisory_line(ui: &mut egui::Ui, depth: usize, text: &str, theme: &Theme) {
 }
 
 /// **A line under a row at `depth` that links to the node `to`**, in
-/// [`tree::link_wording`]'s words: `to` when it was clicked. The
+/// [`tree::link_wording`]'s words: `to`'s id when it was clicked. The
 /// wording and the target are one argument, so they cannot name two
 /// different nodes.
-fn link_to(ui: &mut egui::Ui, depth: usize, to: RecipeNodeId) -> Option<RecipeNodeId> {
-    link_line(ui, depth, &tree::link_wording(to)).then_some(to)
+fn link_to(ui: &mut egui::Ui, depth: usize, to: SpokenNode) -> Option<RecipeNodeId> {
+    link_line(ui, depth, &tree::link_wording(to)).then_some(to.id())
 }
 
 /// A line under a row at `depth` that is a click; whether it was
@@ -336,7 +334,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::RecipeNodeId;
+    use pncad::document::{RecipeNodeId, SpokenNode};
 
     use eframe::egui;
 
@@ -350,6 +348,7 @@ mod tests {
         assert_under, find, landed, landed_voiced, painted, painted_after_clicking, painted_text,
     };
     use crate::props::Notation;
+    use crate::test_support::spoken;
     use crate::theme::Theme;
     use crate::tree;
     use crate::tree::{CarriedLine, Readout, RowStatus, TreeRow};
@@ -433,7 +432,7 @@ mod tests {
     fn frame_row(id: u64, pose: &str) -> TreeRow {
         TreeRow {
             id: RecipeNodeId(id),
-            kind: "Datum frame",
+            spoken: spoken(RecipeNodeId(id), Some("Datum frame")),
             pose: Some(pose.to_owned()),
             depth: 0,
             root: false,
@@ -482,7 +481,7 @@ mod tests {
     fn a_row_with_nothing_more_to_say_reads_as_its_kind() {
         let row = TreeRow {
             id: RecipeNodeId(1),
-            kind: "Extrude",
+            spoken: spoken(RecipeNodeId(1), Some("Extrude")),
             pose: None,
             depth: 0,
             root: true,
@@ -516,17 +515,19 @@ mod tests {
             row_label(ui, &row, false);
         });
         assert!(
-            drawn.contains(&format!("Datum frame — yz at (0, 0, 0) m {GLYPH_ROOT}")),
+            drawn.contains(&format!(
+                "Datum frame 000000000002 — yz at (0, 0, 0) m {GLYPH_ROOT}"
+            )),
             "{drawn}"
         );
     }
 
-    /// A mate row refused because its placer (`feature 3`) did not
+    /// A mate row refused because its placer (node 3) did not
     /// derive, as `tree::rows` builds one: `Failed`, with the link.
-    fn placer_refused_row(repair_at: Option<RecipeNodeId>) -> TreeRow {
+    fn placer_refused_row(repair_at: Option<SpokenNode>) -> TreeRow {
         TreeRow {
             id: RecipeNodeId(7),
-            kind: "Mate",
+            spoken: spoken(RecipeNodeId(7), Some("Mate")),
             pose: None,
             depth: 0,
             root: false,
@@ -548,8 +549,8 @@ mod tests {
     #[test]
     fn a_failed_rows_carried_refusals_draw_under_it_one_step_in_per_level() {
         let carried = [
-            ("bracket.pncad", "node 7 failed: the first level"),
-            ("boss.pncad", "node 3 failed: the second level"),
+            ("bracket.pncad", "node 000000000007 failed: the first level"),
+            ("boss.pncad", "node 000000000003 failed: the second level"),
         ];
         let row = TreeRow {
             status: RowStatus::Failed {
@@ -611,9 +612,12 @@ mod tests {
     #[test]
     fn a_failed_rows_link_to_the_node_to_repair_selects_it() {
         let placer = RecipeNodeId(3);
-        let row = placer_refused_row(Some(placer));
-        let link = tree::link_wording(placer);
-        assert_eq!(link, "see feature 3", "the chrome's one spelling of a node");
+        let row = placer_refused_row(Some(spoken(placer, Some("Datum frame"))));
+        let link = tree::link_wording(spoken(placer, Some("Datum frame")));
+        assert_eq!(
+            link, "see Datum frame 000000000003",
+            "the node as the document speaks it"
+        );
         assert_eq!(clicking(&row, &link), Some(placer));
         assert_eq!(
             clicking(&row, FAILURE),
@@ -648,7 +652,7 @@ mod tests {
     #[test]
     fn a_poisoned_rows_pointer_selects_the_row_it_names() {
         let through = RecipeNodeId(7);
-        let pointer = tree::downstream_wording(through);
+        let pointer = tree::downstream_wording(spoken(through, Some("Fillet")));
         let row = TreeRow {
             status: RowStatus::Poisoned {
                 through,
@@ -831,7 +835,10 @@ mod tests {
         let painted =
             landed(|ui| feature_row_drawn(ui, &fixture.row(fixture.distance), &Theme::DEFAULT));
         let value = find(&painted, "0.0125 m");
-        let kind = find(&painted, &format!("Measure {GLYPH_ROOT}"));
+        let kind = find(
+            &painted,
+            &format!("Measure {:012x} {GLYPH_ROOT}", fixture.distance.0),
+        );
         assert!(
             (value.rows[0].center().y - kind.rows[0].center().y).abs() <= SLACK
                 && value.rows[0].left() > kind.rows[0].right(),
@@ -876,7 +883,7 @@ mod tests {
 
         let row = |readout| TreeRow {
             id: RecipeNodeId(4),
-            kind: "Split",
+            spoken: spoken(RecipeNodeId(4), Some("Split")),
             pose: None,
             depth: 0,
             root: false,
@@ -893,7 +900,7 @@ mod tests {
         ] {
             let painted = landed(|ui| feature_row_drawn(ui, &row(emptiness), &Theme::DEFAULT));
             let said = find(&painted, phrase);
-            let kind = find(&painted, "Split");
+            let kind = find(&painted, "Split 000000000004");
             assert!(
                 (said.rows[0].center().y - kind.rows[0].center().y).abs() <= SLACK
                     && said.rows[0].left() > kind.rows[0].right(),
@@ -903,7 +910,7 @@ mod tests {
             );
             assert_eq!(
                 texts(&painted),
-                vec!["Split", phrase],
+                vec!["Split 000000000004", phrase],
                 "the kind and the phrase, and no badge"
             );
         }
@@ -935,7 +942,10 @@ mod tests {
             feature_row_drawn(ui, &row, theme)
         });
         let line = find(&painted, &reason);
-        assert_under(find(&painted, "Measure"), line);
+        assert_under(
+            find(&painted, &format!("Measure {:012x}", fixture.clearance.0)),
+            line,
+        );
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
         assert_eq!(
             painted.len(),
@@ -957,7 +967,11 @@ mod tests {
         let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert_eq!(
             drawn,
-            vec!["Measure".to_owned(), "FAILED".to_owned(), message.clone()],
+            vec![
+                format!("Measure {:012x}", fixture.failed.0),
+                "FAILED".to_owned(),
+                message.clone()
+            ],
             "the kind, the badge, the words, and nothing measured"
         );
     }
@@ -986,7 +1000,7 @@ mod tests {
             feature_row_drawn(ui, &row, theme)
         });
         let line = find(&painted, note);
-        assert_under(find(&painted, "Mate"), line);
+        assert_under(find(&painted, "Mate 000000000007"), line);
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
     }
 
@@ -1037,7 +1051,10 @@ mod tests {
         let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
             feature_row_drawn(ui, &fixture.row(fixture.holds), theme)
         });
-        let kind = find(&painted, &format!("Assertion {GLYPH_ROOT}"));
+        let kind = find(
+            &painted,
+            &format!("Assertion {:012x} {GLYPH_ROOT}", fixture.holds.0),
+        );
         let state = find(&painted, state_of(&fixture, fixture.holds));
         let comparison = find(
             &painted,
@@ -1088,7 +1105,7 @@ mod tests {
         assert_eq!(
             texts(&painted),
             vec![
-                format!("Assertion {GLYPH_ROOT}").as_str(),
+                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.violated.0).as_str(),
                 state,
                 &compared(&fixture, fixture.violated, "0.0125 m", "0.02 m"),
             ],
@@ -1198,7 +1215,7 @@ mod tests {
         assert_eq!(
             texts(&painted),
             vec![
-                format!("Assertion {GLYPH_ROOT}").as_str(),
+                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.indeterminate.0).as_str(),
                 state,
                 reason.as_str()
             ],
@@ -1227,12 +1244,12 @@ mod tests {
             other => panic!("the premise: `min_clearance` has no value at f64: {other:?}"),
         };
         let row = fixture.row(fixture.unavailable);
-        let pointer = tree::link_wording(fixture.clearance);
+        let pointer = format!("see Measure {:012x}", fixture.clearance.0);
         let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert_eq!(
             drawn,
             vec![
-                format!("Assertion {GLYPH_ROOT}"),
+                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.unavailable.0),
                 state_of(&fixture, fixture.unavailable).to_owned(),
                 pointer.clone()
             ],
@@ -1262,9 +1279,12 @@ mod tests {
         assert_eq!(
             drawn,
             vec![
-                format!("Assertion {GLYPH_ROOT}"),
+                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.poisoned.0),
                 "POISONED".to_owned(),
-                tree::downstream_wording(fixture.failed)
+                format!(
+                    "upstream failure at Measure {:012x} — that row carries the cause",
+                    fixture.failed.0
+                )
             ],
         );
     }
@@ -1290,7 +1310,7 @@ mod tests {
     fn instance_row() -> TreeRow {
         TreeRow {
             id: RecipeNodeId(4),
-            kind: "InstantiatePart",
+            spoken: spoken(RecipeNodeId(4), Some("InstantiatePart")),
             pose: Some(crate::test_support::PART_FILE.to_owned()),
             depth: 0,
             root: false,
@@ -1308,7 +1328,10 @@ mod tests {
     #[test]
     fn clicking_a_rows_label_selects_its_node() {
         let row = instance_row();
-        let label = format!("InstantiatePart — {}", crate::test_support::PART_FILE);
+        let label = format!(
+            "InstantiatePart 000000000004 — {}",
+            crate::test_support::PART_FILE
+        );
         let clicks = row_clicked(&row, &label, false);
         assert_eq!(clicks.select, Some(row.id));
         assert_eq!(clicks.hide, None, "a label click toggles nothing");
@@ -1335,12 +1358,12 @@ mod tests {
     #[test]
     fn a_row_that_is_no_instance_draws_no_toggle() {
         let row = TreeRow {
-            kind: "Extrude",
+            spoken: spoken(RecipeNodeId(4), Some("Extrude")),
             pose: None,
             ..instance_row()
         };
         let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
-        assert_eq!(drawn, vec!["Extrude".to_owned()], "{drawn:?}");
+        assert_eq!(drawn, vec!["Extrude 000000000004".to_owned()], "{drawn:?}");
         let with = painted(|ui| feature_row_drawn(ui, &instance_row(), &Theme::DEFAULT));
         assert!(
             with.iter().any(|text| text == "shown"),

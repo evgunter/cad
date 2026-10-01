@@ -1134,7 +1134,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             assert_eq!(*name, body_name);
             let msg = format!("{}", SplitError::BodyNameCrossesCut { name });
             assert!(
-                msg.contains(&format!("minted by node {}", ids[1].0)),
+                msg.contains(&format!("minted by node {:012x}", ids[1].0)),
                 "the message names the name: {msg}"
             );
             assert!(
@@ -1269,7 +1269,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
                 }
             );
             assert!(
-                msg.contains(&format!("node {}", decl.0)) && msg.contains("outside the cut"),
+                msg.contains(&format!("node {:012x}", decl.0)) && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
             );
         }
