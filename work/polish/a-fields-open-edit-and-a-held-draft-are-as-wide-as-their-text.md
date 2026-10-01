@@ -4,11 +4,14 @@ kind: issue
 title: viewer: a value field's open keyboard edit, and the draft a refused expression leaves in it, are as wide as their text
 status: open
 opened: 2026-09-29
-priority: P3
+priority: P4
 cost: M
-design: true
 refs: [a-driven-slots-field-draws-its-expression-source-at-any-width]
 ---
+
+## Question (answered by Ev, 2026-10-01)
+
+How should a value field that edits expressions be shaped? A driven slot's field at rest is bounded since PR 3478. Two of its states are still as wide as their text: the open keyboard edit (egui's `DragValue` edit grows with its buffer) and a held draft (a refused expression shown in the field). Both run past the pane in a non-wrapping row. The choice is the field's shape: where its open edit is drawn, and where a held draft is said.
 
 
 Found by `chrome/slot-width`, which bounded a driven slot's field AT
@@ -44,3 +47,18 @@ content, with the `DragValue`'s gesture beside it), or moving the open
 edit out of the row. The draft is the same question at rest: it could
 be shown as a bounded mark with the draft seeding the edit
 (`seed_edit`, as a driven slot's source does) and said under the row.
+
+## Ev's answer (2026-10-01, on PR 3606 and in chat)
+
+Ev saw screenshot mockups of three states of a vector slot row: today, the edit under the row, and the edit in the row with a capped width. The mockups were throwaway branches `mockup/field-edit-under-row` and `mockup/field-edit-in-row`, built in the real viewer. Ev chose:
+
+> i think edit in the row (capped). the downside is real but it's much more intuitive, now that i see it.
+
+The ruling:
+- The chrome owns its value field.
+- The open keyboard edit stays **in the row**, in a box capped at `widgets::widest_number`, with the text scrolling inside it.
+- A held draft leaves the field and is said under the row, as both designers recommended.
+
+The downside Ev accepted: at the default pane width, the capped box still pushes a vector row's unit picker past the pane edge.
+
+**Priority.** Ev also ruled that this row is *polish*: all the information is already available while scrolling works, only displayed less well. Polish rows are no longer dispatched from CHROME, and this row moves to the P4 polish program with the ruling above as its specification.
