@@ -233,7 +233,7 @@ fn r1_a_part_inside_another_solids_void() {
         tol(),
     )
     .expect("identity");
-    topo::graft_disjoint(&mut body, &placed, tol()).expect("the nested part grafts");
+    topo::graft_disjoint(&mut body, &placed).expect("the nested part grafts");
     println!(
         "[r1] nested operand: solids={} shells={} clearance=0.02 < t={t}",
         body.solids().count(),

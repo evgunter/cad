@@ -2528,8 +2528,8 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {
-        profile: RecipeNodeId(7),
-        frame: RecipeNodeId(3),
+        profile: RecipeNodeId(test_utils::refusal::tagged(7)),
+        frame: RecipeNodeId(test_utils::refusal::tagged(3)),
         refusal: DirectionRefusal {
             role: "datum frame x axis",
             error,
@@ -3331,51 +3331,49 @@ fn the_prose_rule_separates_a_display_from_a_debug_dump() {
     assert!(reads_as_prose("Tessellate refused"));
 }
 
-/// A blend escalation names its site in prose at every site.
+/// A blend escalation reads as prose for every decision.
 ///
-/// `BlendSite::Link` and `::Joint` are struct variants, so rendering
-/// the site through `Debug` puts the field-brace fingerprint in the
-/// message and the refusal PANICS `crate::py::typed_err` instead of
-/// raising. The escalation arm is the one an indeterminate predicate
-/// is for, so that panic sits behind an ordinary fillet or chamfer
-/// request; the site renders through its own `Display`, and this is
-/// the rendering that says so.
+/// What the refusal renders is chosen by its decision alone (the site
+/// is payload and is not rendered), so each decision is rendered once,
+/// at a site whose `Debug` carries a field: a payload rendered through
+/// `Debug` would put the field-brace fingerprint in the message and
+/// PANIC `crate::py::typed_err` instead of raising, behind an ordinary
+/// fillet or chamfer request.
 #[test]
-fn a_blend_escalation_reads_as_prose_at_every_site() {
-    use pncad::prelude::{Band, BlendError, BlendSite, EdgeKey, Indeterminate};
-    use pncad::prelude::{MarginDiag, VertexKey};
+fn a_blend_escalation_reads_as_prose_for_every_decision() {
+    use pncad::prelude::MarginDiag;
+    use pncad::prelude::{Band, BlendDecision, BlendError, BlendSite, EdgeKey, Indeterminate};
 
     let band = Band::new(1e-9, 1e-6).expect("a band");
-    for site in [
-        BlendSite::Link {
-            edge: EdgeKey::default(),
-        },
-        BlendSite::Joint {
-            vertex: VertexKey::default(),
-        },
-        BlendSite::Chain,
+    for decision in [
+        BlendDecision::RadiusHeadroom,
+        BlendDecision::FaceClearance,
+        BlendDecision::SpineRegularity,
+        BlendDecision::ChainG1,
+        BlendDecision::ChainArm,
+        BlendDecision::ConvexitySign,
+        BlendDecision::RingClearance,
+        BlendDecision::SupportCoaxiality,
+        BlendDecision::ContactSecondOrder,
+        BlendDecision::CornerIndependence,
+        BlendDecision::CapTransverse,
     ] {
         let refused = BlendError::Escalated {
-            site,
+            site: BlendSite::Link {
+                edge: EdgeKey::default(),
+            },
+            decision,
             source: Indeterminate {
-                margin: MarginDiag::value(0.0),
+                margin: MarginDiag::value(5e-7),
                 band,
-                // A name no recourse table routes: the sentence then
-                // names the site, which is what this row reads.
-                predicate: Some("a_name_no_table_routes"),
+                predicate: Some(decision.predicate()),
                 terminal_sliver: false,
             },
         };
         let text = refused.to_string();
         assert!(
-            reads_as_prose(&text),
-            "a fillet or chamfer escalation at {site:?} panics the binding \
-             rather than raising: {text}"
-        );
-        assert!(
-            text.starts_with("at ") && !text.contains("Key("),
-            "the site names itself after the preposition the sentence supplies, \
-             and no arena key: {text}"
+            reads_as_prose(&text) && !text.contains("Key("),
+            "a {decision:?} escalation panics the binding rather than raising: {text}"
         );
     }
 }
@@ -4775,6 +4773,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_unversioned",
             "name_step_never_minted",
             "name_unresolved_in_evaluation",
+            "node_id_collides",
             "non_finite_alignment",
             "non_finite_doc_param",
             "non_finite_placement",
@@ -4978,7 +4977,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
-            "step_map_diverged",
             "stranded_part_name",
             "unknown_node",
             "unplaceable_frame",
@@ -5691,13 +5689,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_input",
             "epsilon_invalid",
             "forward_input",
-            "id_beyond_counter",
             "input_list",
             "mate_alignment",
             "measure_refs",
             "metadata_unversioned",
             "mint_log_order",
             "name_step_not_minted",
+            "node_not_minted",
             "order_mismatch",
             "payload_doc_param_dimension",
             "payload_unknown_doc_param",
@@ -5735,7 +5733,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "remainder_edit",
             "severed_edge",
             "split_pin",
-            "step_map_diverged",
             "torn_group",
             "uncut_param_reference",
             "unknown_cut_node",
@@ -5875,6 +5872,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_map",
             "not_rigid",
             "null_scaffold",
+            "nurbs_lane_unsupported",
             "nurbs_placeholder",
             "pcurve",
         ],
@@ -6136,7 +6134,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("smooth_join_refuted", 2),
     ("split", 2),
     ("step_ids", 3),
-    ("step_map_diverged", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
