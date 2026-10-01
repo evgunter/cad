@@ -27,20 +27,24 @@ use crate::test_support_fixtures::declined_cube;
 /// A link the labelling reads, torn live-but-foreign: a `next` its
 /// cycle walk steps, a `parent_loop` the proof reads a member's loop
 /// from, a loop's `first` the walk starts at, and an edge's slots the
-/// mate hop reads.
+/// mate hop reads; or a loop's boundary torn `Empty` at a live vertex
+/// while its half-edges still claim it, so the walk from its face
+/// steps none of them and a mate hop into it has no hop back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Tear {
     NextForeign,
     ParentLoopForeign,
     LoopAnchorForeign,
     EdgeBijection,
+    LoopEmptied,
 }
 
-const TEARS: [Tear; 4] = [
+const TEARS: [Tear; 5] = [
     Tear::NextForeign,
     Tear::ParentLoopForeign,
     Tear::LoopAnchorForeign,
     Tear::EdgeBijection,
+    Tear::LoopEmptied,
 ];
 
 /// The bodies torn: one to three components, rings, a strut, genus.
@@ -77,6 +81,10 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut Rng) {
             let e = body.get_edge_mut(edge).unwrap();
             e.he_plus = he;
             e.he_minus = other;
+        }
+        Tear::LoopEmptied => {
+            let vertex = body.get_half_edge(he).unwrap().start;
+            body.get_loop_mut(l).unwrap().boundary = LoopBoundary::Empty { vertex };
         }
     }
 }
