@@ -361,6 +361,13 @@ impl ViewerBehavior<'_> {
     /// `DocSession::slot_rows` refuses to produce them. Two places
     /// would be two policies.
     pub(crate) fn standing_ui(&mut self, ui: &mut egui::Ui, standing: &Standing) {
+        self.drafts.rename_shown_for(match standing {
+            Standing::Node {
+                node,
+                present: true,
+            } => Some(*node),
+            _ => None,
+        });
         match standing {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
@@ -376,6 +383,9 @@ impl ViewerBehavior<'_> {
                     // Beside the node's name, which is the node it is about.
                     standing_verdict(ui, &self.theme, standing);
                 });
+                if *present {
+                    self.label_ui(ui, *node);
+                }
                 return;
             }
             Standing::Face { face, .. } => {
@@ -386,6 +396,44 @@ impl ViewerBehavior<'_> {
             }
         }
         standing_verdict(ui, &self.theme, standing);
+    }
+
+    /// **The rename field** (DESIGN.md Band 1, "Node labels"): the
+    /// node's label, editable in place. Leaving the field commits what
+    /// was typed as one [`SessionOp::SetLabel`] — blank clears the
+    /// label, and the label the node already has is no edit
+    /// (`DocSession::writes_nothing`). A text the label rule refuses
+    /// is said on the status line, and the field goes back to the
+    /// node's label.
+    fn label_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
+        let mut text = match &self.drafts.label_text {
+            Some((typed_for, typed)) if *typed_for == node => typed.clone(),
+            _ => self
+                .session
+                .doc()
+                .label(node)
+                .map(|label| label.as_str().to_owned())
+                .unwrap_or_default(),
+        };
+        ui.horizontal(|ui| {
+            ui.label("label");
+            let response = ui.text_edit_singleline(&mut text);
+            if response.changed() {
+                self.drafts.label_text = Some((node, text));
+            }
+            if response.lost_focus()
+                && let Some((typed_for, typed)) = self.drafts.label_text.take()
+                && typed_for == node
+            {
+                match crate::drafts::label_typed(&typed) {
+                    Ok(label) => self.ops.push(SessionOp::SetLabel { node, label }),
+                    Err(fault) => self.notices.push(crate::frame::tool_news(
+                        format!("label: {fault}"),
+                        crate::frame::Retold::Again,
+                    )),
+                }
+            }
+        });
     }
 
     /// A picked entity's header line: which feature it belongs to, and

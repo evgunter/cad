@@ -121,7 +121,7 @@ fn push_preview(
             let Some([dx, dy]) = heading(points, at, polyline.end.closes()) else {
                 continue;
             };
-            let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
+            let world = plane.to_world(pncad::geom_core::Point2::from_array(here));
             let Some(tick) = view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX)) else {
                 continue;
             };

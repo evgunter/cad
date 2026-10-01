@@ -146,7 +146,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x79c8_1fb5_5df5_cadb,
         0xe304_39af_b2c6_6981,
     ),
-    ("kitchen_sink", 0x1d0a_88d1_20ea_0b51, 0x734c_f162_e8f3_e734),
+    ("kitchen_sink", 0x1d0a_88d1_20ea_0b51, 0x204f_183f_b9ba_de00),
     ("cut_cylinder", 0x4606_3982_c4a7_8013, 0x6ca9_c180_a8f2_d5d7),
     ("measured_web", 0x0292_25ef_fc59_32f8, 0x9520_6dbb_eae1_676f),
     ("boss_union", 0x332e_5c74_d979_dc07, 0x03e8_7e71_7ff8_83c1),

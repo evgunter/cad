@@ -146,6 +146,10 @@ mod ring2_r2_probes;
 
 #[path = "cert5_r2_probes.rs"]
 mod cert5_r2_probes;
+#[path = "chart_incidence.rs"]
+mod chart_incidence;
+#[path = "cone_incidence_fuzz.rs"]
+mod cone_incidence_fuzz;
 #[path = "offset_mint.rs"]
 mod offset_mint;
 #[path = "pcurve_conic.rs"]

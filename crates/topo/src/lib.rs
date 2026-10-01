@@ -602,6 +602,8 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
+#[cfg(feature = "sweep-testing")]
+pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
@@ -684,7 +686,8 @@ pub use source::{
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcWindowCase, ConicCrossingsCase, ConicRootFault, CrossingDecision, LoopContainment,
-    NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionPolygon, SectorEntry,
+    NullEdgeRecord, PlaneSide, PointInLoopError, Section, SectionError, SectionPolygon,
+    SectionRegion, SectorEntry,
     SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
     SplitReduceError, SplitReduction, SplitResult, classify_neighborhood, plane_section,
     point_in_loop, split, split_reduce, vertex_sides,

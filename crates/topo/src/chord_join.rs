@@ -1559,6 +1559,29 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     Ok(face_azimuth_images(body, surface, face, band)?.and_then(|images| azimuth_hull(&images)))
 }
 
+/// [`face_azimuth_window`] on `face`'s own surface: the window every
+/// reader folds, read from outside the crate so a suite can hold the
+/// interval lane's window against the `f64` replay's. `sweep-testing`
+/// only, never production surface.
+///
+/// # Errors
+///
+/// As [`face_azimuth_window`], and [`SplitJoinError::Corrupt`] for a
+/// face or surface key that does not resolve.
+#[cfg(feature = "sweep-testing")]
+pub fn face_azimuth_window_traces<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<Option<(T, T)>, SplitJoinError> {
+    let key = body
+        .get_face(face)
+        .ok_or_else(|| corrupt_face(face))?
+        .surface;
+    let surface = body.get_surface(key).ok_or_else(|| corrupt_face(face))?;
+    face_azimuth_window(body, surface, face, band)
+}
+
 /// The azimuth hull of a walk's images: the window every caller folds.
 pub(crate) fn azimuth_hull<T: Real>(images: &[AzimuthImage<T>]) -> Option<(T, T)> {
     images
@@ -2226,21 +2249,25 @@ fn run_azimuth_images<T: Decide>(
                             // index above: the branch wanted is the
                             // unique one in an OPEN interval, and the
                             // nearest one is exactly what carries no
-                            // information here. That puts this fold's
-                            // jump at an integer `q` — the entry azimuth
-                            // landing exactly on the previous exit —
-                            // where the open interval's two ends are
-                            // genuinely different answers and an
-                            // enclosure straddling it reports both. It
-                            // is a boundary of a half-open selection,
-                            // not a fold written around its own live
-                            // value, so it is recorded rather than
-                            // respelled.
+                            // information here.
+                            //
+                            // The selection jumps at an integer `q`: the
+                            // entry meridian leaves the pole along the
+                            // half-meridian the previous one arrived on —
+                            // a slit, two meridian edges overlapping, or a
+                            // wedge inside rounding. An enclosure
+                            // straddling the jump spans both branches,
+                            // `prev` and `prev ± τ`, so the window's width
+                            // encloses τ or more. What makes that sound
+                            // is the property a window reader relies on:
+                            // it reads the window as a region only once
+                            // its period gate has decided the width
+                            // definitely under τ, so on this window it
+                            // declines or escalates and never reads it.
+                            let q = (prev - raw) / tau;
                             k = if advancing {
-                                let q = (prev - raw) / tau;
                                 q.floor() + T::one()
                             } else {
-                                let q = (prev - raw) / tau;
                                 T::zero() - (T::zero() - q).floor() - T::one()
                             };
                         }

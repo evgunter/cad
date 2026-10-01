@@ -640,3 +640,164 @@ fn a_plane_through_a_notch_tip_refuses_at_the_join() {
         }
     }
 }
+
+/// Twice the signed area of a polygon's corners in `(u, v)`.
+fn twice_area(polygon: &topo::SectionPolygon<f64>) -> f64 {
+    let uv = &polygon.uv;
+    (0..uv.len())
+        .map(|i| {
+            let (a, b) = (uv[i], uv[(i + 1) % uv.len()]);
+            a.x * b.y - b.x * a.y
+        })
+        .sum()
+}
+
+/// **`plane_section` reports the U-cutter's section as one region, the
+/// prongs its two holes**: the outline the block's `4 × 4` square
+/// counter-clockwise, each hole a prong's `0.5 × 2` rectangle
+/// clockwise.
+#[test]
+fn plane_section_of_the_u_cutter_is_one_region_with_two_holes() {
+    let body = u_cut();
+    for x in [3.0, 3.9] {
+        let s = topo::plane_section(&body, &at_x(x), tol()).unwrap();
+        assert_eq!(s.regions.len(), 1, "x = {x}: one region");
+        let region = &s.regions[0];
+        assert_eq!(twice_area(&region.outline), 32.0, "x = {x}: the outline");
+        let holes: Vec<f64> = region.holes.iter().map(twice_area).collect();
+        assert_eq!(holes, [-2.0, -2.0], "x = {x}: the prongs");
+        for hole in &region.holes {
+            assert!(
+                hole.points
+                    .iter()
+                    .all(|p| (p.y - 1.0).abs() <= 2.0 && (1.0..=3.0).contains(&p.z)),
+                "x = {x}: a hole's corners are a prong's: {:?}",
+                hole.points
+            );
+        }
+    }
+}
+
+/// **`plane_section` reports a bored body's section as one region, the
+/// bore its hole**, for the flat and tilted cuts the split nests: every
+/// corner of the hole lies on the bore, every corner of the outline
+/// off it. The bore's circle has two corners, so its winding is read
+/// on its arcs, not its corners' shoelace.
+#[test]
+fn plane_section_of_a_bored_body_is_one_region_with_the_bore_its_hole() {
+    let cases = [
+        (
+            "cavity cut flat",
+            bored_brick(0.0, 0.0, 1.0),
+            (0.0, 0.0, 1.0),
+            tilted(1.25, 0.0, false),
+        ),
+        (
+            "cavity cut at tilt 0.3",
+            bored_brick(0.0, 0.0, 1.0),
+            (0.0, 0.0, 1.0),
+            tilted(1.25, 0.3, false),
+        ),
+        (
+            "off-centre cavity cut flat",
+            bored_brick(0.8, 0.0, 1.0),
+            (0.8, 0.0, 1.0),
+            tilted(1.25, 0.0, false),
+        ),
+        (
+            "bored cylinder cut at tilt 0.3",
+            bored_cylinder(0.3, 0.2, 0.37, tol()),
+            (0.2, 0.0, 0.3),
+            tilted(0.5, 0.3, false),
+        ),
+    ];
+    for (what, body, (cx, cy, r), plane) in cases {
+        let s = topo::plane_section(&body, &plane, tol()).unwrap();
+        assert_eq!(s.regions.len(), 1, "{what}: one region");
+        let region = &s.regions[0];
+        assert_eq!(region.holes.len(), 1, "{what}: the bore is the one hole");
+        let on_bore = |p: &Point3<f64>| ((p.x - cx).hypot(p.y - cy) - r).abs() < 1e-9;
+        assert!(
+            region.holes[0].points.iter().all(on_bore),
+            "{what}: the hole's corners lie on the bore: {:?}",
+            region.holes[0].points
+        );
+        assert!(
+            !region.outline.points.iter().any(on_bore),
+            "{what}: the outline's corners lie off the bore: {:?}",
+            region.outline.points
+        );
+    }
+}
+
+/// **An island inside a hole is a region of its own**, holding the hole
+/// inside it: the grooved block of
+/// `a_hole_in_an_island_in_a_hole_goes_to_the_island`, sliced flat at
+/// `z = 2`, is the square holed by the groove and the island's disc
+/// holed by the bore.
+#[test]
+fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
+    let block = brick(Point3::new(-3.0, -3.0, 0.0), Point3::new(3.0, 3.0, 4.0));
+    let grooved = cut("groove", &block, &rod(Point2::new(0.0, 0.0), 2.0, 1.0, 5.0));
+    let island = rod(Point2::new(0.0, 0.0), 1.0, 0.5, 4.5);
+    let islanded = match topo::union(&grooved, &island, tol()) {
+        Ok(topo::BooleanResult::Body(b)) => b.body,
+        other => panic!("the island unites: {:?}", other.err()),
+    };
+    let body = cut(
+        "bore",
+        &islanded,
+        &rod(Point2::new(0.0, 0.0), 0.5, -1.0, 5.0),
+    );
+    let s = topo::plane_section(&body, &tilted(2.0, 0.0, false), tol()).unwrap();
+    let radius = |p: &Point3<f64>| p.x.hypot(p.y);
+    let mut regions: Vec<(usize, Vec<f64>)> = s
+        .regions
+        .iter()
+        .map(|r| {
+            let holes = r.holes.iter().flat_map(|h| h.points.iter().map(radius));
+            (r.outline.points.len(), holes.collect())
+        })
+        .collect();
+    regions.sort_by_key(|r| r.0);
+    assert_eq!(regions.len(), 2, "the square and the island: {regions:?}");
+    let island_holes = &regions[0].1;
+    let square_holes = &regions[1].1;
+    assert!(
+        island_holes.iter().all(|&r| (r - 0.5).abs() < 1e-9) && !island_holes.is_empty(),
+        "the island holds the bore: {regions:?}"
+    );
+    assert!(
+        square_holes.iter().all(|&r| (r - 2.0).abs() < 1e-9) && !square_holes.is_empty(),
+        "the square holds the groove: {regions:?}"
+    );
+}
+
+/// **A hole nothing places refuses**: the turned cylinder of
+/// `a_clockwise_section_nothing_places_keeps_its_face`, whose join mints
+/// two clockwise polygons touching the ellipse around them. `split`
+/// keeps them as faces cancelling the ellipse's; a section's regions
+/// cannot state them, so `plane_section` refuses. This row goes red with
+/// that one when
+/// `work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`
+/// is fixed.
+#[test]
+fn plane_section_refuses_a_hole_nothing_places() {
+    let turn = core::f64::consts::FRAC_PI_2 + 0.05;
+    let cylinder: Body<f64> = sweep::test_support::prism(
+        vec![
+            (Point2::new(turn.cos(), turn.sin()), 1.0),
+            (Point2::new(-turn.cos(), -turn.sin()), 1.0),
+        ],
+        2.5,
+        tol(),
+    );
+    for flip in [false, true] {
+        let r = topo::plane_section(&cylinder, &tilted(1.25, 1.1, flip), tol());
+        assert!(
+            matches!(r, Err(topo::SectionError::UnplacedHole { .. })),
+            "flipped {flip}: {:?}",
+            r.map(|s| s.regions.len())
+        );
+    }
+}

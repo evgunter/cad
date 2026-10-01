@@ -128,6 +128,7 @@ use crate::errors::{BoundaryEdit, EvalReason, StlRefusal, UnmirroredSelect, Vali
 use pncad::analysis::{
     AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
 };
+use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
@@ -383,6 +384,17 @@ pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
         BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
         BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
+        BoundaryEdit::Label(fault) => label_fault_tag(fault),
+    }
+}
+
+/// The stable tag for a text refused as a label — which of the label
+/// rule's three clauses it broke.
+pub fn label_fault_tag(fault: &LabelFault) -> &'static str {
+    match fault {
+        LabelFault::Blank => "label_blank",
+        LabelFault::LineBreak { .. } => "label_line_break",
+        LabelFault::Control { .. } => "label_control_character",
     }
 }
 
@@ -598,6 +610,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PlacementAxis { .. } => "placement_axis",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
+        EditError::LabelUnchanged { .. } => "label_unchanged",
         // A mate's alignment is authored geometry, so the non-finite
         // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
@@ -1232,6 +1245,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::NonRigidPlacement { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
+        EditError::LabelUnchanged { .. } => None,
         EditError::NonFiniteAlignment { .. } => None,
     }
 }
@@ -1834,6 +1848,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DeclareInput { .. } => "declare_input",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
+        SnapshotError::LabelOnMissingNode { .. } => "label_on_missing_node",
         SnapshotError::SlotDimension { .. } => "slot_dimension",
         SnapshotError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
         SnapshotError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",

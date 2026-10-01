@@ -933,7 +933,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "path_corner_advance_arc" => "whether the corner lies ahead of its anchor on an arc side",
         "path_corner_reach_arc" => "whether the corner lies short of an arc arrival's anchor",
         "path_corner_turn" => "whether the two carriers turn at the corner",
-        "path_director_norm" => "whether a direction has any length",
+        "path_director_norm" => geom_core::DIRECTION_LENGTH_SUBJECT,
         "path_fillet_radius" => "whether an authored fillet radius is zero",
         "path_junction_side" => {
             "whether the path carries straight on at this junction or doubles back into a cusp"

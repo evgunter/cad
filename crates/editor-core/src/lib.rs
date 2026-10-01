@@ -34,6 +34,7 @@ pub mod eval;
 pub mod expr;
 mod finding;
 pub mod ident;
+pub mod label;
 pub mod mate;
 /// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
 /// replay over samples drawn from the document's own distributions.
@@ -142,6 +143,7 @@ pub use expr::{
     eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
+pub use label::{Label, LabelFault};
 pub use mate::{
     Alignment, AuthoredFrame, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash,
     ClassAdmission, ClusterMaintenance, Coset, FaceFrame, FacePoseRefusal, FaceRefusal, Lever,

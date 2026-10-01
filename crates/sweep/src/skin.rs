@@ -685,7 +685,7 @@ pub fn skin_on(
             let mut row = Vec::with_capacity(stride * n);
             for (p, w) in c.control().iter().zip(c.weights()) {
                 if integral {
-                    row.extend([p.x, p.y, p.z]);
+                    row.extend(p.to_array());
                 } else {
                     row.extend([p.x * w, p.y * w, p.z * w, *w]);
                 }

@@ -50,3 +50,8 @@ correct section is one 6-vertex face.
 face's own section curve, or refuse a candidate partner whose arc
 leaves the face (axial extent as well as azimuth) so the half waits
 for the right one. `chord_join` is shared with the boolean lane.
+
+**Rows that flip when this is fixed** (both in
+`crates/sweep/tests/split_section_rings.rs`):
+`a_clockwise_section_nothing_places_keeps_its_face` and
+`plane_section_refuses_a_hole_nothing_places`.

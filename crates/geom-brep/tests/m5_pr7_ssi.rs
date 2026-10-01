@@ -100,7 +100,8 @@ use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
     self, ChartAxis, ChartSpeedRefusal, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES,
-    SSI_SEED_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale,
+    SSI_SEED_FLOOR, SSI_SETTLE_MAX, SSI_TUBE_RADIUS, SettlingRefusal, SsiDomain, SsiError, SsiLimb,
+    SsiOperand, SsiTube, TraceDecision, TubeScale,
 };
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
@@ -1070,7 +1071,12 @@ fn nurbs_wall() -> NurbsSurface<f64> {
 /// acceptance wall is the one the step rule's own documented
 /// assumption (slowly-varying curvature) actually covers.
 fn certifiable_wall() -> NurbsSurface<f64> {
-    wall_from_cols([(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)])
+    wall_from_cols(certifiable_cols())
+}
+
+/// [`certifiable_wall`]'s columns.
+fn certifiable_cols() -> [(f64, f64); 4] {
+    [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)]
 }
 
 /// A plane slicing the wall at mid height, tilted so the cut is not a
@@ -2908,7 +2914,13 @@ fn a_tiny_net_the_plane_meets_refuses_by_the_kind_its_size_earns() {
         };
         let r = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band());
         let ok = if s <= 1.0e-100 {
-            matches!(&r, Err(SsiError::Escalated(d)) if d.predicate == Some("ssi_transversality"))
+            matches!(
+                &r,
+                Err(SsiError::Escalated {
+                    decision: TraceDecision::Transversality,
+                    ..
+                })
+            )
         } else if 3.0 * s >= 2.0 * band().escalate() {
             matches!(
                 &r,
@@ -2921,7 +2933,7 @@ fn a_tiny_net_the_plane_meets_refuses_by_the_kind_its_size_earns() {
         } else {
             matches!(
                 &r,
-                Err(SsiError::StepCollapsed { .. } | SsiError::Escalated(_))
+                Err(SsiError::StepCollapsed { .. } | SsiError::Escalated { .. })
             )
         };
         assert!(ok, "spread {s:e} at ε {:e}: {r:?}", band().zero());
@@ -3117,6 +3129,258 @@ fn a_floor_no_bisection_reaches_refuses_by_name_on_both_lanes() {
     let shown = err.render(Reading::Build);
     assert!(
         shown.contains("Recourse: move the geometry nearer the origin"),
+        "{shown}"
+    );
+}
+
+/// The threaded cylinder × unit sphere, both translated to `x` along the
+/// first axis, with the slab centred there.
+fn far_cylinder_sphere(x: f64) -> (Surface<f64>, Surface<f64>, SsiDomain) {
+    let at = Point3::new(x, 0.0, 0.0);
+    let far = Surface::Sphere {
+        center: at,
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cylinder = match threaded_cylinder() {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin: Point3::new(origin.x + x, origin.y, origin.z),
+            axis,
+            radius,
+            u_ref,
+        },
+        other => panic!("{other:?}"),
+    };
+    let domain = SsiDomain {
+        center: at,
+        ..slab()
+    };
+    (cylinder, far, domain)
+}
+
+/// The cutting plane and the certifiable wall, both translated to `x`
+/// along the first axis.
+fn far_plane_wall(x: f64) -> (Surface<f64>, NurbsSurface<f64>) {
+    let wall = wall_from_cols(certifiable_cols().map(|(u, v)| (u + x, v)));
+    let plane = match cutting_plane() {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => Surface::Plane {
+            origin: Point3::new(origin.x + x, origin.y, origin.z),
+            normal,
+            u_ref,
+        },
+        other => panic!("{other:?}"),
+    };
+    (plane, wall)
+}
+
+/// The run's band shape at tolerance `eps`: the same `K`.
+fn band_at(eps: f64) -> geom_core::Band {
+    geom_core::Band::new(eps, eps * band().escalate() / band().zero()).unwrap()
+}
+
+/// `r`'s settling refusal, read on `lane`, with the scale's ending.
+fn settling_refusal(what: &str, r: Result<geom_brep::SsiOutcome, SsiError>) -> SettlingRefusal {
+    use geom_brep::recourse::Reading;
+    let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
+        panic!("{what}: expected the settling door, got {r:?}");
+    };
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains(&format!(
+            "the march can settle a state no finer than {:e} m",
+            s.settle
+        )) && shown.contains("Recourse: "),
+        "{what}: {shown}"
+    );
+    s
+}
+
+/// **A quadric pair far from the origin certifies wherever its
+/// coordinates resolve the march, and refuses by its scale past that.**
+/// The march settles to the larger of `SSI_NEWTON_TOL`·ε and
+/// `SSI_QUADRIC_NOISE_ULPS` of the coordinates' spacing, and refuses
+/// where that passes `SSI_SETTLE_MAX`·ε: at ε = `1e-9`, from reach
+/// `2²¹` m (2.1e6). Measured at the merge base, which settled to
+/// `SSI_NEWTON_TOL`·ε alone: 1e5 and 1.3e5 m certified, and from 3e5 m
+/// the march "lost the branch" (`StepRefinementFailed`).
+///
+/// The pins either side of the boundary: at 2e6 m the states settle to
+/// 0.47ε and both branches certify; at 2.2e6 m they would settle to
+/// 0.93ε, which escalated limb 2 (the hull bound) when let through.
+#[test]
+fn a_far_quadric_pair_certifies_where_its_coordinates_resolve_the_march() {
+    let b = band_at(1.0e-9);
+    for x in [1.0e5, 1.3e5, 2.0e6] {
+        let (c, s, d) = far_cylinder_sphere(x);
+        match ssi::cylinder_sphere_ssi(&c, &s, d, b) {
+            Ok(o) => assert_eq!(o.branches.len(), 2, "at {x:e} m"),
+            Err(e) => panic!("at {x:e} m: expected both loops certified, got {e:?}"),
+        }
+    }
+}
+
+/// **The same pair past the boundary, and at `1e8` m, refuses by its
+/// scale**, never "lost the branch". At `1e8` m the accounting floor is
+/// stated as `1e-7` m so the floor door passes and the march's own door
+/// is what refuses.
+#[test]
+fn a_far_quadric_pair_past_what_its_coordinates_resolve_refuses_by_scale() {
+    let b = band_at(1.0e-9);
+    let (c, s, d) = far_cylinder_sphere(2.2e6);
+    let r = settling_refusal("2.2e6 m", ssi::cylinder_sphere_ssi(&c, &s, d, b));
+    assert!(matches!(r.lane, geom_brep::ExhaustLane::R3), "{r:?}");
+    assert!(
+        r.settle > SSI_SETTLE_MAX * b.zero() && r.settle <= b.zero(),
+        "just past the boundary: {r:?}"
+    );
+    let (c, s, d) = far_cylinder_sphere(1.0e8);
+    let d = SsiDomain {
+        floor_scale: SsiDomain::floor_scale_for(1.0e-7, b),
+        ..d
+    };
+    let r = settling_refusal("1e8 m", ssi::cylinder_sphere_ssi(&c, &s, d, b));
+    assert!(r.reach > 1.0e8 && r.gap > 1.0e-8, "{r:?}");
+}
+
+/// **An oversized domain around geometry at the origin settles where
+/// the geometry is**, not at the domain's far corner: the march's
+/// states lie on the operands, so the readout's reach is the domain cut
+/// down to the bounded operand's box (the sphere's here). Both loops
+/// certified at the merge base with these half-extents.
+#[test]
+fn a_wide_slab_around_a_quadric_pair_at_the_origin_settles_where_the_pair_is() {
+    let b = band_at(1.0e-9);
+    for half_extent in [3.0e6, 6.0e6] {
+        let d = SsiDomain {
+            half_extent,
+            ..slab()
+        };
+        let out = ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, b)
+            .unwrap_or_else(|e| panic!("half-extent {half_extent:e} m: {e:?}"));
+        assert_eq!(out.branches.len(), 2, "half-extent {half_extent:e} m");
+    }
+}
+
+/// The spline lane's twin: the readout's reach is the plane window cut
+/// down to the wall's control hull.
+#[test]
+fn a_wide_window_around_a_wall_at_the_origin_settles_where_the_wall_is() {
+    let b = band_at(1.0e-12);
+    let d = SsiDomain {
+        half_extent: 1000.0,
+        ..wall_domain()
+    };
+    let out = ssi::plane_nurbs_ssi(&cutting_plane(), &certifiable_wall(), d, b)
+        .expect("certified at the merge base: the wall sits at the origin");
+    assert_eq!(out.branches.len(), 1);
+}
+
+/// **Where no operand is bounded, the domain is what reaches, and the
+/// refusal names it.** The threaded cylinder against a plane through
+/// it, both unbounded, traced over a 3e6 m domain at ε = `1e-9`: the
+/// states may lie anywhere in it, so the march settles to the domain's
+/// spacing and refuses naming the domain, with the domain as a lever.
+#[test]
+fn a_domain_no_operand_bounds_refuses_naming_the_domain() {
+    use geom_brep::ReachBound;
+    use geom_brep::recourse::Reading;
+
+    let b = band_at(1.0e-9);
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.5),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let d = SsiDomain {
+        half_extent: 3.0e6,
+        ..slab()
+    };
+    let r = ssi::idealized_trace_r3(
+        &threaded_cylinder(),
+        &plane,
+        Point3::new(0.11, 0.0, 0.5),
+        d,
+        b,
+    );
+    let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
+        panic!("expected the settling door, got {r:?}");
+    };
+    assert_eq!(s.bound, ReachBound::Domain, "{s:?}");
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains("where the domain reaches") && shown.contains("Recourse: name a domain"),
+        "{shown}"
+    );
+}
+
+/// **A plane × NURBS wall far from the origin traces and certifies
+/// where its coordinates resolve the march, and refuses by its scale
+/// past that**, never "lost the branch". The spline lane settles to
+/// `SSI_SPLINE_NOISE_ULPS` of the spacing, so at ε = `1e-12` it refuses
+/// from reach `2⁹` m. Measured at the merge base: from 20 m the march
+/// refused `StepRefinementFailed`.
+///
+/// The pins either side of the boundary: at 500 m the states settle to
+/// 0.45ε and the branch certifies; at 520 m they would settle to 0.91ε,
+/// which escalated limb 2 (the hull bound) when let through.
+#[test]
+fn a_far_plane_wall_pair_certifies_or_refuses_by_scale() {
+    let b = band_at(1.0e-12);
+    for x in [20.0, 40.0, 60.0, 500.0] {
+        let (p, w) = far_plane_wall(x);
+        match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), b) {
+            Ok(o) => assert_eq!(o.branches.len(), 1, "at {x} m"),
+            Err(e) => panic!("at {x} m: expected the branch certified, got {e:?}"),
+        }
+    }
+    for x in [520.0, 1.0e8] {
+        let (p, w) = far_plane_wall(x);
+        let r = settling_refusal(
+            &format!("{x:e} m"),
+            ssi::plane_nurbs_ssi(&p, &w, wall_domain(), b),
+        );
+        assert!(
+            matches!(r.lane, geom_brep::ExhaustLane::R3) && r.reach > x,
+            "{r:?}"
+        );
+    }
+}
+
+/// **A wall whose own chart is too coarse for the march refuses by that
+/// chart's scale.** A wall near the origin scaled to `ε·1e15` m moves
+/// about `3ε·1e15` m per chart unit, so the accounting floor of ε is a
+/// third of `1e-15` chart units, which `[0, 1]` resolves, while a chart
+/// step there is several ε in metres.
+#[test]
+fn a_wall_whose_chart_cannot_settle_the_march_refuses_by_its_chart() {
+    use geom_brep::recourse::Reading;
+
+    let m = band().zero() * 1.0e15;
+    let wide = wall_from_cols(certifiable_cols().map(|(u, v)| (u * m, v * m)));
+    let r = ssi::plane_nurbs_ssi(&cutting_plane(), &wide, wall_domain(), band());
+    let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
+        panic!("the {m:e} m wall: expected the settling door, got {r:?}");
+    };
+    let geom_brep::ExhaustLane::Chart { speed } = s.lane else {
+        panic!("the chart's settling refused on the ℝ³ lane: {s:?}");
+    };
+    assert_eq!(s.reach, 1.0, "the wall's knot domain");
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains(&format!(
+            "at a certified chart speed of {:e} m per chart unit",
+            speed.get()
+        )) && shown.contains("Recourse: bring the spline face within the model's size range"),
         "{shown}"
     );
 }
