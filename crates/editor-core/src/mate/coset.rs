@@ -399,7 +399,7 @@ impl Arm {
     /// overflows the format.
     pub fn of(parts: f64, datum: f64) -> Result<Self, LeverRefusal> {
         let arm = parts + datum;
-        if (arm * arm * 16.0).is_finite() {
+        if (arm.powi(2) * 16.0).is_finite() {
             Ok(Self(arm))
         } else {
             Err(LeverRefusal::OutOfRange { parts, datum })

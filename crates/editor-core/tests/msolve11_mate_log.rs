@@ -603,3 +603,24 @@ fn a_parts_flat_index_past_the_row_width_is_refused_at_the_pattern_it_selects_fr
         "the refusal names the pattern the `Part` selects from"
     );
 }
+
+// ---- the role, in words ----
+
+/// **A mate's role reads in words**: whether it placed its child,
+/// placed nothing and only declares a contact, or was refused.
+#[test]
+fn a_mate_role_reads_in_words() {
+    use editor_core::MateRole;
+    assert_eq!(
+        MateRole::Determining.to_string(),
+        "places its child: the solve determined the pair through it"
+    );
+    assert_eq!(
+        MateRole::Declaring.to_string(),
+        "places nothing: it declares a contact, which the at-rest gate verifies"
+    );
+    assert_eq!(
+        MateRole::Refused.to_string(),
+        "places nothing: the solve refused it"
+    );
+}

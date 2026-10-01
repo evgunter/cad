@@ -769,10 +769,11 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             "Unleverable",
             MateFault::Unleverable {
                 mate: n(9),
-                refusal: LeverRefusal::NoExtent {
+                refusal: Box::new(LeverRefusal::Reach {
                     instance: n(6),
                     part: doc_ref,
-                },
+                    refusal: editor_core::ReachRefusal::NoExtent,
+                }),
             },
         ),
     ]
@@ -869,31 +870,6 @@ const FILED_NO_RECOURSE: &[&str] = &[
     "Edit/PlacementAxis",
     "Edit/PlacementOnNonInstance",
     "Edit/PlacementRuleMismatch",
-    // work/msolve/msolve-refusals-short-of-the-shape-guard.md
-    "Edit/MaintenanceRefused",
-    "Edit/MaintenanceRefused(ClassNotAdmitted)",
-    "Edit/MaintenanceRefused(Contradictory)",
-    "Edit/MaintenanceRefused(DanglingHead)",
-    "Edit/MaintenanceRefused(Indeterminate)",
-    "Edit/MaintenanceRefused(PartSelectsAnotherCopy)",
-    "Edit/MaintenanceRefused(PlacerRefused)",
-    "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-    "Edit/MaintenanceRefused(SelfMate)",
-    "Edit/MaintenanceRefused(TableLacks)",
-    "Edit/MaintenanceRefused(Under)",
-    "Edit/MaintenanceRefused(Unleverable)",
-    "Edit/MateRefused",
-    "Edit/MateRefused(ClassNotAdmitted)",
-    "Edit/MateRefused(Contradictory)",
-    "Edit/MateRefused(DanglingHead)",
-    "Edit/MateRefused(Indeterminate)",
-    "Edit/MateRefused(PartSelectsAnotherCopy)",
-    "Edit/MateRefused(PlacerRefused)",
-    "Edit/MateRefused(PosesOfAnotherDocument)",
-    "Edit/MateRefused(SelfMate)",
-    "Edit/MateRefused(TableLacks)",
-    "Edit/MateRefused(Under)",
-    "Edit/MateRefused(Unleverable)",
     // work/paths/paths-refusals-short-of-the-shape-guard.md
     "Edit/ProfileProgramRefused(Resolve)",
     "Edit/ProfileProgramRefused(Transition)",
@@ -967,7 +943,7 @@ fn every_edit_refusal_renders_within_the_budget() {
 
 /// The rows that name a document or a version by its hex id, by exact
 /// row id and the exact span, each filed with its owner: `EditError`'s
-/// pairing and pin arms, and the mate refusals it forwards.
+/// pairing and pin arms.
 const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Edit/EvaluationOfAnotherDocument",
@@ -983,35 +959,5 @@ const ADMISSIONS: &[Admission<'static>] = &[
         row: "Edit/PinUnchanged",
         span: "9515831d455a13139e7a712b440337b3447c4b9f3b969d034020eacf0fd8a56d",
         filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-        span: "3e23e8160039594a33894f6564e1b134",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-        span: "ca978112ca1bbdcafac231b39a23dc4d",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MateRefused(PosesOfAnotherDocument)",
-        span: "3e23e8160039594a33894f6564e1b134",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MateRefused(PosesOfAnotherDocument)",
-        span: "ca978112ca1bbdcafac231b39a23dc4d",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MaintenanceRefused(Unleverable)",
-        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MateRefused(Unleverable)",
-        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
     },
 ];

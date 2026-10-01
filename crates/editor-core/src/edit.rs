@@ -2305,7 +2305,11 @@ impl EditError {
                 )?;
                 match fault {
                     Some(fault) => write!(f, "refused: {fault}"),
-                    None => write!(f, "recorded no pose for it and no fault"),
+                    None => write!(
+                        f,
+                        "recorded no pose for it and no fault. {}",
+                        geom_core::KERNEL_DEFECT_ENDING
+                    ),
                 }
             }
             Self::MaintenanceUnrecorded { gauge } => write!(

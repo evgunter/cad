@@ -379,7 +379,10 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
         "the measured clash IS the authored gap mismatch: {metres}"
     );
     let message = fault.to_string();
-    assert!(message.contains(predicate), "{message}");
+    assert!(
+        message.contains("the translation leaves the shared plane") && !message.contains(predicate),
+        "the sentence says in words what the predicate found: {message}"
+    );
     assert!(message.contains("clash"), "{message}");
 }
 

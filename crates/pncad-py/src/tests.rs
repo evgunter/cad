@@ -982,10 +982,16 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     carries(
         &F::Unleverable {
             mate: id(1),
-            refusal: LeverRefusal::PartUnresolved {
+            refusal: Box::new(LeverRefusal::Reach {
                 instance: id(0),
-                fault: pncad::document::PartFault::NoResolver,
-            },
+                part: pncad::document::DocRef {
+                    id: pncad::document::DocumentId::derive("unleverable"),
+                    pin: pncad::document::ContentPin([0u8; 32]),
+                },
+                refusal: pncad::document::ReachRefusal::PartUnresolved {
+                    fault: pncad::document::PartFault::NoResolver,
+                },
+            }),
         },
         &["mate", "instance", "inner_variant"],
     );
@@ -1168,10 +1174,16 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     let unleverable = F::Unleverable {
         mate: id(1),
-        refusal: LeverRefusal::PartUnresolved {
+        refusal: Box::new(LeverRefusal::Reach {
             instance: id(0),
-            fault: pncad::document::PartFault::NoResolver,
-        },
+            part: pncad::document::DocRef {
+                id: pncad::document::DocumentId::derive("unleverable"),
+                pin: pncad::document::ContentPin([0u8; 32]),
+            },
+            refusal: pncad::document::ReachRefusal::PartUnresolved {
+                fault: pncad::document::PartFault::NoResolver,
+            },
+        }),
     };
     let payload = mate_payload(&unleverable);
     assert_eq!(payload.inner_variant, Some("part_unresolved"));
@@ -4902,17 +4914,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "face_refusal_tag",
+        function: "face_pose_refusal_tag",
         values: &[
             "ambiguous",
             "no_such_name",
             "not_a_face",
-            "not_an_instance",
             "part_unresolved",
             "readback",
             "unpinned",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "face_refusal_tag",
+        values: &["not_an_instance"],
+        delegates: &["face_pose_refusal_tag"],
     },
     TagEntry {
         function: "fmt_quantity_error_tag",
@@ -4987,16 +5003,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "lever_refusal_tag",
-        values: &[
-            "face_unbounded",
-            "malformed_body",
-            "no_extent",
-            "no_finite_bound",
-            "not_an_instance",
-            "out_of_range",
-            "part_unresolved",
-        ],
-        delegates: &[],
+        values: &["not_an_instance", "out_of_range"],
+        delegates: &["reach_refusal_tag"],
     },
     TagEntry {
         function: "loft_error_tag",
@@ -5436,6 +5444,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "promoted_kind_tag",
         values: &["cylinder", "plane"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "reach_refusal_tag",
+        values: &[
+            "face_unbounded",
+            "malformed_body",
+            "no_extent",
+            "no_finite_bound",
+            "part_unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -6175,10 +6194,10 @@ fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
 
 /// **A face refusal spells the facts it shares the way their own maps
 /// do** — four of `SHARED_TAG_WORDS`' entries are one fact, not a
-/// coincidence. `FaceRefusal` mirrors `LeverRefusal` over the member
-/// walk and the resolver (a part not in hand, a member on no instance:
-/// the same two refusals, met while resolving a face instead of while
-/// levering), and its name arms are the name table's own answers that
+/// coincidence. The two reach refusals meet a part that does not
+/// resolve while levering and while reading a face, and the two
+/// carriers meet a member on no instance: the same refusal, met by two
+/// readers. A face's name arms are the name table's own answers that
 /// `InterrogateError` publishes (no row, a tie). A binding reading
 /// `inner_variant` across `mate_unleverable` and `mate_face_unresolved`,
 /// or across a mate and a measure, reads one word for one fact.
@@ -6186,8 +6205,8 @@ fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
 fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
     use crate::tags::{face_refusal_tag, interrogate_error_tag, lever_refusal_tag};
     use pncad::document::{
-        ContentPin, DocRef, DocumentId, FaceName, FaceRefusal, LeverRefusal, PartFault,
-        RecipeNodeId,
+        ContentPin, DocRef, DocumentId, FaceName, FacePoseRefusal, FaceRefusal, LeverRefusal,
+        PartFault, ReachRefusal, RecipeNodeId,
     };
     use pncad::select::{EntityKind, InterrogateError};
 
@@ -6202,16 +6221,22 @@ fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
         path: vec![],
     })
     .expect("a face");
+    let read = |refusal| FaceRefusal::Reach {
+        instance,
+        part,
+        face: face.clone(),
+        refusal,
+    };
     assert_eq!(
-        face_refusal_tag(&FaceRefusal::PartUnresolved {
+        face_refusal_tag(&read(FacePoseRefusal::PartUnresolved {
+            fault: PartFault::NoResolver,
+        })),
+        lever_refusal_tag(&LeverRefusal::Reach {
             instance,
             part,
-            face: face.clone(),
-            fault: PartFault::NoResolver,
-        }),
-        lever_refusal_tag(&LeverRefusal::PartUnresolved {
-            instance,
-            fault: PartFault::NoResolver,
+            refusal: ReachRefusal::PartUnresolved {
+                fault: PartFault::NoResolver,
+            },
         }),
     );
     assert_eq!(
@@ -6219,20 +6244,11 @@ fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
         lever_refusal_tag(&LeverRefusal::NotAnInstance { node: instance }),
     );
     assert_eq!(
-        face_refusal_tag(&FaceRefusal::NoSuchName {
-            instance,
-            part,
-            face: face.clone(),
-        }),
+        face_refusal_tag(&read(FacePoseRefusal::NoSuchName)),
         interrogate_error_tag(&InterrogateError::NoSuchName),
     );
     assert_eq!(
-        face_refusal_tag(&FaceRefusal::Ambiguous {
-            instance,
-            part,
-            face,
-            candidates: 2,
-        }),
+        face_refusal_tag(&read(FacePoseRefusal::Ambiguous { candidates: 2 })),
         interrogate_error_tag(&InterrogateError::Ambiguous { candidates: 2 }),
     );
 }

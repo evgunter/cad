@@ -44,7 +44,7 @@ use geom_core::predicate::Band;
 
 use super::coset::{Arm, Coset, FoldStop, Measured, Subgroup};
 use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
-use super::reach::MateReach;
+use super::reach::{FacePoseRefusal, MateReach};
 use super::{
     Alignment, AuthoredFrame, AxisSense, Clash, FaceRefusal, Lever, MateFault, MateFrame,
     MatePrimitive, MateSide,
@@ -66,6 +66,21 @@ pub enum MateRole {
     Declaring,
     /// The mate refused; see the fault recorded against it.
     Refused,
+}
+
+/// **What the mate did, in words a person reads** — the kernel's one
+/// sentence for the role, which a surface draws on the mate's row
+/// after its name rather than minting its own.
+impl core::fmt::Display for MateRole {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Determining => "places its child: the solve determined the pair through it",
+            Self::Declaring => {
+                "places nothing: it declares a contact, which the at-rest gate verifies"
+            }
+            Self::Refused => "places nothing: the solve refused it",
+        })
+    }
 }
 
 /// The document's solved poses (D-5's compose-outward input).
@@ -771,12 +786,12 @@ fn resolve_side<P: crate::ProfilePayload>(
     let part =
         part_of(doc, member).map_err(|node| unresolved(FaceRefusal::NotAnInstance { node }))?;
     let named = |refusal| {
-        unresolved(FaceRefusal::of(
-            refusal,
-            member.instance,
+        unresolved(FaceRefusal::Reach {
+            instance: member.instance,
             part,
-            face.face.clone(),
-        ))
+            face: face.face.clone(),
+            refusal,
+        })
     };
     let pose = reach.face_pose(&part, &face.face).map_err(named)?;
     // `topo::readback::face_pose` answers every carrier it answers
@@ -937,8 +952,12 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     let a = resolve_side(doc, reach, mate, MateSide::A, &wa.member, &alignment.a)?;
     let b = resolve_side(doc, reach, mate, MateSide::B, &wb.member, &alignment.b)?;
     let form = || {
-        let parts = pair_reach(doc, reach, first, second)
-            .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
+        let parts = pair_reach(doc, reach, first, second).map_err(|refusal| {
+            Box::new(MateFault::Unleverable {
+                mate,
+                refusal: Box::new(refusal),
+            })
+        })?;
         lever(mate, parts, alignment, &a, &b)
     };
     mate_coset(mate, alignment, &a, &b, form, band, tol).map(|_| ())
@@ -1009,8 +1028,12 @@ fn fold_pair<P: crate::ProfilePayload>(
             let parts = match parts_reach {
                 Some(parts) => parts,
                 None => {
-                    let parts = pair_reach(doc, reach, parent, child)
-                        .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
+                    let parts = pair_reach(doc, reach, parent, child).map_err(|refusal| {
+                        Box::new(MateFault::Unleverable {
+                            mate,
+                            refusal: Box::new(refusal),
+                        })
+                    })?;
                     parts_reach = Some(parts);
                     parts
                 }
@@ -1079,8 +1102,12 @@ fn lever(
     a: &AuthoredFrame,
     b: &AuthoredFrame,
 ) -> Result<Arm, Box<MateFault>> {
-    Arm::of(parts, alignment.lever_arm(a, b))
-        .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))
+    Arm::of(parts, alignment.lever_arm(a, b)).map_err(|refusal| {
+        Box::new(MateFault::Unleverable {
+            mate,
+            refusal: Box::new(refusal),
+        })
+    })
 }
 
 /// **The two mated parts' reach, summed** — the body terms of the
@@ -1106,7 +1133,11 @@ fn pair_reach<P: crate::ProfilePayload>(
             part_of(doc, member).map_err(|node| super::LeverRefusal::NotAnInstance { node })?;
         reach
             .reach(&doc_ref)
-            .map_err(|refusal| super::LeverRefusal::of(refusal, member.instance, doc_ref))
+            .map_err(|refusal| super::LeverRefusal::Reach {
+                instance: member.instance,
+                part: doc_ref,
+                refusal,
+            })
     };
     Ok(of(parent)? + of(child)?)
 }
@@ -1795,16 +1826,17 @@ fn undecided(fault: &MateFault) -> bool {
         // Nothing decided a pose there, so the edit refuses rather than
         // record a frame.
         MateFault::FaceUnresolved { refusal, .. } => match refusal.as_ref() {
-            FaceRefusal::PartUnresolved { .. }
-            | FaceRefusal::Unpinned { .. }
-            | FaceRefusal::NotAnInstance { .. } => true,
-            FaceRefusal::Readback { error, .. } => !matches!(
-                error,
-                topo::readback::ReadbackError::NoCanonicalFrame { .. }
-            ),
-            FaceRefusal::NoSuchName { .. }
-            | FaceRefusal::Ambiguous { .. }
-            | FaceRefusal::NotAFace { .. } => false,
+            FaceRefusal::NotAnInstance { .. } => true,
+            FaceRefusal::Reach { refusal, .. } => match refusal {
+                FacePoseRefusal::PartUnresolved { .. } | FacePoseRefusal::Unpinned => true,
+                FacePoseRefusal::Readback(error) => !matches!(
+                    error,
+                    topo::readback::ReadbackError::NoCanonicalFrame { .. }
+                ),
+                FacePoseRefusal::NoSuchName
+                | FacePoseRefusal::Ambiguous { .. }
+                | FacePoseRefusal::NotAFace { .. } => false,
+            },
         },
         // An unsupported mate (a class the solve does not admit, a
         // primitive the coset table lacks) has no pose, and deleting

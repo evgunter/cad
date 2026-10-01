@@ -246,8 +246,11 @@ fn residual_of(fault: &MateFault, predicate: &str) -> (f64, f64) {
     };
     assert!(arm > 0.0, "the arm is the mated parts' own extent: {arm}");
     let message = fault.to_string();
+    assert!(
+        !message.contains(predicate),
+        "the predicate's name rides the payload, not the sentence: {message:?}"
+    );
     for want in [
-        &format!("predicate `{predicate}`"),
         &format!("a dimensionless residual of {value}"),
         &format!("on a {arm} m arm"),
         &format!("a deviation of {} m", clash.deviation().unwrap()),

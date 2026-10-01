@@ -117,7 +117,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         message,
         format!(
             "node {} failed: the mate solve refused: mate {}'s a reference has no derived pose: \
-             node {p}, which places it, refuses — repair node {p}",
+             node {p}, on its derivation, refuses. Recourse: repair node {p}",
             mate.0,
             mate.0,
             p = pattern.0,
