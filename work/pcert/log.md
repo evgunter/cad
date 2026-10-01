@@ -117,3 +117,78 @@ cleared.
   review: a refusal-vocabulary change that reads for itself.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — the weighing, the reviews, D36
+
+**The design pair** (`docs/DESIGN-FORK-PROTOCOL.md`; byte on
+`analysis/design-fork/pcert-at-rest-absence-2026-10-01`) agreed on the
+spine at first report: no recorded history (never-minted, refused and
+emptied are histories a body at rest cannot hold), and tier 3 derives a
+rowless face rather than skipping it. They split on whether a stored
+row is mandatory at rest (`Unminted` and `MissingCache` findings) or a
+cache every reader can do without (one deriving reader), and on whether
+an uncovered face is a finding. One reconciliation round CONVERGED (not
+crossed): both now recommend the optional cache (one likely, one
+unsure) and an uncovered face out of the validity verdict. The
+remaining question — may a reader rely on a stored row — goes to Ev on
+`pcert/ev-at-rest-rows`.
+
+**Spike, for that question** (read-only): the walk pins a loop's branch
+once at its start; honouring stored rows as anchors needs a `fixed`
+flag on `WalkItem` and a start rotation, about 30–80 lines, not a new
+walk. Derivation costs about 1–3× the re-certification tier 3 already
+pays. `boolean/boxes.rs::face_window_steps` would rise from `Real` to
+`Decide` and return owned rows; the props quad lane needs the fitted
+lane passed as a parameter or a bound raise on the public
+`mass_properties`. Two stored runs a period apart are reachable without
+corruption: `plan_moved_rows` keeps moved rows unchecked when the chart
+matches (`kef`'s remnant), and only pass 3 catches it, which today
+never runs on a face with a gap.
+
+**Off-question, recorded so they are not lost:** `crates/sweep/src/extrude.rs`
+mints nothing, so extruded arc walls are rowless at rest (a defect
+under the mandatory answer, cache warmth under the optional one —
+filed once Ev rules); `validate_pcurves`' and `MissingCache`'s docs
+cite a "spec §5" and "every sweep output" as never minted, both stale.
+
+**`D36` re-banded P0 and dispatched now** (single FULL review: a
+refusal that narrows a swallow turns some passing mints loud, which is
+believed by checking): both designers recommended the split under
+every answer, and the swallow forgives a body whose edge is not on its
+face. Reasons on the row.
+
+**Reviews adjudicated:**
+
+- `pcurve-chart-box-is-looser-than-harmonic-extent` (PR 3610): approve.
+  The reviewer found check 5 tautological at mint and at rest (the
+  window is the hull of the same rows' `chart_box`), so the row's
+  premise that check 5 was looser than needed was wrong: nothing could
+  move a verdict, and nothing did. One MINOR, latent: the new box is
+  not monotone under span restriction for a channel mixing trig and
+  linear terms, which `split_cache` relies on; no constructor builds
+  such a channel today. Fix pass: pin child-in-parent for the families
+  that ship, state the premise where `split_cache` and check 5's docs
+  rest on it, fold the `IsoLine` arm onto the one home, fix the stale
+  "the one arm whose box is TIGHT" comment.
+- `placeholder-chart-sup-arms-are-not-a-bound` (PR 3614): mergeable
+  with fixes. Two MINORs: the "is this the placeholder" test is spelled
+  twice and the spellings disagree on an `Approx` surface whose fit is
+  the placeholder; and the new `weight_ratio_factor` `assert!` is
+  reachable through public knot insertion (subnormal weights), so it
+  returns to poison and the upstream weight defect is filed. The
+  placeholder refusal now has five spellings; the fix pass gives it one
+  home.
+- `pcurve-fit-refusal-drops-the-domain-doors-reason` (PR 3612):
+  mergeable. Two schedule copies the dedup's pattern could not match
+  (`step-import`'s `arc_rim_on_wall_boundary`, `geom-brep`'s
+  `pcurve.rs` fit schedule); the reparameterize recourse is spelled in
+  two places; `DomainInvalid` is unreachable through the producer (the
+  foot schedule poisons first).
+
+**A possible red main, not this program's:** `topo`'s
+`euler_kill::tests::kev_describing_asks_the_survivors_point_only_where_a_question_needs_it`
+fails under `--all-features` (tier-1 `DanglingGeometry`) and passes
+without; one lane saw it on a clean `origin/main`. Checked against the
+nightly before anyone is summoned.
+
+Signed (PCERT orchestrator).
