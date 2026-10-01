@@ -5395,3 +5395,12 @@ fresh walk target, branch `topo/kev-all-features`. The brief is
 evidence between a real defect and a row asserting what a feature
 legitimately changes, files the CI gap on GUARD, and sweeps the whole
 `--all-features` suite diff.
+
+## PR 3621 merged (2026-10-01)
+
+PR 3621 merged at `e8e7693416` after CI run 36825901551 went green on
+`09e3bf38de`, where both of its rows are closed. The Euler operators'
+corruption refusals end in `KERNEL_DEFECT_ENDING`. `StaleKey`,
+`StaleGeometry` and `NotSameEdge` keep their fact-only text until the
+filed split lands. `MergeRebasesCarriers` carries a true geometric
+lever.
