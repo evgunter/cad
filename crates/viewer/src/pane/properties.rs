@@ -617,7 +617,11 @@ impl ViewerBehavior<'_> {
                     if self.drafts.expr_target == Some((node, row.slot)) {
                         crate::widgets::message_toned(
                             ui,
-                            format!("{}: not applied: {}", row.slot.label(), self.drafts.expr_text),
+                            format!(
+                                "{}: not applied: {}",
+                                row.slot.label(),
+                                self.drafts.expr_text
+                            ),
                             &self.theme,
                             Tone::Advisory,
                         );
