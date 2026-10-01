@@ -479,6 +479,8 @@ mod perf12_census_goldens;
 mod perf2_name_keying_differential;
 #[path = "pick3_early_out.rs"]
 mod pick3_early_out;
+#[path = "pierce_ring_engraving.rs"]
+mod pierce_ring_engraving;
 #[path = "pinned_lift_validates_once.rs"]
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
