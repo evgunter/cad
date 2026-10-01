@@ -838,13 +838,23 @@ mod tests {
         corpus
     }
 
-    /// [`Affine3::components`] by bits. That door destructures rather
-    /// than walks, so it is an INDEPENDENT statement of where each
-    /// component belongs — a transposition inside the walk disagrees
-    /// with it — and `cols_and_components_read_out_in_the_walk_order`
-    /// pins the door itself to literals.
+    /// The twelve components in the order the walk visits them: the
+    /// three columns, each `x, y, z`, then the translation. Written
+    /// out by hand, so it is an INDEPENDENT statement of where each
+    /// component belongs — a transposition inside the walk, or inside
+    /// the [`Affine3::components`] door, disagrees with it, which is
+    /// the whole reason the walk rows and the door's own row compare
+    /// against this and not against another call to the code under
+    /// test.
+    fn hand_components<T: Real>(a: Affine3<T>) -> [T; 12] {
+        let (l, t) = (a.linear, a.translation);
+        [
+            l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
+        ]
+    }
+
     fn bits(a: Affine3<f64>) -> [u64; 12] {
-        a.components().map(f64::to_bits)
+        hand_components(a).map(f64::to_bits)
     }
 
     /// A placement with twelve DISTINCT components and no symmetry —
@@ -902,7 +912,7 @@ mod tests {
     #[test]
     fn both_walks_lift_to_another_scalar_in_the_same_places() {
         let channels = |d: Affine3<Dual64>| {
-            let c = d.components();
+            let c = hand_components(d);
             (c.map(|x| x.value.to_bits()), c.map(|x| x.deriv.to_bits()))
         };
         for (o, u, v) in frame_corpus() {
@@ -989,7 +999,7 @@ mod tests {
                 Ok(_) => panic!("component {k} refused, so the walk must not answer Ok"),
                 Err(e) => assert_eq!(
                     e.to_bits(),
-                    a.components()[k].to_bits(),
+                    hand_components(a)[k].to_bits(),
                     "the refusal carried out is component {k}'s"
                 ),
             }
@@ -1160,12 +1170,23 @@ mod tests {
         assert_eq!(door.0, hand.0, "the twelve results land in the same places");
     }
 
-    /// The readout doors against literals: `distinct`'s twelve distinct
-    /// components in [`Affine3::try_map`]'s visit order, so a
-    /// transposed column, a dropped translation or a reversed walk
-    /// reds this row on a value rather than on another call.
+    /// The readout doors against literals and against the hand
+    /// spelling: `distinct`'s twelve distinct components in
+    /// [`Affine3::try_map`]'s visit order, so a transposed column, a
+    /// dropped translation or a reversed walk reds this row on a value
+    /// rather than on another call. Then the door against
+    /// [`hand_components`] by bits over the storage corpus, where the
+    /// signed zeros, the infinities and the NaN live.
     #[test]
     fn cols_and_components_read_out_in_the_walk_order() {
+        for (o, u, v) in frame_corpus() {
+            let a = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+            assert_eq!(
+                a.components().map(f64::to_bits),
+                bits(a),
+                "components at {o:?} {u:?} {v:?}"
+            );
+        }
         let a = distinct();
         assert_eq!(
             a.components(),

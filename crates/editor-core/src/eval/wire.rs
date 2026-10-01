@@ -841,7 +841,7 @@ pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 /// layer does not own.
 pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
     Some(match predicate {
-        EVAL_DIRECTION_NORM => "whether a direction has any length",
+        EVAL_DIRECTION_NORM => geom_core::DIRECTION_LENGTH_SUBJECT,
         "revolve_full_vs_partial" => "whether the revolve makes a full turn",
         _ => return None,
     })

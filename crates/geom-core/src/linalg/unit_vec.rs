@@ -167,7 +167,8 @@ impl core::fmt::Display for UnitVec3Error {
             // under the levers those doors do have.
             Self::Escalated(source) => write!(
                 f,
-                "whether a direction has any length is undecided: {}. Recourse: {}",
+                "{} is undecided: {}. Recourse: {}",
+                crate::predicate::DIRECTION_LENGTH_SUBJECT,
                 source.payload(),
                 crate::predicate::NO_DECLARATION_RECOURSE
             ),

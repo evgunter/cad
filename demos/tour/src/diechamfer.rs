@@ -90,8 +90,10 @@ fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// Every vertex point of a body.
 ///
-/// `crates/sweep/tests/verbs_chamfer.rs` carries the same chain and
-/// the same proximity match. The copy is deliberate: the only shared
+/// `crates/sweep/tests/verbs_chamfer.rs` carries the same vertex-point
+/// chain. Its chamfer side matches by proximity too (a count of feet
+/// within `1e-15`), and its fillet side still sorts both sets and
+/// compares them exactly. The copy is deliberate: the only shared
 /// home available is `sweep::test_support`, which is gated behind a
 /// test-support feature — a demo that linked test scaffolding to save
 /// twenty lines would stop being an outside consumer, which is the
@@ -117,7 +119,7 @@ fn feet_agreement(filleted: &Body<f64>, chamfered: &Body<f64>) -> (f64, usize) {
     for w in &want {
         let gap = got
             .iter()
-            .map(|g| (*g - *w).norm_sup())
+            .map(|g| (*g - *w).norm_inf())
             .min_by(|a, b| a.partial_cmp(b).expect("finite"))
             .expect("a nearest foot");
         worst = worst.max(gap);

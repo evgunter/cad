@@ -137,18 +137,23 @@ impl<T: Real> Vec2<T> {
     /// what makes the predicate's two ratios a decision rather than a
     /// threshold.
     ///
-    /// It is [`norm_sup`](Self::norm_sup), named for that question: a
+    /// It is [`norm_inf`](Self::norm_inf), named for that question: a
     /// door that wants the Euclidean length wants
     /// [`norm`](Self::norm), and the two are written on adjacent lines
     /// at every call site for that reason.
     pub fn norm_witness(self) -> T {
-        self.norm_sup()
+        self.norm_inf()
     }
 
-    /// The sup-norm (∞-norm, Chebyshev length): the largest
+    /// The max-abs norm (L∞, Chebyshev length): the largest
     /// `|component|`, folded `max(|x|, |y|)` through [`Real::max`], so
     /// a NaN component poisons the result rather than being dropped.
-    pub fn norm_sup(self) -> T {
+    ///
+    /// **Not** [`interval::norm_sup`](crate::interval::norm_sup), which
+    /// is a certified upper bound on the *Euclidean* norm. This value is
+    /// up to √2 below the Euclidean length, so it is never a stand-in
+    /// for that bound.
+    pub fn norm_inf(self) -> T {
         self.x.abs().max(self.y.abs())
     }
 
@@ -338,20 +343,25 @@ impl<T: Real> Vec3<T> {
     /// what makes the predicate's two ratios a decision rather than a
     /// threshold.
     ///
-    /// It is [`norm_sup`](Self::norm_sup), named for that question: a
+    /// It is [`norm_inf`](Self::norm_inf), named for that question: a
     /// door that wants the Euclidean length wants
     /// [`norm`](Self::norm), and the two are written on adjacent lines
     /// at every call site for that reason.
     pub fn norm_witness(self) -> T {
-        self.norm_sup()
+        self.norm_inf()
     }
 
-    /// The sup-norm (∞-norm, Chebyshev length): the largest
+    /// The max-abs norm (L∞, Chebyshev length): the largest
     /// `|component|`, folded `max(max(|x|, |y|), |z|)` through
     /// [`Real::max`], so a NaN component poisons the result rather than
-    /// being dropped. `(p − q).norm_sup()` is the Chebyshev distance
+    /// being dropped. `(p − q).norm_inf()` is the Chebyshev distance
     /// between two points.
-    pub fn norm_sup(self) -> T {
+    ///
+    /// **Not** [`interval::norm_sup`](crate::interval::norm_sup), which
+    /// is a certified upper bound on the *Euclidean* norm. This value is
+    /// up to √3 below the Euclidean length, so it is never a stand-in
+    /// for that bound.
+    pub fn norm_inf(self) -> T {
         self.x.abs().max(self.y.abs()).max(self.z.abs())
     }
 
@@ -772,10 +782,6 @@ mod tests {
         (coord(), coord(), coord()).prop_map(|(x, y, z)| Vec3::new(x, y, z))
     }
 
-    fn max_abs3(v: Vec3<f64>) -> f64 {
-        v.x.abs().max(v.y.abs()).max(v.z.abs())
-    }
-
     #[test]
     fn basis_vectors_are_orthonormal_exactly() {
         // Products of exact 0s and 1s and their two-term sums are exact.
@@ -916,7 +922,7 @@ mod tests {
         /// total. Asserted at 64·EPSILON·m³ for constant-factor slack.
         #[test]
         fn cross_is_orthogonal_to_operands(a in vec3(), b in vec3()) {
-            let m = max_abs3(a).max(max_abs3(b));
+            let m = a.norm_inf().max(b.norm_inf());
             let bound = 64.0 * f64::EPSILON * m.powi(3);
             prop_assert!(a.cross(b).dot(a).abs() <= bound);
             prop_assert!(a.cross(b).dot(b).abs() <= bound);
@@ -966,13 +972,13 @@ mod tests {
         fn project_reject_decompose(v in vec3(), n in vec3()) {
             let p = v.project_onto(n);
             let r = v.reject_from(n);
-            let m = max_abs3(v).max(max_abs3(n));
+            let m = v.norm_inf().max(n.norm_inf());
             let tol = 1e3 * f64::EPSILON * m.powi(2);
             // Orthogonality of the rejection (the load-bearing claim).
-            prop_assert!(r.dot(n).abs() <= tol * (1.0 + max_abs3(v) / max_abs3(n)));
+            prop_assert!(r.dot(n).abs() <= tol * (1.0 + v.norm_inf() / n.norm_inf()));
             // Parallelism of the projection: p × n ≈ 0.
             let c = p.cross(n);
-            prop_assert!(max_abs3(c) <= tol * (1.0 + max_abs3(v) / max_abs3(n)));
+            prop_assert!(c.norm_inf() <= tol * (1.0 + v.norm_inf() / n.norm_inf()));
             // Recomposition: p + r = v up to one rounding per component.
             let sum = p + r;
             prop_assert!((sum.x - v.x).abs() <= 4.0 * f64::EPSILON * m);
@@ -987,7 +993,7 @@ mod tests {
         fn project_idempotent(v in vec3(), n in vec3()) {
             let p = v.project_onto(n);
             let pp = p.project_onto(n);
-            let m = max_abs3(v);
+            let m = v.norm_inf();
             prop_assert!((pp.x - p.x).abs() <= 1e-12 * m);
             prop_assert!((pp.y - p.y).abs() <= 1e-12 * m);
             prop_assert!((pp.z - p.z).abs() <= 1e-12 * m);
@@ -1835,26 +1841,26 @@ mod tests {
         );
     }
 
-    /// The sup-norm is the largest `|component|` wherever it sits and
+    /// The max-abs norm is the largest `|component|` wherever it sits and
     /// whatever its sign, and a NaN in any position poisons it — the
     /// inherent `f64::max` would drop the NaN, which this row reds.
     #[test]
-    fn norm_sup_takes_the_largest_magnitude_from_every_position_and_keeps_nan() {
+    fn norm_inf_takes_the_largest_magnitude_from_every_position_and_keeps_nan() {
         for (v, want) in [
             (Vec3::new(-7.0, 3.0, 5.0), 7.0),
             (Vec3::new(3.0, -7.0, 5.0), 7.0),
             (Vec3::new(3.0, 5.0, -7.0), 7.0),
             (Vec3::new(-0.0, 0.0, -0.0), 0.0),
         ] {
-            assert_eq!(v.norm_sup(), want, "Vec3::norm_sup of {v:?}");
+            assert_eq!(v.norm_inf(), want, "Vec3::norm_inf of {v:?}");
             assert_eq!(
                 v.norm_witness().to_bits(),
-                v.norm_sup().to_bits(),
-                "witness is the sup-norm"
+                v.norm_inf().to_bits(),
+                "witness is the max-abs norm"
             );
         }
         for (v, want) in [(Vec2::new(-7.0, 3.0), 7.0), (Vec2::new(3.0, -7.0), 7.0)] {
-            assert_eq!(v.norm_sup(), want, "Vec2::norm_sup of {v:?}");
+            assert_eq!(v.norm_inf(), want, "Vec2::norm_inf of {v:?}");
         }
         for v in [
             Vec3::new(f64::NAN, 1.0, 2.0),
@@ -1862,14 +1868,14 @@ mod tests {
             Vec3::new(1.0, 2.0, f64::NAN),
         ] {
             assert!(
-                v.norm_sup().is_nan(),
-                "a NaN component poisons Vec3::norm_sup: {v:?}"
+                v.norm_inf().is_nan(),
+                "a NaN component poisons Vec3::norm_inf: {v:?}"
             );
         }
         for v in [Vec2::new(f64::NAN, 1.0), Vec2::new(1.0, f64::NAN)] {
             assert!(
-                v.norm_sup().is_nan(),
-                "a NaN component poisons Vec2::norm_sup: {v:?}"
+                v.norm_inf().is_nan(),
+                "a NaN component poisons Vec2::norm_inf: {v:?}"
             );
         }
     }

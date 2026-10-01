@@ -1376,6 +1376,13 @@ pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
 /// declaration back (`topo::BooleanError::Join`).
 pub const NO_DECLARATION_RECOURSE: &str = "move the geometry, or lower the tolerance";
 
+/// What a direction-length decision decides, in words: the one subject
+/// every door that asks whether a direction vector has any length
+/// renders (`UnitVec3Error::Escalated`, and the decision-word tables of
+/// `topo`'s Boolean, `profile`'s path validation and `editor-core`'s
+/// evaluation), so the question reads the same wherever it escalates.
+pub const DIRECTION_LENGTH_SUBJECT: &str = "whether a direction has any length";
+
 /// [`NO_DECLARATION_RECOURSE`] at a split, whose plane is the first
 /// lever: a split takes no declarations (`topo::split`'s signature).
 pub const SPLIT_PLANE_RECOURSE: &str =

@@ -26,6 +26,12 @@ sorting and zipping.
   (around :121): zips `got` against `want` per axis under `1e-9`;
   `mapped` (around :133) sorts the mapped cloud on its own and the
   imported cloud is sorted on its own.
+- `crates/sweep/tests/verbs_chamfer.rs` (around :189): the fillet's
+  feet are `sorted_points` against a hand-sorted `want`, compared with
+  `assert_eq!`. That is exact, so no tie can mis-pair it today, but it
+  is the sort-and-zip shape the rule retires, and the chamfer half
+  of the same row already matches by proximity. It belongs in the
+  same repair.
 
 ## Why it is wrong
 
@@ -41,6 +47,6 @@ is latent.
 ## The repair
 
 Match nearest under a tolerance: for each wanted point, the nearest
-got point by `(g - w).norm_sup()` (`Vec3::norm_sup`), with the count
+got point by `(g - w).norm_inf()` (`Vec3::norm_inf`), with the count
 checked and, where a bijection is the claim, each got point used once.
 `demos/tour/src/diechamfer.rs` `feet_agreement` is the shape.

@@ -900,7 +900,7 @@ mod tests {
         fn rotation_fixes_its_axis(axis in vec3(), theta in angle()) {
             let r = Mat3::rotation_about(axis, theta);
             let ra = r * axis;
-            let m = axis.x.abs().max(axis.y.abs()).max(axis.z.abs());
+            let m = axis.norm_inf();
             prop_assert!((ra.x - axis.x).abs() <= 1e-12 * m);
             prop_assert!((ra.y - axis.y).abs() <= 1e-12 * m);
             prop_assert!((ra.z - axis.z).abs() <= 1e-12 * m);
@@ -922,7 +922,7 @@ mod tests {
             let b = Mat3::rotation_about(ax2, th2);
             let lhs = (a * b) * v;
             let rhs = a * (b * v);
-            let m = v.x.abs().max(v.y.abs()).max(v.z.abs());
+            let m = v.norm_inf();
             prop_assert!((lhs.x - rhs.x).abs() <= 1e-12 * m);
             prop_assert!((lhs.y - rhs.y).abs() <= 1e-12 * m);
             prop_assert!((lhs.z - rhs.z).abs() <= 1e-12 * m);
