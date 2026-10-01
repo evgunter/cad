@@ -363,15 +363,15 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
     let cases = [
         (
             HitTestError::Standing(NodeStanding::NotEvaluated { node }),
-            vec!["node 7", "no result"],
+            vec!["node 000000000007", "no result"],
         ),
         (
             HitTestError::Standing(NodeStanding::Failed { node }),
-            vec!["node 7", "failed"],
+            vec!["node 000000000007", "failed"],
         ),
         (
             HitTestError::Standing(NodeStanding::Poisoned { node, through }),
-            vec!["node 7", "node 3", "poisoned"],
+            vec!["node 000000000007", "node 000000000003", "poisoned"],
         ),
         (
             HitTestError::EvaluationOfAnotherDocument {
@@ -392,7 +392,7 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             // node render identically through `StableName`'s
             // `Display`, and the role path that would tell them apart
             // is a `Debug` derivation the prose must not carry.
-            vec!["tied between 2 faces", "(1) face", "(2) face", "node 7"],
+            vec!["tied between 2 faces", "(1) face", "(2) face", "node 000000000007"],
         ),
         (
             HitTestError::Unnamed(UnnamedEntity {
@@ -408,7 +408,7 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             vec![
                 "hit test:",
                 "name lookup:",
-                "node 7",
+                "node 000000000007",
                 "face",
                 "body 2",
                 "kernel bug",

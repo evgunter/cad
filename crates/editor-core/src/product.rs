@@ -1478,7 +1478,7 @@ mod tests {
         };
         let carried = named(8, 6);
         assert!(
-            carried.contains("root 8") && carried.contains("node 6"),
+            carried.contains("root 000000000008") && carried.contains("node 000000000006"),
             "the per-root path names the root that carried and the node that minted: {carried}"
         );
         let merged = named(6, 6);
@@ -1487,7 +1487,7 @@ mod tests {
             "the final narrowing's collision has no one root to name, and must not invent one: {merged}"
         );
         assert!(
-            merged.contains("node 6"),
+            merged.contains("node 000000000006"),
             "it still names the node that minted the colliding name: {merged}"
         );
     }

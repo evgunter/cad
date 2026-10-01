@@ -1685,7 +1685,7 @@ mod display_tests {
                 NamingError::MissingUpstream {
                     node: RecipeNodeId(11),
                 },
-                vec!["11"],
+                vec!["00000000000b"],
             ),
             (
                 // A refusal that still EXISTS (ties propagate, so there
@@ -1729,7 +1729,7 @@ mod display_tests {
                     other: pair.1,
                     found: RimShare::Several,
                 },
-                vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
+                vec![face0.as_str(), face1.as_str(), "000000000017", "more than one edge"],
             ),
             (
                 NamingError::SeamVertexPartners {
@@ -1739,8 +1739,8 @@ mod display_tests {
                 vec![
                     vtx_shown.as_str(),
                     "2 differently named vertices",
-                    "vertex name minted by node 3",
-                    "vertex name minted by node 4",
+                    "vertex name minted by node 000000000003",
+                    "vertex name minted by node 000000000004",
                 ],
             ),
             (
@@ -1755,14 +1755,14 @@ mod display_tests {
                     node: RecipeNodeId(29),
                     rim: two_edges().1,
                 },
-                vec!["merged faces", "29", "does not lie within"],
+                vec!["merged faces", "00000000001d", "does not lie within"],
             ),
             (
                 NamingError::SeamLineSides {
                     node: RecipeNodeId(31),
                     edge: two_edges().0,
                 },
-                vec!["31", "each side of its recorded pair"],
+                vec!["00000000001f", "each side of its recorded pair"],
             ),
             (
                 NamingError::MergedChordConstituents {
@@ -1787,8 +1787,8 @@ mod display_tests {
                     }),
                 },
                 vec![
-                    "member node 37",
-                    "edge name minted by node 37",
+                    "member node 000000000025",
+                    "edge name minted by node 000000000025",
                     "a tie stands",
                 ],
             ),
@@ -1825,8 +1825,8 @@ mod display_tests {
                     curved: true,
                 },
                 vec![
-                    "face name minted by node 41",
-                    "face name minted by node 43",
+                    "face name minted by node 000000000029",
+                    "face name minted by node 00000000002b",
                     "not a plane",
                 ],
             ),

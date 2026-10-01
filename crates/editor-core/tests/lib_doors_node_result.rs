@@ -167,7 +167,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     // so the sentence states the problem and its recourse, nothing else.
     assert_eq!(
         edit.to_string(),
-        "node 7 is not live. Recourse: aim the edit at a node the document holds"
+        "node 000000000007 is not live. Recourse: aim the edit at a node the document holds"
     );
 
     let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
@@ -195,7 +195,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     let error = ev.node_error(cut).expect("the Boolean failed");
     let message = error.to_string();
     assert!(
-        message.starts_with(&format!("node {} failed: ", cut.0)),
+        message.starts_with(&format!("node {:012x} failed: ", cut.0)),
         "{message}"
     );
     assert!(
@@ -532,7 +532,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             }
             .to_string(),
             &[
-                "face name minted by node 5",
+                "face name minted by node 000000000005",
                 "no longer resolves",
                 "the margin deciding the order of two pieces along an edge flipped from zero to \
                  positive",
@@ -546,7 +546,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
                 },
             }
             .to_string(),
-            &["vertex name", "node 5 was deleted", "explicit rebind"],
+            &["vertex name", "node 000000000005 was deleted", "explicit rebind"],
         ),
         (
             WitnessBifurcation {

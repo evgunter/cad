@@ -637,7 +637,7 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
         "{kind}"
     );
     assert!(
-        f.to_string().contains(&format!("node {}", datum.0)),
+        f.to_string().contains(&format!("node {:012x}", datum.0)),
         "and the message names that node: {f}"
     );
     // Off the chain, the datum is not poisoned by the fault: its own

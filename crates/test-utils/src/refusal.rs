@@ -339,6 +339,11 @@ pub fn arena_key(text: &str) -> bool {
 /// neither reads as the first shape; the second reads a bare integer of
 /// exactly an id's length as one, which a refusal has no other reason
 /// to print.
+///
+/// **A word of exactly [`HEX_ID_MIN`] digits counts only after `@`**,
+/// where a `DocRef` prints its pin prefix: twelve hex digits standing
+/// alone are a node's or a step's tag (`editor_core::spoken`), the
+/// spelling a sentence names a node by on purpose.
 #[must_use]
 pub fn hex_ids(text: &str) -> Vec<&str> {
     let mut found = Vec::new();
@@ -356,7 +361,9 @@ pub fn hex_ids(text: &str) -> Vec<&str> {
         let mixed = hex && !digits && word.chars().any(|c| c.is_ascii_digit());
         let decimal_part = before == Some('.')
             || (after.starts_with('.') && after[1..].starts_with(|c: char| c.is_ascii_digit()));
+        let tag = word.len() == HEX_ID_MIN && before != Some('@');
         if !decimal_part
+            && !tag
             && ((mixed && word.len() >= HEX_ID_MIN)
                 || (digits && HEX_ID_LENGTHS.contains(&word.len())))
         {
@@ -556,8 +563,14 @@ mod tests {
         ));
         assert!(!arena_key("the offset is 0.30000000000000004 mm"));
         assert!(!arena_key("a deadbeef-like word, and 12345678901 items"));
-        // A pin prefix whose twelve hex digits are all decimal.
-        assert!(arena_key("the part pinned at 951583145512 is gone"));
+        // A pin prefix whose twelve hex digits are all decimal, where a
+        // `DocRef` prints it: after `@`.
+        assert!(arena_key("the part pinned @951583145512 is gone"));
+        // Twelve hex digits standing alone are a node's tag, which a
+        // sentence prints on purpose.
+        assert!(!arena_key("node 000000000003 failed"));
+        assert!(!arena_key("node 00000000000b failed"));
+        assert!(!arena_key("the part pinned at 951583145512 is gone"));
         assert!(!arena_key("the offset is 0.300000000000 mm"));
         assert!(!arena_key("the offset is 123456789012.5 mm"));
         assert!(!arena_key("i64::MAX is 9223372036854775807"));
