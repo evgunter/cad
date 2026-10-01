@@ -909,3 +909,14 @@ candidate solutions, as `docs/DESIGN-FORK-PROTOCOL.md` requires (at
 mapping off-file until Ev decides, and it goes into each row's
 decision commit. The `[ev]` PRs open once the first reports are
 recorded and reconciled.
+
+Item 19's two designers agreed on their first reports: one mate
+solve, generic over the run's scalar, with the structure read at the
+nominal. No reconciliation was needed. `[ev]` PR 3679 states it as one
+sentence in A11 rule 5, with fork-log row 34. Two findings off the
+question are filed:
+- `a-box-independent-mate-fault-bisects-the-whole-leaf-budget` (P2,
+  here). The driver's catch-all `Bisect` arm was checked against the
+  code.
+- `a-boxed-rotation-refuses-not-rigid-at-every-placer`, routed to
+  TOPO, whose door it is (P3, design).
