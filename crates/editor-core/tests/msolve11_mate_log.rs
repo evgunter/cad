@@ -453,3 +453,153 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
         "{fault}"
     );
 }
+
+// ---- the `Part`'s own index ----
+
+/// **A `Part`'s index that does not evaluate is refused at the
+/// `Part`**, the node the evaluation fails, and not at the healthy
+/// pattern below it. The index `k · i64::MAX + 1` selects copy 1 at
+/// `k = 0`, where the mate is inserted, and overflows the count's
+/// range at `k = 1`.
+#[test]
+fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
+    use editor_core::{Dimension, DocParam, DocParamValue, ParamName, PartSelect};
+    let mut s = scene("msolve11-part-index");
+    let k = ParamName::from_static("k");
+    let (doc, _) = fixture::step(
+        s.doc.clone(),
+        DocEdit::SetDocParam {
+            name: k.clone(),
+            value: DocParam::Count { value: 0 },
+        },
+    );
+    s.doc = doc;
+    let index = Expr::add(
+        Expr::mul(
+            Expr::param(k.clone(), Dimension::Count),
+            Expr::count(i64::MAX),
+        )
+        .unwrap(),
+        Expr::count(1),
+    )
+    .unwrap();
+    let part = s.add(Node::Part {
+        of: s.pattern,
+        select: PartSelect::Instance(index),
+    });
+    let read_at_part = fixture::head_at(
+        part,
+        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::Start)),
+    );
+    let mate = s.add(seat(
+        s.base_top(),
+        read_at_part,
+        (2.0, 2.0),
+        MatePrimitive::FrameCoincidence,
+        None,
+    ));
+    let ev = fixture::run(&s.doc, &s.opts);
+    assert!(
+        matches!(ev.result(mate), Some(NodeResult::Ok(_))),
+        "the index selects the named copy at k = 0: {:?}",
+        ev.result(mate)
+    );
+
+    let (doc, _) = fixture::step(
+        s.doc.clone(),
+        DocEdit::SetDocParamValue {
+            name: k,
+            value: DocParamValue::Count(1),
+        },
+    );
+    s.doc = doc;
+    let ev = fixture::run(&s.doc, &s.opts);
+    let fault = match ev.result(mate) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            editor_core::NodeErrorKind::Mate(fault) => (**fault).clone(),
+            other => panic!("expected a mate refusal, got {other:?}"),
+        },
+        other => panic!("expected the mate to fail, got {other:?}"),
+    };
+    let editor_core::MateFault::PlacerRefused {
+        placer, placer_row, ..
+    } = fault
+    else {
+        panic!("expected PlacerRefused, got {fault:?}");
+    };
+    assert_eq!(placer, part, "the refusal names the `Part`");
+    assert!(
+        matches!(
+            ev.result(placer),
+            Some(NodeResult::Failed(e)) if matches!(
+                e.kind,
+                editor_core::NodeErrorKind::Expr { slot: editor_core::SlotId::Instance, .. }
+            )
+        ),
+        "the named node is the node the evaluation fails, on its own index: {:?}",
+        ev.result(placer)
+    );
+    assert!(
+        matches!(ev.result(s.pattern), Some(NodeResult::Ok(_))),
+        "the pattern below it is healthy: {:?}",
+        ev.result(s.pattern)
+    );
+    assert_eq!(
+        placer_row,
+        editor_core::PlacerRow::States,
+        "the `Part`'s own row states the refusal, so the mate points there"
+    );
+}
+
+/// **A `Part`'s flat index that overflows the table's row width is
+/// refused at the pattern it selects from**: the flat index is a row
+/// of that pattern's value, and the pattern below it, whose own count
+/// fits, is not the node at fault. Two patterns of `70 000` copies,
+/// one directly over the other, and a `Part` selecting from the outer:
+/// copy `(69 999, 69 999)` is row `69 999 · 70 000 + 69 999`, past
+/// `u32`. The insert door asks the same per-reference check the solve
+/// does, and nothing here is evaluated.
+#[test]
+fn a_parts_flat_index_past_the_row_width_is_refused_at_the_pattern_it_selects_from() {
+    use editor_core::PartSelect;
+    let mut s = scene("msolve11-flat-index");
+    let wide = |input| Node::Pattern {
+        input,
+        count: Expr::count(70_000),
+        kind: PatternKind::Linear {
+            direction: [scl(0.0), scl(1.0), scl(0.0)],
+            spacing: len(3.0),
+        },
+    };
+    let inner = s.add(wide(s.other));
+    let outer = s.add(wide(inner));
+    let part = s.add(Node::Part {
+        of: outer,
+        select: PartSelect::Instance(Expr::count(0)),
+    });
+    let b = fixture::head_at(
+        part,
+        in_copy(
+            outer,
+            69_999,
+            in_copy(inner, 69_999, in_part(s.other, s.block_body, CapEnd::Start)),
+        ),
+    );
+    let fault = fixture::door_refusal(
+        &s.doc,
+        seat(
+            s.base_top(),
+            b,
+            (2.0, 2.0),
+            MatePrimitive::FrameCoincidence,
+            None,
+        ),
+    );
+    let editor_core::MateFault::PlacerRefused { placer, .. } = fault else {
+        panic!("expected PlacerRefused, got {fault:?}");
+    };
+    assert_eq!(
+        placer, outer,
+        "the refusal names the pattern the `Part` selects from"
+    );
+}

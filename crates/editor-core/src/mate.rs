@@ -1312,13 +1312,13 @@ pub enum MateFault {
         side: MateSide,
         /// **The node whose evaluation raised the refusal.** It lies
         /// on the reference's derivation: a pattern or a transform on
-        /// the chain, or a node one of those reads to derive its map
-        /// — a circular rule's axis DATUM, whose slot that does not
-        /// evaluate is reported under the datum's id, or a TRANSFORM
-        /// on the way to that datum, whose own operand refusal is
-        /// reported under the transform's — because that is the node
-        /// an author goes and fixes, and the node the evaluation
-        /// itself fails.
+        /// the chain, a `Part` on it whose own index does not evaluate,
+        /// or a node one of those reads to derive its map — a circular
+        /// rule's axis DATUM, whose slot that does not evaluate is
+        /// reported under the datum's id, or a TRANSFORM on the way to
+        /// that datum, whose own operand refusal is reported under the
+        /// transform's — because that is the node an author goes and
+        /// fixes, and the node the evaluation itself fails.
         placer: RecipeNodeId,
         /// The evaluation layer's own typed refusal for it, unchanged.
         error: NodeRefusal,
