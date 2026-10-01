@@ -20,6 +20,14 @@
 //! then a theorem about enclosures, or it is a typed failure. It is
 //! never silence.
 //!
+//! The floor itself is minted once over the domain it bisects
+//! ([`SweepFloor`]), and that door refuses a floor no bisection of the
+//! domain can reach: one that is not a positive finite width, or one
+//! narrower than the finest cell at the domain's largest coordinate. It
+//! refuses by name ([`SsiError::FloorUnresolvable`]) with the rate that
+//! crossed it, so the cell budget never answers for a floor no cell can
+//! reach. An attainable floor can still spend the budget by cell count.
+//!
 //! Every length on a receipt or on that refusal is in the units its
 //! own lane measures cells in, and the receipt says which lane that
 //! was: [`ExhaustLane`] carries the chart lane's certified
@@ -59,10 +67,12 @@
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::{Interval, Point3, SupSpeed, Vec3};
+use geom_core::interval::max_bound;
+use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
 
 use super::SsiError;
 use super::enclose::{Box3, NurbsBoxes, implicit_enclosure};
+use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, defect_ending};
 
 /// The refinement floor, as a multiple of ε: a cell narrower than this
 /// is not split again. Fixed and named (C3: "a named constant tied to
@@ -178,12 +188,21 @@ pub(super) enum RateClause {
     Name,
     /// State the metres and stop — the text names the rate elsewhere.
     Omit,
+    /// Start from the metres the length was divided from, and name the
+    /// rate that divided them. A floor the chart cannot carry is read
+    /// this way, because crossing it back through the rate would print
+    /// a different number from the one the caller named.
+    From {
+        /// The length in metres the chart length was crossed from.
+        meters: f64,
+    },
 }
 
-/// **One spelling of a chart-lane length**, for both types' `Display`.
+/// **One spelling of a chart-lane length**, for every chart-lane
+/// `Display`.
 ///
 /// A chart-unit number is unreadable without the metres it stands for
-/// and the rate that crossed it, and the receipt and the refusal make
+/// and the rate that crossed it, and the receipt and the refusals make
 /// the same claim about the same pair, so they write it with the same
 /// words.
 pub(super) fn write_chart_length(
@@ -201,6 +220,12 @@ pub(super) fn write_chart_length(
             speed.get()
         ),
         RateClause::Omit => write!(f, "{x:e} chart units ({m:e} m)"),
+        RateClause::From { meters } => write!(
+            f,
+            "{meters:e} m is {x:e} chart units at a certified chart speed of {:e} m per \
+             chart unit",
+            speed.get()
+        ),
     }
 }
 
@@ -296,10 +321,13 @@ pub struct ExhaustivenessRefusal {
 impl ExhaustivenessRefusal {
     /// The offending cell's width in metres.
     ///
-    /// On the chart lane this multiplies a real chart width by an
-    /// UPPER bound on the surface's speed, so it over-states the cell:
-    /// it is a ceiling on how large the unproved region can be, never
-    /// a measurement of it.
+    /// On the chart lane this is the cell's widest side times the
+    /// larger axis's certified chart speed: a bound on how far the
+    /// surface moves along ONE parameter direction across the cell. It
+    /// is not a bound on the unproved region's size. The two directions
+    /// add, so the cell's image in metres can be up to twice this
+    /// across, and the speed is an upper bound, so it can also be much
+    /// less.
     #[must_use]
     pub fn cell_width_meters(&self) -> f64 {
         self.lane.meters(self.cell_width)
@@ -314,6 +342,269 @@ impl ExhaustivenessRefusal {
     #[must_use]
     pub fn floor_meters(&self) -> f64 {
         self.lane.meters(self.floor)
+    }
+}
+
+/// Which of the subdivision's two floors a [`FloorRefusal`] is about.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FloorKind {
+    /// The seeding floor, a fraction of the caller's extent
+    /// ([`SSI_SEED_FLOOR`]).
+    Seeding,
+    /// The accounting floor, a multiple of ε ([`SSI_FLOOR`]): the proof
+    /// obligation's.
+    Accounting,
+}
+
+impl FloorKind {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Seeding => "seeding floor",
+            Self::Accounting => "accounting floor",
+        }
+    }
+}
+
+/// What is wrong with a floor ([`FloorRefusal::fault`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FloorFault {
+    /// The floor in metres is not a positive finite length. The caller's
+    /// domain knobs (`extent`, `floor_scale`) are what it is made of.
+    NotALength,
+    /// The floor in metres is a length, but divided by the chart speed
+    /// it is not finite: the surface moves so slowly across its
+    /// parameters that the floor spans no finite parameter width.
+    Overflows,
+    /// The domain's largest coordinate is not a finite number, so it
+    /// has no resolution to compare the floor with. Every SSI door
+    /// checks the caller's domain first, and the chart lane's root is a
+    /// validated knot domain, so nothing a caller holds reaches it.
+    DomainUnreadable,
+    /// The floor is narrower than the finest cell bisection can cut
+    /// where the domain reaches furthest from zero, so the subdivision
+    /// can never refine to it there.
+    BelowResolution {
+        /// The finest cell's width there, in the lane's units: the
+        /// width the lane's own cell measure gives two adjacent floats
+        /// just below `reach`.
+        resolution: f64,
+        /// The domain's largest coordinate magnitude, in the lane's
+        /// units.
+        reach: f64,
+    },
+}
+
+/// **A floor the subdivision's domain cannot resolve** — the payload of
+/// [`SsiError::FloorUnresolvable`].
+///
+/// The subdivision stops refining a cell once its width is at most the
+/// floor. A floor no cell can reach would leave the cell budget to
+/// answer in its place. That is the wrong diagnosis: the floor was
+/// never usable, and the refusal says why by the rate that crossed it.
+#[derive(Clone, Copy, Debug)]
+pub struct FloorRefusal {
+    /// Which lane's domain, and on the chart lane the rate the metres
+    /// were divided by.
+    pub lane: ExhaustLane,
+    /// Which floor.
+    pub floor: FloorKind,
+    /// The floor in metres, as the caller's domain named it.
+    pub meters: f64,
+    /// The floor in [`lane`](Self::lane)'s own units: `meters` itself on
+    /// ℝ³, `meters` divided by the chart speed on the chart lane.
+    pub width: f64,
+    /// What is wrong with it.
+    pub fault: FloorFault,
+}
+
+impl FloorRefusal {
+    /// The ending at `reading` (D4 ¶1). A floor too fine for its domain
+    /// is the geometry's scale, decided exactly (no band, so no
+    /// tolerance is named); a floor that is not a length is the
+    /// caller's knobs; an unreadable root is no input's.
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> String {
+        let decision = match (self.fault, self.lane) {
+            (FloorFault::NotALength, _) => {
+                return "Recourse: give the domain a feature extent and floor scale whose \
+                        floors are positive finite lengths"
+                    .to_owned();
+            }
+            (FloorFault::DomainUnreadable, _) => return defect_ending(reading).to_owned(),
+            (FloorFault::Overflows, _) => CHART_TOO_SLOW,
+            (FloorFault::BelowResolution { .. }, ExhaustLane::R3) => R3_SCALE,
+            (FloorFault::BelowResolution { .. }, ExhaustLane::Chart { .. }) => CHART_SCALE,
+        };
+        decision.recourse(RefusedArm::SignCertain, reading)
+    }
+}
+
+/// The ℝ³ lane's floor is finer than the slab's coordinates resolve:
+/// the geometry sits too far from the origin for ε.
+const R3_SCALE: SizedDecision = SizedDecision {
+    lever: "move the geometry nearer the origin, within the model's size range, where its \
+            coordinates resolve the tolerance",
+    size: "scale",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The chart lane's floor is finer than the wall's parameters resolve:
+/// the wall moves more than the floor across the smallest step of its
+/// parameters.
+const CHART_SCALE: SizedDecision = SizedDecision {
+    lever: "bring the spline face within the model's size range, or move its parameter domain \
+            nearer zero, so the face moves less than the tolerance across the finest step of \
+            its parameters",
+    size: "scale",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The chart lane's floor spans no finite parameter width: the wall is
+/// too small for the floor to be stated in its parameters.
+const CHART_TOO_SLOW: SizedDecision = SizedDecision {
+    lever: "bring the spline face within the model's size range; it is too small for a length \
+            in metres to be stated in its parameters",
+    size: "scale",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+impl core::fmt::Display for FloorRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let (meters, width) = (self.meters, self.width);
+        write!(f, "the {} ", self.floor.name())?;
+        match self.lane {
+            ExhaustLane::R3 => write!(f, "{meters:e} m")?,
+            ExhaustLane::Chart { speed } => {
+                write_chart_length(f, width, speed, RateClause::From { meters })?;
+            }
+        }
+        let unit = match self.lane {
+            ExhaustLane::R3 => "m",
+            ExhaustLane::Chart { .. } => "chart units",
+        };
+        match self.fault {
+            FloorFault::NotALength => write!(
+                f,
+                ", made of the domain's extent and floor scale, is not a positive finite \
+                 length, so the subdivision has no width to refine to"
+            ),
+            FloorFault::Overflows => write!(
+                f,
+                ", which is not a finite width: the surface moves too slowly across its \
+                 parameters for the floor to be stated in them"
+            ),
+            FloorFault::DomainUnreadable => write!(
+                f,
+                ", over a domain whose largest coordinate is not a finite number, which has \
+                 no resolution to compare it with"
+            ),
+            FloorFault::BelowResolution { resolution, reach } => write!(
+                f,
+                ", which the domain cannot resolve: where it reaches {reach:e} {unit} from \
+                 zero the finest cell bisection can cut is {resolution:e} {unit} wide, so the \
+                 subdivision could never refine to the floor"
+            ),
+        }
+    }
+}
+
+/// **The subdivision's floor, minted once over the domain it bisects.**
+///
+/// Holding one is the proof that the floor is a positive finite width
+/// in the lane's units and that bisection of `root` can reach it: no
+/// cell of the domain is too wide to split yet too narrow for the split
+/// to land strictly inside it. Every sweep takes its root from here, so
+/// a floor checked against one domain cannot be used against another.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SweepFloor<C> {
+    root: C,
+    lane: ExhaustLane,
+    width: f64,
+}
+
+impl SweepFloor<Box3> {
+    /// The ℝ³ lane's floor over `root`: a length in metres, which is
+    /// already the lane's unit.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::FloorUnresolvable`] as [`SweepFloor::mint`].
+    pub(crate) fn r3(root: Box3, meters: f64, floor: FloorKind) -> Result<Self, SsiError> {
+        Self::mint(root, ExhaustLane::R3, floor, meters, meters)
+    }
+}
+
+impl SweepFloor<UvRect> {
+    /// The chart lane's floor over `root`: `meters` divided into chart
+    /// units by `speed`, the certified chart speed the lane's receipts
+    /// cross back through.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::FloorUnresolvable`] as [`SweepFloor::mint`].
+    pub(crate) fn chart(
+        root: UvRect,
+        meters: f64,
+        speed: SupSpeed<f64>,
+        floor: FloorKind,
+    ) -> Result<Self, SsiError> {
+        let lane = ExhaustLane::Chart { speed };
+        Self::mint(root, lane, floor, meters, speed.to_param(meters))
+    }
+}
+
+impl<C: SweepCell> SweepFloor<C> {
+    /// The one door.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::FloorUnresolvable`] when `meters` is not a positive
+    /// finite length, when `width` is not finite, or when `width` is
+    /// below the width of the finest cell bisection can cut at the
+    /// root's largest coordinate — the exact boundary, below which the
+    /// split of that cell returns the cell itself.
+    fn mint(
+        root: C,
+        lane: ExhaustLane,
+        floor: FloorKind,
+        meters: f64,
+        width: f64,
+    ) -> Result<Self, SsiError> {
+        let refuse = |fault| {
+            Err(SsiError::FloorUnresolvable(FloorRefusal {
+                lane,
+                floor,
+                meters,
+                width,
+                fault,
+            }))
+        };
+        if !(meters.is_finite() && meters > 0.0) {
+            return refuse(FloorFault::NotALength);
+        }
+        if !width.is_finite() {
+            return refuse(FloorFault::Overflows);
+        }
+        let reach = root.reach();
+        if !reach.is_finite() {
+            return refuse(FloorFault::DomainUnreadable);
+        }
+        let resolution = C::finest_at(reach).width();
+        if width < resolution {
+            return refuse(FloorFault::BelowResolution { resolution, reach });
+        }
+        Ok(Self { root, lane, width })
+    }
+
+    /// The floor, in the lane's units.
+    fn width(self) -> f64 {
+        self.width
     }
 }
 
@@ -334,13 +625,9 @@ enum SweepDuty<'a, C> {
     /// Prove every leaf is excluded or lies inside one of these
     /// uniqueness tubes; refuse at the floor otherwise.
     Account {
-        /// The uniqueness tubes limb 3 banked.
+        /// The uniqueness tubes limb 3 banked, in the floor's lane's
+        /// units.
         tubes: &'a [C],
-        /// The lane whose units `tubes`, the floor and every cell
-        /// width are in — carried by this arm and not by the other
-        /// because only the accounting duty hands back a lane-tagged
-        /// answer.
-        lane: ExhaustLane,
     },
 }
 
@@ -351,7 +638,7 @@ impl<C: SweepCell> SweepDuty<'_, C> {
     fn accounts(self, cell: C) -> bool {
         match self {
             Self::Seed => false,
-            Self::Account { tubes, .. } => tubes.iter().any(|t| cell.contained_in(*t)),
+            Self::Account { tubes } => tubes.iter().any(|t| cell.contained_in(*t)),
         }
     }
 }
@@ -359,7 +646,7 @@ impl<C: SweepCell> SweepDuty<'_, C> {
 /// A cell of the subdivision. The two lanes differ in their shape and
 /// in what a survivor hands the marcher; everything the recursion does
 /// with a cell is here, so the recursion itself is written once.
-trait SweepCell: Copy {
+pub(crate) trait SweepCell: Copy {
     /// What a surviving cell gives the marcher to start from.
     type Seed;
 
@@ -372,6 +659,14 @@ trait SweepCell: Copy {
     fn split(self) -> (Self, Self);
     /// Containment, for the accounting test against a tube.
     fn contained_in(self, other: Self) -> bool;
+    /// The largest coordinate magnitude over the cell's sides (`NaN`
+    /// when a side has none).
+    fn reach(self) -> f64;
+    /// The finest cell bisection can cut at coordinate magnitude
+    /// `reach`: two adjacent floats just below it on every side, which
+    /// no split separates. The door reads its width through
+    /// [`SweepCell::width`], so the floor and the sweep measure it alike.
+    fn finest_at(reach: f64) -> Self;
 }
 
 impl SweepCell for Box3 {
@@ -388,6 +683,19 @@ impl SweepCell for Box3 {
     }
     fn contained_in(self, other: Self) -> bool {
         Box3::contained_in(self, other)
+    }
+    fn reach(self) -> f64 {
+        [self.y.mag(), self.z.mag()]
+            .into_iter()
+            .fold(self.x.mag(), max_bound)
+    }
+    fn finest_at(reach: f64) -> Self {
+        let side = Interval::from_bounds(reach.next_down(), reach);
+        Self {
+            x: side,
+            y: side,
+            z: side,
+        }
     }
 }
 
@@ -441,14 +749,14 @@ impl SweepTally {
 /// the never-silence refusal cannot be edited in one lane and forgotten
 /// in the other.
 fn sweep<C: SweepCell>(
-    root: C,
+    floor: SweepFloor<C>,
     duty: SweepDuty<'_, C>,
-    floor: f64,
     excluded: impl Fn(C) -> Result<bool, SsiError>,
 ) -> Result<(SweepTally, Vec<C::Seed>), SsiError> {
+    let (lane, width) = (floor.lane, floor.width());
     let mut stats = SweepTally::default();
     let mut out = Vec::new();
-    let mut stack = vec![(root, 0u32)];
+    let mut stack = vec![(floor.root, 0u32)];
     while let Some((cell, depth)) = stack.pop() {
         if stats.examined as usize >= SSI_MAX_CELLS {
             return Err(SsiError::CellBudget {
@@ -469,18 +777,18 @@ fn sweep<C: SweepCell>(
             continue;
         }
         // (iii) refine, unless we are at the floor.
-        if cell.width() <= floor {
+        if cell.width() <= width {
             match duty {
                 SweepDuty::Seed => {
                     out.push(cell.seed());
                     continue;
                 }
-                SweepDuty::Account { lane, .. } => {
+                SweepDuty::Account { .. } => {
                     return Err(SsiError::ExhaustivenessInconclusive(
                         ExhaustivenessRefusal {
                             lane,
                             cell_width: cell.width(),
-                            floor,
+                            floor: width,
                             examined: stats.examined,
                         },
                     ));
@@ -496,7 +804,7 @@ fn sweep<C: SweepCell>(
 }
 
 /// **Seed generation**, ℝ³ lane: the centers of the cells that survived
-/// exclusion over `root` at `floor`.
+/// exclusion over the floor's root at the floor.
 ///
 /// # Errors
 ///
@@ -505,10 +813,9 @@ fn sweep<C: SweepCell>(
 pub(crate) fn seed_r3(
     s1: &Surface<f64>,
     s2: &Surface<f64>,
-    root: Box3,
-    floor_meters: f64,
+    floor: SweepFloor<Box3>,
 ) -> Result<Vec<Point3<f64>>, SsiError> {
-    let (_, seeds) = sweep_r3(s1, s2, root, SweepDuty::Seed, floor_meters)?;
+    let (_, seeds) = sweep_r3(s1, s2, floor, SweepDuty::Seed)?;
     Ok(seeds)
 }
 
@@ -528,19 +835,11 @@ pub(crate) fn seed_r3(
 pub(crate) fn account_r3(
     s1: &Surface<f64>,
     s2: &Surface<f64>,
-    root: Box3,
     tubes: &[Box3],
-    floor_meters: f64,
+    floor: SweepFloor<Box3>,
 ) -> Result<Exhaustiveness, SsiError> {
-    let lane = ExhaustLane::R3;
-    let (tally, _) = sweep_r3(
-        s1,
-        s2,
-        root,
-        SweepDuty::Account { tubes, lane },
-        floor_meters,
-    )?;
-    Ok(tally.receipt(lane, floor_meters))
+    let (tally, _) = sweep_r3(s1, s2, floor, SweepDuty::Account { tubes })?;
+    Ok(tally.receipt(floor.lane, floor.width()))
 }
 
 /// The ℝ³ lane's exclusion rule, over the one shared [`sweep`]: a cell
@@ -549,11 +848,10 @@ pub(crate) fn account_r3(
 fn sweep_r3(
     s1: &Surface<f64>,
     s2: &Surface<f64>,
-    root: Box3,
+    floor: SweepFloor<Box3>,
     duty: SweepDuty<'_, Box3>,
-    floor: f64,
 ) -> Result<(SweepTally, Vec<Point3<f64>>), SsiError> {
-    sweep(root, duty, floor, |cell| {
+    sweep(floor, duty, |cell| {
         let e1 = implicit_enclosure(s1, cell);
         let e2 = implicit_enclosure(s2, cell);
         if !e1.is_certified() || !e2.is_certified() {
@@ -588,8 +886,10 @@ pub(crate) struct UvRect {
 }
 
 impl UvRect {
+    /// The wider side; `NaN` when either side is, so a NaN side fails
+    /// the floor test rather than dropping out of it.
     fn width(self) -> f64 {
-        (self.u.1 - self.u.0).max(self.v.1 - self.v.0)
+        max_bound(self.u.1 - self.u.0, self.v.1 - self.v.0)
     }
 
     fn center(self) -> (f64, f64) {
@@ -644,16 +944,25 @@ impl SweepCell for UvRect {
     fn contained_in(self, other: Self) -> bool {
         UvRect::contained_in(self, other)
     }
+    fn reach(self) -> f64 {
+        [self.u.1, self.v.0, self.v.1]
+            .into_iter()
+            .fold(self.u.0.abs(), |m, x| max_bound(m, x.abs()))
+    }
+    fn finest_at(reach: f64) -> Self {
+        let side = (reach.next_down(), reach);
+        Self { u: side, v: side }
+    }
 }
 
 /// **Seed generation**, chart lane: the centers of the parameter cells
 /// that survived exclusion against the plane.
 ///
-/// Takes `speed` and `floor_meters` as [`account_chart_plane`] does,
-/// and crosses the one into the other's units the same way: the chart
-/// lane is entered through one shape whichever duty is being asked
-/// for. What it does not do is hand back a lane — seeding hands back
-/// no receipt to state one on.
+/// Takes its floor as [`account_chart_plane`] does, minted over the
+/// same root by the same door ([`SweepFloor::chart`]): the chart lane
+/// is entered through one shape whichever duty is being asked for.
+/// What it does not do is hand back a lane — seeding hands back no
+/// receipt to state one on.
 ///
 /// # Errors
 ///
@@ -662,30 +971,21 @@ pub(crate) fn seed_chart_plane(
     surface: &NurbsSurface<f64>,
     plane_origin: Point3<f64>,
     plane_normal: Vec3<f64>,
-    root: UvRect,
-    speed: SupSpeed<f64>,
-    floor_meters: f64,
+    floor: SweepFloor<UvRect>,
 ) -> Result<Vec<(f64, f64)>, SsiError> {
-    let (_, seeds) = sweep_chart_plane(
-        surface,
-        plane_origin,
-        plane_normal,
-        root,
-        SweepDuty::Seed,
-        speed.to_param(floor_meters),
-    )?;
+    let (_, seeds) =
+        sweep_chart_plane(surface, plane_origin, plane_normal, floor, SweepDuty::Seed)?;
     Ok(seeds)
 }
 
-/// **The accounting proof**, chart lane: every leaf of the parameter
-/// rectangle is excluded or lies inside one of `tubes`; a cell that is
-/// neither, at the floor, is the typed refusal — `tubes` empty
-/// included.
+/// **The accounting proof**, chart lane: every leaf of the floor's
+/// parameter rectangle is excluded or lies inside one of `tubes`; a
+/// cell that is neither, at the floor, is the typed refusal — `tubes`
+/// empty included.
 ///
-/// `floor_meters` is the caller's floor as a length, and `speed` the
-/// certified chart speed of `surface`; the door crosses the one into
-/// the other's units once, and hands both on to the receipt so no
-/// caller has to hold the rate to read the answer.
+/// The floor carries the certified chart speed of `surface` that
+/// crossed the caller's metres into chart units, and hands it on to
+/// the receipt so no caller has to hold the rate to read the answer.
 ///
 /// # Errors
 ///
@@ -694,22 +994,17 @@ pub(crate) fn account_chart_plane(
     surface: &NurbsSurface<f64>,
     plane_origin: Point3<f64>,
     plane_normal: Vec3<f64>,
-    root: UvRect,
     tubes: &[UvRect],
-    speed: SupSpeed<f64>,
-    floor_meters: f64,
+    floor: SweepFloor<UvRect>,
 ) -> Result<Exhaustiveness, SsiError> {
-    let lane = ExhaustLane::Chart { speed };
-    let floor_uv = speed.to_param(floor_meters);
     let (tally, _) = sweep_chart_plane(
         surface,
         plane_origin,
         plane_normal,
-        root,
-        SweepDuty::Account { tubes, lane },
-        floor_uv,
+        floor,
+        SweepDuty::Account { tubes },
     )?;
-    Ok(tally.receipt(lane, floor_uv))
+    Ok(tally.receipt(floor.lane, floor.width()))
 }
 
 /// The chart lane's exclusion rule, over the one shared [`sweep`]:
@@ -720,19 +1015,18 @@ fn sweep_chart_plane(
     surface: &NurbsSurface<f64>,
     plane_origin: Point3<f64>,
     plane_normal: Vec3<f64>,
-    root: UvRect,
+    floor: SweepFloor<UvRect>,
     duty: SweepDuty<'_, UvRect>,
-    floor_uv: f64,
 ) -> Result<(SweepTally, Vec<(f64, f64)>), SsiError> {
     let boxes = NurbsBoxes::new(surface);
-    sweep(root, duty, floor_uv, |cell| {
+    sweep(floor, duty, |cell| {
         let b = boxes.rect_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1);
         let phi = Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x))
             + Interval::point(plane_normal.y) * (b.y - Interval::point(plane_origin.y))
             + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));
         if !phi.is_certified() {
             // The one measured route here is weight underflow: the
-            // seeding guard refuses every net whose homogeneous
+            // chart-speed mint refuses every net whose homogeneous
             // arithmetic leaves the finite range before this sweep
             // runs, so that cause is named nowhere below.
             return Err(SsiError::UnsupportedCertificate {
@@ -743,4 +1037,234 @@ fn sweep_chart_plane(
         }
         Ok(excludes_zero(phi))
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use geom_core::interval::certification::Certification;
+    use geom_core::{Bounds, Interval, SupSpeed};
+
+    use super::{
+        Box3, ExhaustLane, FloorFault, FloorKind, FloorRefusal, SSI_MAX_CELLS, SweepDuty,
+        SweepFloor, UvRect, sweep,
+    };
+    use crate::ssi::SsiError;
+
+    fn unit_square() -> UvRect {
+        UvRect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        }
+    }
+
+    fn refusal(r: Result<impl core::fmt::Debug, SsiError>) -> FloorRefusal {
+        match r {
+            Err(SsiError::FloorUnresolvable(r)) => r,
+            other => panic!("expected the floor door to refuse, got {other:?}"),
+        }
+    }
+
+    /// Seed the corner nearest `reach` by excluding every cell that does
+    /// not hold it, so the sweep refines toward the domain's largest
+    /// coordinate and nowhere else: what it does there is all it does.
+    fn corner_sweep<C: super::SweepCell + core::fmt::Debug>(
+        floor: SweepFloor<C>,
+        holds_corner: impl Fn(C) -> bool,
+    ) -> Result<usize, SsiError> {
+        sweep(floor, SweepDuty::Seed, |cell| Ok(!holds_corner(cell))).map(|(t, _)| {
+            assert!((t.examined as usize) < SSI_MAX_CELLS);
+            t.examined as usize
+        })
+    }
+
+    /// **The door's boundary is exact, on both lanes.** At the domain's
+    /// largest coordinate the finest cell bisection cuts is two
+    /// adjacent floats, and its split returns the cell itself. A floor
+    /// of that cell's width (as the lane measures widths) is minted,
+    /// and the sweep refining toward that corner stops there in a few
+    /// hundred cells. One ulp of floor narrower is refused by name, and
+    /// the same sweep handed it past the door spins to the cell budget,
+    /// which is the wrong diagnosis the door exists to replace.
+    #[test]
+    fn the_floor_door_refuses_exactly_the_floors_bisection_cannot_reach() {
+        // Chart lane: `[0, 1]²`, whose finest cell at `1` is
+        // `1 − next_down(1)` wide. A unit speed makes metres chart units.
+        let gap = 1.0 - 1.0f64.next_down();
+        let speed = SupSpeed::new(1.0);
+        let at = SweepFloor::chart(unit_square(), gap, speed, FloorKind::Accounting).unwrap();
+        let holds = |c: UvRect| c.u.1 == 1.0 && c.v.1 == 1.0;
+        let cells = corner_sweep(at, holds).unwrap();
+        assert!(
+            cells < 1_000,
+            "the chart sweep stops at the minted floor: {cells}"
+        );
+        let below = gap.next_down();
+        let r = refusal(SweepFloor::chart(
+            unit_square(),
+            below,
+            speed,
+            FloorKind::Accounting,
+        ));
+        assert_eq!(
+            r.fault,
+            FloorFault::BelowResolution {
+                resolution: gap,
+                reach: 1.0
+            }
+        );
+        let forced = SweepFloor { width: below, ..at };
+        assert!(
+            matches!(
+                corner_sweep(forced, holds),
+                Err(SsiError::CellBudget { .. })
+            ),
+            "past the door, one ulp under the boundary, the budget answers"
+        );
+
+        // ℝ³ lane: a box reaching `1e8`, where a cell of two adjacent
+        // floats is `next_up(ulp)` wide, because `Interval::width`
+        // rounds its difference up.
+        let reach = 1.0e8f64;
+        let side = Interval::from_bounds(reach - 1.0, reach);
+        let root = Box3 {
+            x: side,
+            y: side,
+            z: side,
+        };
+        let finest = Interval::from_bounds(reach.next_down(), reach).width();
+        assert_eq!(finest, (reach - reach.next_down()).next_up());
+        let at = SweepFloor::r3(root, finest, FloorKind::Accounting).unwrap();
+        let holds = |c: Box3| c.x.hi() == reach && c.y.hi() == reach && c.z.hi() == reach;
+        let cells = corner_sweep(at, holds).unwrap();
+        assert!(
+            cells < 1_000,
+            "the ℝ³ sweep stops at the minted floor: {cells}"
+        );
+        let r = refusal(SweepFloor::r3(root, finest.next_down(), FloorKind::Seeding));
+        assert_eq!(
+            r.fault,
+            FloorFault::BelowResolution {
+                resolution: finest,
+                reach
+            }
+        );
+        let forced = SweepFloor {
+            width: finest.next_down(),
+            ..at
+        };
+        assert!(
+            matches!(
+                corner_sweep(forced, holds),
+                Err(SsiError::CellBudget { .. })
+            ),
+            "past the door, one ulp under the boundary, the budget answers"
+        );
+    }
+
+    /// **A floor that is not a positive finite width refuses, by why.**
+    /// A metre floor of zero, below zero, NaN or `∞` is the caller's
+    /// knobs; a metre floor that is a length but divides by a tiny
+    /// chart speed to `∞` is the wall's scale.
+    #[test]
+    fn a_floor_that_is_no_width_refuses_by_its_fault() {
+        let speed = SupSpeed::new(1.0);
+        for meters in [0.0, -1.0e-9, f64::NAN, f64::INFINITY] {
+            let r = refusal(SweepFloor::chart(
+                unit_square(),
+                meters,
+                speed,
+                FloorKind::Seeding,
+            ));
+            assert_eq!(r.fault, FloorFault::NotALength, "{meters:e}");
+            assert!(
+                r.ending(crate::recourse::Reading::Build)
+                    .contains("floor scale"),
+                "{meters:e}: the caller's knobs"
+            );
+        }
+        let r = refusal(SweepFloor::chart(
+            unit_square(),
+            1.0,
+            SupSpeed::new(1.0e-320),
+            FloorKind::Seeding,
+        ));
+        assert_eq!(r.fault, FloorFault::Overflows);
+        assert!(r.width.is_infinite() && r.meters == 1.0, "{r:?}");
+        // A root with a refused side or an infinite one has no reach to
+        // resolve against: never "move the geometry nearer the origin".
+        let side = Interval::from_bounds(0.0, 1.0);
+        for bad in [
+            Interval::refused(),
+            Interval::from_bounds(0.0, f64::INFINITY),
+        ] {
+            let root = Box3 {
+                x: side,
+                y: bad,
+                z: side,
+            };
+            let r = refusal(SweepFloor::r3(root, 1.0e-9, FloorKind::Accounting));
+            assert_eq!(r.fault, FloorFault::DomainUnreadable, "{bad:?}");
+            let ending = r.ending(crate::recourse::Reading::Build);
+            assert!(!ending.contains("nearer the origin"), "{ending}");
+        }
+    }
+
+    /// **The refusal names the rate, through the chart-length spelling**,
+    /// starting from the caller's own metres: `1e-9 m` at a certified
+    /// chart speed of `1e150` is `1e-159` chart units, below the
+    /// `[0, 1]` domain's resolution.
+    #[test]
+    fn the_floor_refusal_names_the_rate_that_crossed_it() {
+        let r = refusal(SweepFloor::chart(
+            unit_square(),
+            1.0e-9,
+            SupSpeed::new(1.0e150),
+            FloorKind::Accounting,
+        ));
+        assert!(matches!(r.lane, ExhaustLane::Chart { .. }));
+        let shown = r.to_string();
+        assert_eq!(
+            shown,
+            format!(
+                "the accounting floor 1e-9 m is {:e} chart units at a certified chart speed \
+                 of 1e150 m per chart unit, which the domain cannot resolve: where it reaches \
+                 1e0 chart units from zero the finest cell bisection can cut is {:e} chart \
+                 units wide, so the subdivision could never refine to the floor",
+                1.0e-9 / 1.0e150,
+                1.0 - 1.0f64.next_down()
+            )
+        );
+    }
+
+    /// **A refused axis keeps a cell's width unreadable.** The sweep
+    /// stops refining at `width <= floor`, so a width that dropped the
+    /// refused axis would read a cell as floor-sized on the two axes it
+    /// can read. On the chart lane a NaN side is the same case.
+    #[test]
+    fn a_refused_side_makes_the_cell_width_nan() {
+        let side = Interval::from_bounds(0.0, 1.0);
+        for i in 0..3 {
+            let mut axes = [side; 3];
+            axes[i] = Interval::refused();
+            let cell = Box3 {
+                x: axes[0],
+                y: axes[1],
+                z: axes[2],
+            };
+            assert!(cell.width().is_nan(), "axis {i}: {}", cell.width());
+        }
+        for cell in [
+            UvRect {
+                u: (0.0, f64::NAN),
+                v: (0.0, 1.0),
+            },
+            UvRect {
+                u: (0.0, 1.0),
+                v: (f64::NAN, 1.0),
+            },
+        ] {
+            assert!(cell.width().is_nan(), "{cell:?}");
+        }
+    }
 }

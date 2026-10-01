@@ -19,11 +19,16 @@ use editor_core::{
     Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
     EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
     NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
-    clusters, load, product, relative_freedom_components, save,
+    groups, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
+
+/// A one-metre lever, through the one door a lever is formed by.
+fn unit_arm() -> editor_core::mate::coset::Arm {
+    editor_core::mate::coset::Arm::of(0.0, 1.0).expect("a metre is in range")
+}
 
 /// `step`, with the minted id unwrapped — every insert in this suite
 /// mints one.
@@ -69,11 +74,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore,
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference,
-    }
+    MateFrame::authored(origin, axis, reference)
 }
 
 /// A rest mate between instances `a` and `b` of the part whose body is
@@ -217,18 +218,15 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(ids[1]), None, "the pair solves");
-    assert_eq!(poses.gauge(ids[1]), Some(ids[0]), "the gauge is instance 0");
+    assert_eq!(poses.root(ids[1]), Some(ids[0]), "the root is instance 0");
     let relative = poses.relative(ids[1]).expect("a solved pose");
     assert!(
         relative.bit_eq(&Frame::translation([0.0, 0.0, 2.0])),
         "the child sits at the seating height plus the standoff: {relative:?}"
     );
     assert!(
-        poses
-            .relative(ids[0])
-            .expect("the gauge")
-            .is_identity_bits(),
-        "the gauge's own relative pose is the bit-exact identity"
+        poses.relative(ids[0]).expect("the root").is_identity_bits(),
+        "the root's own relative pose is the bit-exact identity"
     );
 
     let ev = run(&doc, &o);
@@ -378,14 +376,17 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
         "the measured clash IS the authored gap mismatch: {metres}"
     );
     let message = fault.to_string();
-    assert!(message.contains(predicate), "{message}");
+    assert!(
+        message.contains("the translation leaves the shared plane") && !message.contains(predicate),
+        "the sentence says in words what the predicate found: {message}"
+    );
     assert!(message.contains("clash"), "{message}");
 }
 
 // ---- Row 4: the cluster-record keying migration ----
 
 #[test]
-fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
+fn row4a_a_mate_insert_joins_two_groups_consuming_the_absorbed_frame() {
     let (doc, ids, _, body) = assembly("asm-r2a-row4a", 2);
     let (doc, _) = step(
         doc,
@@ -401,7 +402,7 @@ fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
             frame: Frame::translation([0.0, 5.0, 0.0]),
         },
     );
-    assert_eq!(clusters(&doc).len(), 2, "two singleton clusters");
+    assert_eq!(groups(&doc).len(), 2, "two singleton groups");
     let before = doc.clone();
 
     let applied = apply(
@@ -422,7 +423,7 @@ fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
         &editor_core::RefusingReach,
     )
     .expect("the mate inserts");
-    assert_eq!(clusters(&applied.doc).len(), 1, "one cluster now");
+    assert_eq!(groups(&applied.doc).len(), 1, "one group now");
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::Cluster(ClusterMaintenance::Join {
@@ -435,11 +436,11 @@ fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
     assert_eq!(
         applied.doc.placements().len(),
         1,
-        "one cluster, one recorded frame"
+        "one group, one recorded frame"
     );
     assert!(
         applied.doc.placement(ids[1]).bit_eq(&doc.placement(ids[0])),
-        "the surviving gauge's frame is unchanged, bit for bit"
+        "the surviving root's frame is unchanged, bit for bit"
     );
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
@@ -447,7 +448,7 @@ fn row4a_a_mate_insert_joins_two_clusters_consuming_the_absorbed_frame() {
 #[test]
 fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
     let (doc, ids, joint, store, _) = stacked_pair("asm-r2a-row4b");
-    // Deleting the mate SPLITS the cluster: the orphan's frame is
+    // Deleting the mate SPLITS the group: the orphan's frame is
     // minted from the solved pose, so the edit levers through the
     // store's own reach.
     let o = with_resolver(store);
@@ -467,7 +468,7 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
         &reach,
     )
     .expect("the mate deletes");
-    assert_eq!(clusters(&applied.doc).len(), 2, "the cluster split");
+    assert_eq!(groups(&applied.doc).len(), 2, "the group split");
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::Cluster(ClusterMaintenance::Split {
@@ -483,7 +484,7 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
             .doc
             .placement(ids[0])
             .bit_eq(&Frame::translation([0.0, 0.0, 4.0])),
-        "the surviving cluster keeps its frame verbatim"
+        "the surviving group keeps its frame verbatim"
     );
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
@@ -507,7 +508,7 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
         Tol::witness(),
         &reach,
     )
-    .expect("the gauge deletes");
+    .expect("the root deletes");
     // The mate names the dead instance with an instance-qualified
     // head, which is a payload NAME and not a DAG edge: the delete
     // stands and DM7's report rides beside the registry act, read at
@@ -562,7 +563,7 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
     assert_eq!(
         doc.placements().keys().copied().collect::<Vec<_>>(),
         vec![ids[2]],
-        "a singleton cluster's gauge IS its instance, so the key is \
+        "a singleton group's root IS its instance, so the key is \
          exactly the pre-mate one"
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
@@ -570,7 +571,7 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
     assert!(back.bit_eq(&doc), "the round trip is bit-exact");
     // The header necessarily moved (the `Node::Mate` arm took a schema
     // version), so byte-identity is asserted BELOW it — everything the
-    // cluster keying could have touched.
+    // group keying could have touched.
     let body = |t: &str| t.split_once('\n').expect("a header").1.to_string();
     assert_eq!(
         body(&text),
@@ -579,11 +580,11 @@ fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
     );
 }
 
-// ---- Row 4e/4f: the cut is a union of WHOLE clusters (ASM-4 rider ii) ----
+// ---- Row 4e/4f: the cut is a union of WHOLE groups (ASM-4 rider ii) ----
 
-/// Two clusters of two: `{i0,i1}` and `{i2,i3}`, each joined by one
-/// mate, each carrying a recorded frame on its gauge.
-fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore) {
+/// Two groups of two: `{i0,i1}` and `{i2,i3}`, each joined by one
+/// mate, each carrying a recorded frame on its root.
+fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore) {
     let (doc, ids, store, body) = assembly("asm-r2a-clusters", 4);
     let mut doc = doc;
     let mut mates = Vec::new();
@@ -623,14 +624,14 @@ fn two_clusters() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStor
     (doc, ids, mates, store)
 }
 
-/// Row 4e — a cut of ONE WHOLE cluster hoists its frame onto the
+/// Row 4e — a cut of ONE WHOLE group hoists its frame onto the
 /// remainder instance and leaves the part unplaced. This is ASM-4's
-/// D-2 rider (ii) doing its job at a cluster the pre-mate predicate
-/// could not even spell: two instantiate nodes, one cluster.
+/// D-2 rider (ii) doing its job at a group the pre-mate predicate
+/// could not even spell: two instantiate nodes, one group.
 #[test]
-fn row4e_a_whole_cluster_cut_hoists_the_cluster_frame() {
+fn row4e_a_whole_group_cut_hoists_the_group_frame() {
     use std::collections::BTreeSet;
-    let (doc, ids, mates, store) = two_clusters();
+    let (doc, ids, mates, store) = two_groups();
     let o = with_resolver(store);
     let cut = BTreeSet::from([ids[0], ids[1], mates[0]]);
     let out = editor_core::split(
@@ -640,10 +641,10 @@ fn row4e_a_whole_cluster_cut_hoists_the_cluster_frame() {
         Tol::witness(),
         o.resolver.as_ref(),
     )
-    .expect("a whole-cluster cut splits");
+    .expect("a whole-group cut splits");
     assert!(
         out.part.placements().is_empty(),
-        "the part holds the cluster UNPLACED — its world pose belongs \
+        "the part holds the group UNPLACED — its world pose belongs \
          to the assembly"
     );
     let instance = *out
@@ -656,30 +657,30 @@ fn row4e_a_whole_cluster_cut_hoists_the_cluster_frame() {
         out.remainder
             .placement(instance)
             .bit_eq(&Frame::translation([3.0, 0.0, 0.0])),
-        "the cluster's frame HOISTED onto the remainder instance"
+        "the group's frame HOISTED onto the remainder instance"
     );
     assert!(
         out.remainder
             .placement(ids[2])
             .bit_eq(&Frame::translation([7.0, 0.0, 0.0])),
-        "the untouched cluster keeps its own frame"
+        "the untouched group keeps its own frame"
     );
 }
 
-/// Row 4f — a cut that TEARS a cluster refuses typed, naming the
-/// cluster and the instance on the far side (review MAJOR-2).
+/// Row 4f — a cut that TEARS a group refuses typed, naming the
+/// group and the instance on the far side (review MAJOR-2).
 ///
-/// A11 puts the frame on the cluster, so a torn cluster has one frame
+/// A11 puts the frame on the group, so a torn group has one frame
 /// and two homes. Before this refusal landed, such a cut passed the
-/// hoist's cluster count (the torn cluster was FILTERED OUT of it, so
-/// a torn cluster looked like an absent one) and the torn frame —
+/// hoist's group count (the torn group was FILTERED OUT of it, so
+/// a torn group looked like an absent one) and the torn frame —
 /// `[7,0,0]` here — silently vanished.
 #[test]
-fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
+fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     use std::collections::BTreeSet;
-    let (doc, ids, mates, store) = two_clusters();
+    let (doc, ids, mates, store) = two_groups();
     let o = with_resolver(store);
-    // One whole cluster PLUS one instance torn out of the other.
+    // One whole group PLUS one instance torn out of the other.
     let cut = BTreeSet::from([ids[0], ids[1], mates[0], ids[2]]);
     match editor_core::split(
         &doc,
@@ -688,18 +689,18 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
         Tol::witness(),
         o.resolver.as_ref(),
     ) {
-        Err(editor_core::SplitError::TornCluster {
-            gauge,
+        Err(editor_core::SplitError::TornGroup {
+            root,
             instance,
-            gauge_is_cut,
+            root_is_cut,
         }) => {
-            assert_eq!(gauge, ids[2], "the torn cluster's gauge is named");
+            assert_eq!(root, ids[2], "the torn group's root is named");
             assert_eq!(instance, ids[3], "so is the member left behind");
-            assert!(gauge_is_cut, "and which side each is on");
+            assert!(root_is_cut, "and which side each is on");
         }
-        other => panic!("expected TornCluster, got {other:?}"),
+        other => panic!("expected TornGroup, got {other:?}"),
     }
-    // The message names the cluster, both sides, and the repair.
+    // The message names the group, both sides, and the repair.
     let message = editor_core::split(
         &doc,
         &cut,
@@ -709,10 +710,10 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
     )
     .expect_err("refuses")
     .to_string();
-    assert!(message.contains("tears the placement cluster"), "{message}");
+    assert!(message.contains("tears the placement group"), "{message}");
     assert!(message.contains("widen the cut"), "{message}");
     // The tear is refused in the OTHER direction too: keeping the
-    // gauge and cutting the member is the same fault.
+    // root and cutting the member is the same fault.
     let other_way = BTreeSet::from([ids[0], ids[1], mates[0], ids[3]]);
     match editor_core::split(
         &doc,
@@ -721,15 +722,15 @@ fn row4f_a_torn_cluster_cut_refuses_typed_naming_both_sides() {
         Tol::witness(),
         o.resolver.as_ref(),
     ) {
-        Err(editor_core::SplitError::TornCluster {
-            gauge,
+        Err(editor_core::SplitError::TornGroup {
+            root,
             instance,
-            gauge_is_cut,
+            root_is_cut,
         }) => {
-            assert_eq!((gauge, instance), (ids[2], ids[3]));
-            assert!(!gauge_is_cut);
+            assert_eq!((root, instance), (ids[2], ids[3]));
+            assert!(!root_is_cut);
         }
-        other => panic!("expected TornCluster, got {other:?}"),
+        other => panic!("expected TornGroup, got {other:?}"),
     }
 }
 
@@ -757,8 +758,9 @@ fn row5_the_closure_set_is_closed_under_intersection() {
         point: p,
         direction: d,
     };
-    let meet =
-        |a, b| editor_core::mate::coset::intersect_subgroups(a, b, band, 1.0).expect("decided");
+    let meet = |a, b| {
+        editor_core::mate::coset::intersect_subgroups(a, b, band, unit_arm()).expect("decided")
+    };
     // The universal rows: SE(3) is the identity, empty absorbs,
     // trivial is the zero.
     for g in [
@@ -925,7 +927,7 @@ fn row5b_the_folded_representative_is_the_solved_clocking() {
         },
         representative: Affine3::from_parts(Mat3::identity(), Vec3::new(1.0, -1.0, 0.0)),
     };
-    let out = intersect(held, added, band, 1.0).expect("the pair is assemblable");
+    let out = intersect(held, added, band, unit_arm()).expect("the pair is assemblable");
     assert_eq!(out.subgroup.name(), "prismatic");
     let turned = out
         .representative
@@ -1093,7 +1095,7 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
     // A lone coaxial mate leaves the pair UNDER-determined, so the
     // prior solve places the second instance nowhere — and deleting
     // the mate is the recourse that refusal names, so the edit door
-    // takes it: the orphan keeps the cluster's frame (there is no
+    // takes it: the orphan keeps the group's frame (there is no
     // solved pose to preserve) rather than the delete refusing.
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate_id }, Tol::witness(), &reach)
@@ -1105,7 +1107,7 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
             to: ids[1],
             frame: None,
         }],
-        "the orphan takes the cluster's (absent) frame"
+        "the orphan takes the group's (absent) frame"
     );
     let doc = applied.doc;
     assert_eq!(doc.roots(), &ids[..], "and leaves them as it found them");
@@ -1226,7 +1228,7 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
         made.push(id);
     }
     let roles = solve(&doc, &o3, Tol::witness());
-    // The spanning tree leaves the gauge for each neighbour in
+    // The spanning tree leaves the root for each neighbour in
     // document order — (0,1) then (0,2) — so the pair that closes the
     // loop is (1,2), whatever order the mates were authored in.
     assert_eq!(roles.role(made[0]), Some(MateRole::Determining));
@@ -1665,17 +1667,16 @@ fn row7d_an_in_band_case_split_escalates_typed() {
     );
 }
 
-/// **The mate solve's escalations are on no node's log.** The solve is
-/// a whole-document computation that runs BEFORE any node's verdict
-/// bracket opens, so the funnel's escalation on the in-band case split
-/// lands in whatever frame encloses the evaluation — visible to an
-/// outer bracket a caller holds, on no `NodeValue` and no `NodeError`
-/// — and reaches a consumer only as `NodeErrorKind::Mate` carrying
-/// `MateFault::Indeterminate`. Pinned so the gap is guarded: the item
-/// `work/props/escalation-channel-misses-op-minted-indeterminates.md`
-/// records it, and this row goes red when the solve is bracketed.
+/// **The mate solve's escalation is on the refused mate's own log,
+/// and on no other.** The solve is a whole-document computation that
+/// runs before any node's frame opens, so it keeps each decision for
+/// the mate whose answer it decided, and that mate's node splices it
+/// into its own frame. The in-band case split here is decided while
+/// the fold adds `mates[1]` to the pair's intersection, so it is
+/// `mates[1]`'s: on that mate's `NodeError`, on no other node's log,
+/// and not in a frame the caller holds around the evaluation.
 #[test]
-fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_frame() {
+fn row7e_a_mate_solve_escalation_is_on_the_refused_mates_own_log_and_not_in_an_outer_frame() {
     let eps = geom_core::Tol::witness().get().eps;
     let tilt = 3.0 * eps;
     let (doc, ids, store, body) = assembly("asm-r2a-row7e", 2);
@@ -1706,26 +1707,35 @@ fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_fram
     let named = |escalations: &[geom_core::k_stats::Escalation]| {
         escalations
             .iter()
-            .any(|e| e.predicate() == "mate_axes_parallel")
+            .filter(|e| e.predicate() == "mate_axes_parallel")
+            .count()
     };
+    let mut carriers = Vec::new();
     for (id, result) in &ev.nodes {
         let on_node = match result {
             NodeResult::Ok(v) => named(&v.escalations),
             NodeResult::Failed(e) => named(&e.escalations),
-            NodeResult::Poisoned { .. } => false,
+            NodeResult::Poisoned { .. } => 0,
         };
-        assert!(!on_node, "node {} carries the solve's escalation", id.0);
+        carriers.extend(std::iter::repeat_n(*id, on_node));
     }
-    assert!(
-        matches!(
-            mate_fault(&ev, mates[1]),
-            editor_core::MateFault::Indeterminate { .. }
-        ),
-        "the mate node fails typed through the error enum"
+    assert_eq!(
+        carriers,
+        vec![mates[1]],
+        "the escalation is on the refused mate's log, once, and on no other node's"
     );
-    assert!(
+    let editor_core::MateFault::Indeterminate { mate: refused, .. } = mate_fault(&ev, mates[1])
+    else {
+        panic!("the mate node fails typed through the error enum");
+    };
+    assert_eq!(
+        refused, mates[1],
+        "the fault names the mate whose log holds it"
+    );
+    assert_eq!(
         named(&outside.escalations),
-        "the outer frame saw the solve's escalation: {:?}",
+        0,
+        "no frame around the evaluation sees the solve's escalation: {:?}",
         outside.escalations
     );
 }
@@ -1847,11 +1857,11 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
     );
     let message = fault.to_string();
     assert!(
-        message.contains(&format!("mate {} contradicts itself", id.0)),
+        message.contains(&format!("mate {:012x} contradicts itself", id.0)),
         "one mate at fault is named ONCE: {message}"
     );
     assert!(
-        !message.contains(&format!("mates {} and {}", id.0, id.0)),
+        !message.contains(&format!("mates {:012x} and {:012x}", id.0, id.0)),
         "the pair sentence reads as an indexing fault here: {message}"
     );
     assert!(

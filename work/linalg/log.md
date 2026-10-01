@@ -40,3 +40,36 @@ side taken compiles fine. Then land; DECIDE-8 re-targets to `main`.
 Process finding: a held PR became another program's integration
 branch, which turned "unblocked" into a 3 900-commit merge debt with no
 owner. Nothing new targets `props/sign-hull`.
+## 2026-10-01 — #2468 lands
+
+- **Merge-forward lane** (`linalg-forward`): four rounds. It made two
+  merges of `main`, plus #3636 and #3661 (below), and re-measured every
+  pin that moved, with the cause in each commit. Seam measurements:
+  - PATHS's `arc_span` won, as announced.
+  - SYM-12 × `definite_quadratic`: all eight ceilings and seven splits
+    are identical. The pad's split was not taken; its shape report
+    OOMs on a 15 GB box. The row is closed.
+- **Review**: single FULL review of the merge resolutions on
+  `f6f387f6b`, MERGEABLE with 0 MAJOR and 0 MINOR. Six claims survived,
+  including by plants: the Duff plant restores main's seat digests
+  exactly, and a `copysign` plant reds the re-aimed rows. The style
+  findings S1, S2, S4, S5, S7, S8 and S9 were fixed. S3 and N2 were
+  filed (`work/sym/signed-rs-ring-helpers-…`,
+  `work/clear/clearance-diagonal-seam-…`).
+- **Ruling (orchestrator)**: SYM-12's gating row is re-aimed rather
+  than held. Its claim holds and only the `copysign` mechanism is gone,
+  so no reach is lost, unlike the 09-15 hold under #2728. Filed for
+  SYM: `the-negative-arm-lost-its-document-consumer` (`design: true`).
+- **Two reds that were not this PR's**, each fixed at its own PR and
+  ported in:
+  - #3636 (REACH): `reach_volume_backstop` was red at 1e-6/1e-12 on
+    `main`. Its rows were calibrated at ε = 1e-9; the fix re-spells
+    them in ε.
+  - #3661 (CIW): `ci-filter.py` blanked SEEDS on TIER=all, so a diff
+    touching `.config/nextest.toml` silently skipped its own slow set.
+    That is why #2468's slow set never ran hosted.
+- Hosted run 36845857746 on `b3d386d10` is green. Its slow-set step
+  executed: 133/133 over the seeded crates.
+- Process finding: this session cannot dispatch `nightly.yml`
+  (403 for the integration), so a branch-ref full run is unavailable
+  from a remote box.

@@ -25,7 +25,7 @@ walk is `docs/guide/assembly.md`.
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
-| A9, A11 partitions | `relative_freedom_components`, `clusters`, `gauge_of` in `src/mate/solve.rs` |
+| A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
 | A10 roots and gather | `src/roots.rs`, `src/product.rs`, `DocEdit::SetRoots` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
@@ -207,21 +207,43 @@ the mounting session's question, not the memo's. An evaluation carries
 the id of the document it is of, and `SolvedPoses` the id of the
 document it solved (DI3); which doors read that identity is A2's.
 `refactor::split` cuts a node set closed under the DAG in both
-directions (a severed edge refuses) and a union of whole placement
-clusters (else `SplitError::TornCluster`) into a new document with a
-caller-supplied id, leaving one `InstantiatePart` behind; a cut of
-exactly one cluster hoists its frame onto the instance, any other cut
-moves placements verbatim. Remainder-side names re-anchor through the
-instance qualifier by recorded `Rebind`s; `refactor::inline` is the
-inverse. Both are pure, returning values plus edit lists. Acceptance:
+directions (a severed edge refuses, a kept instance or gauge that hangs
+from a cut gauge among them) into a new document with a caller-supplied
+id, leaving one `InstantiatePart` behind. The cut is a union of whole
+groups, so a placing mate never crosses it (else
+`SplitError::TornGroup`); every gauge reference leaving it lands on
+one anchor, a kept gauge or the world; and a declaring mate that would
+start placing once the instance sits on the anchor refuses. The
+instance names the anchor, and the cut's one placed thing gives it its
+offset: a cut that is exactly one gauge under the anchor gives that
+gauge's placement and leaves the gauge out of the part, a cut that is
+exactly one placed group gives its root's offset and lands the root at
+the empty chain, and any other cut moves verbatim at the empty offset.
+A cut group nothing places moves as it is, unless a dead reference
+unplaces it, and a cut of unplaced material alone refuses.
+Remainder-side names re-anchor through the instance qualifier by
+recorded `Rebind`s. `refactor::inline` is the inverse: the instance's
+frame becomes a gauge under the instance's gauge holding its offset,
+and the part's gauges and instances hang from it; no gauge is minted
+for the empty offset, nor for a part that is one group at the empty
+chain on its world, whose root takes the offset instead. An instance
+its mates place is inlined only when its part is one such group.
+Members the instance placed through mates move onto the new gauge with
+their mates, and one that carries a further offset refuses. A mate
+side crosses the seam only when its coordinates do not change (the
+instance it reads is its group's root, on the part's world, at the
+empty chain) and the placing mates of one pair still read one pair;
+otherwise the mate refuses, named. Neither computes a frame. Both are
+pure, returning values plus edit lists. Acceptance:
 split-then-evaluate equals unsplit evaluation at structural and
-name-resolution identity, not bit identity. A mate whose two
+name-resolution identity, not bit identity, and inline-of-split returns
+the document split was given, up to node ids. A mate whose two
 `InstantiatePart` heads fall on opposite sides of a cut is an
 `InterfaceCrossing::Mate` in the instance's `InterfaceRecord`, which
 feeds the content key; evaluation refuses
 `NodeErrorKind::CrossingUnverified` when a crossing's part-side name no
-longer resolves in the pinned product. No split reaches that record
-today (AQ8).
+longer resolves in the pinned product; a declaring mate crossing a cut
+fills that record (AQ8).
 
 **A13 — Update granularity.** The primitive is
 `DocEdit::UpdateReference { node, new_pin }`: per reference, recorded,
@@ -360,7 +382,9 @@ insert (a head a rebind or a shrunk pattern strands, a re-pointed
 gauge. A gauge is a document node that holds a placement and denotes no
 body; each instance names its gauge, the world by default, and may carry
 an offset in it, and an instance's world pose is its gauge's frame
-composed with its offset. A
+composed with its offset. A gauge names its parent gauge in turn, the
+world by default, and its frame is its parent's frame composed with its
+placement, so gauges nest. A
 placement is parametric (Ev, `[ev]` #3437, 2026-09-29): a chain of
 steps, each either a rigid step of `Expr`s (the translation, rotation
 axis and rotation angle `Node::Transform` holds, and `Node::Transform`
@@ -430,9 +454,12 @@ changes the solve's algorithm — coset intersection over decided
 predicates, no numeric fitting, no geometry inspected inside the
 fold — and nothing is stored twice: the face name is the state, the
 frame is derived. A mated part that does not resolve faults its
-mate `MateFault::Unleverable` in the resolver's own voice, carrying
-the part fault unaltered, and that fault poisons the cluster as any
-mate fault does. The two questions that DO need a number are
+mate in the resolver's own voice, carrying the part fault unaltered —
+`MateFault::FaceUnresolved` (`FacePoseRefusal::PartUnresolved`, in
+`FaceRefusal::Reach`) where a
+`FromFace` side stands on it, since a side's frame is read before the
+lever, else `MateFault::Unleverable` — and that fault poisons the
+cluster as any mate fault does. The two questions that DO need a number are
 asked once per reference, where the solve reads it — for every
 reference of every live mate, not only the ones a tree edge's offset
 derives: the named copy must exist (its index against the pattern's
@@ -463,10 +490,10 @@ the cause on its own row, and the mate points there.
 - **AQ6 — cross-document `Rest` verification.** Answered in the kernel:
   the trilean verdict and the designed-clearance steer toward `Fit`
   (`fit_steer` in `crates/topo/src/boolean/contact_verify.rs`).
-- **AQ8 — the crossing record's reachability.** A crossing mate welds
-  its ends into one cluster and `TornCluster` refuses cutting through
-  one, so split never populates `InterfaceRecord`. The conversion door
-  (crossing mates passed at split and converted) is not implemented.
+- **AQ8 — the crossing record's reachability.** A placing mate welds
+  its ends into one group and never crosses a cut; a declaring mate
+  (its ends on different gauges) may, and populates `InterfaceRecord`,
+  so no conversion door is needed.
   **Only a mate EDGE can cross** (ruled, option (b) SKIP): a mate that
   is not an A12 edge — a head outside A11's member vocabulary, or a
   node not in the document — contributes no interface crossing however

@@ -68,6 +68,7 @@
 
 pub(crate) mod boxes;
 pub mod carrier_eq;
+mod circle_sphere;
 mod circle_torus;
 pub(crate) mod combine;
 pub mod contact_verify;
@@ -83,6 +84,7 @@ mod ops;
 pub(crate) mod section_cert;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::no_crossings_certificates;
+pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
 pub mod plane_eq;
@@ -98,6 +100,7 @@ pub use refusal_routes::{
 mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
+mod shell_witness;
 pub mod solid_contain;
 mod surface_group;
 pub mod tables;
@@ -197,6 +200,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_wall_outline_reach"
         | "bool_wall_piece_span"
         | "bool_wall_rim_level"
+        | "bool_wrap_rim"
         | "bool_wall_section_tilt"
         | "bool_wall_trim_period"
         | "bool_wall_iso_meridian"
@@ -1373,6 +1377,17 @@ pub enum BooleanError {
         /// The offending shell.
         shell: ShellKey,
     },
+    /// Every witness of a shell the other operand's boundary does not
+    /// cut — its vertices, its edges' midpoints, an interior point of
+    /// each planar face — lies ON that boundary, so which side of it
+    /// the shell lies on is undecided (`shell_witness`'s module docs).
+    /// Two operands that are one body reach this.
+    ShellWitnessExhausted {
+        /// The operand whose shell was probed.
+        operand: Operand,
+        /// The shell, in that operand's working copy.
+        shell: ShellKey,
+    },
     /// The containment fallback / uncut-component probe refused (F8).
     Containment(PointInSolidError),
     /// `revert` refused on the ∖ B side.
@@ -1401,8 +1416,8 @@ pub enum BooleanError {
     },
     /// A `Seamed` result's volume violates a set-theoretic bound —
     /// vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
-    /// vol(∖) ≤ vol A — checked at the op gate with the exact planar
-    /// `mass_properties` (the review's volume-inequality backstop,
+    /// vol(∖) ≤ vol A — checked at the op gate against the bodies'
+    /// certified mass properties (the review's volume-inequality backstop,
     /// decided on the INVARIANT LANE — outside the length seam,
     /// Ev's #213 layering ruling). A certified violation is a
     /// **kernel invariant** failure — the Corrupt class: a bug in the
@@ -1415,6 +1430,43 @@ pub enum BooleanError {
         got: String,
         /// The violated operand-volume bound, Debug-formatted.
         bound: String,
+    },
+    /// The volume backstop could not measure one of the three bodies
+    /// its bounds compare — the operands and the result — so it cannot
+    /// say whether the result is the right one, and no body is
+    /// returned. `source` is a valid face the property layer has no
+    /// measurement for: an inventory gap, a quadrature that could not
+    /// certify its own convergence, a tolerance that forms no band.
+    VolumeUnmeasured {
+        /// The operand that would not measure; `None` is the result.
+        operand: Option<Operand>,
+        /// The property layer's refusal, whole.
+        source: crate::props::MassPropsError,
+    },
+    /// The volume backstop found a body whose structure does not
+    /// resolve where its volume is measured — a key that names
+    /// nothing, a placeholder edge. Tier 3 reads the same refusals the
+    /// same way (one reading, `validate::classify_mass_props`). On the
+    /// result that is a **kernel defect**, the Corrupt class
+    /// [`BooleanError::ResultVolumeImplausible`] is in; on an operand
+    /// it is the kernel's or the file's the operand came from.
+    VolumeCorrupt {
+        /// The operand whose structure does not resolve; `None` is the
+        /// result.
+        operand: Option<Operand>,
+        /// The property layer's refusal, whole.
+        source: crate::props::MassPropsError,
+    },
+    /// The volume backstop measured all three bodies, refined their
+    /// enclosures as far as the quadrature's schedule reaches, and
+    /// still could not decide whether the bound named by `which` holds:
+    /// what the enclosures leave open, metered as a boundary
+    /// displacement, is certified larger than the model's resolution.
+    /// The result may be right; nothing here can say, so no body is
+    /// returned.
+    VolumeUndecided {
+        /// The bound left open (e.g. "vol(A ∖ B) ≤ vol(A)").
+        which: &'static str,
     },
     /// The result would be unbounded (only reachable with complement
     /// operands, e.g. ∪ of a body with its own complement) — no
@@ -1527,6 +1579,8 @@ pub enum BooleanErrorKind {
     JoinDesync,
     /// [`BooleanError::TornComponent`].
     TornComponent,
+    /// [`BooleanError::ShellWitnessExhausted`].
+    ShellWitnessExhausted,
     /// [`BooleanError::Containment`].
     Containment,
     /// [`BooleanError::Revert`].
@@ -1541,10 +1595,25 @@ pub enum BooleanErrorKind {
     ResultInvalid,
     /// [`BooleanError::ResultVolumeImplausible`].
     ResultVolumeImplausible,
+    /// [`BooleanError::VolumeUnmeasured`].
+    VolumeUnmeasured,
+    /// [`BooleanError::VolumeCorrupt`].
+    VolumeCorrupt,
+    /// [`BooleanError::VolumeUndecided`].
+    VolumeUndecided,
     /// [`BooleanError::UnrepresentableResult`].
     UnrepresentableResult,
     /// [`BooleanError::GraftRecertify`].
     GraftRecertify,
+}
+
+/// Which of the volume backstop's three bodies a refusal is about.
+fn backstop_subject(operand: Option<Operand>) -> &'static str {
+    match operand {
+        Some(Operand::A) => "the first solid",
+        Some(Operand::B) => "the second solid",
+        None => "the result",
+    }
 }
 
 impl BooleanError {
@@ -1650,6 +1719,7 @@ impl BooleanError {
             Self::RestZipUnsupported { .. } => BooleanErrorKind::RestZipUnsupported,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
+            Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
             Self::Containment(_) => BooleanErrorKind::Containment,
             Self::Revert(_) => BooleanErrorKind::Revert,
             Self::SeamOrientation { .. } => BooleanErrorKind::SeamOrientation,
@@ -1657,6 +1727,9 @@ impl BooleanError {
             Self::Merge(_) => BooleanErrorKind::Merge,
             Self::ResultInvalid { .. } => BooleanErrorKind::ResultInvalid,
             Self::ResultVolumeImplausible { .. } => BooleanErrorKind::ResultVolumeImplausible,
+            Self::VolumeUnmeasured { .. } => BooleanErrorKind::VolumeUnmeasured,
+            Self::VolumeCorrupt { .. } => BooleanErrorKind::VolumeCorrupt,
+            Self::VolumeUndecided { .. } => BooleanErrorKind::VolumeUndecided,
             Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
         }
@@ -2031,6 +2104,15 @@ impl core::fmt::Display for BooleanError {
                  of both sides (kernel bug)",
                 operand_word(*operand)
             ),
+            Self::ShellWitnessExhausted { operand, .. } => write!(
+                f,
+                "the solids do not cross, and every point of the {} solid the \
+                 Boolean tried (each corner, each edge's middle, a point inside \
+                 each flat face) lies on the other's boundary, so it cannot tell \
+                 whether that solid is inside the other. Recourse: if the two are \
+                 one body, use it once",
+                operand_word(*operand)
+            ),
             // The payload does not say which operand was being tested, so
             // the sentence says "one of the solids" rather than guess.
             Self::Containment(e) => write!(f, "the solids do not cross, and the Boolean {e}"),
@@ -2056,6 +2138,39 @@ impl core::fmt::Display for BooleanError {
                 "the Boolean's result broke a bound a correct result's volume always meets \
                  ({which}: got {got}, bound {bound}), so no body is returned. \
                  {KERNEL_DEFECT_ENDING}"
+            ),
+            Self::VolumeUnmeasured { operand, source } => {
+                let reading = crate::validate::classify_mass_props(source);
+                write!(
+                    f,
+                    "the Boolean checks its result against its inputs' volumes, and the \
+                     volume of {} cannot be measured — {} — so no body is returned. {}",
+                    backstop_subject(*operand),
+                    reading.why,
+                    reading.recourse
+                )
+            }
+            Self::VolumeCorrupt { operand, source } => {
+                let ending = match operand {
+                    Some(_) => geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+                    None => KERNEL_DEFECT_ENDING,
+                };
+                write!(
+                    f,
+                    "the Boolean checks its result against its inputs' volumes, and the \
+                     volume of {} cannot be measured — {} — so no body is returned. {ending}",
+                    backstop_subject(*operand),
+                    crate::validate::classify_mass_props(source).why
+                )
+            }
+            Self::VolumeUndecided { which } => write!(
+                f,
+                "the Boolean checks its result against its inputs' volumes, and measuring \
+                 them as finely as the kernel can still leaves open whether {which} holds, \
+                 by more than the tolerance, so no body is returned. The finest measurement \
+                 grows coarser with the size of the bodies. Recourse: build at a looser \
+                 tolerance, which the open range may fit inside — though on bodies large \
+                 enough no tolerance does"
             ),
             Self::UnrepresentableResult => write!(
                 f,
@@ -3211,6 +3326,10 @@ mod tests {
                 operand: Operand::A,
                 shell: ShellKey::default(),
             },
+            BooleanError::ShellWitnessExhausted {
+                operand: Operand::B,
+                shell: ShellKey::default(),
+            },
             BooleanError::Containment(
                 crate::boolean::solid_contain::PointInSolidError::RayExhausted,
             ),
@@ -3224,6 +3343,20 @@ mod tests {
                 which: "vol(A ∖ B) ≤ vol(A)",
                 got: "1.0".to_owned(),
                 bound: "0.5".to_owned(),
+            },
+            BooleanError::VolumeUnmeasured {
+                operand: None,
+                source: crate::props::MassPropsError::Face {
+                    face,
+                    source: geom_brep::props::PropsError::Unimplemented,
+                },
+            },
+            BooleanError::VolumeCorrupt {
+                operand: Some(Operand::A),
+                source: crate::props::MassPropsError::Corrupt { what: "a face key" },
+            },
+            BooleanError::VolumeUndecided {
+                which: "vol(A ∖ B) ≤ vol(A)",
             },
             BooleanError::UnrepresentableResult,
         ]
@@ -3294,6 +3427,7 @@ mod tests {
                 BooleanErrorKind::RestZipUnsupported => "RestZipUnsupported",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
+                BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
                 BooleanErrorKind::Containment => "Containment",
                 BooleanErrorKind::Revert => "Revert",
                 BooleanErrorKind::SeamOrientation => "SeamOrientation",
@@ -3301,6 +3435,9 @@ mod tests {
                 BooleanErrorKind::Merge => "Merge",
                 BooleanErrorKind::ResultInvalid => "ResultInvalid",
                 BooleanErrorKind::ResultVolumeImplausible => "ResultVolumeImplausible",
+                BooleanErrorKind::VolumeUnmeasured => "VolumeUnmeasured",
+                BooleanErrorKind::VolumeCorrupt => "VolumeCorrupt",
+                BooleanErrorKind::VolumeUndecided => "VolumeUndecided",
                 BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
             }

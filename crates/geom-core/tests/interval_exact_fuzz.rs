@@ -666,3 +666,211 @@ fn refusal_paths_are_total() {
     }
     println!("[refusal] {n} refusal cases, 0 leaks");
 }
+
+// ------------------------------------------------- the directed helpers
+
+/// `geom_core::interval::norm_sup` is never below the exact
+/// `sup ‖·‖` of its box, `√(Σ mag²)`, across the whole exponent range:
+/// sides centred from the subnormals to past the squares' overflow
+/// point, with signed zeros, zero-straddling sides and subnormal ends.
+/// The underflow regime is the one a round-to-nearest fold of the same
+/// endpoints fails in (a tiny square rounds to zero).
+#[test]
+fn norm_sup_is_sound_against_exact_arithmetic() {
+    use geom_core::interval::norm_sup;
+    let mut rng = fuzz::start("interval_exact_fuzz::norm_sup");
+    let centers = [-1074i32, -600, -540, -511, -60, 0, 60, 511, 512, 600];
+    // A short-mantissa point side: three of them square and sum
+    // EXACTLY, so no interval pad stands between the sum and its root
+    // and the root's own rounding is all that separates the reading
+    // from the norm (a side of `1` thrice is `√3`, which rounds DOWN).
+    let side = |rng: &mut fuzz::Rng| {
+        if rng.next_u64().is_multiple_of(4) {
+            let (v, ..) = short_dyadic(rng, 4);
+            return (v, v);
+        }
+        let c = centers[(rng.next_u64() % centers.len() as u64) as usize];
+        let mut a = f64_near_exp(rng, c);
+        let mut b = match rng.next_u64() % 4 {
+            0 => -a,
+            1 => 0.0,
+            2 => subnormal(rng),
+            _ => f64_near_exp(rng, c),
+        };
+        if rng.next_u64().is_multiple_of(8) {
+            a = -0.0;
+        }
+        if b < a {
+            core::mem::swap(&mut a, &mut b);
+        }
+        (a, b)
+    };
+    let mut checked = 0u64;
+    for _ in 0..fuzz::scaled(20_000) {
+        let s = [side(&mut rng), side(&mut rng), side(&mut rng)];
+        let r = norm_sup(&s.map(|(lo, hi)| Interval::from_bounds(lo, hi)));
+        assert!(!r.is_nan(), "{s:?}: refused — {}", fuzz::replay());
+        let mut m2 = Big::zero();
+        for (lo, hi) in s {
+            let m = lo.abs().max(hi.abs());
+            m2 = m2.add(&big_prod(m, m));
+        }
+        if r.is_finite() {
+            assert_ne!(
+                big_prod(r, r).add(&m2.negated()).sign(),
+                Ordering::Less,
+                "{s:?}: norm_sup {r:e} below the exact norm — {}",
+                fuzz::replay()
+            );
+            checked += 1;
+        }
+    }
+    println!("[norm_sup] {checked} finite readings, 0 below the exact norm");
+}
+
+/// **A real cell where round-to-nearest was below the norm.** The
+/// sides are bit for bit `NurbsBoxes::deriv_box` of `S_u` over the
+/// whole domain of `m5_pr7_ssi.rs`'s `certifiable_wall`, the
+/// chart-speed box `plane_nurbs_ssi`'s floors and limb 3's tube pad
+/// divide by. The fold those sites used to compute, `√(Σ mag²)`
+/// rounded to nearest at every step, reads `1.130884609498246` there,
+/// which is BELOW the exact norm. The outward reading is not.
+#[test]
+fn norm_sup_is_above_the_exact_norm_on_a_cell_a_rounded_fold_is_below() {
+    use geom_core::interval::norm_sup;
+    let side = |lo: u64, hi: u64| Interval::from_bounds(f64::from_bits(lo), f64::from_bits(hi));
+    let v = [
+        side(4_607_407_598_781_385_931, 4_607_407_598_781_385_934),
+        side(4_595_653_203_753_948_938, 4_601_237_667_291_888_354),
+        Interval::from_bounds(0.0, 0.0),
+    ];
+    let m = v.map(|i| i.lo().abs().max(i.hi().abs()));
+    let m2 = big_prod(m[0], m[0])
+        .add(&big_prod(m[1], m[1]))
+        .add(&big_prod(m[2], m[2]));
+    let below = |r: f64| big_prod(r, r).add(&m2.negated()).sign() == Ordering::Less;
+    let fold = (m[0] * m[0] + m[1] * m[1] + m[2] * m[2]).sqrt();
+    assert_eq!(
+        fold, 1.130_884_609_498_246,
+        "the witness is the cell it names"
+    );
+    assert!(
+        below(fold),
+        "the rounded fold {fold:e} must sit below the exact norm"
+    );
+    let sup = norm_sup(&v);
+    assert!(!below(sup), "norm_sup {sup:e} is below the exact norm");
+}
+
+/// `geom_core::interval::div_down` is never above the exact quotient,
+/// from the subnormals to the quotients that overflow.
+#[test]
+fn div_down_is_sound_against_exact_arithmetic() {
+    use geom_core::interval::div_down;
+    let mut rng = fuzz::start("interval_exact_fuzz::div_down");
+    let draw = |rng: &mut fuzz::Rng| match rng.next_u64() % 4 {
+        0 => subnormal(rng),
+        1 => f64_near_exp(rng, -900),
+        2 => f64_near_exp(rng, 900),
+        _ => f64_near_exp(rng, 0),
+    };
+    let mut checked = 0u64;
+    for _ in 0..fuzz::scaled(25_000) {
+        let (a, b) = (draw(&mut rng), draw(&mut rng));
+        let q = div_down(a, b);
+        assert!(
+            !q.is_nan(),
+            "div_down({a:e}, {b:e}) refused — {}",
+            fuzz::replay()
+        );
+        assert_ne!(
+            cmp_f64_vs_quot(q, a, b),
+            Ordering::Greater,
+            "div_down({a:e}, {b:e}) = {q:e} is above the exact quotient — {}",
+            fuzz::replay()
+        );
+        checked += 1;
+    }
+    println!("[div_down] {checked} quotients, 0 above the exact one");
+}
+
+/// `geom_core::interval::div_up` is never below the exact quotient,
+/// over the same draws as `div_down`'s row.
+#[test]
+fn div_up_is_sound_against_exact_arithmetic() {
+    use geom_core::interval::div_up;
+    let mut rng = fuzz::start("interval_exact_fuzz::div_up");
+    let draw = |rng: &mut fuzz::Rng| match rng.next_u64() % 4 {
+        0 => subnormal(rng),
+        1 => f64_near_exp(rng, -900),
+        2 => f64_near_exp(rng, 900),
+        _ => f64_near_exp(rng, 0),
+    };
+    let mut checked = 0u64;
+    for _ in 0..fuzz::scaled(25_000) {
+        let (a, b) = (draw(&mut rng), draw(&mut rng));
+        let q = div_up(a, b);
+        assert!(
+            !q.is_nan(),
+            "div_up({a:e}, {b:e}) refused — {}",
+            fuzz::replay()
+        );
+        assert_ne!(
+            cmp_f64_vs_quot(q, a, b),
+            Ordering::Less,
+            "div_up({a:e}, {b:e}) = {q:e} is below the exact quotient — {}",
+            fuzz::replay()
+        );
+        checked += 1;
+    }
+    println!("[div_up] {checked} quotients, 0 below the exact one");
+}
+
+/// `x` against the exact `f / (a·b)` for positive `a`, `b` whose
+/// product stays in the normal range: the product splits exactly as
+/// `p + e` (`p` rounded, `e` its fused residual, checked exact here),
+/// so `x·(a·b) − f = x·p + x·e − f` is three exact products and a sum
+/// the [`Big`] register holds.
+fn cmp_f64_vs_quot_of_product(x: f64, f: f64, a: f64, b: f64) -> Ordering {
+    let p = a * b;
+    let e = a.mul_add(b, -p);
+    assert_eq!(
+        big_of(p)
+            .add(&big_of(e))
+            .add(&big_prod(a, b).negated())
+            .sign(),
+        Ordering::Equal,
+        "the split of {a:e}·{b:e} must be exact"
+    );
+    big_prod(x, p)
+        .add(&big_prod(x, e))
+        .add(&big_of(f).negated())
+        .sign()
+}
+
+/// **`offset_meters::patch_regularity`'s sine floor**, `floor /
+/// (sup‖S_u‖ · sup‖S_v‖)` from below. Its old spelling, the
+/// nearest-rounded quotient by the nearest-rounded product stepped one
+/// ulp down, lands ABOVE the exact quotient on this triple. Its
+/// current spelling, two quotients each rounded down, does not.
+#[test]
+fn the_sine_floor_is_below_the_exact_quotient_where_one_step_down_was_not() {
+    use geom_core::interval::div_down;
+    let (floor, a, b): (f64, f64, f64) = (
+        1.000_844_717_948_889_5,
+        1.356_818_763_603_346,
+        1.528_393_971_351_443_6,
+    );
+    let old = (floor / (a * b)).next_down();
+    assert_eq!(
+        cmp_f64_vs_quot_of_product(old, floor, a, b),
+        Ordering::Greater,
+        "the old spelling {old:e} must sit above the exact quotient, or this is no witness"
+    );
+    let new = div_down(div_down(floor, a), b);
+    assert_ne!(
+        cmp_f64_vs_quot_of_product(new, floor, a, b),
+        Ordering::Greater,
+        "the sine floor {new:e} is above the exact quotient"
+    );
+}

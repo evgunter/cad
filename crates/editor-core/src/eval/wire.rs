@@ -163,7 +163,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
     /// The document's mate solve, run once per evaluation (ASM-R2a
-    /// D-5): every instance's pose relative to its cluster gauge, and
+    /// D-5): every instance's pose relative to its group root, and
     /// every mate's role.
     pub poses: &'a crate::mate::SolvedPoses,
     /// Where profile geometry comes from, and over which environment.
@@ -2595,7 +2595,6 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         target,
         &target_table,
         &body,
-        plane.normal,
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
@@ -3485,9 +3484,9 @@ const UNION_FOLD_CONTACT_VERDICT: &str =
 /// no published table holds. Every name the refusal carries is
 /// therefore put through [`names::collapse_name`], the collapse the
 /// node's own table gets from `name_union`. A member-EDGE piece would
-/// still carry the fold's rank, which `name_union` renumbers over the
+/// still carry the fold's `Ends`, which `name_union` re-reads over the
 /// finished body, so one refuses as an emission bug
-/// ([`UNION_REFUSAL_FOLD_RANKED_EDGE`]); a flush finding names faces.
+/// ([`UNION_REFUSAL_FOLD_QUALIFIED_EDGE`]); a flush finding names faces.
 ///
 /// The recourse offered is the pair boolean's: a `Declare` on the
 /// union's own input, each side SITED at the member that carries it
@@ -3534,9 +3533,9 @@ fn union_refusal<T: geom_core::Bounds>(
     // refusal that has one has no pair to offer.
     for subject in [&a, &b] {
         if let DeclarationSubject::FoldMinted(row) = subject {
-            if names::is_fold_ranked_member_edge(row) {
+            if names::is_fold_qualified_member_edge(row) {
                 return NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_REFUSAL_FOLD_RANKED_EDGE,
+                    what: UNION_REFUSAL_FOLD_QUALIFIED_EDGE,
                 });
             }
             return NodeErrorKind::UndeclarableContact {
@@ -3647,9 +3646,9 @@ fn sited_member(
     })
 }
 
-/// A union's refusal named a piece of a member edge by the fold's rank.
-const UNION_REFUSAL_FOLD_RANKED_EDGE: &str = "a union fold's refusal names a piece of a member \
-     edge by the fold's rank, which no published table holds";
+/// A union's refusal named a piece of a member edge by the fold's qualifier.
+const UNION_REFUSAL_FOLD_QUALIFIED_EDGE: &str = "a union fold's refusal names a piece of a member \
+     edge by the fold's qualifier, which no published table holds";
 
 /// A union's refusal named a row its own fold table cannot collapse.
 const UNION_REFUSAL_FOREIGN: &str =
@@ -5339,9 +5338,11 @@ mod place_tests {
             },
             sense: true,
         };
+        // Lifts both refusals: the rows read the cylinder keys' axis stamps, not the brick's edges.
         let stamped = b
             .set_face_surface_stranding_for_tests(faces[0], cylinder(0.25))
             .unwrap();
+        // Lifts both refusals: the rows read the cylinder keys' axis stamps, not the brick's edges.
         let pending = b
             .set_face_surface_stranding_for_tests(faces[1], cylinder(0.3))
             .unwrap();

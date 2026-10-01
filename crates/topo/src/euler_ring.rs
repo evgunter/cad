@@ -243,7 +243,7 @@ use crate::entity::{
 use crate::euler::ArenaDelta;
 use crate::euler::FaceSurface;
 use crate::euler::{
-    Clearing, EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, RunExtent, Spine,
+    Clearing, EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, Records, RunExtent,
     require_halves, shared_loop,
 };
 use crate::geometry::{CurveKey, SurfaceKey};
@@ -469,7 +469,12 @@ impl<T: Decide> Body<T> {
     /// half-edge but `he1` and `he2` names the edge
     /// ([`EulerOpError::UnclaimedHalfEdge`] naming the first in arena
     /// order — tier-1-invalid input the kill would leave naming a dead
-    /// edge).
+    /// edge); nothing the kill keeps names `he1` or `he2`: no `next` or
+    /// `prev` as the splices leave it, and no loop's `first` but the old
+    /// loop's (`LoopCycleBroken` naming the half-edge's loop, or the
+    /// loop), then no vertex's `emanating` but the endpoints' and no
+    /// other edge's slot ([`EulerOpError::KillLeavesDangling`]), each
+    /// first in arena order.
     ///
     /// # Errors
     ///
@@ -553,6 +558,28 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
         }
         self.require_edge_unnamed(edge, [he1, he2])?;
+        // Each non-empty side closes from its last member onto its
+        // first: the ring side's, then the old loop's.
+        let links: Vec<(Live, Live)> = [ring_ends, old_ends]
+            .into_iter()
+            .flatten()
+            .map(|(first, last)| (last, first))
+            .collect();
+        self.require_killed_halves_unnamed(
+            [he1, he2],
+            Clearing {
+                removed: Records {
+                    edges: &[edge],
+                    ..Records::default()
+                },
+                edited: Records {
+                    loops: &[loop_key],
+                    vertices: &[u, w],
+                    ..Records::default()
+                },
+                links: &links,
+            },
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): the ring loop only.
@@ -573,18 +600,12 @@ impl<T: Decide> Body<T> {
             };
             he.parent_loop = ring;
         }
-        if let Some((first, last)) = ring_ends {
-            // last = prev(he2), first = next(he1): closing the ring cycle.
-            // When the side has ONE member this is a self-link (a
-            // one-half-edge loop). That configuration needs a self-loop
-            // half flanked by the killed halves on both sides — believed
-            // unreachable through M1 operator sequences and verified by
-            // derivation only (same for the old side below).
-            self.link_half_edges(last, first);
-        }
-        // Close the old loop's cycle and re-anchor it.
-        if let Some((first, last)) = old_ends {
-            // last = prev(he1), first = next(he2).
+        // The ring side closes prev(he2) -> next(he1), the old loop
+        // prev(he1) -> next(he2). A side of ONE member self-links (a
+        // one-half-edge loop), which needs a self-loop half flanked by
+        // the killed halves on both sides — believed unreachable through
+        // M1 operator sequences and verified by derivation only.
+        for (last, first) in links {
             self.link_half_edges(last, first);
         }
         let Some(l) = self.get_loop_mut(loop_key) else {
@@ -655,10 +676,12 @@ impl<T: Decide> Body<T> {
     /// were complete, has its merged loop re-minted with both halves in
     /// it before any mutation, on the terms `mev` states.
     ///
-    /// **Minting order** (D9, exact): curve (placeholder, anchored at
-    /// the target anchor vertex's coordinates), edge, `he_plus`,
-    /// `he_minus`. **Kill order**: the ring loop (with its provenance
-    /// entry), after the splice.
+    /// **Minting order** (D9, exact): curve (placeholder, anchored at the
+    /// target anchor vertex's coordinates), edge, `he_plus`, `he_minus`.
+    /// **Kill order**: the ring loop (with its provenance entry and every
+    /// null-face record naming it, as a null-face record lives only while
+    /// its face holds both loops it names — [`crate::null`]), after the
+    /// splice.
     ///
     /// # Precondition check order
     ///
@@ -815,15 +838,17 @@ impl<T: Decide> Body<T> {
     /// that move whole. On a spline chart, or an `f1` that was unminted
     /// or half-minted, the drop is the whole answer at either door.
     ///
-    /// **Minting order**: nothing is minted (the loop survives with its
-    /// D5 birth record — no provenance changes for survivors; re-homed
-    /// faces keep their birth records — re-homing is not a re-birth).
-    /// **Kill order** (D9, exact): cross-shell form first re-homes
-    /// `f2`'s shell's surviving faces (appended to `f1`'s shell's list
-    /// in their surviving order) and kills the shell (with its
-    /// provenance); then, both forms, the face `f2` (with its
-    /// provenance and any F9 null-face record), then `f2`'s surface
-    /// iff orphaned ([`Body::remove_surface_if_orphaned`]).
+    /// **Minting order**: nothing is minted (the loop survives with its D5
+    /// birth record — no provenance changes for survivors; re-homed faces
+    /// keep their birth records — re-homing is not a re-birth). **Kill
+    /// order** (D9, exact): cross-shell form first re-homes `f2`'s shell's
+    /// surviving faces (appended to `f1`'s shell's list in their surviving
+    /// order) and kills the shell (with its provenance); then, both forms,
+    /// the face `f2` (with its provenance and its null-face record) and
+    /// every null-face record naming `f2`'s demoted outer loop, as a
+    /// null-face record lives only while its face holds both loops it names
+    /// ([`crate::null`]), then `f2`'s surface iff orphaned
+    /// ([`Body::remove_surface_if_orphaned`]).
     ///
     /// # Precondition check order
     ///
@@ -835,7 +860,14 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); cross-shell only: every surviving face of `f2`'s
     /// shell and the shared solid resolve (`StaleKey`) — the fusion
     /// writes through both; the demoted loop walks
-    /// ([`EulerOpError::LoopCycleBroken`]); then, where `f1` would be
+    /// ([`EulerOpError::LoopCycleBroken`]); no loop but the demoted one
+    /// names `f2`, then no shell but the one that drops it lists it (in
+    /// the same-shell form the shared one, in the fusion form `f2`'s own,
+    /// which dies), then, fusion form only, no face outside `f2`'s
+    /// shell's list names that shell and no solid but the shared one
+    /// lists it ([`EulerOpError::KillLeavesDangling`] naming the first in
+    /// arena order — tier-1-invalid input the kill would leave naming a
+    /// dead record); then, where `f1` would be
     /// re-minted, the site mint's plan ([`Body::plan_moved_rows`]'s
     /// errors, [`EulerOpError::PcurveMint`] naming `f1` among them —
     /// `KeysOnly` at this door).
@@ -938,6 +970,53 @@ impl<T: Decide> Body<T> {
             require_key(&self.solids, s2_data.solid, EntityId::Solid)?;
         }
         let ring_halves = self.site_cycle(ring)?;
+        // Nothing the kill keeps names `f2`, or, in the fusion form,
+        // `f2`'s shell: the ring re-homes onto `f1`, the shell that
+        // drops `f2` is `f1`'s in the same-shell form and dies in the
+        // fusion form, whose other faces re-home and whose solid drops
+        // it.
+        let moved: Vec<FaceKey> = if cross_shell {
+            s2_data.faces.iter().copied().filter(|&f| f != f2).collect()
+        } else {
+            Vec::new()
+        };
+        let (removed_shells, edited_shells) = if cross_shell {
+            (&[f2_shell][..], &[][..])
+        } else {
+            (&[][..], &[f1_shell][..])
+        };
+        self.require_face_unnamed(
+            f2,
+            Clearing {
+                removed: Records {
+                    shells: removed_shells,
+                    ..Records::default()
+                },
+                edited: Records {
+                    loops: &[ring],
+                    shells: edited_shells,
+                    ..Records::default()
+                },
+                ..Clearing::default()
+            },
+        )?;
+        if cross_shell {
+            self.require_shell_unnamed(
+                f2_shell,
+                Clearing {
+                    removed: Records {
+                        faces: &[f2],
+                        ..Records::default()
+                    },
+                    edited: Records {
+                        faces: &moved,
+                        solids: &[s2_data.solid],
+                        ..Records::default()
+                    },
+                    ..Clearing::default()
+                },
+            )?;
+        }
         let rows = self.plan_moved_rows(
             &ring_halves,
             self.same_chart(f2_data.surface, f1_surface),
@@ -1015,9 +1094,10 @@ impl<T: Decide> Body<T> {
         };
         self.faces.remove(f2);
         self.face_provenance.remove(f2);
-        // Null-face record hygiene (M3 PR 1): a record never outlives
-        // its face (crate::null).
+        // A null-face record lives only while its face holds both loops
+        // it names (crate::null).
         self.null_faces.remove(f2);
+        self.drop_null_face_records_naming(ring);
         let killed_surface = self
             .remove_surface_if_orphaned(f2_data.surface)
             .then_some(f2_data.surface);
@@ -1051,11 +1131,14 @@ impl<T: Decide> Body<T> {
     /// the caller's bug, surfaced by the designation-sensitive
     /// consumers (tier-3 region checks, mass properties), not here.
     ///
-    /// Pure reparenting: the ring leaves its face's `rings`, joins
+    /// Reparenting: the ring leaves its face's `rings`, joins
     /// `to_face.rings` (appended — deterministic order), and its `face`
-    /// back-pointer is repointed. Moving a ring to its own face is a
-    /// documented no-op (`Ok(())`, body untouched — the rings order is
-    /// NOT perturbed, keeping replay byte-stable).
+    /// back-pointer is repointed. Every null-face record naming the ring is
+    /// dropped, as a null-face record lives only while its face holds both
+    /// loops it names ([`crate::null`]). Moving a ring to its own face is a
+    /// documented no-op (`Ok(())`, body untouched — the rings order is NOT
+    /// perturbed, keeping replay byte-stable, and a record naming the ring
+    /// stands).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): this door mints and kills
     /// no half-edge, and it still writes the map — a re-parenting is
@@ -1070,7 +1153,8 @@ impl<T: Decide> Body<T> {
     /// moves, as [`Body::kfmrh`] does; [`Body::ring_move_minting`]
     /// takes a band and re-mints `to_face` with the ring walked in its
     /// chart. Neither face's other loops are touched, the face the ring
-    /// leaves needs nothing, and the same-face no-op moves nothing.
+    /// leaves needs nothing beyond the record drop, and the same-face
+    /// no-op moves nothing.
     ///
     /// # Tier-1 preservation (the demotion claim's least obvious case)
     ///
@@ -1199,6 +1283,7 @@ impl<T: Decide> Body<T> {
                 unreachable!("ring_move: the ring resolved in the plan phase")
             };
             l.face = to_face;
+            self.drop_null_face_records_naming(ring);
         }
         self.drop_rows_on_chart_change(ring, from_surface, to_surface);
         crate::pcurves::apply_site_rows(self, rows, None);
@@ -1833,9 +1918,9 @@ impl<T: Decide> Body<T> {
         face: FaceKey,
     ) -> Result<(), EulerOpError> {
         self.require_run_of(members, ring, RunExtent::Whole, &[])?;
-        let edited = Spine {
+        let edited = Records {
             faces: &[face],
-            ..Spine::default()
+            ..Records::default()
         };
         self.require_loop_unlisted(
             ring,
@@ -1943,6 +2028,7 @@ impl<T: Decide> Body<T> {
         face_data.rings.retain(|&l| l != ring_loop);
         self.loops.remove(ring_loop);
         self.loop_provenance.remove(ring_loop);
+        self.drop_null_face_records_naming(ring_loop);
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("mekr: `u` resolved in check_anchors")
         };

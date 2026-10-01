@@ -401,7 +401,7 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
                 matches!(e, Entry::Unique(_))
                     && match n.path.last() {
                         Some(RoleSeg::Fragment(editor_core::Qualifier::Borders(_))) => !ranked,
-                        Some(RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { .. })) => {
+                        Some(RoleSeg::Fragment(editor_core::Qualifier::Ends(_))) => {
                             ranked && from(n, plate)
                         }
                         _ => false,

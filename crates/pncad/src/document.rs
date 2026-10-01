@@ -105,6 +105,10 @@ pub use editor_core::{
     PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
 };
 
+// How a sentence names a node: the kind noun and tag a person reads, and
+// the full-width id a machine channel prints.
+pub use editor_core::{FullId, SpokenNode, node_kind_noun};
+
 // Placement: the chain a `Node::Transform` holds — rigid steps of
 // expressions and literal frames — and its steps.
 pub use editor_core::{Placement, Step};
@@ -327,7 +331,7 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the cluster placement a document
+// Instantiated parts. `Frame` is the group placement a document
 // records per instantiate node
 // (read through `Doc::placement`, written by `DocEdit::SetPlacement`);
 // `PartResolver` is the document seam evaluation crosses to reach a
@@ -342,8 +346,9 @@ pub use editor_core::{
 };
 
 // Mates: the declaration node's
-// authored payload (`Alignment` over two `MateFrame`s, a
-// `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
+// authored payload (`Alignment` over two `MateFrame`s — each an
+// `AuthoredFrame` or a `FaceFrame` — a `MatePrimitive`, an
+// `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
 // cluster-record maintenance (`ClusterMaintenance`, one arm of the
 // `Maintenance` row carried above), and `MateFault`
@@ -358,24 +363,41 @@ pub use editor_core::{
 /// states at `VerbKind`.
 ///
 /// A parallelism verdict is levered over the mated parts' own extent
-/// (`MateReach`), and every arm names the instance whose part's reach
-/// was not in hand and why: the part does not resolve (the resolver's
-/// own fault, unaltered), a face of its body cannot be bounded (which
-/// face, and its `prelude::SurfaceKind`), the body is malformed, has no faces,
-/// or reads back non-finite, or the member stands on no instance. A
-/// consumer that could match `Unleverable` and not name this type
-/// would read all of that out of the message prose.
+/// (`MateReach`): a part's reach that is not in hand is carried in the
+/// reach's own words ([`ReachRefusal`]) beside the instance and the
+/// part it is about — the part does not resolve (the resolver's own
+/// fault, unaltered), a face of its body cannot be bounded (which
+/// face, and its `prelude::SurfaceKind`), the body is malformed, has
+/// no faces, or reads back non-finite — or the member stands on no
+/// instance, or the lever the two parts form is out of the format's
+/// range. A consumer that could match `Unleverable` and not name this
+/// type would read all of that out of the message prose.
 ///
 /// Its only home is the refusal holding it: nothing else on the
 /// curated lists answers in a `LeverRefusal`, so it rides its carrier
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, PlacerRow,
-    ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of,
-    mate_reach, member_of, reading_edges, relative_freedom_components, solve_document,
+    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance,
+    FaceFrame, Lever, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member,
+    PartReach, PlacerRow, ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE,
+    groups, mate_reach, member_of, reading_edges, relative_freedom_components, root_of,
+    solve_document,
 };
+/// Why a mate's `FromFace` frame did not resolve to a pose, which
+/// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
+///
+/// A `FromFace` frame ([`MateFrame::FromFace`], a [`FaceFrame`])
+/// names a face of the mated part and takes that face's canonical
+/// pose as the side's frame, read through the mated part's own
+/// evaluation (`MateReach::face_pose`, whose refusal is
+/// [`FacePoseRefusal`], carried beside the instance, its part and the
+/// face): the part does not resolve, the part's table has no row for
+/// the name or ties it, the readback refuses the carrier (no canonical
+/// frame), or the product's scalar pins no `f64`. A
+/// consumer that could match `FaceUnresolved` and not name this type
+/// would read all of that out of the message prose.
+pub use editor_core::{FacePoseRefusal, FaceRefusal};
 
 // The class-admission table (`ClassAdmission`, read through
 // `class_admission`, with `CLASS_DEFERRAL` as the deferral sentence its

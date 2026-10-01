@@ -147,6 +147,7 @@ mod convention;
 pub mod curves;
 mod datum;
 mod net;
+mod param;
 mod projection_policy;
 mod scalar_lift;
 pub mod surfaces;
@@ -157,12 +158,15 @@ pub mod surfaces;
 pub mod test_support;
 
 pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin};
+pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
     ComposeError, Curve3, CurveData, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3,
-    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain, spiric_f_range,
+    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
+    spiric_curvature_sup, spiric_f_range, spiric_radial,
 };
 pub use datum::{AnalyticData, DatumValue};
+pub use param::mid_param;
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
 // public names both halves' callers have always used.
@@ -171,7 +175,7 @@ pub use projection_policy::{
 };
 pub use surfaces::{
     AnalyticPairs, ApproxSurface, ApproxWindow, KnotMirrorError, NetState, NurbsSurface,
-    OffsetCertificate, Surface, SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet,
-    SurfaceJet3, SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec,
-    SurfaceWindow, require_ring_torus, ring_torus, torus_tube,
+    OffsetCertificate, PLACEHOLDER_SURFACE, Surface, SurfaceData, SurfaceDatum, SurfaceDescription,
+    SurfaceJet, SurfaceJet3, SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive,
+    SurfaceSpec, SurfaceWindow, require_ring_torus, ring_torus, torus_tube,
 };

@@ -209,19 +209,19 @@ impl core::fmt::Display for AdmissionFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NoSuchNode { node } => {
-                write!(f, "node {} is not in the document", node.0)
+                write!(f, "node {} is not in the document", node)
             }
             Self::NotAnInstance { node } => {
-                write!(f, "node {} is not a part instance", node.0)
+                write!(f, "node {} is not a part instance", node)
             }
             Self::MateConstrained { instance, mates } => {
-                let list: Vec<String> = mates.iter().map(|m| m.0.to_string()).collect();
+                let list: Vec<String> = mates.iter().map(ToString::to_string).collect();
                 write!(
                     f,
                     "instance {} is mate-constrained (mate node(s) {}): its pose is \
                      mate-derived, so the free-move probe refuses — delete the mate(s) if \
                      free relative motion is intended",
-                    instance.0,
+                    instance,
                     list.join(", ")
                 )
             }
@@ -230,13 +230,13 @@ impl core::fmt::Display for AdmissionFault {
                 root,
                 others,
             } => {
-                let list: Vec<String> = others.iter().map(|o| o.0.to_string()).collect();
+                let list: Vec<String> = others.iter().map(ToString::to_string).collect();
                 write!(
                     f,
                     "instance {}'s geometry is fused into node {} together with instance(s) {} — \
                      a display operation cannot address it separately",
-                    instance.0,
-                    root.0,
+                    instance,
+                    root,
                     list.join(", ")
                 )
             }

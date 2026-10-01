@@ -32,6 +32,9 @@
 //!   authoring, so it routes to this module rather than to a suite);
 //! - [`cavity`] — the vented-cavity fixture vocabulary (body
 //!   authoring, same routing);
+//! - [`bores`] — bored bodies, the plane cuts through them and the
+//!   section faces of a half (body authoring plus one reader, as
+//!   [`latitude_seam`]);
 //! - [`charts`] — a body's faces grouped by the surface they wear, and
 //!   the `ChartMove` sets the offset doors take: what a suite drives a
 //!   door WITH, which is neither a body nor a check of one;
@@ -55,6 +58,8 @@
 //! - [`torus_walls`] — the torus-walled revolves the offset-axial door
 //!   is measured on, and the cavity it carves in one (body authoring,
 //!   same routing);
+//! - [`bead`] — the drilled bead, the smallest valid body whose faces
+//!   wrap the azimuth alone (body authoring, same routing);
 //! - [`cert_corpus`] — the valid and corrupt bodies the certified doors
 //!   and their `_structural` twins are walked over (body authoring,
 //!   same routing);
@@ -138,6 +143,11 @@ pub mod approx;
 /// routes here.
 pub mod cavity;
 
+/// Bored bodies and the plane cuts through them, and the section faces
+/// a split half carries. Body authoring plus the one reader the split
+/// suites share, so it routes here.
+pub mod bores;
+
 /// A body's charts — its faces grouped by the surface they wear — and
 /// the `ChartMove` sets the simultaneous offset doors take. What a
 /// suite drives a door WITH, so it routes here rather than into a
@@ -218,6 +228,10 @@ pub mod poses;
 /// swapped for the reversed order. What a suite drives a door WITH, so
 /// it routes here.
 pub mod revert_ops;
+
+/// The drilled bead: a bore cylinder and a sphere zone, each a whole
+/// turn. Body authoring, so it routes here.
+pub mod bead;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;

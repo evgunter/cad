@@ -202,14 +202,13 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 /// here or nowhere. Its callers are whatever `rg 'toned\('` lists; they
 /// are not listed here, because a list is what falls behind.
 ///
-/// [`crate::theme::Theme::unresolved`]'s contract is that the colour is
-/// REDUNDANT — everything wearing it says its own words — so this
-/// decides salience and never meaning.
+/// Everything wearing [`crate::theme::Theme::actionable`] says its own
+/// words, so this decides salience and never meaning.
 pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -> egui::RichText {
     let text = egui::RichText::new(text);
     match tone {
         frame::Tone::Advisory => text.weak(),
-        frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
+        frame::Tone::Actionable => text.color(chrome(theme.actionable)),
     }
 }
 
@@ -276,7 +275,7 @@ fn draw_badge(ui: &mut egui::Ui, theme: &Theme, badge: &frame::Badge) -> egui::R
 /// context should be asked to follow, and stating it that way leaves
 /// the toolkit's own per-theme visuals intact underneath — a
 /// `set_visuals` would freeze one snapshot of them into the style.
-fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
+pub(crate) fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
     ctx.set_theme(match polarity {
         Polarity::Light => egui::ThemePreference::Light,
         Polarity::Dark => egui::ThemePreference::Dark,
@@ -788,10 +787,12 @@ impl ViewerApp {
         };
         let (theme, theme_notice) = saved.resolve_theme();
         let (input, keys_notice) = saved.resolve_keys();
+        let (notation, notation_notices) = saved.resolve_notation();
         notices.extend(
             [theme_notice, keys_notice]
                 .into_iter()
                 .flatten()
+                .chain(notation_notices)
                 .map(|n| n.to_string()),
         );
         // The launch directory, read once for the same reason the
@@ -823,8 +824,11 @@ impl ViewerApp {
         // a default rather than a check.
         crate::widgets::install_number_formatter(egui_ctx);
 
+        let mut session = DocSession::new(document, tol, evaluator()?);
+        session.set_notation(notation);
+
         Ok(Self {
-            session: DocSession::new(document, tol, evaluator()?),
+            session,
             delta,
             scene: Arc::new(mesh),
             picks: PickCache::new(indexer()?),
@@ -1064,27 +1068,17 @@ impl ViewerApp {
         }
     }
 
-    /// Change δ to `delta` world units, rebuilding the picture from
-    /// the evaluation already in hand — a display change is not a
-    /// document change and re-runs no geometry above the tessellator.
-    ///
-    /// The value goes through [`DisplayTolerance::new`], the one door
-    /// that decides what a δ may be, so a zero or a negative number is
-    /// refused with the tessellator's own condition and the picture
-    /// keeps the δ it had.
-    fn set_delta(&mut self, delta: f64) {
-        match DisplayTolerance::new(delta) {
-            Ok(delta) => {
-                self.delta = delta;
-                // From here the number is the user's. The budget chose
-                // an opening δ and has no further say — including no
-                // say over a δ finer than it would have picked, which
-                // is the whole difference between a default and a cap.
-                self.budget_delta = None;
-                self.sync_scene();
-            }
-            Err(error) => self.notices.push(frame::delta_refusal(&error)),
-        }
+    /// Change δ to `delta`, rebuilding the picture from the evaluation
+    /// already in hand — a display change is not a document change and
+    /// re-runs no geometry above the tessellator.
+    fn set_delta(&mut self, delta: DisplayTolerance) {
+        self.delta = delta;
+        // From here the number is the user's. The budget chose an
+        // opening δ and has no further say — including no say over a δ
+        // finer than it would have picked, which is the whole
+        // difference between a default and a cap.
+        self.budget_delta = None;
+        self.sync_scene();
     }
 
     /// Give the Features tile the height its content wants, capped at
@@ -1282,10 +1276,13 @@ impl ViewerApp {
         if self.store.unusable().is_some() {
             return;
         }
+        let notation = self.session.notation();
         let prefs = Prefs {
             theme: Some(self.theme.name.to_owned()),
             keys: self.keys_pref.clone(),
             last_dir: self.last_dir.clone(),
+            length_unit: Some(notation.length.def().symbol().to_owned()),
+            angle_unit: Some(notation.angle.def().symbol().to_owned()),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
             self.notices.push(frame::store_refusal(&error));
@@ -1431,7 +1428,7 @@ impl ViewerApp {
                     for finding in &report.findings {
                         ui.horizontal_top(|ui| {
                             if ui
-                                .button(crate::tree::node_number(finding.root))
+                                .button(self.session.doc().spoken(finding.root).to_string())
                                 .on_hover_text("select the root this finding is about")
                                 .clicked()
                             {
@@ -1729,7 +1726,9 @@ impl ViewerApp {
             // The display budget's: shown while the δ on screen is
             // the one the budget CHOSE when the document opened,
             // and gone the moment the user picks their own.
-            if let Some(badge) = frame::delta_badge(self.budget_delta.as_ref()) {
+            if let Some(badge) =
+                frame::delta_badge(self.budget_delta.as_ref(), self.session.notation().length)
+            {
                 draw_badge(ui, &self.theme, &badge);
             }
             // **The three display seams that hold a refusal.**
@@ -1743,7 +1742,11 @@ impl ViewerApp {
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
-                frame::index_badge(self.picks.error(), self.session.evaluation()),
+                frame::index_badge(
+                    self.picks.error(),
+                    self.session.doc(),
+                    self.session.evaluation(),
+                ),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
             .into_iter()
@@ -1888,9 +1891,15 @@ impl eframe::App for ViewerApp {
         let mut datums_vanished = 0_usize;
         let mut profiles_undrawn = 0_usize;
         let mut held_edges_refused: Option<EdgeNamesRefused> = None;
-        let mut delta_request: Option<f64> = None;
+        let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
+        // The working notation the panes read and the forms' pickers
+        // write, taken from the session and given back after the
+        // layout like the palette: a pick is a person's preference,
+        // never a `SessionOp`, because it changes nothing a document
+        // says.
+        let mut notation = self.session.notation();
         // **The tiles stand on the chrome's own ground.** `no_frame`
         // alone gives the panes no background at all, which does not
         // leave them transparent onto something sensible: it leaves
@@ -1921,6 +1930,7 @@ impl eframe::App for ViewerApp {
                     camera: &mut self.camera,
                     input: self.input,
                     theme: self.theme,
+                    notation: &mut notation,
                     drafts: &mut self.drafts,
                     display: &display,
                     tools: &mut self.tools,
@@ -1946,6 +1956,10 @@ impl eframe::App for ViewerApp {
                 self.tree.ui(&mut behavior, ui);
             });
         self.checks_window(ui.ctx(), &mut ops);
+        if notation != self.session.notation() {
+            self.session.set_notation(notation);
+            self.remember_prefs();
+        }
         self.profile_drawn = profile_drawn;
         self.datums_vanished = datums_vanished;
         self.profiles_undrawn = profiles_undrawn;
@@ -2042,6 +2056,11 @@ pub(crate) struct ViewerBehavior<'a> {
     /// The palette this frame draws with; `Copy`, because a theme is
     /// a small value and the frame must not be able to change it.
     pub(crate) theme: Theme,
+    /// The working notation ([`crate::props::Notation`]) every value
+    /// nobody wrote reads in this frame; the creation forms' unit
+    /// pickers write it, and the app hands a changed one to the session
+    /// and the preferences after the layout.
+    pub(crate) notation: &'a mut crate::props::Notation,
     pub(crate) drafts: &'a mut Drafts,
     /// The display snapshot this frame draws and picks under.
     pub(crate) display: &'a DisplayView,
@@ -2113,10 +2132,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,
     pub(crate) ops: &'a mut Vec<SessionOp>,
-    /// A δ the View pane's field committed this frame, in world units.
-    /// The pane holds a borrow of the app, not the app, so it hands
-    /// the number back for [`ViewerApp::set_delta`] to judge.
-    pub(crate) delta_request: &'a mut Option<f64>,
+    /// A δ the View pane's field committed this frame. The pane holds
+    /// a borrow of the app, not the app, so it hands the δ back for
+    /// [`ViewerApp::set_delta`] to apply.
+    pub(crate) delta_request: &'a mut Option<DisplayTolerance>,
     /// What the Features pane's content laid out to this frame, once
     /// it has drawn.
     pub(crate) features_content_height: &'a mut Option<f32>,
@@ -3597,10 +3616,8 @@ mod properties_pane_tests {
         let (body, painted) = painted_with_tool(crate::tools::ToolKind::Boolean, |body| {
             vec![Selection::Node(body)]
         });
-        let line = format!(
-            "first operand: {}; second operand: —",
-            crate::tree::node_number(body)
-        );
+        // The startup body is an extrude, spoken by its kind and tag.
+        let line = format!("first operand: Extrude {:012x}; second operand: —", body.0);
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 
@@ -3612,10 +3629,7 @@ mod properties_pane_tests {
         let (body, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |body| {
             vec![Selection::Face(cap_of(body, pncad::prelude::CapEnd::End))]
         });
-        let line = format!(
-            "pick a: face of {}; pick b: —",
-            crate::tree::node_number(body)
-        );
+        let line = format!("pick a: face of Extrude {:012x}; pick b: —", body.0);
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 
@@ -3897,7 +3911,7 @@ mod properties_pane_tests {
         // reader gets for this row.
         assert_eq!(
             said,
-            "the distance slot on node 2 is computed, so it has no written unit to change — \
+            "the distance slot on node 000000000002 is computed, so it has no written unit to change — \
              set an expression to change what it says"
         );
         pane.click("computed");
@@ -4075,7 +4089,7 @@ mod properties_pane_tests {
         );
         assert_eq!(
             said,
-            "the origin z slot on node 0 is computed, so it has no written unit to change — \
+            "the origin z slot on node 000000000000 is computed, so it has no written unit to change — \
              set an expression to change what it says"
         );
         pane.click("mm");
@@ -4113,7 +4127,7 @@ mod properties_pane_tests {
         ]);
         let row = pane.row(EXTRUDE, SlotId::Distance);
         assert_eq!(row.source.as_deref(), Some(source.as_str()));
-        let field = crate::props::field_text(&row);
+        let field = crate::props::field_text(&row, pane.app.session.notation());
         assert_eq!(field, "= 0.04 m");
         let quoted = format!("{} = {source}", SlotId::Distance.label());
         let landed = pane.landed();
@@ -4155,7 +4169,10 @@ mod properties_pane_tests {
         let mut pane = Driven::with(ops);
         let history = pane.app.session.history().len();
         for (axis, source) in axes.iter().zip(sources) {
-            let shown = crate::props::field_text(&pane.row(FRAME, SlotId::Origin(*axis)));
+            let shown = crate::props::field_text(
+                &pane.row(FRAME, SlotId::Origin(*axis)),
+                pane.app.session.notation(),
+            );
             pane.click(&shown);
             let open = pane.frame(Vec::new());
             assert!(
@@ -4213,9 +4230,9 @@ mod properties_pane_tests {
         assert_eq!(gained, vec![said.join("\n")]);
         assert!(
             gained[0].starts_with(
-                "the origin x slot on node 0 is computed, so it has no written unit to change"
-            ) && gained[0].contains("\nthe origin y slot on node 0 is computed")
-                && gained[0].contains("\nthe origin z slot on node 0 is computed"),
+                "the origin x slot on node 000000000000 is computed, so it has no written unit to change"
+            ) && gained[0].contains("\nthe origin y slot on node 000000000000 is computed")
+                && gained[0].contains("\nthe origin z slot on node 000000000000 is computed"),
             "{gained:?}"
         );
         pane.click("computed");

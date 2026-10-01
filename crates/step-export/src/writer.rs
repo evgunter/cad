@@ -24,6 +24,22 @@ use crate::volume::shell_signed_volume;
 use crate::{SharedIds, StepExportError, StepOptions, quoted};
 use geom_core::Tol;
 
+/// The node-count ceiling of the spiric export lane
+/// (`Writer::spiric_spline`): the largest number of cubic node
+/// intervals the writer will spend before refusing typed. A cap rather
+/// than an unbounded search because a file whose one curve carries a
+/// thousand spans is already past the point where an approximation is
+/// the right answer, and a runaway loop is not a tolerance report.
+const SPIRIC_MAX_NODES: usize = 1024;
+
+/// The node-count FLOOR of the spiric export lane: a cubic
+/// interpolation needs `degree + 1` points, so four node intervals
+/// (five points) is the smallest schedule there is. Named beside the
+/// cap because the two together are the window the search walks, and
+/// because the floor's own bound is what a very loose `uncertainty_m`
+/// buys (`Writer::spiric_spline`'s docs).
+const SPIRIC_MIN_NODES: usize = 4;
+
 /// The surface variant's name, for typed refusals and for the
 /// curved-shell classification message.
 pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
@@ -112,6 +128,13 @@ struct Writer<'a> {
     next_id: u64,
     data: String,
     shared: SharedIds,
+    /// The run's length tolerance — the budget the spiric lane's
+    /// node-count schedule spends (`edge_curve`'s `Spiric` arm).
+    eps: f64,
+    /// The worst spiric approximation bound emitted so far, in metres;
+    /// `None` until a spiric edge is written. The header states it
+    /// ([`write_document`]).
+    spiric_bound: Option<f64>,
 }
 
 /// `#id` reference list: `#1, #2, #3`.
@@ -153,13 +176,118 @@ fn run_length_knots(
     Ok((mults, values))
 }
 
+/// The **export-only** cubic interpolating spline of a spiric over
+/// `[t0, t1]`, with the bound it is certified to, in metres.
+///
+/// # The construction
+///
+/// The interpolation parameters are the carrier's own `v` samples,
+/// NORMALIZED: `geom::NurbsCurve3::interpolate_with_params` takes
+/// a clamped `0 → 1` parameterization and refuses any other, so
+/// the spline's parameter is `τ = (v − t₀)/(t₁ − t₀)` rather than
+/// `v` itself. What that contract is for survives the rescaling
+/// intact — the samples are the carrier's, node for node, so
+/// `D(τ) = spline(τ) − P(v(τ))` vanishes at every node and the
+/// spline is an affine reparameterization of the one a
+/// `v`-parameterized fit would produce.
+///
+/// On a node interval of width `h = 1/n` in `τ`, a function
+/// vanishing at both ends satisfies `sup|D| ≤ h²·sup|D″|/8`, and
+/// `sup|D″| ≤ M_s + M_P·Δt²` with `M_P = sup‖P″‖` in closed form
+/// ([`geom::spiric_curvature_sup`], per radian squared) carried
+/// into `τ` by the chain rule, `Δt = t₁ − t₀`, and
+/// `M_s = sup‖spline″‖` from the control-net difference hull
+/// ([`geom::nonrational_second_derivative_sup`], already in `τ`).
+/// Both terms are curve-side only: no surface operand enters, so
+/// none of the torus's missing metres conversion is needed to
+/// state this bound.
+///
+/// # The schedule
+///
+/// The node count is the **least power of two** whose bound is
+/// `≤ ε/4` — the quarter keeps a re-imported spline off the margin
+/// of the 9-sample `carrier_on_surface_*` gate that adopts it —
+/// searched from [`SPIRIC_MIN_NODES`] (the cubic's own minimum) up
+/// to [`SPIRIC_MAX_NODES`]. Past the cap the arm refuses typed
+/// rather than emitting a curve the file's own sentence would
+/// misstate.
+///
+/// **There is a floor as well as a cap, and it is the one a loose
+/// tolerance meets.** At four intervals this fixture's bound is
+/// `3.3e-1` m, so an `uncertainty_m` of, say, `1e9` is "met" by a
+/// 33 cm approximation — true as a bound and useless as a
+/// statement. The arm does not silently accept that: the search
+/// starts at the floor and the FILE states the bound the floor
+/// actually achieved, never the tolerance that was asked for, so
+/// the number a reader holds the document to is the one the
+/// geometry earned.
+///
+/// # Errors
+///
+/// [`StepExportError::UnsupportedCurve`] when no admissible node
+/// count under the cap meets the bound, or when the fit itself
+/// refuses.
+#[allow(clippy::too_many_arguments)]
+pub fn spiric_export_spline(
+    eps: f64,
+    carrier: &Curve3<f64>,
+    edge_key: EdgeKey,
+    t0: f64,
+    t1: f64,
+    major: f64,
+    minor: f64,
+    offset: f64,
+) -> Result<(geom::NurbsCurve3<f64>, f64), StepExportError> {
+    let curvature = geom::spiric_curvature_sup(major, minor, offset);
+    if !curvature.is_finite() {
+        return Err(StepExportError::UnsupportedCurve {
+            edge: edge_key,
+            kind: "spiric: the kind's curvature bound is not finite (off-regime carrier)",
+        });
+    }
+    let dt = t1 - t0;
+    let mut nodes = SPIRIC_MIN_NODES;
+    while nodes <= SPIRIC_MAX_NODES {
+        #[allow(clippy::cast_precision_loss)]
+        let n = nodes as f64;
+        #[allow(clippy::cast_precision_loss)]
+        let params: Vec<f64> = (0..=nodes).map(|i| i as f64 / n).collect();
+        let points: Vec<Point3<f64>> = params.iter().map(|f| carrier.eval(t0 + dt * f)).collect();
+        let Ok(spline) = geom::NurbsCurve3::interpolate_with_params(&points, 3, &params) else {
+            return Err(StepExportError::UnsupportedCurve {
+                edge: edge_key,
+                kind: "spiric: the export-only cubic interpolation refused",
+            });
+        };
+        // A structure the hull cannot license is not a tolerance
+        // question: it is a spline this lane should not have
+        // built, and the search stops rather than doubling into it.
+        let m_s = geom::nonrational_second_derivative_sup(spline.knots(), spline.control())
+            .map_err(|_| StepExportError::UnsupportedCurve {
+                edge: edge_key,
+                kind: "spiric: the export-only cubic's second-derivative hull states                            no bound",
+            })?;
+        let bound = (m_s + curvature * dt.powi(2)) / (8.0 * n.powi(2));
+        if bound.is_finite() && bound <= eps / 4.0 {
+            return Ok((spline, bound));
+        }
+        nodes *= 2;
+    }
+    Err(StepExportError::UnsupportedCurve {
+        edge: edge_key,
+        kind: "spiric: export tolerance not met",
+    })
+}
+
 impl<'a> Writer<'a> {
-    fn new(body: &'a Body<f64>) -> Self {
+    fn new(body: &'a Body<f64>, eps: f64) -> Self {
         Self {
             body,
             next_id: 0,
             data: String::new(),
             shared: SharedIds::default(),
+            eps,
+            spiric_bound: None,
         }
     }
 
@@ -345,15 +473,31 @@ impl<'a> Writer<'a> {
                 let b = fmt_real(minor, "ellipse semi-minor axis")?;
                 self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
             }
-            // A spiric has no STEP entity (a quartic; no rational form),
-            // so its export is an APPROXIMATING spline at the file's
-            // stated tolerance — the spiric unit's second PR. Until
-            // then a body carrying one refuses here, typed.
-            Curve3::Spiric { .. } => {
-                return Err(StepExportError::UnsupportedCurve {
-                    edge: edge_key,
-                    kind: "spiric: the export-only approximating spline is not yet written",
+            // A spiric has no STEP entity — a bicircular quartic of
+            // genus 1, so no rational parameterization of it exists —
+            // and its export is therefore the one APPROXIMATION this
+            // writer emits, at a bound the FILE states.
+            Curve3::Spiric {
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            } => {
+                let (t0, t1) = self.edge_params(edge_key, edge)?;
+                let (spline, bound) = self.spiric_spline(
+                    carrier,
+                    edge_key,
+                    t0,
+                    t1,
+                    major_radius,
+                    minor_radius,
+                    offset,
+                )?;
+                self.spiric_bound = Some(match self.spiric_bound {
+                    None => bound,
+                    Some(worst) => worst.max(bound),
                 });
+                self.b_spline_curve(spline.knots(), spline.control(), spline.weights())?
             }
             // The placeholder is already refused by
             // `printable_carrier` above, so what reaches here is a
@@ -365,6 +509,37 @@ impl<'a> Writer<'a> {
         let id = self.emit(&format!("EDGE_CURVE('', #{start}, #{end}, #{curve}, .T.)"));
         self.shared.edge_curves.insert(edge_key, id);
         Ok(id)
+    }
+
+    /// The edge's certified parameter interval — the span the spiric
+    /// lane approximates over (every other printer emits an unbounded
+    /// native entity and needs none).
+    fn edge_params(&self, edge_key: EdgeKey, edge: &Edge) -> Result<(f64, f64), StepExportError> {
+        match self.body.get_curve_geom(edge.curve) {
+            Some(CurveGeom::Certified(curve)) => Ok(curve.params()),
+            Some(CurveGeom::NullScaffold(_)) => {
+                Err(StepExportError::NullScaffoldEdge { edge: edge_key })
+            }
+            None => Err(StepExportError::Corrupt {
+                what: "edge curve key does not resolve",
+            }),
+        }
+    }
+
+    /// [`spiric_export_spline`] with this writer's own budget — the
+    /// one place the writer's `Curve3::Spiric` arm spends it.
+    #[allow(clippy::too_many_arguments)]
+    fn spiric_spline(
+        &self,
+        carrier: &Curve3<f64>,
+        edge_key: EdgeKey,
+        t0: f64,
+        t1: f64,
+        major: f64,
+        minor: f64,
+        offset: f64,
+    ) -> Result<(geom::NurbsCurve3<f64>, f64), StepExportError> {
+        spiric_export_spline(self.eps, carrier, edge_key, t0, t1, major, minor, offset)
     }
 
     /// `B_SPLINE_CURVE_WITH_KNOTS` for a validated kernel NURBS
@@ -883,7 +1058,23 @@ pub(crate) fn write_document(
     tol: Tol,
 ) -> Result<String, StepExportError> {
     let name = quoted(&options.product_name, "product name")?;
-    let mut w = Writer::new(body);
+    // **The uncertainty is decided ONCE, before any geometry.** It is
+    // the budget the spiric lane's node schedule spends, so a writer
+    // that validated it after the geometry pass answered two different
+    // refusals for one bad option — `InvalidUncertainty` on an
+    // ordinary body and "export tolerance not met" on a body with a
+    // spiric edge, which is one derivation spelled twice and
+    // disagreeing with itself.
+    let eps = match options.uncertainty_m {
+        Some(value) => {
+            if !(value.is_finite() && value > 0.0) {
+                return Err(StepExportError::InvalidUncertainty { value });
+            }
+            value
+        }
+        None => tol.eps(),
+    };
+    let mut w = Writer::new(body, eps);
 
     // Geometry + topology.
     let msbs = w.manifold_solids(&name)?;
@@ -907,16 +1098,8 @@ pub(crate) fn write_document(
     let su = w.emit("( NAMED_UNIT(*) SI_UNIT($, .STERADIAN.) SOLID_ANGLE_UNIT() )");
 
     // Uncertainty: the run's ambient ε (or the explicit override),
-    // wrapped in the LENGTH_MEASURE select as the schema requires.
-    let eps = match options.uncertainty_m {
-        Some(value) => {
-            if !(value.is_finite() && value > 0.0) {
-                return Err(StepExportError::InvalidUncertainty { value });
-            }
-            value
-        }
-        None => tol.eps(),
-    };
+    // decided above and wrapped in the LENGTH_MEASURE select as the
+    // schema requires.
     let eps_str = fmt_real(eps, "uncertainty")?;
     let unc = w.emit(&format!(
         "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE({eps_str}), #{lu}, \
@@ -964,10 +1147,22 @@ pub(crate) fn write_document(
     let author = quoted(&options.author, "author")?;
     let organization = quoted(&options.organization, "organization")?;
     let originating = quoted(&options.originating_system, "originating system")?;
+    // The file states its own approximation budget. Every other
+    // printer emits an exact native entity, so this sentence appears
+    // exactly when a spiric was written and names the WORST bound over
+    // the file's spiric edges — one number a reader can hold the whole
+    // document to.
+    let description = match w.spiric_bound {
+        None => String::from("''"),
+        Some(bound) => quoted(
+            &format!("spiric edges approximated to {bound:e} m"),
+            "spiric approximation note",
+        )?,
+    };
     Ok(format!(
         "ISO-10303-21;\n\
          HEADER;\n\
-         FILE_DESCRIPTION((''), '2;1');\n\
+         FILE_DESCRIPTION(({description}), '2;1');\n\
          FILE_NAME({file_name}, {timestamp}, ({author}), ({organization}), \
          'step-export', {originating}, '');\n\
          FILE_SCHEMA(('AUTOMOTIVE_DESIGN {{ 1 0 10303 214 1 1 1 1 }}'));\n\
@@ -1009,7 +1204,7 @@ mod tests {
     /// records before it).
     fn emitted(curve: &NurbsCurve3<f64>) -> String {
         let body = Body::<f64>::new();
-        let mut w = Writer::new(&body);
+        let mut w = Writer::new(&body, geom_core::Tol::witness().eps());
         w.b_spline_curve(curve.knots(), curve.control(), curve.weights())
             .expect("a validated curve prints");
         w.data
@@ -1118,7 +1313,7 @@ mod tests {
 
         // Record pins, both arms (the curve pins' idiom).
         let body = Body::<f64>::new();
-        let mut w = Writer::new(&body);
+        let mut w = Writer::new(&body, geom_core::Tol::witness().eps());
         w.b_spline_surface(&patch).expect("non-rational arm emits");
         assert!(
             w.data.contains(
@@ -1136,7 +1331,7 @@ mod tests {
             vec![1.0, 2.0, 1.0, 1.0],
         )
         .expect("a rational patch");
-        let mut w = Writer::new(&body);
+        let mut w = Writer::new(&body, geom_core::Tol::witness().eps());
         w.b_spline_surface(&rational).expect("rational arm emits");
         assert!(
             w.data.contains(

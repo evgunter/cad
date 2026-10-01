@@ -2,8 +2,13 @@
 id: plane-nurbs-certificate-escalation-does-not-name-its-limb
 kind: issue
 title: geom-brep: the rung-3 certificate's escalation does not name its limb, so certification routes the uniqueness tube as a residual
-status: open
+status: closed
 opened: 2026-09-28
+cost: M
+priority: P1
+closed: 2026-10-01
+pr: 3651
+branch: ssi/diagnoses
 ---
 
 
@@ -56,3 +61,7 @@ on-locus and hull limbs' definite miss) and the undecided
 Carry the limb on the certificate's escalation
 (`CertificateLimb` already does, on the definite side), and give
 certification one `CertCheck` per limb so `recourse` routes each.
+
+## Closed (2026-10-01, PR 3651)
+
+Landed in `ssi/diagnoses`. Every SSI refusal now names its operand and decision, and ends by `certify::recourse`. The PR body records each decision; review was a single FULL review with one fix pass.

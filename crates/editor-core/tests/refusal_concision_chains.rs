@@ -94,9 +94,9 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     ("Check/", "check separation"),
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
-    ("Check/", "root 4 output 0"),
+    ("Check/", "root 000000000004 output 0"),
     // The mate solve names the mate it refused (`mate 9: …`).
-    ("Mate/", "mate 9"),
+    ("Mate/", "mate 000000000009"),
     // A pair's corner list names each corner it could not fillet.
     ("ProfileReplay/Path/NoCornerOfPair(", "at corner"),
 ];
@@ -124,7 +124,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "lifting the rim back onto a designated open face refused",
     ),
     ("Shell/Insert", "inserting the cavity refused"),
-    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    // work/hone/reach-refusals-short-of-the-shape-guard.md
     (
         "Split/Reduce/CrossingInsertion",
         "inserting the plane crossing on edge EdgeKey    refused",
@@ -148,7 +148,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Profile/RayCastingExhausted",
         "containment of loop 1 in loop 0",
     ),
-    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    // work/hone/reach-refusals-short-of-the-shape-guard.md
     (
         "Split/Join/SectionInvariant",
         "curved-section invariant at face FaceKey",
@@ -200,27 +200,11 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
         span: "FaceKey(null)",
         filed: "work/props/props-refusal-prose-outgrows-the-viewer.md",
     },
-    // A document named by its hex id: the reference loop,
+    // A document named by its hex id: the reference loop.
     Admission {
         row: "Part/ReferenceCycle",
         span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
         filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
-    },
-    // and two mate refusals.
-    Admission {
-        row: "Mate/PosesOfAnotherDocument",
-        span: "3e23e8160039594a33894f6564e1b134",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Mate/PosesOfAnotherDocument",
-        span: "ca978112ca1bbdcafac231b39a23dc4d",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Mate/Unleverable",
-        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
     },
 ];
 
@@ -357,7 +341,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
-    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
     "Boolean/Join/CutInvariant",
     "Boolean/Join/Euler",
@@ -414,18 +398,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Shell/OperandOuterShells",
     "Shell/Partition",
     "Shell/Rim",
-    // work/msolve/msolve-refusals-short-of-the-shape-guard.md
-    "Mate/ClassNotAdmitted",
-    "Mate/Contradictory",
-    "Mate/DanglingHead",
-    "Mate/Indeterminate",
-    "Mate/PartSelectsAnotherCopy",
-    "Mate/PlacerRefused",
-    "Mate/PosesOfAnotherDocument",
-    "Mate/SelfMate",
-    "Mate/TableLacks",
-    "Mate/Under",
-    "Mate/Unleverable",
     // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
@@ -762,7 +734,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     };
     let inner_text = drawn_lines(inner()).remove(0);
     let inner_sentence = inner_text
-        .strip_prefix("node 5 failed: ")
+        .strip_prefix("node 000000000005 failed: ")
         .expect("a node line opens with its node")
         .to_owned();
     let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
@@ -813,19 +785,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         }
         rows.push((longest.clone(), last.clone()));
     }
-    // The mate's carrying line points at its placer ("repair node 4")
-    // without a recourse marker; filed with the mate faults on
-    // work/msolve/msolve-refusals-short-of-the-shape-guard.md, and red
-    // once it no longer needs admitting.
-    const PLACER_NO_RECOURSE: &str = "Carried/PlacerRefused/level-0 states no recourse";
-    let mut problems = over_budget(&rows);
-    let before = problems.len();
-    problems.retain(|p| !p.starts_with(PLACER_NO_RECOURSE));
-    assert_eq!(
-        before - problems.len(),
-        1,
-        "the admission of {PLACER_NO_RECOURSE:?} admits nothing"
-    );
+    let problems = over_budget(&rows);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 
     // A placer whose own row states its refusal is pointed at and not
@@ -1441,6 +1401,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     ring: LoopKey::default(),
                 },
             ),
+            (
+                "RingHomingUncrossable",
+                J::RingHomingUncrossable {
+                    ring: LoopKey::default(),
+                },
+            ),
             ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
             ("SectionLoopMixed", J::SectionLoopMixed { face }),
             ("CutInvariant", J::CutInvariant { edge }),
@@ -1486,6 +1452,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     what: "a section arc with no endpoint on the face's boundary",
                 },
             ),
+            ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),
         ]
     };
     let join = join_arms().map(|(n, e)| (format!("Join/{n}"), SplitError::Join(e)));
@@ -1693,7 +1660,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
         if route == "transversality" {
             assert_eq!(
                 text,
-                "node 5 failed: the transform op refused: an edge the map moved failed \
+                "node 000000000005 failed: the transform op refused: an edge the map moved failed \
                  re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
                  lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the faces cross at a clearer \
                  angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
@@ -2241,6 +2208,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "RingClearance",
             E::RingClearance {
                 face,
+                chain: sweep::blend::Convexity::Convex,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
             },
         ),
@@ -3550,13 +3518,32 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "FaceUnresolved",
+            M::FaceUnresolved {
+                mate: n(9),
+                side: MateSide::A,
+                refusal: Box::new(editor_core::FaceRefusal::Reach {
+                    instance: n(6),
+                    part: doc_ref(),
+                    face: editor_core::FaceName::new(editor_core::StableName {
+                        kind: editor_core::EntityKind::Face,
+                        node: n(3),
+                        path: vec![],
+                    })
+                    .expect("a face"),
+                    refusal: editor_core::FacePoseRefusal::NoSuchName,
+                }),
+            },
+        ),
+        (
             "Unleverable",
             M::Unleverable {
                 mate: n(9),
-                refusal: LeverRefusal::NoExtent {
+                refusal: Box::new(LeverRefusal::Reach {
                     instance: n(6),
                     part: doc_ref(),
-                },
+                    refusal: editor_core::ReachRefusal::NoExtent,
+                }),
             },
         ),
     ]
@@ -3824,7 +3811,8 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         }
         .to_string()
     };
-    let head = "check connectedness: root 4 output 0: the component count is unknowable: ";
+    let head =
+        "check connectedness: root 000000000004 output 0: the component count is unknowable: ";
     let sign = "the sign of a shell's volume is too close to call: ";
     let in_band =
         |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");

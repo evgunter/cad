@@ -152,10 +152,12 @@
 //!     never outlives its face
 //!     ([`ValidationError::LeakedNullFaceRecord`]), and every loop key
 //!     a record names resolves
-//!     ([`ValidationError::StaleNullFaceLoop`]). Deliberately
-//!     minimal and referential-only — attribute semantics are the
-//!     surgery ops' contract, and tier 2 bans null entities at rest
-//!     outright (see `crate::null`).
+//!     ([`ValidationError::StaleNullFaceLoop`]) and is its face's
+//!     outer loop or one of its rings
+//!     ([`ValidationError::StaleNullFaceOwnership`]). Deliberately
+//!     minimal — which role each loop plays is the surgery ops'
+//!     contract, and tier 2 bans null entities at rest outright (see
+//!     `crate::null`).
 //!
 //! The harness is deliberately a plain function plus an error enum,
 //! **not a trait**: there is exactly one notion of body validity per
@@ -416,6 +418,27 @@ pub(crate) fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
+}
+
+/// [`decide`] gated on a definitely positive margin
+/// ([`geom_core::k_stats::decide_positive`]): the rejection is the
+/// funnel's escalation, on the frame's log.
+pub(crate) fn decide_positive<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_positive(name, margin, band)
+}
+
+/// [`decide`] gated on a definitely negative margin
+/// ([`geom_core::k_stats::decide_negative`]).
+pub(crate) fn decide_negative<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_negative(name, margin, band)
 }
 
 /// [`decide`], keeping the reporting margin for a sized decision's
@@ -1884,13 +1907,23 @@ pub enum ValidationError {
     /// record names a loop key that does not resolve in the loop
     /// arena — a loop-killing operator ran without scrubbing the
     /// record (the same leak rule as `LeakedNullFaceRecord`, applied
-    /// to the record's named loops). Referential-only by the ratified
-    /// posture: *which* loops the record names is semantics, not
-    /// checked at tier 1.
+    /// to the record's named loops).
     StaleNullFaceLoop {
         /// The face whose record is stale.
         face: FaceKey,
         /// The named loop key that no longer resolves.
+        named_loop: LoopKey,
+    },
+    /// **Tier 1, pass 13.** A null-face record names a live loop that
+    /// is neither its face's outer loop nor one of its rings — an op
+    /// moved the loop off the face without dropping the record. A null
+    /// face is one face's two coincident loops (`crate::null`), so the
+    /// record describes none. Which role each loop plays is not checked
+    /// here.
+    StaleNullFaceOwnership {
+        /// The face whose record is stale.
+        face: FaceKey,
+        /// The named loop, live but not the face's own.
         named_loop: LoopKey,
     },
     /// **Tier 2 (M3 PR 1).** A null edge at rest: the edge's curve
@@ -2195,6 +2228,10 @@ const NOT_YET: &str = "There is no way through yet";
 /// The recourse for a tolerance that forms no usable band.
 const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 
+/// The recourse for a curve whose parameter range its image on a
+/// spline face cannot be expressed on — the lane's own.
+const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
+
 /// The recourse for a margin the band could not decide, where a
 /// coincidence between two things has an object to declare: the
 /// shared menu ([`geom_core::COINCIDENCE_RECOURSE`], which
@@ -2422,6 +2459,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "the check could not locate the curve on its spline face (the projection did not \
              converge)"
         }
+        CertifyError::PlaneNurbs(P::CarrierDomain(_)) => {
+            "its curve's parameter range cannot carry the curve's image on its spline face"
+        }
+        CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. }) => KIND,
@@ -2432,8 +2473,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
         }
-        CertifyError::PlaneNurbs(P::Escalated(_)) => {
-            certify_undecided(CertCheck::PlaneNurbsCertificate)
+        CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        CertifyError::PlaneNurbs(P::ReportedTransversalityPoisoned(_)) => {
+            certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }
         CertifyError::Band(b) => classify_band(b),
     };
@@ -2447,6 +2489,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::SeamOnNonPeriodic
             | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
+            CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. }) => {
@@ -2466,7 +2509,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::TransversalityEscalated { .. }
                 | P::Limb { .. }
                 | P::TubeStraddles { .. }
-                | P::Escalated(_),
+                | P::Escalated { .. }
+                | P::ReportedTransversalityPoisoned(_)
+                | P::ChartSpeed(_),
             ) => unreachable!("a decision's refused arm always has its decision's ending"),
         }),
     };
@@ -2504,9 +2549,38 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::SeamSide
         | CertCheck::ChartResidual
         | CertCheck::PlaneNurbsOnLocus
-        | CertCheck::PlaneNurbsHull
-        | CertCheck::PlaneNurbsCertificate => {
+        | CertCheck::PlaneNurbsHull => {
             "whether it lies where its description says is too close to call at this tolerance"
+        }
+        CertCheck::PlaneNurbsReportedTransversality => {
+            "the check's own summary of how clearly its faces cross came out unreadable"
+        }
+        CertCheck::PlaneNurbsChartSpeed | CertCheck::PlaneNurbsChartSpeedBound => {
+            "how fast its spline face moves along a parameter direction is too close to call \
+             at this tolerance"
+        }
+    }
+}
+
+/// Why a plane × NURBS edge's spline face carries no chart speed, by the
+/// axis the speed failed on: the face is constant along it, or too large
+/// to bound.
+fn chart_speed_reason(r: geom_brep::ChartSpeedRefusal) -> &'static str {
+    use geom_brep::{ChartAxis as A, ChartSpeedRefusal as C};
+    match r {
+        C::Zero { axis: A::U } => {
+            "its spline face is constant along u, so the check cannot measure a length across \
+             it"
+        }
+        C::Zero { axis: A::V } => {
+            "its spline face is constant along v, so the check cannot measure a length across \
+             it"
+        }
+        C::NotFinite { axis: A::U } => {
+            "its spline face is too large for the check to bound how fast it moves along u"
+        }
+        C::NotFinite { axis: A::V } => {
+            "its spline face is too large for the check to bound how fast it moves along v"
         }
     }
 }
@@ -2586,38 +2660,79 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
     (why, recourse.into())
 }
 
-fn classify_mass_props(e: &crate::props::MassPropsError) -> (&'static str, Cow<'static, str>) {
+/// **What a mass-properties refusal says about the body** — the one
+/// reading tier 3's check 7 and the boolean's volume backstop share:
+/// why the volume is missing, what the user can do, and whether that is
+/// a defect in the body. Only structure that does not resolve is one; a
+/// face the property layer has no measurement for, a decision too close
+/// to call, a quadrature that ran out are measurements the kernel does
+/// not have, however the face came to need them.
+pub(crate) struct MassPropsReading {
+    /// Why the volume is missing, as a clause.
+    pub(crate) why: &'static str,
+    /// What to do about it — or the defect ending, when `defect`.
+    pub(crate) recourse: Cow<'static, str>,
+    /// The body's own structure is at fault.
+    pub(crate) defect: bool,
+}
+
+pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassPropsReading {
     use crate::props::MassPropsError as M;
     use geom_brep::props::PropsError as P;
-    let (why, recourse) = match e {
-        M::Band { error } => (classify_band(error), TOLERANCE),
+    let reading = |why, recourse: Cow<'static, str>, defect| MassPropsReading {
+        why,
+        recourse,
+        defect,
+    };
+    match e {
+        M::Band { error } => reading(classify_band(error), TOLERANCE.into(), false),
         M::Face { source, .. } => match source {
-            P::Escalated { cause } => {
-                return (
-                    "a face's contribution is too close to call at this tolerance",
-                    unnamed(&cause.margin),
-                );
-            }
-            P::QuadratureBudget { .. } => (
+            // The quadrature's own convergence test: its enclosure
+            // width against its target, nothing of the model's — no
+            // coincidence to declare and no size to change.
+            P::Escalated { cause } if cause.predicate == Some("props_quad_converged") => reading(
+                "the quadrature could not decide whether its enclosure of a face's \
+                 contribution had converged",
+                unnamed(&cause.margin),
+                false,
+            ),
+            P::Escalated { cause } => reading(
+                "a face's contribution is too close to call at this tolerance",
+                unnamed(&cause.margin),
+                false,
+            ),
+            P::QuadratureBudget { .. } => reading(
                 "a face's contribution did not converge to the tolerance",
-                "Recourse: loosen the tolerance",
+                "Recourse: loosen the tolerance".into(),
+                false,
             ),
             P::Unimplemented
             | P::NotIsoRectangle { .. }
             | P::NappeSpanning
             | P::NotOneChartBranch { .. }
-            | P::QuadratureUnsupported { .. } => {
-                ("the kernel cannot yet measure a face of this kind", NOT_YET)
-            }
-            P::DegenerateFace => ("a face encloses no area", DEFECT),
+            | P::QuadratureUnsupported { .. } => reading(
+                "the kernel cannot yet measure a face of this kind",
+                NOT_YET.into(),
+                false,
+            ),
+            // Raised on an extent decided zero at the band and on a
+            // quadrature area whose enclosure reaches zero: a face too
+            // thin to certify, not a contradiction in the body.
+            P::DegenerateFace => reading(
+                "a face's area could not be certified positive at this tolerance",
+                "Recourse: widen the face well past the tolerance".into(),
+                false,
+            ),
         },
-        M::RingOnCurvedFace { .. } => (
+        M::RingOnCurvedFace { .. } => reading(
             "the kernel cannot yet measure a curved face with a hole",
-            NOT_YET,
+            NOT_YET.into(),
+            false,
         ),
-        M::Corrupt { .. } | M::NullScaffoldEdge { .. } => ("its structure is incomplete", DEFECT),
-    };
-    (why, recourse.into())
+        M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
+            reading("its structure is incomplete", DEFECT.into(), true)
+        }
+    }
 }
 
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
@@ -2638,6 +2753,12 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
         M::Band(b) => (classify_band(b), TOLERANCE),
+        // Never produced at rest (the pass skips a placeholder face);
+        // classified as its Display states it.
+        M::PlaceholderChart { .. } => (
+            geom::PLACEHOLDER_SURFACE,
+            crate::pcurves::PLACEHOLDER_RECOURSE,
+        ),
         M::Certify { error, .. } => {
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
@@ -2645,9 +2766,17 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
                 | C::FittedMateMissing => (KIND, NOT_YET),
+                C::PlaceholderChart => (
+                    geom::PLACEHOLDER_SURFACE,
+                    crate::pcurves::PLACEHOLDER_RECOURSE,
+                ),
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",
                     "Recourse: check the body at a certifying scalar",
+                ),
+                C::CarrierDomain(_) => (
+                    "a boundary curve's parameter range cannot carry its image on the face",
+                    REPARAMETERIZE,
                 ),
                 C::ChartRow { .. }
                 | C::IntervalNotForward
@@ -2973,7 +3102,7 @@ impl fmt::Display for ValidationError {
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
             ),
             Self::VolumeUncomputable { source, .. } => {
-                let (why, recourse) = classify_mass_props(source);
+                let MassPropsReading { why, recourse, .. } = classify_mass_props(source);
                 write!(
                     f,
                     "a solid's volume could not be computed to check that it is not \
@@ -3259,6 +3388,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "a construction record on face {face:?} names loop {named_loop:?}, which \
                  no longer exists. {DEFECT}"
+            ),
+            Self::StaleNullFaceOwnership { face, named_loop } => write!(
+                f,
+                "a construction record on face {face:?} names loop {named_loop:?}, which \
+                 that face no longer holds. {DEFECT}"
             ),
             Self::NullEdgeAtRest { edge } => write!(
                 f,
@@ -6341,7 +6475,9 @@ pub(crate) enum RingOuterVerdict {
 ///
 /// **Escalate-never-guess (D4 ¶3)**: the first margin that lands in
 /// the ambiguity band returns [`RingOuterVerdict::Escalated`] and stops
-/// the walk. Both callers treat it as a refusal.
+/// the walk. Check 9 and the shell verb treat it as a refusal; the
+/// split's hole nesting (`splitting::finish`) reads it as "not decided
+/// disjoint" and leaves the hole its own face.
 pub(crate) fn ring_outer_contact<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
@@ -7066,7 +7202,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 radius,
                 u_ref,
             };
-            let mid = (t0 + t1) * T::from_f64(0.5);
+            let mid = geom::mid_param(t0, t1);
             match crate::splitting::containment::arc_trim(
                 p,
                 [carrier.eval(t0), carrier.eval(t1)],
@@ -8502,16 +8638,23 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         }
     }
     for (face_key, record) in body.null_faces.iter() {
-        if !body.faces.contains_key(face_key) {
+        let face = body.faces.get(face_key);
+        if face.is_none() {
             errors.push(ValidationError::LeakedNullFaceRecord { face: face_key });
         }
-        // Review flag (c): the record's named loops must also resolve —
-        // referential-only (a record naming killed loops is the same
-        // leak as a record outliving its face); which loops they are
-        // stays unexamined at tier 1.
+        // The record's named loops must resolve (a record naming a
+        // killed loop is the same leak as a record outliving its face),
+        // and be its face's own: a null face is one face's two
+        // coincident loops. Which role each plays stays unexamined.
         for named_loop in record.loops() {
             if !body.loops.contains_key(named_loop) {
                 errors.push(ValidationError::StaleNullFaceLoop {
+                    face: face_key,
+                    named_loop,
+                });
+            } else if face.is_some_and(|f| f.outer != named_loop && !f.rings.contains(&named_loop))
+            {
+                errors.push(ValidationError::StaleNullFaceOwnership {
                     face: face_key,
                     named_loop,
                 });
@@ -10772,6 +10915,39 @@ mod tests {
         (body, face)
     }
 
+    /// **The carrier walk's verdict is blind to the normal's sign on an
+    /// arc-bearing loop**, the property `chord_join::face_plane_normal`
+    /// relies on when it hands `rehome_rings` the chart normal with the
+    /// face's sense left out. The polygon rows' half of it is pinned in
+    /// `tests/review_m3_pr3_pil.rs`; this is the arc rows' half, on the
+    /// bowed square: the lune, past the arc, the polygon's interior,
+    /// outside the chord side, and the arc's apex.
+    #[test]
+    fn the_carrier_walk_is_blind_to_the_normals_sign_on_an_arc_bearing_loop() {
+        use crate::splitting::LoopContainment as C;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let (body, face) = bowed_square_with_ring(10.5, 11.5, tol);
+        let outer = body.get_face(face).unwrap().outer;
+        let up = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let apex = 5.0 + 5.0 * core::f64::consts::SQRT_2;
+        for (name, q, want) in [
+            ("in the lune", (11.0, 5.0), C::In),
+            ("past the arc", (13.0, 5.0), C::Out),
+            ("inside the polygon", (5.0, 5.0), C::In),
+            ("left of the square", (-1.0, 5.0), C::Out),
+            ("on the arc's apex", (apex, 5.0), C::OnBoundary),
+        ] {
+            let q = Point3::new(q.0, q.1, 0.0);
+            let read = |n| {
+                crate::splitting::containment::point_in_carrier_loop(&body, outer, n, q, band)
+                    .unwrap_or_else(|e| panic!("{name}: the walk refused: {e:?}"))
+            };
+            assert_eq!(read(up), Some(want), "{name}: under +z");
+            assert_eq!(read(-up), Some(want), "{name}: under -z");
+        }
+    }
+
     /// **An arc-bearing outer loop is decided, on its own region.** The
     /// right edge of a 10 x 10 square re-carried as an arc bowing
     /// OUTWARD, to `x = 5 + 5√2`, leaves a lune between the chord
@@ -10929,7 +11105,7 @@ mod tests {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 s1: plane,
                 s2: cylinder,
-                witness: carrier.eval((t0 + t1) * 0.5),
+                witness: carrier.mid_point(t0, t1),
             },
             carrier,
             param_start: t0,
@@ -13123,6 +13299,31 @@ mod certify_escalation_rows {
                  the geometry so the faces cross at a clearer angle, or, if this angle is \
                  intended, tighten the tolerance below 5e-11 m",
             ),
+            // A degenerate spline face is the face's own fact, and its
+            // lever is the face: constant along an axis, or too large
+            // to bound — never "no way through yet".
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
+                        axis: geom_brep::ChartAxis::V,
+                    }),
+                )),
+                "its spline face is constant along v, so the check cannot measure a length \
+                 across it. Recourse: move the geometry so the spline face varies along both \
+                 of its parameter directions",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::ChartSpeed(
+                        geom_brep::ChartSpeedRefusal::NotFinite {
+                            axis: geom_brep::ChartAxis::U,
+                        },
+                    ),
+                )),
+                "its spline face is too large for the check to bound how fast it moves along u. \
+                 Recourse: move the geometry to a scale where the spline face's control points \
+                 stay well inside the range of finite numbers",
+            ),
             // At exact tangency no tolerance decides it: the lever alone.
             (
                 says(CertifyError::NotTransverse {
@@ -13228,6 +13429,32 @@ mod certify_escalation_rows {
                 "its faces are not certainly crossing along it, so they do not fix where it \
                  runs. There is no way through: this is a kernel defect or a damaged file; \
                  report it",
+            ),
+            // A certificate escalation ends by its limb's decision: the
+            // tube's in-band margin is the transversality's, and a
+            // poisoned reported transversality, which no geometry
+            // reaches, is a defect.
+            (
+                says(CertifyError::PlaneNurbs(P::Escalated {
+                    limb: geom_brep::ssi::SsiLimb::Tube,
+                    cause: Indeterminate {
+                        margin: MarginDiag::value(5.0e-9),
+                        band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                        predicate: Some("a_probe"),
+                        terminal_sliver: false,
+                    },
+                })),
+                "its faces meet too nearly tangentially to decide at this tolerance. Recourse: \
+                 move the geometry so the faces cross at a clearer angle, or, if this angle is \
+                 intended, tighten the tolerance below 5e-10 m",
+            ),
+            (
+                escalated(
+                    CertCheck::PlaneNurbsReportedTransversality,
+                    MarginDiag::INVALID,
+                ),
+                "the check's own summary of how clearly its faces cross came out unreadable. \
+                 There is no way through: this is a kernel defect or a damaged file; report it",
             ),
         ];
         for (msg, tail) in rows {

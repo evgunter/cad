@@ -22,10 +22,18 @@
 //! [`transform_rigid_via`] injects the caller's) — so a map that
 //! breaks carrier consistency
 //! surfaces as a typed [`TransformError::Certify`] refusal, never as
-//! silently corrupt geometry. (A rigid map preserves every
-//! distance-valued residual up to rounding, so re-certification of a
-//! valid body succeeds; re-running the checks rather than copying the
-//! old certificate keeps the certificate honest — D4 ¶2.)
+//! silently corrupt geometry. Re-running the checks rather than
+//! copying the old certificate keeps the certificate honest (D4 ¶2).
+//! A rigid map preserves sampled distances and implicit-form residuals
+//! up to rounding. The plane × NURBS lane's limb 2 reads the norm of
+//! each vector coefficient of its residual composite, which no rotation
+//! moves; a residue remains, ≈6e-13 m on the
+//! near-ε reproduction and not scaling with the residual, so an edge
+//! certified within that width of ε can still refuse, typed
+//! [`TransformError::Certify`]. An `Approx` face's `hull_sup` is
+//! assembled from control hulls in the ambient frame, so it can
+//! re-derive above ε for a face certified near it; that face is
+//! re-fitted (see `map_approx`).
 //!
 //! # What maps how
 //!
@@ -706,13 +714,12 @@ pub fn transform_rigid_via<T: Decide + crate::props::AtRestPolicy>(
         let carrier = map_carrier(map, old.carrier())?;
         let description = match old.description() {
             // Re-mint (module docs above): construction-fresh witness
-            // from the MAPPED carrier at the pinned mid parameter.
-            // Params are transform-invariant, so the pre-transform
-            // schedule parameter is the post-transform one.
+            // from the MAPPED carrier at the pinned mid parameter
+            // (params are transform-invariant).
             EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
                 s1: *s1,
                 s2: *s2,
-                witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
+                witness: carrier.mid_point(param_start, param_end),
             },
             // TangentIntersection maps as Intersection does: keys are
             // stable, the witness re-mints from the mapped carrier.
@@ -720,7 +727,7 @@ pub fn transform_rigid_via<T: Decide + crate::props::AtRestPolicy>(
                 EdgeDescriptionSpec::TangentIntersection {
                     s1: *s1,
                     s2: *s2,
-                    witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
+                    witness: carrier.mid_point(param_start, param_end),
                 }
             }
             // A chart image is a PARAMETER-SPACE fact, invariant under

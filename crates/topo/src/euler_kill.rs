@@ -315,8 +315,8 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{
-    Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, RunExtent,
-    Spine, require_halves, shared_loop,
+    Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, ProvenMate,
+    Records, RunExtent, shared_loop,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
@@ -408,7 +408,8 @@ pub struct KefResult {
 
 /// Every key minted by one [`Body::mfkrh`] call. Nothing is killed: the
 /// promoted ring survives as the new face's outer loop, keeping its key
-/// and its D5 birth record.
+/// and its D5 birth record. A null-face record naming the ring is
+/// dropped ([`Body::mfkrh`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MfkrhCreated {
     /// The new face (outer loop = the promoted ring; same shell as the
@@ -486,6 +487,20 @@ enum KevUnsplice {
 }
 
 impl KevUnsplice {
+    /// The links the unsplice writes, in order, from `he`'s
+    /// `[prev, next]` and the mate's (`[a, b, c, d]`).
+    fn links(self, [a, b, c, d]: [Live; 4]) -> Vec<(Live, Live)> {
+        match self {
+            // The 2-cycle loop empties: the inverse of MevSite::Lone.
+            Self::Segment => Vec::new(),
+            // … a → he → m → d …: one write bridges both.
+            Self::Strut => vec![(a, d)],
+            // … c → m → he → b ….
+            Self::Mirror => vec![(c, b)],
+            Self::General => vec![(a, b), (c, d)],
+        }
+    }
+
     /// The loop anchors this arm writes (the loop rule, module docs), in
     /// order, where both name one loop the second winning: each loop
     /// re-anchors at the first survivor after its killed half in `next`
@@ -527,6 +542,19 @@ enum KefSplice {
     General(Live),
 }
 
+impl KefSplice {
+    /// The links the splice writes, in order, from `a = prev(he)` and
+    /// the mate's `[prev, next]`.
+    fn links(self, a: Live, [c, d]: [Live; 2]) -> Vec<(Live, Live)> {
+        match self {
+            Self::Lone => Vec::new(),
+            Self::Unsplice => vec![(c, d)],
+            Self::MateAlone(b) => vec![(a, b)],
+            Self::General(b) => vec![(c, b), (a, d)],
+        }
+    }
+}
+
 /// [`Body::kev`]'s arena delta, shared by both kill doors.
 #[cfg(debug_assertions)]
 const KEV_DELTA: ArenaDelta = ArenaDelta {
@@ -562,11 +590,13 @@ impl<T: Decide> Body<T> {
     /// Euler vector: `(v −1, e 0, f −1, h 0, r 0, s −1)` — arena deltas
     /// −1 solid, −1 shell, −1 face, −1 loop, −1 vertex.
     ///
-    /// **Minting order**: nothing is minted. **Kill order** (D9, exact,
-    /// the reverse of `mvfs`'s spine minting): face, loop, shell, solid,
-    /// vertex (each with its provenance entry), then the face's surface
-    /// iff orphaned and the vertex's point iff orphaned (geometry
-    /// hygiene, module docs).
+    /// **Minting order**: nothing is minted. **Kill order** (D9, exact, the
+    /// reverse of `mvfs`'s spine minting): face, loop, shell, solid, vertex
+    /// (each with its provenance entry; the face with its null-face record,
+    /// the loop with every null-face record naming it, as a null-face
+    /// record lives only while its face holds both loops it names —
+    /// [`crate::null`]), then the face's surface iff orphaned and the
+    /// vertex's point iff orphaned (geometry hygiene, module docs).
     ///
     /// # Precondition check order
     ///
@@ -583,7 +613,7 @@ impl<T: Decide> Body<T> {
     /// naming the loop), and no other face lists it
     /// ([`EulerOpError::KillLeavesDangling`]); no half-edge starts at the
     /// vertex ([`EulerOpError::OrbitBroken`] naming the half-edge), and no other
-    /// loop is `Empty` at it (`LoopCycleBroken` naming that loop); no
+    /// loop is `Empty` at it (`KillLeavesDangling` from that loop); no
     /// other loop names the face, then no other shell lists it; no other
     /// face names the shell, then no other solid lists it; no other shell
     /// names the solid (`KillLeavesDangling`, each). All are
@@ -640,11 +670,12 @@ impl<T: Decide> Body<T> {
         })?;
         let point = vertex_data.point;
         let clearing = Clearing {
-            removed: Spine {
+            removed: Records {
                 loops: &[loop_key],
                 faces: &[face],
                 shells: &[shell],
                 solids: &[solid],
+                ..Records::default()
             },
             ..Clearing::default()
         };
@@ -660,11 +691,12 @@ impl<T: Decide> Body<T> {
         // vertex, then orphaned geometry.
         self.faces.remove(face);
         self.face_provenance.remove(face);
-        // Null-face record hygiene (M3 PR 1): a record never outlives
-        // its face (crate::null).
-        self.null_faces.remove(face);
         self.loops.remove(loop_key);
         self.loop_provenance.remove(loop_key);
+        // A null-face record lives only while its face holds both loops
+        // it names (crate::null).
+        self.null_faces.remove(face);
+        self.drop_null_face_records_naming(loop_key);
         self.shells.remove(shell);
         self.shell_provenance.remove(shell);
         self.solids.remove(solid);
@@ -792,7 +824,13 @@ impl<T: Decide> Body<T> {
     /// edge (`UnclaimedHalfEdge` naming the first in arena order); no
     /// half-edge off the far vertex's orbit starts at it (`OrbitBroken`
     /// naming the first), and no loop is `Empty` at it
-    /// (`LoopCycleBroken` naming the loop). Then, where the merged fan is
+    /// (`KillLeavesDangling` from the loop); nothing the kill keeps names
+    /// a killed half: no `next` or `prev` as the unsplice leaves it, and
+    /// no loop's `first` but those it re-anchors (`LoopCycleBroken`
+    /// naming the half-edge's loop, or the loop), then no vertex's
+    /// `emanating` but the survivor's and no other edge's slot
+    /// ([`EulerOpError::KillLeavesDangling`]), each first in arena
+    /// order. Then, where the merged fan is
     /// not empty: the killed
     /// edge's curve entry resolves ([`EulerOpError::StaleGeometry`]),
     /// and unless it is a null edge, per merged member in orbit order,
@@ -964,9 +1002,9 @@ impl<T: Decide> Body<T> {
     /// half-edge of the merged fan starts at the dying vertex, the
     /// survivor's new `emanating` and the loops' new anchors
     /// ([`Body::require_kill_anchors`]), and that nothing the kill keeps
-    /// names the edge or the vertex it removes
-    /// ([`Body::require_edge_unnamed`], [`Body::require_vertex_unnamed`]).
-    /// The first is
+    /// names the edge, the vertex or the half-edges it removes
+    /// ([`Body::require_edge_unnamed`], [`Body::require_vertex_unnamed`],
+    /// [`Body::require_killed_halves_unnamed`]). The first is
     /// what keeps the killed edge out of its own merged members: its
     /// halves are `he`, which starts at the survivor, and the mate, which
     /// heads the orbit walk and so is not in the fan. The walk steps
@@ -974,18 +1012,14 @@ impl<T: Decide> Body<T> {
     /// `next` can put a foreign half-edge — the killed half among
     /// them — on it, and only this check sees one.
     fn kev_plan(&self, he: HalfEdgeKey) -> Result<KevPlan, EulerOpError> {
-        let he_data = self.resolve_half_edge(he)?;
-        let edge = he_data.edge;
-        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
+        let ProvenMate {
+            he_data,
+            edge,
+            edge_data,
+            mate: m,
+            mate_data: m_data,
+        } = self.proven_mate(he)?;
         let (he_plus, he_minus, curve) = (edge_data.he_plus, edge_data.he_minus, edge_data.curve);
-        let m = edge_data
-            .claim(he)
-            .ok_or(EulerOpError::UnclaimedHalfEdge { he, edge })?
-            .mate;
-        let m_data = self.resolve_half_edge(m)?;
-        require_halves(edge, edge_data, he, (m, m_data.edge))?;
         let v = he_data.start; // survives
         let w = m_data.start; // dies (= end(he))
         if v == w {
@@ -1048,20 +1082,34 @@ impl<T: Decide> Body<T> {
             (false, false) => KevUnsplice::General,
         };
         let loops = [l1, l2];
-        self.require_kill_anchors(
-            &[(v, anchor, he)],
-            &unsplice.loop_writes(loops, [b.key(), d.key()], v),
-            &[he, m],
-            None,
-        )?;
+        let loop_writes = unsplice.loop_writes(loops, [b.key(), d.key()], v);
+        self.require_kill_anchors(&[(v, anchor, he)], &loop_writes, &[he, m], None)?;
         if unsplice != KevUnsplice::General && shared_loop(&he_data, &m_data).is_none() {
             return Err(EulerOpError::LoopCycleBroken { r#loop: l2 });
         }
         // Nothing the kill keeps names what it removes: the edge, whose
-        // mate the plan read from its slots, and `w`, whose half-edges it
-        // read from the orbit walk.
+        // mate the plan read from its slots, `w`, whose half-edges it read
+        // from the orbit walk, and the halves, whose neighbours it read
+        // from their own links.
         self.require_edge_unnamed(edge, [he, m])?;
         self.require_vertex_unnamed(w, &orbit_w, &[])?;
+        let rewritten: Vec<LoopKey> = loop_writes.iter().map(|&(l, _)| l).collect();
+        self.require_killed_halves_unnamed(
+            [he, m],
+            Clearing {
+                removed: Records {
+                    vertices: &[w],
+                    edges: &[edge],
+                    ..Records::default()
+                },
+                edited: Records {
+                    loops: &rewritten,
+                    vertices: &[v],
+                    ..Records::default()
+                },
+                links: &unsplice.links([a, b, c, d]),
+            },
+        )?;
         Ok(KevPlan {
             he,
             m,
@@ -1208,17 +1256,8 @@ impl<T: Decide> Body<T> {
         }
         // Unsplice (derived as mev's exact inverse — module docs), then
         // the loop anchors the plan proved.
-        match unsplice {
-            // The 2-cycle loop empties: the inverse of MevSite::Lone.
-            KevUnsplice::Segment => {}
-            // … a → he → m → d …: one write bridges both.
-            KevUnsplice::Strut => self.link_half_edges(a, d),
-            // … c → m → he → b ….
-            KevUnsplice::Mirror => self.link_half_edges(c, b),
-            KevUnsplice::General => {
-                self.link_half_edges(a, b);
-                self.link_half_edges(c, d);
-            }
+        for (from, to) in unsplice.links([a, b, c, d]) {
+            self.link_half_edges(from, to);
         }
         for (r#loop, boundary) in unsplice.loop_writes(loops, [b.key(), d.key()], v) {
             let Some(loop_data) = self.get_loop_mut(r#loop) else {
@@ -1267,10 +1306,12 @@ impl<T: Decide> Body<T> {
     /// −2 half-edges, −1 edge, −1 face, −1 loop.
     ///
     /// **Minting order**: nothing is minted. **Kill order** (D9, exact):
-    /// `he`, its mate, the edge, the dying loop, the dying face (each
-    /// with its provenance entry), then the edge's curve iff orphaned
-    /// and the face's surface iff orphaned (usually shared, hence kept —
-    /// module docs).
+    /// `he`, its mate, the edge, the dying loop, the dying face (each with
+    /// its provenance entry; the face with its null-face record, the loop
+    /// with every null-face record naming it, as a null-face record lives
+    /// only while its face holds both loops it names — [`crate::null`]),
+    /// then the edge's curve iff orphaned and the face's surface iff
+    /// orphaned (usually shared, hence kept — module docs).
     ///
     /// **Re-anchoring** (unconditional, module docs): the surviving loop
     /// re-anchors at `next(mate)` when that survives, else `next(he)`;
@@ -1348,7 +1389,12 @@ impl<T: Decide> Body<T> {
     /// face's own lists that face ([`EulerOpError::KillLeavesDangling`]
     /// naming the first in arena order); then no half-edge but the
     /// killed two names the edge (`UnclaimedHalfEdge` naming the first in
-    /// arena order); then, where the surviving face would be re-minted,
+    /// arena order); then nothing the kill keeps names a killed half: no
+    /// `next` or `prev` as the splice leaves it, and no loop's `first`
+    /// but the surviving loop's (`LoopCycleBroken` naming the half-edge's
+    /// loop, or the loop), then no vertex's `emanating` but the
+    /// endpoints' and no other edge's slot (`KillLeavesDangling`), each
+    /// first in arena order; then, where the surviving face would be re-minted,
     /// the
     /// site mint's plan ([`Body::plan_moved_rows`]'s errors,
     /// [`EulerOpError::PcurveMint`] naming the surviving face among
@@ -1392,17 +1438,15 @@ impl<T: Decide> Body<T> {
     /// declares the postcondition.
     fn kef_with(&mut self, he: HalfEdgeKey, tol: Option<Tol>) -> Result<KefResult, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
-        let he_data = self.resolve_half_edge(he)?;
-        let edge = he_data.edge;
-        let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let m = edge_data
-            .claim(he)
-            .ok_or(EulerOpError::UnclaimedHalfEdge { he, edge })?
-            .mate;
-        let m_data = self.resolve_half_edge(m)?;
-        require_halves(edge, &edge_data, he, (m, m_data.edge))?;
+        let ProvenMate {
+            he_data,
+            edge,
+            edge_data,
+            mate: m,
+            mate_data: m_data,
+        } = self.proven_mate(he)?;
+        let (curve, killed_he_plus, killed_he_minus) =
+            (edge_data.curve, edge_data.he_plus, edge_data.he_minus);
         let l1 = he_data.parent_loop; // dies with its face
         let l2 = m_data.parent_loop; // survives, absorbs the remnant
         if l1 == l2 {
@@ -1527,19 +1571,36 @@ impl<T: Decide> Body<T> {
         )?;
         // The dying loop and face: nothing the kill keeps may name them.
         let clearing = Clearing {
-            removed: Spine {
+            removed: Records {
                 loops: &[l1],
                 faces: &[f1],
-                ..Spine::default()
+                ..Records::default()
             },
-            edited: Spine {
+            edited: Records {
                 shells: &[shell],
-                ..Spine::default()
+                ..Records::default()
             },
+            ..Clearing::default()
         };
         self.require_loop_unlisted(l1, clearing)?;
         self.require_face_unnamed(f1, clearing)?;
         self.require_edge_unnamed(edge, [he, m])?;
+        self.require_killed_halves_unnamed(
+            [he, m],
+            Clearing {
+                removed: Records {
+                    loops: &[l1],
+                    edges: &[edge],
+                    ..Records::default()
+                },
+                edited: Records {
+                    loops: &[l2],
+                    vertices: &[u, w],
+                    ..Records::default()
+                },
+                links: &splice.links(a, [c, d]),
+            },
+        )?;
         // The surviving loop as the splice leaves it, from its new
         // anchor: its own members from `next(m)` up to `m`, then the
         // remnant.
@@ -1597,14 +1658,8 @@ impl<T: Decide> Body<T> {
         }
         crate::pcurves::apply_site_rows(self, rows, None);
         // Splice (derived as mef's exact inverse — module docs diagram).
-        match splice {
-            KefSplice::Lone => {}
-            KefSplice::Unsplice => self.link_half_edges(c, d),
-            KefSplice::MateAlone(b) => self.link_half_edges(a, b),
-            KefSplice::General(b) => {
-                self.link_half_edges(c, b);
-                self.link_half_edges(a, d);
-            }
+        for (from, to) in splice.links(a, [c, d]) {
+            self.link_half_edges(from, to);
         }
         let Some(loop_data) = self.get_loop_mut(l2) else {
             unreachable!("kef: `l2` resolved in the plan phase")
@@ -1631,16 +1686,15 @@ impl<T: Decide> Body<T> {
         self.loop_provenance.remove(l1);
         self.faces.remove(f1);
         self.face_provenance.remove(f1);
-        // Null-face record hygiene (M3 PR 1): a record never outlives
-        // its face (crate::null).
+        // A null-face record lives only while its face holds both loops
+        // it names (crate::null).
         self.null_faces.remove(f1);
+        self.drop_null_face_records_naming(l1);
         let Some(shell_data) = self.get_shell_mut(shell) else {
             unreachable!("kef: the shell resolved in the plan phase; only `f1` is reaped above")
         };
         shell_data.faces.retain(|&face| face != f1);
-        let killed_curve = self
-            .remove_curve_if_orphaned(edge_data.curve)
-            .then_some(edge_data.curve);
+        let killed_curve = self.remove_curve_if_orphaned(curve).then_some(curve);
         // The curve hygiene above can itself reap f1's surface (a
         // killed curve's `Intersection`/`Seam` description can hold
         // the last reference — the issue #86 cascade); `f1_data`
@@ -1653,8 +1707,8 @@ impl<T: Decide> Body<T> {
 
         Ok(KefResult {
             killed_edge: edge,
-            killed_he_plus: edge_data.he_plus,
-            killed_he_minus: edge_data.he_minus,
+            killed_he_plus,
+            killed_he_minus,
             killed_face: f1,
             killed_loop: l1,
             killed_curve,
@@ -1720,10 +1774,11 @@ impl<T: Decide> Body<T> {
     /// kill; genus is derived, not stored).
     ///
     /// **Minting order** (D9, exact): surface (only for
-    /// [`FaceSurface::New`]), face. Nothing is killed.
-    /// The new face is appended to the shell's face list; the ring
-    /// leaves its former face's ring list (`retain`, order-preserving
-    /// for the others).
+    /// [`FaceSurface::New`]), face. Nothing is killed. The new face is
+    /// appended to the shell's face list; the ring leaves its former face's
+    /// ring list (`retain`, order-preserving for the others), and every
+    /// null-face record naming it is dropped, as a null-face record lives
+    /// only while its face holds both loops it names ([`crate::null`]).
     ///
     /// # Precondition check order
     ///
@@ -1855,6 +1910,7 @@ impl<T: Decide> Body<T> {
             unreachable!("mfkrh: the ring resolved in the plan phase")
         };
         loop_data.face = face;
+        self.drop_null_face_records_naming(ring);
         if !resolved.on_parent_chart {
             self.drop_loop_rows(ring);
         }
@@ -1905,7 +1961,7 @@ mod tests {
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{
         ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, assert_kill_refuses,
-        deep_snapshot, ops_holed_box, prov,
+        deep_snapshot, ops_holed_box, prov, through_the_scalpel,
     };
     use crate::iso::{canonical_form, isomorphic};
     use crate::readback::euler_counts;
@@ -2427,6 +2483,62 @@ mod tests {
         (body, seg, strut, other)
     }
 
+    /// **The keys-only merge refusal ends in its own lever** (D4 ¶1
+    /// (i)): the members' descriptions, or the other end, before the
+    /// door. On the real raise, in two poses of the strut's tip: where
+    /// the tip meets no other edge, `kev` on the strut's other half
+    /// kills it; where a null edge also meets it, a fan with no
+    /// certified edge, the lever's condition fails and so does the
+    /// kill, for the null edge's sake.
+    #[test]
+    fn the_keys_only_merge_refusal_ends_in_its_lever() {
+        let lever = "Recourse: re-describe those edges at the surviving vertex, or kill the \
+                     edge's other end where it meets no other edge (kev_describing takes \
+                     their re-descriptions under a band, and kev on the other half kills the \
+                     other end)";
+        let (bare, _seed, _seg, strut) = strutted();
+        let mut nulled = bare.clone();
+        let null = nulled
+            .mev_null(
+                MevSite::Fan {
+                    he1: strut.he_minus,
+                    he2: strut.he_minus,
+                },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        for (pose, mut body) in [("bare tip", bare), ("null edge at the tip", nulled)] {
+            let text = body
+                .kev(strut.he_minus)
+                .map(|_| ())
+                .unwrap_err()
+                .to_string();
+            assert!(text.ends_with(lever), "{pose}: {text}");
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&text),
+                1,
+                "{pose}: {text}"
+            );
+            let others: Vec<EdgeKey> = body
+                .edges_of_vertex(strut.vertex)
+                .unwrap()
+                .into_iter()
+                .filter(|&e| e != strut.edge)
+                .collect();
+            let killed = body.kev(strut.he_plus).map(|_| ());
+            if others.is_empty() {
+                assert_eq!(killed, Ok(()), "{pose}: the lever's condition holds");
+            } else {
+                assert_eq!(others, [null.edge], "{pose}: the edges the tip meets");
+                assert_eq!(
+                    killed,
+                    Err(EulerOpError::RebasedNullEdge { edge: null.edge }),
+                    "{pose}: the lever's condition fails, and so does the kill"
+                );
+            }
+        }
+    }
+
     #[test]
     fn kev_names_every_certified_member_in_orbit_order() {
         let (mut body, seg, strut, other) = two_member_merge();
@@ -2733,7 +2845,8 @@ mod tests {
         // one, and an empty list asks nothing past the structural list,
         // as the keys-only door asks nothing, so both kill. (The body is
         // tier-1-invalid, so the kills run inside a surgery scope,
-        // whose close is dropped unswept.)
+        // whose close is dropped unswept; under the scalpel each kill's
+        // own sweep reports the planted dangle and nothing else.)
         let tol = Tol::witness();
         let (mut body, _seed, seg, strut) = strutted();
         let v = body.get_half_edge(strut.he_plus).unwrap().start;
@@ -2749,16 +2862,29 @@ mod tests {
                     .unwrap_err()
             },
         );
-        for describing in [false, true] {
+        let planted = vec![crate::validate::ValidationError::DanglingGeometry {
+            from: EntityId::Vertex(v),
+            to: crate::entity::GeomRef::Point(point),
+        }];
+        for door in ["kev", "kev_describing"] {
             let mut copy = body.clone();
             let mut scope = copy.begin_surgery();
-            let got = if describing {
-                scope.kev_describing(strut.he_plus, &[], tol)
-            } else {
-                scope.kev(strut.he_plus)
-            };
+            let got = through_the_scalpel(&[door], || {
+                if door == "kev" {
+                    scope.kev(strut.he_plus)
+                } else {
+                    scope.kev_describing(strut.he_plus, &[], tol)
+                }
+            });
             drop(scope);
-            assert!(got.is_ok(), "describing: {describing}: {got:?}");
+            match got {
+                Ok(got) => assert!(got.is_ok(), "{door}: {got:?}"),
+                Err(swept) => assert!(
+                    swept.contains(&format!("left: Err({planted:?})")),
+                    "{door} ran to its end and its sweep reports the planted dangle alone: \
+                     {swept}"
+                ),
+            }
         }
     }
 
