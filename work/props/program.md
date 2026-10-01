@@ -13,6 +13,24 @@ keep_out: [OPENED 2026-09-06 at S-CERT's exit walk (#1924, ratified by Ev) — t
 priority: P0
 ---
 
+**CLOSING.** Ev's instruction in chat, 2026-10-01: handle whatever
+fraction of the remaining slate this program wanted, move the rest to a
+successor, and close on finishing. The successor is `work/flux/`
+(band 10300-10399), which took the curved closed-form arms, their
+smaller gaps, and the `geom-core` scalar and spline doors underneath —
+22 rows at the cut. **What PROPS keeps and closes on is the refusal-text
+and recourse family**: eleven rows about what a refusal SAYS, most of
+them arriving from ENCL's and TOPO's seam notes as their D4 recourse work
+crossed this ground, plus the convex-insertion unit in flight (PR #3524)
+and the refinement row it closes one site of, which travels to FLUX at
+the close rather than mid-flight.
+
+`work/props/plan.md` sets no `## Exit criteria`, so under the tracker
+contract no exit walk is owed: this program closes on Ev's ruling when
+its slate is done, and its done-state of record is a note under
+`docs/doc-ledger/`.
+
+
 **The flux and rim arms, after the second 2026-09-20 cut**: what the
 property layer measures about a face, and the faces it will not
 measure at all.

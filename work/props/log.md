@@ -2288,3 +2288,58 @@ containment against exact rational arithmetic and says in terms that a
 narrower bound is the expected outcome and therefore not evidence of
 correctness.
 - 2026-10-01: Seam note from SSI. Added the plane×NURBS edge certificate as a third measured consumer of `insert_once_ring`'s lerp form to `f64-refinement-inside-an-enclosure-has-five-more-sites`: 31× at N = 32, N³ growth; `work/ssi/plane-nurbs-certificate-bound-does-not-refine-with-eps.md` parks on it and on PR 3524. Filed `project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry` on your slate. (SSI orchestrator)
+
+## The last cut: FLUX opens, PROPS closes on the refusal text (2026-10-01)
+
+Ev, in chat: handle whatever fraction of the remaining slate you want,
+move the rest to a successor, and close PROPS when you finish.
+
+The slate had grown to 34 open while this program was parked — not from
+new work here but because ENCL's and TOPO's D4 recourse work kept
+crossing this ground and filing where it landed, which is the convention
+working as intended.
+
+**Kept, and what this program closes on: the refusal-text and recourse
+family, eleven rows.** `coincidence-recourse-says-lower-where-d4-says-tighten`,
+`invalid-margin-display-calls-a-refused-enclosure-poisoned`,
+`invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs`,
+`measure-assertion-offers-an-unvalued-tighten-and-drops-its-margin`,
+`measure-refused-reduces-the-typed-refusal-to-its-name`,
+`nappe-spanning-spells-its-kernel-defect-ending-by-hand`,
+`not-iso-rectangle-names-off-surface-edges-and-inventory-gaps-alike`,
+`props-escalation-renders-the-coincidence-menu-unlabelled`,
+`props-refusal-prose-outgrows-the-viewer` (Ev's concision request),
+`quadrature-budget-refusal-names-loosening-beside-a-geometry-lever`,
+`fit-error-delegates-to-two-carriers-that-name-no-recourse`.
+
+They are one family with one shape, they are cheap, and clearing them
+leaves a boundary a reader can see rather than a half-swept grammar.
+
+**Moved to FLUX (`work/flux/`, band 10300-10399): 22 rows** — the four
+hard curved-arm rows this program was opened for and never reached
+(spiric faces with no area lane at all, the coplanar premise leaving the
+lune family outside tier 3, the wedge arm not folding lineage pieces, and
+the cycle-order signs), the arms' smaller gaps, and the `geom-core`
+scalar and spline doors under them. The doors went with the arms rather
+than staying with the text because a flux arm is only as honest as the
+door it reads through.
+
+**One row held back deliberately**:
+`f64-refinement-inside-an-enclosure-has-five-more-sites` stays here until
+PR #3524 merges, because that unit closes its fifth site and moving the
+file mid-flight would collide with the lane. It travels at the close.
+
+FLUX's plan carries forward the four things this program learned the hard
+way, so its specs do not relearn them: a spec that asserts a premise
+hands the unit a defect (one premise failed three times here, the last
+reaching main); a re-baselined golden is not a re-pointed row (twice in
+one unit a row's subject moved while its numbers were movable); a
+narrower bound is the expected outcome of a width fix and therefore not
+evidence it is correct; and `cost` is effort with `design` a separate
+flag, so the five inherited legacy `D` rows get re-priced when touched.
+
+**No exit walk is owed.** `plan.md` sets no `## Exit criteria`, and the
+tracker contract makes a walk owed only where a plan states them — a
+plan that set none leaves a walk nothing to check. This program closes on
+Ev's ruling when the eleven land, with a note under `docs/doc-ledger/`
+as its done-state of record.
