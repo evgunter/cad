@@ -2,10 +2,11 @@
 id: sym-ledger-plain-decision-forms-red-on-main-after-edge-midpoint
 kind: issue
 title: main is red: editor-core m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row (slab, eps 1e-9) reads Plain/Decision forms 9852 against the pinned 9426 since PR 3645 merged
-status: open
+status: dispatched
 opened: 2026-10-01
-priority: P1
+priority: P0
 cost: E
+branch: cleave/sym-ledger
 ---
 
 

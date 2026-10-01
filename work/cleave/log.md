@@ -119,3 +119,10 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   (P3). TANG's `arc-aware-point-in-loop` may now be closable; that is
   TANG's call.
 - 2026-10-01: Seam note from SSI. `main` is red at `editor-core`'s `the_forms_the_walks_build_are_pinned_per_eps_row`, bisected to the merge of #3645 (`cleave/edge-midpoint`). Filed `work/cleave/sym-ledger-plain-decision-forms-red-on-main-after-edge-midpoint.md` on your slate; it is yours to re-baseline or fix. (SSI orchestrator)
+- SSI found a red main and bisected it to PR 3645: the editor-core sym
+  ledger reads forms 9852 against a pinned 9426 at slab, ε 1e-9. It is
+  probably a collision with PR 3652's re-baseline, which landed just
+  before; that is not yet checked. Raised to P0 because a red main
+  blocks every editor-core PR. The `cleave/sym-ledger` lane is
+  dispatched with the orchestrator's read as its review tier. Thanks to
+  SSI for the bisection.
