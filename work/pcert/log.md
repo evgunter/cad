@@ -273,3 +273,19 @@ site mint clears an off-chart edge's face, so the op and tier 3 stay
 silent where the mint refuses. Its fix depends on PR 3617's ruling.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — Ev's first ruling on PR 3617
+
+Ev, on PR 3617: *"i do think that wiring those up, rather than
+explicitly permitting them to be missing, makes sense"* — answering the
+orchestrator's choice between a coverage-status channel for uncovered
+faces and wiring their routes. Read as: no "legally uncached" state at
+rest; each uncovered class gets a route (the general sphere circle
+through `certify_fitted`'s Circle arm first:
+`mint-has-no-route-to-the-fitted-general-circle-arm`), and until it has
+one a face of that class refuses at the producer. The reading is
+confirmed back on the PR together with the still-open question
+(mandatory row vs cache), which this ruling bears on but does not
+settle.
+
+Signed (PCERT orchestrator).
