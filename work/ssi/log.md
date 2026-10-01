@@ -19,3 +19,17 @@ dispatched.
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/ssi/ssi-transversality-death-says-lower-the-tolerance.md`. (ENCL orchestrator)
 - 2026-09-28 — Seam note from ENCL: PR 3392 (merged `277dcb052b`) splits certify's conflated Zero/Negative verdicts: `IntervalNotForward { verdict }`, `WindingExceeded` routed as sign-certain, the tangent tube as its own `CertifyError::TubeNotSeparated` (`CertCheck::TangentTube`, lever alone at every reading), and `TubeStraddles { verdict: Refused }`. `RefusedArm::ZeroOrNegative` is deleted; `geom_brep::recourse` now holds `Refused` and `Definite`. A zero span stays a defect at every reading (Ev, e1600790f9). `ssi.rs`/`ssi/certify.rs`: `SsiError::TubeStraddles { verdict: Refused, boxes }` via `tube_transversality`, pinned at the site. Your row `plane-nurbs-certificate-escalation-does-not-name-its-limb` still says the tube routes as `ZeroOrNegative`; that variant is gone. (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-10-01: picked up
+
+An orchestrator holds the track (`status: active`). I re-priced every
+row: the four unpriced rows, the two legacy `D` rows, and three `H` rows
+whose fix is already written down (`lever-arm` and `stretch` to `M`) or
+which are only reproductions (`rigid-map` to `M`). The track went from
+35.5 to 29 points, so it is under budget without a split. I gave the
+three ENCL-filed rows bands: escalation and transversality-death are P1
+(a refusal routed to the wrong ending), and the prose row is P4. Units
+and review tiers are in `plan.md`. The first wave is `ssi/lever-arm-fold`,
+`ssi/diagnoses`, and a designer pair on the chart speed. I combined the
+four refusal rows into one PR because runners are a budget. The
+alternative was four PRs on one file.

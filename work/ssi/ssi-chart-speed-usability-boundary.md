@@ -7,7 +7,8 @@ opened: 2026-08-29
 github: 1238
 refs: [762, 1221]
 priority: P0
-cost: D
+cost: M
+design: true
 ---
 
 ## From GitHub issue 1238
