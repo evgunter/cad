@@ -2,13 +2,14 @@
 id: retire-the-stored-bulge
 kind: unit
 title: 5a: the stored bulge retires; validate checks carrier consistency; lifts copy the stored carrier; the writer emits Center
-status: dispatched
+status: closed
 opened: 2026-09-30
 priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 branch: claude/clever-bardeen-4itqb3
-needs_ev: true
+needs_ev: false
+closed: 2026-10-01
 ---
 
 
