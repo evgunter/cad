@@ -3665,6 +3665,16 @@ where
         // Unreachable: the schedule only lists live nodes.
         return fail(bracket, NodeErrorKind::MissingInput { input: id });
     };
+    // A mate's log opens with what the solve decided about it: the
+    // solve ran before any frame was open and kept each decision for
+    // the one mate whose answer it decided
+    // (`mate::solve::SolvedPoses::take_recordings`), so the decision
+    // is on this mate's log whether the mate evaluates `Ok` or not.
+    if matches!(node, crate::node::Node::Mate { .. }) {
+        for recording in op_env.poses.take_recordings(id) {
+            geom_core::k_stats::splice(recording);
+        }
+    }
 
     // Poison propagation (spec D2, GQ2): first blocking input in the
     // node's deterministic input order; `through` always names a
@@ -3868,6 +3878,22 @@ where
         // dozen verdicts per hit, beside a precompute that just
         // replayed and validated the profile.
         let fresh = bracket.finish();
+        // A mate's log is the solve's recording for it and nothing
+        // else (its op decides nothing), and the solve runs afresh
+        // every evaluation: what it decides about a mate reads the
+        // mates folded before it, which the mate's key does not. So a
+        // reused mate carries this run's recording, the log a fresh
+        // evaluation of it would carry.
+        if matches!(node, crate::node::Node::Mate { .. }) {
+            return NodeStep {
+                result: NodeResult::Ok(NodeValue {
+                    verdicts: Arc::new(fresh.verdicts),
+                    escalations: Arc::new(fresh.escalations),
+                    ..v.clone()
+                }),
+                reused: true,
+            };
+        }
         assert!(
             v.verdicts.starts_with(&fresh.verdicts)
                 && v.escalations.starts_with(&fresh.escalations),

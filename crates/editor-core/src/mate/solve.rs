@@ -32,9 +32,12 @@
 //! `Err`, and every node the fault actually reaches (the refusing mate
 //! and its cluster's instances, which now have no pose) carries it.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::Mutex;
 
 use geom_core::Tol;
+use geom_core::k_stats::{Detached, detached, splice};
 use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::Band;
@@ -71,8 +74,10 @@ pub enum MateRole {
 /// id [`solve_document`] read, and [`SolvedPoses::placement`] — the one
 /// door that takes a `Doc` back — refuses a mispairing with it (DI3).
 /// No `Default`, for that reason: a poses value with no document is a
-/// value that cannot answer which document it is about.
-#[derive(Debug, Clone)]
+/// value that cannot answer which document it is about. No `Clone`
+/// either: the evaluation's solve carries each mate's recording
+/// ([`SolvedPoses::take_recordings`]), which has one home.
+#[derive(Debug)]
 pub struct SolvedPoses {
     /// **Which document this is a solve OF** (DI3), stamped by
     /// [`solve_document`].
@@ -87,6 +92,14 @@ pub struct SolvedPoses {
     /// Per-node refusals: the refusing mate, and every node in its
     /// cluster that consequently has no pose.
     faults: BTreeMap<RecipeNodeId, MateFault>,
+    /// **What the solve decided, by the mate whose answer each
+    /// decision decided** ([`Record`]), in decision order per mate —
+    /// filled by the evaluation's solve ([`solve_with_env`]) and taken
+    /// once by that mate's own node, which splices it into its frame.
+    /// Empty from [`solve_document`], which records into its caller's
+    /// frame. Behind a lock because the evaluation's nodes run on
+    /// workers and each takes its own entry out of a shared solve.
+    recordings: Mutex<BTreeMap<RecipeNodeId, Vec<Detached>>>,
 }
 
 impl SolvedPoses {
@@ -98,7 +111,20 @@ impl SolvedPoses {
             gauge: BTreeMap::new(),
             roles: BTreeMap::new(),
             faults: BTreeMap::new(),
+            recordings: Mutex::new(BTreeMap::new()),
         }
+    }
+
+    /// **The solve's decisions about `mate`, taken out** — every
+    /// recording the solve kept for it, in decision order, for the
+    /// mate's node to splice into its own frame. A second take answers
+    /// nothing: each recording has one home.
+    pub(crate) fn take_recordings(&self, mate: RecipeNodeId) -> Vec<Detached> {
+        self.recordings
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&mate)
+            .unwrap_or_default()
     }
 
     /// **Which document this solve is of** (DI3). A caller holding a
@@ -385,6 +411,58 @@ struct Solve<'a, P> {
     reach: &'a dyn MateReach,
     band: Band,
     tol: Tol,
+    record: Record,
+}
+
+/// **Where the solve's decisions go: each to the log of exactly one
+/// mate, the mate whose answer it decided.** Every decision the solve
+/// makes is made inside one [`Record::unit`], named by that mate:
+///
+/// - a decision about one mate's own datum — its references' checks
+///   ([`check_references`]), its sides' frames and face poses, its
+///   coset row and its rider — is that mate's;
+/// - a decision the fold makes while adding a mate to its pair's
+///   intersection is the added mate's;
+/// - a decision about the PAIR once its mates are folded — the
+///   determination check, the pair's static left factor — is the
+///   pair's first mate's, the one its own refusals name
+///   ([`solve_cluster`] chooses it, once, for both).
+///
+/// A [`Detached`] is not `Clone`, so a decision recorded in one unit
+/// has no second home.
+enum Record {
+    /// Into the caller's open frame as each unit finishes, which is
+    /// the order the decisions were made in — so a door's frame holds
+    /// what a solve that detached nothing would have put there
+    /// ([`solve_document`]'s, the door every caller but the
+    /// evaluation solves through).
+    Caller,
+    /// Kept per mate, in decision order, for the mate's own node to
+    /// splice ([`SolvedPoses::take_recordings`]) — the evaluation's
+    /// ([`solve_with_env`]), where the solve runs before any node's
+    /// frame is open.
+    PerMate(RefCell<BTreeMap<RecipeNodeId, Vec<Detached>>>),
+}
+
+impl Record {
+    /// Runs `work` as one unit of the solve's work, its decisions
+    /// recorded as `mate`'s.
+    fn unit<R>(&self, mate: RecipeNodeId, work: impl FnOnce() -> R) -> R {
+        let (out, recording) = detached(work);
+        match self {
+            Self::Caller => splice(recording),
+            Self::PerMate(kept) => kept.borrow_mut().entry(mate).or_default().push(recording),
+        }
+        out
+    }
+
+    /// What the units kept, for the solve's answer to carry.
+    fn kept(self) -> BTreeMap<RecipeNodeId, Vec<Detached>> {
+        match self {
+            Self::Caller => BTreeMap::new(),
+            Self::PerMate(kept) => kept.into_inner(),
+        }
+    }
 }
 
 /// The frame flip that applies an OPPOSED axis sense: the half turn
@@ -399,6 +477,20 @@ fn opposed() -> Affine3<f64> {
         ),
         Vec3::new(0.0, 0.0, 0.0),
     )
+}
+
+/// **One side's frame through the witness ladder**, refused at the
+/// mate and the side — the one wrap both readers of a frame use
+/// ([`mate_coset`], and [`admit_mate`]'s replay arm).
+fn side_frame(
+    mate: RecipeNodeId,
+    side: MateSide,
+    frame: &AuthoredFrame,
+    tol: Tol,
+) -> Result<geom_core::linalg::OrthoFrame<f64>, Box<MateFault>> {
+    frame
+        .frame(tol)
+        .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
 }
 
 /// One mate's coset: the relative poses (b's part coordinates into a's)
@@ -430,20 +522,6 @@ fn opposed() -> Affine3<f64> {
 /// levers its intersections too) hands it in. Replay never reaches
 /// the table: with no reach it declines at [`admit_mate`], on the
 /// rule stated at [`Maintain::reach`].
-/// **One side's frame through the witness ladder**, refused at the
-/// mate and the side — the one wrap both readers of a frame use
-/// ([`mate_coset`], and [`admit_mate`]'s replay arm).
-fn side_frame(
-    mate: RecipeNodeId,
-    side: MateSide,
-    frame: &AuthoredFrame,
-    tol: Tol,
-) -> Result<geom_core::linalg::OrthoFrame<f64>, Box<MateFault>> {
-    frame
-        .frame(tol)
-        .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
-}
-
 fn mate_coset(
     mate: RecipeNodeId,
     alignment: &Alignment,
@@ -921,59 +999,64 @@ fn fold_pair<P: crate::ProfilePayload>(
         // The members these two references resolved to, walked once
         // where the pair map was built and carried here.
         let (ha, hb) = (&pm.a.member, &pm.b.member);
-        admit_class(mate, *class)?;
-        // The sides' frames, resolved before the lever they enter.
-        let a = resolve_side(doc, reach, mate, MateSide::A, ha, &alignment.a)?;
-        let b = resolve_side(doc, reach, mate, MateSide::B, hb, &alignment.b)?;
-        let parts = match parts_reach {
-            Some(parts) => parts,
-            None => {
-                let parts = pair_reach(doc, reach, parent, child)
-                    .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
-                parts_reach = Some(parts);
-                parts
+        // Everything decided while this mate is admitted and added to
+        // the intersection is a decision about THIS mate's answer.
+        s.record.unit(mate, || {
+            admit_class(mate, *class)?;
+            // The sides' frames, resolved before the lever they enter.
+            let a = resolve_side(doc, reach, mate, MateSide::A, ha, &alignment.a)?;
+            let b = resolve_side(doc, reach, mate, MateSide::B, hb, &alignment.b)?;
+            let parts = match parts_reach {
+                Some(parts) => parts,
+                None => {
+                    let parts = pair_reach(doc, reach, parent, child)
+                        .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
+                    parts_reach = Some(parts);
+                    parts
+                }
+            };
+            // This mate's lever, formed once: the pair's parts plus its
+            // own datum terms. The fold's is the largest so far.
+            let mate_arm = parts + alignment.lever_arm(&a, &b);
+            arm = arm.max(mate_arm);
+            let mut coset = mate_coset(mate, alignment, &a, &b, || Ok(mate_arm), band, tol)?;
+            // The authored order is `a`'s coordinates from `b`'s; the
+            // tree may need the other direction. The transported
+            // direction is `a`'s axis carried into `b`'s coordinates,
+            // so a refusal is reported at side `a`.
+            if (ha, hb) != (parent, child) {
+                coset = invert(coset, band).map_err(|error| {
+                    Box::new(MateFault::Frame {
+                        mate,
+                        side: MateSide::A,
+                        error,
+                    })
+                })?;
             }
-        };
-        // This mate's lever, formed once: the pair's parts plus its
-        // own datum terms. The fold's is the largest so far.
-        let mate_arm = parts + alignment.lever_arm(&a, &b);
-        arm = arm.max(mate_arm);
-        let mut coset = mate_coset(mate, alignment, &a, &b, || Ok(mate_arm), band, tol)?;
-        // The authored order is `a`'s coordinates from `b`'s; the tree
-        // may need the other direction.
-        // The transported direction is `a`'s axis carried into `b`'s
-        // coordinates, so a refusal is reported at side `a`.
-        if (ha, hb) != (parent, child) {
-            coset = invert(coset, band).map_err(|error| {
-                Box::new(MateFault::Frame {
-                    mate,
-                    side: MateSide::A,
-                    error,
-                })
-            })?;
-        }
-        held = match super::coset::intersect(held, coset, band, arm) {
-            Ok(next) => next,
-            Err(FoldStop::Indeterminate(diag)) => {
-                return Err(Box::new(MateFault::Indeterminate { mate, diag }));
-            }
-            Err(FoldStop::Clash { predicate, clash }) => {
+            held = match super::coset::intersect(held, coset, band, arm) {
+                Ok(next) => next,
+                Err(FoldStop::Indeterminate(diag)) => {
+                    return Err(Box::new(MateFault::Indeterminate { mate, diag }));
+                }
+                Err(FoldStop::Clash { predicate, clash }) => {
+                    return Err(Box::new(MateFault::Contradictory {
+                        held: held_mate.unwrap_or(mate),
+                        added: mate,
+                        predicate,
+                        clash,
+                    }));
+                }
+            };
+            if matches!(held.subgroup, Subgroup::Empty) {
                 return Err(Box::new(MateFault::Contradictory {
                     held: held_mate.unwrap_or(mate),
                     added: mate,
-                    predicate,
-                    clash,
+                    predicate: super::MATE_MEMBER_EMPTY,
+                    clash: Clash::Structural,
                 }));
             }
-        };
-        if matches!(held.subgroup, Subgroup::Empty) {
-            return Err(Box::new(MateFault::Contradictory {
-                held: held_mate.unwrap_or(mate),
-                added: mate,
-                predicate: super::MATE_MEMBER_EMPTY,
-                clash: Clash::Structural,
-            }));
-        }
+            Ok(())
+        })?;
         held_mate.get_or_insert(mate);
     }
     Ok(held)
@@ -1096,7 +1179,7 @@ pub fn solve_document<P: crate::ProfilePayload>(
     tol: Tol,
 ) -> SolvedPoses {
     let env = doc.param_env::<f64>();
-    solve_with_env(doc, &env, reach, tol)
+    solve(doc, &env, reach, tol, Record::Caller)
 }
 
 /// [`solve_document`] over an environment the caller already holds —
@@ -1104,11 +1187,32 @@ pub fn solve_document<P: crate::ProfilePayload>(
 /// by that field's contract. `env` must be that environment: the
 /// solve answers about the document, and a boxed or seeded one would
 /// make it answer about a run.
+///
+/// The evaluation's solve runs before any node's frame is open, so
+/// its decisions are kept on the answer, per mate
+/// ([`SolvedPoses::take_recordings`]), rather than recorded into the
+/// caller's frame: each mate's node splices its own.
 pub(crate) fn solve_with_env<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     env: &ParamEnv<f64>,
     reach: &dyn MateReach,
     tol: Tol,
+) -> SolvedPoses {
+    solve(
+        doc,
+        env,
+        reach,
+        tol,
+        Record::PerMate(RefCell::new(BTreeMap::new())),
+    )
+}
+
+fn solve<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    env: &ParamEnv<f64>,
+    reach: &dyn MateReach,
+    tol: Tol,
+    record: Record,
 ) -> SolvedPoses {
     let mut out = SolvedPoses::empty(doc.id());
     let band = match Band::linear(tol) {
@@ -1135,6 +1239,7 @@ pub(crate) fn solve_with_env<P: crate::ProfilePayload>(
         reach,
         band,
         tol,
+        record,
     };
     // Mates by the unordered MEMBER pair they relate, document order
     // within a pair. The member — not just its instance — is the key:
@@ -1167,7 +1272,7 @@ pub(crate) fn solve_with_env<P: crate::ProfilePayload>(
         // prefix the edit door asks (`check_references`). The walk
         // itself evaluated nothing, so this is where the name meets a
         // count.
-        if let Err(fault) = check_references(doc, env, id, wa, wb) {
+        if let Err(fault) = s.record.unit(id, || check_references(doc, env, id, wa, wb)) {
             broken.push((id, fault));
             continue;
         }
@@ -1231,6 +1336,7 @@ pub(crate) fn solve_with_env<P: crate::ProfilePayload>(
             }
         }
     }
+    out.recordings = Mutex::new(s.record.kept());
     out
 }
 
@@ -1327,18 +1433,26 @@ fn solve_cluster<P: crate::ProfilePayload>(
             let (pm, cm) = if x.instance == parent { (x, y) } else { (y, x) };
             let mates = &by_pair[&(x.clone(), y.clone())];
             let coset = fold_pair(s, pm, cm, mates)?;
+            // The PAIR's own verdicts — the determination check and the
+            // pair's left factor — are its first mate's: the mate an
+            // UNDER refusal names, and the mate whose log records what
+            // was decided about the pair ([`Record`]).
+            let first = &mates[0];
             if !coset.subgroup.is_determined() {
                 // A11 rule 4: a tree edge that does not determine
                 // refuses, naming the residual and its parameters.
                 return Err(Box::new(MateFault::Under {
-                    mate: mates[0].mate,
+                    mate: first.mate,
                     parent,
                     child,
                     residual: coset.subgroup,
                 }));
             }
             let mut pose = poses[&parent] * coset.representative;
-            if let Some(left) = pair_left_factor(s, gauge, pm, &mates[0])? {
+            if let Some(left) = s
+                .record
+                .unit(first.mate, || pair_left_factor(s, gauge, pm, first))?
+            {
                 pose = left * pose;
             }
             poses.insert(child, pose);
