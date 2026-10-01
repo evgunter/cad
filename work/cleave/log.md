@@ -53,3 +53,13 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
 - Wave 2: the `rehome_rings` reproduction and the graft reachability
   measurement are dispatched to one lane, one after the other, each
   with its own PR (`cleave/rehome-rings`, `cleave/graft-reach`).
+- Interior witness, PR 3655 (green), now in full review. Measured: both
+  probes are reachable (`ops.rs` on `(a∪c)∪b`, `finish.rs` on
+  `(a∪c)∪(b∪x)`), and the `solid_contain.rs` schedule walk never fired.
+  Decided: it lands even though the two newly fused `r4tri` orders
+  publish without `b`'s names (the fold discards `b` whole). The
+  geometry is right in every order, and no name denotes different
+  geometry in two orders. The naming question is EMIT's, filed as
+  `work/emit/a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush.md`.
+  The alternative was to hold a P0 wrong refusal until that row is
+  settled.
