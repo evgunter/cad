@@ -1392,7 +1392,6 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Join(_) => "join",
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
-        SplitOpError::UnplacedHole { .. } => "unplaced_hole",
     }
 }
 

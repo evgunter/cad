@@ -1506,10 +1506,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         .into_iter()
         .chain(join)
         .chain(finish)
-        .chain([
-            ("Pcurves".to_owned(), SplitError::Pcurves(pcurve())),
-            ("UnplacedHole".to_owned(), SplitError::UnplacedHole { face }),
-        ])
+        .chain([("Pcurves".to_owned(), SplitError::Pcurves(pcurve()))])
         .map(|(n, e)| row(&format!("Split/{n}"), NodeErrorKind::Split(e)))
         .chain(boolean_join)
         .collect()

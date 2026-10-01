@@ -367,7 +367,7 @@ fn one_sided_tangency_refused_typed() {
     let err = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(
         err,
-        SplitError::Join(SplitJoinError::DegenerateSection { .. })
+        topo::SectionError::Split(SplitError::Join(SplitJoinError::DegenerateSection { .. }))
     ));
 }
 

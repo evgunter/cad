@@ -6388,10 +6388,11 @@ pub(crate) fn tier3_local_checks_marked<
     // second, vaguer report of the same defect.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
+        let normal = plane_chart_normal(body, face.surface);
         for &ring in &face.rings {
-            match ring_outer_contact(body, face.outer, ring, band) {
+            match ring_outer_contact_about(body, face.outer, ring, normal, band) {
                 RingOuterVerdict::Disjoint => {
-                    let Some(normal) = nesting_normal(body, face.surface) else {
+                    let Some(normal) = normal else {
                         continue; // the nesting residue, enumerated above
                     };
                     match ring_nesting(body, face.outer, ring, normal, band) {
@@ -6483,14 +6484,10 @@ pub(crate) fn ring_outer_contact<T: Decide>(
     ring: LoopKey,
     band: Band,
 ) -> RingOuterVerdict {
-    let normal = match body
+    let normal = body
         .get_loop(outer)
         .and_then(|l| body.get_face(l.face))
-        .and_then(|f| body.surfaces.get(f.surface))
-    {
-        Some(&Surface::Plane { normal, .. }) => Some(normal),
-        _ => None,
-    };
+        .and_then(|f| plane_chart_normal(body, f.surface));
     ring_outer_contact_about(body, outer, ring, normal, band)
 }
 
@@ -7239,12 +7236,13 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
     }
 }
 
-/// The chart normal check 9's nesting arm walks a face's outer loop
-/// in, or `None` where the arm is silent — the whole of its gate,
-/// read off one face.
+/// The normal of a planar chart: the plane check 9's edge-meeting
+/// arms ([`ring_outer_contact`]) and its nesting arm walk a face's
+/// loops in, or `None` where both are silent — the whole of their
+/// gate, read off one face.
 ///
 /// One condition: the surface is a `Plane`, because there is
-/// otherwise no plane for the walk to run in. The outer loop's CLASS
+/// otherwise no plane for the arms to run in. The outer loop's CLASS
 /// is not gated on: [`crate::splitting::containment::point_in_carrier_loop`] reads
 /// every edge on its own carrier and answers every class it has a
 /// crossing row for, and says so itself where it has none (`None`,
@@ -7253,7 +7251,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
 ///
 /// The normal is handed over without `Face::sense` folded in: the
 /// walk's verdict is invariant under its sign.
-fn nesting_normal<T: Real>(
+fn plane_chart_normal<T: Real>(
     body: &Body<T>,
     surface: crate::geometry::SurfaceKey,
 ) -> Option<geom_core::Vec3<T>> {
@@ -7293,7 +7291,7 @@ enum RingNestingVerdict {
 }
 
 /// Does `ring` lie inside the region `outer` bounds, both loops of one
-/// planar face whose chart normal [`nesting_normal`] read as `normal`?
+/// planar face whose chart normal [`plane_chart_normal`] read as `normal`?
 ///
 /// The ring's VERTICES are the queries, in cycle order, and the walk
 /// takes the first definite verdict it reaches — `Out` reports, `In`
@@ -7378,7 +7376,7 @@ enum RingNestingVerdict {
 /// loop is the same defect as any other ring outside it.
 ///
 /// Run only on a `(outer, ring)` pair [`ring_outer_contact`] has
-/// cleared, and only behind [`nesting_normal`]; the banner at check 9
+/// cleared, and only behind [`plane_chart_normal`]; the banner at check 9
 /// states both and enumerates what they leave out.
 fn ring_nesting<T: Decide>(
     body: &Body<T>,
@@ -10460,7 +10458,9 @@ mod tests {
             let gated: Vec<(FaceKey, LoopKey, LoopKey)> = body
                 .faces
                 .iter()
-                .filter(|(_, f)| !f.rings.is_empty() && nesting_normal(&body, f.surface).is_some())
+                .filter(|(_, f)| {
+                    !f.rings.is_empty() && plane_chart_normal(&body, f.surface).is_some()
+                })
                 .map(|(k, f)| (k, f.outer, f.rings[0]))
                 .collect();
             ringed += gated.len();
@@ -10706,7 +10706,7 @@ mod tests {
             let (body, face) = lamina_with_ring(&outer, &ring, tol);
             let f = body.get_face(face).unwrap();
             assert!(
-                nesting_normal(&body, f.surface).is_some(),
+                plane_chart_normal(&body, f.surface).is_some(),
                 "{name}: the gate must be OPEN or the row asserts nothing"
             );
             assert!(
@@ -10994,7 +10994,7 @@ mod tests {
                 "{name}: one outward arc over four vertices is the ArcParity class"
             );
             let f = body.get_face(face).unwrap();
-            let normal = nesting_normal(&body, f.surface).expect("a planar face");
+            let normal = plane_chart_normal(&body, f.surface).expect("a planar face");
             let ring_loop = f.rings[0];
             let first = loop_cycle_of(&body, ring_loop).unwrap()[0];
             let rp = vertex_point(&body, body.get_half_edge(first).unwrap().start).unwrap();
@@ -11232,7 +11232,7 @@ mod tests {
             ),
             "three arcs of one circle are the disc class"
         );
-        let normal = nesting_normal(&body, body.get_face(face).unwrap().surface).unwrap();
+        let normal = plane_chart_normal(&body, body.get_face(face).unwrap().surface).unwrap();
         (body, outer_loop, normal, r)
     }
 
@@ -11324,7 +11324,7 @@ mod tests {
             ),
             "one circle on every outer edge is the disc class"
         );
-        let normal = nesting_normal(&body, f.surface).expect("the gate opens");
+        let normal = plane_chart_normal(&body, f.surface).expect("the gate opens");
         // Strictly between ε and K·ε for any K > 1.
         let in_band = tol.eps() * tol.k().sqrt();
         for (name, at) in [

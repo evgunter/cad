@@ -669,7 +669,7 @@ fn plane_section_refuses_a_hole_nothing_places() {
     for flip in [false, true] {
         let r = topo::plane_section(&cylinder, &tilted(1.25, 1.1, flip), tol());
         assert!(
-            matches!(r, Err(SplitError::UnplacedHole { .. })),
+            matches!(r, Err(topo::SectionError::UnplacedHole { .. })),
             "flipped {flip}: {:?}",
             r.map(|s| s.regions.len())
         );
