@@ -81,11 +81,7 @@ fn legs_reach() -> EvalOptions {
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// A determining `Rest` mate seating `b`'s bottom onto `a`.

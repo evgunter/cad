@@ -109,10 +109,11 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
+use geom_core::interval::norm_sup;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign, SupSpeed, Vec3,
+    Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Real, Sign, SupSpeed, Vec3,
 };
 
 use crate::certify::CertCheck;
@@ -869,7 +870,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 let (ud, vd) = (n.knots_u().domain(), n.knots_v().domain());
                 let nb = NurbsBoxes::new(n);
                 let speed = |bx: Box3| {
-                    let m = bx.speed_sup();
+                    let m = norm_sup(&[bx.x, bx.y, bx.z]);
                     SupSpeed::new(if m > 0.0 { m } else { f64::NAN })
                 };
                 let su = speed(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true));
@@ -942,15 +943,6 @@ fn tube_transversality<T: Decide>(
         Some(verdict) => Err(SsiError::TubeStraddles { verdict, boxes }),
         None => Ok(transversality.value()),
     }
-}
-
-/// The witness of a rung-3 carrier: `carrier(mid)`, unchanged from M2
-/// (`WitnessMidpoint`; S2 stays discharged).
-pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
-) -> Point3<T> {
-    let (t0, t1) = carrier.domain();
-    carrier.eval(T::from_f64(0.5 * (t0 + t1)))
 }
 
 #[cfg(test)]

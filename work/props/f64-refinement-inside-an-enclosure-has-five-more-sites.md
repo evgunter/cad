@@ -157,3 +157,19 @@ A/B with one change, `insert_once_ring` from the lerp form to the convex form `c
 At only 3 rounds deep, this contradicts the reading above that rounds 0–5 barely differ between the forms: on a fit this shallow the convex form already changes the certified bound by 4×.
 
 Consequence: a rigid map of a body that validates at 1e-12 can refuse (`ApproxRecertify { RefinementStalled }`) until this site is fixed. The ENCL row is parked on this one.
+
+## A third consumer, measured: the plane×NURBS edge certificate (SSI, 2026-10-01)
+
+On the m8_4 seam (`crates/sweep/tests/m8_4_intersection_iso.rs`), limb 2's
+certified `hull_sup_chart` is 98.5% ring widening from this site's lerp
+form. It is 1.69e-12 m against a true residual of 2.5e-14 m, at
+N = 32 spans. It grows as N³ under refinement: 3.0e-14 at N = 8, 1.1e-10
+at N = 128. The convex form gives 2.0e-14 and 1.5e-13 at the same N, and
+at N = 32 it is 31× tighter (5.47e-14). It is the only thing standing
+between that fixture and certifying at ε = 1e-12 at scale 1, so
+`INTERIOR_COLUMN_SCALE = 1/1024` exists because of this site. The tables
+are in `work/ssi/plane-nurbs-certificate-bound-does-not-refine-with-eps.md`,
+which parks on this row. Re-baselines a landing here owes: the four
+"must refuse below 1e-9" pins (`m8_4_intersection_iso.rs`'s
+`seam_at_eps` and `review_probes_m8_4.rs`'s probe_e) flip, because the
+seam then attaches.
