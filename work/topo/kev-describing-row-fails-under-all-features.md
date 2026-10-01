@@ -2,12 +2,13 @@
 id: kev-describing-row-fails-under-all-features
 kind: issue
 title: euler_kill's kev_describing_asks_the_survivors_point row fails tier-1 DanglingGeometry under --all-features, a feature set no CI row runs
-status: review
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
 pr: 3648
 branch: topo/kev-all-features
+closed: 2026-10-01
 ---
 
 
