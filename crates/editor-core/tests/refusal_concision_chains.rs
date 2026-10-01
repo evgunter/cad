@@ -200,27 +200,11 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
         span: "FaceKey(null)",
         filed: "work/props/props-refusal-prose-outgrows-the-viewer.md",
     },
-    // A document named by its hex id: the reference loop,
+    // A document named by its hex id: the reference loop.
     Admission {
         row: "Part/ReferenceCycle",
         span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
         filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
-    },
-    // and two mate refusals.
-    Admission {
-        row: "Mate/PosesOfAnotherDocument",
-        span: "3e23e8160039594a33894f6564e1b134",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Mate/PosesOfAnotherDocument",
-        span: "ca978112ca1bbdcafac231b39a23dc4d",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Mate/Unleverable",
-        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
     },
 ];
 
@@ -414,18 +398,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Shell/OperandOuterShells",
     "Shell/Partition",
     "Shell/Rim",
-    // work/msolve/msolve-refusals-short-of-the-shape-guard.md
-    "Mate/ClassNotAdmitted",
-    "Mate/Contradictory",
-    "Mate/DanglingHead",
-    "Mate/Indeterminate",
-    "Mate/PartSelectsAnotherCopy",
-    "Mate/PlacerRefused",
-    "Mate/PosesOfAnotherDocument",
-    "Mate/SelfMate",
-    "Mate/TableLacks",
-    "Mate/Under",
-    "Mate/Unleverable",
     // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
@@ -813,19 +785,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         }
         rows.push((longest.clone(), last.clone()));
     }
-    // The mate's carrying line points at its placer ("repair node 000000000004")
-    // without a recourse marker; filed with the mate faults on
-    // work/msolve/msolve-refusals-short-of-the-shape-guard.md, and red
-    // once it no longer needs admitting.
-    const PLACER_NO_RECOURSE: &str = "Carried/PlacerRefused/level-0 states no recourse";
-    let mut problems = over_budget(&rows);
-    let before = problems.len();
-    problems.retain(|p| !p.starts_with(PLACER_NO_RECOURSE));
-    assert_eq!(
-        before - problems.len(),
-        1,
-        "the admission of {PLACER_NO_RECOURSE:?} admits nothing"
-    );
+    let problems = over_budget(&rows);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 
     // A placer whose own row states its refusal is pointed at and not
@@ -3558,13 +3518,32 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "FaceUnresolved",
+            M::FaceUnresolved {
+                mate: n(9),
+                side: MateSide::A,
+                refusal: Box::new(editor_core::FaceRefusal::Reach {
+                    instance: n(6),
+                    part: doc_ref(),
+                    face: editor_core::FaceName::new(editor_core::StableName {
+                        kind: editor_core::EntityKind::Face,
+                        node: n(3),
+                        path: vec![],
+                    })
+                    .expect("a face"),
+                    refusal: editor_core::FacePoseRefusal::NoSuchName,
+                }),
+            },
+        ),
+        (
             "Unleverable",
             M::Unleverable {
                 mate: n(9),
-                refusal: LeverRefusal::NoExtent {
+                refusal: Box::new(LeverRefusal::Reach {
                     instance: n(6),
                     part: doc_ref(),
-                },
+                    refusal: editor_core::ReachRefusal::NoExtent,
+                }),
             },
         ),
     ]

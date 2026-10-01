@@ -204,11 +204,13 @@ PORT; triaged 2026-09-24:**
     `placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`
     (CHROME, P3: `check_reference` sites a `Part`'s own index at the
     pattern below it — one condition, two seats, the class MSOLVE-7
-    closed for the axis). Spec `docs/MSOLVE-11-SPEC.md` (2026-09-24):
+    closed for the axis). Spec `docs/MSOLVE-11-SPEC.md` (2026-09-24; deleted at merge):
     each decision on the one mate whose answer it decided, the lever
     finite by construction so `parallel`'s minted escalation has no
     input, the `Part`'s index refused at the `Part`. Dispatches after
     MSOLVE-9 merges; both rewrite `mate/solve.rs`.
+    Merged on PR 3680 (2026-10-01), with item 20's riders and
+    `lever-refusal-respells-reach-refusal`; spec into the ledger.
 
 **Routed onto this slate 2026-09-24 … 09-30 by EDIT, GATHER, AUTH
 and CHROME; triaged 2026-10-01:**
@@ -234,7 +236,8 @@ and CHROME; triaged 2026-10-01:**
     is blocked on it), CHROME's `msolve-refusals-short-of-the-shape-guard`
     (P2, M) and `mate-refusals-name-documents-by-hex-id` (P3, E). They
     touch the same `MateFault` arms MSOLVE-11 re-sites, so they ride it
-    rather than open a fourth pass over one enum.
+    rather than open a fourth pass over one enum. All four closed with
+    MSOLVE-11 on PR 3680.
 21. **`the-solve-accepts-a-body-placed-under-two-roots`** (GATHER, P1):
     the solve returns poses for a document the product gather refuses
     as `PlacedUnderTwoRoots`, so the two layers disagree about one
