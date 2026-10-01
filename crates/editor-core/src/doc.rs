@@ -963,11 +963,11 @@ impl<P> Doc<P> {
         }
     }
 
-    /// The empty document under a label-derived identity —
+    /// The empty document under a seed-derived identity —
     /// [`Self::empty`] ∘ [`DocumentId::derive`], the deterministic
     /// spelling corpus/demos/tests use.
-    pub fn empty_derived(label: &str, tol: Tol) -> Self {
-        Self::empty(DocumentId::derive(label), tol)
+    pub fn empty_derived(seed: &str, tol: Tol) -> Self {
+        Self::empty(DocumentId::derive(seed), tol)
     }
 
     /// The document's stable identity.

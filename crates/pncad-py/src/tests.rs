@@ -4642,7 +4642,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_serialize",
             "param_name_not_an_identifier",
         ],
-        delegates: &["declare_error_tag", "placement_rule_fault_tag"],
+        delegates: &[
+            "declare_error_tag",
+            "label_fault_tag",
+            "placement_rule_fault_tag",
+        ],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -5000,6 +5004,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "wrong_kind",
         ],
         delegates: &["node_standing_tag", "readback_error_tag"],
+    },
+    TagEntry {
+        function: "label_fault_tag",
+        values: &["label_blank", "label_control_character", "label_line_break"],
+        delegates: &[],
     },
     TagEntry {
         function: "lever_refusal_tag",

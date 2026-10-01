@@ -128,6 +128,7 @@ use crate::errors::{BoundaryEdit, EvalReason, StlRefusal, UnmirroredSelect, Vali
 use pncad::analysis::{
     AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
 };
+use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
@@ -383,6 +384,17 @@ pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
         BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
         BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
+        BoundaryEdit::Label(fault) => label_fault_tag(fault),
+    }
+}
+
+/// The stable tag for a text refused as a label — which of the label
+/// rule's three clauses it broke.
+pub fn label_fault_tag(fault: &LabelFault) -> &'static str {
+    match fault {
+        LabelFault::Blank => "label_blank",
+        LabelFault::LineBreak { .. } => "label_line_break",
+        LabelFault::Control { .. } => "label_control_character",
     }
 }
 
