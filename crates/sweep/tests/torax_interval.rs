@@ -361,14 +361,26 @@ fn interval_the_klein_elbow_hollows_to_the_props_door() {
                     ..
                 }]
             ) => {}
+        // At a strict band the certified scalar may escalate first —
+        // at the door's own decides, or at the pcurve mint's envelope,
+        // whose enclosure is wider than ε = 1e-12 (measured).
         ShellError::Face { ref error, .. }
             if tol.eps() < DEFAULT_EPS
-                && matches!(**error, topo::ReplaceFaceError::Escalated { .. }) =>
+                && matches!(
+                    **error,
+                    topo::ReplaceFaceError::Escalated { .. }
+                        | topo::ReplaceFaceError::Pcurve {
+                            source: topo::PcurveMintError::Certify {
+                                error: geom_brep::PcurveCertifyError::Escalated { .. },
+                                ..
+                            }
+                        }
+                ) =>
         {
             stood_down(
-                &format!("the klein elbow's interval rim, eps = {:e}", tol.eps()),
+                &format!("the klein elbow's interval hollow, eps = {:e}", tol.eps()),
                 "the certified scalar escalated before the props door was reachable, so \
-                 THIS RUN ASSERTS ONLY the door's own typed escalation",
+                 THIS RUN ASSERTS ONLY a typed escalation",
             );
         }
         other => panic!("expected check 7's props door, got {other:?}"),
