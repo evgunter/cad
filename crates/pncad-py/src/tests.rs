@@ -5715,7 +5715,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "severed_edge",
             "split_pin",
             "step_map_diverged",
-            "torn_cluster",
+            "torn_group",
             "uncut_param_reference",
             "unknown_cut_node",
         ],

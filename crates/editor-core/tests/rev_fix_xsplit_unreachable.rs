@@ -150,7 +150,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
                     edge_count(id),
                     2,
                     "{label}: cut {cut:?} was ACCEPTED with mate {id:?} — an A12 EDGE — \
-                     straddling it. The cluster precondition should have refused."
+                     straddling it. The group precondition should have refused."
                 );
             }
         }
