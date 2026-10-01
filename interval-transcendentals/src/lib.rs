@@ -31,11 +31,17 @@
 //! ## Signed zeros
 //!
 //! `-0` and `+0` are one real number, so an endpoint's zero sign is
-//! never part of what an enclosure says, and nothing in the kernel reads
-//! it. There is no sign-preservation convention, and none is owed: `+`,
-//! `−` and `neg` give the sign `f64` would on point operands, `abs`
-//! gives `+0` as `f64::abs` does, and `×` and `÷` give `+0` for a zero
-//! factor or numerator whatever the operands' signs.
+//! never part of what an enclosure says, and no enclosure semantics
+//! depend on it. The kernel's identity channels do read it:
+//! `Interval::repr_bits` reports the stored bits, and content keys
+//! (`editor-core`'s eval memo), `geom-core`'s `bit_identity` and
+//! `topo`'s source bit witnesses are built from them. That is a reason
+//! for the bit to be a function of the source and the inputs (below),
+//! not for any operation to preserve it. There is no sign-preservation
+//! convention, and none is owed: `+`, `−` and `neg` give the sign `f64`
+//! would on point operands, `abs` gives `+0` as `f64::abs` does, and
+//! `×` and `÷` give `+0` for a zero factor or numerator whatever the
+//! operands' signs.
 //!
 //! What IS owed is that the bit is a function of the source and the
 //! inputs (D9). Every endpoint chosen between two candidates — `min_i`,

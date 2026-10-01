@@ -69,12 +69,15 @@
 //! in each operation's doc comment and is part of its contract.
 //!
 //! **What a fixed order buys is bit-identity for non-NaN outputs only.**
-//! Where an output is NaN, its sign and payload are not stable under code
-//! motion: the compiler may commute an addition (`a + b` → `b + a`, exact
-//! for every non-NaN pair), and when both summands are NaN, which one's
-//! sign and payload survive follows the operand order it chose — so two
-//! inlined call sites of one [`Mat3`] product can disagree in a NaN's
-//! sign bit between optimisation levels. Every bit-level claim in this
+//! Where an output is NaN, Rust leaves its sign and payload unspecified
+//! (a NaN produced by arithmetic may come from the hardware's default
+//! NaN, from constant folding, or from either operand), so they are not
+//! stable under code motion. One concrete route: the compiler may commute
+//! an addition (`a + b` → `b + a`, exact for every non-NaN pair), and
+//! when both summands are NaN, which one's sign and payload survive
+//! follows the operand order it chose. Two inlined call sites of one
+//! [`Mat3`] product in a single release build have been seen to disagree
+//! in a NaN's sign bit that way. Every bit-level claim in this
 //! layer that cites D9 is a claim about non-NaN values; the kernel's
 //! geometry meets it because its gates refuse non-finite coordinates.
 //! `affine.rs`'s `two_spellings_of_a_product_agree_bitwise_off_nan` pins

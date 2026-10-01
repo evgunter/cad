@@ -321,8 +321,35 @@ mod tests {
             agree("point", k, q.y, r.y);
             agree("point", k, q.z, r.z);
         }
+        // Cancellation: per component `((1 + 2^53) + 0) − 2^53` is 0 in the
+        // documented order and 1 in any order that meets `2^53` and
+        // `−2^53` first, so a regrouped sum in either arm moves it.
+        let two52 = 4_503_599_627_370_496.0;
+        let ones = Vec3::new(1.0, 1.0, 1.0);
+        let cancel = Affine3::from_parts(
+            Mat3::from_cols(ones, ones * two52, Vec3::zero()),
+            ones * (-2.0 * two52),
+        );
+        let v = Vec3::new(1.0, 2.0, 0.0);
+        let want = apply(cancel.linear, v) + cancel.translation;
+        assert_eq!(
+            want.x, 0.0,
+            "cancellation fixture: the documented order gives 0"
+        );
+        let shift = Affine3::from_parts(Mat3::identity(), v);
+        for (what, got) in [
+            (
+                "cancellation point",
+                cancel.transform_point(Point3::new(v.x, v.y, v.z)) - Point3::origin(),
+            ),
+            ("cancellation product", (cancel * shift).translation),
+        ] {
+            agree(what, 0, got.x, want.x);
+            agree(what, 0, got.y, want.y);
+            agree(what, 0, got.z, want.z);
+        }
         assert!(
-            compared > 1000 && minus_zeros > 0,
+            compared >= 7_000 && minus_zeros > 0,
             "the table reached {compared} non-NaN entries, {minus_zeros} of them −0"
         );
     }

@@ -278,10 +278,16 @@ mod tests {
         // `×` and `÷` fold four corner bounds. A zero factor or numerator
         // gives an upper corner of `+0`; a product or quotient of
         // `-2^-1074`, inexact by the witness's floor, pads up to `-0`.
-        // The two operand orders put the `+0` corners first and last.
+        // The operand orders put the `+0` corners first, last and
+        // interleaved; which of them an unruled fold gets wrong differs
+        // between debug and release, so both kinds are here.
         let tiny = di(0.0, 2f64.powi(-600));
         let neg = di(-(2f64.powi(-474)), -(2f64.powi(-474)));
+        let (sub, k) = (di(-5e-324, -0.0), di(1.3, 1.3));
         for (case, r) in [
+            ("[-2^-1074, -0] × [1.3]", sub * k),
+            ("[1.3] × [-2^-1074, -0]", k * sub),
+            ("[-2^-1074, -0] ÷ [1.3]", sub / k),
             ("[0, 2^-600] × [-2^-474]", tiny * neg),
             ("[-2^-474] × [0, 2^-600]", neg * tiny),
             (
