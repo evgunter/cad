@@ -88,6 +88,7 @@ fn m7_8_cube() -> (
             "`CubeOps::mefs[1]` is the outward-−y wall this probe corrupts"
         );
     }
+    // Lifts both refusals: the wall's edges are re-described next through the plane × NURBS lane.
     let wall = body
         .set_face_surface_stranding_for_tests(
             front,
