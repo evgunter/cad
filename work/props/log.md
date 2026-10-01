@@ -2149,3 +2149,70 @@ Signed: (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
 - 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `geom_core::SizedPass` gains `Negative` (a decision that passes on a definitely negative margin: `sector_shape`'s straightness rung off a strut), with its rows in `predicate.rs`'s pass-set tests and `geom_brep::recourse`'s no-unvalued-offer sweep. The Boolean's coincidence route still composes `COINCIDENCE_RECOURSE`, whose unvalued tolerance arm is `coincidence-recourse-says-lower-where-d4-says-tighten` on this slate. (TOPO implementer)
 - 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits two props paths. `geom_core::IndeterminatePayload` gains an arm for a margin at or inside the zero band ("margin m lies within the zero band (±z)", and the enclosure form), for the zero verdict of a decision that does not pass at zero, carried with its decided margin; the one production text it moves is `topo::chart_region`'s decided-zero echo (`definite_diag`), which claimed "lies inside the ambiguity band" before and now says the true thing. `geom::torus_tube` returns `Decided` (`decide_reported`) as `geom::ring_torus` does. The convention's closed type, `TorusConvention`, lives beside them one crate up in `crates/geom-brep/src/torus_convention.rs`. (TOPO, PR 3506 fix pass)
+
+**MERGED: k-lint baseline (2026-09-30).** Merge `8d9cb980b`, gate green.
+**Single review / FULL, so no experiment row** — the dual-review log
+takes dual-tier units only.
+
+**The unit's deliverable was a refusal, and the refusal was right.** It
+chose NEITHER of k-lint's two sanctioned recourses: rule 1 reads none of
+the constants a baseline re-derivation moves, and `Reason::rule`'s own
+doc records that demoting it would demote the E6 re-open trigger. So
+re-deriving would have papered over a live poison — the failure the
+lint's own text names. The spec had pre-authorised exactly this by
+saying that if the measurement showed real geometry, neither recourse
+applies and the lane stops and reports. That clause is the one that
+produced the right answer, and it is recorded in the ledger note.
+
+**What the flags actually are.** Nine rule-1 at every eps row —
+eps-INDEPENDENT, so never threshold-crowding — are
+`chart_bound_outer_span` deciding `|m| = NaN` on three bodies. The
+mechanism, established by the review and verified here: `chart_edge`
+calls `SpanLocate::enclosure_hull` DIRECTLY, that returns `f64::NAN` at
+a point scalar *deliberately* ("poison, never a fabricated point
+value"), and `Real::min`/`max` propagate NaN *deliberately* because
+dropping it "would silently launder a poisoned value". The sweep runs at
+`Probe`, an f64 with a recorder. So the nine are **structural at the
+recording scalar, not geometry that regressed** — and they now reproduce
+bit-identically across FOUR populations spanning 3,782,215 to 3,959,179
+samples. The eight rule-2 at 1e-12 are a different thing entirely: a
+predicate minted three days earlier in another PR.
+
+**The gate stays red, and that is the correct state.** It is red because
+the kernel is; this unit was not entitled to green it. Three rows filed
+on the owning slates (`chart` P1, `germ` P2, `instr` P3), and the chart
+row now carries the mechanism, both call sites, and the reading the
+orchestrator had missed: the audit's "poison lets it stand" is probably
+CORRECT at that site, and what is wrong is posing a check that is
+structurally unanswerable at the recording scalar. The row does not
+decide between the three readings, which is right — that is not ours.
+
+**Two corrections that landed on this desk, recorded because they are
+the lesson.** The orchestrator handed down a hypothesis (ENCL's PR 3418
+changed what every classify outcome records) marked as one, and told the
+lane to test rather than inherit it; the lane refuted it on four grounds.
+The single review then found **one of those four grounds invalid** — a
+falling sample count does not bear against nine newly-recorded rows,
+since nine additions inside a net −2,496 over 1.26M is consistent — and
+that the orchestrator had repeated that ground upward as decisive. The
+refutation stands on the other three. The review also caught that §2's
+inference was a non-sequitur that the mechanism happened to rescue, and
+that the refutation's file sweep had missed `chart_stretch_sup` in a
+file PR 3418 does touch; it ran that check itself and the conclusion
+held.
+
+**A landing rule of ours was ungrounded and is withdrawn.** The review
+flagged a commit carrying `Co-Authored-By` against the spec's own
+landing rule. The commit was the orchestrator's — and the rule has **no
+basis anywhere**: not `CLAUDE.md`, not `memories/`, not
+`docs/prompts/`, not `work/README.md`, and most recent commits on main
+carry the trailer. It was a habit propagated through spec after spec,
+in conflict with the harness's own attribution instruction. Dropped from
+every future spec; `no CI-Config:` stands, that configuration path having
+been deliberately deleted, and so does `no empty commits`.
+
+**Worth noting what the review cost and bought.** It wrote no code, ran
+no build and took no build slot — pure reading against three job logs —
+and it overturned the causal story, corrected two inferences, and found
+a standing defect in this program's own spec template. The unit's
+conclusion survived intact.
