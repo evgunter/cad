@@ -112,11 +112,12 @@ pub use implicit::{
     min_radius_of_curvature,
 };
 pub use intersect::{
-    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
-    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
-    Rung, SectionError, SectionRadius, SphereSphereSection, SurfaceKind, cone_cylinder_section,
-    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
-    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
+    CoaxialEvidence, ConeCylinderSection, CurveKind, CylinderSphereSection, EqualCylinderSection,
+    PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
+    RadiusEvidence, Rung, SectionError, SectionRadius, SphereSphereSection, SurfaceKind,
+    cone_cylinder_section, cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
+    plane_cylinder_section, plane_sphere_section, plane_torus_section, route, route_pose,
+    sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};
@@ -136,8 +137,8 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, SpiricImage, chart_pcurve,
-    chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, SpiricImage, UncoveredClass,
+    chart_pcurve, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
@@ -145,10 +146,11 @@ pub use props::{
 };
 pub use ssi::{
     ChartAxis, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
-    ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, SSI_FIT_DEGREE, SSI_FLOOR,
-    SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome,
-    SsiTube, StepFault, StepperMode, TubeDegeneracy, certify_rung3, cylinder_sphere_ssi,
-    idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, ReachBound, SSI_FIT_DEGREE,
+    SSI_FLOOR, SSI_MAX_STEPS, SettlingRefusal, SsiBranch, SsiCertificate, SsiDomain, SsiError,
+    SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
+    TubeDegeneracy, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
+    trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

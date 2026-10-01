@@ -109,6 +109,8 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "pole_slit_window.rs"]
+mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -794,3 +796,6 @@ mod wedge_end_doors;
 
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;
+
+#[path = "witness_ladder.rs"]
+mod witness_ladder;

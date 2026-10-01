@@ -247,23 +247,11 @@ fn relative<T: Decide>(mi: &Affine3<T>, mj: &Affine3<T>) -> Affine3<T> {
 /// yields the poison box, which overlaps everything.
 fn image<T: Decide + Bounds>(b: &Aabb, m: &Affine3<T>) -> Aabb {
     let br = |v: T| (v.lo(), v.hi());
-    let cols = [m.linear.c0, m.linear.c1, m.linear.c2];
-    // Row r of the linear part, bracketed: column j's r-th component.
-    let row = |r: usize| {
-        [0usize, 1, 2].map(|j| {
-            let c = cols[j];
-            br(match r {
-                0 => c.x,
-                1 => c.y,
-                _ => c.z,
-            })
-        })
-    };
-    let trans = [
-        br(m.translation.x),
-        br(m.translation.y),
-        br(m.translation.z),
-    ];
+    // The linear part's columns, bracketed entry by entry.
+    let cols = m.linear.cols().map(|c| c.to_array().map(br));
+    // Row r of the linear part: column j's r-th component.
+    let row = |r: usize| cols.map(|c| c[r]);
+    let trans = m.translation.to_array().map(br);
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     let xs = [b.min_x, b.max_x];

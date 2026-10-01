@@ -188,7 +188,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-        crate::query::DATUM_UNIT_NORM => "whether a direction has any length",
+        crate::query::DATUM_UNIT_NORM => geom_core::DIRECTION_LENGTH_SUBJECT,
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
@@ -1423,16 +1423,23 @@ pub enum BooleanError {
         /// The offending shell.
         shell: ShellKey,
     },
-    /// Every witness of a shell the other operand's boundary does not
-    /// cut — its vertices, its edges' midpoints, an interior point of
-    /// each planar face — lies ON that boundary, so which side of it
-    /// the shell lies on is undecided (`shell_witness`'s module docs).
-    /// Two operands that are one body reach this.
+    /// No witness of a shell the other operand's boundary does not cut
+    /// — its vertices, its edges' midpoints, an interior point of each
+    /// planar face — decides which side of that boundary the shell lies
+    /// on: each lies ON it or too near it to say (`shell_witness`'s
+    /// module docs). Two operands that are one body reach this.
     ShellWitnessExhausted {
         /// The operand whose shell was probed.
         operand: Operand,
         /// The shell, in that operand's working copy.
         shell: ShellKey,
+        /// Witnesses that read `OnBoundary`.
+        on_boundary: usize,
+        /// Witnesses whose reading was in-band.
+        in_band: usize,
+        /// The first in-band reading: evidence about one witness, not
+        /// the cause, which is that none decided.
+        first_in_band: Option<PointInSolidError>,
     },
     /// The containment fallback / uncut-component probe refused (F8).
     Containment(PointInSolidError),
@@ -2212,15 +2219,31 @@ impl core::fmt::Display for BooleanError {
                  of both sides (kernel bug)",
                 operand_word(*operand)
             ),
-            Self::ShellWitnessExhausted { operand, .. } => write!(
-                f,
-                "the solids do not cross, and every point of the {} solid the \
-                 Boolean tried (each corner, each edge's middle, a point inside \
-                 each flat face) lies on the other's boundary, so it cannot tell \
-                 whether that solid is inside the other. Recourse: if the two are \
-                 one body, use it once",
-                operand_word(*operand)
-            ),
+            Self::ShellWitnessExhausted {
+                operand,
+                on_boundary,
+                in_band,
+                ..
+            } => {
+                write!(
+                    f,
+                    "the solids do not cross, and none of the {} points tried on the {} \
+                     solid (corners, edge middles, flat-face interiors) tells whether it \
+                     is inside the other: {on_boundary} lie on the other's boundary",
+                    on_boundary + in_band,
+                    operand_word(*operand)
+                )?;
+                if *in_band == 0 {
+                    write!(f, ". Recourse: if the two are one body, use it once")
+                } else {
+                    write!(
+                        f,
+                        ", {in_band} too near it to tell. Recourse: if the two are one \
+                         body, use it once; if they nearly touch, move them clearly \
+                         together or apart"
+                    )
+                }
+            }
             // The payload does not say which operand was being tested, so
             // the sentence says "one of the solids" rather than guess.
             Self::Containment(e) => write!(f, "the solids do not cross, and the Boolean {e}"),
@@ -3549,6 +3572,9 @@ mod tests {
             BooleanError::ShellWitnessExhausted {
                 operand: Operand::B,
                 shell: ShellKey::default(),
+                on_boundary: 26,
+                in_band: 0,
+                first_in_band: None,
             },
             BooleanError::Containment(
                 crate::boolean::solid_contain::PointInSolidError::RayExhausted,

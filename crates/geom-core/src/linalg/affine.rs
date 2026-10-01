@@ -44,6 +44,33 @@ impl<T: Real> Affine3<T> {
         }
     }
 
+    /// The four columns of the map's augmented matrix: the linear
+    /// part's [`Mat3::cols`], then the translation. Binds both fields
+    /// by pattern, so a field added to this type is an E0027 here.
+    pub const fn cols(self) -> [Vec3<T>; 4] {
+        let Self {
+            linear,
+            translation,
+        } = self;
+        let [c0, c1, c2] = linear.cols();
+        [c0, c1, c2, translation]
+    }
+
+    /// The twelve components in [`Self::cols`] order — the three linear
+    /// columns, each `x, y, z`, then the translation — every one bound
+    /// by pattern through [`Self::cols`] and [`Vec3::to_array`], so a
+    /// field added at any of the three levels fails to compile here
+    /// rather than falling outside a reader of the twelve. This is the
+    /// order [`Self::try_map`] visits them in.
+    pub const fn components(self) -> [T; 12] {
+        let [c0, c1, c2, t] = self.cols();
+        let [a, b, c] = c0.to_array();
+        let [d, e, f] = c1.to_array();
+        let [g, h, i] = c2.to_array();
+        let [j, k, l] = t.to_array();
+        [a, b, c, d, e, f, g, h, i, j, k, l]
+    }
+
     /// The identity map.
     pub fn identity() -> Self {
         Self::from_parts(Mat3::identity(), Vec3::zero())
@@ -814,10 +841,12 @@ mod tests {
     /// The twelve components in the order the walk visits them: the
     /// three columns, each `x, y, z`, then the translation. Written
     /// out by hand, so it is an INDEPENDENT statement of where each
-    /// component belongs — a transposition inside the walk
-    /// disagrees with it, which is the whole reason the walk rows
-    /// compare against this and not against another call to the walk.
-    fn components<T: Real>(a: Affine3<T>) -> [T; 12] {
+    /// component belongs — a transposition inside the walk, or inside
+    /// the [`Affine3::components`] door, disagrees with it, which is
+    /// the whole reason the walk rows and the door's own row compare
+    /// against this and not against another call to the code under
+    /// test.
+    fn hand_components<T: Real>(a: Affine3<T>) -> [T; 12] {
         let (l, t) = (a.linear, a.translation);
         [
             l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
@@ -825,7 +854,7 @@ mod tests {
     }
 
     fn bits(a: Affine3<f64>) -> [u64; 12] {
-        components(a).map(f64::to_bits)
+        hand_components(a).map(f64::to_bits)
     }
 
     /// A placement with twelve DISTINCT components and no symmetry —
@@ -883,7 +912,7 @@ mod tests {
     #[test]
     fn both_walks_lift_to_another_scalar_in_the_same_places() {
         let channels = |d: Affine3<Dual64>| {
-            let c = components(d);
+            let c = hand_components(d);
             (c.map(|x| x.value.to_bits()), c.map(|x| x.deriv.to_bits()))
         };
         for (o, u, v) in frame_corpus() {
@@ -970,7 +999,7 @@ mod tests {
                 Ok(_) => panic!("component {k} refused, so the walk must not answer Ok"),
                 Err(e) => assert_eq!(
                     e.to_bits(),
-                    components(a)[k].to_bits(),
+                    hand_components(a)[k].to_bits(),
                     "the refusal carried out is component {k}'s"
                 ),
             }
@@ -1139,5 +1168,42 @@ mod tests {
         assert_eq!(door.1, hand.1, "the order f sees the components in");
         assert_eq!(door.1.len(), 12, "twelve calls, no more");
         assert_eq!(door.0, hand.0, "the twelve results land in the same places");
+    }
+
+    /// The readout doors against literals and against the hand
+    /// spelling: `distinct`'s twelve distinct components in
+    /// [`Affine3::try_map`]'s visit order, so a transposed column, a
+    /// dropped translation or a reversed walk reds this row on a value
+    /// rather than on another call. Then the door against
+    /// [`hand_components`] by bits over the storage corpus, where the
+    /// signed zeros, the infinities and the NaN live.
+    #[test]
+    fn cols_and_components_read_out_in_the_walk_order() {
+        for (o, u, v) in frame_corpus() {
+            let a = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+            assert_eq!(
+                a.components().map(f64::to_bits),
+                bits(a),
+                "components at {o:?} {u:?} {v:?}"
+            );
+        }
+        let a = distinct();
+        assert_eq!(
+            a.components(),
+            [
+                1.0, 2.0, 3.0, 4.0, 5.5, -6.0, -7.25, 0.5, 8.0, 10.0, 11.0, 12.0
+            ],
+            "components"
+        );
+        assert_eq!(
+            a.cols().map(Vec3::to_array),
+            [
+                [1.0, 2.0, 3.0],
+                [4.0, 5.5, -6.0],
+                [-7.25, 0.5, 8.0],
+                [10.0, 11.0, 12.0]
+            ],
+            "cols: three linear columns, then the translation"
+        );
     }
 }

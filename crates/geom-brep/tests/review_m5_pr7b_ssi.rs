@@ -276,7 +276,7 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
             // stayed honest rather than lying under ε.
             match e {
                 SsiError::CertificateLimb { .. }
-                | SsiError::Escalated(_)
+                | SsiError::Escalated { .. }
                 | SsiError::CertificateEscalated { .. }
                 | SsiError::FitSampleBudget { .. }
                 | SsiError::ExhaustivenessInconclusive(_) => {}

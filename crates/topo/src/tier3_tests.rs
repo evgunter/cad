@@ -2263,7 +2263,7 @@ fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64
 
 /// `inner`'s extent lies strictly inside `outer`'s, componentwise.
 fn strictly_within(inner: (Point3<f64>, Point3<f64>), outer: (Point3<f64>, Point3<f64>)) -> bool {
-    let axes = |p: Point3<f64>| [p.x, p.y, p.z];
+    let axes = Point3::to_array;
     let (ilo, ihi) = (axes(inner.0), axes(inner.1));
     let (olo, ohi) = (axes(outer.0), axes(outer.1));
     (0..3).all(|i| ilo[i] > olo[i] && ihi[i] < ohi[i])

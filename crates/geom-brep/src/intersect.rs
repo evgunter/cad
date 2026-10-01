@@ -176,6 +176,46 @@ impl SurfaceKind {
     }
 }
 
+/// The closed kind tag of a [`Curve3`] variant, [`SurfaceKind`]'s
+/// carrier-side twin (D3: closed, compiler-enumerated).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CurveKind {
+    /// [`Curve3::Line`].
+    Line,
+    /// [`Curve3::Circle`].
+    Circle,
+    /// [`Curve3::Ellipse`].
+    Ellipse,
+    /// [`Curve3::Spiric`].
+    Spiric,
+    /// [`Curve3::Nurbs`].
+    Nurbs,
+}
+
+impl CurveKind {
+    /// The kind of a curve value.
+    pub fn of<T: Real>(c: &Curve3<T>) -> Self {
+        match c {
+            Curve3::Line { .. } => Self::Line,
+            Curve3::Circle { .. } => Self::Circle,
+            Curve3::Ellipse { .. } => Self::Ellipse,
+            Curve3::Spiric { .. } => Self::Spiric,
+            Curve3::Nurbs(_) => Self::Nurbs,
+        }
+    }
+
+    /// The kind's display name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Line => "line",
+            Self::Circle => "circle",
+            Self::Ellipse => "ellipse",
+            Self::Spiric => "spiric",
+            Self::Nurbs => "nurbs",
+        }
+    }
+}
+
 /// C1's three-rung intersection-locus ladder — where a pair's locus
 /// representation lives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

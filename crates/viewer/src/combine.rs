@@ -814,9 +814,11 @@ pub fn duplicate_step(
     let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;
     // The floor mesh's box diagonal: the body's size, read before a
     // chord can be chosen for it.
-    let [wx, wy, wz] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-        .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0));
-    let scale = Vec3::new(wx, wy, wz).norm();
+    let scale = Vec3::from_array(
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+            .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0)),
+    )
+    .norm();
     if !(scale.is_finite() && scale > 0.0) {
         return Err(DuplicateFault::NoExtent { input });
     }
@@ -832,8 +834,7 @@ pub fn duplicate_step(
 /// largest projection less the smallest. `None` for no points or a
 /// zero direction.
 fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) -> Option<f64> {
-    let [dx, dy, dz] = direction;
-    let direction = Vec3::new(dx, dy, dz);
+    let direction = Vec3::from_array(direction);
     let norm = direction.norm();
     if !(norm.is_finite() && norm > 0.0) {
         return None;

@@ -59,7 +59,7 @@ fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
 
 /// A kernel point as three lengths.
 fn point(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
-    lengths([p.x, p.y, p.z])
+    lengths(p.to_array())
 }
 
 /// A kernel vector as three plain numbers — a DIRECTION carries no

@@ -2,8 +2,9 @@
 id: node-labels-are-document-data
 kind: unit
 title: A node's label is document data the kernel stores and speaks: SetLabel, one Label type, kind+label+tag in every sentence
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-01
 priority: P1
 cost: H
 pr: 3713

@@ -54,7 +54,8 @@ So the "node N" against "feature N" choice no longer exists, and the identifier 
 
 That form arrives with `work/emit/node-labels-are-document-data`, so this row is parked on it.
 
-
 ## Closed 2026-10-01 — PR 3728
 
-`tree::node_number` went in PR 3631 (`295c2e786e`). In PR 3728 a failed row and a carried line in the same document speak the kernel's spoken node: `Extrude "…" (tag) failed: …`. The inner `node <tag>` in `PartFault`/`MateFault` names a tag the row shows, which is the resolution Ev accepted. Speaking those inner ids with their labels is `work/emit/memoized-refusals-speak-inner-nodes-through-the-frame`.
+`tree::node_number` went in PR 3631 (`295c2e786e`). In PR 3728 a failed row and a carried line in the same document speak the kernel's spoken node: `Extrude "…" (tag) failed: …`. So the row's question, "node N" against "feature N", is answered as Ev ruled: kind, label and tag everywhere.
+
+One leftover remains. The node ids inside a memoized failure, such as "repair node <tag>" in `PartFault` and `MateFault`, still print as a bare `node <tag>`. Ev did not accept that as a resolution. It is open work, owned by `work/emit/memoized-refusals-speak-inner-nodes-through-the-frame`.
