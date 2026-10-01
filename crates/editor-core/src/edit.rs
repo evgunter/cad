@@ -51,6 +51,14 @@ use geom_core::Tol;
 /// `SetAppearanceMeta`/`ClearAppearanceMeta`, spec D7). Each arm's own
 /// doc states what it does and what it refuses; every refusal is a
 /// typed [`EditError`].
+// `InsertNode` carries a whole `Node`, a mate's two frames included,
+// and every other arm is an id and a few fields. The lint measures the
+// gap to the next-largest arm, and the gap crossed its threshold when
+// `SetPlacement`'s `Frame` went, not when anything grew. Boxing the
+// node would tax every insert to slim arms that are already small.
+// The guard on growth that the lint was (`expr.rs`'s `Lit` pin) is
+// [`DOC_EDIT_SIZE`] below.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum DocEdit<P> {
@@ -472,6 +480,14 @@ pub enum DocEdit<P> {
         new_pin: crate::ident::ContentPin,
     },
 }
+
+/// **`DocEdit`'s size, pinned** (the profile instantiation the
+/// document log holds). A history is a `Vec` of these, so a node that
+/// grows grows every entry; this assertion fails the build when it
+/// does, where `large_enum_variant` no longer can (the allow above
+/// says why). Raise it on purpose, saying what grew.
+const DOC_EDIT_SIZE: usize = 304;
+const _: () = assert!(core::mem::size_of::<DocEdit<crate::ProfileProgram>>() <= DOC_EDIT_SIZE);
 
 impl<P> DocEdit<P> {
     /// **Whether this edit writes a mate's alignment datum** — the
