@@ -182,7 +182,7 @@ fn stacked(
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(body, ids[0], ids[1], seat),
+            node: Box::new(rest_mate(body, ids[0], ids[1], seat)),
         },
     );
     (doc, ids, mate.expect("the mate mints"), store, body)
@@ -411,13 +411,13 @@ fn row2_b_a_declaring_mate_mints_identically() {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(body, ids[0], ids[1], 1.0),
+            node: Box::new(rest_mate(body, ids[0], ids[1], 1.0)),
         },
     );
     let (doc, false_mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(body, ids[0], ids[2], 2.0),
+            node: Box::new(rest_mate(body, ids[0], ids[2], 2.0)),
         },
     );
     // Instance 0's top is at z = 1 and instance 2's bottom at z = 2,
@@ -429,7 +429,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
     let (doc, second) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(body, ids[1], ids[2], 1.0),
+            node: Box::new(rest_mate(body, ids[1], ids[2], 1.0)),
         },
     );
     let second = second.expect("the third mate mints");
@@ -780,7 +780,7 @@ fn remainder_with_a_neighbour(
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(body, neighbour, seated, 1.0),
+            node: Box::new(rest_mate(body, neighbour, seated, 1.0)),
         },
     );
     let outer = FaceName::new(in_part(neighbour, body, CapEnd::End))
@@ -1064,7 +1064,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(body, ids[0], ids[1], 1.0),
+            node: Box::new(rest_mate(body, ids[0], ids[1], 1.0)),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -1330,7 +1330,12 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
     if let Node::Mate { class, .. } = &mut node {
         *class = ContactClass::Tangent;
     }
-    let (doc, tangent) = step(doc, DocEdit::InsertNode { node });
+    let (doc, tangent) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+    );
     let tangent = tangent.expect("the tangent mate mints");
 
     // Door one: the solve admits it — no fault, and it took a role in
@@ -1411,7 +1416,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
     let (doc, grazing) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate_at(body, ids[0], ids[1], [1.0, 0.0, 1.0]),
+            node: Box::new(rest_mate_at(body, ids[0], ids[1], [1.0, 0.0, 1.0])),
         },
     );
     // Refuted: instance 2 seats at z = 3, and the mate declares its
@@ -1419,7 +1424,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
     let (doc, gapped) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(body, ids[0], ids[2], 3.0),
+            node: Box::new(rest_mate(body, ids[0], ids[2], 3.0)),
         },
     );
     let grazing = grazing.expect("the grazing mate mints");
@@ -1475,7 +1480,7 @@ fn a_coplanar_pair_with_disjoint_trims_is_refuted_as_stale() {
     let (doc, stale) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate_at(body, ids[0], ids[1], [2.0, 0.0, 1.0]),
+            node: Box::new(rest_mate_at(body, ids[0], ids[1], [2.0, 0.0, 1.0])),
         },
     );
     let stale = stale.expect("the mate mints");
@@ -1530,7 +1535,12 @@ fn the_mint_door_renders_each_class_its_own_reason() {
         if let Node::Mate { class: c, .. } = &mut node {
             *c = class;
         }
-        let (doc, mate) = step(doc, DocEdit::InsertNode { node });
+        let (doc, mate) = step(
+            doc,
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+        );
         let mate = mate.expect("the mate mints");
         let ev = run(&doc, &with_resolver(store));
         match assemble(&doc, &ev, Tol::witness()) {
@@ -1598,7 +1608,12 @@ fn every_admitted_class_has_a_wire_spelling() {
         if let Node::Mate { class: c, .. } = &mut node {
             *c = class;
         }
-        let (doc, _) = step(doc, DocEdit::InsertNode { node });
+        let (doc, _) = step(
+            doc,
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+        );
         let text =
             editor_core::save(&doc, &[], Tol::witness()).expect("an admitted class is savable");
         let back = editor_core::load(&text, Tol::witness()).expect("and loads back");
@@ -1632,7 +1647,12 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         }];
         *a = crate::fixture::head_at(a.at, name);
     }
-    let (doc, _) = step(doc, DocEdit::InsertNode { node });
+    let (doc, _) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+    );
     let ev = run(&doc, &with_resolver(store));
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
@@ -1721,7 +1741,7 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, PartStore) {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: crate::fixture::head(in_part(post_id, post_body, CapEnd::End)),
                 b: crate::fixture::head(in_part(shelf_id, shelf_body, CapEnd::Start)),
                 class: ContactClass::Rest,
@@ -1732,7 +1752,7 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, PartStore) {
                     sense: AxisSense::Aligned,
                     clocking: None,
                 },
-            },
+            }),
         },
     );
     (doc, mate.expect("the mate mints"), store)

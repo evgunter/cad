@@ -250,12 +250,12 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -335,23 +335,23 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
@@ -420,12 +420,12 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(p1, 1, in_part(leg1, l1_body, CapEnd::End)),
                 in_copy(p2, 1, in_part(leg2, l2_body, CapEnd::Start)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -488,12 +488,12 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -550,12 +550,12 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     // The second mate names copy 1, well formed at insert (the edit
@@ -565,12 +565,12 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
@@ -655,7 +655,7 @@ fn r2_nested_pattern_head_is_a_member() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(
                     outer,
                     1,
@@ -664,7 +664,7 @@ fn r2_nested_pattern_head_is_a_member() {
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -702,23 +702,23 @@ fn r2_plain_document_pose_bits() {
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_part(ia, a_body, CapEnd::End),
                 in_part(ib, b_body, CapEnd::Start),
                 [0.25, 0.5, 1.0],
                 AxisSense::Opposed,
-            ),
+            )),
         },
     );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_part(ib, b_body, CapEnd::End),
                 in_part(ic, c_body, CapEnd::Start),
                 [0.75, 0.125, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let _ = (m0.expect("m0 mints"), m1.expect("m1 mints"));

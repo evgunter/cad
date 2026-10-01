@@ -27,7 +27,9 @@ type TEdit = DocEdit<FakeProfile>;
 fn insert(doc: &TDoc, node: Node<FakeProfile>) -> (TDoc, RecipeNodeId) {
     let applied = apply(
         doc,
-        &TEdit::InsertNode { node },
+        &TEdit::InsertNode {
+            node: Box::new(node),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )

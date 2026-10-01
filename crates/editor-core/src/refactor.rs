@@ -2394,7 +2394,12 @@ pub fn split(
         {
             *offset = Some(crate::placement::Placement::IDENTITY);
         }
-        part_apply(&mut part, DocEdit::InsertNode { node })?;
+        part_apply(
+            &mut part,
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+        )?;
     }
     step_map_check(doc, &node_map, &step_map, &part.doc).map_err(SplitError::StepMapDiverged)?;
     // Witness DATA copies VERBATIM while node ids remap: sound because
@@ -2542,12 +2547,12 @@ pub fn split(
     let minted = rem_apply(
         &mut remainder,
         DocEdit::InsertNode {
-            node: Node::instantiate_part_with(
+            node: Box::new(Node::instantiate_part_with(
                 DocRef { id: part_id, pin },
                 InterfaceRecord { crossings },
                 anchor,
                 offset,
-            ),
+            )),
         },
     )?;
     let Some(instance) = minted else {
@@ -2964,7 +2969,12 @@ pub fn inline(
         {
             *held = Some(offset.clone());
         }
-        step(&mut current, DocEdit::InsertNode { node })?;
+        step(
+            &mut current,
+            DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+        )?;
     }
     step_map_check(&part, &node_map, &step_map, &current.doc)
         .map_err(InlineError::StepMapDiverged)?;

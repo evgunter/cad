@@ -221,12 +221,12 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::instantiate_part_with(
+            node: Box::new(Node::instantiate_part_with(
                 doc_ref,
                 record(),
                 None,
                 Some(editor_core::Placement::IDENTITY),
-            ),
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

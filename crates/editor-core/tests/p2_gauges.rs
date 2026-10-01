@@ -292,7 +292,7 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
         "an inserted instance sits at the world's origin"
     );
     let mate = DocEdit::InsertNode {
-        node: seat(head(p.top_cap(top)), head(p.base_cap(base))),
+        node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)))),
     };
     let applied = apply(&doc, &mate, Tol::witness(), &editor_core::RefusingReach)
         .expect("a mate with no rider asks no store");
@@ -312,10 +312,10 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     assert_eq!(replayed.maintenance, applied.maintenance);
     let log = vec![
         DocEdit::InsertNode {
-            node: Node::instantiate_part(p.base),
+            node: Box::new(Node::instantiate_part(p.base)),
         },
         DocEdit::InsertNode {
-            node: Node::instantiate_part(p.top),
+            node: Box::new(Node::instantiate_part(p.top)),
         },
         mate,
     ];
@@ -384,7 +384,9 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
                 node: upper,
                 gauge: Some(g),
             },
-            DocEdit::InsertNode { node: mate },
+            DocEdit::InsertNode {
+                node: Box::new(mate)
+            },
         ],
         "every member of the first operand's group, then the mate"
     );
@@ -1178,10 +1180,10 @@ fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
     let (faced, mate) = fixture::step_with(
         doc.clone(),
         DocEdit::InsertNode {
-            node: with_face_side(
+            node: Box::new(with_face_side(
                 seat(head(p.top_cap(top)), head(p.base_cap(base))),
                 from_face(top_bottom.clone()),
-            ),
+            )),
         },
         &reach,
     );
@@ -1224,10 +1226,10 @@ fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
     let (host, face_mate) = fixture::step_with(
         out.remainder.clone(),
         DocEdit::InsertNode {
-            node: with_face_side(
+            node: Box::new(with_face_side(
                 seat(head(through(top_bottom.clone())), head(p.base_cap(base))),
                 from_face(in_new_part(top_bottom)),
-            ),
+            )),
         },
         &store_reach,
     );

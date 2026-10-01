@@ -104,7 +104,7 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: assertion(frame_node, len(1.0)),
+            node: Box::new(assertion(frame_node, len(1.0))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -137,7 +137,7 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: assertion(measure, fixture::ang(0.5)),
+            node: Box::new(assertion(measure, fixture::ang(0.5))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -175,7 +175,7 @@ fn saved_assertion(
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
-            node: assertion(measure, bound),
+            node: Box::new(assertion(measure, bound)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -331,7 +331,7 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: mate(body, ids[0], ids[1], [f64::NAN, 0.0, 0.0]),
+            node: Box::new(mate(body, ids[0], ids[1], [f64::NAN, 0.0, 0.0])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

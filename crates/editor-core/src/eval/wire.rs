@@ -4629,7 +4629,7 @@ mod route_tests {
             let applied = doc
                 .apply(
                     &DocEdit::InsertNode {
-                        node: Node::declare_rest(Vec::new()),
+                        node: Box::new(Node::declare_rest(Vec::new())),
                     },
                     Tol::witness(),
                     &crate::mate::RefusingReach,

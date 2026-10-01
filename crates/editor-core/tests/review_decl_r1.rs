@@ -317,7 +317,7 @@ fn every_declaring_corpus_document_replays_in_document_order() {
         let mut declares_seen = 0;
         for (i, entry) in d.edits.iter().enumerate() {
             if let DocEdit::InsertNode { node } = entry {
-                match node {
+                match &**node {
                     Node::Declare { .. } => declares_seen += 1,
                     Node::Boolean {
                         declare: Some(_), ..

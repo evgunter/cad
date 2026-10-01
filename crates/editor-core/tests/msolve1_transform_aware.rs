@@ -168,10 +168,10 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head_at(a_at, in_part(base, base_body, CapEnd::End)),
                 crate::fixture::head_at(b_at, in_part(top, top_body, CapEnd::Start)),
-            ),
+            )),
         },
     );
     Scene {
@@ -406,10 +406,10 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(pattern, b.clone()),
-                ),
+                )),
             },
         );
         let mate = mate.unwrap();
@@ -473,10 +473,10 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     crate::fixture::head(a.clone()),
                     crate::fixture::head_at(xf, b.clone()),
-                ),
+                )),
             },
         );
         let mate = mate.unwrap();
@@ -672,16 +672,19 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(x1, b.clone()),
-            ),
+            )),
         },
     );
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(crate::fixture::head(a), crate::fixture::head_at(x2, b)),
+            node: Box::new(seat(
+                crate::fixture::head(a),
+                crate::fixture::head_at(x2, b),
+            )),
         },
     );
     (doc, opts, [m1.unwrap(), m2.unwrap()])
@@ -794,12 +797,12 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat_with(
+                node: Box::new(seat_with(
                     crate::fixture::head(in_part(base, base_body, CapEnd::End)),
                     crate::fixture::head_at(at, in_part(top, top_body, CapEnd::Start)),
                     MatePrimitive::Coaxial,
                     Some(0.0),
-                ),
+                )),
             },
         );
         let o = EvalOptions {
@@ -898,10 +901,10 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
         .doc
         .apply(
             &DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     crate::fixture::head_at(ghost, in_part(s.base, s.base_body, CapEnd::End)),
                     crate::fixture::head(in_part(s.top, s.top_body, CapEnd::Start)),
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -969,13 +972,13 @@ fn a8c_the_content_key_separates_two_operands() {
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
-                node: seat(
+                node: Box::new(seat(
                     crate::fixture::head(in_part(base, base_body, CapEnd::End)),
                     crate::fixture::head_at(
                         if at_transform { xf } else { top },
                         in_part(top, top_body, CapEnd::Start),
                     ),
-                ),
+                )),
             },
         );
         let ev = run(&doc, &opts);
@@ -1082,10 +1085,10 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, nested.clone()),
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -1220,10 +1223,10 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head(in_part(base, base_body, CapEnd::End)),
                 crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start)),
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -1461,10 +1464,10 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 crate::fixture::head(a.clone()),
                 crate::fixture::head_at(outer, nested.clone()),
-            ),
+            )),
         },
     );
     let mate = mate.unwrap();
@@ -1579,7 +1582,9 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     // alone, so the edit door refuses it where the mate is authored
     // with the solve's own fault; a seating one enters and solves.
     let inserted = doc.apply(
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     );

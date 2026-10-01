@@ -84,14 +84,19 @@ fn spine_doc(
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Datum(Datum::Axis {
+            node: Box::new(Node::Datum(Datum::Axis {
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: axis_dir.map(scl),
-            }),
+            })),
         },
     );
     let spine = *doc.order().last().expect("the datum is there");
-    doc = push(&doc, &DocEdit::InsertNode { node: build(spine) });
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(build(spine)),
+        },
+    );
     let tube = *doc.order().last().expect("the tube is there");
     (doc, tube)
 }
@@ -415,37 +420,37 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Datum(Datum::Axis {
+            node: Box::new(Node::Datum(Datum::Axis {
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
-            }),
+            })),
         },
     );
     let spine = *doc.order().last().expect("datum");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(r),
                 window: arc(t0, t1),
                 minor_radius: len(outer),
-            },
+            }),
         },
     );
     let solid = *doc.order().last().expect("solid");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::HollowTube {
+            node: Box::new(Node::HollowTube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(r),
                 window: arc(t0, t1),
                 minor_radius: len(outer),
                 wall: len(wall),
-            },
+            }),
         },
     );
     let hollow = *doc.order().last().expect("hollow");
@@ -752,22 +757,22 @@ fn a_spine_that_is_not_an_axis_refuses_at_the_operand() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Datum(Datum::Point {
+            node: Box::new(Node::Datum(Datum::Point {
                 position: [len(0.0), len(0.0), len(0.0)],
-            }),
+            })),
         },
     );
     let point = *doc.order().last().expect("datum point");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine: point,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
-            },
+            }),
         },
     );
     let tube = *doc.order().last().expect("tube");

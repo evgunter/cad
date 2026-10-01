@@ -129,7 +129,7 @@ impl Twins {
             RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
         );
         let edit = DocEdit::InsertNode {
-            node: Node::fillet(sq, len(0.1), vec![fourth.clone()]),
+            node: Box::new(Node::fillet(sq, len(0.1), vec![fourth.clone()])),
         };
         Self {
             square,
@@ -304,7 +304,7 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
         RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
     );
     let edit = DocEdit::InsertNode {
-        node: Node::fillet(sq, len(0.1), vec![fourth]),
+        node: Box::new(Node::fillet(sq, len(0.1), vec![fourth])),
     };
     assert!(
         apply_with_names(&moved, &edit, &ev_square, tol, &editor_core::RefusingReach).is_ok(),

@@ -481,7 +481,9 @@ pub fn declare_all<P: Clone + crate::ProfilePayload>(
     // reach, and the refusing one is the honest value here.
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         tol,
         &crate::mate::RefusingReach,
     )

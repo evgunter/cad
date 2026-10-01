@@ -125,12 +125,12 @@ fn four_legs(
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, i, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 sense,
-            ),
+            )),
         },
     );
     (doc, leg, pattern, top, mate.expect("the mate mints"), store)
@@ -246,12 +246,12 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.5, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -322,23 +322,23 @@ fn two_seats(
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     (
@@ -522,13 +522,13 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat([0.0, 0.0, 1.0]),
+            node: Box::new(seat([0.0, 0.0, 1.0])),
         },
     );
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat([0.5, 0.0, 1.0]),
+            node: Box::new(seat([0.5, 0.0, 1.0])),
         },
     );
     let m0 = m0.expect("mate 0 mints");
@@ -580,12 +580,12 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_part(leg, leg_body, CapEnd::End),
                 in_part(top, top_body, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -733,12 +733,12 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
     let (doc, declared) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat_mate(
+            node: Box::new(seat_mate(
                 in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
                 in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
-            ),
+            )),
         },
     );
     let declared = declared.expect("the mate mints");

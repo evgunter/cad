@@ -105,8 +105,15 @@ pub fn xy_frame() -> Node<ProfileProgram> {
 /// If a door refuses an insert.
 pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
-        let a = crate::apply(&doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
-            .expect("the clipped cylinder's inserts apply");
+        let a = crate::apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            tol,
+            &RefusingReach,
+        )
+        .expect("the clipped cylinder's inserts apply");
         (a.doc, a.record.minted.expect("an insert mints a node"))
     };
     let doc = ProfileDoc::empty_derived("clipped_cylinder", tol);

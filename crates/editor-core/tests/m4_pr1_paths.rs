@@ -27,7 +27,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
     let a = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Profile(FakeProfile("square")),
+                node: Box::new(Node::Profile(FakeProfile("square"))),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -39,7 +39,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
         .doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Extrude { profile, distance },
+                node: Box::new(Node::Extrude { profile, distance }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -64,9 +64,9 @@ fn expr_path_survives_edits_to_other_expressions() {
     let c = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Datum(Datum::Point {
+                node: Box::new(Node::Datum(Datum::Point {
                     position: [len(0.0), len(0.0), len(0.0)],
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -139,7 +139,7 @@ fn recipe_node_ids_are_never_reused() {
     let a = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Profile(FakeProfile("p0")),
+                node: Box::new(Node::Profile(FakeProfile("p0"))),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -158,7 +158,7 @@ fn recipe_node_ids_are_never_reused() {
         .doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Profile(FakeProfile("p1")),
+                node: Box::new(Node::Profile(FakeProfile("p1"))),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -177,10 +177,10 @@ fn dangling_ref_rejected() {
     let err = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: ghost,
                     distance: len(0.01),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -198,10 +198,10 @@ fn self_reference_cannot_forge_the_next_id() {
     let err = doc
         .apply(
             &TEdit::InsertNode {
-                node: Node::Extrude {
+                node: Box::new(Node::Extrude {
                     profile: guessed,
                     distance: len(0.01),
-                },
+                }),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

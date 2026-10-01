@@ -450,7 +450,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
         let applied = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::instantiate_part(doc_ref),
+                node: Box::new(Node::instantiate_part(doc_ref)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -475,7 +475,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: crate::fixture::head(name(ids[0])),
                 b: crate::fixture::head(name(ids[1])),
                 class: ContactClass::Rest,
@@ -486,7 +486,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            },
+            }),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

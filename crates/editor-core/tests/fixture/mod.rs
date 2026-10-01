@@ -423,7 +423,12 @@ pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
 }
 
 pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, minted) = step(doc, DocEdit::InsertNode { node });
+    let (doc, minted) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+    );
     (doc, minted.unwrap())
 }
 
@@ -442,7 +447,13 @@ pub fn at_the_door(
     reach: &dyn MateReach,
     node: Node<ProfileProgram>,
 ) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, editor_core::MateFault)> {
-    match doc.apply(&DocEdit::InsertNode { node }, Tol::witness(), reach) {
+    match doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        Tol::witness(),
+        reach,
+    ) {
         Ok(applied) => {
             let id = applied.record.minted.expect("an insert mints an id");
             Ok((applied.doc, id))
@@ -800,7 +811,10 @@ impl Recorder {
 
     /// Inserts a node, returning its minted id.
     pub fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
-        self.push(DocEdit::InsertNode { node }).expect("minted id")
+        self.push(DocEdit::InsertNode {
+            node: Box::new(node),
+        })
+        .expect("minted id")
     }
 
     /// **A frame and a profile drawn on it**, returning the PROFILE's

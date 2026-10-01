@@ -145,14 +145,14 @@ fn doc_of(program: LoopProgram) -> ProfileDoc {
 fn edits_of(program: LoopProgram) -> [DocEdit<ProfileProgram>; 2] {
     [
         DocEdit::InsertNode {
-            node: fixture::xy_frame(),
+            node: Box::new(fixture::xy_frame()),
         },
         DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane: plane(),
                 loops: vec![program],
                 ids: Vec::new(),
-            }),
+            })),
         },
     ]
 }

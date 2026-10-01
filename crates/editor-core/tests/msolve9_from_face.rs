@@ -150,11 +150,11 @@ fn seat(label: &str, post_height: f64) -> Seat {
     let (doc, mate) = step_with(
         doc,
         DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
                 (post_i, post_body),
                 (block_i, block_body),
                 coincide(from_face(&cap(post_body, CapEnd::End)), identity()),
-            ),
+            )),
         },
         &reach,
     );
@@ -836,7 +836,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     // post's: the entry carries the rows that door minted, which is
     // what replay re-applies.
     let logged = DocEdit::InsertNode {
-        node: s.doc.node(s.mate).expect("the mate").clone(),
+        node: Box::new(s.doc.node(s.mate).expect("the mate").clone()),
     };
     let (unmated, _) = step_with(s.doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
     unmated
@@ -1036,7 +1036,11 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
     edit_the_post(
         &mut s,
         DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, 5.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, 5.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
         },
     );
     let cap_after = cap_pose(&s.post, s.post_body, CapEnd::End);
@@ -1312,11 +1316,11 @@ fn a_face_side_authors_no_number_the_finiteness_door_sees() {
         .doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate(
+                node: Box::new(mate(
                     (s.post_i, s.post_body),
                     (s.block_i, s.block_body),
                     coincide(from_face(&cap(s.post_body, CapEnd::End)), poisoned),
-                ),
+                )),
             },
             Tol::witness(),
             &RefusingReach,

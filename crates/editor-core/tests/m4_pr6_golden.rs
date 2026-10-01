@@ -94,7 +94,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: fixture::xy_frame(),
+            node: Box::new(fixture::xy_frame()),
         },
     );
     let plane = editor_core::RecipeNodeId(0);
@@ -115,16 +115,16 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(d),
+            node: Box::new(Node::Profile(d)),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: editor_core::RecipeNodeId(1),
                 distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
-            },
+            }),
         },
     );
     // #101 tangency coverage in the FROZEN bytes: a hand-DECLARED
@@ -158,11 +158,11 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![bracket],
                 ids: Vec::new(),
-            }),
+            })),
         },
     );
     // v4: the constructed fillet authors as the chain fillet form
@@ -188,11 +188,11 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![fillet_loop],
                 ids: Vec::new(),
-            }),
+            })),
         },
     );
     // v16's own wire shape, in the frozen bytes: a `Node::Chamfer`
@@ -223,26 +223,26 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(square),
+            node: Box::new(Node::Profile(square)),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: editor_core::RecipeNodeId(5),
                 distance: len(0.5),
-            },
+            }),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::chamfer(
+            node: Box::new(Node::chamfer(
                 editor_core::RecipeNodeId(6),
                 len(0.1),
                 fixture::prism_edges(&doc, editor_core::RecipeNodeId(6), 4),
-            ),
+            )),
         },
     );
     doc = push(
@@ -295,30 +295,32 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(
-                editor_core::MeasureExpr::sub(
-                    editor_core::MeasureExpr::value(Expr::param(
-                        ParamName::from_static("depth"),
-                        Dimension::Length,
-                    )),
-                    editor_core::MeasureExpr::value(len(0.25)),
+            node: Box::new(
+                Node::measure(
+                    editor_core::MeasureExpr::sub(
+                        editor_core::MeasureExpr::value(Expr::param(
+                            ParamName::from_static("depth"),
+                            Dimension::Length,
+                        )),
+                        editor_core::MeasureExpr::value(len(0.25)),
+                    )
+                    .expect("same-dimension subtraction"),
+                    // Read at node 2, the extrude that owns the body: the
+                    // reference is unindexed by this expression, so it is
+                    // carried data the measure never reads.
+                    vec![editor_core::SitedRef::new(
+                        editor_core::RecipeNodeId(2),
+                        body.clone(),
+                    )],
                 )
-                .expect("same-dimension subtraction"),
-                // Read at node 2, the extrude that owns the body: the
-                // reference is unindexed by this expression, so it is
-                // carried data the measure never reads.
-                vec![editor_core::SitedRef::new(
-                    editor_core::RecipeNodeId(2),
-                    body.clone(),
-                )],
-            )
-            .expect("every index addresses a reference"),
+                .expect("every index addresses a reference"),
+            ),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 // The `Measure` pushed immediately above. Ids in this
                 // document are positional, so a node inserted EARLIER
                 // shifts this one — the insert door catches that
@@ -327,7 +329,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 measure: editor_core::RecipeNodeId(8),
                 bound: len(0.1),
                 dir: editor_core::AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     // BOTH tube kinds, and both window spellings between them. Two
@@ -355,10 +357,10 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Datum(editor_core::Datum::Axis {
+            node: Box::new(Node::Datum(editor_core::Datum::Axis {
                 origin: [len0(), len0(), len0()],
                 direction: [scl(0.0), scl(0.0), scl(1.0)],
-            }),
+            })),
         },
     );
     // The axis just inserted, found by kind rather than by the literal
@@ -379,19 +381,19 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: editor_core::TubeWindow::Full,
                 minor_radius: len(0.5),
-            },
+            }),
         },
     );
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::HollowTube {
+            node: Box::new(Node::HollowTube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
@@ -401,7 +403,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 },
                 minor_radius: len(0.5),
                 wall: len(0.125),
-            },
+            }),
         },
     );
     // The shell's wire shape: an `open` list of face names in
@@ -418,27 +420,27 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(desc(
+            node: Box::new(Node::Profile(desc(
                 plane,
                 vec![vec![(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)]],
-            )),
+            ))),
         },
     );
     let box_profile = *doc.order().last().expect("the square was inserted");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: box_profile,
                 distance: len(0.5),
-            },
+            }),
         },
     );
     let block = *doc.order().last().expect("the box was inserted");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::shell(
+            node: Box::new(Node::shell(
                 block,
                 len(0.0625),
                 vec![StableName {
@@ -446,7 +448,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                     node: block,
                     path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
                 }],
-            ),
+            )),
         },
     );
     // The committed EDIT LOG half: one trailing continuous edit —

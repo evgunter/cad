@@ -259,7 +259,7 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate(body, ids[0], ids[1], alignment),
+                node: Box::new(mate(body, ids[0], ids[1], alignment)),
             },
             Tol::witness(),
             &reach,
@@ -458,7 +458,7 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
         ..seat(Some(0.0))
     };
     let edit = DocEdit::InsertNode {
-        node: mate(body, ids[0], ids[1], alignment),
+        node: Box::new(mate(body, ids[0], ids[1], alignment)),
     };
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
     let log = vec![edit.clone()];
@@ -519,7 +519,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let snapshot = doc.clone();
     let edit = DocEdit::InsertNode {
-        node: mate(body, ids[0], ids[1], seat(Some(0.0))),
+        node: Box::new(mate(body, ids[0], ids[1], seat(Some(0.0)))),
     };
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
     let log = vec![edit.clone()];
@@ -531,7 +531,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
     // The hand-edited entry: a rider on a planar rest, spliced in as
     // a bare entry at index 1.
     let gap = DocEdit::InsertNode {
-        node: mate(
+        node: Box::new(mate(
             body,
             ids[0],
             ids[1],
@@ -539,7 +539,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
                 primitive: MatePrimitive::PlanarRest { offset: 0.0 },
                 ..seat(Some(0.3))
             },
-        ),
+        )),
     };
     let gap_wire = serde_json::to_value(&gap).expect("an entry serializes");
     let doctored = wire::doctored(&text, |wire| {
@@ -569,12 +569,12 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
     // A contradictory rider, hand-edited in, replays: no reach, no
     // decision, and the evaluation's solve refuses it as before.
     let contradictory = DocEdit::InsertNode {
-        node: mate(
+        node: Box::new(mate(
             body,
             ids[0],
             ids[1],
             seat(Some(core::f64::consts::FRAC_PI_2)),
-        ),
+        )),
     };
     let wire_entry = serde_json::to_value(&contradictory).expect("serializes");
     let doctored = wire::doctored(&text, |wire| {
@@ -945,7 +945,7 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = step_with(
             doc,
             DocEdit::InsertNode {
-                node: mate(body, ids[0], ids[1], alignment),
+                node: Box::new(mate(body, ids[0], ids[1], alignment)),
             },
             &reach,
         );
@@ -1070,7 +1070,7 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = step_with(
             doc,
             DocEdit::InsertNode {
-                node: mate(body, ids[0], ids[1], seat(None)),
+                node: Box::new(mate(body, ids[0], ids[1], seat(None))),
             },
             &reach,
         );
@@ -1144,7 +1144,11 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = step_with(
             doc,
             DocEdit::InsertNode {
-                node: mate_across((ids[0], body), (lost, lost_body), seat(Some(0.0))),
+                node: Box::new(mate_across(
+                    (ids[0], body),
+                    (lost, lost_body),
+                    seat(Some(0.0)),
+                )),
             },
             &reach,
         );
@@ -1159,12 +1163,12 @@ fn corpus() -> Vec<Row> {
         // the edit through the same door, which re-decides nothing it
         // levers through a reach.
         let entry = DocEdit::InsertNode {
-            node: mate(
+            node: Box::new(mate(
                 body,
                 ids[0],
                 ids[1],
                 seat(Some(core::f64::consts::FRAC_PI_2)),
-            ),
+            )),
         };
         let entry = serde_json::to_value(&entry).expect("serializes");
         let doctored = wire::doctored(&text, |wire| {

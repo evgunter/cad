@@ -650,7 +650,7 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate_node(
+                node: Box::new(mate_node(
                     wrap(
                         instance,
                         in_part(inner_instances[0], cube_body, CapEnd::End),
@@ -661,7 +661,7 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
                     ),
                     ContactClass::Rest,
                     frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

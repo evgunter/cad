@@ -86,7 +86,9 @@ fn insert(
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     let applied = pncad::document::apply(
         &doc,
-        &pncad::document::DocEdit::InsertNode { node },
+        &pncad::document::DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
     )
@@ -1978,7 +1980,9 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     // walk, which reaches both alike.
     let framed = apply(
         &doc,
-        &DocEdit::InsertNode { node: xy_frame() },
+        &DocEdit::InsertNode {
+            node: Box::new(xy_frame()),
+        },
         tol,
         &pncad::document::RefusingReach,
     )
@@ -1987,11 +1991,11 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     let applied = apply(
         &framed.doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![square],
                 ids: Vec::new(),
-            }),
+            })),
         },
         tol,
         &pncad::document::RefusingReach,

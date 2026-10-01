@@ -2046,7 +2046,9 @@ fn insert(
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     let applied = pncad::document::apply(
         &doc,
-        &pncad::document::DocEdit::InsertNode { node },
+        &pncad::document::DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
     )
@@ -3791,12 +3793,12 @@ fn asm_r2b_child_crossing_probe() {
     let doc = pncad::document::apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::instantiate_part_with(
+            node: Box::new(Node::instantiate_part_with(
                 doc_ref,
                 record,
                 None,
                 Some(pncad::document::Placement::IDENTITY),
-            ),
+            )),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,

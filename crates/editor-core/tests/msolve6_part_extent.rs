@@ -783,25 +783,25 @@ fn seated(
     let a = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::instantiate_part(part_ref),
+            node: Box::new(Node::instantiate_part(part_ref)),
         },
     )
     .unwrap();
     let b = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::instantiate_part(part_ref),
+            node: Box::new(Node::instantiate_part(part_ref)),
         },
     )
     .unwrap();
     let mate = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: clocked(
+            node: Box::new(clocked(
                 (a, body),
                 (b, body),
                 coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
-            ),
+            )),
         },
     )
     .unwrap();
@@ -878,11 +878,11 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
     let applied = doc
         .apply(
             &DocEdit::InsertNode {
-                node: clocked(
+                node: Box::new(clocked(
                     (b, body),
                     (c, body),
                     coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
-                ),
+                )),
             },
             tol,
             &counting,
@@ -923,7 +923,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::declare_rest(Vec::new()),
+                node: Box::new(Node::declare_rest(Vec::new())),
             },
             tol,
             &counting,
@@ -933,7 +933,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::instantiate_part(part_ref),
+                node: Box::new(Node::instantiate_part(part_ref)),
             },
             tol,
             &counting,

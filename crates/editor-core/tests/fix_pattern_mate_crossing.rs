@@ -145,10 +145,10 @@ fn four_legs(
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(
+            node: Box::new(seat(
                 in_copy(pattern, COPY, in_part(leg, leg_body, CapEnd::End)),
                 in_part(top, top_body, CapEnd::Start),
-            ),
+            )),
         },
     );
     (doc, leg, pattern, top, mate.unwrap(), leg_body)
@@ -452,7 +452,9 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     *a = crate::fixture::head_at(stranger, (*a.name).clone());
     let err = doc
         .apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         )

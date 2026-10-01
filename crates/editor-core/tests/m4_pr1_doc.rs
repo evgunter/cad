@@ -102,17 +102,17 @@ fn author_die() -> Die {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("square-20mm")),
+            node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
         },
     );
     let (doc, cube) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: cube_profile.unwrap(),
                 distance: len(2.0 * HALF),
-            },
+            }),
         },
     );
     // Pip tool: profile wrap + extrude by the pip_depth parameter.
@@ -120,17 +120,17 @@ fn author_die() -> Die {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("circle-2mm")),
+            node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
         },
     );
     let (mut doc, pip_extrude) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap(),
                 distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
-            },
+            }),
         },
     );
     let pip_extrude = pip_extrude.unwrap();
@@ -154,26 +154,26 @@ fn author_die() -> Die {
                 doc,
                 &mut log,
                 TEdit::InsertNode {
-                    node: Node::transform(
+                    node: Box::new(Node::transform(
                         pip_extrude,
                         editor_core::Step::Rigid {
                             translation: [len(t[0]), len(t[1]), len(t[2])],
                             axis: [scl(rot_axis[0]), scl(rot_axis[1]), scl(rot_axis[2])],
                             angle: ang(rot_angle),
                         },
-                    ),
+                    )),
                 },
             );
             let (d3, cut) = step(
                 d2,
                 &mut log,
                 TEdit::InsertNode {
-                    node: Node::Boolean {
+                    node: Box::new(Node::Boolean {
                         op: editor_core::BooleanOp::Subtract,
                         a: body,
                         b: placed.unwrap(),
                         declare: None,
-                    },
+                    }),
                 },
             );
             doc = d3;

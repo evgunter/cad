@@ -225,7 +225,13 @@ mod tests {
         let node = test_support::xy_frame();
         let kind = node_kind_noun(&node);
         let doc = empty
-            .apply(&DocEdit::InsertNode { node }, tol, &RefusingReach)
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Box::new(node),
+                },
+                tol,
+                &RefusingReach,
+            )
             .expect("the frame inserts")
             .doc;
         let id = *doc.order().last().expect("the inserted frame");

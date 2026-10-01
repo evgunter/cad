@@ -891,7 +891,14 @@ impl Doc {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-        let applied = d::apply(&self.inner, &d::DocEdit::InsertNode { node }, tol, &reach)?;
+        let applied = d::apply(
+            &self.inner,
+            &d::DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            tol,
+            &reach,
+        )?;
         if applied.record.minted.is_none() {
             return Ok(None);
         }
@@ -3534,7 +3541,7 @@ impl DocEdit {
     fn insert_node(node: &Node) -> Self {
         Self {
             inner: d::DocEdit::InsertNode {
-                node: node.inner.clone(),
+                node: Box::new(node.inner.clone()),
             },
         }
     }

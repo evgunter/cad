@@ -248,7 +248,7 @@ fn the_empty_chain_is_the_identity_at_both_doors() {
     let (doc, placed) = step(
         doc,
         DocEdit::InsertNode {
-            node: Node::transform(body, Placement::IDENTITY),
+            node: Box::new(Node::transform(body, Placement::IDENTITY)),
         },
     );
     let placed = placed.expect("the edit door admits the empty chain");
@@ -283,10 +283,10 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
     stretched.columns[1] = [0.0, 2.0, 0.0];
     let (doc, body) = cube("placement-refused");
     let at = |frame: &Frame| DocEdit::InsertNode {
-        node: Node::transform(
+        node: Box::new(Node::transform(
             body,
             Placement::from(about_z([0.0; 3], 0.0)).compose(&Placement::literal(frame)),
-        ),
+        )),
     };
     let door = |edit| {
         editor_core::apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach).map(|_| ())
@@ -479,11 +479,11 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     match door(
         &doc,
         DocEdit::InsertNode {
-            node: chain(Step::Rigid {
+            node: Box::new(chain(Step::Rigid {
                 translation: [ang(1.0), len(0.0), len(0.0)],
                 axis: [scl(0.0), scl(0.0), scl(1.0)],
                 angle: ang(0.0),
-            }),
+            })),
         },
     ) {
         Err(EditError::SlotDimensionMismatch { slot, .. }) => assert_eq!(slot, x),
@@ -498,7 +498,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         door(
             &doc,
             DocEdit::InsertNode {
-                node: chain(unknown)
+                node: Box::new(chain(unknown))
             }
         )
         .is_err(),
@@ -507,11 +507,11 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
 
     let snapshot = doc.clone();
     let insert_edit = DocEdit::InsertNode {
-        node: chain(Step::Rigid {
+        node: Box::new(chain(Step::Rigid {
             translation: [len(0.0), len(0.0), len(0.0)],
             axis: [scl(0.0), scl(0.0), scl(1.0)],
             angle: Expr::param(turn, Dimension::Angle),
-        }),
+        })),
     };
     let (doc, t) = step(doc, insert_edit.clone());
     let t = t.expect("the chain inserts");

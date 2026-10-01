@@ -67,7 +67,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Datum(Datum::Frame {
+                node: Box::new(Node::Datum(Datum::Frame {
                     origin: [fixture::len(0.0), fixture::len(0.0), fixture::len(0.0)],
                     u: [
                         fixture::scl(1.0),
@@ -75,7 +75,7 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
                         fixture::scl(0.0),
                     ],
                     v: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -84,10 +84,10 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
         .doc;
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(fixture::desc(
+            node: Box::new(Node::Profile(fixture::desc(
                 frame(&doc),
                 vec![fixture::square(0.0, 0.0, 1.0)],
-            )),
+            ))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

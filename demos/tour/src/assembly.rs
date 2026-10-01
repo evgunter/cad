@@ -233,8 +233,15 @@ fn insert_through(
     tol: Tol,
     reach: &dyn MateReach,
 ) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, reach)
-        .unwrap_or_else(|err| panic!("the insert applies: {err:?}"));
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+        tol,
+        reach,
+    )
+    .unwrap_or_else(|err| panic!("the insert applies: {err:?}"));
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }

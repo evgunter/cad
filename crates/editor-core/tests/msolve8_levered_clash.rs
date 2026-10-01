@@ -154,7 +154,12 @@ fn mate(
 
 /// Inserts `node`, unwrapping the id every insert here mints.
 fn add(doc: ProfileDoc, node: Node<editor_core::ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = step(doc, DocEdit::InsertNode { node });
+    let (doc, id) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+        },
+    );
     (doc, id.expect("the insert minted an id"))
 }
 
@@ -1117,7 +1122,7 @@ fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
         let (next, id) = step(
             doc,
             DocEdit::InsertNode {
-                node: Node::instantiate_part(doc_ref),
+                node: Box::new(Node::instantiate_part(doc_ref)),
             },
         );
         doc = next;
@@ -1144,7 +1149,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
         let err = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: mate(
+                    node: Box::new(mate(
                         body,
                         ids[x],
                         ids[y],
@@ -1155,7 +1160,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
                             z_up_at([0.0, 0.0, 1.0]),
                             None,
                         ),
-                    ),
+                    )),
                 },
                 tol,
                 &editor_core::RefusingReach,

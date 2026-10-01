@@ -257,13 +257,13 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         // The frame first: the profile names it, so a replay that
         // skipped it would insert a profile with an unresolved input.
         DocEdit::InsertNode {
-            node: doc3.node(plane).unwrap().clone(),
+            node: Box::new(doc3.node(plane).unwrap().clone()),
         },
         DocEdit::InsertNode {
-            node: crate::fixture::as_authored(doc3.node(p).unwrap()),
+            node: Box::new(crate::fixture::as_authored(doc3.node(p).unwrap())),
         },
         DocEdit::InsertNode {
-            node: doc3.node(ext).unwrap().clone(),
+            node: Box::new(doc3.node(ext).unwrap().clone()),
         },
         DocEdit::SetAppearance {
             name: cap,

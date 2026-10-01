@@ -51,14 +51,6 @@ use geom_core::Tol;
 /// `SetAppearanceMeta`/`ClearAppearanceMeta`, spec D7). Each arm's own
 /// doc states what it does and what it refuses; every refusal is a
 /// typed [`EditError`].
-// `InsertNode` carries a whole `Node`, a mate's two frames included,
-// and every other arm is an id and a few fields. The lint measures the
-// gap to the next-largest arm, and the gap crossed its threshold when
-// `SetPlacement`'s `Frame` went, not when anything grew. Boxing the
-// node would tax every insert to slim arms that are already small.
-// The guard on growth that the lint was (`expr.rs`'s `Lit` pin) is
-// [`DOC_EDIT_SIZE`] below.
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum DocEdit<P> {
@@ -67,8 +59,10 @@ pub enum DocEdit<P> {
     /// [`EditRecord`]. Input refs must resolve to EXISTING nodes —
     /// which is also why insertion can never create a cycle.
     InsertNode {
-        /// The node payload (data only, spec D3).
-        node: Node<P>,
+        /// The node payload (data only, spec D3), boxed: a whole node,
+        /// a mate's two frames included, is many times every other
+        /// arm, and a history is a `Vec` of edits.
+        node: Box<Node<P>>,
     },
     /// Delete a node. Refused while any live node holds it as an
     /// INPUT (typed, spec D3/D6); the id is never reused afterwards.
@@ -481,14 +475,6 @@ pub enum DocEdit<P> {
     },
 }
 
-/// **`DocEdit`'s size, pinned** (the profile instantiation the
-/// document log holds). A history is a `Vec` of these, so a node that
-/// grows grows every entry; this assertion fails the build when it
-/// does, where `large_enum_variant` no longer can (the allow above
-/// says why). Raise it on purpose, saying what grew.
-const DOC_EDIT_SIZE: usize = 304;
-const _: () = assert!(core::mem::size_of::<DocEdit<crate::ProfileProgram>>() <= DOC_EDIT_SIZE);
-
 impl<P> DocEdit<P> {
     /// **Whether this edit writes a mate's alignment datum** — the
     /// numbers, the primitive, the sense and the rider the solve's
@@ -503,7 +489,7 @@ impl<P> DocEdit<P> {
     /// datum past the admission.
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
         match self {
-            Self::InsertNode { node } => matches!(node, Node::Mate { .. }),
+            Self::InsertNode { node } => matches!(&**node, Node::Mate { .. }),
             // A reshaping rebinds or retires the NAMES a mate's heads
             // hold — `Rebind`'s motion over every name at once — and
             // never touches a datum; a head it strands is N5's, the
@@ -3348,7 +3334,9 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
             }
         }
     }
-    edits.push(DocEdit::InsertNode { node: mate });
+    edits.push(DocEdit::InsertNode {
+        node: Box::new(mate),
+    });
     Ok(edits)
 }
 
@@ -3502,7 +3490,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             // program entering the document resolves + replays +
             // validates under the CURRENT param env, refusing typed
             // here rather than at first evaluation.
-            if let Node::Profile(p) = node {
+            if let Node::Profile(p) = &**node {
                 p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
                     EditError::ProfileProgramRefused {
                         node: id,
@@ -3512,7 +3500,7 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             }
             // N1: every authored step is minted its id here, from the
             // document's mint chain.
-            let mut node = node.clone();
+            let mut node = (**node).clone();
             if let Node::Profile(p) = &mut node {
                 p.mint_step_ids(id, &mut new.step_mint)
                     .map_err(|fault| EditError::StepIdsRefused { node: id, fault })?;
@@ -4370,7 +4358,7 @@ mod tests {
         };
         let frame = crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
         let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
-            node: crate::node::Node::Mate {
+            node: Box::new(crate::node::Node::Mate {
                 a: crate::node::SitedFace::at_mint(
                     crate::names::FaceName::new(name(id)).expect("a face"),
                 ),
@@ -4386,14 +4374,14 @@ mod tests {
                     sense: crate::mate::AxisSense::Aligned,
                     clocking: None,
                 },
-            },
+            }),
         };
         assert!(mate.writes_a_mates_datum());
         let others: [DocEdit<ProfileProgram>; 3] = [
             DocEdit::InsertNode {
-                node: crate::node::Node::Datum(crate::node::Datum::Point {
+                node: Box::new(crate::node::Node::Datum(crate::node::Datum::Point {
                     position: [len(0.0), len(0.0), len(0.0)],
-                }),
+                })),
             },
             DocEdit::Rebind {
                 from: name(id),

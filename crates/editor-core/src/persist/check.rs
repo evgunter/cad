@@ -1984,7 +1984,7 @@ mod tests {
             let applied = crate::edit::apply(
                 &doc,
                 &crate::edit::DocEdit::InsertNode {
-                    node: Node::instantiate_part(doc_ref),
+                    node: Box::new(Node::instantiate_part(doc_ref)),
                 },
                 Tol::witness(),
                 &crate::mate::RefusingReach,
@@ -2031,7 +2031,9 @@ mod tests {
         };
         let applied = crate::edit::apply(
             &doc,
-            &crate::edit::DocEdit::InsertNode { node: mate },
+            &crate::edit::DocEdit::InsertNode {
+                node: Box::new(mate),
+            },
             Tol::witness(),
             &crate::mate::RefusingReach,
         )

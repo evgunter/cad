@@ -183,12 +183,12 @@ fn row1e_undo_restores_the_prior_root_list() {
     for edit in [
         DocEdit::SetRoots { roots: vec![b, a] },
         DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 a,
                 b,
                 op: editor_core::BooleanOp::Union,
                 declare: None,
-            },
+            }),
         },
         DocEdit::DeleteNode { id: b },
     ] {
@@ -578,18 +578,18 @@ fn row6c_replay_rebuilds_the_root_list() {
         log.push(edit);
         applied.record.minted.expect("an insert mints")
     };
-    let plane = insert(&mut doc, xy_frame());
+    let plane = insert(&mut doc, Box::new(xy_frame()));
     for cx in [0.0, 5.0] {
         let profile = insert(
             &mut doc,
-            Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)])),
+            Box::new(Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)]))),
         );
         insert(
             &mut doc,
-            Node::Extrude {
+            Box::new(Node::Extrude {
                 profile,
                 distance: len(1.0),
-            },
+            }),
         );
     }
     let swap = DocEdit::SetRoots {

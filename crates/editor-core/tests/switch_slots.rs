@@ -29,7 +29,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -38,11 +38,11 @@ fn circle_doc(r: f64) -> ProfileDoc {
         .doc;
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane: doc.order()[0],
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
-            }),
+            })),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -255,7 +255,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -265,14 +265,14 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
+                node: Box::new(Node::Profile(ProfileProgram {
                     plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
-                }),
+                })),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -322,7 +322,7 @@ fn insert_node_checks_program_dimensions() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -340,7 +340,7 @@ fn insert_node_checks_program_dimensions() {
     };
     match doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(bad),
+            node: Box::new(Node::Profile(bad)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -422,7 +422,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -504,7 +504,9 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         // transition, so no `SetParam`/`SetExpression`/`expr_at` row
         // can exist for these three roles.
         match doc.apply(
-            &DocEdit::InsertNode { node: program },
+            &DocEdit::InsertNode {
+                node: Box::new(program),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {

@@ -1521,7 +1521,9 @@ fn insert(
     // asked.
     let applied = apply(
         &doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         tol,
         &pncad::document::RefusingReach,
     )

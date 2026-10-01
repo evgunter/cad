@@ -616,11 +616,11 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
         other => panic!("a never-minted step refuses typed, got {other:?}"),
     };
     never(DocEdit::InsertNode {
-        node: Node::Datum(editor_core::Datum::FaceFrame {
+        node: Box::new(Node::Datum(editor_core::Datum::FaceFrame {
             at: r.rod,
             face: unminted.clone(),
             spin: fixture::ang(0.0),
-        }),
+        })),
     });
     let painted = paint(&reshaped, &dropped);
     never(DocEdit::SetAppearance {
@@ -773,7 +773,7 @@ fn the_insert_door_mints_every_step_and_refuses_ids_of_the_callers() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(preminted),
+            node: Box::new(Node::Profile(preminted)),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -893,27 +893,27 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
     let (plane, profile_node, rod_node) = (r.doc.order()[0], r.profile, r.rod);
     let edits = [
         DocEdit::InsertNode {
-            node: fixture::xy_frame(),
+            node: Box::new(fixture::xy_frame()),
         },
         DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![rod_loop(false)],
                 ids: Vec::new(),
+            })),
+        },
+        DocEdit::InsertNode {
+            node: Box::new(Node::Extrude {
+                profile: profile_node,
+                distance: len(ROD_L),
             }),
         },
         DocEdit::InsertNode {
-            node: Node::Extrude {
-                profile: profile_node,
-                distance: len(ROD_L),
-            },
-        },
-        DocEdit::InsertNode {
-            node: Node::fillet(
+            node: Box::new(Node::fillet(
                 rod_node,
                 len(ROD_FILLET),
                 vec![lateral_edge(&r.doc, rod_node, CREASE)],
-            ),
+            )),
         },
         DocEdit::SetProgram {
             node: profile_node,

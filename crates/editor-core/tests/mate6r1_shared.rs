@@ -180,24 +180,24 @@ fn r1_two_bad_mates_noatrest_then_reference() {
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 1.0,
                 ContactClass::Tangent,
-            ),
+            )),
         },
     );
     // mate #2 (later): a dangling reference -> Reference.
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 dangling(ids[1]),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -218,23 +218,23 @@ fn r1_two_bad_mates_reference_then_noatrest() {
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 dangling(ids[0]),
                 in_part(ids[1], body, CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let (doc, m2) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
                 ContactClass::Tangent,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -260,23 +260,23 @@ fn r1_a_good_mate_after_a_bad_one() {
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 dangling(ids[0]),
                 in_part(ids[1], body, CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let (doc, good) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -309,12 +309,12 @@ fn r1_mint_refusal_precedes_the_census() {
     let (doc, m) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(ids[0], body, CapEnd::End),
                 in_part(ids[1], body, CapEnd::Start),
                 1.0,
                 ContactClass::Tangent,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -360,12 +360,12 @@ fn r1_false_carried_declaration_at_both_doors() {
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(sub[0], body, CapEnd::End),
                 in_part(sub[1], body, CapEnd::Start),
                 1.5,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -401,12 +401,12 @@ fn r1_true_carried_declaration_at_both_doors() {
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(sub[0], body, CapEnd::End),
                 in_part(sub[1], body, CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -441,23 +441,23 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 dangling(ids[0]),
                 in_part(ids[1], body, CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(ids[1], body, CapEnd::End),
                 in_part(ids[2], body, CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -512,12 +512,12 @@ fn r1_three_stands_exact_counts() {
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(sub[0], body, CapEnd::End),
                 in_part(sub[1], body, CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -559,12 +559,12 @@ fn r1_overlapping_false_carried_declaration() {
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(sub[0], body, CapEnd::End),
                 in_part(sub[1], body, CapEnd::Start),
                 0.5,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());
@@ -605,12 +605,12 @@ fn r1_two_overlapping_false_stands() {
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
-            node: mate_of(
+            node: Box::new(mate_of(
                 in_part(sub[0], body, CapEnd::End),
                 in_part(sub[1], body, CapEnd::Start),
                 0.5,
                 ContactClass::Rest,
-            ),
+            )),
         },
     );
     let inner_ref = store.insert(inner, Tol::witness());

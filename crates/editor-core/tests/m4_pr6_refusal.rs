@@ -728,7 +728,7 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
     match editor_core::apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(unclosed),
+            node: Box::new(Node::Profile(unclosed)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
