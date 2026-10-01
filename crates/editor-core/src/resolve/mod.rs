@@ -2188,6 +2188,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetTolerance { .. }
         | DocEdit::SetRoots { .. }
         | DocEdit::SetPlacement { .. }
+        | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {

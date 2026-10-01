@@ -1,15 +1,17 @@
 //! **How a sentence names a recipe node** (DESIGN.md Band 1, "Node
-//! labels"): a person reads a node as its kind and its tag,
-//! `Extrude 3fa9c1d2a0b1`; a node the document does not hold reads
-//! `node 3fa9c1d2a0b1`.
+//! labels"): a person reads a node as its kind, its label and its tag,
+//! `Extrude "base plate" (3fa9c1d2a0b1)`, or as its kind and tag when
+//! it has no label, `Extrude 3fa9c1d2a0b1`; a node the document does
+//! not hold reads `node 3fa9c1d2a0b1`.
 //!
 //! Three spellings, one home each:
 //!
 //! - [`SpokenNode`] — the node as a person reads it. It is built from
 //!   the document that holds the node, by the frame that owns that
 //!   document, when the sentence is made ([`crate::Doc::spoken`]); it
-//!   is never stored in a value the evaluation memo reuses, so what it
-//!   says is the document's word at the moment of speaking.
+//!   is never stored in a value the evaluation memo reuses, so the
+//!   label it says is the document's at the moment of speaking, never
+//!   one a later rename left stale.
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
 //!   `Display`, a load door reading bytes that are not a document yet).
@@ -20,6 +22,7 @@
 use core::fmt;
 
 use crate::doc::Doc;
+use crate::label::Label;
 use crate::node::{Datum, Node, RecipeNodeId, StepId};
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -80,31 +83,44 @@ impl StepId {
     }
 }
 
-/// **A recipe node as a person reads it**: its kind noun and its tag
-/// (`Extrude 3fa9c1d2a0b1`), or `node 3fa9c1d2a0b1` for an id the
-/// document does not hold.
+/// **A recipe node as a person reads it**: its kind noun, its label
+/// and its tag (`Extrude "base plate" (3fa9c1d2a0b1)`), its kind and
+/// tag when it has no label (`Extrude 3fa9c1d2a0b1`), or
+/// `node 3fa9c1d2a0b1` for an id the document does not hold.
 ///
 /// Built by [`Doc::spoken`] from the document that holds the node.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The tag is always said: labels repeat, and a kept sentence finds
+/// its node after a rename by the tag.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpokenNode {
     id: RecipeNodeId,
     /// The kind noun, `None` for an id the document does not hold.
     kind: Option<&'static str>,
+    /// The node's label, `None` when it has none or is not held.
+    label: Option<Label>,
 }
 
 impl SpokenNode {
     /// A spoken node with no document behind it, for a fixture that
     /// builds by hand what a document would say.
     #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn forged(id: RecipeNodeId, kind: Option<&'static str>) -> Self {
-        Self { id, kind }
+    pub(crate) fn forged(
+        id: RecipeNodeId,
+        kind: Option<&'static str>,
+        label: Option<Label>,
+    ) -> Self {
+        Self { id, kind, label }
     }
 
     /// A node no document at hand holds: `node <tag>`, what
     /// [`Doc::spoken`] answers for an id its document does not hold.
     #[must_use]
     pub fn absent(id: RecipeNodeId) -> Self {
-        Self { id, kind: None }
+        Self {
+            id,
+            kind: None,
+            label: None,
+        }
     }
 
     /// The node this sentence names.
@@ -119,11 +135,21 @@ impl SpokenNode {
     pub fn kind(&self) -> Option<&'static str> {
         self.kind
     }
+
+    /// The node's label as the document held it when this was built,
+    /// `None` when it had none.
+    #[must_use]
+    pub fn label(&self) -> Option<&Label> {
+        self.label.as_ref()
+    }
 }
 
 impl fmt::Display for SpokenNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.kind.unwrap_or("node"), self.id)
+        match (self.kind, &self.label) {
+            (Some(kind), Some(label)) => write!(f, "{kind} \"{label}\" ({})", self.id),
+            (kind, _) => write!(f, "{} {}", kind.unwrap_or("node"), self.id),
+        }
     }
 }
 
@@ -132,9 +158,13 @@ impl<P> Doc<P> {
     /// this document now.
     #[must_use]
     pub fn spoken(&self, id: RecipeNodeId) -> SpokenNode {
-        SpokenNode {
-            id,
-            kind: self.node(id).map(node_kind_noun),
+        match self.node(id) {
+            Some(node) => SpokenNode {
+                id,
+                kind: Some(node_kind_noun(node)),
+                label: self.label(id).cloned(),
+            },
+            None => SpokenNode::absent(id),
         }
     }
 }
