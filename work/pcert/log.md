@@ -350,3 +350,30 @@ tier 3 accepts for every curved body in the kernel, broad and hard to
 reverse.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — PR 3733's review: not mergeable; a ruling on doorless scalars
+
+The full review of PR 3733 (general-circle fitted route) found two
+MAJORs, both by execution. (1) The new fitted image sits off its
+carrier between samples — 1.08e-4 m on the oblique octant's rows at
+ε = 1e-9, up to 1e-2 near a pole — and certifies with envelope 0,
+because its interpolation nodes coincide with the certification
+samples, so check 3 cannot see the error (planted corruption of every
+off-sample node left 30 rows green). The fix pass gives the lane a
+sound between-samples bound, adaptive density, off-node sampling, and a
+typed refusal where nothing converges. (2) Retiring the exemption broke
+the oblique fillet at `Dual64`.
+
+**Ruling (orchestrator, from ratified D-L1 and C4):** at a scalar with
+no fitted door, a face only the fitted lane can image is not owed rows —
+that scalar certifies nothing fitted — so neither the mint nor tier 3
+demands them there; one predicate, the scalar's missing door. Sent to
+both PR 3733's lane and the at-rest unit's. Not put to Ev as a fork: it
+is D-L1 applied to C4, not a new choice; reported to Ev.
+
+Also from the review: D36's sphere incidence trilean meters over 2R,
+under-reading a circle inside the sphere by up to 2× (lenient
+direction, sliver band); the fix pass gives the residual one home with
+the sound lever.
+
+Signed (PCERT orchestrator).
