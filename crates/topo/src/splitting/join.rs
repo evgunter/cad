@@ -64,12 +64,11 @@ use super::order;
 use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
-    ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, JoinLane, SectionCtx,
-    SplitJoinError, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop, split_section_conic,
-    vertex_point,
+    ChordJoiner, ConicCrossingsCase, CutOutcome, FragmentRows, JoinLane, SectionCase, SectionCtx,
+    SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he, corrupt_loop,
+    vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::face_normal::{NormalAtError, face_outward_normal_at};
 use crate::null::{CurveGeom, NullFacePair};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -353,28 +352,51 @@ fn line_pairs<T: Decide>(
 /// lexicographic order, can instead pair across an arc OUTSIDE the
 /// face: both ends of an exit-then-entry arc are of opposite sense too.
 ///
-/// The walk direction is read at every crossing, as the sign of
-/// `h·Ĉ′(θ)` against the conic's tangent in its eccentric anomaly
-/// (**`split_join_conic_heading`**, levered by the conic's minor
-/// semi-axis — the cylinder's radius, or the circle's). On the conics
-/// that reach here (a tilted ellipse or a rim circle on a cylinder, a
-/// polar circle on a sphere) `h` vanishes nowhere, so one sign holds
-/// all round; opposite definite signs are a broken invariant. The
-/// crossings are ordered by `±θ·sb` (the minor semi-axis: `|Δθ|·sb`
-/// never overstates the arc between them) with
-/// [`super::order::sort_along_line`], read cyclically.
+/// **The heading** is read at every crossing, as the sign of
+/// `h·Ĉ′(θ)` against the conic's unit tangent in its eccentric anomaly
+/// (**`split_join_conic_heading`**: a sine, levered by the wall's
+/// radius — [`geom_brep::curvature_lever_arm`], the chart's own length
+/// scale — so the margin is how far the section runs from tangent to
+/// the wall there; on a sphere it is the section circle's radius). On
+/// the conics that reach here (a tilted ellipse or a rim circle on a
+/// cylinder, a polar circle on a sphere) `h` vanishes nowhere, so one
+/// sign holds all round; opposite definite signs are a broken
+/// invariant. The outward normal is the wall's gradient at the
+/// crossing ([`geom_brep::implicit_outward_normal`]): a crossing lies
+/// on the face's boundary, so on its wall.
+///
+/// **The order** is along the walk coordinate `w = ±θ`, by
+/// [`super::order::sort_along`] with the gap between two crossings read
+/// as `Δw·|C′(w_mid)|` — the arc between them at the conic's speed
+/// halfway, which is the arc length to second order in `Δw`. A verdict
+/// is close only where that gap is a few band widths, so `Δw` is a few
+/// band widths over the minor semi-axis and the reading's error is far
+/// inside the band; a larger `Δw` is decided apart either way, since the
+/// speed is at least the minor semi-axis. Neither reading understates
+/// the arc the way a fixed semi-axis would near the other vertex.
+///
+/// **The cycle.** `θ` is read in `(−π, π]`, so the sorted order starts
+/// at the conic's branch cut. A run of coincident crossings straddling
+/// it would be split across both ends: where the gap across the cut
+/// reads Zero, the cut moves to the first gap that does not, those
+/// crossings' `w` take a period, and the runs are regrouped. The pairing
+/// reads the order cyclically, so where the cycle starts changes no
+/// pair.
 ///
 /// A planar face, a straight section and the kinds the gate refuses
 /// pair nothing here: they keep the book's rule.
 ///
+/// **Unpinned**: no shipped fixture reaches [`ConicCrossingsCase::Grazing`]
+/// or [`ConicCrossingsCase::NotAlternating`]; both are typed and read
+/// here only.
+///
 /// # Errors
 ///
-/// [`SplitJoinError::Escalated`] naming the face, where a heading or
-/// the order of two crossings is undecided;
-/// [`SplitJoinError::SectionCrossings`] where a heading is in the band
-/// ([`ConicCrossingsCase::Grazing`]) or the senses do not alternate in
-/// walk order ([`ConicCrossingsCase::NotAlternating`]); the C5 table's
-/// refusals.
+/// [`SplitJoinError::Escalated`] naming the face, where a heading or a
+/// gap is undecided; [`SplitJoinError::SectionCrossings`] where a
+/// heading is in the band ([`ConicCrossingsCase::Grazing`]) or the
+/// senses do not alternate in walk order
+/// ([`ConicCrossingsCase::NotAlternating`]); the C5 table's refusals.
 fn conic_pairs<T: Decide>(
     red: &SplitReduction<T>,
     face: FaceKey,
@@ -387,35 +409,28 @@ fn conic_pairs<T: Decide>(
         .get_half_edge(first)
         .ok_or_else(|| corrupt_he(first))?
         .start;
-    let Some(conic) = split_section_conic(body, band, &red.plane, face, at)? else {
+    let Some(WallSection {
+        wall,
+        case: SectionCase::Conic(conic),
+    }) = wall_section(body, band, &red.plane, face, at)?
+    else {
         return Ok(Vec::new());
     };
+    let sense = body.get_face(face).ok_or_else(|| corrupt_face(face))?.sense;
     let refuse = |case| SplitJoinError::SectionCrossings { face, case, band };
+    let escalate = |diag| SplitJoinError::Escalated { face, diag };
     let mut heading = None;
-    let mut keys = Vec::with_capacity(crossings.len());
+    let mut walk = Vec::with_capacity(crossings.len());
     for c in crossings {
         let theta = conic.param(c.point);
-        let out = face_outward_normal_at(body, face, c.point, band)
-            .map_err(|e| match e {
-                NormalAtError::Escalated { diag, .. } => SplitJoinError::Escalated { face, diag },
-                NormalAtError::DegenerateTorus { .. } | NormalAtError::OffSurface => {
-                    SplitJoinError::SectionInvariant {
-                        face,
-                        what: "a crossing of a curved face has no outward normal there",
-                    }
-                }
-            })?
-            .ok_or_else(|| corrupt_face(face))?;
+        let out = geom_brep::implicit_outward_normal(&wall, sense, c.point).vec();
         let tangent = conic.tangent(theta);
-        let sine = red.plane.normal.cross(out.vec()).dot(tangent) / tangent.norm();
-        let sign = match decide(
-            "split_join_conic_heading",
-            Margin::levered(sine, conic.minor()),
-            band,
-        ) {
+        let sine = red.plane.normal.cross(out).dot(tangent) / tangent.norm();
+        let arm = geom_brep::curvature_lever_arm(&wall, c.point);
+        let sign = match decide("split_join_conic_heading", Margin::levered(sine, arm), band) {
             Ok(Sign::Zero) => return Err(refuse(ConicCrossingsCase::Grazing)),
             Ok(sign) => sign,
-            Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
+            Err(diag) => return Err(escalate(diag)),
         };
         if *heading.get_or_insert(sign) != sign {
             return Err(SplitJoinError::SectionInvariant {
@@ -424,16 +439,55 @@ fn conic_pairs<T: Decide>(
                        conic the face meets transversally all round",
             });
         }
-        let key = theta * conic.minor();
-        keys.push(if sign == Sign::Positive {
-            key
-        } else {
-            T::zero() - key
-        });
+        walk.push(theta);
     }
-    let order = super::order::sort_along_line(&keys, band)
-        .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
-    let n = order.len();
+    if heading == Some(Sign::Negative) {
+        for w in &mut walk {
+            *w = T::zero() - *w;
+        }
+    }
+    // How far crossing `a` lies past `b` along the walk (fn docs). The
+    // conic's speed is even and 2π-periodic in `θ`, so it reads the
+    // same at `w` as at the `θ` it came from.
+    let gap = |w: &[T], a: usize, b: usize| {
+        (w[a] - w[b]) * conic.tangent((w[a] + w[b]) * T::from_f64(0.5)).norm()
+    };
+    let n = crossings.len();
+    let order = super::order::sort_along(n, |a, b| gap(&walk, a, b), band).map_err(escalate)?;
+    let (lo, hi) = (order[0], order[n - 1]);
+    let mut across = walk.clone();
+    across[lo] = across[lo] + T::tau();
+    let order = if decide(
+        "split_join_line_gap",
+        Margin::of(gap(&across, lo, hi)),
+        band,
+    )
+    .map_err(escalate)?
+        == Sign::Zero
+    {
+        let mut cut = None;
+        for k in 1..n {
+            let step = gap(&walk, order[k], order[k - 1]);
+            if decide("split_join_line_gap", Margin::of(step), band).map_err(escalate)?
+                != Sign::Zero
+            {
+                cut = Some(k);
+                break;
+            }
+        }
+        // Every crossing of the face at one point: nothing alternates.
+        let Some(k) = cut else {
+            return Err(refuse(ConicCrossingsCase::NotAlternating));
+        };
+        for &i in &order[..k] {
+            walk[i] = walk[i] + T::tau();
+        }
+        let mut cycled = order;
+        cycled.rotate_left(k);
+        super::order::group_coincident(cycled, |a, b| gap(&walk, a, b), band).map_err(escalate)?
+    } else {
+        order
+    };
     let down = |k: usize| crossings[order[k % n]].down;
     if (0..n).any(|k| down(k) == down(k + 1)) {
         return Err(refuse(ConicCrossingsCase::NotAlternating));

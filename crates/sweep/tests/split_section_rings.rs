@@ -15,7 +15,9 @@
 //! cut chords each wall face along the arc that lies in it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::bores::{bored_brick, halves_at_rest, section_faces, tilted, u_cut};
+use crate::common::bores::{
+    bored_brick, halves_at_rest, section_faces, tilted, turned_cylinder, u_cut,
+};
 use crate::common::cavity::{brick, cut, prism, rod};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::bored_cylinder;
@@ -412,19 +414,6 @@ fn a_cap_line_a_hair_off_the_sweeps_v_axis_never_refuses_at_the_join() {
     }
 }
 
-/// The unit cylinder of height 2.5 with its two seams at azimuths
-/// `turn` and `turn + π`.
-fn turned_cylinder(turn: f64) -> Body<f64> {
-    sweep::test_support::prism(
-        vec![
-            (Point2::new(turn.cos(), turn.sin()), 1.0),
-            (Point2::new(-turn.cos(), -turn.sin()), 1.0),
-        ],
-        2.5,
-        tol(),
-    )
-}
-
 /// The vertex count of a face's outer loop.
 fn outline_len(half: &Body<f64>, face: topo::FaceKey) -> usize {
     let outer = half.get_face(face).unwrap().outer;
@@ -448,7 +437,7 @@ fn outline_len(half: &Body<f64>, face: topo::FaceKey) -> usize {
 /// cancelling it.
 #[test]
 fn a_steep_cut_through_both_seams_is_one_six_vertex_section_face() {
-    let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05);
+    let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
     for flip in [false, true] {
         let plane = tilted(1.25, 1.1, flip);
         for (side, half) in ["below", "above"].into_iter().zip(halves_at_rest(
@@ -479,7 +468,7 @@ fn a_steep_cut_through_both_seams_is_one_six_vertex_section_face() {
 fn every_steep_pose_of_the_cylinder_is_one_section_face_per_half() {
     use core::f64::consts::{FRAC_PI_2, PI};
     for turn in [0.0, 1.0, FRAC_PI_2 - 0.05, FRAC_PI_2 + 0.05] {
-        let cylinder = turned_cylinder(turn);
+        let cylinder = turned_cylinder(turn, 2.5);
         for t in [0.9, 1.1, 1.3] {
             for flip in [false, true] {
                 let what = format!("seams at {turn}, tilt {t}, flipped {flip}");
@@ -517,7 +506,7 @@ fn a_plane_through_a_seam_corner_is_one_section_face_per_half() {
         (1.0, 2.5, 1.4),
         (1.0, 0.0, 1.1),
     ] {
-        let cylinder = turned_cylinder(turn);
+        let cylinder = turned_cylinder(turn, 2.5);
         for flip in [false, true] {
             let s = if flip { -1.0 } else { 1.0 };
             let plane = SplitPlane {
@@ -773,31 +762,24 @@ fn plane_section_puts_a_hole_in_an_island_in_the_islands_region() {
     );
 }
 
-/// **A hole nothing places refuses**: the turned cylinder of
-/// `a_clockwise_section_nothing_places_keeps_its_face`, whose join mints
-/// two clockwise polygons touching the ellipse around them. `split`
-/// keeps them as faces cancelling the ellipse's; a section's regions
-/// cannot state them, so `plane_section` refuses. This row goes red with
-/// that one when
-/// `work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`
-/// is fixed.
+/// **The steep cut through both seams slices to one region.** The
+/// turned cylinder of
+/// `a_steep_cut_through_both_seams_is_one_six_vertex_section_face`:
+/// `plane_section` reads one region, its outline the six crossings, with
+/// no holes. (Chording a wall face across the arc outside it makes two
+/// clockwise polygons touching the outline, which no region can state,
+/// and the slice refuses `UnplacedHole`.)
 #[test]
-fn plane_section_refuses_a_hole_nothing_places() {
-    let turn = core::f64::consts::FRAC_PI_2 + 0.05;
-    let cylinder: Body<f64> = sweep::test_support::prism(
-        vec![
-            (Point2::new(turn.cos(), turn.sin()), 1.0),
-            (Point2::new(-turn.cos(), -turn.sin()), 1.0),
-        ],
-        2.5,
-        tol(),
-    );
+fn plane_section_of_the_steep_cut_through_both_seams_is_one_region() {
+    let cylinder = turned_cylinder(core::f64::consts::FRAC_PI_2 + 0.05, 2.5);
     for flip in [false, true] {
-        let r = topo::plane_section(&cylinder, &tilted(1.25, 1.1, flip), tol());
-        assert!(
-            matches!(r, Err(topo::SectionError::UnplacedHole { .. })),
-            "flipped {flip}: {:?}",
-            r.map(|s| s.regions.len())
-        );
+        let s = topo::plane_section(&cylinder, &tilted(1.25, 1.1, flip), tol())
+            .unwrap_or_else(|e| panic!("flipped {flip}: {e:?}"));
+        let shape: Vec<_> = s
+            .regions
+            .iter()
+            .map(|r| (r.outline.points.len(), r.holes.len()))
+            .collect();
+        assert_eq!(shape, vec![(6, 0)], "flipped {flip}");
     }
 }

@@ -190,21 +190,34 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     Ok(order)
 }
 
-/// One face's crossings ordered along its section — a planar face's
-/// line, or a curved face's conic read from one point of it — from
-/// their along-section coordinates `keys` (metres, in the face's
-/// insertion order). Returns the permutation.
+/// One planar face's crossings ordered along its section line, from
+/// their along-line coordinates `keys` (metres, in the face's
+/// insertion order): [`sort_along`] with the gap `keys[a] − keys[b]`.
+///
+/// # Errors
+///
+/// [`sort_along`]'s.
+pub(super) fn sort_along_line<T: Decide>(
+    keys: &[T],
+    band: Band,
+) -> Result<Vec<usize>, Indeterminate> {
+    sort_along(keys.len(), |a, b| keys[a] - keys[b], band)
+}
+
+/// One face's `n` crossings ordered along its section, from `gap(a, b)`:
+/// how far crossing `a` lies past crossing `b` along the section, in
+/// metres (insertion order is index order). Returns the permutation.
 ///
 /// Every comparison is against the run's band (**`split_join_line_order`**),
 /// not the exact one: two crossings of one face are either a real
-/// distance apart along its line or one point computed twice (several
-/// null edges at one point — the Fig. 14.2 notch's tip — or a crossing
-/// and its interval twin), and the exact band would order the second
-/// kind by rounding or, on the interval lane, escalate on it. An
+/// distance apart along its section or one point computed twice
+/// (several null edges at one point — the Fig. 14.2 notch's tip — or a
+/// crossing and its interval twin), and the exact band would order the
+/// second kind by rounding or, on the interval lane, escalate on it. An
 /// insertion sort that stops at the first predecessor not definitely
-/// after leaves coincident keys in insertion order; then every run of
-/// successive Zero gaps (**`split_join_line_gap`**) is put back in
-/// insertion order, so the result is a function of the verdicts.
+/// after leaves coincident crossings in insertion order; then
+/// [`group_coincident`] puts every run of Zero gaps back in insertion
+/// order, so the result is a function of the verdicts.
 ///
 /// **Residual: a chain of sub-ε gaps.** The comparator is banded, so
 /// it is not transitive: three crossings of one face whose successive
@@ -220,15 +233,16 @@ pub(super) fn sort_indices_by_point<T: Decide>(
 /// A comparison in the band's ambiguity window — two crossings of one
 /// face neither certainly apart nor certainly at one point, whose
 /// pairing the order decides.
-pub(super) fn sort_along_line<T: Decide>(
-    keys: &[T],
+pub(super) fn sort_along<T: Decide>(
+    n: usize,
+    gap: impl Fn(usize, usize) -> T,
     band: Band,
 ) -> Result<Vec<usize>, Indeterminate> {
-    let mut sorted: Vec<usize> = (0..keys.len()).collect();
+    let mut sorted: Vec<usize> = (0..n).collect();
     for i in 1..sorted.len() {
         let mut j = i;
         while j > 0 {
-            let margin = Margin::of(keys[sorted[j]] - keys[sorted[j - 1]]);
+            let margin = Margin::of(gap(sorted[j], sorted[j - 1]));
             if decide("split_join_line_order", margin, band)? != Sign::Negative {
                 break;
             }
@@ -236,15 +250,29 @@ pub(super) fn sort_along_line<T: Decide>(
             j -= 1;
         }
     }
-    let mut order = Vec::with_capacity(keys.len());
+    group_coincident(sorted, gap, band)
+}
+
+/// `sorted` with every run of successive crossings one point apart
+/// (**`split_join_line_gap`** Zero on `gap(next, previous)`) put back
+/// in insertion (index) order.
+///
+/// # Errors
+///
+/// A gap in the band's ambiguity window.
+pub(super) fn group_coincident<T: Decide>(
+    sorted: Vec<usize>,
+    gap: impl Fn(usize, usize) -> T,
+    band: Band,
+) -> Result<Vec<usize>, Indeterminate> {
+    let mut order = Vec::with_capacity(sorted.len());
     let mut run: Vec<usize> = Vec::new();
-    for &i in &sorted {
-        if let Some(&last) = run.last() {
-            let gap = Margin::of(keys[i] - keys[last]);
-            if decide("split_join_line_gap", gap, band)? != Sign::Zero {
-                run.sort_unstable();
-                order.append(&mut run);
-            }
+    for i in sorted {
+        if let Some(&last) = run.last()
+            && decide("split_join_line_gap", Margin::of(gap(i, last)), band)? != Sign::Zero
+        {
+            run.sort_unstable();
+            order.append(&mut run);
         }
         run.push(i);
     }

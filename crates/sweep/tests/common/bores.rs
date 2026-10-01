@@ -48,6 +48,19 @@ pub fn u_cut() -> Body<f64> {
     cut("U-cutter", &block, &prism(&outline, 1.0, 3.0))
 }
 
+/// The unit cylinder of height `h` with its two seams at azimuths
+/// `turn` and `turn + π`.
+pub fn turned_cylinder(turn: f64, h: f64) -> Body<f64> {
+    sweep::test_support::prism(
+        vec![
+            (Point2::new(turn.cos(), turn.sin()), 1.0),
+            (Point2::new(-turn.cos(), -turn.sin()), 1.0),
+        ],
+        h,
+        geom_core::Tol::witness(),
+    )
+}
+
 /// The plane through `(0, 0, z)` with normal `(sin t, 0, cos t)`,
 /// negated when `flip`.
 pub fn tilted(z: f64, t: f64, flip: bool) -> SplitPlane<f64> {

@@ -342,6 +342,8 @@ mod review_blend6_r1_probes;
 mod review_blend6_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
+#[path = "review_cleave_wrongarc.rs"]
+mod review_cleave_wrongarc;
 #[path = "review_closed_chain_junctions_r2_probes.rs"]
 mod review_closed_chain_junctions_r2_probes;
 #[path = "review_contact_edge_must_carry_r2_probes.rs"]
@@ -432,8 +434,6 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
-#[path = "review_cleave_wrongarc.rs"]
-mod review_cleave_wrongarc;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
 #[path = "split_section_rings.rs"]

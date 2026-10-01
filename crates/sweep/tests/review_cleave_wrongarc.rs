@@ -13,6 +13,7 @@
 //! not failed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::bores::turned_cylinder;
 use crate::common::cavity::brick;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{bored_cylinder, cylinder_of_arcs_at};
@@ -238,19 +239,6 @@ fn judge(
             }
         }
     }
-}
-
-/// The unit cylinder of height `h` with its two seams at `turn` and
-/// `turn + π`.
-fn turned_cylinder(turn: f64, h: f64) -> Body<f64> {
-    sweep::test_support::prism(
-        vec![
-            (Point2::new(turn.cos(), turn.sin()), 1.0),
-            (Point2::new(-turn.cos(), -turn.sin()), 1.0),
-        ],
-        h,
-        tol(),
-    )
 }
 
 /// steep cuts of the unit cylinder (2-arc and 3-arc walls) at many
