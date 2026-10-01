@@ -6,11 +6,10 @@
 //! census refusals through public doors, and the re-pose parity of the
 //! minted rim — on the SECTIONED VESSEL (the tour's `torusvessel` wall
 //! 1), the partial revolve whose rims mint through a public door and
-//! reach tier 3. The klein ELBOW's rims mint too and its equator seams
-//! re-author, but its hollow stops one door earlier, at the attach
-//! layer on a rim's backwards window (`the_elbow_stops_at_its_rim_window`
-//! below), so its cavity is not readable through any public door at
-//! this head. The elbow rows that
+//! reach tier 3. The klein ELBOW's rims mint too, its equator seams
+//! re-author, and its hollow reaches the same props door
+//! (`the_elbow_stops_at_the_props_door` below) — so its cavity, like
+//! the vessel's, is not readable through any public door at this head. The elbow rows that
 //! MOVE doors stay in their own suites (`torax_axial`, `verbs_shell`,
 //! `torax_interval`, `shell7_seam_corner`).
 
@@ -26,7 +25,7 @@ use topo::{Body, ShellError, transform_rigid};
 
 use crate::common::charts::hollow_moves;
 use crate::common::poses::torax_pose;
-use crate::common::torus_walls::{klein_elbow, rim_window_reversed, vessel_cavity, vessel_quarter};
+use crate::common::torus_walls::{klein_elbow, props_door, vessel_cavity, vessel_quarter};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -352,29 +351,26 @@ fn the_census_refusals_through_public_doors() {
     );
 }
 
-/// **Where the elbow stands after its seams re-author.** The rims
+/// **The elbow reaches the props door, as the vessel does.** The rims
 /// MINT (both endpoint meters and the midpoint meter pass — the
 /// mutants that flip the oval or the reach guard's sign refuse on the
-/// rim edge, `torax_axial`), the equator seams' declarations follow
-/// the corners the moved caps turned about the axis, and every
-/// decision of the axial door passes. The attach layer then refuses a
-/// rim whose stored window runs backwards by `π·r′`: its inner-equator
-/// end is read on `atan2`'s branch cut
-/// (`work/curved/spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut.md`).
-/// The old door was the seams' re-author (`TogetherAxialEdge` on
-/// `EdgeKey(3v1)`, `offset_axial_reauthor_plane`). The sectioned vessel
-/// next door reaches check 7.
+/// rim edge, `torax_axial`), each rim's window is read forward of its
+/// start, the equator seams' declarations follow the corners the moved
+/// caps turned about the axis, and the hollow reaches tier 3: check 7
+/// refuses `VolumeUncomputable` at a cap whose spiric loop's area has
+/// no closed form (`Unimplemented`). The old door was the attach
+/// layer's `RechartFalsifies { EdgeKey(2v1), IntervalNotForward }` — a
+/// rim window read backwards by `π·r′` on `atan2`'s branch cut.
 #[test]
-fn the_elbow_stops_at_its_rim_window() {
+fn the_elbow_stops_at_the_props_door() {
     let elbow = klein_elbow_of_disc(0.275);
-    let e = topo::shell(&elbow, 0.05, tol()).expect_err("a rim's window runs backwards");
+    let e = topo::shell(&elbow, 0.05, tol()).expect_err("check 7's volume");
     println!("[spiric] the elbow's door: {e:?}");
-    let (_, edge, span) =
-        rim_window_reversed(&e).unwrap_or_else(|| panic!("the rim window's refusal, got {e:?}"));
-    let half_turn = -core::f64::consts::PI * (0.275 - 0.05);
-    assert!(
-        (span - half_turn).abs() < 1e-12,
-        "{edge:?}: {span} vs {half_turn}"
+    let (_, source) = props_door(&e).unwrap_or_else(|| panic!("the props door, got {e:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric cap's area"
     );
 }
 

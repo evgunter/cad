@@ -58,9 +58,10 @@ PR-2, after PR-1b's pcurve variant and STEP spline).
 
 **2026-09-30 (`curved/equator-seam`).** The equator seams re-author
 onto the corners the moved caps turned about the axis; the elbow now
-stops at the attach layer on a spiric rim whose window runs backwards
-by `π·r′` (`spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut`),
-then the props quadrature lane.
+has its spiric rims' windows read forward. The sealed elbow reaches
+check 7's props door, `VolumeUncomputable` at a spiric-bounded cap
+(`Unimplemented`). The opened elbow stops at the rim stage's lift
+(`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
 
 ## A second consumer: lily wall 1 (GERM, 2026-09-28)
 

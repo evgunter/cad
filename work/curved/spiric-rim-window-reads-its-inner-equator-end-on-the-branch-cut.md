@@ -2,7 +2,8 @@
 id: spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut
 kind: issue
 title: The spiric rim's window reads its inner-equator end on atan2's branch cut, so half the klein elbow's rims run backwards by pi
-status: open
+status: review
+branch: curved/equator-seam
 opened: 2026-09-30
 refs: [equator-seam-reauthor-refuses-the-hollowed-elbow, spiric-carrier-ruling]
 priority: P0
@@ -52,3 +53,15 @@ already stands.
 ## Home
 
 CURVED — the spiric lane (`offset_axial.rs:param_on`).
+
+## Fixed on `curved/equator-seam` (PR 3626)
+
+`offset_axial.rs:forward_window` decides the read span `t₁ − t₀`
+levered at the moved tube's radius (`offset_axial_rim_window`):
+- `Positive` keeps the read end;
+- `Negative` takes the same end a period on;
+- `Zero` refuses typed.
+
+The sealed elbow, the two-arc torus and the interval row now reach
+check 7's props door. The opened elbow stops at the lift
+(`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).

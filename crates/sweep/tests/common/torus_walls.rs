@@ -4,7 +4,7 @@
 //! (a disc swept a quarter turn about an axis off its centre), and the
 //! tour's sectioned vessel with the cavity the axial door carves in it
 //! (a partial revolve whose rims mint as spirics); and the one reader
-//! of the door the elbow's hollow stops at ([`rim_window_reversed`]).
+//! of the door the elbow's hollow stops at ([`props_door`]).
 //!
 //! A row that hollows one of these and a row that asks `point_in_solid`
 //! of it are about each other only while they build THE SAME BODY
@@ -31,7 +31,7 @@ use profile::path::{Open, Start};
 use profile::{ArcSweep, Center, Profile, ProfileLoop, SketchPlane};
 use sweep::test_support::revolved_about_y;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, EdgeKey, FaceKey, ShellError};
+use topo::{Body, FaceKey, ShellError};
 
 use super::bulge;
 use super::charts::hollow_moves;
@@ -174,27 +174,23 @@ pub fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
     (quarter, cavity)
 }
 
-/// **The door the klein elbow's hollow stops at**: the attach layer
-/// refusing a spiric rim whose stored window runs BACKWARDS — the face
-/// and edge it names and the span's margin, or `None` for any other
-/// refusal. The rim's inner-equator end is read on `atan2`'s branch
-/// cut, so the sign of a zero picks `±π` and the span reads `−π·r′`
-/// (`work/curved/spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut.md`).
-pub fn rim_window_reversed(e: &ShellError<f64>) -> Option<(FaceKey, EdgeKey, f64)> {
-    let ShellError::Face { face, error } = e else {
+/// **The door the klein elbow's hollow stops at**: tier 3's check 7
+/// refusing the assembled thin solid because one face's volume flux
+/// is not computable — the face and the props refusal, or `None` for
+/// any other refusal. A spiric-bounded cap's loop area is an elliptic
+/// integral (`Unimplemented`), the sectioned vessel's door too.
+pub fn props_door(e: &ShellError<f64>) -> Option<(FaceKey, geom_brep::PropsError)> {
+    let ShellError::NotValid { errors } = e else {
         return None;
     };
-    let topo::ReplaceFaceError::Op {
-        edge: None,
-        error:
-            topo::EulerOpError::RechartFalsifies {
-                edge,
-                error: geom_brep::CertifyError::IntervalNotForward { verdict },
-            },
-    } = &**error
+    let [
+        topo::ValidationError::VolumeUncomputable {
+            source: topo::MassPropsError::Face { face, source },
+            ..
+        },
+    ] = &errors[..]
     else {
         return None;
     };
-    let span = verdict.margin().diagnostic_f64_for_error_text().value()?;
-    Some((*face, *edge, span))
+    Some((*face, source.clone()))
 }

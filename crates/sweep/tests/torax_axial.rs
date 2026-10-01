@@ -34,10 +34,10 @@
 //!   is. Its EQUATOR SEAMS — a disc's two profile vertices revolved
 //!   into `RevolvedPoint`-declared chart seams — re-author onto the
 //!   corners the moved caps turned about the axis (the two-arc lune
-//!   shows such a seam certifying). What stands between the elbow and
-//!   `shell` now is a spiric rim's WINDOW, read backwards at the
-//!   attach layer. The sectioned VESSEL (`spiric_rim`) hollows to tier
-//!   3 and stops at the props inventory.
+//!   shows such a seam certifying), and its rims' windows are read
+//!   forward of their starts. The elbow hollows to tier 3 and stops,
+//!   as the sectioned VESSEL (`spiric_rim`) does, at the props
+//!   inventory.
 //!
 //! So the partial revolve's rim was a circle-profile wall's gap at two
 //! doors, and both carrier doors are built; what stops each hollow
@@ -53,7 +53,7 @@ use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
 
 use crate::common::charts::hollow_moves;
 use crate::common::poses::torax_pose;
-use crate::common::torus_walls::{klein_elbow, rim_window_reversed, torus_barrel, torus_belly};
+use crate::common::torus_walls::{klein_elbow, props_door, torus_barrel, torus_belly};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -508,56 +508,47 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
     .body
 }
 
-/// **The klein elbow's rims MINT and its equator seams RE-AUTHOR; the
-/// hollow then stops at the attach layer, on a rim's window** — the
-/// row that used to pin the seams' re-author, flipped, with the old
-/// door recorded.
+/// **The klein elbow hollows to tier 3 and stops at the props door** —
+/// the row that used to pin a rim's backwards window, flipped, with the
+/// old doors recorded.
 ///
 /// **The old door, verbatim (measured at the unit's head before the
-/// re-author):** `ShellError::Face { face: FaceKey(4v1), error:
-/// TogetherAxialEdge { edge: EdgeKey(3v1), what: "a revolved point's
-/// moved corner stands out of the family's own sketch plane, so the
-/// same rotation does not pass through it" } }` —
-/// `offset_axial.rs:reauthor`, predicate `offset_axial_reauthor_plane`.
-/// One door earlier still it was the latitude mint's
-/// `offset_axial_centre` ("a circular edge between two charts whose
-/// centre is off the axis").
+/// window was read forward):** `ShellError::Face { face: FaceKey(1v1),
+/// error: Op { edge: None, error: RechartFalsifies { edge:
+/// EdgeKey(2v1), error: IntervalNotForward { verdict: Negative {
+/// margin: −0.7068583470577036 } } } } }` — the span `−π·r′` of a rim
+/// whose inner-equator end `param_on` read on `atan2`'s branch cut. One
+/// door earlier it was the equator seams' re-author
+/// (`TogetherAxialEdge` on `EdgeKey(3v1)`, `offset_axial_reauthor_plane`),
+/// and before that the latitude mint's `offset_axial_centre`.
 ///
 /// **What answers now.** The moved cap stands `t` off the axis and
 /// parallel to it, and cuts the moved torus in a SPIRIC — sampled
 /// below as the oval's own half-width against its half-height, which
-/// a circle would make equal — so the rim mints as `Curve3::Spiric`.
-/// The disc's two profile vertices revolve into `Chart`-described,
-/// `RevolvedPoint`-DECLARED equator seams, and the moved cap turns
-/// each seam's end corner off its old sketch plane about the axis:
-/// the declaration follows the corner (its placement turned onto the
-/// moved start's azimuth, its span shortened by both ends' turns), so
-/// every decision of the axial door passes. **Then the attach layer
-/// refuses a RIM**: `IntervalNotForward` on `EdgeKey(2v1)`, whose span
-/// is `−π·r′` — the rim's inner-equator end read on `atan2`'s branch
-/// cut, where the sign of a zero picks `±π`
-/// (`work/curved/spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut.md`).
-/// The prediction was check 7's props door, where the sectioned vessel
-/// stands (`spiric_rim::the_sectioned_vessel_stops_at_the_props_door`);
-/// that the seams themselves certify is shown on a body whose rims are
-/// circles, the two-arc lune below.
+/// a circle would make equal — so the rim mints as `Curve3::Spiric`,
+/// its window read forward of its start (`offset_axial_rim_window`).
+/// The disc's two profile vertices revolve into `RevolvedPoint`-declared
+/// equator seams whose ends the moved caps turn about the axis, and the
+/// declarations follow the corners. The hollow assembles, passes checks
+/// 1–6, and check 7 refuses `VolumeUncomputable` at a CAP: its spiric
+/// loop's area is an elliptic integral (`Unimplemented`) — the door the
+/// sectioned vessel stands at (`spiric_rim`).
 #[test]
-fn torax_the_klein_elbow_seams_re_author_and_its_rim_window_runs_backwards() {
+fn torax_the_klein_elbow_hollows_to_the_props_door() {
     let r = 0.275_f64;
     let elbow = klein_elbow(vec![bulge_loop(vec![
         (Point2::new(-r, 0.0), 1.0),
         (Point2::new(r, 0.0), 1.0),
     ])]);
-    let e = topo::shell(&elbow, 0.05, tol()).expect_err("a rim's window runs backwards");
-    println!("[torax] the elbow's next door: {e}");
-    let (_, edge, span) =
-        rim_window_reversed(&e).unwrap_or_else(|| panic!("not the rim window's refusal: {e:?}"));
-    let small = r - 0.05;
-    assert!(
-        (span + core::f64::consts::PI * small).abs() < 1e-12,
-        "{edge:?}'s window runs backwards by half a turn of the moved tube: {span} vs {}",
-        -core::f64::consts::PI * small
+    let e = topo::shell(&elbow, 0.05, tol()).expect_err("check 7's volume");
+    println!("[torax] the elbow's next door: {e:?}");
+    let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
     );
+    let small = r - 0.05;
 
     // The section that rim edge needs is not a circle.
     let big = 1.2_f64;

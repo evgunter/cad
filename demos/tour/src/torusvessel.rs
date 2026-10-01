@@ -441,9 +441,8 @@ fn wall_probes(tol: Tol) {
         },
         "the props quadrature lane integrates a spiric-bounded face. Retire this probe \
          and ship the sectioned vessel as this scene's third panel, which is the \
-         picture it was always for; the klein elbow's row \
-         (`torax_the_klein_elbow_seams_re_author_and_its_rim_window_runs_backwards`) \
-         is a second gate, a spiric rim's window read backwards, and retires on its own",
+         picture it was always for; the klein elbow's sealed hollow \
+         (`torax_the_klein_elbow_hollows_to_the_props_door`) stands at the same gate",
     );
 }
 
@@ -806,9 +805,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  form (and the torus wall behind it routes to the quadrature lane, whose \
                  chart gate has no torus arm), so the +V invariant refuses \
                  VolumeUncomputable. The klein elbow's wall \
-                 (`torax_the_klein_elbow_seams_re_author_and_its_rim_window_runs_backwards`) \
-                 mints the same carrier and stops one door earlier, at the attach layer \
-                 on a rim whose window runs backwards. The SPHERE half of the \
+                 (`torax_the_klein_elbow_hollows_to_the_props_door`) mints the same \
+                 carrier and stops at the same door. The SPHERE half of the \
                  same rim family stands at the same door on a different premise: it is \
                  the CAVITY's lens face — bounded by the moved caps' off-centre \
                  sections — whose volume the flux arm cannot give tier 3 \

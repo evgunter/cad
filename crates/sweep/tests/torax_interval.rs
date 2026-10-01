@@ -313,19 +313,19 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 
 /// **The klein elbow at `T = Interval`**: the carried-datum arm, the
 /// kind-changing spiric mint (its six `decide` sites), both endpoint
-/// meters and the equator seams' re-author — each end's out-of-plane
-/// decide and the turned start's verification, on corners the moved
-/// caps turned about the axis — execute at the certified scalar on the
-/// way to the door f64 measures: the attach layer refusing a spiric
-/// rim whose window runs backwards
-/// (`work/curved/spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut.md`).
-/// The old door, verbatim: `TogetherAxialEdge { what: "a revolved
-/// point's moved corner stands out of the family's own sketch plane,
-/// so the same rotation does not pass through it" }`, the re-author's
-/// `offset_axial_reauthor_plane`. An escalation at a strict band is
-/// the certified scalar's honest answer and is pinned as such.
+/// meters, the rim window's forward read (`offset_axial_rim_window`)
+/// and the equator seams' re-author — each end's out-of-plane decide
+/// and the turned start's verification — execute at the certified
+/// scalar on the way to the door f64 measures: tier 3's check 7,
+/// `VolumeUncomputable` at a spiric-bounded cap (`Unimplemented`). The
+/// old door, verbatim: `Face { error: Op { edge: None, error:
+/// RechartFalsifies { edge: EdgeKey(2v1), error: IntervalNotForward {
+/// margin: Enclosure [−0.7068583470577047, −0.7068583470577025] } } } }`,
+/// a rim window read backwards on `atan2`'s branch cut. An escalation
+/// at a strict band is the certified scalar's honest answer and is
+/// pinned as such.
 #[test]
-fn interval_the_klein_elbow_seams_re_author_and_its_rim_window_runs_backwards() {
+fn interval_the_klein_elbow_hollows_to_the_props_door() {
     let tol = Tol::witness();
     let r = 0.275_f64;
     let profile = Profile::new(
@@ -348,18 +348,18 @@ fn interval_the_klein_elbow_seams_re_author_and_its_rim_window_runs_backwards() 
     )
     .expect("the elbow revolves")
     .body;
-    let e = topo::shell(&body, iv(0.05), tol).expect_err("a rim's window runs backwards");
+    let e = topo::shell(&body, iv(0.05), tol).expect_err("check 7's volume");
     match e {
-        ShellError::Face { ref error, .. }
+        ShellError::NotValid { ref errors }
             if matches!(
-                **error,
-                topo::ReplaceFaceError::Op {
-                    edge: None,
-                    error: topo::EulerOpError::RechartFalsifies {
-                        error: geom_brep::CertifyError::IntervalNotForward { .. },
+                errors[..],
+                [ValidationError::VolumeUncomputable {
+                    source: topo::MassPropsError::Face {
+                        source: geom_brep::PropsError::Unimplemented,
                         ..
-                    }
-                }
+                    },
+                    ..
+                }]
             ) => {}
         ShellError::Face { ref error, .. }
             if tol.eps() < DEFAULT_EPS
@@ -367,10 +367,10 @@ fn interval_the_klein_elbow_seams_re_author_and_its_rim_window_runs_backwards() 
         {
             stood_down(
                 &format!("the klein elbow's interval rim, eps = {:e}", tol.eps()),
-                "the certified scalar escalated before the rim window's refusal was \
-                 reachable, so THIS RUN ASSERTS ONLY the door's own typed escalation",
+                "the certified scalar escalated before the props door was reachable, so \
+                 THIS RUN ASSERTS ONLY the door's own typed escalation",
             );
         }
-        other => panic!("expected the rim window's refusal, got {other:?}"),
+        other => panic!("expected check 7's props door, got {other:?}"),
     }
 }

@@ -168,7 +168,8 @@
 //! through the axis at a corner that is not also all-planar — and the
 //! re-author's turned-start refusal (every door-built revolved point's
 //! sketch plane contains its axis; a mutation that keeps the old
-//! azimuth reaches it on the klein elbow).
+//! azimuth reaches it on the klein elbow), and the rim window's
+//! one-point refusal (a door-built rim has two distinct ends).
 //!
 //! # What this door does not do
 //!
@@ -565,6 +566,7 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
         // claim this door makes about every edge, and it is checked.
         let t0 = param_on(&carrier, &old_carrier, t0_old, q_start, p_start, edge, band)?;
         let t1 = param_on(&carrier, &old_carrier, t1_old, q_end, p_end, edge, band)?;
+        let t1 = forward_window(&carrier, &old_carrier, t0, t1, edge, band)?;
 
         // The carrier is VERIFIED onto both moved surfaces at its own
         // midpoint: a re-derived edge's claim is that it lies on the two
@@ -2295,7 +2297,8 @@ fn param_on<T: Decide>(
         // predicate), so the parameter is re-derived in the new
         // parameter — the OLD point's minor angle on the OLD torus
         // anchors the branch, and `param_near` reads the moved point
-        // within a half-turn of it. The old circle's centre is the
+        // within a half-turn of it; which way round the two ends make a
+        // window is the caller's `forward_window`. The old circle's centre is the
         // tube centre in the cap's plane, so the minor angle needs
         // only the carrier's own frame — read off the MOVED carrier's
         // `center` and `major_radius`, which equal the old torus's
@@ -2329,6 +2332,44 @@ fn param_on<T: Decide>(
     match decide("offset_axial_edge_agreement", Margin::of(gap), band) {
         Ok(Sign::Zero) => Ok(t),
         Ok(_) => Err(ReplaceFaceError::TogetherEdgeDisagreement { edge, gap }),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
+    }
+}
+
+/// The end of a kind-changed rim's window, read FORWARD of its start.
+///
+/// `param_on` reads each end of a spiric rim within a half turn of the
+/// old point's minor angle, and a rim between the two equators has one
+/// end on the inner equator, where that angle is `±π` by the sign of a
+/// zero. The mint's sense predicate already made the spiric run the old
+/// circle's way, so the window runs forward: the span the two reads
+/// give — a turn of the minor angle, levered at the moved tube's radius
+/// — is decided, a definitely negative one is the same end a period
+/// on, and one that cannot be told from zero is no rim. Every other
+/// carrier keeps the turn `param_on` carried from its old window.
+fn forward_window<T: Decide>(
+    carrier: &Curve3<T>,
+    old: &Curve3<T>,
+    t0: T,
+    t1: T,
+    edge: EdgeKey,
+    band: Band,
+) -> Result<T, ReplaceFaceError<T>> {
+    let (Curve3::Spiric { minor_radius, .. }, Curve3::Circle { .. }) = (carrier, old) else {
+        return Ok(t1);
+    };
+    match decide(
+        "offset_axial_rim_window",
+        Margin::levered(t1 - t0, *minor_radius),
+        band,
+    ) {
+        Ok(Sign::Positive) => Ok(t1),
+        Ok(Sign::Negative) => Ok(t1 + T::tau()),
+        Ok(Sign::Zero) => Err(ReplaceFaceError::TogetherAxialEdge {
+            edge,
+            what: "a torus rim whose moved ends read as one point of its spiric, so it has \
+                   no window to run",
+        }),
         Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
 }

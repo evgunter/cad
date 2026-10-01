@@ -28,7 +28,7 @@ use topo::{Body, ReplaceFaceError, ShellError};
 use super::common::shell_operands::vessel;
 use super::shell7_common::*;
 use crate::common::charts::hollow_moves;
-use crate::common::torus_walls::rim_window_reversed;
+use crate::common::torus_walls::props_door;
 
 const R: f64 = 2.0;
 const SMALL_R: f64 = 0.5;
@@ -609,25 +609,25 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     );
 }
 
-/// **A partial two-arc torus mints its spiric rims, re-authors its
-/// equator seams, and stops at a rim's window** (R1's row, flipped
-/// twice): the quarter-turn elbow of the two-arc profile has a [torus,
-/// meridian cap] corner whose azimuth the MOVED cap fixes — off the
-/// sketch plane — and the rim edge between the torus and the cap is
-/// minted as the spiric it is (the klein elbow's wall, `torax_axial`).
-/// Its two equator seams are `RevolvedPoint` declarations whose ends
-/// the moved caps turn about the axis, and they re-author onto the
-/// moved corners. The attach layer then refuses the rim `EdgeKey(1v1)`,
-/// whose window runs backwards by `π·r′`
-/// (`work/curved/spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut.md`).
+/// **A partial two-arc torus hollows to the props door** (R1's row,
+/// flipped again): the quarter-turn elbow of the two-arc profile has a
+/// [torus, meridian cap] corner whose azimuth the MOVED cap fixes — off
+/// the sketch plane — and the rim edge between the torus and the cap
+/// is minted as the spiric it is, its window read forward of its start
+/// (`offset_axial_rim_window`). Its two equator seams are
+/// `RevolvedPoint` declarations whose ends the moved caps turn about
+/// the axis, and they re-author onto the moved corners. The hollow
+/// reaches tier 3's check 7, `VolumeUncomputable` — the klein elbow's
+/// door (`torax_axial`).
 ///
-/// The old door, verbatim: `TogetherAxialEdge { what: "a revolved
-/// point's moved corner stands out of the family's own sketch plane,
-/// so the same rotation does not pass through it" }`
-/// (`offset_axial_reauthor_plane`); before the rim mint, the latitude
+/// The old door, verbatim: `Face { error: Op { edge: None, error:
+/// RechartFalsifies { edge: EdgeKey(1v1), error: IntervalNotForward {
+/// margin: −1.413716694115407 } } } }` — the rim window read backwards
+/// by `π·r′` on `atan2`'s branch cut; before it the seams' re-author
+/// (`offset_axial_reauthor_plane`), and before that the latitude
 /// mint's `offset_axial_centre`.
 #[test]
-fn a_partial_two_arc_torus_re_authors_its_seams_and_its_rim_window_runs_backwards() {
+fn a_partial_two_arc_torus_hollows_to_the_props_door() {
     let (big_r, r) = (2.0, 0.5);
     let body = revolved(
         bulge_loop(vec![
@@ -637,13 +637,12 @@ fn a_partial_two_arc_torus_re_authors_its_seams_and_its_rim_window_runs_backward
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("the rim window");
-    let (_, edge, span) =
-        rim_window_reversed(&e).unwrap_or_else(|| panic!("not the rim window's refusal: {e:?}"));
-    let half_turn = -core::f64::consts::PI * (r - 0.05);
-    assert!(
-        (span - half_turn).abs() < 1e-12,
-        "{edge:?}'s window runs backwards by half a turn of the moved tube: {span} vs {half_turn}"
+    let e = topo::shell(&body, 0.05, tol()).expect_err("check 7's volume");
+    let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
     );
 }
 
