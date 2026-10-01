@@ -91,7 +91,7 @@
 use pncad::document::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, EvalOptions, Evaluation, Frame,
     MateFault, MateFrame, MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram,
-    RecipeNodeId, SitedFace, class_admission, mate_reach, member_of, solve_document, table_gap,
+    RecipeNodeId, SitedFace, SpokenNode, class_admission, mate_reach, member_of, solve_document, table_gap,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -326,14 +326,14 @@ impl core::fmt::Display for MateToolError {
             ),
             Self::NotAnInstancePick { side, node } => write!(
                 f,
-                "pick {} is on {}, which is not a part instance or a copy of one",
+                "pick {} is on node {}, which is not a part instance or a copy of one",
                 side.name(),
-                crate::tree::node_number(*node)
+                node
             ),
             Self::SamePick { head } => write!(
                 f,
-                "both picks name the same member (head: {}); a mate relates a pair",
-                crate::tree::node_number(*head)
+                "both picks name the same member (head: node {}); a mate relates a pair",
+                head
             ),
             Self::Frame { side, error } => write!(
                 f,
@@ -405,26 +405,28 @@ impl MateToolState {
     /// neither the state nor the survival rule is shared), but the
     /// line is the same sentence about the same thing — a role and
     /// what fills it — so it is composed by the same door.
-    pub fn line(&self) -> String {
+    pub fn line(&self, doc: &Doc<ProfileProgram>) -> String {
         let [a, b] = self.picks();
-        crate::seats::picks_line(
-            [(MateSide::A, a), (MateSide::B, b)]
-                .map(|(side, pick)| (format!("pick {}", side.name()), pick.map(face_of))),
-        )
+        crate::seats::picks_line([(MateSide::A, a), (MateSide::B, b)].map(|(side, pick)| {
+            (
+                format!("pick {}", side.name()),
+                pick.map(|pick| face_of(doc.spoken(pick.node))),
+            )
+        }))
     }
 }
 
-/// **What this tool calls a held pick**: `face of feature 3` — the
-/// face of the feature whose body the pick was taken on, the node
-/// spelled [`crate::tree::node_number`]'s way.
+/// **What this tool calls a held pick**: `face of Extrude 000000000003`
+/// — the face of the node whose body the pick was taken on, as the
+/// document speaks it.
 ///
 /// The panel item ([`MateToolState::line`]) and the drop notice
 /// ([`MateToolEvent`]) both say it, about the same pick on the same
 /// frame, so they read it here rather than each spelling it: two
 /// copies of one phrase is how a panel and its notice come to call
 /// one pick two things.
-fn face_of(pick: &FaceSelection) -> String {
-    format!("face of {}", crate::tree::node_number(pick.node))
+fn face_of(node: SpokenNode) -> String {
+    format!("face of {node}")
 }
 
 /// A typed tool event the chrome renders — every state change that
@@ -438,6 +440,9 @@ pub enum MateToolEvent {
         side: MateSide,
         /// The pick that was held.
         pick: FaceSelection,
+        /// The pick's node as the document spoke it when the pick was
+        /// dropped.
+        node: SpokenNode,
         /// The resolution machinery's own verdict, read as the feature
         /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
         /// for the same width reason `Standing` boxes it.
@@ -454,11 +459,11 @@ impl core::fmt::Display for MateToolEvent {
     /// full in the value; this is what a person reads.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { side, pick, .. } => write!(
+            Self::PickLost { side, node, .. } => write!(
                 f,
                 "pick {} (a {}) no longer resolves; the tool dropped it",
                 side.name(),
-                face_of(pick)
+                face_of(*node)
             ),
         }
     }
@@ -558,6 +563,7 @@ impl MateTool {
             } else {
                 events.push(MateToolEvent::PickLost {
                     side,
+                    node: doc.spoken(pick.node),
                     pick: pick.clone(),
                     resolution: Box::new(verdict),
                 });

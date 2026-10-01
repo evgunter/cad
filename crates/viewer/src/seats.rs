@@ -223,7 +223,7 @@ impl core::fmt::Display for SeatEvent {
                 f,
                 "the {} pick ({}) is no longer in the document; the tool dropped it",
                 seat.name(),
-                crate::tree::node_number(*node)
+                format!("node {node}")
             ),
         }
     }
@@ -386,14 +386,14 @@ impl Seats {
 /// order, or name ones the tool no longer has, and still compile.
 ///
 /// Each item is said in the words a seat's drop notice uses
-/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick by
-/// [`crate::tree::node_number`], so the panel and the notice about
-/// the same pick call it one thing.
-pub fn seat_line(seats: &Seats) -> String {
+/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick as `doc`
+/// speaks it, so the panel and the notice about the same pick call it
+/// one thing.
+pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
     picks_line(
         seats
             .each()
-            .map(|(seat, held)| (seat.name(), held.map(crate::tree::node_number))),
+            .map(|(seat, held)| (seat.name(), held.map(|node| doc.spoken(node).to_string()))),
     )
 }
 

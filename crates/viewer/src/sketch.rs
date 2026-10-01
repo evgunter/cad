@@ -523,11 +523,11 @@ pub enum HeldRefusal {
 impl core::fmt::Display for HeldRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAProfile { node } => write!(f, "feature {} is not a profile", node),
+            Self::NotAProfile { node } => write!(f, "node {} is not a profile", node),
             Self::Driven { node, slots } => {
                 write!(
                     f,
-                    "feature {}'s program is driven by expressions, which the editor's \
+                    "node {}'s program is driven by expressions, which the editor's \
                      number fields cannot hold — edit those in the slot rows: ",
                     node
                 )?;

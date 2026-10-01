@@ -111,7 +111,7 @@ pub(crate) fn edit_door_ui(
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) -> Result<Option<SessionOp>, frame::Message> {
     let node = edit.node;
-    ui.label(format!("profile on frame {}", edit.plane().0));
+    ui.label(format!("profile on {}", session.doc().spoken(edit.plane())));
     let loops = edit.loops().len();
     let mut rows = Vec::new();
     for index in 0..loops {

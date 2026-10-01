@@ -2371,7 +2371,7 @@ impl DocSession {
         self.require_kind(node, NodeKindWanted::Profile)?;
         let doc = self.committed_doc();
         let Some(Node::Profile(current)) = doc.node(node) else {
-            unreachable!("`require_kind` admitted feature {} as a profile", node)
+            unreachable!("`require_kind` admitted node {} as a profile", node)
         };
         // The editor's program is an edit OF the program it loaded;
         // over any other program it would be a guess about what the

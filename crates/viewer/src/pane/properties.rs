@@ -367,11 +367,11 @@ impl ViewerBehavior<'_> {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
-                    ui.label(crate::tree::node_number(*node));
+                    ui.label(crate::tree::node_label(self.session.doc(), *node));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
-                    // Beside the number, which is the node it is about.
+                    // Beside the node's name, which is the node it is about.
                     standing_verdict(ui, &self.theme, standing);
                 });
                 return;
@@ -403,7 +403,7 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             // The feature that MADE the entity, so the button deletes
             // what the label names.
-            ui.label(format!("{noun} of {}", crate::tree::node_number(feature)));
+            ui.label(format!("{noun} of {}", self.session.doc().spoken(feature)));
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
@@ -454,7 +454,7 @@ impl ViewerBehavior<'_> {
             return;
         }
         ui.separator();
-        ui.label(format!("instance {}", node));
+        ui.label(doc.spoken(node).to_string());
         // The admission test `SetInstanceHidden` itself runs, read once
         // for the section: the toggle below is offered exactly where
         // the op would accept it, and the free-move probe runs this

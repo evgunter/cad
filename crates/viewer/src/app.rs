@@ -1431,7 +1431,7 @@ impl ViewerApp {
                     for finding in &report.findings {
                         ui.horizontal_top(|ui| {
                             if ui
-                                .button(crate::tree::node_number(finding.root))
+                                .button(self.session.doc().spoken(finding.root).to_string())
                                 .on_hover_text("select the root this finding is about")
                                 .clicked()
                             {
@@ -1743,7 +1743,11 @@ impl ViewerApp {
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
-                frame::index_badge(self.picks.error(), self.session.evaluation()),
+                frame::index_badge(
+                    self.picks.error(),
+                    self.session.doc(),
+                    self.session.evaluation(),
+                ),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
             .into_iter()

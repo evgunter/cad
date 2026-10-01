@@ -802,7 +802,7 @@ impl Drafts {
             self.profile_edit = None;
             let loops = sketch::held_loops(doc, node)?;
             let Some(base) = current else {
-                unreachable!("`held_loops` loaded feature {} as a profile", node)
+                unreachable!("`held_loops` loaded node {} as a profile", node)
             };
             self.profile_edit = Some(ProfileEdit::load(node, base, loops));
         }

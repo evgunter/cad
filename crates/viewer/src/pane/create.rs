@@ -6,7 +6,9 @@
 use std::collections::BTreeMap;
 
 use eframe::egui;
-use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
+use pncad::document::{
+    AxisSense, BooleanOp, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId,
+};
 use pncad::select::SplitHalf;
 
 use crate::app::ViewerBehavior;
@@ -151,8 +153,13 @@ pub(crate) fn duplicate_note() -> String {
 /// has no roles to re-list and no line to compose; a free function over
 /// the `Ui` so a headless row can read what it paints
 /// (`crate::pane::headless`).
-pub(crate) fn seats_row(ui: &mut egui::Ui, seats: &Seats, theme: &Theme) {
-    crate::widgets::message_toned(ui, seat_line(seats), theme, Tone::Advisory);
+pub(crate) fn seats_row(
+    ui: &mut egui::Ui,
+    seats: &Seats,
+    doc: &Doc<ProfileProgram>,
+    theme: &Theme,
+) {
+    crate::widgets::message_toned(ui, seat_line(seats, doc), theme, Tone::Advisory);
 }
 
 /// **The offer to declare a refused contact, in the boolean tool** —
@@ -168,6 +175,7 @@ pub(crate) fn declare_offer_rows(
     ui: &mut egui::Ui,
     held: &mut Option<DeclareOffer>,
     (now, op, tool): (Generation, BooleanOp, BooleanTool),
+    doc: &Doc<ProfileProgram>,
     ops: &mut Vec<SessionOp>,
     theme: &Theme,
 ) {
@@ -182,7 +190,7 @@ pub(crate) fn declare_offer_rows(
     for finding in offer.findings() {
         crate::widgets::message_toned(
             ui,
-            Refusal::declare_pair_wording(finding),
+            Refusal::declare_pair_wording(doc, finding),
             theme,
             Tone::Advisory,
         );
@@ -202,8 +210,13 @@ pub(crate) fn declare_offer_rows(
 /// **The mate tool's held picks, drawn** — [`MateToolState::line`],
 /// the seated tools' line over the mate's two sides, in the same voice
 /// as [`seats_row`].
-pub(crate) fn mate_picks_row(ui: &mut egui::Ui, state: &MateToolState, theme: &Theme) {
-    crate::widgets::message_toned(ui, state.line(), theme, Tone::Advisory);
+pub(crate) fn mate_picks_row(
+    ui: &mut egui::Ui,
+    state: &MateToolState,
+    doc: &Doc<ProfileProgram>,
+    theme: &Theme,
+) {
+    crate::widgets::message_toned(ui, state.line(doc), theme, Tone::Advisory);
 }
 
 /// **The smallest pattern count the form offers.**
@@ -630,7 +643,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
-        mate_picks_row(ui, tool.state(), &self.theme);
+        mate_picks_row(ui, tool.state(), self.session.doc(), &self.theme);
         // The class choice, offered THROUGH the kernel's admission
         // table: each class is shown with its verdict, and the
         // deferral (Fit and every future class) is a sentence here
@@ -1011,20 +1024,14 @@ impl ViewerBehavior<'_> {
     }
 
     /// **How a picker names one frame node**: [`tree::node_label`],
-    /// against the same landed document [`Self::frames`] listed.
+    /// against the same landed document [`Self::frames`] listed — the
+    /// same words that node's tree row reads.
     ///
-    /// One reading for the list and for the closed text. A combo
-    /// entry and that node's tree row do not read alike — the row
-    /// leads with the node's KIND and this leads with its number —
-    /// but the half that says WHICH frame is the same string from the
-    /// same function ([`tree::frame_pose`]), so the two agree about
-    /// the thing they are both trying to tell apart.
-    ///
-    /// Total, and that is what it is for: a held pick outlives the
-    /// frame it names, and an id the landed document does not hold is
-    /// named by its number alone — the text every refusal in this
-    /// crate calls a node by, and the text this combo drew for every
-    /// frame before it drew their poses.
+    /// One reading for the list and for the closed text. Total, and
+    /// that is what it is for: a held pick outlives the frame it names,
+    /// and an id the landed document does not hold is named by its tag
+    /// alone (`node 000000000003`), as the document speaks a node it
+    /// does not hold.
     fn frame_names(&self) -> impl Fn(&RecipeNodeId) -> String + use<> {
         let named: BTreeMap<RecipeNodeId, String> = self
             .session
@@ -1032,16 +1039,11 @@ impl ViewerBehavior<'_> {
             .map(|(doc, _)| {
                 sketch::frames(doc)
                     .into_iter()
-                    .filter_map(|id| doc.node(id).map(|node| (id, tree::node_label(node, id))))
+                    .map(|id| (id, tree::node_label(doc, id)))
                     .collect()
             })
             .unwrap_or_default();
-        move |id| {
-            named
-                .get(id)
-                .cloned()
-                .unwrap_or_else(|| tree::node_number(*id))
-        }
+        move |id| named.get(id).cloned().unwrap_or_else(|| format!("node {id}"))
     }
 
     /// The add-profile form: a template shape with Length fields, one
@@ -1258,7 +1260,7 @@ impl ViewerBehavior<'_> {
         match self.session.selection().node() {
             Some(node) => {
                 if ui
-                    .button(format!("{EXTRUDE} {}", tree::node_number(node)))
+                    .button(format!("{EXTRUDE} {}", self.session.doc().spoken(node)))
                     .clicked()
                 {
                     match self.drafts.length(self.drafts.extrude_distance) {
@@ -1303,7 +1305,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Revolve.says(&"pick the profile, then the axis"),
         );
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("angle");
             unit_field(
@@ -1336,7 +1338,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Boolean.says(&"pick the first body, then the second"),
         );
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("operation");
             // One button per operation the KERNEL has, in its order:
@@ -1360,6 +1362,7 @@ impl ViewerBehavior<'_> {
             ui,
             &mut self.drafts.declare_offer,
             (self.session.generation(), self.drafts.boolean_op, tool),
+            self.session.doc(),
             self.ops,
             &self.theme,
         );
@@ -1378,7 +1381,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Split.says(&"pick the body, then the datum plane"),
         );
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         self.tool_commit_row(ui, ToolKind::Split, |_| Ok(tool.op()?));
     }
 
@@ -1392,7 +1395,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         ui.horizontal(|ui| {
             unit_vec3_row(
                 ui,
@@ -1447,7 +1450,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Pattern.says(&"pick the body, then (circular) the axis"),
         );
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("rule");
             for (kind, label) in PatternKindChoice::ALL {
@@ -1547,7 +1550,7 @@ impl ViewerBehavior<'_> {
                   of",
             ),
         );
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         part_selector_rows(
             ui,
             &self.theme,
@@ -1579,7 +1582,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
         self.tool_commit_row(ui, ToolKind::Duplicate, |_| Ok(tool.op()?));
     }

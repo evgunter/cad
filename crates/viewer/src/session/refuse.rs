@@ -692,12 +692,12 @@ impl Refusal {
     /// the class the declaration asserts. The face within each operand
     /// has no prose name (`work/author/face-pick-cannot-name-which-face.md`),
     /// so the line says "a face of" rather than inventing one.
-    pub fn declare_pair_wording(finding: &FlushFinding) -> String {
+    pub fn declare_pair_wording(doc: &Doc<ProfileProgram>, finding: &FlushFinding) -> String {
         let (one, other) = &finding.pair;
         format!(
             "a face of {} against a face of {} — {} contact",
-            crate::tree::node_number(one.at),
-            crate::tree::node_number(other.at),
+            doc.spoken(one.at),
+            doc.spoken(other.at),
             finding.class.name()
         )
     }
@@ -785,7 +785,7 @@ impl core::fmt::Display for Refusal {
             ),
             Self::ProfileEditStale { node } => write!(
                 f,
-                "feature {}'s profile changed since the editor loaded it; the editor's program was \
+                "node {}'s profile changed since the editor loaded it; the editor's program was \
                  not written — the editor now shows the profile as it is",
                 node
             ),
@@ -1145,7 +1145,7 @@ impl core::fmt::Display for FaceFrameFault {
             }
             Self::NotOneBody { at } => write!(
                 f,
-                "feature {}'s value is several bodies, so a face on it names no single body to \
+                "node {}'s value is several bodies, so a face on it names no single body to \
                  read a frame out of — project the one you mean first",
                 at
             ),

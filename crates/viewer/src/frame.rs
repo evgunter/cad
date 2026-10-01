@@ -229,8 +229,8 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
-    PartFault, ProductError, ProductErrorKind, RecipeNodeId, ResolveFault, SlotId,
+    ChecksReport, Doc, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
+    PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, SlotId,
 };
 use pncad::select::HitTestError;
 
@@ -2396,7 +2396,7 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// one [`Tone::Actionable`] row the tree draws for it. So it takes the
 /// tree's own reading of a downstream row — [`Tone::Advisory`], naming
 /// the row that carries the cause ([`crate::tree::cause_row`], spelled
-/// [`crate::tree::node_number`]) — and the index's own words move to
+/// spoken as the document speaks it) — and the index's own words move to
 /// the tooltip, unaltered.
 ///
 /// **It is placed under the cause, not dropped**, because it carries
@@ -2429,6 +2429,7 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// where the louder news it defers to is actually drawn.
 pub fn index_badge(
     error: Option<&PickIndexError>,
+    doc: &Doc<ProfileProgram>,
     evaluation: Option<&Evaluation<f64>>,
 ) -> Option<Badge> {
     let error = error?;
@@ -2445,7 +2446,7 @@ pub fn index_badge(
             format!(
                 "pick index: waits on {}, which failed — until the index builds, no pick is \
                  answered and the picture is not redrawn",
-                crate::tree::node_number(cause)
+                doc.spoken(cause)
             ),
             Tone::Advisory,
         )

@@ -3,7 +3,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{AssertionVerdict, RecipeNodeId, UnevaluatedReason};
+use pncad::document::{AssertionVerdict, RecipeNodeId, SpokenNode, UnevaluatedReason};
 
 use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
 use crate::frame;
@@ -47,18 +47,19 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
     (indent(depth) + INDENT_STEP).min(spare)
 }
 
-/// **What one feature-tree row reads as, drawn**: the node's kind,
-/// which one of its kind it is, and the root glyph.
+/// **What one feature-tree row reads as, drawn**: the node as the
+/// document speaks it (kind noun and tag), which one of its kind it
+/// is, and the root glyph.
 ///
 /// **The kind alone is not a name.** A tree of rows reading `Datum
 /// frame` twice asks a person to tell two frames apart by clicking;
-/// the pose the node itself states is what separates them
-/// ([`crate::tree::frame_pose`]), and it is the same sentence the
-/// creation forms' picker puts after that node's number.
+/// the tag tells them apart, and the pose the node itself states is
+/// what tells a person WHICH frame ([`crate::tree::frame_pose`]) — the
+/// same words the creation forms' picker reads ([`crate::tree::node_label`]).
 pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egui::Response {
     let named = match &row.pose {
-        Some(pose) => format!("{} — {pose}", row.kind),
-        None => row.kind.to_owned(),
+        Some(pose) => format!("{} — {pose}", row.spoken),
+        None => row.spoken.to_string(),
     };
     let label = if row.root {
         format!("{named} {GLYPH_ROOT}")
@@ -94,7 +95,7 @@ pub(crate) fn feature_row_ui(
         if row_label(ui, row, selected).clicked() {
             clicks.select = Some(row.id);
         }
-        if row.kind == "InstantiatePart" {
+        if row.spoken.kind() == Some("InstantiatePart") {
             let mut shown = !hidden;
             if ui.checkbox(&mut shown, "shown").changed() {
                 clicks.hide = Some(!shown);
@@ -265,11 +266,11 @@ fn advisory_line(ui: &mut egui::Ui, depth: usize, text: &str, theme: &Theme) {
 }
 
 /// **A line under a row at `depth` that links to the node `to`**, in
-/// [`tree::link_wording`]'s words: `to` when it was clicked. The
+/// [`tree::link_wording`]'s words: `to`'s id when it was clicked. The
 /// wording and the target are one argument, so they cannot name two
 /// different nodes.
-fn link_to(ui: &mut egui::Ui, depth: usize, to: RecipeNodeId) -> Option<RecipeNodeId> {
-    link_line(ui, depth, &tree::link_wording(to)).then_some(to)
+fn link_to(ui: &mut egui::Ui, depth: usize, to: SpokenNode) -> Option<RecipeNodeId> {
+    link_line(ui, depth, &tree::link_wording(to)).then_some(to.id())
 }
 
 /// A line under a row at `depth` that is a click; whether it was
