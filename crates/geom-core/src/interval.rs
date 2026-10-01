@@ -51,8 +51,9 @@
 //!
 //! Every door refuses below `Def`, so the backend's one operation whose
 //! result always carries `Trv` — `DInterval::intersection` — would be
-//! refused on every result if this scalar ever exposed it. It does not,
-//! and nothing here calls one.
+//! refused on every result if this scalar ever exposed it. It does not;
+//! its one caller, `Certification::clamped_to`, reads its endpoints and
+//! keeps the enclosure's own decoration.
 //!
 //! # Certification semantics: truth containment, not f64 containment
 //!
@@ -1226,22 +1227,12 @@ mod tests {
 
     #[test]
     fn from_f64_embeds_finite_points_exactly() {
-        for x in [1.0, -2.5, 1e-308, -1e300, f64::MAX] {
+        // The backend stores a point's endpoints verbatim, so a zero keeps
+        // its sign bit too.
+        for x in [1.0, -2.5, 1e-308, -1e300, f64::MAX, 0.0, -0.0] {
             let p = Interval::from_f64(x);
             assert_eq!(p.lo().to_bits(), x.to_bits(), "lo of point {x:e}");
             assert_eq!(p.hi().to_bits(), x.to_bits(), "hi of point {x:e}");
-            assert_eq!(p.0.decoration(), Decoration::Com);
-        }
-        // Zero embeds exactly as a VALUE, but not bit-for-bit: inari
-        // canonicalizes endpoint representation (it stores the lower bound
-        // negated, so `inf()` of the point zero surfaces as -0.0). The
-        // sign of a floating-point zero is a representation artifact, not
-        // geometry (same stance as `crate::predicate`'s boundary table),
-        // so value equality is the honest assertion here.
-        for z in [0.0f64, -0.0] {
-            let p = Interval::from_f64(z);
-            assert_eq!(p.lo(), 0.0, "lo of point {z:?}");
-            assert_eq!(p.hi(), 0.0, "hi of point {z:?}");
             assert_eq!(p.0.decoration(), Decoration::Com);
         }
     }

@@ -2233,7 +2233,7 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
     // the axis — and takes the funnel's escalation rather than a poison
     // direction.
     if u_win.is_some() || v_win.is_some() {
-        geom_core::k_stats::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
+        crate::validate::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
             .map_err(escalate)?;
     }
     if let Some(az) = u_win {
@@ -4956,7 +4956,7 @@ mod per_solid_entry_tests {
         let tol = Tol::witness();
         let mut body = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
         let other = quad_prism(&[(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)], 1.0, tol);
-        crate::instance::graft_disjoint(&mut body, &other, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &other).unwrap();
         body
     }
 

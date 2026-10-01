@@ -38,7 +38,7 @@ fn two_cubes(dx: f64) -> topo::Body<f64> {
     describe_as_intersections(&mut dst, Tol::witness());
     let map = Affine3::translation(Vec3::new(dx, 0.0, 0.0));
     let placed = topo::transform_rigid(&src, &map, Tol::witness()).expect("a rigid map");
-    topo::graft_disjoint(&mut dst, &placed, Tol::witness()).expect("a placed graft");
+    topo::graft_disjoint(&mut dst, &placed).expect("a placed graft");
     dst
 }
 
@@ -50,7 +50,7 @@ fn three_cubes() -> topo::Body<f64> {
     describe_as_intersections(&mut src, Tol::witness());
     let map = Affine3::translation(Vec3::new(20.0, 0.0, 0.0));
     let placed = topo::transform_rigid(&src, &map, Tol::witness()).expect("a rigid map");
-    topo::graft_disjoint(&mut dst, &placed, Tol::witness()).expect("a placed graft");
+    topo::graft_disjoint(&mut dst, &placed).expect("a placed graft");
     dst
 }
 

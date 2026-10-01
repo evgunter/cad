@@ -2,10 +2,11 @@
 id: interval-backend-signed-zero-conventions
 kind: issue
 title: The interval backend's signed-zero conventions: a stale inari comment at interval.rs, abs(−0.0) = −0.0, and * and / dropping the bit
-status: open
+status: closed
 opened: 2026-09-05
 priority: P1
-cost: D
+cost: M
+closed: 2026-10-01
 ---
 
 
@@ -50,3 +51,24 @@ change to the source. The differential
 compares those zeros by value and says why. Whatever convention the
 sign-hull ruling settles on would have to be spelled past
 `f64::min`/`max` to be one.
+
+## Closed (2026-10-01)
+
+Closed by #3687, and settled by #2468's option 1: nothing in the frame
+construction depends on a zero's sign.
+
+- **The stale inari comment is gone**, and `from_f64`'s assertion is
+  bitwise again.
+- **`abs` returns `+0`** at zero endpoints.
+- **The backend's convention is stated at its home**
+  (`interval-transcendentals/src/lib.rs`, "Signed zeros"). No
+  enclosure semantics depend on a zero's sign; the identity channels
+  read it.
+- **Endpoint choices at an opposite-zero tie follow one rule**: lower
+  takes −0, upper takes +0, in either operand order. The rule covers
+  `hull`, `intersection`, `min_i`/`max_i`, the `×`/`÷` folds and
+  `Certification::clamped_to`. It replaces `minNum`/`maxNum`'s
+  unspecified pick, which made the old `×` fold store a different bit
+  in debug and in release. The door differential now compares bits.
+- **The rest of the tree's raw `f64::min`/`max`** is on
+  `work/issues/raw-f64-min-max-store-a-codegen-chosen-zero-sign.md`.

@@ -413,11 +413,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
 /// (`geom_core::UNNAMED_DECISION`) on purpose, by exact row id, each
 /// with its reason. Every other row's escalation says in words what was
 /// decided.
-pub(crate) const FILED_SUBJECTLESS: &[(&str, &str)] = &[(
-    "Blend/Escalated(unrouted)",
-    "the gap sentence for a name the blend's recourse table does not route: the \
-     row exists to show that sentence",
-)];
+pub(crate) const FILED_SUBJECTLESS: &[(&str, &str)] = &[];
 
 /// Which admission, if any, lets `problem` — one line
 /// [`test_utils::refusal::problems`] reported on row `name`, rendered
@@ -1995,7 +1991,9 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
 fn blend() -> Vec<(String, NodeErrorKind)> {
     use geom_core::{Indeterminate, MarginDiag, Sign};
     use payloads::*;
-    use sweep::blend::{BlendError as E, BlendKind, BlendSite, ClassifiedMargin, CornerConfig};
+    use sweep::blend::{
+        BlendDecision, BlendError as E, BlendKind, BlendSite, ClassifiedMargin, CornerConfig,
+    };
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
     let (face, edge, vertex) = (FaceKey::default(), EdgeKey::default(), VertexKey::default());
     let decided = |predicate, m: f64, sign| ClassifiedMargin {
@@ -2109,6 +2107,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "Escalated(radius)",
             E::Escalated {
                 site: BlendSite::Link { edge },
+                decision: BlendDecision::RadiusHeadroom,
                 source: escalated("fillet3_radius_headroom"),
             },
         ),
@@ -2116,6 +2115,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "Escalated(clearance)",
             E::Escalated {
                 site: BlendSite::Link { edge },
+                decision: BlendDecision::FaceClearance,
                 source: escalated("fillet3_face_clearance"),
             },
         ),
@@ -2123,6 +2123,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "Escalated(chain)",
             E::Escalated {
                 site: BlendSite::Joint { vertex },
+                decision: BlendDecision::ChainG1,
                 source: escalated("fillet3_chain_g1"),
             },
         ),
@@ -2130,6 +2131,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "Escalated(contact)",
             E::Escalated {
                 site: BlendSite::Link { edge },
+                decision: BlendDecision::ContactSecondOrder,
                 source: escalated("tangent_second_order"),
             },
         ),
@@ -2137,6 +2139,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "Escalated(corner)",
             E::Escalated {
                 site: BlendSite::Joint { vertex },
+                decision: BlendDecision::CornerIndependence,
                 source: escalated("fillet3_corner_independence"),
             },
         ),
@@ -2144,14 +2147,8 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "Escalated(ring)",
             E::Escalated {
                 site: BlendSite::Chain,
+                decision: BlendDecision::RingClearance,
                 source: escalated("fillet3_ring_clearance"),
-            },
-        ),
-        (
-            "Escalated(unrouted)",
-            E::Escalated {
-                site: BlendSite::Chain,
-                source: diag(),
             },
         ),
         ("RepeatedEdge", E::RepeatedEdge { edge }),

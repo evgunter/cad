@@ -1516,6 +1516,7 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
+        TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
