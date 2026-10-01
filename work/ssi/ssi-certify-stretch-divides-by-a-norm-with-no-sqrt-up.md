@@ -2,10 +2,13 @@
 id: ssi-certify-stretch-divides-by-a-norm-with-no-sqrt-up
 kind: issue
 title: ssi/certify: the chart stretch divisor is a raw sqrt of an f64 fold, so it is not an upper bound
-status: open
+status: closed
 opened: 2026-09-15
 priority: P0
 cost: M
+closed: 2026-10-01
+pr: 3653
+branch: ssi/chart-rate
 ---
 
 
@@ -155,3 +158,7 @@ the three sides with no lift. The finding stands.
 
 Decided with three sibling rows; the spec is the "Design" section of
 `ssi-chart-speed-usability-boundary`.
+
+## Closed (2026-10-01, PR 3653)
+
+`Box3::speed_sup` is deleted. Every chart sup is `geom_core::interval::norm_sup` (dependent squares, interval sum, `sqrt_up`), and `chart_transverse_margin`'s quotient is `div_down`. Exact checks: the old fold was below the true norm on 4752 of 7776 real derivative boxes, and a live under-read showed at spread 1e-160 (2.99998e-160 against 3e-160). Review was a single FULL review with one fix pass, which swept the quotient siblings in `offset_meters`.

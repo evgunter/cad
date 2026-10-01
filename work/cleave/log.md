@@ -53,6 +53,12 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
 - Wave 2: the `rehome_rings` reproduction and the graft reachability
   measurement are dispatched to one lane, one after the other, each
   with its own PR (`cleave/rehome-rings`, `cleave/graft-reach`).
+- Edge midpoint merged (PR 3645) after a style review and one fix pass.
+  The curved-or-chord rule has one home (`IntersectionDraft`,
+  `Curve3::is_curved`), and `mid_param` takes the sum spelling: edge
+  parameters reach the generic sites as non-point intervals, and the
+  sum spelling keeps the enclosure tight. `chart_region::midpoint` is
+  retired into it. Filed `work/reach/split-section-boundary-curved-arm-untested-past-the-edge-gate`.
 - Interior witness, PR 3655 (green), now in full review. Measured: both
   probes are reachable (`ops.rs` on `(a∪c)∪b`, `finish.rs` on
   `(a∪c)∪(b∪x)`), and the `solid_contain.rs` schedule walk never fired.
@@ -86,3 +92,11 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   Review: **dual**, because it reshapes a certification surface shared
   crate-wide. The mint-door collapse (`set_edge_curve` reading the
   policy, 46 call sites) follows as a second unit.
+- Rehome rings merged (PR 3660) after a full review and one fix pass.
+  The outcome depends on the pose: a circular cap refused
+  `TornComponent`, and an elliptic run returned a silently wrong body
+  (`Ok`, with the bore missing from its half). Both are fixed by the
+  carrier walk. Filed `carrier-walk-none-is-answered-four-ways` (P1)
+  and `work/exch/infer-outer-reads-an-arcs-sag-off-a-sample-polygon`
+  (P3). TANG's `arc-aware-point-in-loop` may now be closable; that is
+  TANG's call.

@@ -656,13 +656,12 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
         let carrier = map_carrier(map, old.carrier())?;
         let description = match old.description() {
             // Re-mint (module docs above): construction-fresh witness
-            // from the MAPPED carrier at the pinned mid parameter.
-            // Params are transform-invariant, so the pre-transform
-            // schedule parameter is the post-transform one.
+            // from the MAPPED carrier at the pinned mid parameter
+            // (params are transform-invariant).
             EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
                 s1: *s1,
                 s2: *s2,
-                witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
+                witness: carrier.mid_point(param_start, param_end),
             },
             // TangentIntersection maps as Intersection does: keys are
             // stable, the witness re-mints from the mapped carrier.
@@ -670,7 +669,7 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
                 EdgeDescriptionSpec::TangentIntersection {
                     s1: *s1,
                     s2: *s2,
-                    witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
+                    witness: carrier.mid_point(param_start, param_end),
                 }
             }
             // A chart image is a PARAMETER-SPACE fact, invariant under

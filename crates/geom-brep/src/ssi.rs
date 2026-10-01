@@ -125,6 +125,7 @@ pub mod system;
 use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
+use geom_core::interval::norm_sup;
 use geom_core::{Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, Margin, Point3, Real, SizedPass};
 
 use crate::recourse::{Reading, Refused, RefusedArm, SizedDecision, StoredDefinite};
@@ -1136,9 +1137,10 @@ fn finish_r3(
         band,
     )?;
     let params = carrier.domain();
-    let witness = certify::witness(&carrier);
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
+    let witness = carrier.mid_point(params.0, params.1);
     Ok(SsiBranch {
-        carrier: Curve3::Nurbs(std::sync::Arc::new(carrier)),
+        carrier,
         params,
         end: trace.end,
         certificate: cert,
@@ -1213,7 +1215,7 @@ pub fn plane_nurbs_ssi(
     let nb = NurbsBoxes::new(wall);
     let du = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true);
     let dv = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false);
-    let speed = nan_propagating_max(du.speed_sup(), dv.speed_sup());
+    let speed = nan_propagating_max(norm_sup(&[du.x, du.y, du.z]), norm_sup(&[dv.x, dv.y, dv.z]));
     // A speed OUTSIDE the positive-finite class can never translate a
     // floor: `floor / ∞` is exactly zero — a floor no cell can ever
     // reach — so a non-finite speed would let the sweep run to its
@@ -1238,8 +1240,8 @@ pub fn plane_nurbs_ssi(
     // Tagged only now, past the two guards: the rate pair is a
     // dimension-and-direction tag, not a positivity witness, and this
     // lane's reading of a zero or non-finite rate is its own (above).
-    // The direction is SUP — `mag` is an upper bound on each
-    // derivative box — and dividing a metre floor by it UNDER-states
+    // The direction is SUP — `norm_sup` is an upper bound on the
+    // norm over each derivative box — and dividing a metre floor by it UNDER-states
     // the parameter reach, which is the safe side of a floor and of a
     // tube pad alike.
     let speed = geom_core::SupSpeed::new(speed);
@@ -1373,9 +1375,10 @@ fn finish_r4(
         band,
     )?;
     let params = carrier.domain();
-    let witness = certify::witness(&carrier);
+    let carrier = Curve3::Nurbs(std::sync::Arc::new(carrier));
+    let witness = carrier.mid_point(params.0, params.1);
     Ok(SsiBranch {
-        carrier: Curve3::Nurbs(std::sync::Arc::new(carrier)),
+        carrier,
         params,
         end: trace.end,
         certificate: cert,
@@ -1564,15 +1567,15 @@ pub fn idealized_trace_r3(
 }
 
 /// `max` that PROPAGATES NaN — `f64::max` returns the non-NaN operand,
-/// so a lone refused fold input (a refused box's `mag` reads NaN) would
-/// be dropped before any guard with an `is_finite`/`is_nan` arm could
-/// see it.
+/// so a lone refused fold input (a refused box's `norm_sup` reads NaN)
+/// would be dropped before any guard with an `is_finite`/`is_nan` arm
+/// could see it.
 ///
 /// At its one call site (the seeding guard's chart-speed fold) the
 /// difference from `f64::max` is defensive rather than reachable
 /// today: a refused derivative box needs a zero-touching weight hull
 /// or a malformed net — both refused at construction — and an
-/// OVERFLOWED box saturates its `mag` to `+∞`, which both folds hand
+/// OVERFLOWED box saturates its `norm_sup` to `+∞`, which both folds hand
 /// to the same not-finite refusal. The pin below is therefore on this
 /// helper by name; the reachability argument lives here so that a
 /// future producer of a one-sided refusal (a new box source, a widened

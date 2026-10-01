@@ -364,7 +364,7 @@ fn adopt_edges(
         };
         let fs_plus = face_surface(body, he_plus)?;
         let fs_minus = face_surface(body, he_minus)?;
-        let witness = spec.carrier.eval((spec.t0 + spec.t1) / 2.0);
+        let witness = spec.carrier.mid_point(spec.t0, spec.t1);
         let p_start = solid.vertices[&spec.start];
         let p_end = solid.vertices[&spec.end];
 

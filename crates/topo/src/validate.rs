@@ -7147,7 +7147,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 radius,
                 u_ref,
             };
-            let mid = (t0 + t1) * T::from_f64(0.5);
+            let mid = geom::mid_param(t0, t1);
             match crate::splitting::containment::arc_trim(
                 p,
                 [carrier.eval(t0), carrier.eval(t1)],
@@ -10860,6 +10860,39 @@ mod tests {
         (body, face)
     }
 
+    /// **The carrier walk's verdict is blind to the normal's sign on an
+    /// arc-bearing loop**, the property `chord_join::face_plane_normal`
+    /// relies on when it hands `rehome_rings` the chart normal with the
+    /// face's sense left out. The polygon rows' half of it is pinned in
+    /// `tests/review_m3_pr3_pil.rs`; this is the arc rows' half, on the
+    /// bowed square: the lune, past the arc, the polygon's interior,
+    /// outside the chord side, and the arc's apex.
+    #[test]
+    fn the_carrier_walk_is_blind_to_the_normals_sign_on_an_arc_bearing_loop() {
+        use crate::splitting::LoopContainment as C;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let (body, face) = bowed_square_with_ring(10.5, 11.5, tol);
+        let outer = body.get_face(face).unwrap().outer;
+        let up = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let apex = 5.0 + 5.0 * core::f64::consts::SQRT_2;
+        for (name, q, want) in [
+            ("in the lune", (11.0, 5.0), C::In),
+            ("past the arc", (13.0, 5.0), C::Out),
+            ("inside the polygon", (5.0, 5.0), C::In),
+            ("left of the square", (-1.0, 5.0), C::Out),
+            ("on the arc's apex", (apex, 5.0), C::OnBoundary),
+        ] {
+            let q = Point3::new(q.0, q.1, 0.0);
+            let read = |n| {
+                crate::splitting::containment::point_in_carrier_loop(&body, outer, n, q, band)
+                    .unwrap_or_else(|e| panic!("{name}: the walk refused: {e:?}"))
+            };
+            assert_eq!(read(up), Some(want), "{name}: under +z");
+            assert_eq!(read(-up), Some(want), "{name}: under -z");
+        }
+    }
+
     /// **An arc-bearing outer loop is decided, on its own region.** The
     /// right edge of a 10 x 10 square re-carried as an arc bowing
     /// OUTWARD, to `x = 5 + 5√2`, leaves a lune between the chord
@@ -11017,7 +11050,7 @@ mod tests {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 s1: plane,
                 s2: cylinder,
-                witness: carrier.eval((t0 + t1) * 0.5),
+                witness: carrier.mid_point(t0, t1),
             },
             carrier,
             param_start: t0,

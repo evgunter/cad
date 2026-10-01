@@ -28,6 +28,7 @@ use topo::{Body, ReplaceFaceError, ShellError};
 use super::common::shell_operands::vessel;
 use super::shell7_common::*;
 use crate::common::charts::hollow_moves;
+use crate::common::torus_walls::props_door;
 
 const R: f64 = 2.0;
 const SMALL_R: f64 = 0.5;
@@ -608,25 +609,25 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     );
 }
 
-/// **A partial two-arc torus mints its spiric rims and stops at its
-/// equator seams' re-author** (R1's row, flipped): the quarter-turn
-/// elbow of the two-arc profile has a [torus, meridian cap] corner
-/// whose azimuth the MOVED cap fixes — off the sketch plane — and the
-/// rim edge between the torus and the cap is minted as the spiric it
-/// is (the klein elbow's wall, `torax_axial`). The old door,
-/// verbatim: `TogetherAxialEdge { what: "a circular edge between two
-/// charts whose centre is off the axis" }`, the latitude mint's
-/// `offset_axial_centre`.
+/// **A partial two-arc torus hollows to the props door** (R1's row,
+/// flipped again): the quarter-turn elbow of the two-arc profile has a
+/// [torus, meridian cap] corner whose azimuth the MOVED cap fixes — off
+/// the sketch plane — and the rim edge between the torus and the cap
+/// is minted as the spiric it is, its window read forward of its start
+/// (`offset_axial_rim_window`). Its two equator seams are
+/// `RevolvedPoint` declarations whose ends the moved caps turn about
+/// the axis, and they re-author onto the moved corners. The hollow
+/// reaches tier 3's check 7, `VolumeUncomputable` — the klein elbow's
+/// door (`torax_axial`).
 ///
-/// The claim this row used to carry — that no door-built operand
-/// reaches the re-author's out-of-plane decide — is REFUTED by the
-/// same run: the two equator seams are `RevolvedPoint` declarations,
-/// their moved start corners stand `t` off the sketch plane (the
-/// moved cap's own displacement), and `offset_axial_reauthor_plane`
-/// refuses typed. That decide is now door-built-reachable, and this
-/// row is what reaches it.
+/// The old door, verbatim: `Face { error: Op { edge: None, error:
+/// RechartFalsifies { edge: EdgeKey(1v1), error: IntervalNotForward {
+/// margin: −1.413716694115407 } } } }` — the rim window read backwards
+/// by `π·r′` on `atan2`'s branch cut; before it the seams' re-author
+/// (`offset_axial_reauthor_plane`), and before that the latitude
+/// mint's `offset_axial_centre`.
 #[test]
-fn a_partial_two_arc_torus_mints_its_rims_and_refuses_at_its_seam_reauthor() {
+fn a_partial_two_arc_torus_hollows_to_the_props_door() {
     let (big_r, r) = (2.0, 0.5);
     let body = revolved(
         bulge_loop(vec![
@@ -636,11 +637,12 @@ fn a_partial_two_arc_torus_mints_its_rims_and_refuses_at_its_seam_reauthor() {
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("the seam re-author");
-    let (_, what) = edge_refusal(&e).unwrap_or_else(|| panic!("not an edge refusal: {e}"));
+    let e = topo::shell(&body, 0.05, tol()).expect_err("check 7's volume");
+    let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
     assert_eq!(
-        what,
-        "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
     );
 }
 
