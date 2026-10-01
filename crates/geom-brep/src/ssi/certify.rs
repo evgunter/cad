@@ -406,6 +406,21 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
     }
 }
 
+/// Limb 1 + limb 2 of `carrier` against ONE analytic chart surface,
+/// and nothing else: `(on-locus sampled max, certified hull sup)`, both
+/// in metres. The door a pcurve certificate takes when its carrier is
+/// an exact circle — the locus is the carrier itself, so what bears on
+/// the chart image is the carrier's incidence with the chart, and there
+/// is no fitted branch for a uniqueness tube to select
+/// (`PcurveCache::certify_fitted`'s Circle arm).
+pub(crate) fn chart_limbs<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(T, T), SsiError> {
+    analytic_limbs(carrier, surface, band)
+}
+
 /// Limb 1 + limb 2 against one **analytic** operand.
 fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
