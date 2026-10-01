@@ -195,6 +195,7 @@ use std::sync::Arc;
 use super::form::{Form, Poly};
 use super::rational::Rat;
 use super::{AtomInfo, Session, SymOp, indet_atom, manifest, mint_atom, signed};
+use crate::real::Bounds;
 
 /// Names the branch the running `canonical` call takes
 /// (`profile::RootProfile`); nothing without the profile's feature.

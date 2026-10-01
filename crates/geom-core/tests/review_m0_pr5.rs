@@ -7,14 +7,11 @@
 //! Sections mirror the review charter parts 1.1–1.5, plus the review
 //! extras (6: interval chain-rule width, 7: the `powi(2)` fix the review
 //! proposed — since adopted in `src/dual.rs`, so section 6's quality
-//! checks assert the *fixed* behavior). `Dual<Interval>` sections are
-//! gated on the `interval` feature; everything else runs in the default
-//! build.
+//! checks assert the *fixed* behavior).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::excessive_precision, clippy::approx_constant)]
 
-#[cfg(feature = "interval")]
 use geom_core::predicate::Sign;
 use geom_core::predicate::{Band, Decide};
 use geom_core::real::Real;
@@ -239,9 +236,9 @@ fn tangent_never_influences_decisions_or_values() {
         f64::from_bits(0x7ff8_dead_beef_dead),
     ];
     for &v in &values {
-        let alone = v.sign_within(band);
+        let alone = v.sign_within(band).map(|d| d.sign);
         for &t in &tangents {
-            let dual = Dual::new(v, t).sign_within(band);
+            let dual = Dual::new(v, t).sign_within(band).map(|d| d.sign);
             assert_eq!(
                 dual, alone,
                 "Dual64 Decide must equal value-alone Decide: value {v:?} tangent {t:?}"
@@ -468,7 +465,6 @@ fn f64_powi2_is_bit_identical_to_multiplication() {
 // The Dual<Interval> halves of sections 1, 3, 4, 6, 7.
 // ---------------------------------------------------------------------
 
-#[cfg(feature = "interval")]
 mod dual_interval {
     use geom_core::real::Bounds;
     use geom_core::{Interval, MarginDiag};
@@ -548,9 +544,9 @@ mod dual_interval {
             Interval::zero(),
         ];
         for &v in &ivals {
-            let alone = v.sign_within(band);
+            let alone = v.sign_within(band).map(|d| d.sign);
             for &t in &itangents {
-                let dual = Dual::new(v, t).sign_within(band);
+                let dual = Dual::new(v, t).sign_within(band).map(|d| d.sign);
                 assert_eq!(
                     dual, alone,
                     "Dual<Interval> Decide must equal value-alone Decide"
@@ -641,7 +637,7 @@ mod dual_interval {
         );
         let hulled = Real::min(a, b);
         assert_eq!(
-            hulled.deriv.sign_within(band),
+            hulled.deriv.sign_within(band).map(|d| d.sign),
             Ok(Sign::Positive),
             "clean-tangent hull must keep a classifiable decoration"
         );
@@ -660,15 +656,15 @@ mod dual_interval {
         let m = Real::min(lo, hi);
         assert!(
             matches!(
-                m.deriv.sign_within(band),
+                m.deriv.sign_within(band).map(|d| d.sign),
                 Err(geom_core::Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     ..
                 })
             ) && m.deriv.lo() == 5.0
                 && m.deriv.hi() == 5.0,
             "Trv VALUE must cap the selected tangent's decoration: {:?} [{},{}]",
-            m.deriv.sign_within(band),
+            m.deriv.sign_within(band).map(|d| d.sign),
             m.deriv.lo(),
             m.deriv.hi()
         );

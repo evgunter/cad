@@ -15,17 +15,17 @@
 //!    `S(P(t)) ≡ C(t)` exactly — the composite bound lands at ring
 //!    rounding (~1e-15), where any hull-then-difference enclosure is
 //!    O(1) (the review M2 finding, pinned as behavior).
-//! 3. Poison-on-zero-denominator: a weight extension that changes sign
-//!    inside the reachable window poisons the bound (NaN), never
+//! 3. Refusal-on-zero-denominator: a weight extension that changes sign
+//!    inside the reachable window refuses the bound (NaN), never
 //!    panics, never understates.
 //! 4. Degree budget: the largest SSI-realistic composition (bicubic ×
 //!    bicubic against cubic curves, composite degree 21 of the 54
-//!    budget) completes finite; a beyond-budget pair poisons loudly.
+//!    budget) completes finite; a beyond-budget pair is refused loudly.
 //! 5. Ring-lane bit-replay: the whole pipeline is deterministic to the
 //!    bit (D9).
 //! 6. Typed refusals at the entry points (closed `ComposeError`).
 //!
-//! These rows are ε-independent (pure ring arithmetic; no `Tolerance`
+//! These rows are ε-independent (pure certification arithmetic; no `Tolerance`
 //! read), so the battery's ε sweep changes nothing here by design —
 //! and every ratio below was confirmed BIT-IDENTICAL across the
 //! battery's three ε legs (`ci-filter.py`'s `EPS_ROWS`: default,
@@ -37,9 +37,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::RingInterval;
-use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
-use geom_core::spline::compose::{ComposeError, CurveRingData};
+use geom_core::Bounds;
+use geom_core::Interval;
+use geom_core::interval::certification::Certification;
+use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
+use geom_core::spline::compose::{ComposeError, CurveCertData};
 use geom_core::spline::{KnotVector, basis};
 use test_utils::tightness::{Anchor, Sup, control_net_box_diagonal};
 
@@ -94,10 +96,10 @@ fn surf_eval(
     [num[0] / den, num[1] / den, num[2] / den]
 }
 
-fn lift(coords: &[Vec<f64>]) -> Vec<Vec<RingInterval>> {
+fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
     coords
         .iter()
-        .map(|ch| ch.iter().map(|x| RingInterval::point(*x)).collect())
+        .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
         .collect()
 }
 
@@ -167,9 +169,9 @@ fn sup_of(
     extra: &[f64],
 ) -> f64 {
     let (sx, px, cx) = (lift(&wall.3), lift(&pc.2), lift(&ca.2));
-    let s = SurfaceRingData::new(&wall.0, &wall.1, &wall.2, &sx).unwrap();
-    let p = CurveRingData::new(&pc.0, &pc.1, &px).unwrap();
-    let c = CurveRingData::new(&ca.0, &ca.1, &cx).unwrap();
+    let s = SurfaceCertData::new(&wall.0, &wall.1, &wall.2, &sx).unwrap();
+    let p = CurveCertData::new(&pc.0, &pc.1, &px).unwrap();
+    let c = CurveCertData::new(&ca.0, &ca.1, &cx).unwrap();
     surface_curve_residual(&s, &p, &c, extra)
         .unwrap()
         .sup_bound()
@@ -440,17 +442,17 @@ fn an_exact_composite_bounds_at_ring_rounding_not_at_the_variation() {
 }
 
 // ---------------------------------------------------------------------
-// Row 3: zero-touching denominator poisons loudly
+// Row 3: zero-touching denominator is refused loudly
 // ---------------------------------------------------------------------
 
 #[test]
-fn a_sign_changing_weight_extension_poisons_the_bound() {
+fn a_sign_changing_weight_extension_refuses_the_bound() {
     // Bilinear patch on [0,1]² whose weight function along v is
     // w(u,·) = 1 + 99u; the pcurve runs u from −0.5 to 1, so the
     // boundary cell's polynomial extension (the documented domain
     // posture) sees the weight change sign inside the reachable
-    // window. The ring refuses the zero-touching divisor: the bound is
-    // NaN — poisoned, not panicked, and it fails any ≤ ε comparison.
+    // window. Interval arithmetic refuses the zero-touching divisor: the bound is
+    // NaN — refused, not panicked, and it fails any ≤ ε comparison.
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let w = (
@@ -475,7 +477,7 @@ fn a_sign_changing_weight_extension_poisons_the_bound() {
         vec![vec![0.0, 1.0], vec![0.0, 0.0], vec![0.0, 0.0]],
     );
     let sup = sup_of(&w, &p, &c, &[]);
-    assert!(sup.is_nan(), "expected poison, got {sup:e}");
+    assert!(sup.is_nan(), "expected a refusal, got {sup:e}");
 }
 
 // ---------------------------------------------------------------------
@@ -524,14 +526,14 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
     // has almost nothing to be tight about and the whole-object box
     // admits only 1.757x. 1.6 sits 11% over the healthy reading and 12%
     // under the degraded one — narrow, but the whole computation is
-    // pure ring arithmetic and bit-identical across the battery, so the
+    // pure certification arithmetic and bit-identical across the battery, so the
     // margin is real rather than noise budget. If a legitimate change
     // moves it, this row reds with both numbers in the message and the
     // literal is re-measured rather than widened.
     let w = elevated_patch(3, 3);
     let (p, c) = (pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
-    assert!(sup.is_finite(), "in-budget composition poisoned: {sup:e}");
+    assert!(sup.is_finite(), "in-budget composition refused: {sup:e}");
     Sup::new("bicubic x bicubic at degree 21", sup, max)
         .truth_at_least(
             1e-1,
@@ -549,14 +551,14 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
 }
 
 #[test]
-fn a_beyond_budget_composition_poisons_rather_than_rounds() {
+fn a_beyond_budget_composition_refuses_rather_than_rounds() {
     // Degrees (9, 9) against cubic curves: composite numerator degree
-    // 3·(9+9)+3 = 57 > 54 — the binomial row poisons and the bound is
-    // NaN. Loud, never a silently rounded weight.
+    // 3·(9+9)+3 = 57 > 54 — the binomial row is all-NaN, the composite
+    // is refused and the bound is NaN. Loud, never a silently rounded weight.
     let w = elevated_patch(9, 9);
     let (p, c) = (pcurve_data(), carrier_data());
     let sup = sup_of(&w, &p, &c, &[]);
-    assert!(sup.is_nan(), "expected the budget poison, got {sup:e}");
+    assert!(sup.is_nan(), "expected the budget refusal, got {sup:e}");
 }
 
 // ---------------------------------------------------------------------
@@ -568,9 +570,9 @@ fn the_pipeline_is_deterministic_to_the_bit() {
     let (w, p, c) = (wall(), pcurve_data(), carrier_data());
     let (sx, px, cx) = (lift(&w.3), lift(&p.2), lift(&c.2));
     let run = || {
-        let s = SurfaceRingData::new(&w.0, &w.1, &w.2, &sx).unwrap();
-        let pd = CurveRingData::new(&p.0, &p.1, &px).unwrap();
-        let cd = CurveRingData::new(&c.0, &c.1, &cx).unwrap();
+        let s = SurfaceCertData::new(&w.0, &w.1, &w.2, &sx).unwrap();
+        let pd = CurveCertData::new(&p.0, &p.1, &px).unwrap();
+        let cd = CurveCertData::new(&c.0, &c.1, &cx).unwrap();
         surface_curve_residual(&s, &pd, &cd, &[0.1, 0.9]).unwrap()
     };
     let (a, b) = (run(), run());
@@ -622,7 +624,7 @@ fn the_entry_points_refuse_typed() {
     let (sx, px, cx) = (lift(&w.3), lift(&p.2), lift(&c.2));
 
     // Surface: weight count, weight sign, channel count.
-    match SurfaceRingData::new(&w.0, &w.1, &w.2[..4], &sx) {
+    match SurfaceCertData::new(&w.0, &w.1, &w.2[..4], &sx) {
         Err(ComposeError::Structure(_)) => {}
         other => panic!("weight count: {other:?}"),
     }
@@ -631,11 +633,11 @@ fn the_entry_points_refuse_typed() {
             .enumerate()
             .map(|(i, x)| if i == 3 { -1.0 } else { *x })
             .collect();
-    match SurfaceRingData::new(&w.0, &w.1, &bad_w, &sx) {
+    match SurfaceCertData::new(&w.0, &w.1, &bad_w, &sx) {
         Err(ComposeError::Structure(_)) => {}
         other => panic!("weight sign: {other:?}"),
     }
-    match SurfaceRingData::new(&w.0, &w.1, &w.2, &sx[..2]) {
+    match SurfaceCertData::new(&w.0, &w.1, &w.2, &sx[..2]) {
         Err(ComposeError::DimensionMismatch {
             dims: 2,
             expected: 3,
@@ -643,9 +645,9 @@ fn the_entry_points_refuse_typed() {
         other => panic!("channel count: {other:?}"),
     }
 
-    let s = SurfaceRingData::new(&w.0, &w.1, &w.2, &sx).unwrap();
-    let pd = CurveRingData::new(&p.0, &p.1, &px).unwrap();
-    let cd = CurveRingData::new(&c.0, &c.1, &cx).unwrap();
+    let s = SurfaceCertData::new(&w.0, &w.1, &w.2, &sx).unwrap();
+    let pd = CurveCertData::new(&p.0, &p.1, &px).unwrap();
+    let cd = CurveCertData::new(&c.0, &c.1, &cx).unwrap();
 
     // A 3-channel "pcurve" and a 2-channel "carrier" both refuse.
     match surface_curve_residual(&s, &cd, &cd, &[]) {
@@ -665,8 +667,8 @@ fn the_entry_points_refuse_typed() {
 
     // A carrier on a different knot domain refuses (the OQ4 identity).
     let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 2.0, 2.0], 3).unwrap();
-    let cx4: Vec<Vec<RingInterval>> = cx.iter().map(|ch| ch[..4].to_vec()).collect();
-    let cd2 = CurveRingData::new(&kv2, &c.1[..4], &cx4).unwrap();
+    let cx4: Vec<Vec<Interval>> = cx.iter().map(|ch| ch[..4].to_vec()).collect();
+    let cd2 = CurveCertData::new(&kv2, &c.1[..4], &cx4).unwrap();
     match surface_curve_residual(&s, &pd, &cd2, &[]) {
         Err(ComposeError::DomainMismatch { .. }) => {}
         other => panic!("domain mismatch: {other:?}"),

@@ -21,8 +21,7 @@
 use crate::common;
 
 use pncad::document::{
-    BooleanOp, Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, RecipeNodeId,
-    cascade_delete_order,
+    BooleanOp, Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
 };
 use pncad::geom_core::Tol;
 use viewer::session::{DocSession, SessionOp};
@@ -69,16 +68,18 @@ fn die_shaped(tol: Tol) -> Die {
     for i in 0..PIPS {
         let (next, placed) = common::inserted(
             &doc,
-            Node::Transform {
-                input: pip,
-                translation: [
-                    common::len(0.001 * f64::from(u32::try_from(i).expect("a small index"))),
-                    common::len(0.0),
-                    common::len(0.0),
-                ],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("a finite angle"),
-            },
+            Node::transform(
+                pip,
+                pncad::document::Step::Rigid {
+                    translation: [
+                        common::len(0.001 * f64::from(u32::try_from(i).expect("a small index"))),
+                        common::len(0.0),
+                        common::len(0.0),
+                    ],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
             tol,
         );
         let (next, cut) = common::inserted(

@@ -47,10 +47,10 @@ use core::f64::consts::PI;
 
 use corpus::{body_of, eval, failures, hollow_tube_elbow, tube_ring};
 use editor_core::{
-    Axis3, Datum, Dimension, DocEdit, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SlotId, TubeWindow, apply, load, save,
+    Axis3, Datum, Dimension, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram,
+    RecipeNodeId, SlotId, TubeWindow, apply, load, save,
 };
-use fixture::len;
+use fixture::{ang, len, scl};
 use geom_core::Tol;
 use topo::{Body, Surface};
 
@@ -59,14 +59,6 @@ use topo::{Body, Surface};
 /// row here needing a looser one would be saying the recipe layer lost
 /// precision the kernel had.
 const REL: f64 = 1e-12;
-
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite")
-}
-
-fn angle(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("finite")
-}
 
 fn close(got: f64, want: f64, what: &str) {
     let rel = ((got - want) / want).abs();
@@ -94,7 +86,7 @@ fn spine_doc(
         &DocEdit::InsertNode {
             node: Node::Datum(Datum::Axis {
                 origin: [len(0.0), len(0.0), len(0.0)],
-                direction: axis_dir.map(scalar),
+                direction: axis_dir.map(scl),
             }),
         },
     );
@@ -138,7 +130,7 @@ fn both_radii(outer: f64, inner: f64) -> Vec<u64> {
 fn solid_node(u_ref: [f64; 3], major: f64, window: TubeWindow, minor: f64) -> Node<ProfileProgram> {
     Node::Tube {
         spine: RecipeNodeId(0),
-        u_ref: u_ref.map(scalar),
+        u_ref: u_ref.map(scl),
         major_radius: len(major),
         window,
         minor_radius: len(minor),
@@ -154,7 +146,7 @@ fn hollow_node(
 ) -> Node<ProfileProgram> {
     Node::HollowTube {
         spine: RecipeNodeId(0),
-        u_ref: u_ref.map(scalar),
+        u_ref: u_ref.map(scl),
         major_radius: len(major),
         window,
         minor_radius: len(minor),
@@ -164,8 +156,8 @@ fn hollow_node(
 
 fn arc(t0: f64, t1: f64) -> TubeWindow {
     TubeWindow::Arc {
-        t0: angle(t0),
-        t1: angle(t1),
+        t0: ang(t0),
+        t1: ang(t1),
     }
 }
 
@@ -338,7 +330,7 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
     let inner = outer - wall;
     let (doc, tube) = spine_doc([0.0, 0.0, 1.0], |spine| Node::HollowTube {
         spine,
-        u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
         major_radius: len(r),
         window: TubeWindow::Full,
         minor_radius: len(outer),
@@ -377,7 +369,7 @@ fn the_solid_elbow_meters_its_pappus_form() {
     let (r, minor, t0, t1) = (2.0, 0.5, 0.25, 1.75);
     let (doc, tube) = spine_doc([0.0, 1.0, 0.0], |spine| Node::Tube {
         spine,
-        u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
         major_radius: len(r),
         window: arc(t0, t1),
         minor_radius: len(minor),
@@ -425,7 +417,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
         &DocEdit::InsertNode {
             node: Node::Datum(Datum::Axis {
                 origin: [len(0.0), len(0.0), len(0.0)],
-                direction: [scalar(0.0), scalar(1.0), scalar(0.0)],
+                direction: [scl(0.0), scl(1.0), scl(0.0)],
             }),
         },
     );
@@ -435,7 +427,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
         &DocEdit::InsertNode {
             node: Node::Tube {
                 spine,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(r),
                 window: arc(t0, t1),
                 minor_radius: len(outer),
@@ -448,7 +440,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
         &DocEdit::InsertNode {
             node: Node::HollowTube {
                 spine,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(r),
                 window: arc(t0, t1),
                 minor_radius: len(outer),
@@ -498,7 +490,7 @@ fn the_window_variant_feeds_the_content_key() {
     let mk = |window: TubeWindow| {
         let (doc, tube) = spine_doc([0.0, 0.0, 1.0], |spine| Node::Tube {
             spine,
-            u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
             major_radius: len(2.0),
             window,
             minor_radius: len(0.5),
@@ -595,12 +587,12 @@ fn the_shared_refusals_are_reachable_from_both_kinds() {
             tube_refusal(s, z).unwrap_or_else(|| panic!("{what} must refuse through Node::Tube"));
         let hm = tube_refusal(h, z)
             .unwrap_or_else(|| panic!("{what} must refuse through Node::HollowTube"));
-        // A shared arm names "tube door", never one of the two: the
-        // kernel refuses to guess which caller it was, and the recipe
-        // layer must not invent an answer either.
-        assert!(sm.contains("tube door"), "{what} (solid): {sm}");
+        // A shared arm reads the SAME from both kinds, word for word:
+        // the kernel refuses to guess which caller it was, and the
+        // recipe layer must not invent an answer either.
+        assert_eq!(sm, hm, "{what}: a shared arm reads alike from both kinds");
         assert!(
-            !hm.contains("tube_along_arc_hollow"),
+            !hm.contains("hollow tube"),
             "{what} is reachable through both doors, so its message must not claim \
              the hollow one: {hm}"
         );
@@ -692,11 +684,17 @@ fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
 
     let nonpositive = tube_refusal(hollow_node(u, 2.0, TubeWindow::Full, 0.5, 0.0), z)
         .expect("a zero wall is not a wall");
-    assert!(nonpositive.contains("tube_wall"), "{nonpositive}");
+    assert!(
+        nonpositive.contains("the hollow tube's wall is not definitely thicker"),
+        "{nonpositive}"
+    );
 
     let eats_the_bore = tube_refusal(hollow_node(u, 2.0, TubeWindow::Full, 0.5, 0.5), z)
         .expect("a wall equal to the outer radius leaves no bore");
-    assert!(eats_the_bore.contains("tube_wall_bore"), "{eats_the_bore}");
+    assert!(
+        eats_the_bore.contains("the hollow tube's wall leaves no bore"),
+        "{eats_the_bore}"
+    );
 
     // The realized-gap arm: an outer radius whose own ulp exceeds a
     // wall that is itself comfortably above ε.
@@ -717,13 +715,16 @@ fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
         z,
     )
     .expect("a wall under the outer radius's own ulp collapses the stored gap");
-    assert!(collapsed.contains("tube_wall_gap"), "{collapsed}");
+    assert!(
+        collapsed.contains("inner and outer radii would be stored as one value"),
+        "{collapsed}"
+    );
 
     // All three name the HOLLOW door outright — the solid door cannot
     // produce them, and the message says so.
     for msg in [&nonpositive, &eats_the_bore, &collapsed] {
         assert!(
-            msg.contains("tube_along_arc_hollow"),
+            msg.contains("the hollow tube"),
             "a wall refusal must name the door only it can come from: {msg}"
         );
     }
@@ -762,7 +763,7 @@ fn a_spine_that_is_not_an_axis_refuses_at_the_operand() {
         &DocEdit::InsertNode {
             node: Node::Tube {
                 spine: point,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -891,10 +892,10 @@ fn both_kinds_round_trip_through_persistence() {
     }
 }
 
-/// **An older document never names the two kinds, and loads.** The
-/// additive-growth direction of the one door, on REAL older bytes:
-/// `corpus/tour/die_composed_tour.pncad` was written by a build with
-/// no tube vocabulary at all and is committed untouched by this unit.
+/// **A document that never names the two kinds loads.** The
+/// additive-growth direction of the one door, on real bytes the tour
+/// writes rather than bytes built here: `corpus/tour/die_composed_tour.pncad`
+/// names neither kind.
 ///
 /// ε is re-stamped to the process's before the load, because a saved
 /// document records the ε it was decided at and `load` refuses a

@@ -31,7 +31,6 @@
 //! `decide_7_the_profile_decides_nothing` GATES: a profiled replay must
 //! land every decision where an unprofiled one does, and the rule-G
 //! clock must have seen the plate's roots.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the tier (rule G and its instrument live in it), the shared

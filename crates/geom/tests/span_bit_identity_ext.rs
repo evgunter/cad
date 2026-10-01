@@ -11,11 +11,8 @@
 //! merge base against the retired `(kv, span)` spellings, and it is
 //! unchanged here.
 //!
-//! **Interval-gated**, because half its rows are `Interval` rows: it
-//! runs in the six `interval` test jobs. The default lane's bit
-//! identity is `span_bit_identity.rs`, whose 1001 rows carry no feature
-//! gate.
-#![cfg(feature = "interval")]
+//! Half its rows are `Interval` rows. The `f64` lane's bit identity is
+//! `span_bit_identity.rs`, whose 1001 rows it does not repeat.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface};
 use geom_core::spline::{CoeffWindow, KnotVector, RationalWindow, Span, SpanLocate, basis};
@@ -31,13 +28,13 @@ fn bf<T: Real>(s: Span<'_>, t: T) -> Vec<T> {
 fn dbf<T: Real>(s: Span<'_>, t: T, n: usize) -> Vec<Vec<T>> {
     basis::ders_basis_funs(s, t, n)
 }
-fn sh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
+fn sh(w: CoeffWindow<'_, f64>) -> geom_core::Interval {
     w.hull()
 }
-fn shr(w: RationalWindow<'_, f64>) -> geom_core::RingInterval {
+fn shr(w: RationalWindow<'_, f64>) -> geom_core::Interval {
     w.hull_rational()
 }
-fn dsh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
+fn dsh(w: CoeffWindow<'_, f64>) -> geom_core::Interval {
     w.derivative_hull()
 }
 fn snb(w: CoeffWindow<'_, f64>) -> f64 {
@@ -73,10 +70,7 @@ fn curve(k: KnotVector, rational: bool) -> NurbsCurve3<f64> {
 fn lift<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
     NurbsCurve3::new(
         c.knots().clone(),
-        c.control()
-            .iter()
-            .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-            .collect(),
+        c.control().iter().map(|p| p.map(T::from_f64)).collect(),
         c.weights().to_vec(),
     )
     .unwrap()
@@ -85,10 +79,7 @@ fn lift_s<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
     NurbsSurface::new(
         s.knots_u().clone(),
         s.knots_v().clone(),
-        s.control()
-            .iter()
-            .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-            .collect(),
+        s.control().iter().map(|p| p.map(T::from_f64)).collect(),
         s.weights().to_vec(),
     )
     .unwrap()
@@ -127,7 +118,7 @@ fn vd(o: &mut Rows, t: &str, p: Vec3<Dual64>) {
         o.push((format!("{t}.{n}.d"), c.deriv.to_bits()));
     }
 }
-fn ri(o: &mut Rows, t: &str, r: geom_core::RingInterval) {
+fn ri(o: &mut Rows, t: &str, r: geom_core::Interval) {
     o.push((format!("{t}.lo"), r.lo().to_bits()));
     o.push((format!("{t}.hi"), r.hi().to_bits()));
 }
@@ -436,13 +427,31 @@ fn digest(rows: &[(String, u64)]) -> u64 {
 /// cannot leave the digest green by producing a shorter stream.
 const ROW_COUNT: usize = 11_151;
 
-/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order,
-/// measured on the retired `(kv, span)` spellings at the merge base.
-const DIGEST: u64 = 0x606f_ae2d_7244_63e4;
+/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
+///
+/// **Re-captured when certification arithmetic became a newtype over the backend**
+/// (`0x606f_ae2d_7244_63e4` before): interval arithmetic padded one representable
+/// step outward on every operation and the backend pads only where the
+/// operation was inexact. Exactly 28 of these 11 151 rows moved, all of
+/// them a `derivative_span_hull` or `derivative_domain_hull` endpoint
+/// and all of them TIGHTER — a derivative hull is a fold of exact
+/// differences, which is where the retired pad had nothing to cover, so
+/// each one lands on the exact value the reals give (`-6`, `4.5`, `1.5`,
+/// `12`). None moved looser.
+const DIGEST: u64 = 0xd572_6f5c_cd9a_ef62;
 
 #[test]
 fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {
     let r = rows();
+    // The dump hook runs BEFORE the assertions, like the sibling
+    // corpora's: a re-pin is measured row by row, and a digest that
+    // names nothing cannot be measured at all.
+    if std::env::var_os("CAD_PRINT_ROWS").is_some() {
+        for (n, b) in &r {
+            println!("ROW {n} {b:#018x}");
+        }
+        println!("rows {} digest {:#018x}", r.len(), digest(&r));
+    }
     assert_eq!(
         r.len(),
         ROW_COUNT,
@@ -454,11 +463,6 @@ fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {
         DIGEST,
         "a value in the extended corpus moved; run with --nocapture to print every row"
     );
-    if std::env::var_os("CAD_PRINT_ROWS").is_some() {
-        for (n, b) in &r {
-            println!("ROW {n} {b:#018x}");
-        }
-    }
 }
 
 fn bf64(x: f64) -> Vec<u64> {

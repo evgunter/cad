@@ -21,6 +21,21 @@
 //!   ([`SectionError::Escalated`] — an ill-conditioned operand pair at
 //!   this ε), whose Display composes the shared two-tolerance recourse
 //!   through [`geom_core::Indeterminate`]'s own Display.
+//! - **A division by a cone's aperture is decided first.** Every arm
+//!   that divides by `sin α` or `cos α` — or by a product carrying one
+//!   — decides that clause of the cone's convention `α ∈ (0, π/2)` as
+//!   a named trilean metered at the arm's `extent` before the lane that
+//!   divides runs, and refuses [`SectionError::DegenerateOperand`] when
+//!   it is not definitely positive (`pn_aperture_*`, `coc_aperture_*`).
+//!   This is the file's BAND posture on an operand convention — the one
+//!   `pt_tube_guard` takes on the torus — and it is a posture, not a
+//!   numerical necessity: `sin α` of a stored `α` is relatively exact,
+//!   and a quotient by it is the correctly rounded value for the datum
+//!   as stored. A body at rest holds the convention against ZERO (tier-3
+//!   check 1), so a cone that validates can be refused here. Whether the
+//!   convention is a band question or a datum-sign question is open
+//!   (`work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
+//!   and these trileans follow the band side until that is ruled.
 //! - **The M2 pairs enter unchanged**: plane×plane stays the existing
 //!   splitting/boolean seam (rung 1, implemented — the table names it,
 //!   the pipelines execute it bit-identically); plane×cylinder's rim
@@ -315,7 +330,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    transversally; a tilted cylinder and a parallel-but-OFFSET one \
                    both cut a QUARTIC and route to the general rung, whose \
                    cone×cylinder arm has not retired — the cone's meters composite \
-                   needs a certified root the exact-arithmetic ring lacks, so its \
+                   needs a certified root, which certification arithmetic does not \
+                   take, so its \
                    certificate, not its trace, is what is missing (arms retire one \
                    at a time, each with its proof)",
         },
@@ -461,6 +477,147 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
     }
 }
 
+/// **The table asked about a POSE**, not a kind pair: [`route`]'s arm
+/// for the two surfaces' kinds, with `implemented` narrowed to whether
+/// THAT arm serves THESE two surfaces as they stand.
+///
+/// [`route`] answers per kind pair, and an implemented arm is
+/// configuration-scoped: coaxial cone×cylinder, axis-containing or
+/// axis-normal plane×torus, apex-through or axis-normal plane×cone,
+/// equal-radius crossing or parallel cylinder×cylinder. A consumer that
+/// gates on the kind pair admits every other pose of those pairs as
+/// though a closed form were wired for it. This asks the arm itself —
+/// the pair's own section function, which runs its configuration
+/// trileans before any rung — and reads its routing verdict back:
+///
+/// - the arm classifies the pose (any `Ok`) ⇒ `implemented` stands;
+/// - the arm refuses [`SectionError::RoutesToGeneralRung`] ⇒ the pose
+///   routes to an arm that has not retired, so `implemented` is
+///   `false` and `note` is the arm's own grounds;
+/// - an in-band trilean ⇒ [`SectionError::Escalated`], returned: the
+///   pose cannot be told from its neighbour at this ε.
+///
+/// **Only ROUTING is read, and only a CLASSIFIED pose is served.** An
+/// arm that classifies the pose and then refuses its mint — a locus
+/// past `extent`, a coincidence, a carrier the conic constructor
+/// declines — has still said the pose is its own, and `implemented`
+/// stands; what it would not mint is that arm's refusal to give, not
+/// this question's. An arm that refuses BEFORE its pose trileans run —
+/// an operand guard ([`SectionError::DegenerateOperand`],
+/// [`SectionError::DegenerateTorus`]) — has classified nothing, and the
+/// pose is not served: a gate must not admit what it cannot classify.
+/// `note` is then the guard's own text, or this function's statement
+/// where the arm's refusal carries none.
+///
+/// **Cylinder×cylinder is asked with [`RadiusEvidence::Declared`]**,
+/// the most permissive evidence the arm takes. A pose the arm refuses
+/// even then — unequal radii (the declaration contradicted, whatever
+/// the axes do) or skew axes — is refused under every evidence, so it
+/// is not served; a pose
+/// it accepts is served only given evidence this question does not
+/// hold, and the consumer's own evidence decides the rest. The answer
+/// is one-sided by construction: it refuses only what the arm refuses
+/// under every evidence, and never refuses a pose the arm would serve.
+///
+/// Every other implemented pair serves every pose: plane×plane,
+/// plane×cylinder, plane×sphere, sphere×sphere, and the two
+/// general-rung arms that march (cylinder×sphere, plane×NURBS). An
+/// unimplemented pair answers [`route`] unchanged. The match is
+/// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
+/// the table is a compile-time visit here too.
+///
+/// `extent` is the reach the consumer needs the pose read over — the
+/// arms' own operand extent, the lever their angular trileans are
+/// metered at (a tilt `θ` displaces the locus by `θ·extent` there).
+///
+/// # Errors
+///
+/// [`SectionError::Escalated`] — a pose trilean (or an operand guard)
+/// in the band. [`SectionError::WrongLane`],
+/// [`SectionError::RadiusDeclarationContradicted`] and
+/// [`SectionError::CoaxialDeclarationContradicted`] only if this
+/// dispatch itself is wrong — it names each arm's seats in the arm's
+/// order, maps the cylinder pair's contradiction to a refused pose, and
+/// passes no coaxial declaration — so each is a kernel bug, returned
+/// typed rather than read as a verdict. Nothing else is returned.
+pub fn route_pose<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    extent: T,
+    band: Band,
+) -> Result<PairRoute, SectionError> {
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    let (ka, kb) = (SurfaceKind::of(a), SurfaceKind::of(b));
+    let arm = route(ka, kb);
+    let verdict = match (ka, kb) {
+        (Plane, Cone) => plane_cone_section(a, b, extent, band).map(drop),
+        (Cone, Plane) => plane_cone_section(b, a, extent, band).map(drop),
+        (Plane, Torus) => plane_torus_section(a, b, extent, band).map(drop),
+        (Torus, Plane) => plane_torus_section(b, a, extent, band).map(drop),
+        (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
+        (Cylinder, Cone) => cone_cylinder_section(b, a, extent, band).map(drop),
+        (Cylinder, Cylinder) => {
+            match cylinder_cylinder_section(a, b, RadiusEvidence::Declared, extent, band) {
+                Err(SectionError::RadiusDeclarationContradicted) => {
+                    Err(SectionError::RoutesToGeneralRung {
+                        pair: "cylinder×cylinder",
+                        why: "unequal radii are outside every closed form the \
+                              equal-radius arm classifies, and route to the general \
+                              rung, whose cylinder×cylinder arm has not retired",
+                    })
+                }
+                other => other.map(drop),
+            }
+        }
+        // Every pose served, by a closed form or by a general-rung arm
+        // that marches.
+        (Plane, Plane | Cylinder | Sphere | Nurbs)
+        | (Cylinder | Sphere | Nurbs, Plane)
+        | (Sphere, Sphere | Cylinder)
+        | (Cylinder, Sphere) => Ok(()),
+        // Unimplemented at the kind level: `route`'s answer stands.
+        (Cylinder, Torus | Nurbs)
+        | (Torus, Cylinder | Cone | Sphere | Torus | Nurbs)
+        | (Cone, Cone | Sphere | Torus | Nurbs)
+        | (Sphere, Cone | Torus | Nurbs)
+        | (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs)
+        | (Approx, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => Ok(()),
+    };
+    let refused = |note| {
+        Ok(PairRoute {
+            implemented: false,
+            note,
+            ..arm
+        })
+    };
+    match verdict {
+        // Classified: the arm names the pose as its own, whatever it
+        // then says about minting it.
+        Ok(())
+        | Err(
+            SectionError::BeyondOperandExtent { .. }
+            | SectionError::CoincidentSurfaces
+            | SectionError::Carrier(_),
+        ) => Ok(arm),
+        Err(SectionError::RoutesToGeneralRung { why, .. }) => refused(why),
+        // Refused BEFORE the pose was classified: an operand guard the
+        // arm runs ahead of its pose trileans. The pose is unknown, and
+        // a gate must not admit what it cannot classify.
+        Err(SectionError::DegenerateOperand { what }) => refused(what),
+        Err(SectionError::DegenerateTorus) => refused(
+            "the torus is not a ring (R > r > 0 is not decided), so the arm refuses \
+             it before classifying any pose",
+        ),
+        Err(
+            e @ (SectionError::Escalated(_)
+            | SectionError::WrongLane { .. }
+            | SectionError::RadiusDeclarationContradicted
+            | SectionError::CoaxialDeclarationContradicted),
+        ) => Err(e),
+    }
+}
+
 // ---------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------
@@ -521,12 +678,15 @@ pub enum SectionError {
     CoincidentSurfaces,
     /// The torus operand violates the ring convention `R > r > 0` (a
     /// spindle or horn torus, or a nonpositive tube radius — both
-    /// inequalities are decided, `pt_tube_guard` then `pt_ring_guard`):
+    /// inequalities are decided, `pt_tube_guard` then `ring_torus_convention`,
+    /// the convention's one home [`geom::ring_torus`]):
     /// its meridian circles meet or cross on
     /// the axis, so no closed form here is well-posed. Every validated
     /// body already upholds the convention (`sweep::revolve` refuses
-    /// degenerate tori at construction; tier-3 reports
-    /// `DegenerateTorus` at rest) — this refusal is the arm's own
+    /// degenerate tori at construction; tier-3 check 1 refuses a tube
+    /// radius that is not positive as `UnrepresentableSurfaceDatum` and
+    /// a horn or spindle as `DegenerateTorus`, at rest) — this refusal
+    /// is the arm's own
     /// insurance against pre-validate operands, e.g. STEP-minted tori.
     DegenerateTorus,
     /// The conic carrier constructor refused (near-circular tilt or a
@@ -544,60 +704,56 @@ impl From<EllipseInvalid> for SectionError {
 impl core::fmt::Display for SectionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::WrongLane { expected } => {
-                write!(
-                    f,
-                    "section: wrong dispatch lane — this arm classifies {expected} (caller bug)"
-                )
-            }
+            Self::WrongLane { expected } => write!(
+                f,
+                "the section was dispatched to the arm for {expected}, not this pair's \
+                 (a kernel bug)"
+            ),
             // The Indeterminate Display carries the shared two-tolerance
             // recourse (S6) exactly once.
             Self::Escalated(diag) => write!(
                 f,
-                "section: configuration trilean escalated — an ill-conditioned \
-                 operand pair at this tolerance: {diag}"
+                "the two surfaces' configuration is ill-conditioned at this tolerance: {diag}"
             ),
-            Self::RoutesToGeneralRung { pair, why } => {
-                write!(f, "section: {pair}: {why}")
-            }
+            Self::RoutesToGeneralRung { pair, why } => write!(f, "the {pair} section: {why}"),
             Self::RadiusDeclarationContradicted => write!(
                 f,
-                "section: the declared equal-radius coincidence is contradicted by the \
-                 geometry (|r1 - r2| definitely nonzero) — declarations are verified at \
-                 use, never trusted"
+                "the declared equal radii are contradicted by the geometry (the radii \
+                 definitely differ); a declaration is verified at use, never trusted"
             ),
             Self::CoaxialDeclarationContradicted => write!(
                 f,
-                "section: the declared coaxiality is contradicted by the geometry (the \
-                 sphere's centre is definitely off the cylinder's axis) — declarations \
-                 are verified at use, never trusted"
+                "the declared coaxiality is contradicted by the geometry (the sphere's \
+                 centre is definitely off the cylinder's axis); a declaration is verified \
+                 at use, never trusted"
             ),
-            Self::DegenerateOperand { what } => write!(
-                f,
-                "section: {what} — the arm asks each clause of its operands' convention \
-                 its own question rather than reading a relation between them"
-            ),
+            Self::DegenerateOperand { what } => {
+                write!(f, "a section operand is degenerate: {what}")
+            }
             Self::BeyondOperandExtent { what } => write!(
                 f,
-                "section: {what} — a locus outside the extent the call metered against \
-                 is not this rung's to mint: its absolute position error scales with \
-                 the locus, not with the operands, so the arm's exactness claim does \
-                 not reach it. Re-ask with an extent that covers the locus"
+                "{what}, outside the extent the section was sized for, where its closed \
+                 form is not exact. Recourse: size the section to an extent that covers \
+                 the curve"
             ),
+            // Raised by the cylinder×cylinder and sphere×sphere tables
+            // only. The chord join reads plane-inclusive pairs and never
+            // meets it; where a Boolean could (coincident operands), a
+            // declaration is exactly the lever, so the shared recourse
+            // is the true one.
             Self::CoincidentSurfaces => write!(
                 f,
-                "section: the surfaces are coincident (coaxial equal-radius cylinders) — \
-                 a same-surface locus is not an intersection; {}",
+                "the surfaces are coincident (the same cylinder or the same sphere), so \
+                 they share a surface rather than meet along a curve. Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
             Self::DegenerateTorus => write!(
                 f,
-                "section: the torus operand is not a ring (R − r is not definitely \
-                 positive — a spindle/horn configuration): its meridian circles meet \
-                 or cross on the axis and no closed-form section is classified; \
-                 validated bodies uphold R > r > 0 at construction and at rest"
+                "the torus is not a ring (its minor radius is not definitely below its \
+                 major one), so no closed-form section is classified; a validated body \
+                 has a ring torus, so this one is corrupt"
             ),
-            Self::Carrier(e) => write!(f, "section: {e}"),
+            Self::Carrier(e) => write!(f, "the section's curve refused: {e}"),
         }
     }
 }
@@ -1545,6 +1701,13 @@ pub enum PlaneConeSection<T: Real> {
 ///
 /// Trileans, in order:
 ///
+/// 0. `pn_aperture_sin` and `pn_aperture_cos`, each metered at
+///    `extent` — the two clauses of the cone's convention
+///    `α ∈ (0, π/2)`, on the file's band posture (module docs), at the
+///    two lanes below that DIVIDE by them (the apex lane by
+///    `sin α·‖a×n‖`, the axis-normal lane by `cos α`); either failing
+///    refuses [`SectionError::DegenerateOperand`] before any pose is
+///    classified.
 /// 1. `pn_apex_on_plane` — margin `(apex − q)·normal` (meters): Zero ⇒
 ///    the apex lane (step 2); definite ⇒ step 3.
 /// 2. `pn_apex_section` — margin `sin α·‖axis×normal‖ −
@@ -1560,8 +1723,8 @@ pub enum PlaneConeSection<T: Real> {
 ///
 /// # Errors
 ///
-/// [`SectionError`] — wrong-lane kinds, escalations (F6), or the R1
-/// generic-tilt routing refusal.
+/// [`SectionError`] — wrong-lane kinds, the aperture guards, escalations
+/// (F6), or the R1 generic-tilt routing refusal.
 pub fn plane_cone_section<T: Decide>(
     plane: &Surface<T>,
     cone: &Surface<T>,
@@ -1591,6 +1754,32 @@ pub fn plane_cone_section<T: Decide>(
     };
 
     let (sin_a, cos_a) = half_angle.sin_cos();
+    // The aperture guards (the module's band posture on the cone's
+    // convention): the apex lane divides by `sin α·‖a×n‖` and the
+    // axis-normal lane by `cos α`, so each clause is decided before
+    // either lane runs. They run BEFORE the pose trileans, so a refusal
+    // here has classified no pose — `route_pose` reads it as unserved.
+    for (name, margin, what) in [
+        (
+            "pn_aperture_sin",
+            sin_a,
+            "the cone's half-angle does not definitely open off its axis, so the \
+             apex lane's division by sin α is not decided",
+        ),
+        (
+            "pn_aperture_cos",
+            cos_a,
+            "the cone's half-angle is not definitely under a right angle, so the \
+             axis-normal circle's division by cos α is not decided",
+        ),
+    ] {
+        match decide(name, Margin::levered(margin, extent), band)
+            .map_err(SectionError::Escalated)?
+        {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
+        }
+    }
     let c = a.dot(n);
     let s_vec = a.cross(n);
     let s = s_vec.norm();
@@ -1717,7 +1906,8 @@ pub enum PlaneTorusSection<T: Real> {
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
-/// 1. `pt_tube_guard` — margin `r` (meters) — then `pt_ring_guard` —
+/// 1. `pt_tube_guard` — margin `r` (meters) — then `ring_torus_convention`
+///    ([`geom::ring_torus`]) —
 ///    margin `R − r` (meters), decided before any classification: the
 ///    ring convention `R > r > 0` is TWO inequalities and each gets
 ///    its own named trilean, because `R − r` alone waves through a
@@ -1728,7 +1918,9 @@ pub enum PlaneTorusSection<T: Real> {
 ///    meet or cross on the axis, so no closed form below is
 ///    well-posed on one. The invariant already holds on every
 ///    validated body (`sweep::revolve` refuses degenerate tori at
-///    construction; tier-3 reports `DegenerateTorus` at rest), so
+///    construction; tier-3 check 1 refuses them at rest —
+///    `UnrepresentableSurfaceDatum` for a tube radius that is not
+///    positive, `DegenerateTorus` for a horn or spindle), so
 ///    these refusals ([`SectionError::DegenerateTorus`]) are
 ///    insurance against pre-validate operands, not a missing
 ///    invariant.
@@ -1793,7 +1985,10 @@ pub fn plane_torus_section<T: Decide>(
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }
-    match decide("pt_ring_guard", Margin::of(big_r - r), band).map_err(SectionError::Escalated)? {
+    match geom::ring_torus(big_r, r, band)
+        .map_err(SectionError::Escalated)?
+        .sign
+    {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }
@@ -2075,9 +2270,9 @@ pub fn cone_cylinder_section<T: Decide>(
                 pair: "cone×cylinder",
                 why: "a cylinder tilted off the cone's axis cuts a QUARTIC, not a \
                       circle, and the pair's general-rung arm has not retired — the \
-                      cone's meters composite needs a certified root the \
-                      exact-arithmetic ring lacks (arms retire one at a time, each \
-                      with its proof)",
+                      cone's meters composite needs a certified root, which \
+                      certification arithmetic does not take (arms retire one at a \
+                      time, each with its proof)",
             });
         }
     }
@@ -2137,8 +2332,9 @@ pub fn cone_cylinder_section<T: Decide>(
             pair: "cone×cylinder",
             why: "a cylinder parallel to the cone's axis but OFF it cuts a QUARTIC, \
                   not a circle, and the pair's general-rung arm has not retired — the \
-                  cone's meters composite needs a certified root the exact-arithmetic \
-                  ring lacks (arms retire one at a time, each with its proof)",
+                  cone's meters composite needs a certified root, which certification \
+                  arithmetic does not take (arms retire one at a time, each with its \
+                  proof)",
         }),
     }
 }

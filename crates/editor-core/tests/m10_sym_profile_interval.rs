@@ -25,7 +25,6 @@
 //! replays one box a chosen number of times and nothing else, so an
 //! instruction count over it is the tier's and not the instrument's.
 //! The command that takes it is recorded in the item body.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it profiles: the normal form and its rules, the
@@ -42,6 +41,7 @@ test_utils::gated_to![
     "crates/editor-core/tests/m10_7_plate.rs",
     "crates/editor-core/tests/m10_8_arc_family_interval.rs",
     "crates/editor-core/tests/m10_8_harness.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use std::collections::BTreeMap;
@@ -68,7 +68,7 @@ use std::sync::Arc;
 /// no shape report (which renders every blocked residual through the
 /// walks, ~1 % of a replay's instructions) — so a callgrind count over
 /// it is the tier's and the numeric channel's alone.
-fn bare_replay(doc: &ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
+fn bare_replay(doc: &editor_core::ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
         profile_lift: ProfileLift::Guided,
@@ -90,9 +90,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-/// **The M10-3 slab**: the bounded chamber exactly as
-/// `the_driven_chamber_replays_bit_identically_names_both_wall_flips_and_reports_containment`
-/// builds it — the row S-TCOST bisected the tier's cost on.
+/// **The M10-3 slab**: the bounded chamber at the dimensions S-TCOST
+/// bisected the tier's cost on.
 fn slab() -> ProfileDoc {
     bounded_chamber(60.0 * eps(), 30.0 * eps(), 100.0 * eps())
 }
@@ -343,12 +342,28 @@ const PLATE_MAX_TERMS: usize = 252;
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
 /// multiples of ε) and the captures at the three rows agree.
+///
+/// Re-captured when validation began keeping each loop's authored
+/// start (`profile` README V3): the plate's holes are authored
+/// counter-clockwise and reversed into canonical sense, and a reversed
+/// loop now starts where it was authored rather than at its lex-min
+/// vertex, so the walks meet the same forms in another order. Every
+/// count is unchanged; only the digest chains moved.
+///
+/// Re-captured again when the sketch pushforward began reading the
+/// segment's stored carrier and sweep (`geom_brep::SketchSegment`), and
+/// a cap's arc apex began reading the sweep (`mid − n̂·σ·(len/2)·
+/// tan(|Δθ|/4)`) rather than the bulge: plain and early decision forms
+/// +16 each, door forms −20, one fewer assertion form. Calls, frozen
+/// counts and every decision count are unchanged.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15028 frozen 672 digest e01e2313fd037aca2818ff3698c254b9\n\
-     Plain/Assertion calls 462 forms 2593 frozen 372 digest 06eed02baeb60a6d45c18f291ca889d1\n\
-     Early/Decision calls 320 forms 7977 frozen 8 digest 0b3062ec9922ece1c90746c7f302843c\n\
-     Early/Assertion calls 462 forms 3405 frozen 0 digest 02e9f04ad97f5f583bf0de4873927d48\n\
-     Door/Decision calls 330 forms 11860 frozen 0 digest 99249cc1939eab0e134d0081c7d0b768\n\
+     Plain/Decision calls 951 forms 15046 frozen 672 digest 9d9520907ea00bbbc140a06fb59883de\n\
+     Plain/Assertion calls 462 forms 2593 frozen 372 digest a65c6becddcd3c0c854d538a57a53cc3\n\
+     Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 320 forms 7995 frozen 8 digest d67eacf3f05307284a8d82b7ee794b41\n\
+     Early/Assertion calls 462 forms 3405 frozen 104 digest ed303ef94076429a1258d6382e297b72\n\
+     Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Door/Decision calls 330 forms 11864 frozen 104 digest 3a2220ee7df89a020b305363b74a0efc\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

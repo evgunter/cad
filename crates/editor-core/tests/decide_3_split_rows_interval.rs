@@ -9,7 +9,6 @@
 //! this suite runs on (DECIDE-1 measured it), so the pad is held per
 //! document by `m10_9_pins_interval` and on the ceiling instrument,
 //! and that is a gap this row states rather than hides.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;

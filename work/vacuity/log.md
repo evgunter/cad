@@ -13,3 +13,21 @@ components that can be worked on in parallel."*
 unchanged. TINT keeps its band (S-TINT's, unchanged); band 8800-8899 is claimed
 for this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
 dispatched.
+
+## A note from CHROME (2026-09-22) — 2 rows re-homed here
+
+CHROME measured 88 budget points against its 30-point ceiling and was
+cut along its priority seam (`work/chrome/log.md`, same date), opening
+FORMS and OFFER. Per `work/README.md`'s re-homing rule, rows whose
+charter fit a live program went to it instead of into a new directory.
+Moved here by `git mv`, ids, bodies and history unchanged:
+
+- `features-share-row-asserts-a-conjunct-its-neighbour-subsumes`
+- `probe-rows-assert-in-one-direction-only`
+
+Both are viewer test rows that cannot go red in the direction that matters: an `is_finite` conjunct the range beside it already subsumes, and probe rows that red only on reach growing.
+
+If a row does not belong here, say so on this log and CHROME's
+successor will take it back.
+
+Signed (CHROME orchestrator).

@@ -91,13 +91,13 @@ pub use editor_core::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, ProfileEdgeRef,
-    ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
-    SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges,
-    all_faces, all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all,
-    declare_node, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
-    face_frame, face_name, find_flush_candidates, meridian_vertex, select, select_where,
-    vertex_position,
+    NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, PieceRole, ProfileEdgeRef,
+    ProfilePieces, ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
+    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, StepId,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
+    band_pi, band_rim, carried, declare, declare_all, declare_node, denotation, edge_carrier_kind,
+    edge_frame, edge_name, face_carrier_kind, face_frame, face_name, find_flush_candidates,
+    meridian_vertex, select, select_where, vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class, on this evidence" — the fourth quarter of a vocabulary this
@@ -169,13 +169,17 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 // as `NodePickError::Index`'s payload, out of a door that is carried
 // — and what a curated list owes about a refusal it names is that the
 // refusal is MATCHABLE through it. Every other arm of `NodePickError`
-// is: `Standing` carries a curated `HitTestError`, `Tessellate` a
+// is: `Standing` carries a curated `NodeStanding`, `Tessellate` a
 // prelude-curated `TessellateError`, the two the door owns carry a
 // `RecipeNodeId` and a `u32`. Carrying the payload alone leaves the
-// index unbuildable and closes that one exception.
+// index unbuildable and closes that one exception. `UnnamedEntity` is
+// carried by the same rule: it is what `HitTestError::Unnamed` holds
+// and the whole per-slot refusal of `NodePick::patch_names` and
+// `boundary_names`, so a slot read through this façade is matchable;
+// and `NameLookupError` is those two doors' refusal of the whole call.
 pub use editor_core::{
-    HitTestError, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray,
-    pick_face,
+    HitTestError, MeshPickError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo,
+    PickTarget, Ray, UnnamedEntity, pick_face,
 };
 
 // **The resolution verdict a stored name gets at the next

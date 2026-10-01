@@ -59,13 +59,13 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real, Sign,
-    Tol, Vec2,
+    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real,
+    Sign, Tol, Vec2,
 };
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
-use crate::swept::SweptKind;
+use profile::SegmentKind;
 
 /// The traversed window of the spine arc.
 #[derive(Clone, Copy, Debug)]
@@ -166,20 +166,20 @@ const HOLLOW_PREDICATES: [&str; 3] = ["tube_wall", "tube_wall_bore", "tube_wall_
 /// on this enum is reachable through BOTH doors — the band is the
 /// run's, the window predicates are shared verbatim, and
 /// the revolve machinery is one body of code — so those arms say
-/// "tube door" rather than picking one and being wrong half the time.
+/// "the tube" rather than picking one and being wrong half the time.
 /// (The alternative, threading a hollow flag onto every arm, would
 /// put the door's identity in the payload of refusals that do not
 /// depend on it.)
 fn door(e: &TubeError) -> &'static str {
     match e {
         TubeError::Escalated { source } => match source.predicate {
-            Some(p) if HOLLOW_PREDICATES.contains(&p) => "tube_along_arc_hollow",
-            _ => "tube door",
+            Some(p) if HOLLOW_PREDICATES.contains(&p) => "the hollow tube",
+            _ => "the tube",
         },
         TubeError::NonpositiveWall { .. }
         | TubeError::WallExceedsRadius { .. }
-        | TubeError::WallGapCollapsed { .. } => "tube_along_arc_hollow",
-        _ => "tube door",
+        | TubeError::WallGapCollapsed { .. } => "the hollow tube",
+        _ => "the tube",
     }
 }
 
@@ -187,42 +187,54 @@ impl core::fmt::Display for TubeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let door = door(self);
         match self {
-            Self::Band(e) => write!(f, "{door}: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
             Self::DegenerateWindow => write!(
                 f,
-                "{door}: the arc window is degenerate or reversed (t1 must \
-                 definitely exceed t0, metered at the outer-equator arm)"
+                "{door}'s arc window is degenerate or reversed: its end must definitely \
+                 exceed its start"
             ),
             Self::FullRangeWindow => write!(
                 f,
-                "{door}: the arc window reaches one full period — an exactly \
-                 full tube says TubeWindow::Full"
+                "{door}'s arc window reaches one full turn; an exactly full tube uses the \
+                 full window (TubeWindow::Full)"
             ),
             Self::NonpositiveWall { eps } => write!(
                 f,
-                "{door}: the wall thickness is not definitely positive at \
-                 tolerance (metered at tube_wall; the run's threshold is {eps} m) — a wall \
-                 thinner than that is not a wall. Supply a thicker one, or call \
-                 tube_along_arc for the solid tube"
+                "{door}'s wall is not definitely thicker than the run's threshold of {eps} \
+                 m. Recourse: supply a thicker wall, or drop the wall for a solid tube"
             ),
             Self::WallExceedsRadius { eps } => write!(
                 f,
-                "{door}: minor_radius - wall is not a definitely positive \
-                 inner radius at tolerance (metered at tube_wall_bore; the run's threshold \
-                 is {eps} m), so there is no bore and no annulus to revolve — supply a \
-                 thinner wall, or call tube_along_arc for the solid tube"
+                "{door}'s wall leaves no bore: the minor radius minus the wall is not \
+                 definitely positive (threshold {eps} m). Recourse: supply a \
+                 thinner wall, or drop the wall for a solid tube"
             ),
             Self::WallGapCollapsed { eps } => write!(
                 f,
-                "{door}: the wall is positive and the bore is positive, but \
-                 the gap between the two radii the body would STORE is not (metered at \
-                 tube_wall_gap; the run's threshold is {eps} m) — at this outer radius the \
-                 subtraction minor_radius - wall rounds back onto minor_radius, so the two \
-                 circles would be stored as one. Supply a thicker wall, or a smaller outer \
-                 radius"
+                "{door}'s inner and outer radii would be stored as one value at this outer \
+                 radius (threshold {eps} m). Recourse: supply a thicker wall, \
+                 or a smaller outer radius"
             ),
-            Self::Escalated { source } => write!(f, "{door} escalated: {source}"),
-            Self::Revolve(e) => write!(f, "{door}: {e}"),
+            Self::Escalated { source } => {
+                let what = match source.predicate {
+                    Some("tube_wall") => "wall is thicker than the run's threshold",
+                    Some("tube_wall_bore") => "wall leaves a bore",
+                    Some("tube_wall_gap") => "inner and outer radii stay distinct",
+                    Some("tube_window_span") => "arc window ends after it starts",
+                    Some("tube_window_headroom") => "arc window stays short of a full turn",
+                    // Only the five names above are decided here; any
+                    // other is a decision this door has no words for.
+                    _ => {
+                        return write!(
+                            f,
+                            "{} is too close to call: {source}",
+                            geom_core::UNNAMED_DECISION
+                        );
+                    }
+                };
+                write!(f, "whether {door}'s {what} is too close to call: {source}")
+            }
+            Self::Revolve(e) => write!(f, "{e}"),
         }
     }
 }
@@ -243,7 +255,7 @@ impl std::error::Error for TubeError {}
 /// [`OrthoFrame`] is orthonormal by its type, decided at whichever
 /// mint built it, so the axis and the reference radial arrive as facts
 /// rather than as claims this door has to re-examine.
-pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn tube_along_arc<T: Decide + topo::AtRestPolicy>(
     frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
@@ -274,7 +286,7 @@ pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
 // struct would hide which numbers the body stores verbatim. The frame
 // is not such a subset: it is one intent, an origin and a spin, and it
 // arrives carrying the decision that its axes are orthonormal.
-pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn tube_along_arc_hollow<T: Decide + topo::AtRestPolicy>(
     frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
@@ -287,7 +299,7 @@ pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
 
 /// Both doors' body (module docs). `wall` present ⇔ hollow.
 #[allow(clippy::too_many_arguments)]
-fn build<T: Decide + geom_brep::PcurveFittedLane>(
+fn build<T: Decide + topo::AtRestPolicy>(
     frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
@@ -476,9 +488,9 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
 /// duplication nothing will find. S131.)
 ///
 /// The two arguments are the two bits `swept_segments` carries. `turn`
-/// is the TRAVERSAL's own sense (its bulge follows: `-1` where
-/// [`crate::swept::turn_negates`] reads the turn as clockwise, `+1`
-/// otherwise — the crate's one reading, so the bulge and the carrier's
+/// is the TRAVERSAL's own sense (its sweep follows: `−π` where
+/// [`crate::swept::turn_negates`] reads the turn as clockwise, `+π`
+/// otherwise — the crate's one reading, so the sweep and the carrier's
 /// axis and span agree at every turn). `reversed` says
 /// whether this traversal is the reversal of its canonical chain,
 /// which is what permutes the canonical labels — the involution's
@@ -499,18 +511,26 @@ fn circle_traversal<T: Real>(
         Point2::new(center.x - radius, T::zero()),
         Point2::new(center.x + radius, T::zero()),
     );
-    let bulge = if crate::swept::turn_negates(turn) {
-        T::zero() - T::one()
+    // The half-turn, spelled as the arc lowering spells a unit-bulge
+    // arc's sweep (`4·atan 1`), not as `T::pi()`: the certifier
+    // samples it at fractions `i/8`, and the symbolic tier folds the
+    // trig of `q·atan 1` in closed form (rule D) where a fraction of
+    // `π` other than a half-multiple stays an atom.
+    let half_turn = T::from_f64(4.0) * T::one().atan();
+    let sweep = if crate::swept::turn_negates(turn) {
+        T::zero() - half_turn
     } else {
-        T::one()
+        half_turn
     };
     let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        bulge,
-        kind: SweptKind::Arc {
-            center,
-            radius,
+        kind: SegmentKind::Arc {
+            arc: Arc2 {
+                centre: center,
+                radius,
+                sweep,
+            },
             turn,
         },
         canonical_vertex,
@@ -528,30 +548,26 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::swept::{span_magnitude, turned_span};
+    use crate::swept::arc_span;
 
-    /// **The traversal's bulge agrees with the crate's reading of its
+    /// **The traversal's sweep agrees with the crate's reading of its
     /// turn**, at every turn `Sign` has, `Zero` included: each half-turn
-    /// arc's span from the turn is its span from the bulge alone, `π`,
-    /// bit for bit. A bulge minted against another reading of `Zero`
-    /// gives `−π` here.
+    /// arc's span (its sweep signed by its turn) is `π`, bit for bit. A
+    /// sweep minted against another reading of `Zero` gives `−π` here.
     #[test]
-    fn the_traversals_bulge_reads_its_turn_as_the_carrier_does() {
+    fn the_traversals_sweep_reads_its_turn_as_the_carrier_does() {
         for turn in [Sign::Positive, Sign::Negative, Sign::Zero] {
             for reversed in [false, true] {
                 for seg in circle_traversal(Point2::new(2.0_f64, 0.0), 1.0, turn, reversed) {
-                    let SweptKind::Arc { turn: t, .. } = seg.kind else {
+                    let SegmentKind::Arc { arc, turn: t } = seg.kind else {
                         panic!("a circle traversal is arcs");
                     };
-                    let span = turned_span(t, seg.bulge);
+                    let span = arc_span(t, arc.sweep);
                     assert_eq!(
-                        (span.to_bits(), span_magnitude(seg.bulge).to_bits()),
-                        (
-                            core::f64::consts::PI.to_bits(),
-                            core::f64::consts::PI.to_bits()
-                        ),
-                        "{turn:?} reversed={reversed}: bulge {} against its turn",
-                        seg.bulge
+                        span.to_bits(),
+                        core::f64::consts::PI.to_bits(),
+                        "{turn:?} reversed={reversed}: sweep {} against its turn",
+                        arc.sweep
                     );
                 }
             }

@@ -8,6 +8,7 @@ enforces; this header says only what the contract does not.
     work.py new ID --kind K --title T [--program P] [--set key=value ...]
     work.py set ID key=value [key=value ...]
     work.py territory (--base REF | --files LIST) [--branch NAME] [--strict]
+    work.py incoming [--base REF] [--program P]   what the base carries into work/P/ that HEAD lacks
     work.py --selftest
 
 STDLIB ONLY, AND ITS OWN FRONT-MATTER READER. The header format is a
@@ -53,7 +54,9 @@ ISSUES_DIR = "issues"
 FREE_FILES = {"README.md", "STATUS.md"}       # unparsed: top of work/, and
                                               # README.md inside work/issues/
 NARRATIVE = {"plan.md", "log.md", "process-observations.md"}   # inside a program, unparsed
-LOG_EXEMPT = {"docs/MODEL-AB-LOG.md"}         # the one non-program log in docs/
+LOG_EXEMPT = {"docs/MODEL-AB-LOG.md",        # the non-program logs in docs/
+              "docs/DUAL-REVIEW-LOG.md",
+              "docs/DESIGN-FORK-LOG.md"}
 STALE_DAYS = 14
 
 KINDS = ("program", "unit", "issue", "ruling")
@@ -81,14 +84,22 @@ AREAS = ("kernel", "api", "gui", "infra")
 # and is deliberately not a field.
 PRIORITIES = ("P0", "P1", "P2", "P3", "P4")
 
-# The cost class, as the 2026-09-03 cut defined it (docs/WORK-TRACKS-2026-09.md):
-# E the fix is written in the item, D a design question is open, H the intent is
-# clear and getting it right is technically hard. The weights are what make one
-# budget say "about 6 hard rows or about 30 easy ones" in a single number.
-COSTS = ("E", "D", "H")
-COST_WEIGHT = {"E": 1.0, "D": 2.5, "H": 5.0}
-DEFAULT_BUDGET = 30            # points; 30 E, 12 D, or 6 H
-UNPRICED_WEIGHT = COST_WEIGHT["D"]   # an unscored row is priced mid-range
+# The cost class is EFFORT only (Ev, in chat, 2026-09-27): E the fix is written
+# in the item or obvious, M between the two, H getting it right is technically
+# hard. Whether a design question is open is a separate fact, the `design` flag,
+# because the two vary independently. The weights are what make one budget say
+# "about 6 hard rows or about 30 easy ones" in a single number.
+#
+# D is LEGACY. The 2026-09-03 cut (docs/WORK-TRACKS-2026-09.md) defined it as
+# "a design question is open", but the README never said so and rows priced
+# before 2026-09-27 used it for middling effort too, so a `cost: D` on a row
+# opened before then means "M, and maybe design work": re-price it when you
+# touch the row. A row opened on or after LEGACY_D_UNTIL may not carry it.
+COSTS = ("E", "M", "H", "D")
+COST_WEIGHT = {"E": 1.0, "M": 2.5, "H": 5.0, "D": 2.5}
+LEGACY_D_UNTIL = "2026-09-27"  # the first `opened:` date that refuses `cost: D`
+DEFAULT_BUDGET = 30            # points; 30 E, 12 M, or 6 H
+UNPRICED_WEIGHT = COST_WEIGHT["M"]   # an unscored row is priced mid-range
 
 # A row counts against its track's budget only while it is DISPATCHABLE. A row
 # in flight, parked, deferred or closed is not a claim on the next sitting's
@@ -114,6 +125,7 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "track": ("str", ("unit", "issue", "ruling")),
     "priority": ("enum:priority", KINDS),
     "cost": ("enum:cost", ("unit", "issue", "ruling")),
+    "design": ("flag", ("unit", "issue", "ruling")),
     "github": ("int", ("unit", "issue", "ruling")),
     "area": ("enum:area", ("program",)),
     "prefix": ("str", ("program",)),
@@ -554,6 +566,9 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
             errors.append(f"{it.path}: `closed:` is set but status is {it.status}")
         if it.status == "parked" and not it.get("blocked_on"):
             errors.append(f"{it.path}: parked needs a non-empty `blocked_on`")
+        if it.get("cost") == "D" and str(it.get("opened")) >= LEGACY_D_UNTIL:
+            errors.append(f"{it.path}: `cost: D` is legacy (opened before {LEGACY_D_UNTIL} only) — "
+                          f"price the effort E, M or H, and set `design: true` if a design question is open")
         if it.status == "deferred" and it.get("blocked_on"):
             errors.append(f"{it.path}: deferred is a ratified not-now, not a wait on a named trigger — "
                           f"a row with `blocked_on` is parked; cite the ratification in the body instead")
@@ -766,7 +781,8 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
             blocked = ", ".join(_fmt_ref(b) for b in _listed(r, "blocked_on"))
             pr = f"#{r.get('pr')}" if r.get("pr") is not None else ""
             ev = " **[ev]**" if r.get("needs_ev") is not None else ""
-            out.append(f"| {r.get('priority') or '—'} | `{r.id}` | {r.kind} | {r.get('cost') or '—'} | "
+            cost = (r.get("cost") or "—") + (" +design" if r.get("design") is not None else "")
+            out.append(f"| {r.get('priority') or '—'} | `{r.id}` | {r.kind} | {cost} | "
                        f"{r.status}{ev} | {r.get('title')} | {blocked} | {pr} |")
         out.append("")
 
@@ -924,14 +940,8 @@ def territory(root: str, base: str | None, branch: str | None, files: list[str] 
         raise Bail("invalid tree; run `work.py lint`")
     programs = [it for it in items if it.kind == "program"]
     if branch is None:
-        r = subprocess.run(["git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, check=False)
-        branch = r.stdout.decode().strip() if r.returncode == 0 else ""
-    mine = None
-    best = -1
-    for p in programs:
-        pre = p.get("prefix")
-        if isinstance(pre, str) and branch.startswith(pre) and len(pre) > best:
-            mine, best = p.id, len(pre)
+        branch = _current_branch(root)
+    mine = _branch_program(programs, branch)
     if files is None:
         if base is None:
             raise Bail("territory needs --base or --files")
@@ -959,6 +969,61 @@ def territory(root: str, base: str | None, branch: str | None, files: list[str] 
             lines.append(f"{path}: owned by {', '.join(others)}"
                          + (f"; this branch is {mine}'s" if mine else "; this branch has no program prefix"))
     return lines, mine
+
+
+def _current_branch(root: str) -> str:
+    r = subprocess.run(["git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, check=False)
+    return r.stdout.decode().strip() if r.returncode == 0 else ""
+
+
+def _branch_program(programs: list, branch: str) -> str | None:
+    """The program whose `prefix` is the longest one `branch` starts with."""
+    mine = None
+    best = -1
+    for p in programs:
+        pre = p.get("prefix")
+        if isinstance(pre, str) and branch.startswith(pre) and len(pre) > best:
+            mine, best = p.id, len(pre)
+    return mine
+
+
+# --------------------------------------------------------------------------
+# incoming
+# --------------------------------------------------------------------------
+
+def incoming(root: str, base: str, program: str | None, branch: str | None) -> tuple[str, int, str]:
+    """(program, commit count, `git log -p`) for every commit on `base` that
+    touches `work/<program>/` and is not yet in HEAD.
+
+    WHY IT IS KEYED TO BASE, NOT TO A MERGE. A program's `log.md` merges with
+    git's union driver (`.gitattributes`), so another program's notice lands
+    in it with no conflict to point at it. The conflict never was a reliable
+    alert — it fired only when the owner had appended too, buried among its
+    own lanes' collisions — so the read is made explicit instead. `HEAD..base`
+    lists a commit until it reaches this branch by any route (a base merge, a
+    reset onto the base), so no merge direction can skip one; the owner's own
+    lane entries show too, once their units land, and are recognisable as its
+    own."""
+    items, errors = load_tree(root)
+    if errors:
+        raise Bail("invalid tree; run `work.py lint`")
+    programs = [it for it in items if it.kind == "program"]
+    if program is None:
+        branch = branch if branch is not None else _current_branch(root)
+        program = _branch_program(programs, branch)
+        if program is None:
+            raise Bail(f"branch {branch!r} carries no program prefix; pass --program")
+    elif program not in {p.id for p in programs}:
+        raise Bail(f"no program {program!r} under {WORK}/")
+    rng, path = f"HEAD..{base}", f"{WORK}/{program}/"
+    r = subprocess.run(["git", "-C", root, "rev-list", "--count", rng, "--", path], capture_output=True, check=False)
+    if r.returncode != 0:
+        raise Bail(f"git rev-list {rng} failed (fetch {base} first?): {r.stderr.decode(errors='replace').strip()}")
+    count = int(r.stdout.decode().strip())
+    r = subprocess.run(["git", "-C", root, "log", "-p", "--reverse", rng, "--", path], capture_output=True, check=False)
+    if r.returncode != 0:
+        raise Bail(f"git log {rng} failed: {r.stderr.decode(errors='replace').strip()}")
+    return program, count, r.stdout.decode(errors="replace")
 
 
 # --------------------------------------------------------------------------
@@ -1083,13 +1148,18 @@ def selftest() -> int:
              "status: parked\nopened: 2026-09-01\npr: 1605\nblocked_on: [T-1, MESH-2]"),
             ("deferred may not name a blocker", "work/mesh/MESH-1.md",
              "status: review", "status: deferred"),
+            ("legacy D on a new row", "work/mesh/MESH-2.md",
+             "opened: 2026-09-01", f"opened: {LEGACY_D_UNTIL}\ncost: D"),
+            ("design is a bare true", "work/mesh/MESH-2.md",
+             "status: open", "status: open\ndesign: yes"),
         ]
         expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`",
                         "matches no tracked path", "must end in `/`", "not a field of kind unit",
                         "indented line", "only kind issue lives under",
                         "nothing else gates this row", "so prune the fired entry",
-                        "cite the ratification in the body"]
+                        "cite the ratification in the body",
+                        "`cost: D` is legacy", "either `true` or absent"]
         for (name, rel, old, new), needle in zip(cases, expectations, strict=True):
             p = os.path.join(root, rel)
             with open(p, encoding="utf-8") as f:
@@ -1102,6 +1172,15 @@ def selftest() -> int:
             expect(name, lint(root, warns) + warns, needle)
             _write(root, rel, original)
         expect("restored fixture", lint(root))
+        o2 = open(os.path.join(root, "work/mesh/MESH-2.md"), encoding="utf-8").read()
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: D"))
+        expect("legacy D on a row opened before the cut is clean", lint(root))
+        _write(root, "work/mesh/MESH-2.md",
+               o2.replace("opened: 2026-09-01", f"opened: {LEGACY_D_UNTIL}\ncost: M\ndesign: true"))
+        expect("M with design on a new row is clean", lint(root))
+        if "| M +design |" not in render(root, only_program="mesh", today=far):
+            failures.append("render: a design row does not say so in its cost column")
+        _write(root, "work/mesh/MESH-2.md", o2)
 
         # THE PROGRAM'S OWN STATUS. `active` is unfalsifiable from the tree,
         # so the two checkable halves are the ones tested: a blocked track with
@@ -1316,6 +1395,24 @@ def selftest() -> int:
             failures.append(f"territory (own program, sole claimant): {lines}")
         _write(root, "work/mesh/program.md", mp2)
 
+        # incoming: a note another program leaves in mesh's log reaches the
+        # base; it is listed until this branch has it, however it arrives.
+        base = "master" if _branch_exists(root, "master") else "main"
+        subprocess.run(["git", "-C", root, "checkout", "-q", base], check=True)
+        with open(os.path.join(root, "work/mesh/log.md"), "a", encoding="utf-8") as f:
+            f.write("a note from topo\n")
+        subprocess.run(["git", "-C", root, "commit", "-q", "-am", "topo: note on mesh's log"], check=True)
+        subprocess.run(["git", "-C", root, "checkout", "-q", "topo/x"], check=True)
+        prog, n, text = incoming(root, base, "mesh", None)
+        if prog != "mesh" or n != 1 or "a note from topo" not in text:
+            failures.append(f"incoming (a foreign note on the base is listed): {prog} {n} {text!r}")
+        prog, n, _ = incoming(root, base, None, "topo/x")
+        if prog != "topo" or n != 0:
+            failures.append(f"incoming (the branch's program, untouched on the base): {prog} {n}")
+        subprocess.run(["git", "-C", root, "merge", "-q", "--no-edit", base], check=True)
+        if incoming(root, base, "mesh", None)[1] != 0:
+            failures.append("incoming (a note already merged in is still listed)")
+
     if failures:
         for f in failures:
             print(f"SELFTEST FAIL: {f}", file=sys.stderr)
@@ -1367,6 +1464,9 @@ def main(argv: list[str]) -> int:
     s.add_argument("--strict", action="store_true", help="exit 1 on a collision")
     s.add_argument("--overlaps", action="store_true",
                    help="instead of a diff: the at-rest map of which open programs share ground")
+    s = sub.add_parser("incoming")
+    s.add_argument("--base", default="origin/main", help="the branch notices arrive on (fetch it first)")
+    s.add_argument("--program", help="default: the program whose prefix the current branch carries")
     args = ap.parse_args(argv)
 
     try:
@@ -1421,6 +1521,12 @@ def main(argv: list[str]) -> int:
                     print(f"::warning file={line.split(':', 1)[0]}::{line}")
             print(f"work.py territory: branch program {mine or '(none)'}, {len(lines)} path(s) in another program's territory")
             return 1 if (lines and args.strict) else 0
+        if args.cmd == "incoming":
+            prog, n, text = incoming(root, args.base, args.program, None)
+            if text:
+                print(text, end="" if text.endswith("\n") else "\n")
+            print(f"work.py incoming: {n} commit(s) on {args.base} touch {WORK}/{prog}/ that this branch lacks")
+            return 0
         raise AssertionError(args.cmd)
     except Bail as e:
         print(f"work.py: {e}", file=sys.stderr)

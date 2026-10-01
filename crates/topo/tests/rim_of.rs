@@ -26,18 +26,10 @@ use topo::{Body, CurveKind, EdgeKey, EntityId, FaceSurface, MefSite, MevSite, Ri
 
 use crate::common;
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 /// A point of the rim circle at azimuth `theta`.
 fn point_at(theta: f64) -> Point3<f64> {
     let (s, c) = theta.sin_cos();
-    p3(rim_r() * c, rim_r() * s, RIM_Z)
+    Point3::new(rim_r() * c, rim_r() * s, RIM_Z)
 }
 
 /// The rim's latitude, and the radius that follows on the unit sphere.
@@ -49,27 +41,27 @@ fn rim_r() -> f64 {
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn rim_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: p3(0.0, 0.0, RIM_Z),
-        normal: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, RIM_Z),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn rim_circle() -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, RIM_Z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, RIM_Z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: rim_r(),
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -80,15 +72,21 @@ fn half_built() -> (Body<f64>, EdgeKey) {
     let tol = Tol::witness();
     let r = rim_r();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p3(r, 0.0, RIM_Z)).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let seed = body.mvfs(Point3::new(r, 0.0, RIM_Z), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let made = body
         .mev(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            p3(-r, 0.0, RIM_Z),
+            Point3::new(-r, 0.0, RIM_Z),
             EdgeCurveSpec::arc_of_circle(rim_circle(), 0.0, core::f64::consts::PI).unwrap(),
             tol,
         )
@@ -114,7 +112,10 @@ fn capped() -> (Body<f64>, EdgeKey, EdgeKey) {
                 core::f64::consts::TAU,
             )
             .unwrap(),
-            FaceSurface::New(rim_plane()),
+            FaceSurface::New {
+                surface: rim_plane(),
+                sense: true,
+            },
             tol,
         )
         .unwrap();
@@ -205,9 +206,15 @@ fn a_chain_that_closes_leaving_matched_arcs_unused_refuses() {
         core::f64::consts::FRAC_PI_4,
         5.0 * core::f64::consts::FRAC_PI_4,
     );
-    let seed = body.mvfs(point_at(t2)).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::Shared(sphere))
-        .unwrap();
+    let seed = body.mvfs(point_at(t2), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::Shared {
+            key: sphere,
+            sense: true,
+        },
+    )
+    .unwrap();
     let c = body
         .mev(
             MevSite::Lone {
@@ -225,7 +232,10 @@ fn a_chain_that_closes_leaving_matched_arcs_unused_refuses() {
         .mef(
             MefSite::Chords { he1, he2 },
             EdgeCurveSpec::arc_of_circle(rim_circle(), t3, t2 + core::f64::consts::TAU).unwrap(),
-            FaceSurface::Shared(plane),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
             tol,
         )
         .unwrap()

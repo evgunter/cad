@@ -18,103 +18,10 @@ use sweep::test_support::{block, brick};
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
 use crate::common::approx::band;
-use crate::verbs_shell::{hollow_box, v, vessel};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
-
-fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> {
-    let mut out = body.clone();
-    let placed =
-        topo::transform_rigid(other, &Affine3::translation(Vec3::new(dx, 0.0, 0.0)), tol())
-            .expect("a rigid map");
-    topo::graft_disjoint(&mut out, &placed, tol()).expect("the placed copy grafts");
-    out
-}
-
-fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol()).expect("props").volume
-}
-
-fn solid_of(body: &Body<f64>, face: FaceKey) -> SolidKey {
-    let shell = body.get_face(face).unwrap().shell;
-    body.get_shell(shell).unwrap().solid
-}
-
-fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(k, _)| solid_of(body, *k) == solid)
-        .map(|(k, _)| k)
-        .collect()
-}
-
-fn charts_of(body: &Body<f64>, solid: SolidKey) -> Vec<Vec<FaceKey>> {
-    let mut out: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for face in faces_of(body, solid) {
-        let key = body.get_face(face).unwrap().surface;
-        match out.iter_mut().find(|(k, _)| *k == key) {
-            Some((_, v)) => v.push(face),
-            None => out.push((key, vec![face])),
-        }
-    }
-    out.into_iter().map(|(_, v)| v).collect()
-}
-
-fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
-}
-
-/// A DEEP per-solid dump: every face's surface, every edge's carrier,
-/// parameters and description, every vertex's point — the reading the
-/// PR's own bitwise row does not take (it compares vertex POINTS only).
-fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let mine = faces_of(body, solid);
-    for &f in &mine {
-        let d = body.get_face(f).unwrap();
-        out.push(format!(
-            "face sense={} rings={} surface={:?}",
-            d.sense,
-            d.rings.len(),
-            body.get_surface(d.surface)
-        ));
-    }
-    for (k, e) in body.edges() {
-        let fa = face_of_he(body, e.he_plus);
-        if !mine.contains(&fa) {
-            continue;
-        }
-        let c = body
-            .get_curve_geom(e.curve)
-            .and_then(topo::CurveGeom::certified)
-            .unwrap();
-        out.push(format!(
-            "edge {k:?} carrier={:?} params={:?} description={:?}",
-            c.carrier(),
-            c.params(),
-            c.description()
-        ));
-    }
-    for (k, vx) in body.vertices() {
-        let Some(em) = body.get_vertex(k).unwrap().emanating else {
-            continue;
-        };
-        if !mine.contains(&face_of_he(body, em)) {
-            continue;
-        }
-        let p = body.get_point(vx.point).unwrap();
-        out.push(format!(
-            "vertex bits=({:x},{:x},{:x})",
-            p.x.to_bits(),
-            p.y.to_bits(),
-            p.z.to_bits()
-        ));
-    }
-    out.sort();
-    out
-}
+use crate::common::charts::{charts_of, moves_by};
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::{hollow_box, vessel};
+use crate::shell8_common::{beside, deep_dump, faces_of, solid_of, tol, volume};
 
 // ---------------------------------------------------------------------
 // Claim 1 — the AXIAL door, scoped
@@ -140,13 +47,7 @@ fn r1_axial_door_leaves_the_other_solid_deep_identical() {
     let (ves, bx) = (solids[0], solids[1]);
 
     let before = deep_dump(&pair, bx);
-    let moves: Vec<topo::ChartMove<f64>> = charts_of(&pair, ves)
-        .into_iter()
-        .map(|faces| topo::ChartMove {
-            faces,
-            distance: -0.05,
-        })
-        .collect();
+    let moves = moves_by(charts_of(&pair, ves), -0.05);
     let mut work = pair.clone();
     topo::offset_charts_together(&mut work, &moves, band(), tol())
         .expect("the vessel's charts move together while the box stands aside");
@@ -179,7 +80,8 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
     .expect("a box a million metres away does not reach the vessel")
     .body;
     let wall = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
-    let boxwall = v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
+    let boxwall =
+        box_volume(2.0, 3.0, 4.0) - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
     println!(
         "[r1] vessel alone {:.12}, in a far pair {:.12}, closed form {:.12}",
         volume(&alone),
@@ -212,15 +114,10 @@ fn r1_a_scope_of_two_of_three_solids() {
     );
     let solids: Vec<SolidKey> = three.solids().map(|(k, _)| k).collect();
     assert_eq!(solids.len(), 3);
-    let mut moves: Vec<topo::ChartMove<f64>> = Vec::new();
-    for &s in &solids[..2] {
-        for faces in charts_of(&three, s) {
-            moves.push(topo::ChartMove {
-                faces,
-                distance: -0.1,
-            });
-        }
-    }
+    let moves: Vec<topo::ChartMove<f64>> = solids[..2]
+        .iter()
+        .flat_map(|&s| moves_by(charts_of(&three, s), -0.1))
+        .collect();
     let before: Vec<Vec<String>> = solids.iter().map(|&s| deep_dump(&three, s)).collect();
     let mut work = three.clone();
     topo::offset_planes_together(&mut work, &moves, band(), tol())
@@ -345,9 +242,9 @@ fn r1_a_part_inside_another_solids_void() {
     match topo::shell(&body, t, tol()) {
         Ok(s) => {
             let vol = volume(&s.body);
-            let cav = v(1.5, 2.5, 3.5) - v(1.46, 2.46, 3.46);
-            let outer = v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9);
-            let part = v(1.46, 2.46, 3.46) - v(1.36, 2.36, 3.36);
+            let cav = box_volume(1.5, 2.5, 3.5) - box_volume(1.46, 2.46, 3.46);
+            let outer = box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9);
+            let part = box_volume(1.46, 2.46, 3.46) - box_volume(1.36, 2.36, 3.36);
             println!(
                 "[r1] nested built: solids={} shells={} volume={vol:.9} (sum of walls {:.9})",
                 s.body.solids().count(),
@@ -475,7 +372,7 @@ fn r1_e2e_two_parts_one_body() {
     let hollow = topo::shell(&assembly, t, tol())
         .expect("both parts hollow in one call")
         .body;
-    let wall_box = v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9);
+    let wall_box = box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9);
     let wall_ves =
         core::f64::consts::PI * (1.0 * 1.0 * 2.0 - (1.0 - t) * (1.0 - t) * (2.0 - 2.0 * t));
     println!(
@@ -517,8 +414,8 @@ fn r1_e2e_two_parts_one_body() {
         .expect("a thinner second wall opens the box and leaves the vessel sealed")
         .body;
     let pi = core::f64::consts::PI;
-    let closed = (v(2.0, 3.0, 4.0) - v(1.96, 2.96, 3.96))
-        + (v(1.94, 2.94, 3.94) - v(1.9, 2.9, 3.9))
+    let closed = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
+        + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
         + pi * (1.0 * 1.0 * 2.0 - 0.98 * 0.98 * 1.96)
         + pi * (0.97 * 0.97 * 1.94 - 0.95 * 0.95 * 1.9)
         - 1.96 * 2.96 * t2;
@@ -561,9 +458,7 @@ fn r1_e2e_two_parts_one_body() {
 /// what that walk costs.
 #[test]
 fn r1_naming_the_inner_wall_after_two_hollowings() {
-    let once = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, tol())
-        .expect("first hollow")
-        .body;
+    let once = hollow_box();
     let twice = topo::shell(&once, 0.05, tol()).expect("second hollow").body;
     println!(
         "[r1] after two hollowings: solids={} shells={} faces={}",
@@ -603,10 +498,10 @@ fn r1_naming_the_inner_wall_after_two_hollowings() {
 #[test]
 fn r1_rederive_the_hollow_hollow_open_closed_form() {
     let terms = [
-        v(2.0, 3.0, 4.0) - v(1.98, 2.98, 3.98),
-        v(1.92, 2.92, 3.92) - v(1.9, 2.9, 3.9),
-        v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58),
-        v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5),
+        box_volume(2.0, 3.0, 4.0) - box_volume(1.98, 2.98, 3.98),
+        box_volume(1.92, 2.92, 3.92) - box_volume(1.9, 2.9, 3.9),
+        box_volume(1.6, 2.6, 3.6) - box_volume(1.58, 2.58, 3.58),
+        box_volume(1.52, 2.52, 3.52) - box_volume(1.5, 2.5, 3.5),
     ];
     let lid = 1.52 * 2.52 * 0.01;
     let total: f64 = terms.iter().sum::<f64>() - lid;

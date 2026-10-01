@@ -31,12 +31,8 @@ use profile::{ArcSweep, Center, Open, PathError, ProfileLoop, Start};
 
 use crate::common;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn on_circle(center: Point2<f64>, r: f64, angle: f64) -> Point2<f64> {
-    p2(center.x + r * angle.cos(), center.y + r * angle.sin())
+    Point2::new(center.x + r * angle.cos(), center.y + r * angle.sin())
 }
 
 /// An arc x arc corner authored through the public lattice door, the
@@ -56,9 +52,9 @@ fn arc_arc(
     delta_out: f64,
     r: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let corner = p2(0.0, 0.0);
-    let c1 = p2(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
-    let c2 = p2(
+    let corner = Point2::new(0.0, 0.0);
+    let c1 = Point2::new(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
+    let c2 = Point2::new(
         corner.x - r_out * a_out.cos(),
         corner.y - r_out * a_out.sin(),
     );
@@ -153,7 +149,7 @@ fn both_refusing_crossings_are_reported_each_with_its_own_reason() {
         "the header names the radius: {rendered}"
     );
     assert_eq!(
-        rendered.matches("at the corner near").count(),
+        rendered.matches("at corner (").count(),
         2,
         "one sentence per crossing: {rendered}"
     );
@@ -180,15 +176,15 @@ fn a_crossing_the_windows_discarded_is_not_listed_beside_the_answer() {
     // it is discarded by the advance gate, the one ahead is reached and
     // its trim eats the ray's own origin.
     let err = Open
-        .at(p2(1.9, 0.0))
+        .at(Point2::new(1.9, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
             },
             Tol::witness(),
         )
@@ -220,15 +216,15 @@ fn every_corner_reason_arm_is_reachable_from_an_authored_profile() {
     // (1) OutsideAnchors(BehindIncomingRay): the incoming ray STARTS at
     // the derived corner, so no corner is ahead of the side authored.
     let behind_ray = Open
-        .at(p2(2.0, 0.0))
+        .at(Point2::new(2.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
             },
             Tol::witness(),
         )
@@ -245,14 +241,14 @@ fn every_corner_reason_arm_is_reachable_from_an_authored_profile() {
     // anchor sits BEFORE the corner in its own travel sense, so the
     // arrival ray never came from the corner.
     let behind_anchor = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet(0.5, Tol::witness())
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
-        .to(p2(3.0, -1.0), Tol::witness())
+        .to(Point2::new(3.0, -1.0), Tol::witness())
         .expect_err("an arrival anchor before the corner must refuse");
     assert!(
         common::any_reason(&behind_anchor, |r| matches!(
@@ -266,15 +262,15 @@ fn every_corner_reason_arm_is_reachable_from_an_authored_profile() {
     // offset carriers no longer meet, so no circle of that radius is
     // tangent to both.
     let no_circle = Open
-        .at(p2(-3.0, 1.5))
+        .at(Point2::new(-3.0, 1.5))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             1.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
             },
             Tol::witness(),
         )
@@ -290,14 +286,14 @@ fn every_corner_reason_arm_is_reachable_from_an_authored_profile() {
     // (4) AnchorOutsideTrimmedExtent: a straight pair whose arrival leg
     // is shorter than the setback.
     let eats_anchor = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet(2.5, Tol::witness())
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
-        .to(p2(3.0, 2.0), Tol::witness())
+        .to(Point2::new(3.0, 2.0), Tol::witness())
         .expect_err("the setback outruns the arrival leg");
     assert!(
         common::anchor_fit(&eats_anchor).is_some(),
@@ -433,9 +429,9 @@ fn the_offset_lever_gate_aborts_the_resolve_at_every_band() {
 /// The three anchor points [`anchors_moved`] authors: the incoming
 /// ray's own anchor (shared) and the two outgoing anchors.
 fn anchors_of() -> (Point2<f64>, Point2<f64>, Point2<f64>) {
-    let c1 = p2(-0.2, 0.0);
+    let c1 = Point2::new(-0.2, 0.0);
     let a_out = 0.8_f64;
-    let c2 = p2(-0.2 * a_out.cos(), -0.2 * a_out.sin());
+    let c2 = Point2::new(-0.2 * a_out.cos(), -0.2 * a_out.sin());
     (
         on_circle(c1, 0.2, -2.8),
         on_circle(c2, 0.2, a_out - 0.25),

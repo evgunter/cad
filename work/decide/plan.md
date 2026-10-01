@@ -7,7 +7,7 @@ Opened 2026-09-20 by SYM's priority-seam cut
 
 ## The slate
 
-**25 budget points** of dispatchable work against a ceiling of 30, at DECIDE-7's close (2026-09-26): rule G's leaf-cost row (D) closed, and its two filed rows are P3.
+**27.5 budget points** of dispatchable work against a ceiling of 30, at DECIDE-7's close (2026-09-26): rule G's leaf-cost row (D) closed, and its two filed rows are P3; the derived-frame refusal row (2.5) is open and not on this table.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -33,7 +33,8 @@ term-budget residue is the census's, and the apothem's sign is its own
 row, `the-apothems-sign-is-a-value-read`.
 DECIDE-6 merged 2026-09-25 (#3229): the decision read is not the pin
 suites' cost, and rule G is (`rule-g-is-the-link-and-pads-leaf-cost`,
-which replaces the read's row on the slate). Both P1 rows stay gated:
+which replaces the read's row on the slate) and is DECIDE-7, dispatched
+2026-09-25 (`docs/DECIDE-7-SPEC.md`). Both P1 rows stay gated:
 the declared tangency on ROUND's open Fillet-centre row, and the revolve
 carriers on E6.
 DECIDE-7 merged 2026-09-26 (#3246): rule G's leaf cost was the per-node

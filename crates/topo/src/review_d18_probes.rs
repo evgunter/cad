@@ -35,6 +35,7 @@ test_utils::gated_to![
     "crates/topo/src/body.rs",
     "crates/topo/src/entity.rs",
     "crates/topo/src/fixtures.rs",
+    "crates/topo/src/test_support_fixtures.rs",
 ];
 
 use geom_core::Point3;
@@ -124,7 +125,7 @@ fn d18_split_edge_still_refuses_a_dangling_next_of_he_plus() {
 /// faces. `kef` applies to either half of the second edge.
 fn pillow(tol: Tol) -> (Body<f64>, crate::MevCreated, crate::MefCreated) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -191,7 +192,7 @@ fn d18_kef_refuses_a_dangling_prev_of_he() {
 fn d18_torn_body_fixture_leaves_every_prev_live() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -218,7 +219,7 @@ fn d18_torn_body_fixture_leaves_every_prev_live() {
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let foreign = {
         let mut other = Body::<f64>::new();
-        let s = other.mvfs(p(0.0)).unwrap();
+        let s = other.mvfs(p(0.0), true).unwrap();
         let sg = other
             .mev_line(MevSite::Lone { r#loop: s.r#loop }, p(1.0), tol)
             .unwrap();

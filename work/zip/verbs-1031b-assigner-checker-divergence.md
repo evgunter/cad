@@ -102,3 +102,80 @@ condition for the arc-bounded planar class.
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## `all_lines` itself is a third spelling, and two of the three are unnamed (ATREST-2, 2026-09-21)
+
+The row above is about the WINDING arm diverging across three sites.
+The `all_lines` GATE that decides which loops each site runs on has the
+same shape and is worth naming separately, because a lane widening one
+site has to find the others by reading:
+
+- `crates/topo/src/validate.rs`, check 6's planar arm — a `let
+  all_lines = cycle.iter().all(…)` binding, the only NAMED spelling;
+- `crates/topo/src/merge_faces.rs`, inside `loop_winding` — **unnamed**,
+  the same carrier test written as part of a larger expression;
+- `crates/sweep/tests/m5_s10_face_sense.rs` — a third, added by
+  ATREST-2 and self-declared *"re-derived here from the same stored
+  data the arm reads"*.
+
+The third is deliberate and stays: it is a TEST re-derivation, and a
+row that pinned the arm's behaviour by calling the arm's own helper
+would pin nothing. What it does show is the cost of the divergence
+from the outside — the re-derivation had to restate all four of the
+arm's entry conditions (planar surface, outer-plus-rings, `Cycle`
+boundary, `all_lines`), and its first version got two of them wrong
+(it omitted the planarity filter, which is a FALSE RED the day
+`loft_body` mints `Line` carriers for straight rails, and it answered
+"yes" for the non-`Cycle` boundary the arm skips, an inverted
+semantic). Both were caught in review, not by a test. A fourth
+re-derivation by a fourth lane is the predictable next instance.
+
+ATREST-2's measurement of what the gate costs at rest, with its 2x2
+isolation of the `Circle` carrier as the whole discriminant, is in
+`work/atrest/sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts.md`
+and pinned in `crates/sweep/tests/m5_s10_face_sense.rs`. It is
+evidence for the widening this row schedules: on an arc-capped loft
+the gate hides a WHOLE-BODY sense inversion, reached through the
+public `topo::Body::set_face_sense` door, with `validate_geometric`
+`Ok(())` and the enclosure unmoved and positive.
+
+## The checker half closed for circles; the arithmetic has one home (ATREST-4, 2026-09-24)
+
+The winding arm moved out of `merge_faces.rs` into
+`crates/topo/src/loop_winding.rs` (`Body::planar_loop_winding`), and
+both the merge's role assigner and tier 3's check 6 planar arm now call
+it — the fourth statement this row's flip condition anticipated was
+not written. The assigner's `merge_faces::loop_winding` is a thin
+wrapper that maps the shared result onto `MergeCoplanarError`; its
+reach is `LoopCarriers::Elliptic`, check 6's is
+`LoopCarriers::Circular`. Two behaviour notes on the assigner side:
+the arithmetic, its order and the escalation are unchanged; a torn
+lookup on the way to a CARRIER now announces `StaleKey` where it
+previously answered `Ok(None)` (a torn point lookup already
+announced) — unreachable on a tier-1 body either way.
+
+What that closes and what it does not:
+
+- A merged face whose outer/ring roles are STORED wrongly — by any
+  producer — is now falsified by check 6 when its loops ride lines and
+  circles.
+- An error in the shared functional itself (MUT-2's sign flip) now
+  moves the assigner and the checker together, so tier 3 cannot see
+  it. That is the price of one home, and it is covered by rows whose
+  roles come from a DIFFERENT derivation: the extruded washer in
+  `crates/sweep/tests/m5_s10_face_sense.rs`
+  (`an_inverted_cap_refuses_at_its_arc_ring_as_well_as_its_outline`),
+  whose roles are `profile`'s containment pass and whose chord terms
+  are zero, refuses the HONEST body under a mis-signed bulge; the cup's
+  `outer[0] > ring[1]` assertion in `verbs_1031b_arcwind.rs` still
+  stands.
+- Ellipse-bearing loops stay outside the checker:
+  `work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`.
+
+The refusal-surface measurement this row asked for was run before the
+arm landed; its table is in ATREST-4's PR.
+
+The `all_lines` gate: the checker's named spelling is gone (the carrier
+class is `LoopCarriers`, computed once in the shared function); the
+test re-derivation in `m5_s10_face_sense.rs`'s `planar_arm_reaches`
+stays, re-cut to `Line`-or-`Circle`.

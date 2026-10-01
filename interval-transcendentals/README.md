@@ -8,8 +8,10 @@ This is the kernel's interval backend, and the resolution of the
 DESIGN.md tabled item *"In-house rigorous interval transcendentals"*: a
 path off `inari`'s `gmp` feature (LGPL-3.0+ transitive deps
 `gmp-mpfr-sys`/`rug`, AVX+FMA inline-asm floor, dormant upstream).
-`geom-core`'s `interval` feature depends on this crate, and no kernel
-build in any configuration links C or LGPL code.
+`geom-core` depends on this crate in every build (a normal dependency:
+`geom_core::Interval`, the evaluation scalar and the certification
+arithmetic both, is a newtype over its `DInterval`), and no kernel build
+in any configuration links C or LGPL code.
 
 - Standalone cargo project, deliberately excluded from the kernel
   workspace (own `[workspace]` table, like `demos/`) so that its
@@ -87,10 +89,8 @@ the job's `CAD_FUZZ_EFFORT` multiplies every count — and depth is cheap,
 because the job's cost is dominated by building GMP and MPFR from C
 source, not by the cases.
 
-The **local** gate does not cover it: `local-scripts/ci-local.sh` mirrors
-the cheap row and has no `oracle-certify` row, so under `gate.sh` — the
-merge gate when hosted Actions is unavailable — a dropped transcendental
-pad is not caught. Recorded as smell-scan **S127**.
+No local script runs `oracle-certify`, so a dropped transcendental pad
+is caught only by that hosted job.
 
 ## Big-argument contract (honest refusal)
 

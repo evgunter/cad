@@ -84,3 +84,28 @@ the same one and that the delta is real.
 over **every tracked file, no path argument** — the brace literal in any
 spelling, which is the one clause every full copy of F6 must contain.
 Its blind spot: a copy that bans only identifiers and never the brace.
+
+## The roster does not grow when the enum does (2026-09-22, VGEOM)
+
+Evidence on the member already named, not a second member. The other
+half of "each site bans exactly one identifier" is that **the set of
+sites is hand-written too**, so an enum that gains an arm gains no row
+and nothing reds.
+
+Executed: `vgeom/camera-band` added
+`CameraError::SceneRadiusOverflowsZoomBand` to
+`crates/viewer/src/camera.rs`. `crates/viewer/tests/error_display.rs`'s
+`camera_error_names_the_offending_value` names `NotFinite`,
+`DegenerateScene`, `FieldOfViewOutOfRange`, `UnusableBounds`,
+`UndrawableProjection` and `Unfittable` one at a time; the seventh arm
+is simply absent from it, and the suite is green. `CameraError` is not
+`#[non_exhaustive]`, so a roster form over it would have gone red on
+the same commit and named the missing arm — which is the delta this
+row is about, measured in the other direction from S-DUP's planted
+sibling identifier.
+
+The new arm's Display is covered by an in-module row in `camera.rs`
+(`the_band_refusal_reads_as_a_sentence_about_a_number_that_is_one`),
+which asserts what the arm's own sentence must say rather than what
+the census asserts about every arm — so the gap here is the census's,
+not the arm's.

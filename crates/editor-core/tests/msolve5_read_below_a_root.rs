@@ -41,18 +41,18 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
     EntityKind, Entry, EvalOptions, Evaluation, Expr, LeverRefusal, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, PartSelect,
-    PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg,
-    SitedFace, StableName, product,
+    MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding,
+    PartSelect, PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef,
+    RoleSeg, SitedFace, StableName, product,
 };
-use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
 use geom_core::Tol;
 
 // ---- the scene ----
 
-/// A `w x w x h` box as a whole part document.
-fn box_part(label: &str, w: f64, h: f64) -> ProfileDoc {
+/// A `w x w x h` box as a whole part document, and its body.
+fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -61,14 +61,13 @@ fn box_part(label: &str, w: f64, h: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (w, 0.0), (w, w), (0.0, w)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(h),
         },
-    );
-    doc
+    )
 }
 
 /// The slab is wide enough that the block seated on it stands clear
@@ -97,9 +96,10 @@ const U_OUTLINE: [(f64, f64); 8] = [
 /// A `4 x 4 x 4` box with a U-shaped channel subtracted through its
 /// middle (`z` from 1 to 3, clear of both caps): the cutter's tongue
 /// leaves a side face in two fragments under ONE name, so the part's
-/// product — and every table above it — holds a TIED face row.
-fn slotted_part(label: &str) -> ProfileDoc {
-    let doc = box_part(label, 4.0, 4.0);
+/// product — and every table above it — holds a TIED face row. The
+/// box is the body its caps are named on.
+fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, body) = box_part(label, 4.0, 4.0);
     let (doc, p) = on_frame(
         doc,
         [0.0, 0.0, 1.0],
@@ -118,33 +118,36 @@ fn slotted_part(label: &str) -> ProfileDoc {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: PART_BODY,
+            a: body,
             b,
             declare: None,
         },
     );
-    doc
+    (doc, body)
 }
 
 /// `base` (the slab) and `top` (the block), then `T(top)` lifted well
-/// clear of the slab and `P(T(top))`, a two-copy linear pattern of it.
+/// clear of the slab and `P(T(top))`, a two-copy linear pattern of it;
+/// with each instance's part body.
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
     base: RecipeNodeId,
     top: RecipeNodeId,
+    base_body: RecipeNodeId,
+    top_body: RecipeNodeId,
     xf: RecipeNodeId,
     pattern: RecipeNodeId,
 }
 
 /// The scene up to `T(top)`, over the given top part.
-fn lifted(label: &str, top_part: ProfileDoc) -> Scene {
+fn lifted(label: &str, top_part: (ProfileDoc, RecipeNodeId)) -> Scene {
     let mut store = PartStore::new();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         box_part(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let top_ref = store.insert(top_part, Tol::witness());
+    let (top_ref, top_body) = store.insert_part(top_part, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -155,6 +158,8 @@ fn lifted(label: &str, top_part: ProfileDoc) -> Scene {
         opts,
         base,
         top,
+        base_body,
+        top_body,
         xf,
         pattern: xf,
     }
@@ -177,7 +182,7 @@ fn patterned(s: Scene) -> Scene {
 }
 
 /// `P(T(top))` over the given top part.
-fn scene_with(label: &str, top_part: ProfileDoc) -> Scene {
+fn scene_with(label: &str, top_part: (ProfileDoc, RecipeNodeId)) -> Scene {
     patterned(lifted(label, top_part))
 }
 
@@ -192,13 +197,11 @@ fn scene_no_pattern(label: &str) -> Scene {
 }
 
 /// The first TIED row of `kind` in the node's table.
-fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (StableName, u32) {
+fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (StableName, usize) {
     fixture::table(ev, node)
         .iter()
         .find_map(|(n, e)| match e {
-            Entry::Tied(c) if n.kind == kind => {
-                Some((n.clone(), u32::try_from(c.len()).expect("a small tie")))
-            }
+            Entry::Tied(c) if n.kind == kind => Some((n.clone(), c.len())),
             Entry::Tied(_) | Entry::Unique(_) => None,
         })
         .unwrap_or_else(|| panic!("node {} holds a tied {kind:?} row", node.0))
@@ -263,8 +266,8 @@ fn reference_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, &RefusedRe
 #[test]
 fn the_issues_document_refuses_read_below_a_root_naming_the_transform() {
     let s = scene("msolve5-a1");
-    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
-    let b = crate::fixture::head_at(s.xf, in_part(s.top, CapEnd::Start));
+    let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
+    let b = crate::fixture::head_at(s.xf, in_part(s.top, s.top_body, CapEnd::Start));
     let (doc, mate) = mated(s.doc, seat(a, b));
 
     let poses = solve(&doc, &s.opts, Tol::witness());
@@ -296,10 +299,10 @@ fn the_issues_document_refuses_read_below_a_root_naming_the_transform() {
 #[test]
 fn read_at_the_pattern_with_the_instance_spelling_the_gate_holds() {
     let s = scene("msolve5-control");
-    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(
         s.pattern,
-        in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)),
+        in_copy(s.pattern, 0, in_part(s.top, s.top_body, CapEnd::Start)),
     );
     let (doc, mate) = mated(s.doc, seat(a, b));
     let poses = solve(&doc, &s.opts, Tol::witness());
@@ -333,8 +336,11 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
         "the Part consumed the pattern's root: {:?}",
         doc.roots()
     );
-    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
-    let b = crate::fixture::head_at(part, in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)));
+    let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
+    let b = crate::fixture::head_at(
+        part,
+        in_copy(s.pattern, 0, in_part(s.top, s.top_body, CapEnd::Start)),
+    );
     let (doc, mate) = mated(doc, seat(a, b));
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
@@ -356,11 +362,11 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
 #[test]
 fn a_name_the_operand_does_not_spell_stays_vanished() {
     let s = scene("msolve5-vanished");
-    // The block's part has no node 99 — its body is `PART_BODY` — so
+    // The block's part has no node 99 — its body is `s.top_body` — so
     // no face of `top` wears this spelling: at `T`, at the pattern,
     // or anywhere.
     const NO_SUCH_PART_NODE: RecipeNodeId = RecipeNodeId(99);
-    assert_ne!(NO_SUCH_PART_NODE, PART_BODY);
+    assert_ne!(NO_SUCH_PART_NODE, s.top_body);
     let nowhere = StableName {
         kind: EntityKind::Face,
         node: s.top,
@@ -373,7 +379,7 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
             .into(),
         }],
     };
-    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(s.xf, nowhere);
     let (doc, mate) = mated(s.doc, seat(a, b));
     let ev = run(&doc, &s.opts);
@@ -396,7 +402,7 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Face);
     assert_eq!(tied.node, s.top, "the tie is worn by the instance");
     assert_eq!(width, 2);
-    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
 
     let b = crate::fixture::head_at(s.xf, tied.clone());
     let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
@@ -458,8 +464,8 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
         "the boolean consumed the transform's root: {:?}",
         doc.roots()
     );
-    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
-    let b = crate::fixture::head_at(s.xf, in_part(s.top, CapEnd::Start));
+    let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
+    let b = crate::fixture::head_at(s.xf, in_part(s.top, s.top_body, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -484,13 +490,13 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
 #[test]
 fn a_poisoned_operand_never_reaches_the_gate() {
     let mut store = PartStore::new();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         box_part("msolve5-poisoned-base", BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
     // The top part lives in ANOTHER store: unresolvable here.
     let mut elsewhere = PartStore::new();
-    let top_ref = elsewhere.insert(
+    let (top_ref, top_body) = elsewhere.insert_part(
         box_part("msolve5-poisoned-top", 1.0, TOP_HEIGHT),
         Tol::witness(),
     );
@@ -510,8 +516,8 @@ fn a_poisoned_operand_never_reaches_the_gate() {
             },
         },
     );
-    let a = crate::fixture::head(in_part(base, CapEnd::End));
-    let b = crate::fixture::head_at(xf, in_part(top, CapEnd::Start));
+    let a = crate::fixture::head(in_part(base, base_body, CapEnd::End));
+    let b = crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
     // The mate has no lever without its part: it faults in the
     // resolver's own voice, and the fault reaches its cluster.
@@ -556,7 +562,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::RootFailed { node } if node == base)
+                if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == base)
         ),
         "the gather refuses at the failed root before any reference is read: {err:?}"
     );

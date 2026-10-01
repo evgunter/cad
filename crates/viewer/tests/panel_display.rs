@@ -15,8 +15,9 @@
 //! * changing the unit and changing the number are separate operations,
 //!   and neither performs the other (`SetSlotUnit` vs `SetSlot`),
 //! * and the ONE value field says the number without the unit, shows a
-//!   driven slot's source, and routes typed text to the door it means
-//!   (`field_text` / `field_edit`).
+//!   driven slot's value and opens its edit on the source, and routes
+//!   typed text to the door it means (`field_text` / `field_source` /
+//!   `field_edit`).
 //!
 //! The pixels are not tested here and are not the claim; what is
 //! claimed is that the panel is drawing from the right numbers.
@@ -153,8 +154,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );
@@ -287,8 +287,7 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );
@@ -352,17 +351,19 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
     );
     let (doc, placed) = common::inserted(
         &doc,
-        Node::Transform {
-            input: extrude,
-            translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: Expr::literal_with_unit(
-                core::f64::consts::FRAC_PI_2,
-                Dimension::Angle,
-                DEG.def(),
-            )
-            .expect("a right angle"),
-        },
+        Node::transform(
+            extrude,
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: Expr::literal_with_unit(
+                    core::f64::consts::FRAC_PI_2,
+                    Dimension::Angle,
+                    DEG.def(),
+                )
+                .expect("a right angle"),
+            },
+        ),
         tol,
     );
     let before = props::slot_rows(&doc, placed)
@@ -489,8 +490,7 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );
@@ -506,10 +506,12 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
     assert_eq!(row.source.as_deref(), Some("8 mm"));
 }
 
-/// A DRIVEN slot shows what drives it. Nothing else could be shown:
-/// its number is a consequence, and the text is what an edit revises.
+/// **A DRIVEN slot's field shows the value its expression equals, and
+/// its edit opens on the source.** The value is bounded by its type
+/// and the source by nothing, and the field sits in a row that does
+/// not wrap; the source is what an edit revises.
 #[test]
-fn the_field_shows_a_driven_slots_source() {
+fn the_field_shows_a_driven_slots_value_and_edits_its_source() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -523,7 +525,27 @@ fn the_field_shows_a_driven_slots_source() {
         .into_iter()
         .find(|row| row.slot == SlotId::Distance)
         .expect("the distance row");
-    assert_eq!(props::field_text(&row), "thickness * 2.0 + 1 mm");
+    let value = row
+        .value
+        .as_ref()
+        .expect("the expression evaluates")
+        .as_f64();
+    let shown = props::field_text(&row);
+    assert_eq!(
+        shown,
+        format!(
+            "{} {}",
+            props::DRIVEN,
+            props::computed_text(Dimension::Length, value)
+        ),
+        "the field shows the value, in the canonical notation a driven row is written in"
+    );
+    assert!(shown.ends_with(" m"), "and names that notation: {shown}");
+    assert_eq!(
+        props::field_source(&row).as_deref(),
+        Some("thickness * 2.0 + 1 mm"),
+        "and its edit opens on the source"
+    );
     assert_eq!(row.source.as_deref(), Some("thickness * 2.0 + 1 mm"));
 }
 
@@ -561,8 +583,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );
@@ -632,7 +653,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
 fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-unit", tol);
-    let name = ParamName::new("base_r");
+    let name = ParamName::from_static("base_r");
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
@@ -685,7 +706,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
 fn a_count_parameter_has_no_written_unit() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-count", tol);
-    let name = ParamName::new("holes");
+    let name = ParamName::from_static("holes");
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
@@ -720,7 +741,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
     let reading = |value: DocParam| {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-range", tol);
-        let name = ParamName::new("thickness");
+        let name = ParamName::from_static("thickness");
         let (doc, _) = common::edited(
             &doc,
             DocEdit::SetDocParam {
@@ -783,9 +804,12 @@ test_utils::loud_skip_marker!(
 ///
 /// **What no value test in this crate reaches** is the widget itself:
 /// the panel's `DragValue` lives inside a private `ViewerBehavior`
-/// method over an `egui::Ui`, and this crate carries no headless egui
-/// harness, so "the field calls this" is held by the two call sites
-/// being one line each rather than by a row here.
+/// METHOD, which borrows the whole application and so cannot be
+/// driven headlessly — where a free function over the `Ui` can be, and
+/// several are (`viewer::pane::headless`, `pane::profile`,
+/// `pane::viewport`, `widgets`). So "the field calls this" is held by
+/// the two call sites being one line each rather than by a row here;
+/// giving the field a seam of its own is what would change that.
 #[cfg(feature = "app")]
 #[test]
 fn a_parameter_field_is_written_the_way_its_declaration_says() {
@@ -796,7 +820,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("thickness"),
+            name: ParamName::from_static("thickness"),
             value: DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
         },
         tol,
@@ -804,16 +828,16 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("in_metres"),
+            name: ParamName::from_static("in_metres"),
             value: DocParam::continuous(Dimension::Length, 0.008),
         },
         tol,
     );
     let rows = props::param_rows(&doc);
-    let writing = |name: &str| {
+    let writing = |name: &'static str| {
         let row = rows
             .iter()
-            .find(|row| row.name == ParamName::new(name))
+            .find(|row| row.name == ParamName::from_static(name))
             .expect("the parameter row");
         FieldWriting::of(row.dimension, row.unit)
     };
@@ -848,8 +872,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );
@@ -880,12 +903,12 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
 /// over the band where it has something to refuse.
 ///
 /// The band is the render's, not the parser's: `readout::number`
-/// spells the shortest text that reads back within
-/// `readout::REL_TOLERANCE` of the value, so a field can be showing a
-/// text that names its value only to 5·10⁻⁴. That text is also what an
-/// `egui::DragValue` commits when focus leaves it, so a field that
-/// took its own render for an edit would move the value by up to that
-/// much and charge an undo step for a click nobody meant as one.
+/// spells the shortest text that reads back on the render's own grid,
+/// so a field can be showing a text that names its value only to
+/// within that grid. That text is also what an `egui::DragValue`
+/// commits when focus leaves it, so a field that took its own render
+/// for an edit would move the value by up to that much and charge an
+/// undo step for a click nobody meant as one.
 ///
 /// **Each row is built on a value whose render is NOT exact**, which
 /// is what lets it go red: the `assert_ne!` below is the fixture's own
@@ -896,9 +919,9 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
     // Canonical values, one per dimension that has a notation, each
     // chosen so the shortest text that reads back is not the value.
     let cases: [(Dimension, f64); 3] = [
-        (Dimension::Length, 0.040_000_019),
-        (Dimension::Angle, 1.000_000_4),
-        (Dimension::Scalar, 7.000_002_5),
+        (Dimension::Length, 1.234_567_890_123_456_7),
+        (Dimension::Angle, 2.345_678_901_234_567),
+        (Dimension::Scalar, 12.345_678_901_234_567),
     ];
     for (dimension, canonical) in cases {
         let unit = rendering_unit(dimension, None);
@@ -1005,8 +1028,9 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     );
     let row = props::param_rows(&common::declared(
         "mint-mm",
-        &ParamName::new("base_r"),
+        &ParamName::from_static("base_r"),
         minted,
+        Tol::witness(),
     ))
     .pop()
     .expect("the declared parameter");
@@ -1024,8 +1048,9 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     assert_eq!(
         props::param_rows(&common::declared(
             "mint-deg",
-            &ParamName::new("sweep"),
-            angle
+            &ParamName::from_static("sweep"),
+            angle,
+            Tol::witness()
         ))
         .pop()
         .and_then(|row| row.unit)

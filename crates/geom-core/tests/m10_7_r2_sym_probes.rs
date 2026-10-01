@@ -6,7 +6,7 @@
 //! What each block attacks is named at the block. Everything is a
 //! deterministic fixture (no sampling), so nothing here needs a seed.
 
-#![cfg(all(feature = "interval", feature = "probe"))]
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
 use geom_core::interval::Interval;
@@ -39,7 +39,7 @@ fn lit(x: f64) -> Sym<Interval> {
 
 /// The decision the funnel would make about `m`.
 fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
-    m.sign_within(band()).map_err(|_| ())
+    m.sign_within(band()).map(|d| d.sign).map_err(|_| ())
 }
 
 // ------------------------------------------------- claim 2: identities

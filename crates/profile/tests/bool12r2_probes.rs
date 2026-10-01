@@ -22,14 +22,10 @@
 
 use geom_core::{Point2, Tol};
 use profile::{
-    Bulge, ClosedLoop, Open, PathError, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane,
-    Start,
+    Bulge, ClosedLoop, Open, PathError, Profile, ProfileLoop, SketchPlane, Start,
+    test_support::bulge_loop,
 };
 use std::f64::consts::FRAC_PI_2;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 fn validate_ok(l: &ProfileLoop<f64>) {
     Profile::new(SketchPlane::xy(), vec![l.clone()])
@@ -49,13 +45,13 @@ fn band() -> (f64, f64) {
 fn stadium(declared: bool) -> Result<ClosedLoop<f64>, PathError<f64>> {
     let t = Tol::witness();
     let p = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(2.0, 2.0), t)
+        .tangent_arc_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .tangent()
         .line(2.0, t)
@@ -71,20 +67,20 @@ fn stadium(declared: bool) -> Result<ClosedLoop<f64>, PathError<f64>> {
 fn d_shape_forward(declared: bool) -> Result<ClosedLoop<f64>, PathError<f64>> {
     let t = Tol::witness();
     let p = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .arc_to(
             Bulge {
-                p: p2(0.0, -2.0),
+                p: Point2::new(0.0, -2.0),
                 b: 1.0,
             },
             t,
         )
         .unwrap()
-        .line_to(p2(0.0, -1.0), t)
+        .line_to(Point2::new(0.0, -1.0), t)
         .unwrap();
     if declared {
         p.continue_to(Start.arrives_tangent(), t)
@@ -144,7 +140,7 @@ fn r2_the_declared_seams_hold_on_this_epsilon_leg() {
 /// so the levered miss is exactly `off`.
 fn tilted_close(off: f64, arm: f64) -> Result<ClosedLoop<f64>, PathError<f64>> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)
@@ -180,10 +176,13 @@ fn r2_the_new_keys_inherit_the_junction_escalation_template() {
     let escalated = tilted_close(3.0 * eps, 1.0).expect_err("in-band");
     let msg = escalated.to_string();
     println!("R2: escalated declared arrival -> {msg}");
-    assert!(msg.contains("path_seam_arrival_turn"), "{msg}");
+    assert!(
+        format!("{escalated:?}").contains("path_seam_arrival_turn"),
+        "{escalated:?}"
+    );
     // FIXED: the inherited junction template is gone and the recourse
     // is the authored-data one.
-    assert!(!msg.starts_with("path junction classification"), "{msg}");
+    assert!(!msg.contains("at this junction"), "{msg}");
     assert!(!msg.contains("declare the coincidence"), "{msg}");
     assert!(msg.contains("the declaration is the target"), "{msg}");
     // The DEFINITE arm, for contrast: it composes its own recourse.
@@ -254,16 +253,16 @@ fn r2_a_degenerate_closing_leg_is_refused_for_want_of_a_lever() {
     let stub = 1e-4 * eps;
     let build = |declared: bool| {
         let p = Open
-            .at(p2(0.0, 0.0))
+            .at(Point2::new(0.0, 0.0))
             .angle(FRAC_PI_2, t)
             .unwrap()
             .line(1.0, t)
             .unwrap()
-            .line_to(p2(1.0, 1.0), t)
+            .line_to(Point2::new(1.0, 1.0), t)
             .unwrap()
-            .line_to(p2(1.0, -1.0), t)
+            .line_to(Point2::new(1.0, -1.0), t)
             .unwrap()
-            .line_to(p2(-stub, 0.0), t)
+            .line_to(Point2::new(-stub, 0.0), t)
             .unwrap();
         if declared {
             p.line_to(Start.arrives_tangent(), t)
@@ -300,7 +299,7 @@ fn r2_a_degenerate_closing_leg_is_refused_for_want_of_a_lever() {
 fn r2_the_arc_lever_is_radius_min_chord() {
     let t = Tol::witness();
     let refused = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
@@ -367,9 +366,9 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
     let t = Tol::witness();
     for shoulder in [0.0_f64, 1.0] {
         let ring = lily_ring(shoulder);
-        let raw: ProfileLoop<f64> = RawLoop::new(
+        let raw: ProfileLoop<f64> = bulge_loop(
             ring.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+                .map(|&(x, y)| (Point2::new(x, y), 0.0))
                 .collect(),
         );
         let turns = |i: usize| {
@@ -382,14 +381,15 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
             }
         };
         let mut path = Open
-            .at(p2(ring[0].0, ring[0].1))
-            .line_to(p2(ring[1].0, ring[1].1), t)
+            .at(Point2::new(ring[0].0, ring[0].1))
+            .line_to(Point2::new(ring[1].0, ring[1].1), t)
             .expect("first side");
         for (i, v) in ring.iter().enumerate().skip(2) {
             path = if turns(i - 1) {
-                path.line_to(p2(v.0, v.1), t).expect("corner")
+                path.line_to(Point2::new(v.0, v.1), t).expect("corner")
             } else {
-                path.continue_to(p2(v.0, v.1), t).expect("subdivision")
+                path.continue_to(Point2::new(v.0, v.1), t)
+                    .expect("subdivision")
             };
         }
         let closed = match (turns(7), turns(0)) {
@@ -409,9 +409,9 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
             .enumerate()
         {
             assert!(
-                a.pos().x.to_bits() == b.pos().x.to_bits()
-                    && a.pos().y.to_bits() == b.pos().y.to_bits()
-                    && a.bulge().to_bits() == b.bulge().to_bits(),
+                a.x.to_bits() == b.x.to_bits()
+                    && a.y.to_bits() == b.y.to_bits()
+                    && lowered.bulges()[i].to_bits() == raw.bulges()[i].to_bits(),
                 "shoulder {shoulder} vertex {i}: {a:?} vs {b:?}"
             );
         }
@@ -436,8 +436,8 @@ fn r2_lily_near_kite_sections_are_where_the_demo_would_panic() {
     for shoulder in [1e-2_f64, 1e-4, 1e-6, 1e-8, 1e-10] {
         let ring = lily_ring(shoulder);
         let mut cur = match Open
-            .at(p2(ring[0].0, ring[0].1))
-            .line_to(p2(ring[1].0, ring[1].1), t)
+            .at(Point2::new(ring[0].0, ring[0].1))
+            .line_to(Point2::new(ring[1].0, ring[1].1), t)
         {
             Ok(p) => Some(p),
             Err(e) => {
@@ -448,7 +448,7 @@ fn r2_lily_near_kite_sections_are_where_the_demo_would_panic() {
         let mut failed: Option<String> = None;
         for v in ring.iter().skip(2) {
             let p = cur.take().expect("a live path");
-            match p.line_to(p2(v.0, v.1), t) {
+            match p.line_to(Point2::new(v.0, v.1), t) {
                 Ok(next) => cur = Some(next),
                 Err(e) => {
                     failed = Some(format!("{e:?}"));
@@ -503,18 +503,18 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     // (-2,0) -> (0,0), arriving EAST — the arc's own start tangent.
     let ring = |declared: bool| {
         let p = Open
-            .at(p2(0.0, 0.0))
+            .at(Point2::new(0.0, 0.0))
             .angle(0.0, t)
             .unwrap()
-            .tangent_arc_to(p2(1.0, 1.0), t)
+            .tangent_arc_to(Point2::new(1.0, 1.0), t)
             .unwrap()
-            .line_to(p2(3.0, 3.0), t)
+            .line_to(Point2::new(3.0, 3.0), t)
             .unwrap()
-            .line_to(p2(3.0, -2.0), t)
+            .line_to(Point2::new(3.0, -2.0), t)
             .unwrap()
-            .line_to(p2(-2.0, -2.0), t)
+            .line_to(Point2::new(-2.0, -2.0), t)
             .unwrap()
-            .line_to(p2(-2.0, 0.0), t)
+            .line_to(Point2::new(-2.0, 0.0), t)
             .unwrap();
         if declared {
             p.line_to(Start.arrives_tangent(), t)
@@ -542,18 +542,18 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     // The RECOURSE the ruling gives: the same straight closer declaring
     // a TANGENT joint. It closes, declares joint 0, and validates.
     let g1 = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
-        .tangent_arc_to(p2(1.0, 1.0), t)
+        .tangent_arc_to(Point2::new(1.0, 1.0), t)
         .unwrap()
-        .line_to(p2(3.0, 3.0), t)
+        .line_to(Point2::new(3.0, 3.0), t)
         .unwrap()
-        .line_to(p2(3.0, -2.0), t)
+        .line_to(Point2::new(3.0, -2.0), t)
         .unwrap()
-        .line_to(p2(-2.0, -2.0), t)
+        .line_to(Point2::new(-2.0, -2.0), t)
         .unwrap()
-        .line_to(p2(-2.0, 0.0), t)
+        .line_to(Point2::new(-2.0, 0.0), t)
         .unwrap()
         .line_to(Start.arrives_tangent(), t)
         .expect("a straight leg may declare a TANGENT seam joint");
@@ -576,14 +576,14 @@ fn r2_a_declared_g1_seam_onto_a_cocircular_first_side() {
     // the closing tangent arc is forced back onto the same circle.
     let turn_to_east = -(-3.0_f64).atan2(2.0);
     let built = Open
-        .at(p2(1.0, 0.0))
+        .at(Point2::new(1.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
-        .tangent_arc_to(p2(0.0, 1.0), t)
+        .tangent_arc_to(Point2::new(0.0, 1.0), t)
         .unwrap()
-        .line_to(p2(-2.0, 2.0), t)
+        .line_to(Point2::new(-2.0, 2.0), t)
         .unwrap()
-        .line_to(p2(0.0, -1.0), t)
+        .line_to(Point2::new(0.0, -1.0), t)
         .unwrap()
         .turn(turn_to_east, t)
         .unwrap()

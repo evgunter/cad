@@ -407,10 +407,14 @@ const SPLIT_FINS: i64 = 160;
 /// - `whole_ms` — the wrapper, which is the two together and is what
 ///   the old single figure measured.
 /// - `census_ms` — the tier-3' census over the SAME aggregate, the
-///   term this resident exists instead of. Fewer reps than the others
-///   ([`CENSUS_REPS`]) because it costs seconds where they cost
-///   milliseconds, and it REFUSES on this document (the fins meet the
-///   base), so it is the cost of a refusing run.
+///   term this resident exists instead of: the assembly gate
+///   (`gate_at_rest_declared`) over the product's kept tier-3 verdict,
+///   which is the census alone. Entries before the change that kept
+///   the verdict (`gather/assemble-single-local-battery`) timed the
+///   local battery plus the census, so the series steps down there by
+///   the battery's share. Fewer reps than the others ([`CENSUS_REPS`])
+///   because it is the slowest term, and it REFUSES on this document
+///   (the fins meet the base), so it is the cost of a refusing run.
 struct Split {
     solids: usize,
     faces: usize,
@@ -441,7 +445,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
     apply(
         &entry.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("fins"),
+            name: ParamName::from_static("fins"),
             value: DocParam::Count { value: fins },
         },
         tol,
@@ -578,7 +582,7 @@ fn mem_total_kb() -> u64 {
 /// line: the opt-0/opt-2 ratio measured 30% apart between an AVX-512 guest
 /// and CI (2026-08-22 census), which is the discrimination worth recording,
 /// and the same two names the lane's other emitters probe
-/// (`scripts/criterion-emit.py`, `scripts/opt-level-calibrate.py`).
+/// (`scripts/criterion-emit.py`).
 const HOST_CPU_FLAGS: [&str; 2] = ["avx2", "avx512f"];
 
 /// Where host identity is read from. Passed to [`cpu_identity`] rather than
@@ -592,12 +596,12 @@ const CPUINFO: &str = "/proc/cpuinfo";
 /// pair a sample cannot be attributed to a host at all — only to a class of
 /// host.
 ///
-/// PARITY OBLIGATION: two more copies of this parser exist, in
-/// `scripts/criterion-emit.py` and `scripts/opt-level-calibrate.py`. They
-/// are copies rather than one reader because no cheap home is shared across
-/// Rust and Python, so the obligation is manual: a change to the field
-/// names, to [`HOST_CPU_FLAGS`], or to what a null means here is owed to
-/// both of them in the same diff.
+/// PARITY OBLIGATION: one more copy of this parser exists, in
+/// `scripts/criterion-emit.py`. It is a copy rather than one reader
+/// because no cheap home is shared across Rust and Python, so the
+/// obligation is manual: a change to the field names, to
+/// [`HOST_CPU_FLAGS`], or to what a null means here is owed to it in the
+/// same diff.
 ///
 /// `(None, None)` means the file could not be read; an empty flag list means
 /// the flags are genuinely absent. A reader must be able to tell those apart,
@@ -821,9 +825,9 @@ fn emit(rows: &[Row], split: &Split, path: &str) {
 /// every PR at no measurable cost. This row still checks them, through
 /// the same [`assert_manifest_pins`], so the two cannot drift.
 ///
-/// The table itself still runs: ci.yml's dedicated `rebuild latency
-/// (reporting)` job — and its mirror row in `local-scripts/ci-local.sh`
-/// — pass `--ignored` so this test executes exactly once per CI run,
+/// The table itself still runs: nightly.yml's dedicated `rebuild latency
+/// (reporting)` job passes `--ignored` so this test executes exactly once
+/// per run,
 /// where the numbers are actually looked at. (In-tree idiom:
 /// `crates/stl/tests/export.rs`'s `print_stl_hashes`.)
 #[test]

@@ -19,7 +19,7 @@ Tracking issue for #223's recorded residuals (Ev's ask — recorded AND schedule
 1. **Conic-trimmed cylinder walls slip both gates** (residual 4, the review's executed counterexample): cut_cylinder's ellipse-trimmed wall — single-wall flip green, whole-body inversion green with positive volume, export-flip-reimport green. Pin: `cut_cylinder_conic_trim_residual_stays_green`. **Flip condition: the ellipse-rim material-side encoding** (extend boundary_material_sign's rim vocabulary past circles). Sequencing: a rider on whichever unit next touches the rim-classification family, or its own S unit if the M6 exit walk wants it sooner.
 2. **Rimless-band half-flip invisible** (V=0 Zero-exempt; the ball's single-encoding limit). Pinned as residual at #223. Flip condition: a shell-level orientation check or a second encoding channel — genuinely open design, sized with the next props unit.
 3. **NURBS faces bit-free** (winding-derived quadrature — outside the four-kind scope by the ratified unit shape). Flip condition: a NURBS material-side encoding, naturally riding the NURBS-vocabulary growth (stage-1 recognition era).
-4. **Arc-bounded planar caps check-6-exempt** (the pre-existing deferral; whole-body cases now caught via circle-rimmed curved walls — but a body with ONLY arc-bounded planar faces + conic-trimmed walls remains uncovered, per residual 1's counterexample). Flip condition: check 6's arc-bounded planar arm. **NEW FACT (VERBS-1031B, 2026-09-03): the class now has a PRODUCER, and that turns this residual from a coverage hole into an assigner/checker divergence.** `merge_faces::loop_winding` learned the arc-bounded winding arm, so `merge_coplanar_faces` now MINTS merged planar faces whose outer loop and rings ride circles (four per teapot cup) and ASSIGNS their outer/ring roles from the `bool_ring_run_winding` predicate — while check 6, the same predicate's third site, still skips exactly those loops. Roles are therefore assigned by a functional the validator cannot check. Measured rather than argued: under VERBS-1031B's MUT-2 (the bulge correction applied backwards) the cup's merge SUCCEEDS with every annulus inside out and `validate_geometric` stays `Ok(())`. The flip condition is unchanged and is now owned, with its refusal-surface cost, by `work/curved/verbs-1031b-assigner-checker-divergence.md` (adopted by CURVED 2026-09-04; its plan carries the lane).
+4. **Arc-bounded planar caps check-6-exempt** (the pre-existing deferral; whole-body cases now caught via circle-rimmed curved walls — but a body with ONLY arc-bounded planar faces + conic-trimmed walls remains uncovered, per residual 1's counterexample). Flip condition: check 6's arc-bounded planar arm. **NEW FACT (VERBS-1031B, 2026-09-03): the class now has a PRODUCER, and that turns this residual from a coverage hole into an assigner/checker divergence.** `merge_faces::loop_winding` learned the arc-bounded winding arm, so `merge_coplanar_faces` now MINTS merged planar faces whose outer loop and rings ride circles (four per teapot cup) and ASSIGNS their outer/ring roles from the `bool_ring_run_winding` predicate — while check 6, the same predicate's third site, still skips exactly those loops. Roles are therefore assigned by a functional the validator cannot check. Measured rather than argued: under VERBS-1031B's MUT-2 (the bulge correction applied backwards) the cup's merge SUCCEEDS with every annulus inside out and `validate_geometric` stays `Ok(())`. The flip condition is unchanged and is now owned, with its refusal-surface cost, by `work/zip/verbs-1031b-assigner-checker-divergence.md` (adopted by CURVED 2026-09-04; its plan carries the lane). **2026-09-24 (ATREST-4): the circle half is now checked.** Check 6's planar arm examines loops of `Line` and `Circle` carriers through the same winding the merge's role assigner decides on (`crates/topo/src/loop_winding.rs`), so an inverted arc-bounded planar face refuses `LoopRoleInverted`. Sharing the functional means the check falsifies a role or bit a producer STORED wrongly, not an error in the functional itself (VERBS-1031B's MUT-2 would move both sides together); the functional's arc term is pinned independently by an extruded washer whose roles come from `profile`'s containment pass (`an_inverted_cap_refuses_at_its_arc_ring_as_well_as_its_outline`). What remains of this residual is a planar loop riding an `Ellipse`, spiric or NURBS carrier: `work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`. **2026-09-25 (ATREST-13): the ellipse half is now checked** — check 6 answers every loop the shared winding answers, so `cut_cylinder`'s whole-body inversion refuses at both planar faces (the pin, residual 1's, is now `cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both_planes`). What remains is a planar loop riding a spiric or NURBS carrier, on the same row.
 
 These are walk material for M6's exit (carried items with named owners per the walk discipline); none blocks the walk itself.
 
@@ -106,6 +106,52 @@ user still reads two edges as broken for a face that is. Pinned as
 (exact error set: the wall once, the two seams, nothing else), so
 the day the wedge arm stops reading a reversed wall as lamina the row
 says so.
+
+## Residuals 3 and 4 have a CONJUNCTION, and it is a whole body (ATREST-2, 2026-09-20)
+
+Measured, not argued. `sweep::loft_body` over a bulged profile — the
+`arc_section` three-station loft — carries residual 4 on its caps
+(arc-bounded planar faces, `all_lines`-gated out of check 6's planar
+arm) and residual 3 on all four of its walls (spline charts, skipped
+by name by the curved arm) at the same time. **Every** `Face::sense`
+in the body is therefore unread by the at-rest battery, so inverting
+all six bits at once leaves `validate_geometric` `Ok(())` with the
+metered enclosure bit-identical and positive.
+
+It is **not** the first whole-body inversion recorded here to stay
+green — residual 1's `cut_cylinder` is one already. What is new is
+which residuals do it and how cheaply: residuals 3 and 4 in
+conjunction, over the whole face population rather than part of it,
+with no conic-trimmed wall needed (residual 1's counterexample shape)
+— an ordinary loft over an ordinary bulged sketch suffices. The
+line-bounded control prism, same constructor, refuses exactly two
+`LoopRoleInverted` — one per cap, none from its four walls. The
+2x2 over {bulged, unbulged} x {3 stations at v-degree 2, 2 stations at
+v-degree 1} isolates the discriminant: the outcome is constant along
+each carrier row, so station count and degree move nothing and the
+`Circle` carrier on the cap loop is the whole difference.
+
+Two further facts for the file. The inversion is reachable through the
+PUBLIC `topo::Body::set_face_sense`, not only through
+`flipped_face_sense_for_tests`, so this is a gap rather than a
+test-door artefact. And a fifth gate belongs in the residual list
+beside the four already there: tier 3's check 4 MATERIAL arm (the
+`validate` banner's "Tier 3, checks 4-5" sweep; `C7` is the tangency
+VOCABULARY the arm consults, not a tier) reads
+`Face::sense` on both sides of a definitely-smooth edge, but
+`nurbs_adjacent` short-circuits before it, so on a body every edge of
+which touches a spline chart — every loft — that reader is unreachable
+too. Deliberate and documented (no derived contact class exists on a
+spline chart), recorded here so the enumeration is complete.
+
+Pinned in `crates/sweep/tests/m5_s10_face_sense.rs`:
+`only_the_line_bounded_cap_refuses_a_whole_body_sense_inversion`,
+`every_sense_reading_gate_shuts_on_the_arc_loft`,
+`the_public_sense_door_builds_an_inverted_arc_loft_tier_3_accepts`.
+Write-up:
+`work/atrest/sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts.md`.
+The import-side consequence is
+`work/exch/step-import-adopts-an-inverted-same-sense-outside-the-cylinder-cone-guard.md`.
 
 ## Home
 

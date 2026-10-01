@@ -27,7 +27,6 @@
 //! The `refines` predicate is `editor_core::clearance`'s, copied rather
 //! than called (it is private there): both axes must move a bound.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;

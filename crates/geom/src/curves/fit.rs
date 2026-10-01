@@ -66,7 +66,7 @@
 
 use geom_core::linalg::lsq::{self, LsqError};
 use geom_core::spline::{KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError, basis};
-use geom_core::{Point2, Point3};
+use geom_core::{Point2, Point3, Readable};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
 
@@ -136,7 +136,9 @@ pub enum FitError {
     },
     /// The Type-2 loop spent [`FIT_REMOVAL_BUDGET`] removal attempts
     /// without finishing; carries the bound achieved so far (OUR
-    /// semantics — module docs).
+    /// semantics — module docs), so a caller can see what the loop
+    /// reached before it expired. The constant is the lever, sized for
+    /// fitting-sized inputs.
     BudgetExhausted {
         /// The attempt budget that expired.
         budget: usize,
@@ -150,51 +152,50 @@ impl core::fmt::Display for FitError {
         match self {
             FitError::TooFewPoints { have, need } => write!(
                 f,
-                "fit: {have} points, need at least {need} — supply the missing samples; \
-                 a degree-p interpolant needs p+1 of them and any fit needs 2, so a \
-                 lower degree lowers this floor only down to 2"
+                "the fit has {have} points and needs at least {need}: a degree-p interpolant \
+                 needs p+1 of them and any fit needs 2, so a lower degree lowers this floor \
+                 only down to 2. Recourse: supply the missing samples"
             ),
             FitError::NonFinitePoint { index } => write!(
                 f,
-                "fit: point {index} has a non-finite coordinate — the fit never repairs \
-                 data it was handed: supply a finite point there, or drop the sample"
+                "fit point {index} has a non-finite coordinate, and the fit never repairs \
+                 data it was handed. Recourse: supply a finite point there, or drop the sample"
             ),
             FitError::DegenerateChord { index } => write!(
                 f,
-                "fit: zero-length chord ending at point {index} — chord-length \
-                 parameterization has no parameter step across a repeated sample: drop \
-                 the duplicate point"
+                "the fit's chord ending at point {index} has zero length, and chord-length \
+                 parameterization has no parameter step across a repeated sample. Recourse: \
+                 drop the duplicate point"
             ),
             FitError::InvalidTolerance { tolerance } => write!(
                 f,
-                "fit: invalid tolerance {tolerance} — the tolerance is the loop's \
-                 acceptance budget and has to be a number to compare against: ask with a \
-                 finite tolerance strictly above zero"
+                "the fit's tolerance {} is invalid: it is the loop's acceptance budget and \
+                 has to be a number to compare against. Recourse: ask with a finite tolerance \
+                 strictly above zero",
+                Readable(*tolerance)
             ),
             FitError::ParamCountMismatch { params, points } => write!(
                 f,
-                "fit: {params} explicit parameters for {points} points — the fitting \
+                "the fit was given {params} explicit parameters for {points} points, and the fitting \
                  stack needs one strictly-ascending finite parameter per point running \
-                 exactly 0 to 1: supply that, or ask through the door that takes no \
+                 exactly 0 to 1. Recourse: supply that, or ask through the door that takes no \
                  parameters and chord-parameterizes the data itself"
             ),
-            FitError::Lsq(e) => write!(f, "fit: {e}"),
-            FitError::Structure(e) => write!(f, "fit: {e}"),
-            FitError::KnotAlgebra(e) => write!(f, "fit: {e}"),
+            FitError::Lsq(e) => write!(f, "the fit refused: {e}"),
+            FitError::Structure(e) => write!(f, "the fit refused: {e}"),
+            FitError::KnotAlgebra(e) => write!(f, "the fit refused: {e}"),
             FitError::RaggedRows { row, width, found } => write!(
                 f,
-                "fit: column row {row} is {found} wide, row 0 is {width} — every row of \
-                 an interpolated column block must describe the same tensor structure: \
-                 supply {width} scalars in row {row}, or re-block the data so every row \
-                 agrees"
+                "the fit's column row {row} is {found} wide, row 0 is {width}, and every row of \
+                 an interpolated column block must describe the same tensor structure. \
+                 Recourse: supply {width} scalars in row {row}, or re-block the data so every \
+                 row agrees"
             ),
             FitError::BudgetExhausted { budget, achieved } => write!(
                 f,
-                "fit: removal budget {budget} exhausted (achieved bound {achieved:e}) — \
-                 FIT_REMOVAL_BUDGET is the lever, sized for fitting-sized inputs of a few \
-                 hundred samples: fit the data in pieces, or raise the constant for a \
-                 genuinely larger fit; the achieved bound rides the refusal so a caller \
-                 can see what the loop reached before it expired"
+                "the fit's removal budget {budget} ran out (achieved bound {achieved:e}); \
+                 the budget is sized for inputs of a few hundred samples. Recourse: fit the \
+                 data in pieces, or raise FIT_REMOVAL_BUDGET for a genuinely larger fit"
             ),
         }
     }
@@ -965,6 +966,13 @@ mod tests {
                     "carrier not rendered whole: {msg}"
                 );
             }
+            // One labelled repair: the arm's own, or on `Structure`
+            // the carrier's, which this arm adds none to.
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&msg),
+                1,
+                "not exactly one labelled repair: {msg}"
+            );
             let lower = msg.to_lowercase();
             assert!(
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),

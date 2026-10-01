@@ -37,7 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanError};
 
@@ -56,9 +56,9 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
 /// constructor chart — the same one SPHSPH measured on).
 fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-        ProfileVertex::new(Point2::new(0.0, r), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -260,32 +260,29 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
     }
 }
 
-/// **The deferred fitted-chord join window's door, named with its
-/// payload** (the `verbs_shell` precedent). The window is deliberately
-/// NOT built by this unit, and the sentence that says so is still TRUE:
-/// the pair refusal names the missing azimuth-window analog, and
-/// nothing in this unit gives it one. What would retire it is a
-/// `run_azimuth_window` / `chart_pcurve` analog for a cylinder×sphere
-/// fitted chord — a consumer the coaxial arms do not need and do not
-/// provide.
+/// **A torus operand passes the pair gate and refuses typed at the
+/// crossing layer.** The torus is on the union's KIND roster, so the
+/// cylinder×torus union is no longer the gate's to refuse. The
+/// cylinder's rim circles genuinely cross the tube (the ring passes
+/// through the cylinder's end caps at `(0, 0, ±2)`), and that
+/// circle×torus crossing has a root lane (`topo::boolean::circle_torus`)
+/// — so what refuses is the OTHER direction: a circle of the torus
+/// against the cylinder's wall, a circle×cylinder pair (a degree-2
+/// trigonometric residual) with no root lane, where the circle rung
+/// takes its typed frontier — never a body.
 ///
-/// The row reads the Display text off a constructed error rather than
-/// off the source, so a rewrite that dropped the sentence reds here.
-///
-/// **This row pins `CurvedPairUnsupported`, NOT
-/// `CurvedBooleanUnsupported`** — a torus operand is stopped at the
-/// pair/kind gate and never reaches the germ-pair join dispatch. The
-/// other variant's text is pinned by
-/// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below,
-/// which had to construct a different error to get at it.
+/// The pair gate's own sentence is pinned on a cone, the kind it still
+/// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
+/// join dispatch's text by
+/// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below.
 #[test]
-fn the_deferred_join_windows_door_still_names_itself() {
+fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
     let torus = {
         // A torus operand reaches the pair/kind refusal, which is the
         // door that carries the fitted-chord sentence.
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(Point2::new(2.0, -0.3), 1.0),
-            ProfileVertex::new(Point2::new(2.0, 0.3), 1.0),
+        let lp = bulge_loop(vec![
+            (Point2::new(2.0, -0.3), 1.0),
+            (Point2::new(2.0, 0.3), 1.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())
@@ -299,11 +296,29 @@ fn the_deferred_join_windows_door_still_names_itself() {
             .body
     };
     let err = topo::union(&cyl(1.0, -2.0, 2.0), &torus, Tol::witness())
-        .expect_err("a torus operand has no wired arm");
+        .expect_err("a torus circle crosses the cylinder wall, with no root lane");
+    // The TORUS's circle edge (operand B) against the CYLINDER's wall.
+    let BooleanError::CurvedPierceUnsupported {
+        operand: topo::Operand::B,
+        face,
+        ..
+    } = err
+    else {
+        panic!("expected the circle rung's curved-pierce frontier on B's edge, got {err:?}");
+    };
+    let a = cyl(1.0, -2.0, 2.0);
+    assert!(
+        matches!(
+            a.get_face(face).and_then(|f| a.get_surface(f.surface)),
+            Some(geom::Surface::Cylinder { .. })
+        ),
+        "against the cylinder's wall: {err:?}"
+    );
     let msg = format!("{err}");
     assert!(
-        msg.contains("cyl×sphere") && msg.contains("window"),
-        "the deferred window's door stopped naming itself: {msg}"
+        msg.contains("an edge of the second operand touches or crosses a curved face")
+            && msg.contains("Recourse:"),
+        "the refusal names the crossing and ends on its recourse: {msg}"
     );
 }
 
@@ -314,15 +329,17 @@ fn the_deferred_join_windows_door_still_names_itself() {
 /// The clause it replaces was created by this unit's own refusal-text
 /// sweep and was measured FALSE: it said the join dispatch wires
 /// `(Sphere, Sphere)` and a declared-coaxial `(Cylinder, Sphere)`. It
-/// does not. `join::join_germ_pair`'s match has three arms —
+/// does not. `join::bool_connect`'s match has three arms —
 /// `(Plane, Plane)`, `(Plane, Sphere) | (Plane, Cylinder)` and the
 /// mirror of the second — and its catch-all is the site that raises
 /// THIS variant, so a sphere pair or a cyl×sphere germ reaches the
 /// catch-all exactly like a cone or torus one. What IS wider is
 /// `join::pair_section_frame`, a different dispatch answering a
 /// different question: it names a section frame (a centre and an axis
-/// for the rotational facing test), never a seam lane. Both Displays
-/// now say that, and neither contradicts the other.
+/// for the rotational facing test), never a seam lane. The wired pairs
+/// are stated once, in `topo`'s `meeting_recourse`, and every refusal
+/// that names them renders that one sentence, so there is no second
+/// Display left to disagree with.
 ///
 /// **The operand here is a NURBS wall, deliberately.** The variant is
 /// per-KIND and its Display carries no per-site branch, so any body
@@ -341,11 +358,12 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     let a = cyl(1.0, -2.0, 2.0);
     let mut b = cyl(1.0, -0.5, 0.5);
     let (face, _) = b.faces().next().unwrap();
-    b.set_face_surface(
+    b.set_face_surface_stranding_for_tests(
         face,
-        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::placeholder(),
-        ))),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
+            sense: true,
+        },
     )
     .unwrap();
     let err = topo::union(&a, &b, Tol::witness())
@@ -355,53 +373,13 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         "expected the crossing-layer refusal, got {err:?}"
     );
     let msg = format!("{err}");
-    // The corrected clause: what the JOIN dispatch wires, and that the
-    // catch-all is not cone/torus-only.
+    // What the JOIN dispatch wires, stated as the recourse: a plane
+    // face against a plane, cylinder or sphere face — so the sentence
+    // does not read as cone/torus-only, and does not claim the wider
+    // SECTION-FRAME dispatch's pairs as join arms.
+    let wired = "they meet only where a plane face meets a plane, cylinder or sphere face";
     assert!(
-        msg.contains("germ-pair JOIN dispatch's catch-all"),
-        "the refusal no longer names the dispatch it is raised from: {msg}"
-    );
-    assert!(
-        msg.contains("(Plane, Plane), (Plane, Cylinder) and (Plane, Sphere) only"),
+        msg.contains(wired),
         "the refusal does not state what that dispatch wires: {msg}"
-    );
-    assert!(
-        msg.contains("(Sphere, Sphere) or (Cylinder, Sphere) germ reaches the catch-all"),
-        "the refusal still reads as cone/torus-only: {msg}"
-    );
-    // And the distinction from the WIDER dispatch beside it, which is
-    // what the false clause conflated it with.
-    assert!(
-        msg.contains("SECTION-FRAME dispatch"),
-        "the refusal drops the dispatch the false clause confused it with: {msg}"
-    );
-    assert!(
-        msg.contains("a frame is not a join arm"),
-        "the refusal drops why a wider frame dispatch moves nothing: {msg}"
-    );
-    // The two Displays must AGREE, which is the half that was broken:
-    // `CurvedPairUnsupported` said "(Plane, Cylinder) and (Plane,
-    // Sphere) only" while this one implied four wired pairs.
-    let pair_msg = format!(
-        "{}",
-        BooleanError::CurvedPairUnsupported {
-            op: None,
-            operand: topo::Operand::A,
-            face,
-            kind: geom_brep::SurfaceKind::Torus,
-            other_face: face,
-            other_kind: geom_brep::SurfaceKind::Plane,
-        }
-    );
-    assert!(
-        pair_msg.contains(
-            "germ-pair JOIN dispatch wires (Plane, Plane), (Plane, Cylinder) \
-             and (Plane, Sphere) only, mirrors included"
-        ),
-        "the sibling refusal contradicts this one: {pair_msg}"
-    );
-    assert!(
-        pair_msg.contains("names a frame, never a join arm"),
-        "the sibling refusal drops the frame/join distinction: {pair_msg}"
     );
 }

@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-20
 priority: P1
 cost: D
+parent: MSOLVE-11
 ---
 
 
@@ -44,7 +45,7 @@ comment cited this file: a circular citation with no measurement at
 either end. It is removed. What is true is only (1) and (2) above:
 these escalations are on no node's log. Whether anything downstream
 should change because of that is
-`work/props/should-classify-replays-error-enum-arms-be-deleted.md`'s
+`work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`'s
 question, and it is open.
 
 ## Shape

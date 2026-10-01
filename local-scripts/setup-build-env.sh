@@ -65,9 +65,9 @@
 #     next wrapped build would invalidate it back. That thrash would cost
 #     far more than the knob saves, which is why this is machine-wide config
 #     rather than an export inside with-build-slot.sh.
-#   * `local-scripts/gate.sh` unsets RUSTFLAGS to protect its warm target dir.
-#     Config-file settings are not env, so the gate sees them CONSISTENTLY
-#     on every run — no re-fingerprinting, which is what that unset is for.
+#   * Config-file settings are not env, so a script that unsets RUSTFLAGS
+#     to protect a warm target dir still sees them CONSISTENTLY on every
+#     run — no re-fingerprinting.
 #
 # DETERMINISM (D9): `debug=` controls DWARF emission only. `debug-assertions`
 # and `overflow-checks` are untouched, so fail-loud postconditions keep their

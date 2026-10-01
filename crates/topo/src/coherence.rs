@@ -33,7 +33,8 @@
 //!   on a rim) each derive their own row coordinate; the gap is the
 //!   one a consumer discards when it gives the whole side one value.
 //!   Lever: [`Chart::v_lever`], constant per kind. **Reachable from
-//!   the Euler doors only, and consumed by nothing there.** Through
+//!   the Euler doors only, and no lane there meshes or measures the
+//!   body it is reported on.** Through
 //!   the import door it is dead at every ε row, measured: the pcurve
 //!   re-mint decides the same v jump at each junction
 //!   (`pcurve_loop_continuity`, the same band) and refuses every body
@@ -46,9 +47,11 @@
 //!   ESCALATE it — "which extreme is this rim at" and "do these levels
 //!   carry an extent" are one undecidable question at one lever, asked
 //!   a predicate apart (`props_rim_side`, `props_rim_only_extent`) —
-//!   and the walk cannot mesh it either way
-//!   (issue 1615). `topo/tests/mesh12_rim_row_reach.rs` pins all
-//!   three, and pins the record itself without a file: the re-mint's
+//!   and `mesh::tessellate` refuses it typed either way: on the shape
+//!   door's escalation while the gap is in the band, and as
+//!   `MeridianFreeCurvedFace` (the loop has no meridian) at zero gap.
+//!   `topo/tests/mesh12_rim_row_reach.rs` pins each of these, and pins
+//!   the record itself without a file: the re-mint's
 //!   admission threshold and this condition's reporting threshold,
 //!   bisected on one body at the run's ε, do not overlap
 //!   (`the_remint_admits_no_gap_the_examination_reports`); the
@@ -190,8 +193,8 @@ pub enum CoherenceCondition {
     /// `topo/tests/mesh12_rim_row_reach.rs`, which bisects both
     /// thresholds on one body and finds no gap the re-mint admits and
     /// this condition reports. Its live reach is a rim-only cap
-    /// through the Euler doors, which no meshing or measuring lane
-    /// consumes.
+    /// through the Euler doors, which the mesh lane refuses typed and
+    /// the flux lane escalates on at the gaps this condition reports.
     RimContinuation {
         /// The edge that opens the shared iso side.
         opens: EdgeKey,

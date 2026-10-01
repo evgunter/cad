@@ -17,9 +17,9 @@
 //! ([`Sym::param_over`](super::Sym::param_over) — the caller that mints
 //! a parameter axis already holds `(lo, hi)` as two `f64`s), and the
 //! candidate `R` is enclosed over those brackets in the always-compiled,
-//! outward-rounded [`RingInterval`](crate::ring_interval::RingInterval). No type is punned, no feature is
+//! outward-rounded [`Interval`](crate::interval::Interval). No type is punned, no feature is
 //! gated, no bound is added: `R` is a polynomial in the parameters and
-//! `π`, evaluated in the ring; a form with any other indeterminate (an
+//! `π`, evaluated in certification arithmetic; a form with any other indeterminate (an
 //! opaque real, an atom, a frozen node) is not enclosable and the fold
 //! declines.
 //!
@@ -33,7 +33,7 @@
 //! CONDITIONAL on the sign read, which is why such a discharge is
 //! counted `sign_gated` and never `symbolic_zero`: the two claims differ
 //! in kind, and the receipt keeps them apart. A bracket that straddles
-//! zero, or a poisoned one, folds nothing; the atom stays opaque and the
+//! zero, or a refused one, folds nothing; the atom stays opaque and the
 //! numeric channel answers, which is the conservative direction.
 //!
 //! # Where it runs
@@ -44,12 +44,14 @@
 //! which is where the arc family's `sqrt` of a perfect square sits
 //! (`‖q − c‖ = r` has `(a + 2r)²` under its root on the plate).
 
+use crate::real::Bounds;
 use core::f64::consts::PI;
 
 use super::form::{Form, Mono, Poly, leading, mono_div, trailing};
 use super::rational::Rat;
 use super::{AtomInfo, INDET_PI, IndetMap, Session, SymBudget, SymOp, manifest, quotient};
-use crate::ring_interval::RingInterval;
+use crate::interval::Interval;
+use crate::interval::certification::Certification;
 
 /// The most terms a candidate root may grow to before `poly_sqrt` gives
 /// up: a real residual's root is a handful of terms, and the bound keeps
@@ -180,13 +182,13 @@ fn mono_poly(m: &Mono, e: u32) -> Poly {
     Poly::term(m.iter().map(|&(i, k)| (i, k * e)).collect(), Rat::one())
 }
 
-/// A rational coefficient as a ring enclosure ([`Rat::f64_bracket`]):
-/// poison where the value is out of `f64`'s range rather than a flushed
+/// A rational coefficient as a certification enclosure ([`Rat::f64_bracket`]):
+/// refused where the value is out of `f64`'s range rather than a flushed
 /// zero, which would not be conservative.
-fn rat_enclosure(c: &Rat) -> RingInterval {
+fn rat_enclosure(c: &Rat) -> Interval {
     match c.f64_bracket() {
-        Some((lo, hi)) => RingInterval::from_bounds(lo, hi),
-        None => RingInterval::poison(),
+        Some((lo, hi)) => Interval::from_bounds(lo, hi),
+        None => Interval::refused(),
     }
 }
 
@@ -195,19 +197,19 @@ fn rat_enclosure(c: &Rat) -> RingInterval {
 /// carrying anything else). ONE walker with the others: the depth cap
 /// is what distinguishes the two reaches, so a shallow read is the
 /// deep one asked at its floor.
-fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<RingInterval> {
+fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<Interval> {
     enclose_deep(p, params, &IndetMap::default(), ENCLOSE_DEPTH)
 }
 
 /// The certified sign of the quotient `num / den` over the brackets:
 /// `Some(true)` for strictly positive, `Some(false)` for strictly
-/// negative, `None` otherwise (straddling, poisoned, or not
+/// negative, `None` otherwise (straddling, refused, or not
 /// enclosable).
 fn certified_sign(num: &Poly, den: &Poly, params: &IndetMap<(f64, f64)>) -> Option<bool> {
     let n = enclose(num, params)?;
     let d = enclose(den, params)?;
-    let sign = |r: RingInterval| -> Option<bool> {
-        if r.is_poison() {
+    let sign = |r: Interval| -> Option<bool> {
+        if !r.is_certified() {
             None
         } else if r.lo() > 0.0 {
             Some(true)
@@ -272,8 +274,8 @@ pub(super) fn fold(
 
 /// π to the ring's own rounding — the one spelling, read by every
 /// enclosure this module builds.
-fn pi_bracket() -> RingInterval {
-    RingInterval::from_bounds(PI.next_down(), PI.next_up())
+fn pi_bracket() -> Interval {
+    Interval::from_bounds(PI.next_down(), PI.next_up())
 }
 
 /// How many atom levels the deep enclosure descends before it declines.
@@ -284,40 +286,40 @@ fn pi_bracket() -> RingInterval {
 /// conservative direction.
 const ENCLOSE_DEPTH: usize = 8;
 
-fn ring_sqrt(x: RingInterval) -> RingInterval {
-    if x.is_poison() || x.hi() < 0.0 {
-        return RingInterval::poison();
+fn ring_sqrt(x: Interval) -> Interval {
+    if !x.is_certified() || x.hi() < 0.0 {
+        return Interval::refused();
     }
     let lo = if x.lo() <= 0.0 {
         0.0
     } else {
         x.lo().sqrt().next_down()
     };
-    RingInterval::from_bounds(lo, x.hi().sqrt().next_up())
+    Interval::from_bounds(lo, x.hi().sqrt().next_up())
 }
 
-fn ring_abs(x: RingInterval) -> RingInterval {
-    if x.is_poison() || x.lo() >= 0.0 {
+fn ring_abs(x: Interval) -> Interval {
+    if !x.is_certified() || x.lo() >= 0.0 {
         x
     } else if x.hi() <= 0.0 {
         -x
     } else {
-        RingInterval::from_bounds(0.0, x.hi().max(-x.lo()))
+        Interval::from_bounds(0.0, x.hi().max(-x.lo()))
     }
 }
 
-fn ring_min(a: RingInterval, b: RingInterval) -> RingInterval {
-    if a.is_poison() || b.is_poison() {
-        return RingInterval::poison();
+fn ring_min(a: Interval, b: Interval) -> Interval {
+    if !a.is_certified() || !b.is_certified() {
+        return Interval::refused();
     }
-    RingInterval::from_bounds(a.lo().min(b.lo()), a.hi().min(b.hi()))
+    Interval::from_bounds(a.lo().min(b.lo()), a.hi().min(b.hi()))
 }
 
-fn ring_max(a: RingInterval, b: RingInterval) -> RingInterval {
-    if a.is_poison() || b.is_poison() {
-        return RingInterval::poison();
+fn ring_max(a: Interval, b: Interval) -> Interval {
+    if !a.is_certified() || !b.is_certified() {
+        return Interval::refused();
     }
-    RingInterval::from_bounds(a.lo().max(b.lo()), a.hi().max(b.hi()))
+    Interval::from_bounds(a.lo().max(b.lo()), a.hi().max(b.hi()))
 }
 
 /// The enclosure of one indeterminate: a parameter's bracket, `π`, or
@@ -331,12 +333,12 @@ fn enclose_indet(
     params: &IndetMap<(f64, f64)>,
     atoms: &IndetMap<AtomInfo>,
     depth: usize,
-) -> Option<RingInterval> {
+) -> Option<Interval> {
     if id == INDET_PI {
         return Some(pi_bracket());
     }
     if let Some(&(lo, hi)) = params.get(&id) {
-        return Some(RingInterval::from_bounds(lo, hi));
+        return Some(Interval::from_bounds(lo, hi));
     }
     if depth >= ENCLOSE_DEPTH {
         #[cfg(feature = "sym-profile-testing")]
@@ -370,10 +372,10 @@ fn enclose_indet(
         }
     };
     #[cfg(feature = "sym-profile-testing")]
-    if out.is_poison() {
+    if !out.is_certified() {
         super::profile::read_note(|| format!("poison@{depth}"));
     }
-    (!out.is_poison()).then_some(out)
+    out.is_certified().then_some(out)
 }
 
 fn enclose_deep(
@@ -381,8 +383,8 @@ fn enclose_deep(
     params: &IndetMap<(f64, f64)>,
     atoms: &IndetMap<AtomInfo>,
     depth: usize,
-) -> Option<RingInterval> {
-    let mut acc = RingInterval::zero();
+) -> Option<Interval> {
+    let mut acc = Interval::zero();
     for (m, c) in p.terms() {
         let mut term = rat_enclosure(c);
         for &(id, e) in m {
@@ -397,10 +399,10 @@ fn enclose_deep(
         acc = acc + term;
     }
     #[cfg(feature = "sym-profile-testing")]
-    if acc.is_poison() {
+    if !acc.is_certified() {
         super::profile::read_note(|| format!("poison@{depth}"));
     }
-    (!acc.is_poison()).then_some(acc)
+    acc.is_certified().then_some(acc)
 }
 
 fn enclose_form_deep(
@@ -408,7 +410,7 @@ fn enclose_form_deep(
     params: &IndetMap<(f64, f64)>,
     atoms: &IndetMap<AtomInfo>,
     depth: usize,
-) -> Option<RingInterval> {
+) -> Option<Interval> {
     if f.poisoned {
         #[cfg(feature = "sym-profile-testing")]
         super::profile::read_note(|| format!("poisoned argument@{depth}"));
@@ -417,15 +419,15 @@ fn enclose_form_deep(
     let q =
         enclose_deep(&f.num, params, atoms, depth)? / enclose_deep(&f.den, params, atoms, depth)?;
     #[cfg(feature = "sym-profile-testing")]
-    if q.is_poison() {
+    if !q.is_certified() {
         super::profile::read_note(|| format!("poison@{depth}"));
     }
-    (!q.is_poison()).then_some(q)
+    q.is_certified().then_some(q)
 }
 
 /// The deep enclosure of one polynomial over the session's brackets —
 /// the door rule G's side-condition source 4 reads (`super::root`).
-pub(super) fn enclose_poly(p: &Poly, sess: &Session) -> Option<RingInterval> {
+pub(super) fn enclose_poly(p: &Poly, sess: &Session) -> Option<Interval> {
     if sess.params.is_empty() {
         return None;
     }
@@ -564,11 +566,12 @@ pub(super) fn order(
 mod instrument {
     use super::super::profile::{ReadClass, read_classifying, read_noted};
     use super::super::{Session, manifest};
-    use super::{Form, Poly, RingInterval, enclose_deep, strip_positive_content};
+    use super::{Form, Interval, Poly, enclose_deep, strip_positive_content};
+    use crate::real::Bounds;
 
     /// One half re-enclosed: the enclosure, the refusal it noted, and
     /// the deepest atom level it entered.
-    fn half(p: &Poly, sess: &Session) -> (Option<RingInterval>, Option<String>, usize) {
+    fn half(p: &Poly, sess: &Session) -> (Option<Interval>, Option<String>, usize) {
         read_classifying(true);
         let e = enclose_deep(p, &sess.params, &sess.atoms, 0);
         let (note, deepest) = read_noted();
@@ -892,6 +895,6 @@ mod tests {
         let c = Rat::new(1, 3, 0).unwrap();
         let e = rat_enclosure(&c);
         assert!(e.lo() < 1.0 / 3.0 && e.hi() > 1.0 / 3.0);
-        assert!(rat_enclosure(&Rat::new(1, 1, 2000).unwrap()).is_poison());
+        assert!(!rat_enclosure(&Rat::new(1, 1, 2000).unwrap()).is_certified());
     }
 }

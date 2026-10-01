@@ -33,7 +33,6 @@
 //!   --features interval,geom-core/sym-profile-testing --test all -- \
 //!   sym_9_retry_interval:: --ignored --nocapture
 //! ```
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the ladder and to the documents it is measured on: the tier
@@ -199,7 +198,7 @@ fn replay(
     tol: Tol,
 ) -> (Vec<DecisionShape>, SymCounts) {
     for name in box_.axes().keys() {
-        name_param(&name.0);
+        name_param(name.as_str());
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),

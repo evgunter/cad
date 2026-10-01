@@ -30,11 +30,11 @@ use std::collections::BTreeMap;
 
 use crate::common;
 
-use pncad::document::{Dimension, Doc, Evaluation, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Expr, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{HitTestError, NodePick};
-use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex, PictureKey};
+use pncad::select::{NodePick, UnnamedEntity};
+use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex};
 use viewer::scene;
 use viewer::session::{DocSession, EdgeSelection, FaceSelection};
 
@@ -83,11 +83,15 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         },
         tol,
     );
-    let placed = |at: f64| Node::Transform {
-        input: twinned,
-        translation: [common::len(at), common::len(0.2), common::len(0.0)],
-        rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("a finite angle"),
+    let placed = |at: f64| {
+        Node::transform(
+            twinned,
+            pncad::document::Step::Rigid {
+                translation: [common::len(at), common::len(0.2), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        )
     };
     let (doc, _first) = common::inserted(&doc, placed(0.0), tol);
     let (doc, _second) = common::inserted(&doc, placed(0.1), tol);
@@ -107,12 +111,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
 fn indexed(tol: Tol) -> (DocSession, PickIndex) {
     let mut session = DocSession::inline(fixture(tol), tol);
     session.pump();
-    let (doc, eval) = session.landed_pair().expect("the inline seam lands");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    let index = PickIndex::build(doc, eval, PictureKey::of(generation, delta()), tol)
-        .expect("the fixture indexes");
+    let index = common::index_of(&session, delta());
     (session, index)
 }
 
@@ -127,18 +126,18 @@ fn indexed(tol: Tol) -> (DocSession, PickIndex) {
 /// so it stays an INDEPENDENT statement of what the layout means no
 /// matter how the index comes to hold it.
 struct HandWalked {
-    names: Vec<Result<StableName, HitTestError>>,
+    names: Vec<Result<StableName, UnnamedEntity>>,
     by_name: BTreeMap<StableName, Vec<u32>>,
     by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
     id_slice: Vec<u32>,
     edges: Vec<EdgeId>,
-    edge_names: Vec<Result<StableName, HitTestError>>,
+    edge_names: Vec<Result<StableName, UnnamedEntity>>,
     edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
 }
 
 impl HandWalked {
     fn of(parts: &[NodePick], eval: &Evaluation<f64>) -> Self {
-        let mut names: Vec<Result<StableName, HitTestError>> = Vec::new();
+        let mut names: Vec<Result<StableName, UnnamedEntity>> = Vec::new();
         for part in parts {
             names.extend(
                 part.patch_names(eval)
@@ -163,7 +162,7 @@ impl HandWalked {
             next += patches;
         }
         let mut edges: Vec<EdgeId> = Vec::new();
-        let mut edge_names: Vec<Result<StableName, HitTestError>> = Vec::new();
+        let mut edge_names: Vec<Result<StableName, UnnamedEntity>> = Vec::new();
         let mut edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)> = BTreeMap::new();
         for part in parts {
             let start = edges.len();
@@ -193,7 +192,7 @@ impl HandWalked {
         }
     }
 
-    fn name_of(&self, id: u32) -> Option<&Result<StableName, HitTestError>> {
+    fn name_of(&self, id: u32) -> Option<&Result<StableName, UnnamedEntity>> {
         self.names.get(usize::try_from(id.checked_sub(1)?).ok()?)
     }
 
@@ -253,7 +252,7 @@ impl HandWalked {
         }
         match self.edge_names.get(start + id.boundary) {
             Some(Ok(name)) => Ok(name),
-            Some(Err(error)) => Err(EdgeNameFault::Unnamed(error.clone())),
+            Some(Err(error)) => Err(EdgeNameFault::Unnamed(*error)),
             None => Err(EdgeNameFault::OutOfRange {
                 node: id.node,
                 body: id.body,

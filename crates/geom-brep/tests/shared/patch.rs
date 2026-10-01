@@ -24,14 +24,13 @@
 //! parameterised for exactly that reason — sharing them does not merge
 //! two derivations, it stops two derivations from restating one loop.
 //!
-//! The copy this module simply removed is the one that was never
-//! independent at all: `cert5_arm_and_cells.rs` already reached into
-//! `cert5_r1_patch_probes.rs` for this exact code rather than restating
-//! it, and now both reach here.
+//! `cert5_arm_and_cells.rs` and `cert5_r1_patch_probes.rs` both reach
+//! here for it rather than restating it.
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use geom_core::spline::KnotVector;
 
 /// All basis values `N_{i,p}(t)`, seeded by a `t >= knots[n]` branch at
@@ -275,7 +274,7 @@ impl Patch {
 pub(crate) fn oracle_patch(
     ku: &KnotVector,
     kv: &KnotVector,
-    control: &[[RingInterval; 3]],
+    control: &[[Interval; 3]],
     weights: &[f64],
 ) -> Patch {
     let nu = ku.control_count();
@@ -325,7 +324,7 @@ pub(crate) fn oracle_patch(
 pub(crate) fn face_posture(
     ku: &KnotVector,
     kv: &KnotVector,
-    control: &[[RingInterval; 3]],
+    control: &[[Interval; 3]],
     weights: &[f64],
     perimeter: f64,
     eps: f64,

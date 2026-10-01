@@ -311,6 +311,24 @@ DECIDE-B1 slot 1). The SYM-12/DECIDE-3 seam
 (`work/sym/the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`)
 is the `props/sign-hull` merge's.
 
+## SYM-9 dispatched (2026-09-22): the retry ladder — block DECIDE-B1 slot 1
+
+SYM-9's spec (on `main` since #2602, 2026-09-14) gains its A1
+amendment at dispatch: DECIDE-3 landed on `props/sign-hull` and the
+retry is over the atoms rule G re-keys, so the branch
+`sym/9-retry-ladder` is cut from that branch's head (`cd14d4fd9`) with
+no further `main` merged (the SYM-12/DECIDE-3 seam is the
+`props/sign-hull` merge's own measurement); the PR targets
+`props/sign-hull`; the six documents' base numbers are DECIDE-3's; the
+link row `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` is
+Phase 1's first table and the kept-atom retry's measured instance
+(the provenance remedy rejected with its numbers; the residual render
+still owed); the read-cost row rides as far as Phase 1's cost table.
+Arm OPUS per the block's draw (byte 248 ⇒ fable at slot 2); v7 IN, the
+full v6 dual, the review ordinal claimed on `main` at the dual's
+dispatch (DECIDE's band, 8601 expected). Brief
+`/home/user/sym-briefs/unit-9-brief.md`, sha256 in its sidecar.
+
 ## SYM-9 in review (2026-09-22)
 
 Block DECIDE-B1 slot 1, arm OPUS. PR #3083 against `props/sign-hull`.
@@ -450,6 +468,46 @@ the ruling.
 | R1's delta | 88k | 32 min |
 | R2 | 292k | 51 min |
 | coder | 73k | — |
+## 2026-09-24 — DECIDE-4 stops on the sign: the fork goes to Ev
+
+DECIDE-4's Phase 1 is pushed on `decide/4-bulge-reach` (`200123f29`).
+The evidence is the item's section "What stands on DECIDE-3's and
+SYM-9's tree (DECIDE-4)" on that branch: the per-cause tables, the
+renders, both routes counted and costed, and the leaf times.
+
+- **(ii) is empty.** DECIDE-3's `abs_square` and canonical root took
+  what SYM-3 counted.
+- **One value-free decision is left:** the boss's `arc_span`, which
+  bounds the boss's ceiling (`1.0309e3·ε`). It is a polynomial common
+  factor under a root, which rule E's monomial factor misses. That is
+  Phase 2a, and it proceeds.
+- **(iii) is non-empty:** four decisions on the `0.5` parameter
+  control, with eight frozen behind them. Phase 2b stops.
+
+The fork is written into the item (`needs_ev: true`) on the `[ev]` PR.
+The recommendation is route B, the span spelled from the decided turn.
+Route A as the dial stands is rejected: it raises `numeric` on every
+document. The apothem's sign is a second, smaller question, proposed as
+its own item.
+
+Also measured, not asked: on the plate and the bracket, `restrict`'s
+sub-arcs meet no arc-family decision. That closes the sweep's blind
+spot (i) for those two documents only.
+
+## 2026-09-25 — Ev rules the bulge's sign (#3186): route B, and the apothem as its own item
+
+Ev, on #3186: "both recommendations sound good!"
+
+- **Decision 1.** The sweep spells the carrier's span from the turn it
+  already decided, `4·atan(σ·b)` in `placed_segment_spec`. DECIDE-4 had
+  merged its review cycle before the ruling, so per its spec this is its
+  own unit, DECIDE-5, cut from `props/sign-hull` once #3192 lands.
+- **Decision 2.** The apothem's sign is filed as
+  `the-apothems-sign-is-a-value-read` (P2, cost H). Its candidate is a
+  narrowed rule C behind the door, with a structural look first.
+
+`rule-d-reaches-the-unit-bulge-only` clears `needs_ev` and closes when
+DECIDE-5 lands.
 
 
 ## 2026-09-25 — DECIDE-5 spec'd: the arc's span from the decided turn (route B), single FULL review
@@ -521,6 +579,48 @@ so it is not DUAL.
 Spec `docs/DECIDE-6-SPEC.md`. Branch `decide/6-read-cost` from
 `props/sign-hull` at `1264640fa`.
 
+## Announced seam from PATHS (2026-09-25): the carrier's span is the stored sweep signed by the turn
+
+When `geom-brep-sketch-segment-full-turn` lands on `main`, the sweep's
+arc span (`sweep::swept::arc_span`) is the segment's stored sweep Δθ
+signed by the decided turn — `Δθ` for a counterclockwise arc, `0 − Δθ`
+for a clockwise one — and no longer `4·atan|b|`. No bulge crosses into
+`geom-brep` any more, so there is no `b` to spell the span on.
+
+- **What rule D sees.** The lowering mints Δθ as `4·atan b`, and the
+  pushforward (`geom_brep::SketchSegment::eval`) turns through the same
+  stored Δθ. Carrier and pushforward therefore read ONE `atan b` atom,
+  so the two spellings meet as theorems at a parameter bulge of either
+  sign. `sym.rs`'s `rule_d_meets_the_carrier_and_the_pushforward_at_every_sample`
+  now asserts that, where it used to pin the parameter case numeric.
+  This is Ev's route B (#3186) in the Δθ spelling. `props/sign-hull`'s
+  `turned_span` (`4·atan(σ·b)`) conflicts with it on merge-forward; the
+  resolution is the sweep form, since `b` is no longer carried.
+- **What `register_span_identity` is about.** It is stated about that
+  signed sweep. Its proof is unchanged: the span is the arc's turned
+  angle by definition of the lowering.
+- **Measured on `main`'s tier.** R2's link: 20 decisions move into the
+  door, 10 from `numeric` and 10 from `symbolic_zero` (515 → 505,
+  registered 90 → 110), at every ε row. Nothing is refused or
+  contradicted, and no ceiling moves. The plate, annulus, bracket and pad
+  are unmoved. `m10_bulge_interval`'s nominal splits are unmoved on all
+  three documents (the D-tab's forms freeze on the ring first). Every
+  pinned rule-D row passes: `m10_10_pins_interval` and `sym.rs`'s rows.
+  The parameter-bulge span now folds where it did not. The link's ten
+  lost theorems were not rendered, so whether any of them is a rule-D
+  fold is not established here.
+- **Not the span.** `sweep`'s thread-count session row
+  `sym_thin_strip` loses four `pcurve_iso_boundary` theorems
+  (`symbolic_zero` 26 → 22; outcome Zero both ways). Attributed by toggle
+  to the pushforward reading the stored centre node instead of building
+  it inside `eval`. Filed as
+  `sharing-the-carriers-centre-node-costs-four-iso-boundary-theorems`.
+  **Update 2026-09-29:** merged onto main (tier 3's check 1 now reads
+  every carrier's datums in the session), the four come back
+  (`sz=26 num=634` at every ε) and only `frozen` still moves, downward.
+  The item is closed.
+
+Signed (PATHS, `geom-brep-sketch-segment-full-turn` lane).
 ## 2026-09-25 — DECIDE-6 merged into `props/sign-hull` (#3229): the read is not the cost; rule G is
 
 DECIDE-6 closed at its measurement.
@@ -563,6 +663,53 @@ decision-changing answer to Ev, since rule G is Ev's ruling on #2970.
 Spec `docs/DECIDE-7-SPEC.md`. Branch `decide/7-rule-g-cost` from
 `props/sign-hull` at `a7dd5c520`.
 
+## Announced seam from PATHS (2026-09-25): `turned_span` on `props/sign-hull` against #3254's `arc_span`
+
+This PR and `props/sign-hull` spell the carrier's span differently, and
+the two branches conflict line by line when `props/sign-hull` merges
+forward past #3254.
+
+**Where they conflict:**
+- **`crates/sweep/src/swept.rs`.** `props/sign-hull` has
+  `turned_span(turn, bulge) = 4·atan(σ·b)`, `span_magnitude(bulge) =
+  4·atan|b|` and `turn_negates(turn)`. `placed_segment_spec` calls
+  `turned_span(turn, seg.bulge())`. #3254 has
+  `arc_span(turn, sweep) = σ·Δθ` (`Δθ` for a counterclockwise arc,
+  `0 − Δθ` for a clockwise one), called as `arc_span(turn, sweep)`.
+- **`SweptChord::bulge()`, `SweptSeg::bulge` and
+  `SketchSegment::Arc { bulge }`.** #3254 removes them all, so every
+  call site on `props/sign-hull` that reads `seg.bulge()`,
+  `s.bulge` or the description's `bulge` stops compiling.
+- **`crates/sweep/src/revolve/axis.rs`.** `axis_arc_span` reads
+  `span_magnitude(s.bulge)` on `props/sign-hull` and
+  `arc_span(turn, sweep)` on #3254.
+- **`crates/sweep/src/revolve/tube.rs`.** `circle_traversal`'s bulge
+  sign reads `turn_negates` on `props/sign-hull`. #3254 stores the sweep
+  `±4·atan 1` instead.
+- **Tests.** `turned_span`'s rows in `swept.rs`'s tests
+  (`tests::turned_span_is_span_magnitude_to_the_bit`, and the
+  `samples` helper that destructures `SketchSegment::Arc { bulge, .. }`)
+  and `tube.rs`'s tests (`turned_span(t, seg.bulge)`).
+
+**Which spelling wins: #3254's `arc_span(turn, sweep)`.** After the
+merge there is no bulge on either side of the boundary to spell `4·atan(σ·b)` on. Both
+spellings are route B (#3186):
+- `σ·Δθ` with `Δθ` the lowering's `4·atan b` is `σ·4·atan b`. It is the
+  pushforward's own sweep node, so rule D folds it through the one
+  `atan b` atom.
+- `4·atan(σ·b)` reached the same closed forms only up to `(−b)² = b²`.
+
+The value channel is the same to the bit at `f64` either way, because
+`atan` is odd. `turn_negates` can stay, as the one reader of the turn
+that `arc_span`, `turn_axis` and the tube can share. `span_magnitude`
+goes, and `axis_arc_span` reads `arc_span`. `turned_span`'s rows port to
+`arc_span`: the parameter-bulge row
+(`the_carriers_span_meets_the_pushforwards_at_a_parameter_bulge_of_either_sign`)
+must stay a theorem under the ported spelling. #3254's own
+`sym.rs` row (`rule_d_meets_the_carrier_and_the_pushforward_at_every_sample`)
+already asserts that at b = ±0.7.
+
+Signed (PATHS, `geom-brep-sketch-segment-full-turn` lane).
 ## 2026-09-26 — DECIDE-7 merged into `props/sign-hull` (#3246): rule G's cost was the repeated reduction, now memoised
 
 **Where the time was.** Rule G's own mint site is 0.35% of what it
@@ -601,3 +748,25 @@ with an absent-id check.
 | implementer | 336k | 229 min |
 | implementer, fix pass | 427k | 181 min |
 | reviewer | 270k | 73 min |
+
+## 2026-09-26 — DECIDE-8 spec'd: the apothem's sign; the review tier is set by Phase 1
+
+Both P1 rows are still gated (ROUND's Fillet centre; E6). Of the three P2
+rows, `the-apothems-sign-is-a-value-read` is the one where a measured
+document loses decisions: six on the parameter bulge documents.
+- `the-exact-quotient-re-keys-a-root-the-split-met` moves no measured
+  document, and its remedy is a multivariate factorisation.
+- `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`'s residue
+  after DECIDE-5 is the coefficient ring's width and the term budget.
+
+**Review tier: set by Phase 1.**
+- If the sign is decided upstream and the sweep states it as route B
+  states the turn: a single FULL review, as DECIDE-5 had.
+- If only a new read on the box reaches the six: the unit stops. Two
+  designers weigh the fork (`docs/prompts/designer.md`), and it goes
+  to Ev as an `[ev]` PR, since whether the tier answers on the box
+  there is Ev's call (#3186 rejected rule C's dial as it stands).
+
+Spec `docs/DECIDE-8-SPEC.md`. Branch `decide/8-apothem-sign` from
+`props/sign-hull` at DECIDE-7's merge.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)

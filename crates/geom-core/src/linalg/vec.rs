@@ -42,6 +42,9 @@ impl<T: Real> Vec2<T> {
     /// component, in `x, y` order. A structural map — no arithmetic,
     /// so it is exact whenever `f` is (`Real::from_f64`,
     /// `Dual::constant`).
+    ///
+    /// Lifting an `f64` vector into a lane is `v.map(T::from_f64)`,
+    /// here and on the 3-D type.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Vec2<U> {
         Vec2::new(f(self.x), f(self.y))
@@ -743,6 +746,42 @@ mod tests {
         assert_eq!(p, 1.0);
     }
 
+    /// A vector read into a lane is `map` with the scalar's embedding,
+    /// and each component lands in its OWN slot, exactly: the point
+    /// enclosure of its stored bits at the interval scalar, a constant
+    /// carrying the same bits at the dual scalar. The components are
+    /// pairwise distinct, so a walk that crossed two slots is caught.
+    #[test]
+    fn map_lifts_each_component_into_its_own_slot() {
+        use crate::{Bounds, Dual64, Interval};
+        let v2 = Vec2::new(1.5, -3.0);
+        let v3 = Vec3::new(-2.25, 0.1, 7.0);
+        let (i2, i3) = (v2.map(Interval::from_f64), v3.map(Interval::from_f64));
+        let (d2, d3) = (v2.map(Dual64::from_f64), v3.map(Dual64::from_f64));
+        let enclosed = [
+            (i2.x, v2.x),
+            (i2.y, v2.y),
+            (i3.x, v3.x),
+            (i3.y, v3.y),
+            (i3.z, v3.z),
+        ];
+        for (got, want) in enclosed {
+            let bits = (got.lo().to_bits(), got.hi().to_bits());
+            assert_eq!(bits, (want.to_bits(), want.to_bits()), "{want}");
+        }
+        let constants = [
+            (d2.x, v2.x),
+            (d2.y, v2.y),
+            (d3.x, v3.x),
+            (d3.y, v3.y),
+            (d3.z, v3.z),
+        ];
+        for (got, want) in constants {
+            assert_eq!(got.value.to_bits(), want.to_bits(), "{want}");
+            assert_eq!(got.deriv.to_bits(), 0.0_f64.to_bits(), "{want}");
+        }
+    }
+
     #[test]
     fn zero_is_additive_identity_bit_exact() {
         // v + 0: each component is x + (+0.0), which is bit-exact for
@@ -1280,7 +1319,6 @@ mod tests {
     /// input (the containment form of the `f64` properties above), and
     /// the two answers the axis order gives an enclosure — decided and
     /// hulled — are both honest.
-    #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_interval_residuals() {
         use crate::interval::Interval;
@@ -1391,7 +1429,6 @@ mod tests {
     /// by its own floored length FIRST makes the same answer the hull
     /// of two bounded vectors. If someone reorders those two steps,
     /// this reds instead of going quiet.
-    #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_is_bounded_over_z_enclosures() {
         use crate::interval::Interval;
@@ -1557,7 +1594,6 @@ mod tests {
     /// actually REACHED the undecided case — a seam sweep that decided
     /// every box would pass vacuously — and that no sample escaped its
     /// enclosure.
-    #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_encloses_the_f64_frame_over_seam_straddling_boxes() {
         use crate::interval::Interval;
@@ -1647,7 +1683,6 @@ mod tests {
     ///
     /// The horizontal cap `n = ±e_z` is the other exact case, at the
     /// far end of the same comparison (`|n.z| = 1 > 0`).
-    #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_at_a_vertical_plane_and_a_cap_is_exact() {
         use crate::interval::Interval;

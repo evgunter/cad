@@ -659,3 +659,135 @@ v7 was recorded and before this orchestrator read it — under v7 it
 would have run opus/opus outside the protocol; its row T2T is a
 seam-day row and any readout spanning 2026-09-19 treats it per the
 entry's item 4. The remaining E unit runs outside the protocol.
+
+## The surface setter's posture seam (2026-09-14): one table row, two prose paragraphs
+
+TOPO's `topo/set-face-surface-drops-rows-on-chart-change` gives
+`Body::set_face_surface` the loop doors' answer: a swap onto a chart
+the face's rows were not stated in drops them, a swap onto the same
+chart carries them all. What that moves in TRIM's
+`crates/topo/src/pcurves.rs` is the declaration, not the pass — no
+function there is added or changed:
+
+- `staleness_posture::DECLARED`'s `set_face_surface` row moves from
+  `Neither` to `Transfers`, with a note saying what the door does; its
+  old note cited the issue this unit closes, so the citation goes with
+  it. `set_edge_curve` stays `Neither` and its note says WHY it is not
+  the same case — measured, not asserted: a carrier swap moves neither
+  a row's key nor its chart, and pass 2 re-derives every row's
+  agreement from the edge's current carrier, so a staled row is
+  refused per half-edge (the row
+  `an_edge_carrier_swap_leaves_rows_the_pcurve_pass_refuses_loud` in
+  `crates/topo/tests/loop_reparenting_pcurve_rows.rs` reads the two
+  refusals).
+- The module docs' transfer-posture paragraph and the `Transfers`
+  variant's doc name the setter beside the three loop doors.
+
+The pass's own silence on an emptied face is unchanged and is TRIM's
+row: evidence from this unit's measurements is added to
+`work/trim/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+Signed (TOPO, the set_face_surface lane).
+
+## The module header's length is a row now (2026-09-14)
+
+PR 2594's fix pass, on R1's style finding: `crates/topo/src/pcurves.rs`
+opens with 264 doc lines that restate, per door class, what
+`staleness_posture::DECLARED` states below as a table with a mechanical
+reader. Filed as
+`work/trim/the-pcurves-module-header-restates-the-posture-table-below-it`.
+
+The same pass corrected two sentences in this file that PR 2594 had
+added: `set_edge_curve`'s posture note and the module paragraph beside
+it claimed a staled row is refused "wherever the row exists at all".
+It is not — `validate_pcurves` skips its re-certification on any face
+it finds incomplete
+(`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`),
+so a half-minted face swallows exactly those refusals. Both sentences
+now say the pass measures a stale row on a COMPLETE face and point at
+that row; `set_edge_curve` stays `Neither`, with the argument in its
+own docs and a row in `crates/topo/tests/loop_reparenting_pcurve_rows.rs`
+characterising the silence. Signed (TOPO, the set_face_surface lane).
+## The run doors' posture seam (2026-09-14): two prose paragraphs, two table notes, no function
+
+TOPO's `topo/mef-kef-runs-carry-or-drop-rows` gives `Body::mef`'s
+chord surgery and `Body::kef`'s unsplice the loop doors' answer one
+level down: the RUN of half-edges each moves between two faces' loops
+keeps its rows across one chart (`Body::same_chart`) and loses them
+across two, through a run-level twin of the loop door
+(`Body::drop_run_rows_on_chart_change`, in TOPO's `euler_ring.rs`; the
+loop door now delegates to it). `pcurves::loop_rows` is read and not
+edited: the run is what each op's plan phase already holds, so no
+`run_rows` walk was needed in TRIM's file. What moved in
+`crates/topo/src/pcurves.rs`:
+
+- the module docs' `Neither` paragraph, which said `mef`'s run and
+  `kef`'s remnant are "left saying the old face's chart" and cited the
+  TOPO row, now says each door disposes of the run's rows and what
+  keeps the two in the `Neither` bucket (`mef` mints two rowless
+  halves; `kef` kills two whose rows outlive their keys);
+- the `Posture::Neither` variant doc's "two entries here are known to
+  leave rows in that blind spot" sentence, re-stated the same way;
+- `staleness_posture::DECLARED`'s `mef` and `kef` notes say what each
+  does with the moved run. Both entries STAY `Neither`: the minting
+  operators' posture is Ev's question on the open `[ev]` PR and this
+  unit does not decide it.
+
+One finding filed on this slate while placing `kef`'s killed halves:
+`pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`
+(the stale-row consequence's recycled-slot arm is one `SecondaryMap`'s
+version check forecloses). Signed (TOPO, the mef/kef run lane).
+
+## The run doors' posture seam, fix pass (2026-09-24): `mef` and `kef` read `Transfers`
+
+The dual on `topo/mef-kef-runs-carry-or-drop-rows` (PR 2603) found
+`Posture::Neither`'s definition — "leaves the map exactly as it found
+it" — false for two doors that now drop rows whose chart moved, and
+`Transfers` literally describing them. So in `crates/topo/src/pcurves.rs`:
+`mef`, `mef_chord` and `kef` move to the `Transfers` section of
+`staleness_posture::DECLARED`, in a section of their own; the
+`Transfers` variant doc names the run beside the loop, and says the
+bucket is silent about rows a door never HELD (a minted half arrives
+rowless — the minting posture, decided elsewhere, not by the entry);
+the `Neither` variant doc loses its "dispose of those rows themselves
+now" history; the header's per-door paragraph on the two doors is a
+one-sentence pointer at `DECLARED` rather than a restatement of it
+(`the-pcurves-module-header-restates-the-posture-table-below-it` is
+the class and this does not grow it). The run door
+`Body::drop_run_rows_on_chart_change` is gone: one predicate-free
+primitive `Body::drop_rows` sits under every decision site, and the
+header's two references to the doors follow it. Signed (TOPO, the
+mef/kef fix pass).
+
+## Seam note from TOPO (2026-09-30, PR 3500): a fourth staleness posture, `Completes`
+
+TOPO's `mev-null-leaves-a-complete-curved-face-half-minted` (PR 3500)
+makes a null edge's first description (`set_edge_curve`,
+`set_edge_curve_nurbs_lane`) re-mint a half-minted face through the
+site-mint loop. That door is now declared under a new fourth posture,
+`Posture::Completes`, with `describe_as_intersections` delegating to
+it.
+
+This is not the "fourth posture" this log declined on 2026-09-14 (PR
+2542). That note was about `revert`, a producer outside the guard's
+walk. This one is a mutation door that writes rows on its null arm
+and leaves content staleness to tier 3 on its certified arm, and no
+existing posture says both. The module doc now reads "Four postures
+exist". If the guard's owners would rather split the door's two arms
+than add the variant, that is a follow-up on this slate. Signed (TOPO
+orchestrator).
+## Resumed after the protocol changes (2026-09-30)
+
+See CURVED's log for what changed on main. Tracker moves: the two
+`pcurves.rs` doc items filed on TRIM before the cut
+(`pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`,
+`the-pcurves-module-header-restates-the-posture-table-below-it`) go to
+CHART, which owns `pcurves.rs` since 2026-09-20.
+
+**Dispatch this sitting, with its tier**: one unit on `nurbs_iso.rs` —
+`boundary-iso-doors-panic-before-they-can-refuse` (E) with
+`trim-escalations-offer-a-declaration-the-door-cannot-take` (E) as its
+rider — Opus implementer, **single STYLE review** (a length check that
+refuses instead of indexing, and an escalation's rendered text; both
+can be read and believed). It is outside any A/B block (the protocol
+is suspended), so TRIM-B2 slot 2 stays unspent and the block's record
+closes by the suspension at the walk.

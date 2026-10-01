@@ -4,7 +4,7 @@ kind: issue
 title: display::is_instance answers bool because its one caller wanted one, collapsing the two states the crate just argued are different news
 status: closed
 opened: 2026-09-05
-refs: [sweep-blind-spots-the-precheck-sweep-could-not-see, prune-discards-the-fault-that-explains-the-supersession, 1886]
+refs: [sweep-blind-spots-the-precheck-sweep-could-not-see, 1886]
 priority: P1
 cost: E
 branch: vnews/is-instance-two-states

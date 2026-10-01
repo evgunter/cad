@@ -75,7 +75,7 @@ pub(super) fn in_plane_frame<T: Decide>(
 ) -> Result<(Vec3<T>, Vec3<T>), Indeterminate> {
     let mut last = None;
     for r in &super::containment::SCHEDULE {
-        let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
+        let r = r.map(T::from_f64);
         let d = r - plane.normal * plane.normal.dot(r);
         match decide(
             "split_join_frame_arm",
@@ -91,9 +91,10 @@ pub(super) fn in_plane_frame<T: Decide>(
         }
     }
     Err(last.unwrap_or(Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
+        margin: geom_core::MarginDiag::INVALID,
         band,
         predicate: Some("split_join_frame_arm"),
+        terminal_sliver: false,
     }))
 }
 
@@ -177,13 +178,9 @@ mod tests {
     use super::*;
     use geom_core::Tol;
 
-    fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-        Point3::new(x, y, z)
-    }
-
     fn plane_y1() -> SplitPlane<f64> {
         SplitPlane {
-            origin: p3(0.0, 1.0, 0.0),
+            origin: Point3::new(0.0, 1.0, 0.0),
             normal: Vec3::new(0.0, 1.0, 0.0),
         }
     }
@@ -196,11 +193,11 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let exact = exact_band().unwrap();
         let pts = [
-            p3(2.0, 1.0, 0.0),
-            p3(1.0, 1.0, 5.0),
-            p3(1.0, 1.0, 5.0), // bit-identical tie with index 1
-            p3(1.0, 1.0, -1.0),
-            p3(-7.0, 1.0, 9.0),
+            Point3::new(2.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 5.0),
+            Point3::new(1.0, 1.0, 5.0), // bit-identical tie with index 1
+            Point3::new(1.0, 1.0, -1.0),
+            Point3::new(-7.0, 1.0, 9.0),
         ];
         let order = sort_indices_by_point(&pts, &plane_y1(), band, exact).unwrap();
         // u = x ascending; v = (n × u)·w = −z, so larger z sorts first.
@@ -216,8 +213,8 @@ mod tests {
         let exact = exact_band().unwrap();
         let plane = plane_y1();
         let frame = in_plane_frame(&plane, 1.0, band).unwrap();
-        let a = p3(1.0, 1.0, 0.0);
-        let b = p3(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
+        let a = Point3::new(1.0, 1.0, 0.0);
+        let b = Point3::new(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
         let cmp = |p, q| lex_cmp(&p, &q, &plane.origin, frame, exact).unwrap();
         assert_eq!(cmp(a, b), core::cmp::Ordering::Less);
         assert_eq!(cmp(b, a), core::cmp::Ordering::Greater);

@@ -31,12 +31,6 @@
 //! slab with the tier OFF (its subject is the refusal's shape, and
 //! since E12 that box certifies with the tier on), which the row says
 //! at the site.
-//!
-//! The file's basename carries `interval` because the driver, the
-//! chamber mark's certified variant and the gating `worst_case` all
-//! live behind that feature; the hosted lane is asked for by trailer,
-//! never inferred from the name.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -101,11 +95,11 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn param(n: &str, dim: Dimension) -> Expr {
+fn param(n: &'static str, dim: Dimension) -> Expr {
     Expr::param(name(n), dim)
 }
 
@@ -149,13 +143,13 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     editor_core::apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
 
-fn entry<'a>(entries: &'a [Sensitivity], n: &str) -> &'a SensitivityOutcome {
+fn entry<'a>(entries: &'a [Sensitivity], n: &'static str) -> &'a SensitivityOutcome {
     &entries
         .iter()
         .find(|s| s.param == name(n))
@@ -241,6 +235,7 @@ fn plate_spaced(
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
         ],
+        ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile,
@@ -254,6 +249,7 @@ fn plate_spaced(
                 centre: [len(cx), len(0.0)],
                 radius: param("hole_r", Dimension::Length),
             }],
+            ids: Vec::new(),
         }));
         holes.push(r.insert(Node::Extrude {
             profile: p,
@@ -276,7 +272,7 @@ fn plate_spaced(
     );
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(MIN_WEB, Dimension::Length).expect("finite"),
+        bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure, assertion)
@@ -324,17 +320,20 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
     });
-    let copy = r.insert(Node::Transform {
-        input: cube,
-        translation: [param("t", Dimension::Length), len(0.0), len(0.0)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let copy = r.insert(Node::transform(
+        cube,
+        editor_core::Step::Rigid {
+            translation: [param("t", Dimension::Length), len(0.0), len(0.0)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let ev = eval(&r.doc);
     let at = |node, x: f64| {
         editor_core::all_vertices(&ev, node)
@@ -377,6 +376,7 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: p,
@@ -972,7 +972,7 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     walls.sort();
     let refs = vec![
         SitedRef::new(hole, walls.remove(0)),
-        SitedRef::new(plate_node, fname(plate_node, wall(0))),
+        SitedRef::new(plate_node, fname(plate_node, wall(&doc, plate_node, 0))),
     ];
     let doc = push(
         &doc,
@@ -1194,6 +1194,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_p,
@@ -1205,6 +1206,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
         }],
+        ids: Vec::new(),
     }));
     let pin = r.insert(Node::Extrude {
         profile: pin_p,
@@ -1308,11 +1310,11 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     // A frame per section height: the sections are drawn on DIFFERENT
     // planes, so they are different nodes.
     let frame_at = |r: &mut Recorder, z: f64| {
-        r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }))
+        r.insert(fixture::frame(
+            [0.0, 0.0, z],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ))
     };
     let section = |plane| {
         Node::Profile(ProfileProgram {
@@ -1333,6 +1335,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
                 ])),
                 editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Start),
             ])],
+            ids: Vec::new(),
         })
     };
     let f0 = frame_at(&mut r, 0.0);

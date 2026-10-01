@@ -2,9 +2,8 @@
 //! of the E6 driver, and the same engine run at `c = 0⁺` as the global
 //! parametric self-intersection check.
 //!
-//! Gated on `interval` for the driver's own reason: the inner
-//! subdivision excludes by interval enclosure, and without that scalar
-//! there is nothing to exclude WITH.
+//! The inner subdivision excludes by interval enclosure: the certified
+//! scalar is what it excludes WITH.
 //!
 //! Two nested subdivisions. The OUTER one is [`mod@crate::drive`]'s: it
 //! hands this module a leaf whose topology is provably the witness
@@ -158,14 +157,14 @@ use bvh::{Aabb, Bvh};
 use geom::Surface;
 use geom_core::interval::Interval;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Bounds, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Margin, Point3, Real, Sign, Tol, Vec3};
 use topo::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
 use topo::{Body, MetredBound, MetredRect, chart_boundary};
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::{Doc, ParamName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts, sliver};
-use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeResult, evaluate};
+use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeStanding, evaluate};
 use crate::names::{EntityKey, Entry, StableName};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -574,7 +573,7 @@ pub enum ClearanceRefusal {
     /// The selection itself could not be read.
     Selection(SelectionRefusal),
     /// A carrier enclosure that did not evaluate: the margin came back
-    /// [`geom_core::MarginDiag::Invalid`] (NaI, or an empty enclosure),
+    /// [`geom_core::MarginKind::Invalid`] (NaI, or an empty enclosure),
     /// which is neither an indeterminacy refinement could settle nor a
     /// budget. Its own class so a reader is not sent looking for a
     /// bigger dial.
@@ -708,10 +707,10 @@ pub enum CellBudget {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SelectionRefusal {
     /// The node did not build in the leaf's replay.
-    NodeDidNotBuild {
-        /// The node.
-        node: RecipeNodeId,
-    },
+    NodeDidNotBuild(
+        /// The node's standing in that replay.
+        NodeStanding,
+    ),
     /// The node's payload carries no body at that index.
     NoSuchBody {
         /// The node.
@@ -735,11 +734,10 @@ pub enum SelectionRefusal {
 impl core::fmt::Display for SelectionRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeDidNotBuild { node } => write!(
+            Self::NodeDidNotBuild(standing) => write!(
                 f,
-                "node {} did not build in this leaf's replay, so it has no faces to \
-                 measure a clearance between",
-                node.0
+                "the selection has no faces to measure a clearance between in this leaf's \
+                 replay: {standing}"
             ),
             Self::NoSuchBody { node, index } => write!(
                 f,
@@ -1001,7 +999,12 @@ impl ClearanceReport {
                 let _ = writeln!(s, "witness a uv={} at={}", uv(g.a_uv), pt(g.a_point));
                 let _ = writeln!(s, "witness b uv={} at={}", uv(g.b_uv), pt(g.b_point));
                 for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "witness param {} {:016x}", name.0, offset.to_bits());
+                    let _ = writeln!(
+                        s,
+                        "witness param {} {:016x}",
+                        name.as_str(),
+                        offset.to_bits()
+                    );
                 }
             }
             ClearanceVerdict::Refused(r) => {
@@ -1056,7 +1059,7 @@ impl ClearanceReport {
                     g.distance, g.a, g.b
                 );
                 for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "    at {} = nominal {offset:+}", name.0);
+                    let _ = writeln!(s, "    at {} = nominal {offset:+}", name.as_str());
                 }
             }
             ClearanceVerdict::Refused(r) => {
@@ -2216,9 +2219,9 @@ fn windows_of(
     band: Option<Band>,
 ) -> Result<Vec<Window>, ClearanceRefusal> {
     let refuse = ClearanceRefusal::Selection;
-    let Some(NodeResult::Ok(value)) = ev.nodes.get(&sel.at) else {
-        return Err(refuse(SelectionRefusal::NodeDidNotBuild { node: sel.at }));
-    };
+    let value = ev
+        .usable(sel.at)
+        .map_err(|standing| refuse(SelectionRefusal::NodeDidNotBuild(standing)))?;
     let body = crate::names::interrogate::output_body(&value.payload, sel.body).map_err(|_| {
         refuse(SelectionRefusal::NoSuchBody {
             node: sel.at,
@@ -2892,7 +2895,7 @@ impl Sweep {
                             receipt.abandoned += (level - n - 1) + next.len();
                             break 'sweep;
                         }
-                        if matches!(source.margin, MarginDiag::Invalid) {
+                        if source.margin.is_invalid() {
                             // A poison enclosure is not an indeterminacy
                             // refinement could settle, and it is not a
                             // budget: it is geometry that did not
@@ -3149,10 +3152,15 @@ fn verify_witness(
     // A witness's `(u, v)` are coordinates in that chart, and the `f64`
     // replay of the same node mints the same frame, so reading them
     // needs nothing carried across from the interval pass.
+    for w in [x, y] {
+        if let Err(standing) = ev.usable(w.at) {
+            return Err(format!(
+                "the f64 rebuild has no value for a face of the violating pair: {standing}"
+            ));
+        }
+    }
     let surface_at = |w: &Window| -> Option<Surface<f64>> {
-        let NodeResult::Ok(value) = ev.nodes.get(&w.at)? else {
-            return None;
-        };
+        let value = ev.value(w.at)?;
         let body = crate::names::interrogate::output_body(&value.payload, w.body).ok()?;
         let f = body.get_face(w.face)?;
         Some(body.get_surface(f.surface)?.clone())

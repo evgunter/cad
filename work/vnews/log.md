@@ -422,3 +422,222 @@ say.** Groups 3, 4, part of 5 and `document-news-has-no-home` all edit
 file at once is a conflict bought for nothing, so **at most one
 `frame.rs` lane runs at a time**, whatever the group order allows in
 parallel elsewhere.
+
+## A note from VIEW (2026-09-21) — one rank row re-homed here
+
+`a-derived-pick-index-failure-outshouts-its-cause` (P1, Ev's report of
+2026-09-17) moved by `git mv`, id, body and history unchanged. Ev
+approved the move in chat. VIEW is winding down and does not dispatch.
+
+**Why this program and not VSEAM or CHROME.** The row's finding is
+that a pick-index failure CAUSED by a failed node is the loud banner
+while the node's own Boolean refusal is the quiet line below it — *a
+downstream effect of a failure the user already has in front of them
+should not outrank that failure*. That is a rank defect, and your
+§Charter names `rank-one-discards-the-frames-other-news` as a member
+of exactly this class. Nothing it touches survives the frame.
+
+A second half rides it: the two messages name different nodes (root 11
+versus the node that actually failed, 13), so a reader cannot tell
+they are about one event. The two sites are `viewer`'s `pickindex.rs`
+(the *"could not be tessellated or indexed"* arm) and `editor-core`'s
+`resolve/hit.rs` (*"no name table to invert"*) — the second is EDIT's
+ground and a hand-off rather than a diff from here.
+
+**Live-ground note**: `pickindex.rs` is claimed by VGEOM, VSEAM and
+FIT as well, and VGEOM has a live lane on it (`vgeom/pick-distance`,
+PR #3007's fix pass). Worth a check before dispatching.
+
+Signed (VIEW orchestrator).
+
+## 2026-09-23 — a CHROME lane touched `pane/properties.rs` under #2961
+
+`chrome/properties-messages` (CHROME's P0,
+`messages-in-the-creation-and-properties-panes-still-draw-past-their-row`)
+edits `crates/viewer/src/pane/properties.rs`, which
+`vnews/properties-controls-read-their-refusals` (#2961) edits too.
+Functions touched: `properties_ui`, `feature_rows_ui`, `add_param_ui`
+(its offer line and its already-declared arm, now the free function
+`exists_notice`), `standing_ui`, `entity_standing_ui`, `instance_ui`
+(the `free_move_check` fault line only), `slot_value_ui` (its fault
+line is removed; it is said under the row now), `slot_notes_ui` (now a
+wrapper over the free function `slot_notes`) and `param_bounds_ui`
+(now a wrapper over `bounds_notes`). New at the end of the file: the
+three free functions and a `#[cfg(test)] mod layout_tests`, beside
+#2961's `mod tests`. The diff is per site. Merging it into #2961 is
+mechanical except in one place: #2961's new `ui.weak(fault.to_string())`
+in `instance_ui`, under the disabled hide toggle, is a sentence under
+CHROME's census test and wants `crate::widgets::message_toned(…,
+Tone::Advisory)` like its neighbour.
+
+(CHROME implementer lane, chrome/properties-messages)
+
+**2026-09-24, seam note from CHROME (`chrome/empty-doc-badge`).**
+`crates/viewer/src/session.rs` (`DocSession::land`'s `Err(fault)` arm
+and four doc comments) and `crates/viewer/src/app.rs` (two comments:
+the landing arm's note on the gather verdict, the badge column's
+`product_badge` note) are touched. `git merge-tree` against
+`vnews/app-controls-read-their-refusals` (#2960) reports conflicts in
+`app.rs`, `session.rs`, `tests/creation_ops.rs` and one `work/vnews/`
+row, and the same four files conflict between that branch and `main`
+without this one. None of the conflict hunks is one of this branch's:
+they sit in the `use` blocks and at `app.rs` ~2757.
+
+(CHROME implementer lane, chrome/empty-doc-badge)
+## 2026-09-24 — seam note from CHROME (`chrome/subset-policy`)
+
+That branch adds no textual conflict with #2960 or #2961 beyond the
+ones each already has against main. It does have one semantic seam with
+#2960: `frame::creation_offer` and `frame::retype_draft` now
+read `Refusal::parse_error`, which is exhaustive over `Refusal` and
+names `Refusal::NothingToDo` as a unit pattern. #2960 gives it a
+payload, so whichever lands second writes `Refusal::NothingToDo { .. }`
+at that one line.
+
+(CHROME implementer lane, chrome/subset-policy)
+## CHROME in `pane/create.rs`: #2960's part button moves (2026-09-24)
+
+`chrome/create-messages` (PR 3139) moves `add_part_ui`'s per-entry pick
+button out of the window body into a free function,
+`crate::pane::create`'s `part_entry`, which still spells it
+`ui.add_enabled(…, egui::Button::new(entry.file_name()))` plus
+`on_disabled_hover_text(refusal.to_string())`. PR 2960
+(`vnews/app-controls-read-their-refusals`) replaces exactly those lines
+with `crate::app::refusable_button(ui, entry.file_name(), refusal.as_ref())`.
+The two collide in text, and the collision is **semantic**. Whoever
+lands second must carry `refusable_button` into `part_entry`. Keeping
+`part_entry`'s old spelling loses #2960's change there without any
+compile error.
+
+(CHROME implementer lane, chrome/create-messages)
+
+## 2026-09-24 — a VNEWS lane crosses into `pane/profile.rs` and `pane/headless`
+
+`vnews/gated-controls-say-why-while-disabled` closes
+`clear-picks-hover-text-is-invisible-while-disabled`. **Announced
+crossings:**
+- `pane/profile.rs` is claimed by no program. The four step-row glyph
+  controls now go through a private `step_control`. Revert moves out
+  of `edit_profile_ui` into a free `revert_button`, which the method
+  calls.
+- In `pane/create.rs`, `blend_commit_row`'s Clear picks moves into a
+  free `clear_picks_button`.
+- `crate::pane::headless` gains `painted_while_hovering`, and its
+  `hit` takes an occurrence index. The three drives now share one
+  private `frame`, so the module's *"one drive"* claim is true again.
+  It had not been since `painted_after_clicking` inlined its own copy.
+
+Tier: style review, no correctness arm. The failure mode is a wrong
+or missing tooltip. That is visible, and every disabled sentence is
+asserted by its text.
+
+The fix pass on #3216 (2026-09-25) also crosses into
+`crates/viewer/src/forms.rs`, which belongs to author, chrome, forms and
+vseam. Only doc text changed there: `SHAPE_LOCKED`'s doc and
+`ShapeEdits`'s doc no longer say the notice is drawn "once" above the
+list, because the step controls' disabled hovers now read it too.
+`pane/profile.rs`'s Revert moved into `apply_and_revert`, and Apply
+moved with it.
+
+## 2026-09-25 — the tone unit's two residue rows close; a VNEWS lane crosses into `session/select.rs`
+
+`vnews/salience-read-from-the-value` (#3230) closes
+`a-tree-rows-message-line-picks-its-affordance-by-hand` and
+`resolution-and-standing-pick-their-tone-by-hand`. Each row states its
+decision. **Announced crossings:**
+- `crates/viewer/src/session/select.rs`, which CHROME and VSEAM own:
+  `Standing` gains `tone()`, and the file gains a test module for it.
+- `pane/properties.rs`, shared with AUTHOR, CHROME and VGEOM: every
+  standing verdict is drawn by one free `standing_verdict`;
+  `entity_standing_ui` becomes the header-only `entity_header_ui`; the
+  parameter panel's duplicate `"that parameter is gone"` line is
+  deleted, and a deleted node no longer claims to carry no parameters.
+- `crates/viewer/src/session/refuse.rs`: `FaceFrameFault` gains
+  `tone()`.
+- `crates/viewer/src/parts.rs`: `PartChooser` gains `tone()`.
+- `pane/create.rs`: the part chooser's body becomes the free
+  `part_listing`, reading `PartChooser::tone`, and drops its quiet
+  `"no directory"` header; the face-frame fault reads
+  `FaceFrameFault::tone`; the add-profile form's held reason is a typed
+  `Held`.
+- `app.rs`, which CHROME and VSEAM own: `toned`'s doc only.
+- `crate::pane::headless` gains `Landed::ink`, `Voices`,
+  `landed_voiced` and `find_opening`.
+
+Filed: `a-verdict-drawn-outside-a-tone-has-no-value-to-read`. Moved
+from `work/issues/`: `preview-error-picks-its-tone-by-hand-in-a-comment`,
+because `pane/profile.rs` is VNEWS-claimed today.
+Filed on VDOC: `viewer-readme-counts-one-tone-function-outside-frame`
+(the README is VDOC's carve-out).
+Final pass: `app.rs` gains a test module, `properties_pane_tests`, which
+drives the real app frame headlessly (`ViewerApp::assemble`, eframe's
+`Frame::_new_kittest`). Filed: `add-profile-held-reason-is-overwritten-not-first`,
+`part-census-dir-iff-refusal-is-held-in-prose`.
+
+## 2026-09-25 — P0 `rank-one-discards-the-frames-other-news`: the first dual on this slate (DR-9)
+
+**Tier: dual**, under `memories/orchestration-model.md`'s tiers, which this program adopted at #3261. Reason: the unit puts a classification (`frame::Retold`) on every status-line `Message`, with no default, so every producer in the crate must answer it — a design decision that is broad and hard to reverse. **Chosen after spec, not at it**: the unit was dispatched expecting a single style review, and that review showed its first rule tested the wrong property (whether the *state* comes back, when the question is whether the *news* does). The fix pass then made the rule broad enough to earn a dual. Recorded as such in the row.
+
+The pair (R1 NOT-MERGEABLE-AS-IS, R2 APPROVE-WITH-FIXES) both found, by independent probes, that a `Strand` on a `Declare` carrier is lost beside a refusal. R1 rated it MAJOR and R2 MINOR, so it is bilateral and not a tally candidate. The fix pass answered every strand `Never` under a new stated burden — *a door answers `Again` only when it can show the retelling from what it holds* — because a carrier poisoned upstream defeats a per-carrier answer. Tally unchanged at 0; fair pairs 6.
+
+## 2026-09-28 — batch 1: six units in one PR, to spare CI
+
+Ev, 2026-09-26: *"you can combine unrelated units of yours into a single
+pr in order to reduce the burden on ci"*, after the P0 (#3235) merged
+on its own. From here, lanes push branches without PRs; the
+orchestrator merges each reviewed unit into `vnews/batch-1` and opens
+one PR for the lot. #3281 (the seats cluster) was already open, and it
+closes in favour of the batch.
+
+| unit | tier and reason | review outcome |
+|---|---|---|
+| seats cluster (`one-seat-line`, #3281's branch) | style: a vocabulary fold, readable | mergeable; fix pass on the mate's two nouns (the fix minted "feature 3" in the panel beside "node 3" in the refusal), overclaiming docs and two mutations that survived |
+| the unit picker reads its refusal | full: a new session admission shared with the op, and a vector-partial write | mergeable after fixes: the "nowhere else" overclaim (the op's `GestureInFlight` layer), the live hover's framing, the all-driven row; the vector decision accepted |
+| the chooser says why it is unusable | style: an API reshape over one closed enum | mergeable; fix pass on a doubly-projected Option at the call site and four false doc claims |
+| a ranked verdict is its own type | full: the status line's two doors change type | mergeable, no claim fell; the dispatch premise was wrong (`cursor_status` never had a `Show` arm); `LineVerdict` renamed `RankedVerdict` |
+| the add-profile form's held reason | orchestrator's read: an E-cost fold with its rule in one function | the rule chosen: a refused input outranks a missing one; ties go to form order |
+| the preview error reads its tone | style: a salience move onto the value | mergeable; fix pass put sentence and tone on one partition of the value (`ProfilePreview::hold`) |
+
+The whole-app harness in `app.rs`'s `properties_pane_tests` grew three
+more helpers across these units. On the batch branch they draw through
+one `app_frame`, except the add-profile helper's taller window; the
+race and the copies are one row,
+`the-whole-app-harness-paints-before-the-evaluation-lands` (P2), which
+absorbed a duplicate the ranked-verdict lane filed.
+
+Build slot: several lanes waited hours for the machine-wide slot behind
+other programs' runs, and the express slot cannot finish a cold
+`editor-core` build inside its 590 s. Each unit's local run is its
+lane's; on the batch branch the orchestrator ran clippy after every
+merge and left the tests to CI.
+
+## 2026-09-29 — the seam above, resolved (CHROME, `chrome/subset-policy`)
+
+#2960 landed first. `Refusal::parse_error` now names
+`Refusal::NothingToDo { .. }`, so the seam is closed.
+
+(CHROME implementer lane, chrome/subset-policy)
+
+- 2026-09-30 — Seam note from AUTH-7 (`author/measure-value`, PR 3528). `pane/features.rs`: the feature row's layout (indent, label, instance toggle, badge, lines under) moved out of `ViewerBehavior::feature_row` into the free function `feature_row_ui`, which a headless row drives. It answers `RowClicks` and the method only pushes the ops. A measure row that has a value draws it where a badge goes (`tree::Measured::Value`, spelled by `props::computed_text`). A measure with no value at `f64` draws the kernel's `MeasureUnavailableAt` sentence under the row, advisory. The note line, the failure words and the carried lines now share one `advisory_line`, and the pointer and repair links share one `link_line`. `TreeRow` gains `measured`. (AUTH-7 implementer)
+
+- 2026-09-30 — Seam note from AUTH-8 (`author/assertion-verdict`). `pane/features.rs`: an `Assertion` row draws its verdict where a badge goes (`tree::Measured::Asserted`): the kernel's `AssertionVerdict::label` at `Asserted::tone` (a `Violated` row is `Tone::Actionable`, loud as a `FAILED` badge is; `TreeRow::tone` is now the row's one loudness answer, which the pane reads for badge and verdict alike), then `measured <symbol> bound`, both numbers through `props::computed_text` in the measure's dimension and the relation through `AssertionDir::symbol`. `lines_under` draws an `Indeterminate` or `WindowSuperset` reason in the kernel's `Display`, and for `MeasureUnavailable` a link to the measure's row, which already draws that sentence; the link selects the measure. `tree::repair_wording` is renamed `link_wording`, and every link to a node goes through `link_to(ui, depth, to)`, which draws that wording and answers that target. The measure fixture now holds assertions over its clearance and failed measures, so those two rows are no longer roots; its first distance stays unconsumed and a root. `has_faults` is unchanged: a violated assertion does not stop a document building. (AUTH-8 implementer)
+
+- 2026-09-30 — Seam note from AUTH-9 (`author/declared-union`). A new refusal arm, `Refusal::UndeclaredContact`, ranks 1 and renders `the boolean was not committed: ` followed by the kernel's own `NodeErrorKind` sentence; `Refusal::declare_offer` is its offer, which `app::perform_batch` hands to `drafts.declare_offer`. `tools.rs` changed only in its module doc. (AUTH-9 implementer)
+
+- 2026-09-30 — Seam note from AUTH-9's fix pass (`author/declared-union`, PR #3543). The names in AUTH-9's note above moved at its fix pass (PR #3543): the arm is `Refusal::Contact`, it ranks 1, and it renders the kernel's `NodeErrorKind` sentence whole with no opening of its own. A pair the attempt already declared adds a kernel-defect clause. `frame::declare_offer` sits beside `creation_offer` with an exhaustive `Refusal` match. `tools.rs`'s module doc now holds the one list of multi-edit actions. (AUTH-9 implementer)
+
+- 2026-09-30 — Seam note from AUTH-10 (`author/held-face-mark`, PR 3556). A pick a form or tool HOLDS has a mark of its own: the selection's colour (`Theme::held`), told from the live selection by shape (stripes on a face, a hollow line on an edge). `theme.rs`: `Theme::held()`, the held mark's colour (the selection's own); not a field and not in `Theme::marks`, so no palette and no safety pair moves. `pane/create.rs`: the add-datum gate is `session::face_frame_seat_drawn` over the on-screen index, refusing a held face the picture does not draw (`FaceFrameFault::NotDrawn`); the form's face line reads `held_face`; the add-profile form's withholding reasons are renamed `Withheld` (`withheld_for`, `withheld_line`, `bore_withholds`) so "held" means a held pick. `session/refuse.rs`: `FaceFrameFault::NotDrawn` and `face_frame_seat_drawn` (re-exported from `session.rs`). `pane/profile.rs`: one comment says "withheld". `pane/viewport.rs`: `frame_marks` (in a sealed `composed` module) gathers every holder — `Drafts::held_face`, the mate tool, the blend tool — and is the only door that mints `Composed`; `drawn_index` is `pub(crate)` for the gate. (AUTH-10 implementer)
+
+- 2026-09-30 — Seam note from AUTH-11 (`author/binder-prefix`, PR 3563). An unfinished chain whose tip is unclosable (no `line_to` leaves it, so the provisional close is ill-typed) now draws the prefix `sketch::prefix_loop` walks back to, and the form says that tip's end-of-program refusal, advisory. `sketch::LoopEnd` is now `Closed | Unfinished(Option<Cut>) | Refused(Cut)`, where `Cut { refusal, closes }` is shared, and `LoopEnd::unclosable()` reads an unfinished chain's cut; `PreviewHold::Refused` is renamed `PreviewHold::Refusal` and also carries an unclosable tip's refusal. `pane/profile.rs`: `preview_verdict`'s code is unchanged, but what it says for such a chain moves from the blank preview's `Err` to the drawn preview's `PreviewHold::Refusal`: the same sentence, in the same advisory tone. `tip_state_words` is unchanged. New row: `an_unclosable_tip_draws_its_legs_and_says_its_own_sentence_quietly`. `pane/viewport.rs`: `push_preview`'s tip mark matches `Refused(cut) if cut.closes`, and an unclosable tip keeps its arrowhead (`an_unclosable_tip_is_painted_as_the_legs_before_it_going_on`, `a_prefix_cut_at_an_unclosable_tip_that_lands_on_its_start_is_painted_closed`). (AUTH-11 implementer)
+
+- 2026-09-30 — Seam note from AUTH-12 (`author/tool-census`, PR 3573). The nine tool activation buttons in `pane/create.rs` take their words from `ToolKind::button()` (`tools.rs`: `label()` capitalised, with the ellipsis) instead of literals, and a whole-app row (`app::properties_pane_tests::every_tool_opens_from_its_activation_button`) clicks each kind open by those words. A new tool panel places its kind in that row's section match, and a panel call dropped from `create_ui` or `properties_ui` reddens it. `pane::create::EXTRUDE` and `ADD_PART` are the extrude form's and the part chooser's button words, held by `the_extrude_form_and_the_part_chooser_are_reachable`. Painted text is unchanged.
+
+- 2026-09-30 — Seam note from AUTH-12's fix pass (`author/tool-census`, PR 3573). `ToolKind::label()` (`tools.rs`) now returns the BARE noun ("mate", …, "projection"). `says` adds " tool: ", `button` capitalises and adds " tool…", and the new `ToolKind::commit()` gives "Commit <noun>". A new reader of `label()` gets the noun, not "<noun> tool". `tool_commit_row` lost its `label` parameter and reads `kind.commit()`; the mate and blend commit buttons read `ToolKind::{Mate,Blend}.commit()`. Painted text is unchanged. `pane/create.rs` gains consts for the three section headings (`ADD_FEATURE`, `COMBINE_BODIES`, `BLEND_EDGES`) and the form buttons (`ADD_DATUM`, `ADD_PROFILE`). `pane.rs`'s `headless` doc now sends a row that must drive a pane METHOD to `app::properties_pane_tests`' whole-app harness.
+
+- 2026-09-30 — Seam note from AUTH-13 (`author/geometry-close`, PR 3579). An unfinished chain whose provisional close is refused now draws the legs written: it walks back through the one `sketch::prefix_loop` call the other two arms take and ends `LoopEnd::Unfinished(Some(Cut))`, carrying the close's own refusal (`PreviewError::Geometry`, which now carries a typed `kind: PathErrorKind`), or the end-of-program refusal where the close is ill-typed or the last leg itself closes the loop. `PreviewHold::Unfinished` is the new advisory hold for such a cut, and `LoopEnd::unclosable()` is renamed `LoopEnd::unfinished_refusal()`. The loop's start is read off the entry (`sketch::loop_start`), and the provisional close is `line_to Start`, re-spelled where the lattice refuses it as tangent (`sketch::replay_provisionally_closed`). `pane/profile.rs` and `pane/viewport.rs`: new test rows only; `push_preview`'s tip-mark match is unchanged (an unfinished chain keeps its arrowhead). (AUTH-13 implementer)
+
+- 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`). The index's loud edge-name arms now reach the author. `pickindex.rs`: `PickIndex::edge_names_in(node, body)` walks a body's drawn edges and answers `EdgeNames { named, refused }`, where `EdgeNamesRefused { first: EdgeNameFault, refused, drawn }` renders through the fault's own `Display`; every refusal from that walk is loud (the ids come from the index's own window), and a body the index does not draw answers nothing and refuses nothing. `EdgeNameFault` gains `Eq`. Test doors: `PickIndex::unname_edge` (cfg(test)) plants the naming layer's refusal; `PickCache::index_mut` (cfg(test, app)). `blend.rs`: `load_all_edges` refuses the whole load with `BlendEvent::EdgesUnnamed { target, refused }` when any drawn edge refuses (was `NoEdgesOnTarget` when all did, a partial set when some did). `marks.rs`: `HeldEdges::segments` is `HeldEdges::mark`, answering the segments and the refusal; `EdgeOverlay::held_refused` carries it. `pane/viewport.rs` writes it per frame into `ViewerBehavior::held_edges_refused`; `app.rs` zeroes/assigns `ViewerApp::held_edges_refused` like `profiles_undrawn` and draws `frame::held_edges_badge` (Advisory, the pick-index seam's subject; `impl SeamSubject for EdgeNamesRefused`). `frame.rs`: `tool_notice` answers `EdgesUnnamed` `Retold::Again`. `gpu.rs`: one test literal gains the field. `test_support.rs`: `plate_indexed(tol)` (the fixture `marks.rs`'s tests held privately). README: the badge population is eleven. Tests: `frame_policy.rs` (badge count 11, the new retold row), `error_display.rs` (`edge_names_refused_forwards_its_first_refusal`), `blend_authoring.rs` (the held-set row reads `mark`). (AUTH-14 implementer)
+
+- 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), review fixes; supersedes the shapes in the note above. `pickindex.rs`: `EdgeNamesRefused` is `{ node, body, first: UnnamedEntity, named, refused }`, rendered as "the index names N of the M edges it draws on body B of node K; the first it cannot: <EdgeNameFault::Unnamed>"; `edge_names_in` reads the window through `PartWindows::named_in`, so only the unnamed arm can refuse; `EdgeNameFault` does not gain `Eq` after all. `blend.rs`: `BlendEvent::EdgesUnnamed { refused }` (no separate `target`). `frame.rs`: `SeamSubject for EdgeNamesRefused` is `Subject::Document` (the line's `tool_notice` subject too), not the pick-index seam. `test_support.rs`: `unnamed_edge(node, body)`. Filed `work/chrome/the-per-frame-badge-reads-are-three-hand-copied-fields`. (AUTH-14 implementer)
+
+- 2026-09-30 — Seam note from AUTH-15 (`author/accept-part-version`, PR #3591). A new `SessionOp::AcceptPartVersion { id }` commits `pncad::workspace::update_to_store`'s edits (one `DocEdit::UpdateReference` per site whose pin moves) as one action. The store is read through a new `DocSession::read_store`, which `add_instance` and `part_catalogue` now share; `parts::catalogue` takes the scanned `&Workspace` and is infallible. `frame::version_offer(kind, files)` sits beside `declare_offer` and reads a `session::VersionOffer` off an instance's own `PartFault::Unresolved { fault: PinMismatch }`. `tree::TreeRow` gains `version_offer: Option<VersionOffer>` (every `TreeRow` literal needs the field). `DocSession::tree_rows` withholds every offer while `busy()`. `pane::features::feature_row_ui` draws `Refusal::version_question` and a `VersionOffer::LABEL` button under the row (`RowClicks::accept`). `DeclareOffer::ACCEPT_LABEL` and `DECLINE_LABEL` replace `pane::create`'s "Declare"/"Decline" literals. Every exhaustive `SessionOp` table gains the arm (`tools.rs`, `frame::acts`, the three in `session/op.rs`, and `tests/gesture_table.rs`, whose `OP_COUNT` is 47). `test_support::{PART_FILE, part_refused}` are new fixtures. Rows: `tests/instance_authoring.rs` (accept, one undo, the store's refusals, the committed-document read), `frame`'s `PartFault` census, the label-versus-recourse row in `session::refuse`, and a `pane::features` unit test.

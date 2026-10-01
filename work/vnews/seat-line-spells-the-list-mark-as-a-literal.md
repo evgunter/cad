@@ -5,7 +5,6 @@ title: seat_line joins its items with a bare "; " rather than frame::LIST_SEPARA
 status: closed
 opened: 2026-09-15
 closed: 2026-09-20
-refs: [withdrawal-causes-join-on-a-mark-a-fault-may-contain]
 branch: vnews/seat-line-list-separator
 pr: 2917
 ---

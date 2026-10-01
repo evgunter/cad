@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does NOT keep is a `mod <helper>;` line of its
 //! own: the shared helper trees are declared once, below, as modules of
 //! THIS root, and a suite that wants one says `use crate::<helper>;`.
@@ -51,6 +51,7 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
+mod refusal;
 mod span_fixtures;
 
 #[path = "ambiguity_k_env.rs"]
@@ -63,8 +64,12 @@ mod bounds_census;
 mod cert3r1_poison_detail;
 #[path = "cert3r1_probes.rs"]
 mod cert3r1_probes;
+#[path = "certification_door_differential.rs"]
+mod certification_door_differential;
 #[path = "certified_door.rs"]
 mod certified_door;
+#[path = "certified_endpoint_census.rs"]
+mod certified_endpoint_census;
 #[path = "coeffs_bit_identity.rs"]
 mod coeffs_bit_identity;
 #[path = "coeffs_bit_identity_ext.rs"]
@@ -85,8 +90,12 @@ mod decoration_seam;
 mod eps_provenance;
 #[path = "flagged_census.rs"]
 mod flagged_census;
+#[path = "interval_backend_differential.rs"]
+mod interval_backend_differential;
 #[path = "interval_band.rs"]
 mod interval_band;
+#[path = "interval_exact_fuzz.rs"]
+mod interval_exact_fuzz;
 #[path = "interval_type_default_build.rs"]
 mod interval_type_default_build;
 #[path = "k_stats_doors.rs"]
@@ -97,8 +106,8 @@ mod knot_queries_differential;
 mod m10_7_r1_retag_probe;
 #[path = "m10_7_r1_sym_probes.rs"]
 mod m10_7_r1_sym_probes;
-#[path = "m5_pr1_poison_conservation.rs"]
-mod m5_pr1_poison_conservation;
+#[path = "m5_pr1_refusal_conservation.rs"]
+mod m5_pr1_refusal_conservation;
 #[path = "m5_pr7b_tensor_compose.rs"]
 mod m5_pr7b_tensor_compose;
 #[path = "review_m0_pr2.rs"]
@@ -127,10 +136,8 @@ mod review_m5_pr7b_tensor;
 mod review_margin_probe;
 #[path = "ring0_review_probes.rs"]
 mod ring0_review_probes;
-#[path = "ring_interval_differential.rs"]
-mod ring_interval_differential;
-#[path = "ring_interval_fuzz.rs"]
-mod ring_interval_fuzz;
+#[path = "ring2_r2_probes.rs"]
+mod ring2_r2_probes;
 #[path = "span_basis_identity.rs"]
 mod span_basis_identity;
 #[path = "span_hull_window.rs"]
@@ -139,6 +146,10 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "sym11_witness_kind_interval_rows.rs"]
+mod sym11_witness_kind_interval_rows;
+#[path = "sym11_witness_kind_rows.rs"]
+mod sym11_witness_kind_rows;
 #[path = "sym_9_retry_rows.rs"]
 mod sym_9_retry_rows;
 #[path = "sym_drive_memo.rs"]

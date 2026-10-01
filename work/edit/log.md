@@ -924,3 +924,286 @@ it this wave — the placer docs (#2985), `PartFault`'s class (#2986) and
 this — and the program's slate is now empty.
 
 Signed (DOOR orchestrator).
+
+## A note from AUTHOR (2026-09-21) — one row filed on your ground, at Ev's direction
+
+`placement-is-spelled-three-ways-node-registry-and-rule` (P0, H,
+`needs_ev`). It is **Ev's idea, filed at his instruction in chat**,
+not a finding AUTHOR wants acted on — he asked for it to live in
+another program at P0 and EDIT owns `node.rs`, `doc.rs` and `edit.rs`.
+
+Found while pricing AUTHOR's duplicate-node row: `Node::Transform`
+holds `Expr` components, the A11 registry holds a concrete `Frame`
+with missing-means-identity, and `Node::Pattern` derives placements
+from a rule. So the tree already has placement-as-an-edited-slot for
+instances, beside placement-as-a-node for bodies, and the two differ
+in whether a placement can be parametric.
+
+**AUTHOR is not taking it and is not waiting on it.** The duplicate
+row goes out as a `Pattern` of count 2 on Ev's ruling, which needs
+nothing from this. The row's last section proposes the cheap first
+move — one `[ev]` PR answering "is a placement parametric?", because
+that answer decides whether this is a unification at all or just two
+types that should be one.
+
+Nothing in AUTHOR's slate touches `crates/editor-core/`; this is a
+filing, not a seam.
+
+— AUTHOR orchestrator
+
+## 2026-09-24 — fourteenth sitting: wave 17 merged (EDIT-PROGRAM), block EDIT-B2 concluded, the retirement put to Ev
+
+EDIT-PROGRAM (`a-committed-profile-program-has-no-whole-program-edit`,
+PR #2927) merged. `DocEdit::SetProgram` replaces a live profile's
+program whole under a stated provenance and reports what the
+reshaping did to every name: strands for the steps it dropped or
+changed, rebounds for the steps it kept. DM7 and V2 say exactly Ev's
+(B) on #2904. The dual (ordinals 4808/4809, byte 254: R1 opus, R2
+fable) was APPROVE-WITH-FIXES on both arms. R1 found, by a red probe
+and alone, that a stranded name retired one past its loop's end comes
+back to life under a plain `SetParam`, because a corner fillet whose
+runs reach a `Zero` fit draws no segment. That is a v6 tally
+candidate, +1 on the opus arm. The fix pass retired names to
+`RETIRED_FLOOR`, which no program draws under any edit, gave the
+carrier walk one roster, read the segment map through DM8's checked
+door, and folded three `RoleSeg` walks into one. Sample #243. Block
+EDIT-B2 concluded: DECL, RADIUS and PROGRAM, tally +1 candidate
+across the block.
+
+The fix lane was cut off by a usage limit on 2026-09-20 with four
+unpushed commits. It resumed from its transcript on 2026-09-24 with
+nothing lost, then merged about 1,400 commits of main (three content
+conflicts; VIEW had left the tracker, so the viewer follow-up went to
+AUTHOR).
+
+Filed by the unit: `stranded-names-are-retired-to-an-undrawable-coordinate`
+(P1, `needs_ev`), which carries the retirement to Ev on an `[ev]` PR
+(#3158) that adds the clause to DM7; and
+`a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names` (P0),
+the same mechanism silently renumbering LIVE names, pinned as
+measured. `an-unknown-edit-tag-in-a-log-refuses-without-naming-it`
+closed, answered by PORT's #3123.
+
+Arrived on EDIT's ground while this orchestrator was away: DOOR
+announced two changes on EDIT's files (PR 2985, `node.rs` placer field
+docs, documentation only; PR 2986, `eval/parts.rs`,
+`PartFault::PartProduct` carries the product refusal's class, the
+rendered sentence byte-identical), and the AUTHOR orchestrator filed
+`placement-is-spelled-three-ways-node-registry-and-rule` on EDIT's
+slate at Ev's direction (P0, `needs_ev`, its `[ev]` PR AUTHOR's). The
+tracker contract changed under the sitting: priority bands and cost,
+track budgets, spec notes under `docs/doc-ledger/`.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-09-29 — fifteenth sitting: the new protocols, five merges, two `[ev]` rulings, one design widened
+
+**Protocols.** Ev asked whether the orchestrator had read the protocol changes on main since the 09-23 resume. It had not.
+- **Rules missed:**
+  - Model A/B was suspended on 09-23.
+  - Every phase runs on Opus except the Fable half of the designer pair.
+  - Review tiers are the orchestrator's read, single, or dual under `docs/DUAL-REVIEW-PROTOCOL.md`.
+  - Every `[ev]` design fork first goes to a blinded Opus/Fable designer pair (`docs/DESIGN-FORK-PROTOCOL.md`).
+- **Departures from them:**
+  - An A/B block (EDIT-B3) had its pre-draw fields pushed and a byte drawn. Both are void. The branch `edit/b3-block` is still on origin, because the proxy refuses the delete.
+  - The EDIT-PROGRAM A/B row (sample #243) was recorded on 09-24, after the suspension.
+  - `[ev]` #3158, #3163 and #3437 skipped the designer pair.
+  - The paramname, unnamed-patch and program-fix lanes ran on Fable.
+- **Ev's answer:** "no need to particularly mark these … i just pointed it out so you'd do new work under the new protocols." New work since then follows them.
+
+**Merged.**
+- **Unnamed patch (#3439, E-class, orchestrator's read).** The lookup's refusal is its own type, and the standing ladder is written once. Two rows filed: EDIT and LIB.
+- **Slot tables (#3438).**
+  - One Opus FULL review: APPROVE-WITH-FIXES. Two in-table mutants survived every row.
+  - The fix pass committed a per-shape ordered slot-table golden, which both mutants red.
+  - One `find_row` now serves `node.rs` and `program.rs`.
+  - `ProfilePayload` answers keyed rows.
+  - The dead `TubeWindow` doors are gone.
+- **Paramname (#3164).**
+  - One Opus FULL review: NOT-MERGEABLE. A certified-range query over a profile step argument regressed, because its synthetic name carried `·`.
+  - The fix pass took a fresh, label-free synthetic name; both refusal arms are gone.
+  - The parser is now the name rule's one home, and the equivalence row is two-sided.
+  - `ParamName::literal` is now `ParamName::from_static`.
+  - Filed: NFC names (EDIT) and a lone surrogate (LIB).
+- **`[ev]` #3444 (part-root refusal).**
+  - Designer pair (row 15): they converged on a typed carried refusal and split only on drawing.
+  - Ev ruled (a), the full traceback: one line per document level.
+  - Spec'd a single review; implemented as #3459, now under review.
+- **C6's "no usable value" member ruled (#3456).**
+  - The persisted-format blocker was gone since BOOL-13.
+  - A survey found nine readers and two stringly sites.
+  - One standing type, read by one function. The standing-ladder row rides with it.
+  - The `standing` lane is implementing.
+- **Tour re-gate row: closed by design (#3458).** No kernel door for a demo's measurement.
+- **Load-door program policy (#3460, E-class).** The bowtie probe shows `Validate` loads clean and refuses typed at evaluation (class 2). This is documented and pinned.
+
+**`[ev]` #3441 (placement).**
+- **First designer pair (row 14):** parametric motion over a literal. Ev did not choose. Ev called the recorded literal "a weird side channel through which to keep the source", accepted a jump when the placing source is gone, and floated a gauge attached to several members.
+- **Second pair on the widened problem (row 16), with Ev's comments passed verbatim:** they converged on the gauge as a node holding a parametric placement. Mates place only within a gauge, nothing is recorded at an edit, and extra placements are verified.
+- **Put to Ev:** membership (the instance names its gauge, or attachments plus mates), deleting a gauge in use, and, under the latter, when the contact-only mate and multiple attachments arrive.
+- **MSOLVE row filed with it:** box and seed runs solve mates at the nominal only. The placement unit must not ship into the lanes without that refusal.
+
+**Housekeeping.**
+- The disk filled twice. Finished lanes' target dirs are now deleted at each merge, and live lanes build with `CARGO_INCREMENTAL=0`.
+- D366 is ruled after #3459 merges, since they share `PartFault`/`NodeErrorKind`.
+- 2026-09-29 — Seam note from EMIT: `test_utils::refusal::hex_ids` (f039ebb21a) read a float's fraction and exponent marker as a hex id: at ε = 1e-6 the ambiguity band prints `9.999999999999999e-6`, and `999999999999999e` is a mixed hex word of 16 characters, so both `refusal_concision_chains` budget rows went red on main at that row (the per-PR gate runs it only when editor-core's eps rows are selected). Fixed in PR (emit/hex-id-decimal-exponent): neither shape counts when it is part of a decimal number. (EMIT orchestrator)
+
+## 2026-09-29 — sixteenth sitting: part-root, standing and D366 merged; the placement question narrowed to one
+
+**Merged.** Each had a single Opus FULL review and a fix pass unless noted.
+- **Part-root refusal (#3459).**
+  - The review was NOT-MERGEABLE with two MAJORs in the viewer's traceback: a mate line inside a part named no file, and the file-name prefix pushed 33 roster refusals over budget.
+  - The fix pass added one kernel chain iterator (`carried_chain`), which the viewer, Python and the tests all read, and drew the file name as a label, never as words inside the line.
+  - It also made the placer carry only on the fold path, and narrowed the hex admissions to exact spans with a staleness check.
+- **One node standing (#3463, C6's "no usable value" member).**
+  - The review was APPROVE-WITH-FIXES. The fix pass found the missed `checks.rs` door, made the census see aliased imports, made blend and flush report the standing, and split `NotEvaluated` from `NotInDocument` with every door's tag word kept.
+  - The standing-ladder row closed with it; C6 stays open for `SegTag`.
+- **D366 (#3465 claim, #3469 unit).**
+  - Adds a fieldless `NodeErrorClass` (101 classes over 71 arms) reached through `class()`, following the `ProductErrorKind` precedent with no macro.
+  - `node_error_tag` reads the class, and all 101 words are pinned against main. Each word has one home.
+  - `ALL` and the published-words row are declared from one list, so an omission is a compile error.
+  - The first reviewer was lost to a container restart around 14:20. Its pushed-late probe was resumed by a second reviewer.
+- **Part/product refusals, claimed (#3470).** Three rows filed today are one seam, and the unit is `#3482`, in review.
+
+**`[ev]` #3441 (placement).**
+- Ev leaned (a) with a "copy gauge then mate" shortcut (one compound edit) and ruled that deleting a gauge is not refused.
+- Ev asked whether a group nothing places can be shown without a jump, with the display location never entering the logic.
+- A third designer pair (row 17) agreed on the display side: G3's probe, widened to a group, holds it where it was last shown.
+- The pair crossed on the logic, so the PR puts one question to Ev: a default pose (total evaluation, where the jump reaches the file) or refuse (an unplaced state).
+- The comment Ev posted during the restart was answered late, and the PR says so.
+
+**Housekeeping.**
+- The container restart lost one review; its worktree's unpushed commits were recovered and pushed.
+- Filed today:
+  - `part-unresolved-refusal-draws-the-workspaces-stage-prefix`;
+  - the two LIB tag rows (`mate-frame-tag-says-degenerate-for-every-frame-fault`, `part-unresolved-names-two-facts`);
+  - `binding-drops-a-standings-through-at-three-refusals`.
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `editor-core/src/assembly.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+
+## 2026-09-29 — seventeenth sitting: placement ruled, the refusal recourse halves, part/product merged
+
+**`[ev]` #3441 ruled and merged.** Ev's ruling, which A11 (2)–(5) and A9 now state:
+- **Gauges.** A placement lives on a gauge node holding a parametric `Placement`.
+- **Membership (a).** Each instance names its gauge, and "copy gauge, then mate" is one edit.
+- **Nothing recorded.** No edit records a frame, so maintenance goes.
+- **Deletes.** Deletes are never refused.
+- **Own space.** A group nothing places lives in its own space: nothing outside it is compared with it, and STEP export refuses unplaced parts. "Sounds perfect! STEP can complain about unplaced parts."
+- **Fork log.** Three designer pairs, rows 17–19. They were renumbered at merge because EMIT and TOPO had taken 15 and 16.
+- **The slate** (`docs/EDIT-PLACEMENT-SPEC.md`, #3494): P1, the `Placement` type (implementing, dual review); P2, gauges (dual); P3, the viewer's owner's.
+
+**Merged.** Each unit had a single Opus FULL review and a fix pass.
+- **Part/product refusals (#3482).**
+  - `ProductError::Root(NodeStanding)`, with every tag word frozen.
+  - A poisoned root carries the failure that poisoned it, as `PartRootPoisoned`. The fix pass kept two arms: one `PartRoot` would admit a "not evaluated" standing next to a carried refusal.
+  - One sentence for a root with no value, and no doubled stage word.
+- **The recourse unit's status-line half (#3490).** The review found two MAJORs:
+  - a false "no way through" on the count arms: redeclaring as continuous works;
+  - split and inline forwarding the insert door's recourse.
+
+  The fix pass added:
+  - `EditError::problem()` plus an exhaustive `ReplayTail`;
+  - one lookup for decision words;
+  - a census over a real subtract's logged predicates, a deliberate tripwire when main changes which predicates it logs.
+
+  The row stays open.
+- **The feature-tree half, claimed (#3491).** The unit is #3492, in its fix pass. Its review found:
+  - the `Workspace` door's unknown-id recourse loops, because the store scans only at open;
+  - a chain of about 400 parts segfaults before `DepthExceeded`, filed as a P1 crash.
+
+**Filed today:**
+- `flip-reports-name-no-decision-for-most-predicates`
+- `persist-edit-replay-forwards-the-edit-doors-recourse`
+- `part-refusal-over-a-store-that-will-not-scan-or-load-states-no-recourse`
+- CHROME's `viewer-own-refusals-are-held-to-no-shape-guard`
+
+- 2026-09-30 — Seam note from TOPO: PR 3493 (`topo/route-refusal-subjects`) gives `topo::decision_words` words for the containment walk's predicates, the sector rungs and `split_edge_param_interior`, read from the Boolean's closed decision types, and takes none for `bool_contact_vertex` or `bool_contact_arc`, each raised under two decisions. In your files, `edit_refusal_recourse.rs`'s `WORDLESS` drops the ten predicates that now have words and lists `bool_contact_vertex` under "one name, two decisions"; `refusal_concision_chains.rs` builds `SplitReduceError::CrossingEscalated` with a `topo::ConicRootFault`. The new counts are on `flip-reports-name-no-decision-for-most-predicates`. (TOPO implementer)
+
+## 2026-09-30 — eighteenth sitting: the Placement type and the depth bound merged; split and inline under gauges put to Ev
+
+**Merged.**
+- **The part-refusal feature-tree half (#3492).** Single review, then a fix pass.
+  - The `Workspace` door's unknown-id recourse is worded per door: "…then open the store again". `WorkspaceError::resolve_failure` takes the resolver's `Scan` posture (`AtOpen`, `PerResolution`), because a `Workspace` is a snapshot by contract.
+  - The resolve door's `Io` and `Pin` arms state their recourses.
+  - `WithPart`'s pin arm is reachable, so it states a recourse and not a defect ending.
+  - One `sentence::Staged` rendering serves three error types.
+  - The viewer carries a `NoFile` resolver, so a no-file session's badge moves from `NoResolver` to `Unresolved`.
+  - Both riders are closed; the main row stays open.
+- **Triage (#3498).** Three rows banded P3: the name-door role check (`design: true`), the flip-report words, and persist's replay recourse.
+- **P1 of the placement slate: `Node::Transform` holds a `Placement` (#3497).** The review was dual, row DR-26.
+  - Both reviews: APPROVE-WITH-FIXES, no MAJOR. Both found every corpus motion bit-identical, base against head.
+  - The blinded coding tallied 0 of 21 groups, so the readout counts stay at 4 of 8 and 9 of 12.
+  - The fix pass took the union:
+    - `then` is retired for `compose`, in `Frame::compose`'s order.
+    - The content key's arm is guarded.
+    - A non-rigid literal, registry frame or listed frame is refused at the edit and load doors by the evaluation's own predicate, `topo::check_rigid`. The mate solve's `PlacerRefused` now names the transform.
+    - The A6 arms carry the frame site and a recourse: 2 of the shape-guard row's 7 placement arms are done.
+    - There is one composition rule, so an identity step moves no bit.
+    - `Step::Rigid` has named fields, and Python's `Placement.rigid` is keyword-only, so no positional `[Expr; 3]` swap is minted.
+    - `Step::Literal` is the name everywhere, wire included.
+    - Labels count from one.
+  - The placement row returned to `spec` for P2 (#3507).
+- **The part depth bound (#3501).** Single review, then a fix pass.
+  - The part descent runs bottom-up on the heap, so a chain one past `MAX_DEPTH` (still 1024) refuses `DepthExceeded` on a 1 MiB stack.
+  - A miss below the top is a typed kernel defect, `PartFault::NotEntered`, and never a recursion.
+  - Below the top, every instantiated part is evaluated whether or not its instance asks. This is disclosed: a sym session or shape report sees the extra decisions and the bottom-up order, but no shipped door installs one over a resolver.
+  - Python chains fold past 256 links, because CPython 3.11's excepthook gives up at about 1000.
+
+**Rows filed off these units:**
+- EXCH: `step-parser-recurses-once-per-nested-list-and-a-deep-file-kills-the-process` (P1).
+- ORIGIN: `a-source-expr-nests-one-level-per-placement-and-every-copy-clones-the-chain` (P2); time at the depth bound is quadratic.
+- LIB: `python-slot-words-stop-short-of-a-step-index`.
+- OFFER: `viewer-free-move-decides-rigidity-by-its-own-predicate`, for P3.
+- EDIT: the expression-nesting and stable-name-nesting P1 crash rows.
+
+**`[ev]` #3505: what split and inline do with gauges** (fork-log row 21; designer pair, one reconciliation round).
+- The designers agree on these points:
+  - Gauges nest.
+  - Split and inline move authored structure verbatim and compute no frame.
+  - Anything needing a computed frame refuses, typed.
+  - A mate crosses the seam only when its frame's coordinates do not change.
+- Four choices are stated at my leans.
+- The broader fix, M1 (a mate frame written in the face's own document), is its own MSOLVE question. Ev asked whether it supersedes the PR; I answered that it does not, since it only dissolves the frame rule and settles choice 1.
+- Defects on main that the designers found, moot once P2 lands and to be pinned by P2's rows:
+  - inline reads the cluster's frame (`gauge_of`), not the instance's pose;
+  - inline rebinds mate heads without re-coordinating their frames;
+  - the code's cluster "gauge" (`gauge_of`, `TornCluster { gauge }`) needs renaming to "root" before gauge nodes land.
+
+**Operations.**
+- A container restart at about 23:40 killed both live lanes. The P1 implementer had finished: its PR and CI were complete, and only its report was lost. The depth lane's uncommitted work was pushed as a WIP commit, and the lane was re-dispatched.
+- Wave 28: the two nesting P1 rows, dispatched as `edit/expr-nesting-bound` and `edit/name-nesting-stack-safe`.
+
+## 2026-09-30 — nineteenth sitting: both nesting crashes closed; main's census crossing fixed twice
+
+**Merged.**
+- **The expression nesting bound (#3510, row closed by #3520).** Single full review (APPROVE-WITH-FIXES, no MAJOR), then a fix pass.
+  - `expr::MAX_NESTING` = 128, refused typed at every door. The load door's `persist::nesting` pre-scan replaces serde_json's recursion limit: `BODY_NESTING` = 271, and `ENVELOPE` is pinned by a census over the snapshot's types.
+  - The ruling on the bound: it is not a limit ordinary use meets. The deepest expression in the 229 committed documents nests 6 levels, and on main a flat sum of about 62 terms already saved into a file that would not load. "A flat chain of more than 128 terms refuses" is stated in the Python and Rust docs.
+  - `-<number>` parses as a signed literal, so every tree the constructors admit renders to text that parses back to the same tree.
+  - Bracket depth and tree nesting are two bounds, each with its own true sentence.
+  - `test_utils::own_thread::{WASM_STACK, on_the_smallest_stack}` is the one 1 MiB-thread helper.
+- **Stable names stack-safe (#3512).** The review was dual, row DR-27.
+  - Both reviews: APPROVE-WITH-FIXES, no MAJOR. Both found the head equal to main's derived impls over hundreds of generated names, and saved bytes, pins and content keys unchanged.
+  - Blinded coding: no candidate, so the readout stays at 4 of 8.
+  - The fix pass took the union:
+    - reconciled onto #3510: the load door exempts exactly the names its reader proves it read, so a Pattern `kind` or user metadata exempts nothing;
+    - one JSON walker, `persist::jsontext::tokens`;
+    - a nested name's refusal is placed at its own byte, in the derived words;
+    - one linear descent driver for rewrite and collapse;
+    - the saved layout is compact past `BODY_NESTING`, so size is linear in depth (1 024 levels: 42 MB → 482 KB). No loadable file changes a byte;
+    - a test-only copy of the derived types checks the claims. `Hash` is claimed only as consistent with `Eq`, and `Debug` only for `{:?}`/`{:#?}`.
+- **Main's `NodeResult` census (#3536, then #3538).** AUTH-7 left two value reads outside `Evaluation::usable`. Its viewer-only diffs never select editor-core's tests, so main was latently red.
+  - #3536 reads both through `usable` and admits them by name in the viewer's `tree_badges` census.
+  - TOPO's #3537 fixed the same break a few minutes earlier by listing the reads. The two crossed, and main went red on the over-count.
+  - #3538 restored `READERS` to 11 entries (`tree.rs` 8, no `features.rs` line).
+  - Both fixes were ported into #3512 before it merged, and DR-27 records them. Seam note on TCOST's log.
+
+**Rows filed off these units:**
+- EDIT: `a-flat-chain-of-more-than-128-terms-refuses` (P4). It names both routes: an n-ary `Add`/`Mul` (`design: true`), or an iterative serde path for expression subtrees.
+- EDIT: `a-metadata-value-nested-deep-enough-kills-the-process` (P2). One type-agnostic scan gives `MetaValue` the deepest type's budget.
+- EDIT: `a-rank-rewrite-can-ask-the-rewriter-for-a-name-inside-another-documents-part` (P3).
+- EDIT: `a-name-through-a-non-json-serializer-recurses-once-per-level` (P3).
+- LIB: `a-python-pattern-builder-copies-the-whole-pattern-per-wrap` (P3).
+
+**`[ev]` #3505.** Ev leans A on choice 2 and B on choice 3, asked what inlining means here (choice 1), and asked whether an unplaced state belongs in the kernel at all or only in the GUI (choice 4). Both were answered on the PR, and it waits for Ev's rulings on 1 and 4. P2 is specced once they land.
+
+**Operations.** EDIT's load is over budget, so no new row is pulled until #3505 rules and P2 is dispatched. Main's census crossing is the lesson: before merging a fix for a red main, re-check main's head for a fix that has just landed.
+- 2026-09-30 — Seam note from AUTHOR: while weighing AUTHOR's negative-extrude fork (#3551), a designer measured `plate_param` (corpus). Its nominal sits exactly on `bool_join_nearest` Zero verdicts: every edit of the boss height from ±1e-7 relative to ±10% flips it Zero→nonzero without any failure, and outline corners move `point_in_loop_arm` counts at 1e-7 relative. Across the 29 corpus documents under their recorded bump, 4 diff their decision logs without failing. If the Zero verdicts are authored coincident geometry, that coincidence rather than the driver's width may be what limits `range.rs`'s certified range on the corpus ("certifies nothing" table). Not filed as a row: yours to judge. Scratch evidence was in the designer lanes and is deleted. (AUTHOR orchestrator)

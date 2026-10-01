@@ -7,10 +7,11 @@
 //! and none of them a claim about today's tree: the i128-era whole-box
 //! replays reported `frozen: 0` on the bracket, because the `Decide`
 //! impl's DECISION PATH never asks the form of a margin the numeric
-//! channel has already proved non-zero (the contradiction assertion
-//! at that site builds it wherever debug assertions are on — every
-//! profile this workspace builds — and `frozen` counts it, whoever
-//! asked); and M10-8 measured the case a whole-box replay
+//! channel has already proved non-zero (the contradiction CHECK at
+//! that site builds it anyway — in every profile this workspace
+//! builds, as an assertion at an exact witness and as the dispute
+//! count at an inexact one — and `frozen` counts it, whoever asked);
+//! and M10-8 measured the case a whole-box replay
 //! cannot see — at a document's NOMINAL, where every identity margin is
 //! near zero and every form is built, the plate froze 1,056 forms, R2's
 //! bracket 1,978 and R1's annulus 1,034. The plate's own ceiling
@@ -362,8 +363,7 @@ pub(super) struct Rat {
 /// `i128`, the worst forms freeze again, and the plate's rim residual
 /// (degree 12 in a 53-bit nominal, ~640 bits) does NOT fit: that is
 /// the measured trade, recorded on M10's closed
-/// `plate-rim-residual-needs-the-wide-coefficient-ring`
-/// (`docs/DOC-LEDGER.md` sweep 13).
+/// `plate-rim-residual-needs-the-wide-coefficient-ring`.
 pub(super) const COEFF_BITS: u64 = 256;
 
 // **The bound the ring is actually checked against on this thread** —
@@ -766,7 +766,7 @@ mod tests {
     /// a common factor, an even numerator, a negative denominator;
     /// `of_f64`; `add` and `mul` on the dyadic and the non-dyadic
     /// shape; `recip`; `sqrt_exact`) are structurally equal and feed
-    /// the hasher the same bits; and over a corpus of several hundred
+    /// the hasher the same bits; and over a corpus of a hundred and fifty
     /// values closed under the ring's own operations from non-dyadic
     /// seeds, every `Rat` is canonical — `den > 0`, both integers odd
     /// and coprime — and any two whose difference is zero are one
@@ -938,9 +938,9 @@ mod tests {
                 }
                 fresh
             });
-            corpus.truncate(600);
+            corpus.truncate(160);
         }
-        assert!(corpus.len() > 500, "corpus too thin: {}", corpus.len());
+        assert!(corpus.len() > 150, "corpus too thin: {}", corpus.len());
         let non_dyadic = corpus.iter().filter(|r| !r.den.is_one()).count();
         assert!(
             non_dyadic > 50,

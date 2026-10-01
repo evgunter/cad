@@ -183,7 +183,7 @@ moment.
 ### Announced, not edited
 
 Other programs' (`docs/prompts/implementer-discipline.md` §6):
-`work/chrome/mispaired-ids-exempts-the-empty-window.md:32` (the unit
+`work/fit/mispaired-ids-exempts-the-empty-window.md:32` (the unit
 tests it names moved with the structure, into `pickindex.rs`),
 `work/chrome/pickindex-per-part-window-twins.md:18,40` (`pick.rs` named
 twice as the file the seven twins live in — they are `pickindex.rs`'s

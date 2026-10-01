@@ -20,22 +20,18 @@
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPlane, SplitReduceError, split};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 /// The PR 5 disc: two half-circle arcs (bulge 1), radius 0.5 —
 /// extrudes to a cylinder whose two wall faces share ONE cylinder
 /// surface, with meridian ruling edges at (±0.5, 0).
 fn cylinder_body() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
-        ProfileVertex::new(p2(0.5, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 1.0),
+        (Point2::new(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -89,7 +85,14 @@ fn the_tangent_graze_resolves_past_first_order() {
         msg.contains("zero area") && msg.contains("one-sided tangency"),
         "the graze must reach the degenerate-section net: {msg}"
     );
-    assert!(msg.contains("declare the coincidence"), "{msg}");
+    // The join runs under a split here, which takes no declaration, so
+    // its recourse names the two levers the reader has, and not
+    // "declare".
+    assert!(
+        msg.contains(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+        "{msg}"
+    );
+    assert!(!msg.contains("declare"), "{msg}");
 }
 
 #[test]
@@ -119,12 +122,12 @@ fn filleted_block() -> Body<f64> {
     // Corner at (1, 1) filleted with radius 0.25: the arc runs from
     // (1, 0.75) to (0.75, 1), bulge tan(π/8) (a CCW quarter arc).
     let b = (std::f64::consts::PI / 8.0).tan();
-    let mut lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.75), b),
-        ProfileVertex::new(p2(0.75, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let mut lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.75), b),
+        (Point2::new(0.75, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     // The tangency is authored, so it is DECLARED (the #101
     // discipline): joints 3 (arc→line) and 2 (line→arc).
@@ -195,7 +198,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Scaffold(
             geom_brep::MappedCurve::ExtrudedPoint {
-                point: p2(origin.x, origin.y),
+                point: Point2::new(origin.x, origin.y),
                 place: geom_core::Affine3::identity(),
                 vec: dir * (t1 - t0),
             },
@@ -219,8 +222,19 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         .find(|e| matches!(e, topo::ValidationError::TangentNotIntrinsic { .. }))
         .map(|e| format!("{e}"))
         .unwrap();
-    assert!(msg.contains("jet-determinate"), "{msg}");
-    assert!(msg.contains("G2"), "{msg}");
+    assert!(
+        msg.starts_with(
+            "an edge where two faces meet tangentially is stored as a sketch curve, though \
+             their surfaces determine it."
+        ),
+        "{msg}"
+    );
+    assert!(
+        msg.ends_with(
+            "There is no way through: this is a kernel defect or a damaged file; report it"
+        ),
+        "{msg}"
+    );
 }
 
 #[test]

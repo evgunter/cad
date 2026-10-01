@@ -27,7 +27,6 @@
 //!   clearance engine's `refines` door: `clearance` certifies on the
 //!   stored charts, with no re-chart anywhere.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -62,7 +61,7 @@ fn half() -> f64 {
 fn box_of(axis: &str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        ParamName::new(axis),
+        ParamName::new(axis).expect("a valid parameter name"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -73,7 +72,7 @@ fn box_of(axis: &str) -> ParamBox {
 
 fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new(axis),
+        name: ParamName::new(axis).expect("a valid parameter name"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: nominal,
@@ -281,6 +280,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)].into_iter())
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile: p,
@@ -288,13 +288,19 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     });
     let placed = r.insert(Node::Transform {
         input: solid,
-        translation: [
-            Expr::param(ParamName::new("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        placement: editor_core::placement::Step::Rigid {
+            translation: [
+                Expr::param(
+                    ParamName::new("place").expect("a valid parameter name"),
+                    Dimension::Length,
+                ),
+                len(0.0),
+                len(0.0),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        }
+        .into(),
     });
     (r.doc, placed)
 }

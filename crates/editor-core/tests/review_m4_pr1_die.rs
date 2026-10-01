@@ -10,6 +10,7 @@
 //!    Added/Removed, no order/param/ε deltas.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{ang, len, scl};
 use editor_core::{
     Dimension, Doc, DocEdit, DocParam, Expr, Node, NodeChange, ParamName, RecipeNodeId, eval,
 };
@@ -23,16 +24,6 @@ impl editor_core::ProfilePayload for FakeProfile {}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 
 const HALF: f64 = 0.010;
 const PITCH: f64 = 0.005;
@@ -106,12 +97,14 @@ fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNod
 
 fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<FakeProfile> {
     let (t, r, a) = p;
-    Node::Transform {
-        input: pip,
-        translation: [len(t[0]), len(t[1]), len(t[2])],
-        rotation_axis: [scl(r[0]), scl(r[1]), scl(r[2])],
-        rotation_angle: ang(*a),
-    }
+    Node::transform(
+        pip,
+        editor_core::Step::Rigid {
+            translation: [len(t[0]), len(t[1]), len(t[2])],
+            axis: [scl(r[0]), scl(r[1]), scl(r[2])],
+            angle: ang(*a),
+        },
+    )
 }
 
 fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile> {
@@ -133,7 +126,7 @@ struct Authored {
 
 fn depth_param() -> TEdit {
     TEdit::SetDocParam {
-        name: ParamName::new("pip_depth"),
+        name: ParamName::from_static("pip_depth"),
         value: DocParam::continuous(Dimension::Length, 0.002),
     }
 }
@@ -177,7 +170,7 @@ fn author_theirs() -> Authored {
         TEdit::InsertNode {
             node: Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::new("pip_depth"), Dimension::Length),
+                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
             },
         },
     );
@@ -235,7 +228,7 @@ fn author_mine() -> Authored {
         TEdit::InsertNode {
             node: Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::new("pip_depth"), Dimension::Length),
+                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
             },
         },
     );
@@ -342,15 +335,17 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);
 
-    // The diff is EXACTLY the relabeling residue: both docs occupy
-    // ids 0..=45, insert #0 (cube profile) coincides in both, every
-    // other id's payload differs → Changed(1..=45), nothing else.
+    // The diff is EXACTLY the relabeling residue: both docs mint one
+    // set of 46 ids in one order, insert #0 (cube profile) coincides in
+    // both, every other id's payload differs → each of the rest
+    // Changed, in id order, nothing else.
+    assert_eq!(theirs.doc.order(), mine.doc.order(), "one id per insert");
     let d = theirs.doc.diff(&mine.doc);
-    let expected: Vec<NodeChange> = (1..=45)
-        .map(|i| NodeChange::Changed(RecipeNodeId(i)))
-        .collect();
+    let mut relabeled = theirs.doc.order()[1..].to_vec();
+    relabeled.sort();
+    let expected: Vec<NodeChange> = relabeled.into_iter().map(NodeChange::Changed).collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
     assert!(d.params.is_empty(), "same params");
-    assert!(!d.order_changed, "both orders are 0..=45");
+    assert!(!d.order_changed, "both orders are the same ids");
     assert!(!d.epsilon_changed && !d.metadata_changed);
 }

@@ -23,21 +23,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::shell_operands::tube;
 use geom::Surface;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::fillet_edges;
 use sweep::test_support::{cube, loft_prism};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::query;
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
-
-use crate::common::approx::band;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 /// Every `ScaffoldAtRest` report tier 3 makes about `body`.
 fn scaffolds_at_rest(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -73,10 +68,10 @@ fn scaffold_descriptions(body: &Body<f64>) -> Vec<EdgeKey> {
 
 fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
     let lp = ProfileLoop::polygon([
-        p2(x0, y0),
-        p2(x0 + side, y0),
-        p2(x0 + side, y0 + side),
-        p2(x0, y0 + side),
+        Point2::new(x0, y0),
+        Point2::new(x0 + side, y0),
+        Point2::new(x0 + side, y0 + side),
+        Point2::new(x0, y0 + side),
     ]);
     let plane = SketchPlane::new(Affine3::from_parts(
         geom_core::Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
@@ -93,8 +88,8 @@ fn slab(x0: f64, y0: f64, side: f64, z0: f64, height: f64) -> Body<f64> {
 /// A profile with an ARC segment, extruded — the arc scaffolding door
 /// (`arc_of_circle`) rather than the chord one.
 fn arc_prism() -> Body<f64> {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(p2(x, y), bulge);
-    let lp = ProfileLoop::new(vec![
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+    let lp = bulge_loop(vec![
         v(0.0, 0.0, 0.0),
         v(1.0, 0.0, 0.4),
         v(1.0, 1.0, 0.0),
@@ -110,10 +105,10 @@ fn arc_prism() -> Body<f64> {
 
 /// Revolves the closed `(r, y)` polygon about the `y` axis.
 fn revolved(points: &[(f64, f64)], revolution: Revolution<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         points
             .iter()
-            .map(|(r, y)| ProfileVertex::new(p2(*r, *y), 0.0))
+            .map(|(r, y)| (Point2::new(*r, *y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -122,7 +117,7 @@ fn revolved(points: &[(f64, f64)], revolution: Revolution<f64>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         revolution,
@@ -130,13 +125,6 @@ fn revolved(points: &[(f64, f64)], revolution: Revolution<f64>) -> Body<f64> {
     )
     .expect("the polygon revolves")
     .body
-}
-
-fn tube() -> Body<f64> {
-    revolved(
-        &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
-        Revolution::Full,
-    )
 }
 
 // ---------------------------------------------------------------
@@ -159,7 +147,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
         ("euler cube", cube(1.0, Tol::witness())),
         ("extrude slab", slab(0.0, 0.0, 2.0, 0.0, 2.0)),
         ("extrude arc prism", arc_prism()),
-        ("revolve full tube", tube()),
+        ("revolve full tube", tube(0.4, 0.8, 0.6)),
         (
             "revolve full ball-ish annulus",
             revolved(
@@ -169,6 +157,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
         ),
         (
             "revolve partial wedge",
+            // NOT `common::shell_operands::tube`: its meridian turned 1.1 rad, a wedge.
             revolved(
                 &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
                 Revolution::Partial(1.1),
@@ -205,9 +194,13 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
         }
     }
     // A curved pair: a pocket cut out of the tube by a slab.
-    if let Some(body) = topo::subtract(&tube(), &slab(0.5, -1.0, 2.0, 0.2, 0.2), Tol::witness())
-        .ok()
-        .and_then(|r| r.body().map(|b| b.body.clone()))
+    if let Some(body) = topo::subtract(
+        &tube(0.4, 0.8, 0.6),
+        &slab(0.5, -1.0, 2.0, 0.2, 0.2),
+        Tol::witness(),
+    )
+    .ok()
+    .and_then(|r| r.body().map(|b| b.body.clone()))
     {
         bodies.push(("boolean curved subtract", body));
     }
@@ -218,7 +211,8 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     {
         bodies.push(("shell cube", body));
     }
-    if let Ok(topo::Shelled { body, .. }) = topo::shell(&tube(), 0.05, Tol::witness()) {
+    if let Ok(topo::Shelled { body, .. }) = topo::shell(&tube(0.4, 0.8, 0.6), 0.05, Tol::witness())
+    {
         bodies.push(("shell tube", body));
     }
 
@@ -299,14 +293,14 @@ fn declared_map(body: &Body<f64>) -> Vec<(EdgeKey, bool)> {
 /// edge of every face at both signs.
 #[test]
 fn r2_no_face_offset_flips_is_declared_silently() {
-    let base = tube();
+    let base = tube(0.4, 0.8, 0.6);
     let faces: Vec<FaceKey> = base.faces().map(|(k, _)| k).collect();
     let before = declared_map(&base);
     let mut findings: Vec<String> = Vec::new();
     for f in faces {
         for d in [0.03_f64, -0.03] {
             let mut body = base.clone();
-            match topo::replace_face_offset(&mut body, f, d, band(), Tol::witness()) {
+            match topo::replace_face_offset(&mut body, f, d, Tol::witness()) {
                 Err(e) => {
                     println!("[R2-S2] face {f:?} at d = {d}: refused loudly — {e:?}");
                 }
@@ -340,7 +334,7 @@ fn r2_no_face_offset_flips_is_declared_silently() {
 #[test]
 fn r2_a_rigid_transform_preserves_every_authority() {
     for (name, base) in [
-        ("tube", tube()),
+        ("tube", tube(0.4, 0.8, 0.6)),
         ("arc prism", arc_prism()),
         ("loft-free cube", cube(1.0, Tol::witness())),
     ] {
@@ -395,7 +389,7 @@ fn r2_an_undeclared_edge_still_crosses_a_non_translating_offset() {
         return;
     };
     let mut body = base.clone();
-    let outcome = topo::replace_face_offset(&mut body, cone, 0.02, band(), Tol::witness());
+    let outcome = topo::replace_face_offset(&mut body, cone, 0.02, Tol::witness());
     println!("[R2-S4] cone offset: {:?}", outcome.as_ref().err());
     if outcome.is_ok() {
         let before = declared_map(&base);
@@ -433,9 +427,10 @@ fn r2_the_converted_edges_have_measurable_epsilon_headroom() {
     let mut bodies: Vec<(&'static str, Body<f64>)> = vec![
         ("extrude slab", slab(0.0, 0.0, 2.0, 0.0, 2.0)),
         ("extrude arc prism", arc_prism()),
-        ("revolve full tube", tube()),
+        ("revolve full tube", tube(0.4, 0.8, 0.6)),
         (
             "revolve partial wedge",
+            // NOT `common::shell_operands::tube`: its meridian turned 1.1 rad, a wedge.
             revolved(
                 &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
                 Revolution::Partial(1.1),
@@ -515,9 +510,9 @@ fn r2_the_converted_edges_have_measurable_epsilon_headroom() {
 /// concentric — not a rigid translation.
 #[test]
 fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -525,7 +520,7 @@ fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
     let ball = revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -571,7 +566,7 @@ fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
         .collect();
 
     let mut body = ball.clone();
-    let outcome = topo::replace_faces_offset(&mut body, &group, 0.05, band(), Tol::witness());
+    let outcome = topo::replace_faces_offset(&mut body, &group, 0.05, Tol::witness());
     println!("[R2-S6] offsetting the sphere chart: {outcome:?}");
     match outcome {
         Err(topo::ReplaceFaceError::CarrierLaneUnsupported { what, .. }) => {

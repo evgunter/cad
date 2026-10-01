@@ -262,8 +262,8 @@ fn r2_the_bore_has_a_nonempty_escalating_zone() {
 /// can reach `tube_wall`/`tube_wall_bore`/`tube_wall_gap`. The finding
 /// was accepted and fixed, so the row is amended to pin the CORRECTED
 /// naming rather than deleted: an escalation carrying a hollow-only
-/// predicate name says `tube_along_arc_hollow`, and the arms both
-/// doors share say `tube door` rather than picking one.
+/// predicate name says `the hollow tube`, and the arms both
+/// doors share say `the tube` rather than picking one.
 #[test]
 fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
     let err = build(2.0, TubeWindow::Full, 0.5, f64::NAN).expect_err("a poisoned wall refuses");
@@ -278,7 +278,7 @@ fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
         source.predicate
     );
     assert!(
-        msg.starts_with("tube_along_arc_hollow escalated:"),
+        msg.starts_with("whether the hollow tube's "),
         "a hollow-only predicate must name the hollow door: {msg}"
     );
     // And a SHARED arm does not claim either door: a reversed window
@@ -288,7 +288,7 @@ fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
     let shared = build(2.0, TubeWindow::Arc { t0: 1.5, t1: 0.5 }, 0.5, 0.125)
         .expect_err("a reversed window refuses");
     assert!(
-        shared.to_string().starts_with("tube door: "),
+        shared.to_string().starts_with("the tube's "),
         "a shared arm names neither door: {shared}"
     );
 }
@@ -712,16 +712,12 @@ fn r2_wall_verdicts_preempt_the_window_verdicts() {
 // The certified scalar.
 // ---------------------------------------------------------------
 
-#[cfg(feature = "interval")]
 mod certified {
-    use geom_core::Real;
     use geom_core::interval::Interval;
 
     use super::*;
 
-    fn iv(x: f64) -> Interval {
-        <Interval as Real>::from_f64(x)
-    }
+    use crate::common::interval::{iv, p3, v3};
 
     fn hollow_iv(
         major: f64,
@@ -731,9 +727,9 @@ mod certified {
     ) -> Result<Revolved<Interval>, TubeError> {
         tube_along_arc_hollow::<Interval>(
             tube_frame(
-                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                p3(0.0, 0.0, 0.0),
+                v3(0.0, 1.0, 0.0),
+                v3(1.0, 0.0, 0.0),
                 Tol::witness(),
             ),
             iv(major),

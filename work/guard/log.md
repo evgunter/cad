@@ -93,3 +93,50 @@ ARM": `Disputed` handled and never asserted, `Contradicted` a proof
 the site asserts on), gate logic untouched, gate green. The change
 followed Ev's D2 on `[ev]` #2552; disclosed in the PR body as a
 territory crossing.
+
+## 2026-09-22 — announced seam from VGEOM: a new viewer gate, both halves
+
+(VGEOM orchestrator. Announcement, not a request.)
+
+`vgeom/field-product` (#3067) added
+`scripts/gates/viewer-numeric-field-door.sh` and wired it as a named
+step in `ci.yml`'s `discipline` job. Both halves, per
+`scripts/gates/README.md`; `local-scripts/ci-local.sh` runs the whole
+directory, so it needed no edit.
+
+**The rule**: no bare `egui::DragValue` under `crates/viewer/src`
+outside `crates/viewer/src/widgets.rs`. One home rather than two
+exemptions — the door's own constructor IS a `DragValue::new`, and the
+rows holding what the door adds live in that file's `#[cfg(test)]`
+modules. The matcher takes `DragValue::new` and
+`DragValue::from_get_set`, reads code only (`gate_rust_code`), and
+deliberately does **not** skip `#[cfg(test)]`: a bare field in a row
+elsewhere is exactly the arrival the rule is about.
+
+**Why it exists rather than a comment**: the crate's census — every
+numeric field goes through the door, the one bare site is the test
+harness's own — was a measurement taken once. reviewer-style §Q6 says
+a claim resting on a measurement owes a mechanical guard, and this is
+it.
+
+**Proved to fire three ways**: `--selftest` plants four shapes and
+passes the negatives; a bare `DragValue::new` appended to a real
+viewer file redded with file and line, tree restored; and in CI in
+`discipline (evaluation-code)`, both modes, self-test first.
+`gate-roster.sh` and `check-ci-mirror-parity.py` pass.
+
+**Disclosed blind spots**, in the gate's own header: `egui::Slider`
+(a bare field under another name — none in the crate, and banning the
+name would be a rule about a widget nobody asked for), and a field
+built in another crate.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## Filed from TOPO: `the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds` (2026-09-29)
+
+Ev's ruling on PR 3156 makes `query.rs`'s `to_bits()` compare of
+`Bounds::lo`/`hi` a production bit-identity consumer. None of
+`bit-identity-consumer.sh`, `bit-identity-punning.sh` or
+`bounds-allowlist.sh` can see that spelling. The row carries the
+shape. It lands red until TQUERY's repair of the site, so it rides
+with or after that.
+- 2026-09-30 — Seam note from TOPO: PR 3532 (`topo/merge-helpers-announce`) edits one entry of `scripts/gates/loop-boundary-discards.sh`'s register. The winding's let-else moved with its walk from `planar_loop_winding` into `planar_loop_winding_decided` (key renamed, count 1). The fix pass then made that arm return `LoopWinding::Empty`, a named answer the merge's role pass reads as not positive, and marked the entry `audited` on that ground. No other entry and no matcher code changed; the gate passes at 79 sites and 76 entries. (TOPO fix pass)

@@ -13,7 +13,7 @@
 
 use crate::common;
 
-use pncad::document::{DocEdit, DocParam, ParamName, SlotId};
+use pncad::document::{Dimension, DocEdit, DocParam, ParamName, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use pncad::quantity::WrittenLength;
@@ -93,6 +93,240 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
             .value,
         Ok(SlotValue::Continuous(0.012))
     );
+}
+
+/// One profile, one extrude with a LITERAL distance, and a pattern
+/// over it whose count is a literal too — a continuous slot and a
+/// structural `Count` slot in one document, so both directions of the
+/// Count/continuous divide have a subject.
+fn literal_and_pattern_doc(
+    tol: Tol,
+) -> (
+    pncad::document::Doc<pncad::document::ProfileProgram>,
+    pncad::document::RecipeNodeId,
+    pncad::document::RecipeNodeId,
+) {
+    let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
+        pncad::document::Doc::empty_derived("gui3-literal-range", tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        pncad::document::Node::Extrude {
+            profile,
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+    let (doc, pattern) = common::inserted(
+        &doc,
+        pncad::document::Node::Pattern {
+            input: extrude,
+            count: pncad::document::Expr::count(3),
+            kind: pncad::document::PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.03),
+            },
+        },
+        tol,
+    );
+    (doc, extrude, pattern)
+}
+
+/// Replace the object a saved document's first `"<key>":` holds, by
+/// matching braces — the file-modality surgery, in the one place this
+/// suite needs it.
+///
+/// Deliberately NOT a parse-and-re-serialize: a round trip through a
+/// JSON value would rewrite bytes this suite has not asked about, and
+/// the point of the row below is that ONE field was hand-edited into
+/// something no door would have written.
+fn retyped_field(text: &str, key: &str, replacement: &str) -> String {
+    let at = text
+        .find(&format!("\"{key}\":"))
+        .expect("the wire carries that key");
+    let start = at + text[at..].find('{').expect("its value is an object");
+    let mut depth = 0usize;
+    let mut end = None;
+    for (i, c) in text[start..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(start + i + 1);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let end = end.expect("the object closes");
+    let out = format!("{}{replacement}{}", &text[..start], &text[end..]);
+    assert_ne!(out, text, "the corruption really landed");
+    out
+}
+
+/// **A slot the document holds a bare literal for always has a value**
+/// — which is why the range button beside it is gated on the driver
+/// alone, with no second conjunct on the value.
+///
+/// `props::slot_row` evaluates each slot with the branch
+/// `SlotId::dimension` picks, so the only way a leaf carrying no
+/// parameter reference fails to evaluate is a Count/continuous
+/// disagreement between the slot and its expression —
+/// `CountExprInContinuousEval` one way, `ContinuousExprInCountEval`
+/// the other. One predicate answers that disagreement for every door,
+/// `Node::slot_dimension_fault` over `Node::slots()`.
+///
+/// This row reads the rows; the two below hold the doors, **enumerated
+/// by the modality a document arrives through** rather than by code
+/// path, because a claim about every document is only as good as its
+/// list of ways in:
+///
+/// * **an edit** — both directions, `DocEdit::SetParam` and
+///   `DocEdit::SetStructuralParam`, which is what
+///   `SessionOp::SetSlot` and `SetSlotExpression` reach;
+/// * **a file** — `pncad::document::load`, the door the viewer opens
+///   every document through, over bytes a hand edit or another tool
+///   wrote;
+/// * **a hand-built `Node`** — refused when it is inserted, because
+///   insertion is an edit: there is no door that puts a `Node` into a
+///   `Doc` without `apply`.
+///
+/// The one way a row reaches the panel with an `Err` value and no
+/// `EvalError` at all is `SlotFault::NoExpression`, and it closes the
+/// other way: `props::slot_row` reports that row as DRIVEN with an
+/// empty parameter list, so the button refuses it as a driven slot
+/// rather than offering it.
+#[test]
+fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
+    let tol = Tol::witness();
+    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+
+    for node in [extrude, pattern] {
+        let rows = props::slot_rows(&doc, node);
+        assert!(
+            rows.iter().any(|row| row.driver == SlotDriver::Literal),
+            "node {} is about literal rows",
+            node.0
+        );
+        for row in &rows {
+            if row.driver == SlotDriver::Literal {
+                assert!(
+                    row.value.is_ok(),
+                    "{} is a literal with no value: {:?}",
+                    row.slot.label(),
+                    row.value
+                );
+            }
+        }
+    }
+    // The Count row really is one of them — otherwise the loop above
+    // says nothing about the second direction of the divide.
+    assert!(
+        props::slot_rows(&doc, pattern)
+            .iter()
+            .any(|row| row.slot == SlotId::Count && row.driver == SlotDriver::Literal),
+        "the pattern's count is a literal row"
+    );
+}
+
+/// **The edit modality, both directions of the divide.** Each
+/// expression below is the one whose row WOULD carry the matching
+/// `EvalError`, refused rather than stored.
+#[test]
+fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
+    let tol = Tol::witness();
+    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+
+    let count_into_continuous = pncad::document::apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: extrude,
+            slot: SlotId::Distance,
+            expr: pncad::document::Expr::count(3),
+        },
+        tol,
+        &pncad::document::RefusingReach,
+    );
+    match count_into_continuous {
+        Err(pncad::document::EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        }) => {
+            // The payload, named rather than compared with another
+            // reading of itself: this is the row that says WHICH
+            // dimensions the door reported.
+            assert_eq!(slot, SlotId::Distance);
+            assert_eq!(expected, Dimension::Length);
+            assert_eq!(found, Dimension::Count);
+        }
+        other => panic!("a Count literal in a Length slot must be refused, got {other:?}"),
+    }
+
+    let continuous_into_count = pncad::document::apply(
+        &doc,
+        &DocEdit::SetStructuralParam {
+            node: pattern,
+            slot: SlotId::Count,
+            expr: common::len(0.03),
+        },
+        tol,
+        &pncad::document::RefusingReach,
+    );
+    match continuous_into_count {
+        Err(pncad::document::EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        }) => {
+            assert_eq!(slot, SlotId::Count);
+            assert_eq!(expected, Dimension::Count);
+            assert_eq!(found, Dimension::Length);
+        }
+        other => panic!("a Length literal in a Count slot must be refused, got {other:?}"),
+    }
+}
+
+/// **The file modality** — the door the viewer opens every document
+/// through, over bytes no edit door wrote.
+///
+/// A hand edit or a foreign tool is the only way a Count literal can
+/// be sitting in a `Length` slot, and it is the input the claim above
+/// most needs: everything else in this suite reaches the document
+/// through `apply`. The saved fixture is doctored in ONE field and
+/// `load` is asked what it thinks.
+#[test]
+fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
+    let tol = Tol::witness();
+    let (doc, extrude, _pattern) = literal_and_pattern_doc(tol);
+    let text = pncad::document::save(&doc, &[], tol).expect("the fixture saves");
+    pncad::document::load(&text, tol).expect("and loads back as it was written");
+
+    // A `CountLiteral` on the wire is `{"Count": n}`; the extrude's
+    // distance is a `Length` slot.
+    let corrupt = retyped_field(
+        &text,
+        "distance",
+        "{\n              \"Count\": 3\n            }",
+    );
+    match pncad::document::load(&corrupt, tol) {
+        Err(pncad::document::PersistError::Snapshot(
+            pncad::document::SnapshotError::SlotDimension {
+                node,
+                slot,
+                expected,
+                found,
+            },
+        )) => {
+            assert_eq!(node, extrude);
+            assert_eq!(slot, SlotId::Distance);
+            assert_eq!(expected, Dimension::Length);
+            assert_eq!(found, Dimension::Count);
+        }
+        other => panic!("the load door must refuse a Count distance, got {other:?}"),
+    }
 }
 
 #[test]
@@ -368,13 +602,13 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::BeginParamGesture {
-        name: pncad::document::ParamName::new("no-such-parameter"),
+        name: pncad::document::ParamName::from_static("no_such_parameter"),
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     assert!(matches!(
         session
             .perform(SessionOp::PreviewParamGesture {
-                name: pncad::document::ParamName::new("no-such-parameter"),
+                name: pncad::document::ParamName::from_static("no_such_parameter"),
                 value: 1.0
             })
             .refusal,
@@ -427,12 +661,7 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
 
 test_utils::f6_variants! {
     /// Every `Refusal` arm's identifier, as the ban list the six
-    /// sampled renderings are held to. The `match` the macro writes is
-    /// exhaustive, so an arm added to `Refusal` stops this file
-    /// compiling until it is listed here and the ban covers it. No
-    /// count is written down: the `match` is what holds the roster
-    /// complete, and a number beside it would be a second claim with
-    /// nothing checking it.
+    /// sampled renderings are held to.
     ///
     /// **The roster is the enum's, not the sample's.** A rendering that
     /// leaks a SIBLING arm's identifier is as much a dump as one that
@@ -445,6 +674,8 @@ test_utils::f6_variants! {
         ParamExists,
         EmptyName,
         WrongNodeKind,
+        Duplicate,
+        Contact,
         Edit,
         Dimension,
         Parse,
@@ -458,9 +689,6 @@ test_utils::f6_variants! {
         NoDocumentDirectory,
         Workspace,
         SelfInstance,
-        ProfileRestructure,
-        ProfileEditOrder,
-        ProfileEditOrderCapped,
         ProfileEditStale,
     ];
 }
@@ -489,12 +717,9 @@ const REFUSAL_FIELDS: &[&str] = &["node:", "name:", "\""];
 /// construction. The two vocabulary-wide halves live elsewhere, and
 /// are named here so this row is not read as holding them:
 ///
-/// * **that every arm renders at all** is the compiler's.
-///   `Display for Refusal` and `Refusal::rank` are exhaustive matches
-///   with no wildcard, so a nineteenth arm reds both until it is
-///   given a sentence and a rank. That is the obligation an `ALL`
-///   over this vocabulary was wanted for, and the type has it already
-///   — which is why there is no `Refusal::ALL` to walk.
+/// * **that every arm renders at all** is the compiler's
+///   (`crates/viewer/README.md`, *A policy over an enum names every
+///   variant*), which is why there is no `Refusal::ALL` to walk.
 /// * **that no rendering carries the field-brace fingerprint** is
 ///   `prose_census`'s, a census over SITES rather than samples.
 ///
@@ -546,7 +771,7 @@ fn refusals_render_as_sentences() {
     // status line renders verbatim.
     let edit = session
         .perform(SessionOp::SetParam {
-            name: pncad::document::ParamName::new("tapper"),
+            name: pncad::document::ParamName::from_static("tapper"),
             value: SlotValue::Continuous(1.0),
         })
         .refusal
@@ -558,7 +783,7 @@ fn refusals_render_as_sentences() {
 
     let lookup = session
         .perform(SessionOp::BeginParamGesture {
-            name: pncad::document::ParamName::new("tapper"),
+            name: pncad::document::ParamName::from_static("tapper"),
         })
         .refusal
         .expect("dragging an absent parameter refuses");
@@ -728,7 +953,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let margin = pncad::document::ParamName::new("margin");
+    let margin = pncad::document::ParamName::from_static("margin");
 
     // Before: an expression naming the undeclared parameter refuses
     // typed at the parse door (deliberate typo-safety) and carries
@@ -864,12 +1089,13 @@ fn the_create_door_refuses_an_existing_name_and_setparam_still_replaces() {
 #[test]
 fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-written",
             &name,
             DocParam::written_length(WrittenLength::in_unit(20.0, MM)),
+            tol,
         ),
         tol,
     );
@@ -913,12 +1139,13 @@ fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
 #[test]
 fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-noop",
             &name,
             DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            tol,
         ),
         tol,
     );
@@ -959,12 +1186,13 @@ fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
 #[test]
 fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-expression",
             &name,
             DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            tol,
         ),
         tol,
     );
@@ -1007,12 +1235,13 @@ fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
 #[test]
 fn an_unknown_unit_carries_the_parsers_own_wording() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-unknown-unit",
             &name,
             DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            tol,
         ),
         tol,
     );
@@ -1043,12 +1272,13 @@ fn an_unknown_unit_carries_the_parsers_own_wording() {
 #[test]
 fn a_wrong_dimension_unit_refuses_the_whole_action() {
     let tol = Tol::witness();
-    let name = ParamName::new("sweep");
+    let name = ParamName::from_static("sweep");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-mismatch",
             &name,
             DocParam::continuous(pncad::document::Dimension::Angle, 1.0),
+            tol,
         ),
         tol,
     );
@@ -1081,12 +1311,13 @@ fn a_wrong_dimension_unit_refuses_the_whole_action() {
 #[test]
 fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::from_static("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-picker",
             &name,
             DocParam::continuous(pncad::document::Dimension::Length, 0.05),
+            tol,
         ),
         tol,
     );
@@ -1105,9 +1336,14 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
 
     // A count names no notation, and the door says so rather than
     // this one guessing.
-    let holes = ParamName::new("holes");
+    let holes = ParamName::from_static("holes");
     let mut counted = DocSession::inline(
-        common::declared("auth2-picker-count", &holes, DocParam::Count { value: 6 }),
+        common::declared(
+            "auth2-picker-count",
+            &holes,
+            DocParam::Count { value: 6 },
+            tol,
+        ),
         tol,
     );
     let refusal = counted
@@ -1136,9 +1372,14 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
 #[test]
 fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
     let tol = Tol::witness();
-    let holes = ParamName::new("holes");
+    let holes = ParamName::from_static("holes");
     let mut session = DocSession::inline(
-        common::declared("auth2-count-text", &holes, DocParam::Count { value: 6 }),
+        common::declared(
+            "auth2-count-text",
+            &holes,
+            DocParam::Count { value: 6 },
+            tol,
+        ),
         tol,
     );
     let before = session.history().len();

@@ -320,28 +320,12 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     let mut roots = Vec::new();
     for _ in 0..2 {
         let plane = common::insert_into(&mut doc, common::xy_frame(), tol);
-        let profile = common::insert_into(
-            &mut doc,
-            pncad::document::Node::Profile(pncad::document::ProfileProgram {
-                plane,
-                loops: vec![
-                    pncad::prelude::LoopProgram::polygon([
-                        (0.0, 0.0),
-                        (1.0, 0.0),
-                        (1.0, 1.0),
-                        (0.0, 1.0),
-                    ])
-                    .expect("a square"),
-                ],
-            }),
-            tol,
-        );
+        let profile = common::insert_into(&mut doc, common::square(plane, 1.0), tol);
         roots.push(common::insert_into(
             &mut doc,
             pncad::document::Node::Extrude {
                 profile,
-                distance: pncad::document::Expr::literal(1.0, pncad::document::Dimension::Length)
-                    .expect("a length"),
+                distance: common::len(1.0),
             },
             tol,
         ));
@@ -388,7 +372,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
 #[test]
 fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
     let tol = Tol::witness();
-    let name = pncad::document::ParamName::new("base_r");
+    let name = pncad::document::ParamName::from_static("base_r");
     let mut session = DocSession::inline(
         pncad::document::Doc::<pncad::document::ProfileProgram>::empty_derived(
             "auth2-round-trip",

@@ -250,7 +250,7 @@ fn plane_cylinder_parallel_trio() {
     };
     let msg = err.to_string();
     assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
-    assert!(msg.contains("ill-conditioned operand pair"), "{msg}");
+    assert!(msg.contains("ill-conditioned at this tolerance"), "{msg}");
 }
 
 #[test]
@@ -486,12 +486,18 @@ fn parallel_equal_cylinders_trio() {
     .unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
     // Coaxial equal-radius: the coincident-surface refusal, carrying
-    // the shared recourse exactly once.
+    // the shared recourse exactly once. Coincident operands are what a
+    // declaration exists for, so "declare the coincidence" is the lever.
     let err = cylinder_cylinder_section(&c1, &mk(0.0), RadiusEvidence::Declared, 1.0, band())
         .unwrap_err();
     assert!(matches!(err, SectionError::CoincidentSurfaces), "{err:?}");
     let msg = err.to_string();
-    assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
+    assert_eq!(
+        msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+        1,
+        "{msg}"
+    );
+    assert_eq!(msg.matches("Recourse:").count(), 1, "{msg}");
 }
 
 // ---------------------------------------------------------------------
@@ -1048,7 +1054,6 @@ fn the_cylinder_sphere_route_note_names_the_declared_arm() {
 // The interval lane: classification replays and residuals enclose zero
 // ---------------------------------------------------------------------
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use crate::shared::interval::{ip, iv3 as iv};
@@ -2096,7 +2101,7 @@ fn plane_torus_ring_guard_and_wrong_lane() {
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
-    assert_eq!(diag.predicate, Some("pt_ring_guard"));
+    assert_eq!(diag.predicate, Some("ring_torus_convention"));
     // Wrong-lane kinds refuse typed, both sides.
     let tor = torus_y(0.75, 0.3);
     for (a, b) in [(&tor, &tor), (&plane, &plane)] {

@@ -43,6 +43,15 @@ of the standing goal, and six prose rows went to VDOC. What CHROME
 keeps is what its charter has always described best — the viewer's
 reported defects and the architecture that entrenches behind them.
 
+**Cut again on 2026-09-22**, when the slate measured 88 points — 55
+of them in P0 and P1 alone, so the seam ran inside P1. What CHROME
+keeps is **the text the viewer lays out and the badges it draws**:
+the layout and concision halves of Ev's P0 overflow report with their
+residue, and the fault-badge attribution rows with the subset-policy
+class behind them. The creation forms' vocabulary went to FORMS, what
+the viewer offers a person to do went to OFFER, and eleven rows went
+by the re-homing rule to VGEOM, FIT, VACUITY, HELPER and BLIND.
+
 Charter and unit order: `work/chrome/plan.md`; narrative in
 `work/chrome/log.md`.
 

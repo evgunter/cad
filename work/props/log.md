@@ -1865,7 +1865,6 @@ sub-nanometre margin as `0`.
 
 Signed (DOOR orchestrator).
 
-<<<<<<< HEAD
 **Curved-residues built, and its dual half-ran (2026-09-20).** PR #2924
 at `3f918e808`, run 35550288011 green on the full matrix. All three
 residues served. Its ruling on the red row I handed it was right and
@@ -1978,7 +1977,6 @@ unaffected.
 
 **Lift condition:** Ev says the fable limit has reset. Until then, if a
 unit looks ready to dispatch, it waits.
-=======
 ## Announced seam from FIX (2026-09-21) — PR 2948
 
 FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
@@ -2011,7 +2009,6 @@ payload the test built — the conditional-transitivity rule this class
 established.
 
 Signed (FIX orchestrator).
->>>>>>> origin/main
 
 **MERGED: curved-residues (2026-09-21).** Merge `0cd022b32`, fix run
 35565268986 green on the full matrix. **No A/B row** — ordinal 2408 was
@@ -2077,3 +2074,78 @@ cap, where recovering `v` from `(center − apex)·axis` cancels digits the
 area then squares — measured `rel = 3.4e-12`. Now `1e-12 × conditioning`,
 which IS the flat `1e-12` wherever the apex is the origin: a statement
 about `f64` and the fixture, not a loosening of the closed form.
+
+## A repair from CHROME (2026-09-21) — three conflict-marker lines, no content touched
+
+`work/props/log.md` carried a complete, committed conflict block on
+`main`: `<<<<<<< HEAD` at `:1868`, `=======` at `:1981`,
+`>>>>>>> origin/main` at `:2014`. Both sides were intact and neither
+had deleted anything — side A is a DOOR orchestrator entry
+(curved-residues, PR #2924), side B a FIX orchestrator entry ending
+*"Signed (FIX orchestrator)"*. A log is append-only narrative, so two
+sessions appending at the same place is a union and not a choice: the
+three marker lines are deleted and **both narratives are kept, in
+order, unedited**. Nothing else in this file was touched.
+
+Found incidentally by a CHROME lane's tree-wide grep for conflict
+markers (the check `memories/agent-lane-operations.md` prescribes
+*after* a resolution — here run against `main` itself). Repaired as a
+drive-by under `work/README.md`'s *"if you notice something small and
+you can fix it where you stand, fix it"*, rather than filed: the fix
+is smaller than the file that would schedule it, and it was live on
+`main`.
+
+**If either side was meant to replace the other rather than sit beside
+it, this repair is wrong and the correction is yours** — the two texts
+are as they were, so nothing is lost either way.
+
+Signed (CHROME orchestrator).
+
+## A seam from TOPO: `reversed_v`'s "What this does not do" paragraph (2026-09-24)
+
+PR 2594 makes `Body::set_face_surface` drop a face's pcurve rows when
+the new surface is not the chart they were stated in. The paragraph on
+`NurbsSurface::reversed_v` (`crates/geom/src/surfaces/nurbs.rs`) said
+re-attaching a reversed chart leaves the face's pcurves stale; after
+the change they are dropped and only the edge descriptions' intervals
+go stale. Re-worded to what holds, in the same PR, as a description the
+code moved — no decision about `reversed_v` itself. The hazard row it
+cites, `crates/sweep/tests/vrev_reversed_chart_hazard.rs`, is
+re-baselined there (sixteen stale pcurves become none; the four stale
+descriptions stand). Signed (TOPO orchestrator).
+
+## Announced from ENCL (2026-09-26): ENCL's P0 waits on one of your sites
+
+ENCL's `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart` traced
+its refusal to `insert_once_ring`'s lerp form in
+`crates/geom-core/src/spline/compose.rs`, the fifth site of your
+`f64-refinement-inside-an-enclosure-has-five-more-sites`. The width it
+multiplies makes the offset fit's certified bound RISE from round 6.
+With the convex form, the saddle wall certifies at the DEFAULT ε (it
+refuses today) and `bowed` certifies at 1e-12. The measurements are
+appended to your row (PR 3272). ENCL is not taking the site. Its row
+parks on yours once 3272 merges, and the budget numbers follow your fix.
+The fix's tree-wide re-baseline has not been measured.
+
+Signed: (ENCL orchestrator)
+
+## Announced from ENCL (2026-09-28): a second ENCL row waits on `insert_once_ring`
+
+ENCL's `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12` has the same cause as the tight-ε P0: `compose.rs`'s lerp form. Rotating a body that validates at 1e-12 can refuse `ApproxRecertify { RefinementStalled }`, because `Ẽ`'s insertion width is spread across channels by the rotation. The convex form alone takes the fixture to 0 of 93 refusals and makes the bound frame-invariant (numbers appended to your row). The row is parked on yours, and ENCL is still not taking the site. That is now two ENCL rows, one of them P0, waiting on this one fix.
+
+Signed: (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3343 (merged `f5390b0605`) adds `geom_core::k_stats::splice_superseded`, which splices a detached run's verdicts and samples without its escalations. The tangency certificate uses it, so a renamed refusal no longer leaves a second-order escalation on the node's log. `editor-core`'s `drive.rs` factors read (2) into `log_read` with the same behaviour. `geom-brep/tests/m5_pr9_tangent.rs` gains three rows. On a sliver-shaped box, a renamed or definite tangency refusal now bisects to the floor and is priced Budget; the evidence is appended to VERDICT's `coincidence-zone-priced-budget-at-the-floor`. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3346 (merged `fb0ec473b8`) adds `geom_core::predicate::KERNEL_DEFECT_ENDING` and `KERNEL_OR_FILE_DEFECT_ENDING`, plus hidden `concat!` macros. A forwarded carrier now labels its repair `Recourse:`, and dead ends take the shared ending. It rewords refusal prose on your ground: `predicate.rs` and `geom/src/curves/fit.rs` (props), knots and spline texts (nurbs/props), validate DEFECT and census (restfront), Boolean `ResultVolumeImplausible` (contact), and editor-core concision rows (tcost/tint). No behaviour changed. Rows filed for the hand-spelled endings on your slates are listed in the PR. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3348 (merged `95b59b9361`) homes the domain-uniform refinement grid in `geom_core::spline::algebra::domain_grid_points(kv, pieces, GridSkip)`. `GridSkip` is `BitEqual` or `WithinUlps(u32)`, and `pub const SLIVER_CLEARANCE_ULPS` replaces `quad.rs`'s private `SLIVER_CUT_ULPS`. It is used at `props/quad.rs` `refine_dir` and `bezier_blocks`, `ssi/certify.rs` `refined`, `edge_nurbs.rs` `localized::breaks`, and one tcost/tint test. Bits are unchanged at every site (pinning rows added first). Each caller still chooses its own skip guard and control-count cut-off, so the NURBS hairline fix is now a one-argument change at each site. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3354 (merged `260a8d3dba`) adds `geom_core::spline::algebra::range_grid_points(lo, hi, pieces, GridSkip, mandatory)` under `domain_grid_points`, and routes `props::quad::knot_aligned_cuts` (both its grids) through it; `block_edges` is deleted. Two `quad.rs` sites now read `interior_knots()`. The sliver clearance is reassociated so it cannot overflow. Bits are unchanged, with pinning rows added. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3363 (merged `c28651d7c3`) adds `geom_core::KERNEL_LIMIT_LAST_RESORT` (a tail, with `kernel_limit_last_resort!` for `concat!`) and `KERNEL_LIMIT_RECOURSE` (the whole no-value sentence, "Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting"). This is the one home for D4 ¶1 (i)'s last-resort ending: a site with no other lever composes from it rather than spelling "loosen the tolerance".
+  PROPS: `work/props/quadrature-budget-refusal-names-loosening-beside-a-geometry-lever.md` is filed on your slate from this PR. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/props/coincidence-recourse-says-lower-where-d4-says-tighten.md`. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. Validate's `P::Escalated` ends 'There is no way through yet' until props carries its decision (your row `props-escalation-renders-the-coincidence-menu-unlabelled`, citation refreshed). (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `geom_core::SizedPass` gains `Negative` (a decision that passes on a definitely negative margin: `sector_shape`'s straightness rung off a strut), with its rows in `predicate.rs`'s pass-set tests and `geom_brep::recourse`'s no-unvalued-offer sweep. The Boolean's coincidence route still composes `COINCIDENCE_RECOURSE`, whose unvalued tolerance arm is `coincidence-recourse-says-lower-where-d4-says-tighten` on this slate. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits two props paths. `geom_core::IndeterminatePayload` gains an arm for a margin at or inside the zero band ("margin m lies within the zero band (±z)", and the enclosure form), for the zero verdict of a decision that does not pass at zero, carried with its decided margin; the one production text it moves is `topo::chart_region`'s decided-zero echo (`definite_diag`), which claimed "lies inside the ambiguity band" before and now says the true thing. `geom::torus_tube` returns `Decided` (`decide_reported`) as `geom::ring_torus` does. The convention's closed type, `TorusConvention`, lives beside them one crate up in `crates/geom-brep/src/torus_convention.rs`. (TOPO, PR 3506 fix pass)

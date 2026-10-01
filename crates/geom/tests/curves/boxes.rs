@@ -162,7 +162,6 @@ fn non_ellipse_carrier_is_refused_by_the_ellipse_lane() {
 /// M5-PR5 spec §1): a wide `u_ref.x` bracket with a discriminating span
 /// — the corner-interval extremal evaluation must cover every f64
 /// realization.
-#[cfg(feature = "interval")]
 #[test]
 fn wide_bracket_ellipse_box_contains_every_realization() {
     use geom_core::{Interval, Real};
@@ -290,7 +289,6 @@ fn placeholder_nurbs_box_is_poison() {
 /// every f64 realization's samples. This is exactly where a
 /// midpoint-angle extremum test under-covers; the corner-interval
 /// evaluation shipped in `boxes.rs` is pinned here.
-#[cfg(feature = "interval")]
 #[test]
 fn wide_bracket_arc_box_contains_every_realization() {
     use geom_core::{Interval, Real};

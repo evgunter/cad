@@ -29,7 +29,6 @@
 //! one table at every row of the matrix. Cost: three nominal replays,
 //! about a second each for the boss and the literal D-tab and three
 //! for the parameter D-tab in a dev build.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{SymRules, Tol};
@@ -228,20 +227,19 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
 
 /// The D-tab with its bulge a document parameter: the same table as
 /// the literal's ([`D_TAB_AT_THE_NOMINAL`]) except on ONE row. At the
-/// nominal the ring blocks the shared rows on the same nodes, with one
-/// exception that does not part the table: `line_span`'s two asked
-/// decisions here are never frozen and stand on the sign of the
-/// APOTHEM `(1 − b²)/b` (two magnitudes against their signed
-/// spellings), where the literal's two are frozen on the ring. With
-/// SYM-5's rule E the two part on `carrier_matches_mapped_source`:
-/// 126/0/42/12 on the literal against 126/0/38/16 here, so four of the
-/// six the rule takes on the literal it does not take when the bulge
-/// is a parameter. The carrier's span is spelled from the decided turn
-/// (`sweep`'s `turned_span`, `4·atan(σ·b)`), so it mints the atom the
-/// pushforward's `4·atan b` mints, `sqrt(1 + b²)`, and not a second
-/// one over `abs(b)`; at `0.4` the ring stands in front of that, and
-/// this table is the same under either spelling. The radius
-/// `abs(L(1+b²)/(4b))` carries the sign of `b`.
+/// nominal the bulge's sign is not what blocks on any of the shared
+/// rows, the ring is, on the same nodes — but with SYM-5's rule E the
+/// two part on `carrier_matches_mapped_source`: 126/0/42/12 on the
+/// literal against 126/0/38/16 here, so four of the six the rule takes
+/// on the literal it does not take when the bulge is a parameter. The
+/// sign
+/// entered, where the dyadic control showed it, through the carrier's
+/// span while that was spelled `4·atan|b|`: `abs(b)` and
+/// `sqrt(1 + abs(b)²)` against the pushforward's `sqrt(1 + b²)`. The
+/// span is now the stored sweep signed by the decided turn
+/// (`sweep`'s `arc_span`), one `atan b` atom on both sides, and this
+/// row's split did not move with it: the ring blocks first. The sign
+/// still rides in the radius `abs(L(1+b²)/(4b))`.
 #[test]
 fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     let tol = Tol::witness();

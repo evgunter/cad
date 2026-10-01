@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # interval-square-allowlist.sh — the interval-square `powi(2)` allowlist
-# (ratified 2026-08-01). ONE home; ci.yml's "interval-square powi(2)
-# allowlist (ratified 2026-08-01)" step and local-scripts/ci-local.sh's
-# discipline row both call this file. Kernel comments that name that
-# step name still resolve: the step is still there, and it runs this.
+# (ratified 2026-08-01). ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # Interval-square discipline tripwire — the rule lives HERE, and
 # the kernel's comments point at this step. FOUR live bugs came
@@ -171,9 +168,9 @@
 #     still there reds here.
 #
 # Allowlist rationale, per file:
-#  - geom-core real.rs / ring_interval.rs — the scalar implementations
-#    themselves: `x * x` is definitional (powi is BUILT from it) and
-#    their tests deliberately contrast the plain product with the tight
+#  - geom-core real.rs — the scalar implementation itself: `x * x` is
+#    definitional (powi is BUILT from it) and its tests deliberately
+#    contrast the plain product with the tight
 #    square;
 #  - geom-core linalg/svd.rs / lsq.rs — documented f64-only
 #    selection lanes (lsq's hits are usize buffer sizing);
@@ -252,7 +249,6 @@ CENSUS_THREE_FACTOR_RE="(?<![\w.])($SQUARE_PATH)(?:\s*\*\s*(?!\1(?![\w.]))[A-Za-
 ALLOWLISTED_SUBJECT='the ratified adjacent-square sites, the files whose x*x this gate ratifies instead of asking for powi(2)'
 ALLOWLISTED_HOMES=(
   crates/geom-core/src/real.rs
-  crates/geom-core/src/ring_interval.rs
   crates/geom-core/src/linalg/svd.rs
   crates/geom-core/src/linalg/lsq.rs
   crates/geom-brep/src/ssi/jet.rs
@@ -293,6 +289,7 @@ CENSUS_REGISTER=(
   # multiplies two distinct quantities, ρ and cos v — there is no x·x
   # here for `powi` to tighten.
   "two-statement|crates/geom/src/curves.rs|let rho = major + minor * c|1|not a square: rho = R + r·cos v is affine in c, and rho * c (deriv2's f″ term) is a product of two distinct quantities, ρ and cos v"
+  "two-statement|crates/topo/src/splitting/containment.rs|let along = px * ex + py * ey|1|not a square: along = P·Ê is the dot product of the query's unit-coordinate position P and the unit ray direction Ê, two distinct vectors"
 )
 
 # Set by `--register FILE`, which replaces the array above. It exists so

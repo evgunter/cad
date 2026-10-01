@@ -18,7 +18,7 @@ use topo::validate::{ValidationError, validate_geometric};
 
 /// **One body, three orientations, two doors** — one row, because all
 /// three twins are clones of one revolve and nextest is
-/// process-per-test (`memories/test-suite-cost`); every assertion
+/// process-per-test (implementer-discipline §8); every assertion
 /// names the twin it speaks for.
 ///
 /// What it pins:
@@ -66,7 +66,7 @@ fn a_reversed_band_measures_zero_and_is_caught_only_by_tier_three() {
         .expect_err("an inside-out solid is not valid");
     assert!(
         errs.iter()
-            .any(|e| matches!(e, ValidationError::NegativeVolume)),
+            .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
         "the +V invariant names a whole-body flip: {errs:?}"
     );
 

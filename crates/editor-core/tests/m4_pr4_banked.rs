@@ -1,20 +1,14 @@
 //! M4 PR 4 spec D6: the PR 3 banked obligations.
 //!
-//! 1. **Single-qualifier-flip localization** (R5): an edit flipping
-//!    exactly one fragment-qualifier entry — against a NON-ADJACENT
-//!    partner — changes exactly the names whose derivations pass
-//!    through it, counted, with everything else bit-identical.
-//!    Geometry: A = 4×4×1 block; the cutter is a full-pierce band
-//!    entering the west face horizontally (walls y=1.0/y=1.1) and
-//!    turning to a DESCENDING diagonal that exits the east face. The
-//!    N fragment (above the band) never touches the lower horizontal
-//!    wall H1 (its seams are the upper wall and the upper diagonal) —
-//!    H1 is a non-adjacent partner — yet N's derivation carries an H1
-//!    side-of entry. Translating the cutter east (a continuous
+//! 1. **A far wall renames no piece**: A = 4×4×1 block; the cutter is
+//!    a full-pierce band entering the west face horizontally (walls
+//!    y=1.0/y=1.1) and turning to a DESCENDING diagonal that exits the
+//!    east face. The N piece (above the band) never touches the lower
+//!    horizontal wall H1. Translating the cutter east (a continuous
 //!    Transform knob) moves the diagonal's east-face exit vertex
-//!    (4, y_u) across H1's FIXED plane y=1: exactly one probe sign
-//!    flips per cap fragment (Mixed → Positive), no topology changes,
-//!    no other verdict moves.
+//!    (4, y_u) across H1's FIXED plane y=1, with no topology change. A
+//!    piece is named by the walls it borders (N2's `Borders`), so no
+//!    piece name moves.
 //! 2. (R6 — `apply_with_names` — lands in `m4_pr4_resolve.rs`.)
 //! 3. **Vanished diagnosis vs dropped fused-vertex identity** (R9):
 //!    kept-key-wins fusion drops the losing operand corner's identity
@@ -29,13 +23,13 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     BooleanOp, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SideVerdict,
-    SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
+    ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId,
+    StableName, diff_verdicts, evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,
@@ -107,12 +101,14 @@ fn band_cut() -> BandCut {
     );
     let (doc, transform) = insert(
         doc,
-        Node::Transform {
-            input: band,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            band,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, sub) = insert(
         doc,
@@ -141,21 +137,22 @@ fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Rows {
         .collect()
 }
 
-/// The SideOf vector of a fragment name, if it carries one.
-fn side_vector(name: &StableName) -> Option<&Vec<(StableName, SideVerdict)>> {
-    name.path.iter().find_map(|seg| match seg {
-        RoleSeg::Fragment(Qualifier::SideOf(v)) => Some(v),
-        _ => None,
-    })
+/// Whether a name's last segment is a `Borders` qualifier.
+fn is_piece(name: &StableName) -> bool {
+    matches!(
+        name.path.last(),
+        Some(RoleSeg::Fragment(Qualifier::Borders(_)))
+    )
 }
 
 #[test]
-fn single_qualifier_flip_changes_exactly_the_names_through_it() {
+fn a_flip_against_a_wall_no_piece_borders_renames_no_piece() {
     let f = band_cut();
     let ev1 = run(&f.doc, None);
     // Slide the cutter east: the diagonal's east-exit vertex crosses
-    // the FIXED lower-wall plane y = 1 (margins 0.06 → 0.04 at the
-    // two positions — fat against every ε row; nothing is band-edge).
+    // the plane of the FIXED lower wall y = 1 (margins 0.06 → 0.04 at
+    // the two positions — fat against every ε row; nothing is
+    // band-edge), a wall that piece does not border.
     let (doc2, _) = step(
         f.doc.clone(),
         DocEdit::SetParam {
@@ -165,122 +162,33 @@ fn single_qualifier_flip_changes_exactly_the_names_through_it() {
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
-
-    // (a) The verdict diff: all deltas at the subtract, and the
-    // discriminator family reports EXACTLY ONE net flip — one probe
-    // per cap fragment crossed the non-adjacent wall's plane.
+    // Every delta is at the subtract: the slide moved geometry the
+    // boolean decides about.
     let flips = diff_verdicts(&ev1, &ev2);
     assert_eq!(
         flips.nodes.keys().copied().collect::<Vec<_>>(),
         vec![f.sub],
         "flip cone wider than the subtract: {flips:?}"
     );
-    let report = flips.report();
-    let frag_flips: Vec<_> = report
-        .iter()
-        .filter(|(_, f)| f.predicate == "name_frag_side_of")
-        .collect();
-    assert_eq!(
-        frag_flips.len(),
-        1,
-        "one net discriminator flip: {report:?}"
-    );
-    let (_, ff) = frag_flips[0];
-    assert_eq!(
-        (ff.from, ff.to, ff.count),
-        (geom_core::Sign::Negative, geom_core::Sign::Positive, 2),
-        "one probe per cap fragment (top and bottom)"
-    );
-    // The discriminator's decision structure is identical (same
-    // fragments, same probes, same partners): a sign change at a
-    // matched population, never a count divergence.
-    let delta = &flips.nodes[&f.sub];
-    assert!(
-        delta
-            .diverged
-            .iter()
-            .all(|d| !d.predicate.starts_with("name_frag_")),
-        "discriminator structure must not diverge: {:?}",
-        delta.diverged
-    );
-
-    // (b) Counted localization: exactly the names whose derivations
-    // pass through the flipped qualifier change — one fragment name
-    // per cap (top and bottom), vanishing and reappearing with
-    // EXACTLY ONE vector entry changed. Every OTHER name survives
-    // with its entry SHAPE intact (arena keys may re-mint — kernel
-    // order verdicts flipped too, and keys are per-evaluation; the
-    // N4 invariant binds tables to verdicts, and NAMES carry the
-    // identity, which is the whole point).
+    // A piece is named by the walls it borders, and no piece gained or
+    // lost a wall, so every piece keeps its name and its entry shape:
+    // a face name reads nothing beyond its own boundary.
     let (r1, r2) = (rows(&ev1, f.sub), rows(&ev2, f.sub));
-    let vanished: Vec<&StableName> = r1.keys().filter(|n| !r2.contains_key(*n)).collect();
-    let appeared: Vec<&StableName> = r2.keys().filter(|n| !r1.contains_key(*n)).collect();
-    assert_eq!(vanished.len(), 2, "one N fragment per cap: {vanished:?}");
-    assert_eq!(
-        appeared.len(),
-        2,
-        "each reappears re-qualified: {appeared:?}"
+    let pieces =
+        |r: &Rows| -> Vec<StableName> { r.keys().filter(|n| is_piece(n)).cloned().collect() };
+    assert!(
+        pieces(&r1).len() >= 4,
+        "both caps are cut into pieces: {:?}",
+        pieces(&r1)
     );
+    assert_eq!(pieces(&r1), pieces(&r2), "a piece's name moved");
     let shape = |e: &Entry| match e {
         Entry::Unique(_) => 1usize,
         Entry::Tied(c) => c.len(),
     };
-    for n in r1.keys() {
-        if r2.contains_key(n) {
-            assert_eq!(shape(&r1[n]), shape(&r2[n]), "off-path shape moved: {n:?}");
-        }
+    for n in pieces(&r1) {
+        assert_eq!(shape(&r1[&n]), shape(&r2[&n]), "{n:?}");
     }
-    // Pair each vanished name with its reappearance: same derivation
-    // prefix, same partners, exactly one verdict entry differs —
-    // Mixed → Positive against the non-adjacent H1 wall.
-    for v in &vanished {
-        let prefix = &v.path[..v.path.len() - 1];
-        let twin = appeared
-            .iter()
-            .find(|a| &a.path[..a.path.len() - 1] == prefix && a.kind == v.kind)
-            .unwrap_or_else(|| panic!("no re-qualified twin for {v:?}"));
-        let (sv, st) = (side_vector(v).unwrap(), side_vector(twin).unwrap());
-        assert_eq!(sv.len(), st.len());
-        let mut changed = Vec::new();
-        for ((p1, verd1), (p2, verd2)) in sv.iter().zip(st.iter()) {
-            assert_eq!(p1, p2, "partner set must not change");
-            if verd1 != verd2 {
-                changed.push((p1, *verd1, *verd2));
-            }
-        }
-        assert_eq!(changed.len(), 1, "EXACTLY one qualifier entry: {changed:?}");
-        let (_, from, to) = changed[0];
-        assert_eq!((from, to), (SideVerdict::Mixed, SideVerdict::Positive));
-    }
-
-    // (c) The vanished name's diagnosis IS the discriminator flip.
-    let res = resolve_with_prior(
-        RunCtx {
-            doc: &doc2,
-            eval: &ev2,
-        },
-        RunCtx {
-            doc: &f.doc,
-            eval: &ev1,
-        },
-        vanished[0],
-        Tol::witness(),
-    );
-    let Resolution::Failed(fail) = res else {
-        panic!("expected Failed, got {res:?}");
-    };
-    let ResolveError::Vanished { diagnosis, .. } = &fail.error else {
-        panic!("expected Vanished, got {:?}", fail.error);
-    };
-    assert_eq!(
-        *diagnosis,
-        Diagnosis::PredicateFlip {
-            predicate: "name_frag_side_of",
-            from: geom_core::Sign::Negative,
-            to: geom_core::Sign::Positive,
-            source: editor_core::FlipSource::VerdictLog,
-        }
-    );
 }
 
 // ---- D6.3: fused-vertex identity drop (R9) ----
@@ -296,12 +204,14 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, transform) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(2.5), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            editor_core::Step::Rigid {
+                translation: [len(2.5), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     // M4 PR 5: the slide's flush planes are declared (the disjoint
     // position keeps the same coplanarity, so ONE declare serves both).
@@ -381,7 +291,6 @@ fn fused_vertex_scenario(
             },
             RunCtx { doc, eval: &ev1 },
             name,
-            Tol::witness(),
         );
         let Resolution::Failed(f) = res else {
             panic!("expected Failed for {name:?}, got {res:?}");
@@ -399,8 +308,12 @@ fn fused_vertex_scenario(
         // on a recipe edit or structural parameter that did not
         // happen. Under the realized sweep the recorded evidence can
         // honestly be ABSENT (the disjoint prior pruned every pair —
-        // module comment above), in which case exactly the documented
-        // evidence-free fallback naming the MINTING node is admitted.
+        // module comment above), in which case the answers that claim
+        // no cause are admitted, both at the MINTING node: the
+        // documented evidence-free fallback, and the group-size table
+        // fact. This is a closed list of `Diagnosis` arms — when N5
+        // gains an arm, decide here whether it is honest without a
+        // recorded flip.
         let honest_flip = matches!(
             diagnosis,
             Diagnosis::PredicateFlip { .. } | Diagnosis::Cascade { .. }
@@ -409,7 +322,7 @@ fn fused_vertex_scenario(
             diagnosis,
             Diagnosis::RecipeEdit {
                 edit: editor_core::RecipeEditRef::NodeChanged { node }
-            } if *node == name.node
+            } | Diagnosis::GroupResized { node, .. } if *node == name.node
         );
         match strategy {
             topo::SweepStrategy::Idealized => assert!(

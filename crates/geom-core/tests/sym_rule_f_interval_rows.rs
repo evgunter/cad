@@ -1,9 +1,6 @@
 //! **Rule F's rows at the INTERVAL lift** — the half of
 //! `sym_rule_f_rows` that needs a BOX rather than a point, in its own
-//! wholly feature-gated file because `crates/*/tests` owes WHOLE-ITEM
-//! gating (`scripts/check-interval-cfg-additive.py`: a test present in
-//! both builds must run identical code, so a row whose body is gated
-//! inside a shared file runs nowhere on the interval legs).
+//! file.
 //!
 //! Clause 1 — the value channel certified the computation on the whole
 //! input box — is a statement about a BOX, and three of rule F's
@@ -14,7 +11,6 @@
 //! certified lane. Those rows are here; the point-lift rows, the
 //! predicate's boundary and the negatives are in `sym_rule_f_rows`,
 //! whose helpers this file shares.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::Margin;
@@ -134,7 +130,10 @@ fn the_minted_magnitude_is_the_same_indeterminate_an_abs_node_mints() {
 /// The same adversary at the INTERVAL lift, which is the certified
 /// lane: `E`'s enclosure over a box around `x = 1e8` straddles zero,
 /// the value channel cannot decide, and the tier answers `theorem` —
-/// the identity, correctly. Gating, because nothing here panics.
+/// the identity, correctly. Gating, because nothing here panics. The
+/// form is R2's adversary `E`, spelled once as
+/// `sym11_witness_kind_rows::adversary_of`; this row keeps its own
+/// spelling only because it predates that home.
 #[test]
 fn the_adversary_at_the_interval_lift_is_a_plain_theorem() {
     let tiny = 1.0e-30;
@@ -146,5 +145,29 @@ fn the_adversary_at_the_interval_lift_is_a_plain_theorem() {
         one_i().copysign(e) - one_i()
     });
     println!("  interval lift over x ∈ [1e8 ∓ 1]: {l} enclosure {v:?}");
+    assert_eq!(l, "theorem");
+}
+
+/// **The adversary, REFLECTED for the negative arm.** `E′ = (x + 1)² −
+/// x² − 2x − 1 − 1e-30·(1 + y²)` is the form the predicate calls
+/// manifestly NEGATIVE (as a polynomial it is `−1e-30·(1 + y²)`: every
+/// coefficient negative, one constant term) whose `f64` channel reads
+/// POSITIVE near `x = 1e8` by cancellation. At the interval lift the
+/// certified enclosure holds the truth and `copysign(1, E′) + 1` is a
+/// plain theorem, as the positive adversary above is.
+#[test]
+fn the_reflected_adversary_at_the_interval_lift_is_a_plain_theorem() {
+    let tiny = 1.0e-30;
+    let (l, v) = how_i(SymRules::shipped(), || {
+        let x = over("x", 1.0e8 - 1.0, 1.0e8 + 1.0);
+        let y = over("y", 0.4, 0.6);
+        let e = (x + one_i()).powi(2)
+            - x.powi(2)
+            - Sym::from_f64(2.0) * x
+            - one_i()
+            - Sym::from_f64(tiny) * (one_i() + y.powi(2));
+        one_i().copysign(e) + one_i()
+    });
+    println!("  reflected adversary over x ∈ [1e8 ∓ 1]: {l} enclosure {v:?}");
     assert_eq!(l, "theorem");
 }

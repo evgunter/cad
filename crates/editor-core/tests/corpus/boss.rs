@@ -30,6 +30,7 @@ pub fn document() -> CorpusDoc {
     let plate_p = r.insert(Node::Profile(ProfileProgram {
         plane: plate_plane,
         loops: vec![plate_loop],
+        ids: Vec::new(),
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
@@ -48,6 +49,7 @@ pub fn document() -> CorpusDoc {
     let boss_p = r.insert(Node::Profile(ProfileProgram {
         plane: boss_plane,
         loops: vec![boss_loop],
+        ids: Vec::new(),
     }));
     let boss = r.insert(Node::Extrude {
         profile: boss_p,

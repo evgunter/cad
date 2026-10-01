@@ -1,5 +1,5 @@
 //! M5 PR 9c, item 1: the sphere containment/pierce doors at the
-//! CERTIFIED scalar (feature `interval`).
+//! CERTIFIED scalar.
 //!
 //! The point of the lane is that the new arm's margins are honest
 //! enclosures, not f64 luck: the boundary residual
@@ -10,36 +10,24 @@
 //! bound and the whole lane would refuse geometry it should accept.
 //! Exact dyadic fixtures decide definitely from point enclosures.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::{iv, p2, p3, v2};
 use geom_core::Tol;
-use geom_core::{Band, Interval, Point2, Point3, Real};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::{Band, Interval, Point3};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
-    Point3::new(iv(x), iv(y), iv(z))
-}
-
 /// The unit ball at the certified scalar (the `revolve_ball` fixture).
 fn ball() -> topo::Body<Interval> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(iv(0.0), iv(-1.0)), iv(1.0)),
-        ProfileVertex::new(Point2::new(iv(0.0), iv(1.0)), iv(0.0)),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -1.0), iv(1.0)), (p2(0.0, 1.0), iv(0.0))]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: Point2::new(iv(0.0), iv(0.0)),
-        dir: geom_core::Vec2::new(iv(0.0), iv(1.0)),
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
     };
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()

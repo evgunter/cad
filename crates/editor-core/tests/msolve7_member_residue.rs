@@ -124,8 +124,8 @@ fn a1_the_solve_builds_its_nominal_environment_exactly_once() {
 
 // ---- A1: the environment is the document's nominal ----
 
-/// A slab `w × w × h`, as a whole part document.
-fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
+/// A slab `w × w × h`, as a whole part document, and its body.
+fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -134,14 +134,13 @@ fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (w, 0.0), (w, w), (0.0, w)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(h),
         },
-    );
-    doc
+    )
 }
 const BASE_HEIGHT: f64 = 1.0;
 const BASE_WIDTH: f64 = 3.0;
@@ -188,13 +187,13 @@ type Rule = (fn(RecipeNodeId) -> PatternKind, Expr);
 /// The document parameters declared first, then base, top, the
 /// pattern `rule` places the top by (a linear rule, or a circular one
 /// over an axis datum inserted before it), and the mate.
-fn scene(label: &str, params: &[(&str, DocParam)], rule: Option<Rule>, copy: u32) -> Scene {
+fn scene(label: &str, params: &[(&'static str, DocParam)], rule: Option<Rule>, copy: u32) -> Scene {
     let mut store = PartStore::default();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let top_ref = store.insert(
+    let (top_ref, top_body) = store.insert_part(
         slab(&format!("{label}-top"), 1.0, TOP_HEIGHT),
         Tol::witness(),
     );
@@ -204,7 +203,7 @@ fn scene(label: &str, params: &[(&str, DocParam)], rule: Option<Rule>, copy: u32
         doc = step(
             doc,
             DocEdit::SetDocParam {
-                name: ParamName::new(*name),
+                name: ParamName::from_static(name),
                 value: value.clone(),
             },
         )
@@ -212,9 +211,9 @@ fn scene(label: &str, params: &[(&str, DocParam)], rule: Option<Rule>, copy: u32
     }
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
-    let a = head(in_part(base, CapEnd::End));
+    let a = head(in_part(base, base_body, CapEnd::End));
     let (doc, pattern, b) = match rule {
-        None => (doc, None, head(in_part(top, CapEnd::Start))),
+        None => (doc, None, head(in_part(top, top_body, CapEnd::Start))),
         Some((kind, count)) => {
             let (doc, axis) = insert(
                 doc,
@@ -231,7 +230,10 @@ fn scene(label: &str, params: &[(&str, DocParam)], rule: Option<Rule>, copy: u32
                     kind: kind(axis),
                 },
             );
-            let b = head_at(pattern, in_copy(pattern, copy, in_part(top, CapEnd::Start)));
+            let b = head_at(
+                pattern,
+                in_copy(pattern, copy, in_part(top, top_body, CapEnd::Start)),
+            );
             (doc, Some(pattern), b)
         }
     };
@@ -245,11 +247,11 @@ fn scene(label: &str, params: &[(&str, DocParam)], rule: Option<Rule>, copy: u32
     }
 }
 
-fn set_value(doc: ProfileDoc, name: &str, value: DocParamValue) -> ProfileDoc {
+fn set_value(doc: ProfileDoc, name: &'static str, value: DocParamValue) -> ProfileDoc {
     step(
         doc,
         DocEdit::SetDocParamValue {
-            name: ParamName::new(name),
+            name: ParamName::from_static(name),
             value,
         },
     )
@@ -259,14 +261,14 @@ fn set_value(doc: ProfileDoc, name: &str, value: DocParamValue) -> ProfileDoc {
 fn linear_x_by_s(_axis: RecipeNodeId) -> PatternKind {
     PatternKind::Linear {
         direction: [1.0, 0.0, 0.0].map(scl),
-        spacing: Expr::param(ParamName::new("s"), Dimension::Length),
+        spacing: Expr::param(ParamName::from_static("s"), Dimension::Length),
     }
 }
 
 fn circular_by_th(axis: RecipeNodeId) -> PatternKind {
     PatternKind::Circular {
         axis,
-        step: Expr::param(ParamName::new("th"), Dimension::Angle),
+        step: Expr::param(ParamName::from_static("th"), Dimension::Angle),
     }
 }
 
@@ -297,7 +299,7 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
         ),
         ("n", DocParam::Count { value: 3 }),
     ];
-    let count = || Expr::param(ParamName::new("n"), Dimension::Count);
+    let count = || Expr::param(ParamName::from_static("n"), Dimension::Count);
     let control = scene("msolve7-a1-linear-control", &params, None, 0);
     let c = top_pose(&control, "control");
     let test = scene(
@@ -316,7 +318,7 @@ fn a1_a_linear_offset_is_the_documents_nominal_parameter_bit_for_bit() {
     // The same number through the public expression door against the
     // document's own nominal environment.
     let via_env = editor_core::eval::<f64>(
-        &Expr::param(ParamName::new("s"), Dimension::Length),
+        &Expr::param(ParamName::from_static("s"), Dimension::Length),
         &test.doc.param_env::<f64>(),
     )
     .unwrap();
@@ -366,7 +368,7 @@ fn a1_the_count_is_read_at_the_documents_own_bindings() {
         ("s", DocParam::continuous(Dimension::Length, 4.0)),
         ("n", DocParam::Count { value: 3 }),
     ];
-    let count = Expr::param(ParamName::new("n"), Dimension::Count);
+    let count = Expr::param(ParamName::from_static("n"), Dimension::Count);
     let s = scene("msolve7-a1-count", &params, Some((linear_x_by_s, count)), 2);
     top_pose(&s, "n=3 copy 2");
     let shrunk = set_value(s.doc.clone(), "n", DocParamValue::Count(2));

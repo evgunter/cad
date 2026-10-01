@@ -52,20 +52,15 @@ pub const PLATE_DEPTH: f64 = 0.5;
 /// validate-refusal row wants exactly one reason to refuse.
 pub const HOLE_CENTRES: [(f64, f64); 2] = [(1.0, 1.0), (2.2, 1.0)];
 
-/// A literal length expression.
-fn lit(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length literal")
-}
-
 /// The hole radius, as the shared parameter reference.
 pub fn hole_radius() -> Expr {
-    Expr::param(ParamName::new(HOLE_R), Dimension::Length)
+    Expr::param(ParamName::from_static(HOLE_R), Dimension::Length)
 }
 
 /// One hole loop: a circle whose radius is the shared parameter.
 pub fn hole_loop(centre: (f64, f64)) -> LoopProgram {
     LoopProgram::Circle {
-        centre: [lit(centre.0), lit(centre.1)],
+        centre: [len(centre.0), len(centre.1)],
         radius: hole_radius(),
     }
 }
@@ -76,10 +71,10 @@ pub fn hole_loop(centre: (f64, f64)) -> LoopProgram {
 pub fn outline() -> LoopProgram {
     let (x0, x1, y0, y1) = PLATE;
     LoopProgram::Chain(vec![
-        ProgramStep::At([lit(x0), lit(y0)]),
-        ProgramStep::LineTo(ProgramTarget::Point([lit(x1), lit(y0)])),
-        ProgramStep::LineTo(ProgramTarget::Point([lit(x1), lit(y1)])),
-        ProgramStep::LineTo(ProgramTarget::Point([lit(x0), lit(y1)])),
+        ProgramStep::At([len(x0), len(y0)]),
+        ProgramStep::LineTo(ProgramTarget::Point([len(x1), len(y0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([len(x1), len(y1)])),
+        ProgramStep::LineTo(ProgramTarget::Point([len(x0), len(y1)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }
@@ -94,13 +89,14 @@ pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram {
             hole_loop(HOLE_CENTRES[0]),
             hole_loop(HOLE_CENTRES[1]),
         ],
+        ids: Vec::new(),
     }
 }
 
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new(HOLE_R),
+        name: ParamName::from_static(HOLE_R),
         value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
     });
 
@@ -123,6 +119,7 @@ pub fn document() -> CorpusDoc {
             LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                 .expect("finite tab corners"),
         ],
+        ids: Vec::new(),
     }));
     let tab = r.insert(Node::Extrude {
         profile: tab_p,

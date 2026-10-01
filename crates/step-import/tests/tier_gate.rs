@@ -85,7 +85,7 @@
 
 use std::path::{Path, PathBuf};
 
-use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
+use Disposition::{EpsSensitive, Escalated, Pass, Refused, RefusedEnding, Wireframe};
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
@@ -107,6 +107,15 @@ enum Disposition {
     /// Refuses typed; the string is a distinctive fragment of the
     /// refusal's own message, so the ROW says why, not just that.
     Refused(&'static str),
+    /// Refuses typed, and the message ENDS in the string: the whole
+    /// ending, for a cell whose fragment alone cannot tell two endings
+    /// apart (a fragment matches a lever that a note then follows).
+    RefusedEnding(&'static str),
+    /// Refuses typed on an escalation of the named predicate, with the
+    /// message containing the fragment (empty: any message). The name
+    /// is routing, which the message a person reads leaves out, so it
+    /// is read off the typed refusal's `Debug`.
+    Escalated(&'static str, &'static str),
     /// This file's disposition genuinely MOVES with the ambient ε, and
     /// its cells are pinned one by one in [`EPS_ROWS`] — a marker, not
     /// an outcome, so no cell of it can be satisfied by accident.
@@ -231,7 +240,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         NEARPOLAR_SPLIT,
         1e-6,
         "file",
-        Refused(NEARPOLAR_WEDGE_ESCALATED),
+        Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
     ),
     (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
@@ -239,16 +248,31 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         NEARPOLAR_NOSPLIT,
         1e-6,
         "file",
-        Refused(NEARPOLAR_WEDGE_ESCALATED),
+        Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
     ),
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
     (FTC11, 1e-9, "1e-12", Refused(TANGENT_PLANES_COINCIDE)),
-    (FTC11, 1e-6, "file", Refused(SEAM_HALFPLANE_ESCALATED)),
-    (FTC11, 1e-6, "1e-6", Refused(PARAM_SPAN_ESCALATED)),
-    (FTC11, 1e-6, "1e-12", Refused(PARAM_SPAN_ESCALATED)),
+    (
+        FTC11,
+        1e-6,
+        "file",
+        Escalated(SEAM_HALFPLANE_ESCALATED.0, SEAM_HALFPLANE_ESCALATED.1),
+    ),
+    (
+        FTC11,
+        1e-6,
+        "1e-6",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (
+        FTC11,
+        1e-6,
+        "1e-12",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
     (FTC11, 1e-12, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
     (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 16, 12)),
     (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 16, 12)),
@@ -305,17 +329,32 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // default band's indeterminate zone, certifies ZERO at 1e-6, and
     // at 1e-12 the spans clear and the rim/sphere near-tangency
     // refuses at adoption — `poleguard.rs` holds the route argument.
-    (POLEBAND, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEBAND, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (
+        POLEBAND,
+        1e-9,
+        "file",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (POLEBAND, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
     (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
     // and certifies ZERO at both coarser bands.
-    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_NOT_FORWARD)),
-    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
-    (POLEBAND12, 1e-12, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEFRUSTUM, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEFRUSTUM, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEBAND12, 1e-9, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
+    (POLEBAND12, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
+    (
+        POLEBAND12,
+        1e-12,
+        "file",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (
+        POLEFRUSTUM,
+        1e-9,
+        "file",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (POLEFRUSTUM, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
     (
         POLEFRUSTUM,
         1e-12,
@@ -330,20 +369,33 @@ const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step"
 /// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
 /// angle's adoption certification, by predicate name, so a regression
 /// that moves the refusal to another door fails these cells.
-const NEARPOLAR_WEDGE_ESCALATED: &str = "predicate 'dihedral_wedge' indeterminate";
+const NEARPOLAR_WEDGE_ESCALATED: (&str, &str) = (
+    "the transversality margin at sample 1 escalated",
+    "dihedral_wedge",
+);
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
 const POLEBAND: &str = "tests/fixtures/poleguard/poleband.step";
 const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
 const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// The poleguard twins' coarse-band sub-reason: the sub-band span
 /// certifies zero, and the attachment gate refuses the degenerate
-/// interval by name.
-const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward";
+/// interval by name — the span's Zero verdict, not a reversed one. The
+/// span is a real edge shorter than the tolerance, a band-decided arm
+/// like every sized decision's, so at adoption it ends in the lever
+/// alone: no ending there names a tolerance. Pinned as the message's
+/// whole ending, because a span of no length ends in the same lever
+/// followed by a note, which a fragment would also match.
+const INTERVAL_ZERO_SPAN: &str = "the stored parameter interval spans no length at this tolerance \
+     — a degenerate zero-span interval, which the forward gate refuses. Recourse: move the \
+     geometry so this edge is not vanishingly short";
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door
-/// fails these cells.
-const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero at sample 1";
+/// fails these cells. Band-decided, like the tangent-plane zero: the
+/// lever alone at adoption.
+const TANGENT_SECOND_ORDER_ZERO: &str = "the faces agree to second order at sample 1, so they do \
+     not fix where the edge runs, which its description says they do. Recourse: move the \
+     geometry so the faces curve apart more clearly where they touch";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -352,7 +404,7 @@ const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero a
 /// real outcome of this lane and would become reachable again the
 /// moment anything at the gate moves.
 #[allow(dead_code)]
-const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeterminate";
+const QUAD_CONVERGED_ESCALATED: &str = "props_quad_converged";
 // dm1's `#389` polyline gap ("edge #389: no intensional description
 // certifies", with an empty attempt list) is RETIRED, by execution and
 // not by unreachability: degree-1 carriers promote to `Curve3::Line`
@@ -377,29 +429,43 @@ const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 /// one that merely moves the refusal somewhere else.
 const ISO_RECTANGLE_PREDICATE: &str = "props_rim_level";
 
-/// The seam carrier's residual is DECIDEDLY outside the band.
-const SEAM_HALFPLANE_DEFINITE: &str =
-    "the out-of-halfplane component at sample 0 definitely exceeds the tolerance band";
+/// The seam carrier's residual is DECIDEDLY outside the band, ending as
+/// a definite refusal at adoption does: the file is named beside the
+/// kernel.
+const SEAM_HALFPLANE_DEFINITE: &str = concat!(
+    "the out-of-halfplane component at sample 0 definitely exceeds the tolerance band (the \
+     cache does not represent the description, D4 ¶2). ",
+    geom_core::kernel_or_file_defect_ending!()
+);
 /// The same residual, IN the band: escalate-never-guess, by name.
-const SEAM_HALFPLANE_ESCALATED: &str = "the out-of-halfplane component at sample 0 escalated: predicate 'carrier_in_seam_halfplane' \
-     indeterminate";
+const SEAM_HALFPLANE_ESCALATED: (&str, &str) = (
+    "the out-of-halfplane component at sample 0 escalated",
+    "carrier_in_seam_halfplane",
+);
 /// Coarse enough for the two walls to read as one: the Intersection
-/// transversality precondition fails, and the ladder says which.
-const TANGENT_PLANES_COINCIDE: &str = "tangent planes coincide at interior sample 1 — the Intersection transversality \
-     precondition fails";
+/// transversality precondition fails, and the ladder says which. A zero
+/// verdict is band-decided — at a finer ambient band the coincidence
+/// predicates no longer fire here, and a different check refuses the
+/// file (`SEAM_HALFPLANE_DEFINITE` at 1e-12) — so at adoption it names
+/// its decision's lever alone, and the attempt ends there (the `;`
+/// before the next rung).
+const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
+     description says they cross. Recourse: move the geometry so the faces cross at a clearer angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
-const PARAM_SPAN_ESCALATED: &str = "the stored interval's span (not a sampled check) escalated: predicate \
-     'interval_span_forward' indeterminate";
+const PARAM_SPAN_ESCALATED: (&str, &str) = (
+    "the stored interval's span (not a sampled check) escalated",
+    "interval_span_forward",
+);
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
-const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: the start-endpoint residual at \
+const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: the start-endpoint residual at \
      sample 0 definitely exceeds";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 73] = [
+const CORPUS: [(&str, Disposition); 75] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -555,6 +621,24 @@ const CORPUS: [(&str, Disposition); 73] = [
     // 900× outside that band and pin the adoption bar there instead).
     ("tests/fixtures/poleguard/poleband_eps12.step", EpsSensitive),
     ("tests/fixtures/poleguard/polefrustum.step", EpsSensitive),
+    // -- tests/fixtures/rim-only-cap/ ---------------------------------
+    // A sphere cap stated as one rim circle and its base disc: the pole
+    // is interior to the sphere face and no meridian or pole vertex is
+    // stated. Both statements of the rim — one closed circle edge, two
+    // half arcs — are adopted as written and pass the gate; what the
+    // mesh lane answers for the sphere face is `meridian_free_cap.rs`'s
+    // row. BOTH CENSUSES MOVE BY DESIGN when import learns to re-mint
+    // this face in the seamed form
+    // (`work/exch/import-normalizes-the-rim-only-cap.md`): more faces,
+    // edges and vertices here is that unit working, not a regression.
+    (
+        "tests/fixtures/rim-only-cap/rimonly1.step",
+        Pass(1, 1, 2, 1, 1),
+    ),
+    (
+        "tests/fixtures/rim-only-cap/rimonly2.step",
+        Pass(1, 1, 2, 2, 2),
+    ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
     // two collinear `EDGE_CURVE`s, which is what every exporter emits
@@ -966,17 +1050,65 @@ fn every_corpus_import_passes_the_shared_gate() {
                     );
                 }
                 (Ok(StepImport::Wireframe { .. }), Wireframe) => {}
+                (Err(e), RefusedEnding(ending)) => {
+                    let msg = e.to_string();
+                    assert_adoption_reading(&who, &msg);
+                    assert!(
+                        msg.ends_with(ending),
+                        "{who}: refused with a DIFFERENT ending than the table records \
+                         (want a message ending in {ending:?}): {msg}"
+                    );
+                }
                 (Err(e), Refused(fragment)) => {
                     let msg = e.to_string();
+                    assert_adoption_reading(&who, &msg);
                     assert!(
                         msg.contains(fragment),
                         "{who}: refused for a DIFFERENT reason than the table records \
                          (want a message containing {fragment:?}): {msg}"
                     );
                 }
+                (Err(e), Escalated(fragment, predicate)) => {
+                    let msg = e.to_string();
+                    assert_adoption_reading(&who, &msg);
+                    assert!(
+                        msg.contains(fragment),
+                        "{who}: refused for a DIFFERENT reason than the table records \
+                         (want a message containing {fragment:?}): {msg}"
+                    );
+                    let typed = format!("{e:?}");
+                    assert!(
+                        typed.contains(&format!("predicate: Some({predicate:?})")),
+                        "{who}: refused for a DIFFERENT reason than the table records \
+                         (want an escalation of {predicate:?}): {typed}"
+                    );
+                }
                 (got, want) => panic!("{who}: disposition changed — want {want:?}, got {got:?}"),
             }
         }
+    }
+}
+
+/// A certification refusal at adoption is read at the adoption door
+/// (D4 ¶1, D7): the geometry is the file's and the tolerance the
+/// kernel's, so no ending there names the tolerance in either
+/// direction, and none blames the kernel alone. The message's own
+/// payload may still say "the tolerance band"; the endings may not.
+fn assert_adoption_reading(who: &str, msg: &str) {
+    let adoption = msg.contains("no intensional description certifies")
+        || msg.contains("step import: assembling entity");
+    if !adoption {
+        return;
+    }
+    for forbidden in [
+        "tighten the tolerance",
+        "loosen the tolerance",
+        geom_core::KERNEL_DEFECT_ENDING,
+    ] {
+        assert!(
+            !msg.contains(forbidden),
+            "{who}: an adoption refusal ends as if read at a build ({forbidden:?}): {msg}"
+        );
     }
 }
 
@@ -1081,16 +1213,18 @@ fn the_refusal_carries_the_kernels_verdicts() {
         *solid, None,
         "a one-solid file's subject is the assembled body itself"
     );
-    assert_eq!(
-        errors.as_slice(),
-        [topo::ValidationError::NegativeVolume],
-        "the verdicts are the kernel's own, unfiltered and unrephrased"
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::NegativeVolume { .. }]
+        ),
+        "the verdicts are the kernel's own, unfiltered and unrephrased: {errors:?}"
     );
     let msg = e.to_string();
     for want in [
         "shared at-rest validation gate",
         "NegativeVolume",
-        "signed volume is definitely negative",
+        "a solid encloses negative volume, so it is inside-out",
     ] {
         assert!(msg.contains(want), "the message must name {want:?}: {msg}");
     }

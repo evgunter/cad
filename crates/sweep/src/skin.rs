@@ -55,7 +55,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
+use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
 use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
@@ -183,9 +183,11 @@ pub enum SkinError {
 impl core::fmt::Display for SkinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::TooFewSections { have, need } => {
-                write!(f, "skin: {have} sections, need at least {need}")
-            }
+            Self::TooFewSections { have, need } => write!(
+                f,
+                "{have} sections were given and at least {need} are needed. Recourse: supply \
+                 more sections"
+            ),
             Self::SectionShapeMismatch {
                 section,
                 expected,
@@ -193,38 +195,35 @@ impl core::fmt::Display for SkinError {
                 what,
             } => write!(
                 f,
-                "skin: section {section} has {found} {what}, section 0 has {expected} — a \
-                 skin matches like to like by index; supply sections with the same shape"
+                "section {section} has {found} {what} and section 0 has {expected}, but \
+                 sections are matched by index. Recourse: supply sections with the same shape"
             ),
             Self::SectionProfile { section, source } => {
-                write!(
-                    f,
-                    "skin: section {section} failed profile validation: {source}"
-                )
+                write!(f, "section {section} is not a valid profile: {source}")
             }
             Self::DomainNotUnit { section, domain } => write!(
                 f,
-                "skin: section {section} lives on [{}, {}], not the unit domain the \
-                 compatibility pass requires",
+                "section {section} lives on [{}, {}], not the unit domain the sections are \
+                 matched on",
                 domain.0, domain.1
             ),
             Self::DegenerateSection { section, what } => write!(
                 f,
-                "skin: section {section} is degenerate ({what}) — {COINCIDENCE_RECOURSE}"
+                "section {section} is degenerate ({what}). Recourse: {COINCIDENCE_RECOURSE}"
             ),
             Self::BadDegree { degree, sections } => write!(
                 f,
-                "skin: v-degree {degree} is not usable for {sections} sections (need \
-                 1 ≤ degree ≤ sections − 1)"
+                "degree {degree} is not usable for {sections} sections (it must be at least 1 \
+                 and below the section count)"
             ),
             Self::PathTangentReversal { station } => write!(
                 f,
-                "skin: the path's tangent reverses or vanishes at station {station} — no \
-                 rigid frame carries the profile through it"
+                "the path's tangent reverses or vanishes at station {station}, so no rigid \
+                 frame carries the profile through it. Recourse: smooth the path there"
             ),
-            Self::Fit(e) => write!(f, "skin: {e}"),
-            Self::KnotAlgebra(e) => write!(f, "skin: {e}"),
-            Self::Structure(e) => write!(f, "skin: {e}"),
+            Self::Fit(e) => write!(f, "{e}"),
+            Self::KnotAlgebra(e) => write!(f, "{e}"),
+            Self::Structure(e) => write!(f, "{e}"),
         }
     }
 }
@@ -269,8 +268,8 @@ impl From<FitError> for SkinError {
 ///
 /// # Errors
 ///
-/// [`SkinError::DegenerateSection`] for a zero-length chord, a
-/// non-finite bulge, or an arc whose derived radius is not finite and
+/// [`SkinError::DegenerateSection`] for a zero-length chord, a zero
+/// or non-finite sweep, or an arc whose radius is not finite and
 /// positive; [`SkinError::Structure`] if validated construction
 /// refuses.
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
@@ -296,34 +295,27 @@ pub fn segment_curve(
                 vec![1.0, 1.0],
             )?)
         }
-        SketchSegment::Arc { a, b, bulge } => {
-            let len = a.distance(b);
-            if !(len > 0.0) {
+        SketchSegment::Arc {
+            a,
+            b,
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    sweep: theta,
+                },
+        } => {
+            if !(a.distance(b) > 0.0) {
                 return Err(degenerate("zero-length chord"));
             }
-            if !bulge.is_finite() || bulge == 0.0 {
-                return Err(degenerate("zero or non-finite bulge"));
+            if !theta.is_finite() || theta == 0.0 {
+                return Err(degenerate("zero or non-finite sweep"));
             }
-            // The profile crate's ratified bulge closed forms, verbatim
-            // (`profile::seg::build_seg`): the chord's LEFT normal, the
-            // apothem, and the signed radius.
-            let ux = (b.x - a.x) / len;
-            let uy = (b.y - a.y) / len;
-            let (nx, ny) = (-uy, ux);
-            let b2 = bulge.powi(2);
-            let four_bulge = 4.0 * bulge;
-            let apothem = len * (1.0 - b2) / four_bulge;
-            let radius = (len * (1.0 + b2) / four_bulge).abs();
             if !(radius > 0.0) || !radius.is_finite() {
                 return Err(degenerate("arc radius is not finite and positive"));
             }
-            let center = Point2::new(
-                0.5f64.mul_add(b.x - a.x, a.x) + nx * apothem,
-                0.5f64.mul_add(b.y - a.y, a.y) + ny * apothem,
-            );
-            // θ = 4·atan(bulge), signed (the sanctioned bulge
-            // re-inspection — never endpoint `atan2`).
-            let theta = 4.0 * bulge.atan();
+            // The segment's own carrier and signed sweep; the start
+            // angle is read off the stored start vertex.
             let start = (a.y - center.y).atan2(a.x - center.x);
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let m = ((theta.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
@@ -763,33 +755,20 @@ pub struct LoftGeometry {
 /// One section of a loft or sweep: its loops in the profile
 /// vocabulary — outer boundary first, holes after, each a
 /// [`ProfileLoop`] (closed by construction; segment `j` runs from
-/// vertex `j` to vertex `(j + 1) mod n`, carrying vertex `j`'s
-/// bulge) — the same vocabulary extrude and revolve speak. Each
+/// vertex `j` to vertex `(j + 1) mod n`, as the loop's segment `j`)
+/// — the same vocabulary extrude and revolve speak. Each
 /// interior joint has exactly one naming, so a walls-vs-caps
 /// disagreement is unrepresentable.
 pub type Section = Vec<ProfileLoop<f64>>;
 
-/// The section's world-space traversal data for segment `j`: the
-/// `(a, b, bulge)` triple as a [`SketchSegment`], exactly the lowered
-/// form [`segment_curve`] consumes (`segment_curve` stays public as
-/// the exact-path-leg door, and routing every wall through it keeps
-/// the produced NURBS on one code path).
+/// The section's world-space traversal data for segment `j`, as the
+/// [`SketchSegment`] [`segment_curve`] consumes (`segment_curve` stays
+/// public as the exact-path-leg door, and routing every wall through
+/// it keeps the produced NURBS on one code path). The carrier is
+/// selected by the validated segment's kind; an arc crosses into the
+/// sketch-segment form with its carrier and sweep.
 fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
-    let vs = lp.vertices();
-    let a = vs[j];
-    let b = vs[(j + 1) % vs.len()];
-    if a.bulge() == 0.0 {
-        SketchSegment::Line {
-            a: a.pos(),
-            b: b.pos(),
-        }
-    } else {
-        SketchSegment::Arc {
-            a: a.pos(),
-            b: b.pos(),
-            bulge: a.bulge(),
-        }
-    }
+    crate::swept::sketch_segment(&lp.segments()[j])
 }
 
 /// Validates every section at the door: each section runs
@@ -820,12 +799,27 @@ fn validate_sections(
 ///
 /// `sections[k][l]` is section `k`, loop `l` (a [`ProfileLoop`]) in
 /// the section's own sketch coordinates; `places[k]` is that
-/// section's rigid placement. Every section must present the same
-/// loop and vertex counts — the correspondence is BY INDEX, and there
-/// is no honest way to guess one that was not given. Each section
-/// passes [`Profile::validate`] at the door (fail loud — a section
-/// that would not extrude does not skin either), and the canonical
-/// loops are what get skinned.
+/// section's rigid placement. Each section passes
+/// [`Profile::validate`] at the door (fail loud — a section that would
+/// not extrude does not skin either), and the canonical loops are what
+/// get skinned.
+///
+/// # The correspondence is the author's
+///
+/// Wall `j` of loop `l` skins canonical segment `j` of canonical loop
+/// `l` in every section, so every section must present the same loop
+/// and vertex counts. The canonical form decides only what validity
+/// forces — each loop's traversal sense, outer counterclockwise and
+/// holes clockwise, since a correspondence that reversed one section
+/// against another would sweep the walls through each other — and
+/// keeps everything else as authored: each loop starts at its authored
+/// vertex 0 and holes keep their authored order. So segment `j` is
+/// counted from the author's start in every section, and which edges
+/// line up — the loft's twist — is the author's choice, carried by
+/// where each section's loop starts. No per-section rule could recover
+/// it: a square rotated 90° about its centre is the same point set,
+/// and the untwisted and quarter-twisted lofts between it and the
+/// original are different solids.
 ///
 /// # Errors
 ///
@@ -890,11 +884,11 @@ pub fn loft_geometry(
     // can never drift from the construction it reports.
     //
     // WHICH strip is first is therefore load-bearing, and it is the
-    // caller's: a section authored from a different starting vertex,
-    // or rolled about its own normal by one of the profile's own
-    // symmetries, leaves every station's ring the same set of points
-    // and still builds a measurably different solid, because a
-    // different strip sets v.
+    // caller's: the authored start of loop 0 picks it, so a section
+    // authored from a different starting vertex, or rolled about its
+    // own normal by one of the profile's own symmetries, leaves every
+    // station's ring the same set of points and still builds a
+    // measurably different solid, because a different strip sets v.
     let params = first_strip_parameters(&validated, places)?;
     let mut walls = Vec::with_capacity(loops);
     let mut kept = Vec::with_capacity(loops);

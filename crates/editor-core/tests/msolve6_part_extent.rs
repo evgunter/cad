@@ -1,6 +1,6 @@
 //! MSOLVE-6 acceptance — **the mate's lever is the mated parts' own
 //! extent**, taken from each part's evaluated body (the MSOLVE-6
-//! spec's rows A2–A5; the spec is ledgered in `docs/DOC-LEDGER.md`).
+//! spec's rows A2–A5; the spec was deleted at the unit's merge).
 //!
 //! The lever a mate's angular decisions turn on is
 //! `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored lengths|`,
@@ -21,9 +21,9 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
     EditError, EvalOptions, Frame, FrameFault, Lever, LeverRefusal, LoggedEdit, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult, PartFault,
-    PartReach, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SplitError,
-    content_pin, mate_reach, product, split,
+    MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult,
+    PASS_A_RESOLVER, PartFault, PartReach, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId,
+    Recourse, ResolveFault, SplitError, content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -86,12 +86,38 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
     doc
 }
 
-/// `n` instances of `part`, and the options that resolve them.
+/// **The node a part's caps are named on**: its one extrude or
+/// revolve, found by kind.
+///
+/// # Panics
+///
+/// If `part` has no such node, or more than one.
+fn body_node(part: &ProfileDoc) -> RecipeNodeId {
+    let solids: Vec<RecipeNodeId> = part
+        .order()
+        .iter()
+        .copied()
+        .filter(|&id| {
+            matches!(
+                part.node(id),
+                Some(Node::Extrude { .. } | Node::Revolve { .. })
+            )
+        })
+        .collect();
+    let [body] = solids[..] else {
+        panic!("a part here has one body node, not {solids:?}");
+    };
+    body
+}
+
+/// `n` instances of `part`, the options that resolve them, and the
+/// part's [`body_node`].
 fn instances(
     label: &str,
     part: ProfileDoc,
     n: usize,
-) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
+) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions, RecipeNodeId) {
+    let body = body_node(&part);
     let mut store = PartStore::new();
     let doc_ref = store.insert(part, Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -105,7 +131,7 @@ fn instances(
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
     };
-    (doc, ids, opts)
+    (doc, ids, opts, body)
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
@@ -120,15 +146,16 @@ fn frame(origin: [f64; 3]) -> MateFrame {
 /// with a clocking rider: on a coincidence the rider is
 /// redundant-or-contradictory, DECIDED at the lever, so it is the one
 /// arm that reports `Clash::Levered(Lever::Roll { radians: θ, arm: L })`
-/// — the row's window onto `L`.
+/// — the row's window onto `L`. Each side is an instance and its
+/// part's [`body_node`].
 fn clocked(
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+    (a, a_body): (RecipeNodeId, RecipeNodeId),
+    (b, b_body): (RecipeNodeId, RecipeNodeId),
     alignment: Alignment,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: fixture::head(in_part(a, CapEnd::End)),
-        b: fixture::head(in_part(b, CapEnd::Start)),
+        a: fixture::head(in_part(a, a_body, CapEnd::End)),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment,
     }
@@ -168,7 +195,7 @@ fn mated(
 /// The reach of every instance in `ids`, through the public door:
 /// each instance's part, read off the document the way the solve
 /// reads it.
-fn reaches(doc: &ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
+fn reaches(doc: &editor_core::ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
     let reach = mate_reach::<f64>(opts, Tol::witness());
     ids.iter()
         .map(|&id| {
@@ -201,7 +228,7 @@ fn with_both(labels: &[&str]) -> EvalOptions {
 #[test]
 fn a2_a_box_parts_reach_is_its_far_corner() {
     let (half, height) = (0.5, 1.0);
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, _) = instances(
         "msolve6-a2-box",
         box_part("msolve6-a2-box-part", half, height),
         1,
@@ -220,7 +247,7 @@ fn a2_a_box_parts_reach_is_its_far_corner() {
 #[test]
 fn a2_a_cylinder_parts_reach_is_at_least_its_far_rim() {
     let (radius, height) = (0.3, 0.7);
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, _) = instances(
         "msolve6-a2-cyl",
         cylinder_part("msolve6-a2-cyl-part", radius, height),
         1,
@@ -242,7 +269,7 @@ fn a2_a_cylinder_parts_reach_is_at_least_its_far_rim() {
 /// (the two reaches first, then the datum's sum).
 #[test]
 fn a2_the_lever_is_the_formula_to_the_bit() {
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, body) = instances(
         "msolve6-a2-lever",
         box_part("msolve6-a2-lever-part", 0.5, 1.0),
         2,
@@ -255,8 +282,12 @@ fn a2_the_lever_is_the_formula_to_the_bit() {
     // The rider is decided where the mate is authored, over the same
     // lever the solve forms: the door refuses it with the solve's
     // own fault.
-    let (_, fault) = at_the_store(&doc, &opts, clocked(ids[0], ids[1], alignment))
-        .expect_err("a quarter-turn rider contradicts the coincidence");
+    let (_, fault) = at_the_store(
+        &doc,
+        &opts,
+        clocked((ids[0], body), (ids[1], body), alignment),
+    )
+    .expect_err("a quarter-turn rider contradicts the coincidence");
     let MateFault::Contradictory {
         clash: Clash::Levered(Lever::Roll {
             radians: theta,
@@ -290,7 +321,7 @@ enum Verdict {
 /// strictness moves this expectation with the solve rather than
 /// leaving the row testing a copied rule.
 fn verdict(band: Band, theta: f64, arm: f64) -> Verdict {
-    match (theta * arm).sign_within(band) {
+    match (theta * arm).sign_within(band).map(|d| d.sign) {
         Ok(Sign::Zero) => Verdict::Parallel,
         Ok(Sign::Positive | Sign::Negative) => Verdict::Refused,
         Err(_) => Verdict::Indeterminate,
@@ -305,7 +336,7 @@ fn verdict(band: Band, theta: f64, arm: f64) -> Verdict {
 /// separates that from the metre's verdict, the two differ.
 fn tilted(label: &str, half: f64) -> (Verdict, Verdict, Option<MateFault>, f64) {
     let theta = 1e-8;
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, body) = instances(
         label,
         box_part(&format!("{label}-part"), half, 2.0 * half),
         2,
@@ -317,7 +348,11 @@ fn tilted(label: &str, half: f64) -> (Verdict, Verdict, Option<MateFault>, f64) 
     // The verdict is reached where the mate is authored: an admitted
     // rider enters and the solve places the pair; a refused one
     // carries the solve's own fault out of the door.
-    let fault = match at_the_store(&doc, &opts, clocked(ids[0], ids[1], alignment)) {
+    let fault = match at_the_store(
+        &doc,
+        &opts,
+        clocked((ids[0], body), (ids[1], body), alignment),
+    ) {
         Ok((doc, mate)) => {
             let poses = solve(&doc, &opts, Tol::witness());
             assert_eq!(
@@ -398,8 +433,10 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
     // The part lives in ANOTHER store: the reference is well formed
     // and nothing here can resolve it.
     let mut elsewhere = PartStore::new();
-    let doc_ref = elsewhere.insert(box_part("msolve6-a4-elsewhere", 0.5, 1.0), Tol::witness());
-    let (doc, ids, opts) = instances(
+    let lost_part = box_part("msolve6-a4-elsewhere", 0.5, 1.0);
+    let lost_body = body_node(&lost_part);
+    let doc_ref = elsewhere.insert(lost_part, Tol::witness());
+    let (doc, ids, opts, body) = instances(
         "msolve6-a4-unresolved",
         box_part("msolve6-a4-part", 0.5, 1.0),
         1,
@@ -411,8 +448,8 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
         doc,
         &with_both(&["msolve6-a4-part", "msolve6-a4-elsewhere"]),
         clocked(
-            ids[0],
-            lost,
+            (ids[0], body),
+            (lost, lost_body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -493,7 +530,7 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
 fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
     let mut body = topo::Body::<f64>::new();
     let made = body
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("the seed vertex-face-shell");
     let refusal = editor_core::mate::body_reach(&body).expect_err("the placeholder has no bound");
     assert_eq!(
@@ -548,7 +585,7 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
 /// one mate, the same count as with no mate at all.
 #[test]
 fn a5_a_mated_part_is_evaluated_exactly_once() {
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, body) = instances(
         "msolve6-a5-once",
         box_part("msolve6-a5-once-part", 0.5, 1.0),
         2,
@@ -562,8 +599,8 @@ fn a5_a_mated_part_is_evaluated_exactly_once() {
         doc,
         &opts,
         clocked(
-            ids[0],
-            ids[1],
+            (ids[0], body),
+            (ids[1], body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -593,7 +630,13 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     // Two versions of ONE part document: the same id, so the
     // reference can be re-pinned in place; different extents.
     let small = box_part("msolve6-a5-memo-part", 0.005, 0.01);
+    let body = body_node(&small);
     let large = box_part("msolve6-a5-memo-part", 5.0, 10.0);
+    assert_eq!(
+        body_node(&large),
+        body,
+        "the re-pinned part keeps its body's id"
+    );
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -638,8 +681,8 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     // only there. Elsewhere the door's refusal IS the small part's
     // verdict, and the row ends on it.
     let node = clocked(
-        a,
-        b,
+        (a, body),
+        (b, body),
         coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), theta),
     );
     let (doc, mate) = match at_the_store(&doc, &opts_small, node) {
@@ -737,8 +780,9 @@ fn seated(
     RecipeNodeId,
     EvalOptions,
     Vec<editor_core::LoggedEdit<editor_core::ProfileProgram>>,
+    RecipeNodeId,
 ) {
-    let (doc, ids, opts) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 0);
+    let (doc, ids, opts, body) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 0);
     debug_assert!(ids.is_empty());
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let mut log = Vec::new();
@@ -781,14 +825,14 @@ fn seated(
         &mut doc,
         DocEdit::InsertNode {
             node: clocked(
-                a,
-                b,
+                (a, body),
+                (b, body),
                 coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
             ),
         },
     )
     .unwrap();
-    (doc, [a, b], mate, opts, log)
+    (doc, [a, b], mate, opts, log, body)
 }
 
 /// **A mate-graph edit on a document whose part does not resolve
@@ -799,8 +843,10 @@ fn seated(
 #[test]
 fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
     let mut elsewhere = PartStore::new();
-    let lost_ref = elsewhere.insert(box_part("msolve6-a6-elsewhere", 0.5, 1.0), Tol::witness());
-    let (doc, ids, opts) = instances(
+    let lost_part = box_part("msolve6-a6-elsewhere", 0.5, 1.0);
+    let lost_body = body_node(&lost_part);
+    let lost_ref = elsewhere.insert(lost_part, Tol::witness());
+    let (doc, ids, opts, body) = instances(
         "msolve6-a6-unresolved",
         box_part("msolve6-a6-part", 0.5, 1.0),
         1,
@@ -810,8 +856,8 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
         doc,
         &with_both(&["msolve6-a6-part", "msolve6-a6-elsewhere"]),
         clocked(
-            ids[0],
-            lost,
+            (ids[0], body),
+            (lost, lost_body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -860,7 +906,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
 /// instance) each ask `2 × 2 = 4`.
 #[test]
 fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
-    let (doc, [a, b], mate, opts, _log) = seated("msolve6-a6-preserving");
+    let (doc, [a, b], mate, opts, _log, body) = seated("msolve6-a6-preserving");
     let counting = Counting(
         core::cell::Cell::new(0),
         mate_reach::<f64>(&opts, Tol::witness()),
@@ -877,8 +923,8 @@ fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
         .apply(
             &DocEdit::InsertNode {
                 node: clocked(
-                    b,
-                    c,
+                    (b, body),
+                    (c, body),
                     coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
                 ),
             },
@@ -913,7 +959,7 @@ fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
     let doc = doc
         .apply(
             &DocEdit::SetAppearance {
-                name: in_part(a, CapEnd::End),
+                name: in_part(a, body, CapEnd::End),
                 attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(200, 30, 30)),
             },
             tol,
@@ -988,7 +1034,7 @@ fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
 /// minted frame; `load` re-applies it and never solves.
 #[test]
 fn a6_a_saved_split_replays_bit_identically_with_no_store() {
-    let (doc, [a, b], mate, opts, mut log) = seated("msolve6-a6-replay");
+    let (doc, [a, b], mate, opts, mut log, _) = seated("msolve6-a6-replay");
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
@@ -1007,44 +1053,39 @@ fn a6_a_saved_split_replays_bit_identically_with_no_store() {
     // The file: an empty snapshot and the whole log, rows included.
     let empty = ProfileDoc::empty(live.id(), Tol::witness());
     let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
-    // The wire shape, read as a value: an entry that performed no
-    // maintenance (the two instance inserts) is the bare edit — the
-    // common case costs nothing; one that did (the mate insert's
-    // Join, the delete's Split) is `{edit, maintenance}` with exactly
-    // its rows.
+    // The wire shape, read as a value: EVERY entry is `{edit,
+    // maintenance}`, both keys present. One that performed no
+    // maintenance (the two instance inserts) carries an empty list;
+    // one that did (the mate insert's Join, the delete's Split)
+    // carries exactly its rows. There is no second, bare shape.
     let (header, body) = text.split_once('\n').expect("a header line");
     let value: serde_json::Value = serde_json::from_str(body).expect("the body parses");
     let entries = value["edits"].as_array().expect("an edit log");
     assert_eq!(entries.len(), log.len());
-    let keys = |entry: &serde_json::Value| -> Vec<String> {
-        entry
+    let mut empty = 0;
+    for (entry, logged) in entries.iter().zip(&log) {
+        let keys: Vec<&String> = entry
             .as_object()
             .expect("an entry is an object")
             .keys()
-            .cloned()
-            .collect()
-    };
-    let mut bare = 0;
-    for (entry, logged) in entries.iter().zip(&log) {
+            .collect();
+        assert_eq!(
+            keys,
+            ["edit", "maintenance"],
+            "one shape for every entry: {entry}"
+        );
+        assert_eq!(
+            entry["maintenance"].as_array().map(Vec::len),
+            Some(logged.maintenance.len()),
+            "{entry}"
+        );
         if logged.maintenance.is_empty() {
-            bare += 1;
-            assert!(
-                !keys(entry)
-                    .iter()
-                    .any(|k| k == "maintenance" || k == "edit"),
-                "a bare entry is the edit itself: {entry}"
-            );
-        } else {
-            assert_eq!(keys(entry), ["edit", "maintenance"], "{entry}");
-            assert_eq!(
-                entry["maintenance"].as_array().map(Vec::len),
-                Some(logged.maintenance.len())
-            );
+            empty += 1;
         }
     }
-    assert_eq!(bare, 2, "the two instance inserts moved no cluster");
-    // Every wire type refuses a field it does not know, the
-    // entry-with-rows shape included.
+    assert_eq!(empty, 2, "the two instance inserts moved no cluster");
+    // Every wire type refuses a field it does not know, a log entry
+    // included.
     let mut tampered = value.clone();
     tampered["edits"][entries.len() - 1]["extra"] = serde_json::json!(1);
     let tampered = format!(
@@ -1056,7 +1097,7 @@ fn a6_a_saved_split_replays_bit_identically_with_no_store() {
             editor_core::load(&tampered, Tol::witness()),
             Err(PersistError::Unreadable { .. })
         ),
-        "an unknown field on an entry with rows refuses"
+        "an unknown field on an entry refuses"
     );
     let loaded = editor_core::load(&text, Tol::witness()).expect("loads with no store");
     assert_eq!(
@@ -1078,7 +1119,7 @@ fn a6_a_saved_split_replays_bit_identically_with_no_store() {
 /// would have refused.
 #[test]
 fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
-    let (doc, [a, b], mate, opts, mut log) = seated("msolve6-a6-mirror");
+    let (doc, [a, b], mate, opts, mut log, _) = seated("msolve6-a6-mirror");
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
@@ -1137,44 +1178,79 @@ fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
             Tol::witness(),
             &editor_core::RefusingReach
         ),
-        Err(EditError::ImproperPlacement { node, determinant }) if node == b && determinant == -1.0
+        Err(EditError::ImproperPlacement { node, determinant, .. }) if node == b && determinant == -1.0
     ));
 }
 
-/// **An old-format log whose edit moved a gauge refuses typed at load,
-/// and migrates through the door that takes a reach.**
+/// **A log entry that claims no maintenance its edit performed refuses
+/// typed at load, and the bare pre-rows shape is not a format.**
+///
+/// Replay performs exactly an entry's rows, so an entry whose
+/// `maintenance` is empty while its edit performs any refuses
+/// `MaintenanceUnrecorded` — both kinds: a row that needs a solved
+/// frame (the delete's, which moves a gauge), because replay never
+/// solves; and a row replay could derive from the documents alone (the
+/// mate insert's `Join`), because re-deriving it would give the log two
+/// answers to what the edit did. A log in the bare shape — each entry
+/// the edit itself, as files from before the rows existed carried — is
+/// not read at all: it refuses `Unreadable` at the entry's first key,
+/// instead of loading as a log of entries that performed nothing.
 #[test]
-fn a6_an_old_format_log_that_moved_a_gauge_refuses_at_load_and_migrates() {
-    let (doc, [_a, b], mate, opts, mut log) = seated("msolve6-a6-migrate");
+fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_a_format() {
+    let (doc, [_a, b], mate, opts, mut log, _) = seated("msolve6-a6-dropped-rows");
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate }, Tol::witness(), &reach)
         .expect("the delete applies");
+    let rows = applied.cluster_rows();
+    assert!(!rows.is_empty(), "the delete moved a gauge, so it has rows");
     log.push(editor_core::LoggedEdit {
         edit: DocEdit::DeleteNode { id: mate },
-        maintenance: applied.cluster_rows(),
+        maintenance: rows,
     });
     let live = applied.doc;
     let empty = ProfileDoc::empty(live.id(), Tol::witness());
     let text = editor_core::save(&empty, &log, Tol::witness()).expect("saves");
-    // The old format: every entry a bare edit. Built from the saved
-    // body by dropping each entry's rows — the shape a file from
-    // before the rows were recorded has.
     let (header, body) = text.split_once('\n').expect("a header line");
-    let mut body: serde_json::Value = serde_json::from_str(body).expect("the body parses");
-    let entries = body["edits"].as_array_mut().expect("an edit log");
-    let index = entries.len() - 1;
-    for entry in entries.iter_mut() {
-        if let Some(edit) = entry.get("edit").cloned() {
-            *entry = edit;
-        }
-    }
-    let old = format!(
-        "{header}\n{}\n",
-        serde_json::to_string_pretty(&body).expect("re-serializes")
+    let value: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let index = value["edits"].as_array().expect("an edit log").len() - 1;
+    let reemit = |v: &serde_json::Value| {
+        format!(
+            "{header}\n{}\n",
+            serde_json::to_string_pretty(v).expect("re-serializes")
+        )
+    };
+
+    // The mate insert's join emptied: a row the documents alone would
+    // derive, and still refused rather than re-derived.
+    let join = 2;
+    assert!(
+        matches!(
+            log[join].maintenance.as_slice(),
+            [ClusterMaintenance::Join { absorbed, .. }] if *absorbed == b
+        ),
+        "the mate insert joined b's cluster: {:?}",
+        log[join].maintenance
     );
-    assert!(!old.contains("\"maintenance\""));
-    let err = editor_core::load(&old, Tol::witness()).expect_err("a moved gauge with no rows");
+    let mut joined = value.clone();
+    joined["edits"][join]["maintenance"] = serde_json::json!([]);
+    let err = editor_core::load(&reemit(&joined), Tol::witness()).expect_err("a join with no rows");
+    assert!(
+        matches!(
+            &err,
+            editor_core::PersistError::EditReplay {
+                index: i,
+                error: editor_core::EditError::MaintenanceUnrecorded { gauge }
+            } if *i == join && *gauge == b
+        ),
+        "{err:?}"
+    );
+
+    // The delete's rows emptied, shape intact.
+    let mut dropped = value.clone();
+    dropped["edits"][index]["maintenance"] = serde_json::json!([]);
+    let err = editor_core::load(&reemit(&dropped), Tol::witness())
+        .expect_err("a moved gauge with no rows");
     assert!(
         matches!(
             &err,
@@ -1185,32 +1261,48 @@ fn a6_an_old_format_log_that_moved_a_gauge_refuses_at_load_and_migrates() {
         ),
         "{err:?}"
     );
-    // The migration door: the same file, the store's reach, the rows
-    // re-derived — and re-saved, it loads with no store.
-    let migrated = editor_core::load_with(&old, Tol::witness(), &reach).expect("migrates");
-    assert_eq!(migrated.doc.placements(), live.placements());
+
+    // Every entry replaced by its bare edit: the shape files from before
+    // the rows carried. Not a format this build reads — refused at the
+    // first entry's edit tag, read as a field `LoggedEdit` does not have.
+    let mut bare = value.clone();
+    for entry in bare["edits"].as_array_mut().expect("an edit log") {
+        let edit = entry
+            .get("edit")
+            .cloned()
+            .expect("every saved entry carries its edit");
+        *entry = edit;
+    }
+    let bare = reemit(&bare);
     assert!(
-        !migrated.edits[index].maintenance.is_empty(),
-        "the rows are back"
+        !bare.contains("\"maintenance\""),
+        "the tamper removed every row list"
     );
-    let text2 =
-        editor_core::save(&migrated.snapshot, &migrated.edits, Tol::witness()).expect("re-saves");
-    assert_eq!(
-        text2, text,
-        "the migrated file is the file the live door would have written"
+    let err = editor_core::load(&bare, Tol::witness()).expect_err("a bare entry");
+    assert!(
+        matches!(
+            &err,
+            editor_core::PersistError::Unreadable { detail, .. }
+                if detail.contains("unknown field `InsertNode`")
+        ),
+        "a bare entry is not a log entry: {err:?}"
     );
-    let again = editor_core::load(&text2, Tol::witness()).expect("loads with no store");
-    assert_eq!(again.doc.placements(), live.placements());
+
+    // And the file as written loads with no store in hand.
+    let loaded = editor_core::load(&text, Tol::witness()).expect("loads with no store");
+    assert_eq!(loaded.doc.placements(), live.placements());
+    assert_eq!(loaded.edits, log, "the log comes back as saved");
 }
 
 /// **C5, the checked-in corpus**: every TRACKED `.pncad` (git's
 /// list — the viewer's suite reaches the editor-core corpus through a
 /// symlink, which is not a second corpus) — the four the row names,
 /// and it asserts that is what it walked — loads with no store in
-/// hand and re-saves byte for byte. No logged edit of any of them
-/// moved a gauge, so none carries rows and none needed migrating; a
-/// document whose log performed a Join would re-save WITH rows, by
-/// design, and would move this row if checked in bare.
+/// hand and re-saves byte for byte. The re-save is structural rather
+/// than lucky: `load` returns each entry as parsed, and replay performs
+/// exactly an entry's rows — a non-empty list re-applied verbatim, an
+/// empty one refused if its edit performs any — so the log that comes
+/// back is both the one the file holds and the one its replay did.
 #[test]
 fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -1282,11 +1374,10 @@ fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
 /// the upper end of its reach bracket (an upper bound by definition),
 /// it bounds the `f64` lane's reach, and the mate over it evaluates
 /// `Ok` with the part evaluated once.
-#[cfg(feature = "interval")]
 #[test]
 fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
     use geom_core::{Bounds, Interval};
-    let (doc, ids, opts) = instances(
+    let (doc, ids, opts, body) = instances(
         "msolve6-a5-interval",
         cylinder_part("msolve6-a5-interval-part", 0.3, 0.7),
         2,
@@ -1299,8 +1390,8 @@ fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
         doc,
         &opts,
         clocked(
-            ids[0],
-            ids[1],
+            (ids[0], body),
+            (ids[1], body),
             coincidence(frame([0.0, 0.0, 0.7]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1455,7 +1546,7 @@ fn a2_the_reach_bounds_the_true_maximum_over_every_fixture_part() {
         let body = body_of(&part);
         let (truth, circles) = true_reach(&body);
         let bound = editor_core::mate::part_reach(&body).expect("bounded");
-        let (doc, ids, opts) = instances(&format!("msolve6-p1-asm-{name}"), part.clone(), 1);
+        let (doc, ids, opts, _) = instances(&format!("msolve6-p1-asm-{name}"), part.clone(), 1);
         let via_door = reaches(&doc, &opts, &ids)[0];
         assert!(bound >= truth, "{name}: bound {bound} < true reach {truth}");
         assert!(
@@ -1491,8 +1582,16 @@ fn a2_the_reach_fold_propagates_a_poisoned_face_rather_than_dropping_it() {
 
 /// Three instances of one box, `a` placed at a translation so the
 /// orphan's inherited frame is recognisable.
-fn trio(label: &str) -> (ProfileDoc, [RecipeNodeId; 3], EvalOptions, Frame) {
-    let (doc, ids, opts) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 3);
+fn trio(
+    label: &str,
+) -> (
+    ProfileDoc,
+    [RecipeNodeId; 3],
+    EvalOptions,
+    Frame,
+    RecipeNodeId,
+) {
+    let (doc, ids, opts, body) = instances(label, box_part(&format!("{label}-part"), 0.5, 1.0), 3);
     let f_a = Frame::translation([1.0, 2.0, 3.0]);
     let (doc, _) = step(
         doc,
@@ -1501,7 +1600,7 @@ fn trio(label: &str) -> (ProfileDoc, [RecipeNodeId; 3], EvalOptions, Frame) {
             frame: f_a,
         },
     );
-    (doc, [ids[0], ids[1], ids[2]], opts, f_a)
+    (doc, [ids[0], ids[1], ids[2]], opts, f_a, body)
 }
 
 /// **A contradictory prior records the split with the cluster's
@@ -1511,13 +1610,13 @@ fn trio(label: &str) -> (ProfileDoc, [RecipeNodeId; 3], EvalOptions, Frame) {
 /// pose and not a refusal.
 #[test]
 fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
-    let (doc, [a, b, c], opts, f_a) = trio("msolve6-p3a");
+    let (doc, [a, b, c], opts, f_a, body) = trio("msolve6-p3a");
     let (doc, _m1) = mated(
         doc,
         &opts,
         clocked(
-            a,
-            b,
+            (a, body),
+            (b, body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1527,8 +1626,8 @@ fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
         doc,
         &opts,
         clocked(
-            a,
-            b,
+            (a, body),
+            (b, body),
             coincidence(frame([0.0, 0.0, 2.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1536,8 +1635,8 @@ fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
         doc,
         &opts,
         clocked(
-            b,
-            c,
+            (b, body),
+            (c, body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1566,10 +1665,14 @@ fn a6_a_contradictory_prior_records_the_split_with_the_clusters_frame() {
 /// frame** — the same recourse, the same row.
 #[test]
 fn a6_an_under_determined_prior_records_the_split_with_the_clusters_frame() {
-    let (doc, [a, b, _c], opts, f_a) = trio("msolve6-p3b");
+    let (doc, [a, b, _c], opts, f_a, body) = trio("msolve6-p3b");
     let (doc, m) = insert(
         doc,
-        clocked(a, b, coaxial(frame([0.0; 3]), frame([0.0; 3]))),
+        clocked(
+            (a, body),
+            (b, body),
+            coaxial(frame([0.0; 3]), frame([0.0; 3])),
+        ),
     );
     let poses = solve(&doc, &opts, Tol::witness());
     assert!(matches!(poses.fault(b), Some(MateFault::Under { .. })));
@@ -1602,7 +1705,13 @@ fn a6_an_under_determined_prior_records_the_split_with_the_clusters_frame() {
 #[test]
 fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     let small = box_part("msolve6-p3c-part", 0.005, 0.01);
+    let body = body_node(&small);
     let large = box_part("msolve6-p3c-part", 5.0, 10.0);
+    assert_eq!(
+        body_node(&large),
+        body,
+        "the re-pinned part keeps its body's id"
+    );
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -1643,8 +1752,8 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
         doc,
         &opts_small,
         clocked(
-            a,
-            b,
+            (a, body),
+            (b, body),
             coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), theta),
         ),
     );
@@ -1652,8 +1761,8 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
         doc,
         &opts_small,
         clocked(
-            b,
-            c,
+            (b, body),
+            (c, body),
             coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1699,20 +1808,29 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     ));
 }
 
-/// **A logged edit is the edit on the wire, and its rows round-trip**:
-/// an entry with no rows serializes byte for byte as the bare edit
-/// and reads back as the bare entry; an entry with rows carries
-/// `edit` and `maintenance` and reads back equal.
+/// **A logged edit has one wire shape, and its rows round-trip**: an
+/// entry with no rows and an entry with rows both carry `edit` and
+/// `maintenance`, and each reads back equal. The bare edit is refused
+/// as an entry.
 #[test]
-fn a6_a_logged_edit_is_the_edit_on_the_wire_and_its_rows_round_trip() {
+fn a6_a_logged_edit_has_one_wire_shape_and_its_rows_round_trip() {
     let edit = DocEdit::<editor_core::ProfileProgram>::SetPlacement {
         node: RecipeNodeId(0),
         frame: Frame::translation([1.0, 2.0, 3.0]),
     };
-    let bare = serde_json::to_string(&LoggedEdit::bare(edit.clone())).unwrap();
-    assert_eq!(bare, serde_json::to_string(&edit).unwrap());
-    let back: LoggedEdit<editor_core::ProfileProgram> = serde_json::from_str(&bare).unwrap();
+    let shape = |text: &str| -> Vec<String> {
+        let value: serde_json::Value = serde_json::from_str(text).unwrap();
+        value.as_object().unwrap().keys().cloned().collect()
+    };
+    let none = serde_json::to_string(&LoggedEdit::bare(edit.clone())).unwrap();
+    assert_eq!(shape(&none), ["edit", "maintenance"], "{none}");
+    let back: LoggedEdit<editor_core::ProfileProgram> = serde_json::from_str(&none).unwrap();
     assert_eq!(back, LoggedEdit::bare(edit.clone()));
+    let bare_edit = serde_json::to_string(&edit).unwrap();
+    assert!(
+        serde_json::from_str::<LoggedEdit<editor_core::ProfileProgram>>(&bare_edit).is_err(),
+        "the edit alone is not an entry: {bare_edit}"
+    );
     let with = LoggedEdit {
         edit,
         maintenance: vec![ClusterMaintenance::Split {
@@ -1722,9 +1840,7 @@ fn a6_a_logged_edit_is_the_edit_on_the_wire_and_its_rows_round_trip() {
         }],
     };
     let text = serde_json::to_string(&with).unwrap();
-    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
-    let keys: Vec<&String> = value.as_object().unwrap().keys().collect();
-    assert_eq!(keys, ["edit", "maintenance"]);
+    assert_eq!(shape(&text), ["edit", "maintenance"]);
     let back: LoggedEdit<editor_core::ProfileProgram> = serde_json::from_str(&text).unwrap();
     assert_eq!(back, with);
 }
@@ -1735,14 +1851,14 @@ fn a6_a_logged_edit_is_the_edit_on_the_wire_and_its_rows_round_trip() {
 /// in the resolver's own voice, never a frame nothing decided.
 #[test]
 fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolver() {
-    let (doc, ids, opts) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
+    let (doc, ids, opts, body) = instances("msolve6-p6", box_part("msolve6-p6-part", 0.5, 1.0), 2);
     let [a, b] = [ids[0], ids[1]];
     let (doc, _m) = mated(
         doc,
         &opts,
         clocked(
-            a,
-            b,
+            (a, body),
+            (b, body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1761,6 +1877,19 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         DocumentId::derive("msolve6-p6-new-part-none"),
         Tol::witness(),
         None,
+    );
+    // The sentence states the split's own recourse — the resolver the
+    // call was not given — once.
+    let text = none
+        .as_ref()
+        .err()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    assert!(
+        text.contains("the split was given no resolver")
+            && text.contains(&Recourse(PASS_A_RESOLVER).to_string())
+            && text.matches("Recourse:").count() == 1,
+        "the split's recourse: {text}"
     );
     match none {
         Err(SplitError::RemainderEdit { error }) => assert!(
@@ -1788,8 +1917,10 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
 #[test]
 fn a5_two_mated_parts_evaluate_once_each() {
     let mut store = PartStore::new();
-    let ra = store.insert(box_part("msolve6-p8-a", 0.5, 1.0), Tol::witness());
-    let rb = store.insert(block("msolve6-p8-b"), Tol::witness());
+    let (pa, pb) = (box_part("msolve6-p8-a", 0.5, 1.0), block("msolve6-p8-b"));
+    let (a_body, b_body) = (body_node(&pa), body_node(&pb));
+    let ra = store.insert(pa, Tol::witness());
+    let rb = store.insert(pb, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p8"), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(ra));
@@ -1800,8 +1931,8 @@ fn a5_two_mated_parts_evaluate_once_each() {
         doc,
         &opts,
         clocked(
-            a,
-            b,
+            (a, a_body),
+            (b, b_body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );
@@ -1809,8 +1940,8 @@ fn a5_two_mated_parts_evaluate_once_each() {
         doc,
         &opts,
         clocked(
-            b,
-            c,
+            (b, b_body),
+            (c, a_body),
             coincidence(frame([0.0, 0.0, 1.0]), frame([0.0; 3]), 0.0),
         ),
     );

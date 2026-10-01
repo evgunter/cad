@@ -20,6 +20,7 @@
 //! dropped, and at `f64` the identity.
 
 mod anchor;
+mod class;
 pub mod measure;
 mod memo;
 pub(crate) mod parts;
@@ -28,13 +29,18 @@ pub use parts::PartFault;
 mod schedule;
 pub(crate) mod slots;
 mod wire;
+pub(crate) use wire::decision_words;
 
 pub(crate) use wire::{
     DATUM_AXIS_ROLE, PATTERN_DIRECTION_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar,
     need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
 };
 
-pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
+pub(crate) use anchor::derive_naming;
+pub use anchor::{
+    CanonicalSegment, LoopAnchor, PiecesFault, ProfileNaming, ProfilePieces, ProfileValue,
+};
+pub use class::NodeErrorClass;
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 
@@ -101,8 +107,8 @@ pub struct Evaluation<T: Decide> {
     /// prior" and "a prior of this document".
     pub prior_refused: Option<Mispaired>,
     /// Deterministic topological order of the live nodes (spec D2:
-    /// a pure function of the DAG; Kahn's algorithm, tiebreak
-    /// `RecipeNodeId` ascending). Always the FULL order, even when
+    /// a pure function of the document; Kahn's algorithm, ties to the
+    /// earlier node in [`Doc::order`]). Always the FULL order, even when
     /// canceled — order is data, not schedule.
     pub order: Vec<RecipeNodeId>,
     /// Per-node results. On cancelation this holds the completed
@@ -135,19 +141,37 @@ pub struct Evaluation<T: Decide> {
 }
 
 impl<T: Decide> Evaluation<T> {
-    /// The node's successful value, if it has one.
-    pub fn value(&self, id: RecipeNodeId) -> Option<&NodeValue<T>> {
-        match self.nodes.get(&id) {
-            Some(NodeResult::Ok(v)) => Some(v),
-            _ => None,
-        }
+    /// **The node's value, or its standing** — the one read every door
+    /// that needs a node's value makes, so the three ways to have none
+    /// are spelled once, here, and a door's refusal carries the
+    /// [`NodeStanding`] rather than re-spelling it.
+    ///
+    /// # Errors
+    ///
+    /// The node's [`NodeStanding`]: no result in this evaluation,
+    /// failed, or poisoned through its nearest failed ancestor.
+    pub fn usable(&self, id: RecipeNodeId) -> Result<&NodeValue<T>, NodeStanding> {
+        usable_in(&self.nodes, id, || {
+            if self.order.contains(&id) {
+                NodeStanding::NotEvaluated { node: id }
+            } else {
+                NodeStanding::NotInDocument { node: id }
+            }
+        })
     }
 
-    /// The node's result as typed data — `Ok`/`Failed`/`Poisoned`
-    /// distinguished, where [`Evaluation::value`] collapses the last
-    /// two into `None` (LIB-DOORS F3: the curated path from an
-    /// evaluation to its `NodeError`s). `None` means the id has no
-    /// entry at all: never scheduled, or past a cancelation's prefix.
+    /// The node's successful value, if it has one — [`Evaluation::usable`]
+    /// for a reader to whom every standing is the same answer.
+    pub fn value(&self, id: RecipeNodeId) -> Option<&NodeValue<T>> {
+        self.usable(id).ok()
+    }
+
+    /// The node's result as typed data, for a reader that needs what
+    /// [`NodeStanding`] does not carry — a failed node's own
+    /// [`NodeError`] beside its value's absence (LIB-DOORS F3). `None`
+    /// means the id has no entry at all. A door that refuses on a node
+    /// with no value reads [`Evaluation::usable`] instead, which tells
+    /// "the run stopped before it" from "not in this document".
     pub fn result(&self, id: RecipeNodeId) -> Option<&NodeResult<T>> {
         self.nodes.get(&id)
     }
@@ -158,18 +182,155 @@ impl<T: Decide> Evaluation<T> {
     /// [`NodeResult::Poisoned`]'s invariant). `None` for a node that
     /// succeeded or has no entry.
     pub fn node_error(&self, id: RecipeNodeId) -> Option<&NodeError> {
-        match self.nodes.get(&id)? {
-            NodeResult::Ok(_) => None,
-            NodeResult::Failed(e) => Some(e),
-            NodeResult::Poisoned { through } => match self.nodes.get(through)? {
-                // Every `through` names a `Failed` entry (the poison
-                // propagation writes nothing else there); answering
-                // `None` on a broken invariant is fail-honest — the
-                // caller sees "no root cause", not a wrong one.
-                NodeResult::Failed(e) => Some(e),
-                NodeResult::Ok(_) | NodeResult::Poisoned { .. } => None,
-            },
+        match self.usable(id) {
+            Ok(_) | Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
+                None
+            }
+            // Every `through` names a `Failed` entry (the poison
+            // propagation writes nothing else there); answering `None`
+            // on a broken invariant is fail-honest — the caller sees
+            // "no root cause", not a wrong one.
+            Err(standing) => self.nodes.get(&standing.failed_node()?)?.error(),
         }
+    }
+}
+
+/// **Why a node has no value in an evaluation** — its standing, the
+/// one vocabulary every door that reads a node's value refuses in.
+///
+/// Answered by [`Evaluation::usable`]. A door carries it as its
+/// refusal's payload under its own subject; its `Display` names the
+/// standing — which node, what state, where the repair is — and no
+/// door.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NodeStanding {
+    /// The node is in this evaluation's order but has no result: the
+    /// run was canceled before it reached the node.
+    NotEvaluated {
+        /// The node.
+        node: RecipeNodeId,
+    },
+    /// The id is not a node of the document this evaluation ran over.
+    NotInDocument {
+        /// The id asked about.
+        node: RecipeNodeId,
+    },
+    /// The node itself failed ([`Evaluation::node_error`] answers the
+    /// typed cause).
+    Failed {
+        /// The failed node.
+        node: RecipeNodeId,
+    },
+    /// An ancestor failed, so the node never ran.
+    Poisoned {
+        /// The node.
+        node: RecipeNodeId,
+        /// Its nearest failed ancestor ([`NodeResult::Poisoned`]).
+        through: RecipeNodeId,
+    },
+}
+
+impl NodeStanding {
+    /// The node the standing is of.
+    #[must_use]
+    pub fn node(self) -> RecipeNodeId {
+        match self {
+            Self::NotEvaluated { node }
+            | Self::NotInDocument { node }
+            | Self::Failed { node }
+            | Self::Poisoned { node, .. } => node,
+        }
+    }
+
+    /// The nearest failed ancestor, if the node was poisoned.
+    #[must_use]
+    pub fn through(self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Poisoned { through, .. } => Some(through),
+            Self::NotEvaluated { .. } | Self::NotInDocument { .. } | Self::Failed { .. } => None,
+        }
+    }
+
+    /// The node whose failure explains the standing, which is where
+    /// the repair is: the node itself when it failed, its nearest
+    /// failed ancestor when it was poisoned, and `None` when the node
+    /// has no entry.
+    #[must_use]
+    pub fn failed_node(self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Failed { node } | Self::Poisoned { through: node, .. } => Some(node),
+            Self::NotEvaluated { .. } | Self::NotInDocument { .. } => None,
+        }
+    }
+
+    /// The standing of a document ROOT, as a door whose subject is the
+    /// document's roots states it under its own stage word: `root`,
+    /// then the standing.
+    pub(crate) fn of_root(self) -> RootStanding {
+        RootStanding(self)
+    }
+}
+
+/// [`NodeStanding::of_root`]'s rendering: the one sentence for a root
+/// with no value.
+pub(crate) struct RootStanding(NodeStanding);
+
+impl core::fmt::Display for RootStanding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "root {}", self.0)
+    }
+}
+
+impl core::fmt::Display for NodeStanding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotEvaluated { node } => write!(
+                f,
+                "node {} has no result in this evaluation: the run was canceled before it \
+                 reached the node — re-evaluate the document to completion",
+                node.0
+            ),
+            Self::NotInDocument { node } => write!(
+                f,
+                "node {} is not a node of the document this evaluation ran over — ask about \
+                 one of that document's nodes, or evaluate the document the node is in",
+                node.0
+            ),
+            Self::Failed { node } => write!(
+                f,
+                "node {} failed, so it has no value — fix the node's own failure",
+                node.0
+            ),
+            Self::Poisoned { node, through } => write!(
+                f,
+                "node {} is poisoned by the failure at node {}, so it has no value — the \
+                 repair is upstream, at node {}",
+                node.0, through.0, through.0
+            ),
+        }
+    }
+}
+
+impl core::error::Error for NodeStanding {}
+
+/// [`Evaluation::usable`]'s ladder over a result map, for the readers
+/// that hold the map before the [`Evaluation`] exists: the op wiring's
+/// input read and the appearance pass. `absent` answers an id the map
+/// has no entry for, because only the caller knows whether that id is
+/// in the run's order.
+pub(crate) fn usable_in<T: Decide>(
+    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+    node: RecipeNodeId,
+    absent: impl FnOnce() -> NodeStanding,
+) -> Result<&NodeValue<T>, NodeStanding> {
+    match nodes.get(&node) {
+        Some(NodeResult::Ok(value)) => Ok(value),
+        Some(NodeResult::Failed(_)) => Err(NodeStanding::Failed { node }),
+        Some(NodeResult::Poisoned { through }) => Err(NodeStanding::Poisoned {
+            node,
+            through: *through,
+        }),
+        None => Err(absent()),
     }
 }
 
@@ -241,6 +402,12 @@ pub struct NodeValue<T: Decide> {
     /// (body, arena key). Rides the value, so memo reuse transfers
     /// names with geometry (the content key is the proof).
     pub name_table: Arc<NameTable>,
+    /// The fragment groups the node's emitter formed
+    /// ([`crate::names::FragmentGroups`]): the membership the
+    /// diagnosis ladder's group-size rung counts. Rides the value with
+    /// the names it was minted beside; like the verdict log, it is
+    /// not persisted.
+    pub fragment_groups: Arc<crate::names::FragmentGroups>,
     /// The DECLARED CONTACT RECORDS the node's output body 0 carries
     /// (ASM-R2b D-1's contacts channel; [`crate::eval::wire::OpOut`]
     /// states the invariant). Empty for every op but instantiate — a
@@ -341,7 +508,7 @@ pub enum ValuePayload<T: Decide> {
     Datum(DatumValue<T>),
     /// A validated profile (D3: replayed from the node's program
     /// through the driver, then the profile crate's validation door),
-    /// its program-anchor naming map, and the radius expression each
+    /// its naming anchor, and the radius expression each
     /// of its edges is authored at ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
@@ -794,13 +961,15 @@ pub struct NodeError {
 }
 
 /// **An evaluation refusal, carried into a document-layer
-/// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault) and
-/// [`EditError::PlacementAxis`](crate::EditError) hold one.
+/// vocabulary** — [`MateFault::PlacerRefused`](crate::MateFault),
+/// [`EditError::PlacementAxis`](crate::EditError),
+/// [`PartFault::PartRootFailed`](crate::PartFault) and
+/// [`PartFault::PartRootPoisoned`](crate::PartFault) hold one.
 ///
 /// It exists because [`NodeErrorKind`] carries kernel refusals
 /// UNALTERED (D2) and those kernel types have neither `Clone` nor
-/// equality of their own, while the two document-layer error enums
-/// have both. Sharing the refusal rather than copying it is what makes
+/// equality of their own, while the document-layer error enums have
+/// both. Sharing the refusal rather than copying it is what makes
 /// the carriage possible without stringifying anything: the payload
 /// reaching a reader is the very value the evaluation raised.
 #[derive(Debug, Clone)]
@@ -812,6 +981,22 @@ impl NodeRefusal {
     pub fn kind(&self) -> &NodeErrorKind {
         &self.0
     }
+
+    /// The refusal as `node`'s own [`NodeError`] renders it: the line a
+    /// surface draws for a carried refusal
+    /// ([`NodeErrorKind::carried_chain`]), the same words that node's own
+    /// tree draws.
+    #[must_use]
+    pub fn line_at(&self, node: RecipeNodeId) -> String {
+        failed_line(node, &self.0)
+    }
+}
+
+/// A node's failure as one line: the node, then its kind's prose. The
+/// one spelling [`NodeError`]'s `Display` and [`NodeRefusal::line_at`]
+/// share.
+fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind) -> String {
+    format!("node {} failed: {kind}", node.0)
 }
 
 impl From<NodeErrorKind> for NodeRefusal {
@@ -832,12 +1017,18 @@ impl From<NodeErrorKind> for NodeRefusal {
 /// comparing renderings rather than values, and both are the ones a
 /// diagnostic wants: `NaN` payloads compare EQUAL to themselves, and
 /// `0.0` and `-0.0` compare DIFFERENT.
+///
+/// It is an equivalence, so the refusal is `Eq`: the relation is
+/// equality of two strings, and the pointer test short-cuts only pairs
+/// whose strings are the same.
 impl PartialEq for NodeRefusal {
     fn eq(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.0, &other.0)
             || format!("{:?}", self.0) == format!("{:?}", other.0)
     }
 }
+
+impl Eq for NodeRefusal {}
 
 impl core::fmt::Display for NodeRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -1022,13 +1213,20 @@ pub enum NodeErrorKind {
         /// The consumed decision, when the wall was the record.
         structure: Option<profile::StructureRefusal>,
     },
-    /// The program-anchor derivation failed to match a canonical loop
+    /// The naming-anchor derivation failed to match a canonical loop
     /// back to a program loop — an internal invariant break
     /// (validate's canonical form is an exact reindexing of its
     /// input), surfaced typed rather than panicking.
     ProfileAnchor {
         /// The canonical loop index that failed to match.
         loop_: u32,
+    },
+    /// The naming anchor, the replay record and the program's minted
+    /// step ids do not describe one program, so the profile's pieces
+    /// have no names — an internal invariant break, surfaced typed.
+    ProfilePieces {
+        /// Where the three disagree.
+        fault: PiecesFault,
     },
     /// The extrude op refused.
     Extrude(ExtrudeError),
@@ -1326,11 +1524,15 @@ pub enum NodeErrorKind {
     /// a channel that refused.
     ParamSourceAttach(topo::ParamAttachError),
     /// A `Declare` pair failed to resolve through the operands' name
-    /// tables (F5, M4 PR 5) — the N5 typed error VERBATIM: a Declare
-    /// naming a vanished/ambiguous/deleted name refuses loudly; no
-    /// silent drop, no best-effort gluing.
+    /// tables (F5) — the N5 typed error: a Declare naming a
+    /// vanished/ambiguous/deleted name refuses loudly; no silent drop,
+    /// no best-effort gluing. The error's shape is N5's; a `Vanished`
+    /// one's diagnosis may be one of the arms [`crate::resolve::Diagnosis`]
+    /// marks as not N5's, such as a union's fold consuming the name
+    /// ([`crate::resolve::Diagnosis::ConsumedByFold`]).
     DeclareResolve {
-        /// The resolution failure (N5's closed trio).
+        /// The resolution failure: N5's closed trio of shapes, its
+        /// diagnosis not limited to N5's arms.
         error: Box<crate::resolve::ResolveError>,
     },
     /// A declared entity is SITED at a node that is not one of the
@@ -1361,9 +1563,8 @@ pub enum NodeErrorKind {
         /// The pair's entity kinds, declaration order — the AUTHORED
         /// names' kinds, which is the only source available before
         /// resolution and which the name table makes every
-        /// candidate's kind (`NameTable::insert_ref` and
-        /// `insert_tied_ref` are its only two writers and both refuse
-        /// a row whose name's kind is not its key's).
+        /// candidate's kind (every `NameTable` door that seats a row
+        /// refuses one whose name's kind is not its key's).
         kinds: (crate::names::EntityKind, crate::names::EntityKind),
         /// Whether the two names LANDED in different operands — the
         /// side pick, made before resolution, so a tied name has a
@@ -1421,6 +1622,11 @@ pub enum NodeErrorKind {
     /// arm here. The refusal says so in the type rather than degrading
     /// to an emission bug, which would blame this crate for a
     /// document a user wrote.
+    ///
+    /// No evaluation raises it: a union's contacts are judged pairwise
+    /// between member views before the fold, whose rows are all member
+    /// entities, and a fold step's contact refusal is an emission bug
+    /// (DM4: the fold mints no contact verdict).
     UndeclarableContact {
         /// The fold-minted row, in the union's PUBLISHED name space —
         /// the space its other refusals name.
@@ -1504,12 +1710,19 @@ pub enum NodeErrorKind {
     /// The door validates what it built with a certified claim, so it
     /// is formed only at a scalar with certification rights; a dual
     /// does not certify (the DL3 ruling), and rather than hollow a
-    /// body it cannot validate the node refuses, naming the lane. The
+    /// body it cannot validate the node refuses, naming the scalar. The
     /// base-scalar evaluation beside this one is where the shell is
     /// built and validated.
+    ///
+    /// **The NAME names the refusal, not a trait.** What the scalar
+    /// has no door for is read off `topo::AtRestPolicy::shell_door`,
+    /// the per-scalar policy seam; there is no `ShellLane` and the
+    /// variant is not renamed for the mechanism behind it — the
+    /// spelling crosses the Python boundary as the
+    /// `shell_lane_unsupported` tag.
     ShellLaneUnsupported {
-        /// The scalar lane that has no door.
-        lane: &'static str,
+        /// The scalar that has no door ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// A derived frame's face name failed to resolve through its
     /// body's name table — [`NodeErrorKind::BlendSelectionResolve`]'s
@@ -1721,11 +1934,9 @@ pub enum NodeErrorKind {
         /// which no road can have written ([`entity_door::Found`]).
         found: entity_door::Found,
     },
-    /// The clearance engine refused a `min_clearance` measurement,
-    /// typed and by its own class name (E7's refusal vocabulary,
-    /// carried across the feature boundary by
-    /// [`crate::measure::MinClearanceRefusal`]).
-    MeasureClearanceRefused(crate::measure::MinClearanceRefusal),
+    /// The clearance engine refused a `min_clearance` measurement: its
+    /// own typed refusal (E7's refusal vocabulary), carried unaltered.
+    MeasureClearanceRefused(crate::clearance::ClearanceRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
     /// document fault, refused rather than compared.
@@ -1771,13 +1982,10 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
         // comment) — the one menu here is this finding's recourse.
         write!(
             f,
-            "a face pair of its operands is {} without a shared source or declared \
-             intent{}; the coincidence ladder reports: {}",
+            "two operand faces are {}, with no shared source or declared intent{} ({})",
             match self.finding.evidence.relation {
-                topo::PlaneRelation::SameOpposite =>
-                    "coincident with opposed orientations (resting contact)",
-                topo::PlaneRelation::SameOriented =>
-                    "coincident with the same orientation (flush walls)",
+                topo::PlaneRelation::SameOpposite => "coincident and opposed (resting contact)",
+                topo::PlaneRelation::SameOriented => "coincident and co-oriented (flush walls)",
                 // Never constructed on a finding; rendered honestly anyway.
                 topo::PlaneRelation::Distinct => "reported coincident",
             },
@@ -1793,34 +2001,28 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
     }
 
     fn recourse(&self) -> &str {
-        "the refusal carries the candidate declaration (the pair, by stable name, \
-         with its relation); declare that finding and wire it into the Boolean's \
-         declare input, or move the geometry"
+        "Recourse: declare the candidate pair this refusal carries and wire it into the \
+         Boolean's declare input, or move the geometry"
     }
 }
 
 /// The merged-side clause of an undeclared contact's story: silent
-/// when neither side is a merged row, and otherwise naming the
-/// constituents the fold retired into it.
+/// when neither side is a merged row, and otherwise counting the
+/// constituents the fold retired into it (their names ride the
+/// payload, so the sentence stays one length however many there are).
 struct MergedSides<'a>(&'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>));
 
 impl core::fmt::Display for MergedSides<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         for (side, set) in [("first", &self.0.0), ("second", &self.0.1)] {
-            let Some((chosen, rest)) = set.split_first() else {
+            if set.is_empty() {
                 continue;
-            };
+            }
             write!(
                 f,
-                " (the {side} face is a merge the fold minted, of {}",
-                chosen.name
-            )?;
-            for r in rest {
-                write!(f, ", {}", r.name)?;
-            }
-            f.write_str(
-                "; the pair names one constituent and any other declares the \
-                         same contact)",
+                "; the {side} face merges {} member faces, and any of them declares the same \
+                 contact",
+                set.len()
             )?;
         }
         Ok(())
@@ -1839,24 +2041,21 @@ struct UndeclarableContactFinding<'a> {
 
 impl crate::finding::Finding for UndeclarableContactFinding<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("the union refused a contact against a row its own fold minted")
+        f.write_str("the union refused a contact on a face its own fold made")
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "a member's face rests on {}, which the fold minted and no member carries; \
-             the coincidence ladder reports: {}",
+            "a member's face rests on the {}, which no member carries ({})",
             self.row,
             self.diag.payload()
         )
     }
 
     fn recourse(&self) -> &str {
-        "a declaration names entities that exist BEFORE the union (each sited at a \
-         member), and this row exists only inside the fold, so there is no pair to \
-         declare: move the geometry, or reach the row through the member whose \
-         face it was minted from by unioning in two nodes"
+        "no declaration can name that face. Recourse: move the geometry, or union in two \
+         nodes so the face belongs to a member"
     }
 }
 
@@ -1873,20 +2072,28 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
 // the right to drop the payload: `UndeclaredContact` states its
 // two-armed menu (F6) AND renders its diagnostic.
 //
-// Every payload-holding arm forwards its payload's own `Display`;
-// the exception list is EMPTY — `EvalError`, `resolve::ResolveError`,
-// `WitnessBifurcation` and `PlacementRuleFault` (D54's four) all
-// carry one, and `PlacementRuleFault`'s is that fault set's ONE prose
-// vocabulary (the edit door's rule arms forward the same impl).
-// `UndeclaredContact` composes through the document layer's finding
-// sink ([`crate::finding`]): subject, story, its two-armed recourse.
+// Every payload-holding arm forwards its payload's own `Display` —
+// `EvalError`, `resolve::ResolveError`, `WitnessBifurcation` and
+// `PlacementRuleFault` (D54's four) all carry one, and
+// `PlacementRuleFault`'s is that fault set's ONE prose vocabulary (the
+// edit door's rule arms forward the same impl). `UndeclaredContact`
+// composes through the document layer's finding sink
+// ([`crate::finding`]): subject, story, its two-armed recourse.
+//
+// The one exception is a CARRIED refusal: another node's refusal, with
+// its own recourse, held as a `NodeRefusal` (`PartFault::PartRootFailed`
+// and `PartRootPoisoned`, `MateFault::PlacerRefused`). It is not this refusal's payload, so it is
+// never rendered inside this sentence, which names that node and points
+// at it; it is drawn as its own line, read off
+// [`NodeErrorKind::carried_chain`].
 impl core::fmt::Display for NodeErrorKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Expr { slot, source } => {
                 write!(
                     f,
-                    "the expression at slot {slot:?} failed to evaluate: {source}"
+                    "the expression at slot {} failed to evaluate: {source}",
+                    slot.label()
                 )
             }
             Self::Profile(e) => write!(f, "the replayed profile failed validation: {e}"),
@@ -1907,15 +2114,16 @@ impl core::fmt::Display for NodeErrorKind {
                 ),
             },
             Self::ProfileReplay { loop_, error } => {
-                write!(
-                    f,
-                    "profile loop {loop_}'s program refused at replay: {error}"
-                )
+                write!(f, "profile loop {loop_} refused at {error}")
             }
             Self::ProfileAnchor { loop_ } => write!(
                 f,
-                "internal: canonical loop {loop_} failed to match back to a program loop"
+                "profile loop {loop_} did not match back to a loop of the program, which is \
+                 a kernel bug"
             ),
+            Self::ProfilePieces { fault } => {
+                write!(f, "the profile's pieces have no names: {fault}")
+            }
             Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
             Self::CrossingUnverified {
                 instance,
@@ -1935,19 +2143,15 @@ impl core::fmt::Display for NodeErrorKind {
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
-            // The kernel error names its own door, so this line
-            // must not name one: "the tube op refused: tube door: …"
-            // would read a hollow refusal as a solid one half the
-            // time.
+            // The kernel error says which tube it is (solid or
+            // hollow), so this line names neither: a wrapper that did
+            // would read a hollow refusal as a solid one half the time.
             Self::Tube(e) => write!(f, "the tube op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
             Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
-            Self::Boolean(e) => write!(
-                f,
-                "the Boolean op refused its operands (undeclared coincidence is the \
-                 common case: the kernel never infers that touching faces are the \
-                 same face): {e}"
-            ),
+            // No cause is guessed here: the kernel's refusal names its
+            // own, and a coincidence refusal carries its own recourse.
+            Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),
             Self::Transform(e) => write!(f, "the transform op refused: {e}"),
             Self::Skin(e) => write!(f, "the skin construction refused: {e}"),
             Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
@@ -1963,14 +2167,14 @@ impl core::fmt::Display for NodeErrorKind {
                 "document ε {document_eps:e} conflicts with the process ε {process_eps:e} \
                  (one process, one ε)"
             ),
-            Self::ParamBox { source } => write!(f, "parameter box: {source}"),
-            Self::Seed { source } => write!(f, "parameter seed: {source}"),
+            Self::ParamBox { source } => write!(f, "{source}"),
+            Self::Seed { source } => write!(f, "{source}"),
             Self::SeedPinnedSection { section, param } => write!(
                 f,
-                "the seed on parameter {:?} reaches section profile node {}, which stays f64 \
+                "the seed on parameter {param} reaches section profile node {}, which stays f64 \
                  in every lane (a loft's or a sweep's section is structure) — the tangent \
                  cannot ride through it, so this node refuses rather than embed a zero",
-                param.0, section.0
+                section.0
             ),
             Self::WrongOperand {
                 input,
@@ -2015,16 +2219,15 @@ impl core::fmt::Display for NodeErrorKind {
             }
             Self::UnderflowedDirection { role } => write!(
                 f,
-                "the {role} underflowed to zero length — its components \
-                 are too small for their squares to be represented, so it \
-                 has a direction but no measurable length; scale the \
-                 geometry into the session's range"
+                "the {role} underflowed to zero length, though it still names a \
+                 direction. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::NonFiniteDirection { role } => write!(
                 f,
-                "the {role} has no finite length — its components \
-                 overflow the norm, or one of them is not a number; scale \
-                 the geometry into the session's range"
+                "the {role} has no finite length (a component overflows the norm or is \
+                 not a number). Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::Band(e) => write!(
                 f,
@@ -2033,7 +2236,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MissingSlot { slot } => {
                 write!(
                     f,
-                    "internal: the wiring expected slot {slot:?}, which is absent"
+                    "the node's wiring expected its {} input, which is absent (a kernel bug)",
+                    slot.label()
                 )
             }
             // The sentence is single-homed at the run doors' own
@@ -2049,12 +2253,14 @@ impl core::fmt::Display for NodeErrorKind {
                     verb: *verb,
                     given: *given,
                 };
-                write!(f, "internal: {refusal}")
+                write!(f, "{refusal} (a kernel bug)")
             }
-            Self::Escalated { predicate, source } => write!(
-                f,
-                "predicate {predicate} escalated (in-band indeterminacy): {source}"
-            ),
+            Self::Escalated { predicate, source } => {
+                // What the decision was deciding, in words; the name is
+                // routing and rides `Debug`.
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+                write!(f, "{what} is too close to call: {source}")
+            }
             Self::AxisInDifferentPlane {
                 axis,
                 axis_plane,
@@ -2157,9 +2363,9 @@ impl core::fmt::Display for NodeErrorKind {
                 found.article(),
                 found.noun()
             ),
-            Self::ShellLaneUnsupported { lane } => write!(
+            Self::ShellLaneUnsupported { scalar } => write!(
                 f,
-                "the shell door has no lane at the {lane} scalar: hollowing validates what it \
+                "the shell door has no lane at the {scalar} scalar: hollowing validates what it \
                  built with a certified claim, and this scalar does not certify — the \
                  base-scalar evaluation beside this one is where the shell is built"
             ),
@@ -2205,9 +2411,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DerivedFrameSection { profile, frame } => write!(
                 f,
                 "section profile node {} is drawn on derived frame node {}, and a loft's or a \
-                 sweep's section stays f64 in every lane — a derived frame is placed at the \
-                 lane's own scalar, so this node refuses off the f64 lane rather than place \
-                 the section on a fabricated point of the frame's bracket",
+                 sweep's section is placed only in the plain (f64) evaluation, so this \
+                 evaluation refuses rather than guess where the frame lies",
                 profile.0, frame.0
             ),
             Self::MeasureRefResolve { error } => {
@@ -2246,7 +2451,14 @@ impl core::fmt::Display for NodeErrorKind {
                 found.article(),
                 found.noun()
             ),
-            Self::MeasureClearanceRefused(refusal) => write!(f, "{refusal}"),
+            Self::MeasureClearanceRefused(refusal) => {
+                write!(f, "the clearance engine refused `{}`", refusal.name())?;
+                let payload = refusal.payload();
+                if !payload.is_empty() {
+                    write!(f, " ({payload})")?;
+                }
+                Ok(())
+            }
             Self::AssertionDimension { measured, bound } => write!(
                 f,
                 "the assertion's bound is {} {bound} and the measure it constrains is \
@@ -2257,17 +2469,131 @@ impl core::fmt::Display for NodeErrorKind {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
-            Self::Part { doc_ref, fault } => {
-                write!(f, "instantiating {doc_ref}: {fault}")
-            }
+            // The reference is data, not prose: the typed arm keeps it,
+            // and a surface names the part by what it knows it as.
+            Self::Part { fault, .. } => write!(f, "instantiating the part: {fault}"),
         }
+    }
+}
+
+impl NodeErrorKind {
+    /// **The refusal this one carries, when it carries one**: the node
+    /// that raised it and the refusal itself — the exception written
+    /// over this type's `Display`, as a value.
+    ///
+    /// Two arms carry one. A part whose root failed carries that root's
+    /// refusal, and one whose root was poisoned carries the refusal of
+    /// the node that poisoned it, in the REFERENCED document's id space; a mate whose
+    /// placer's own row cannot state its refusal carries the placer's,
+    /// in the mate's document. One step only: a surface reads the whole
+    /// chain through [`NodeErrorKind::carried_chain`].
+    ///
+    /// Every other arm holds no [`NodeRefusal`]; the two that forward a
+    /// fault enum ask that enum, whose own reading is exhaustive.
+    #[must_use]
+    pub fn carried(&self) -> Option<(RecipeNodeId, &NodeRefusal)> {
+        match self {
+            Self::Part { fault, .. } => fault.carried(),
+            Self::Mate(fault) => fault.carried(),
+            _ => None,
+        }
+    }
+
+    /// **Every refusal this one carries, outermost first**, each with
+    /// the document its node is in: the one reading every surface draws
+    /// a traceback from. A part inside a part yields one level per
+    /// document, and the last level is the node that refused.
+    pub fn carried_chain(&self) -> CarriedChain<'_> {
+        CarriedChain {
+            next: CarriedChain::step(self, CarriedIn::ThisDocument),
+        }
+    }
+}
+
+/// **Which document a carried refusal's node is in.** A node number
+/// means nothing without it: a part's root is numbered in the part.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarriedIn<'a> {
+    /// The document whose evaluation raised the outermost refusal.
+    ThisDocument,
+    /// The part this reference names.
+    Part(&'a crate::ident::DocRef),
+}
+
+/// **One level of a carried chain**: the node that refused, the
+/// document it is in, and its refusal.
+#[derive(Clone, Copy, Debug)]
+pub struct CarriedLevel<'a> {
+    /// The document [`CarriedLevel::node`] is numbered in.
+    pub document: CarriedIn<'a>,
+    /// The node that raised the refusal.
+    pub node: RecipeNodeId,
+    /// Its refusal.
+    pub refusal: &'a NodeRefusal,
+}
+
+impl CarriedLevel<'_> {
+    /// The level as its node's own tree draws it
+    /// ([`NodeRefusal::line_at`]).
+    #[must_use]
+    pub fn line(&self) -> String {
+        self.refusal.line_at(self.node)
+    }
+}
+
+/// The iterator [`NodeErrorKind::carried_chain`] and
+/// [`crate::MateFault::carried_chain`] answer.
+#[derive(Clone, Debug)]
+pub struct CarriedChain<'a> {
+    next: Option<CarriedLevel<'a>>,
+}
+
+impl<'a> CarriedChain<'a> {
+    /// The chain whose first level is `first`, in `document`.
+    pub(crate) fn from_first(
+        first: Option<(RecipeNodeId, &'a NodeRefusal)>,
+        document: CarriedIn<'a>,
+    ) -> Self {
+        Self {
+            next: first.map(|(node, refusal)| CarriedLevel {
+                document,
+                node,
+                refusal,
+            }),
+        }
+    }
+
+    /// The level `kind` carries, when it carries one. A part's level is
+    /// in the part; a mate's is in `outer`, the document `kind` itself
+    /// was raised in.
+    fn step(kind: &'a NodeErrorKind, outer: CarriedIn<'a>) -> Option<CarriedLevel<'a>> {
+        let (node, refusal) = kind.carried()?;
+        let document = match kind {
+            NodeErrorKind::Part { doc_ref, .. } => CarriedIn::Part(doc_ref),
+            _ => outer,
+        };
+        Some(CarriedLevel {
+            document,
+            node,
+            refusal,
+        })
+    }
+}
+
+impl<'a> Iterator for CarriedChain<'a> {
+    type Item = CarriedLevel<'a>;
+
+    fn next(&mut self) -> Option<CarriedLevel<'a>> {
+        let level = self.next.take()?;
+        self.next = Self::step(level.refusal.kind(), level.document);
+        Some(level)
     }
 }
 
 /// The [`NodeError`] rendering: the node, then its kind's prose.
 impl core::fmt::Display for NodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "node {} failed: {}", self.node.0, self.kind)
+        f.write_str(&failed_line(self.node, &self.kind))
     }
 }
 
@@ -2288,9 +2614,12 @@ impl Epoch {
     }
 }
 
-/// The cooperative cancel token (spec D5): checked BETWEEN nodes
-/// (sequential path) or between levels (parallel path) — node
-/// granularity in v1; tokens are never threaded into kernel ops.
+/// The cooperative cancel token (spec D5): checked BETWEEN nodes on
+/// the serial walk, and between levels on the level schedule — node
+/// granularity in v1; tokens are never threaded into kernel ops. A
+/// `parallel` request that runs as the serial walk (a symbolic session
+/// or shape report installed, [`EvalOptions::parallel`]) is checked
+/// between nodes.
 #[derive(Debug, Clone, Default)]
 pub struct CancelToken(Arc<AtomicBool>);
 
@@ -2314,9 +2643,11 @@ impl CancelToken {
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
-/// which carries `topo::PropsQuadLane` as its supertrait — the part
-/// seam gathers a referenced document's product, so evaluation owns a
-/// gate policy per scalar), the two per-scalar analysis capabilities
+/// which answers the three injected doors — the offset fit's, the
+/// fitted pcurves' and the shell verb's — and names the scalar; the
+/// part seam gathers a referenced document's product, so evaluation
+/// owns a gate policy per scalar), the two per-scalar
+/// analysis capabilities
 /// (`crate::analysis::AxisScalar` for the parameter box,
 /// `crate::analysis::SeedScalar` for the E4 seed — both scalar-free
 /// options whose capability lives at the scalar), and `Send + Sync`
@@ -2336,7 +2667,6 @@ pub trait EvalScalar:
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
     + SectionScalar
-    + crate::verbs::shell::ShellLane
 {
 }
 
@@ -2351,34 +2681,22 @@ impl<T> EvalScalar for T where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + SectionScalar
-        + crate::verbs::shell::ShellLane
 {
 }
 
-/// **The certified-leaf replay door** (ERROR-DESIGN E12) — one module
-/// rather than a handful of gated items, because
-/// `scripts/check-interval-cfg-additive.py` admits a gated `mod` and
-/// nothing smaller: the `interval` feature must not be able to change
-/// the default build, and a module is the granularity that keeps that
-/// checkable.
-///
-/// Gated for the driver's own reason (`crate::drive`'s module gate): a
-/// leaf replays at the certified scalar, so without it there is no leaf
-/// and nothing to replay. It lives inside `eval/mod.rs` because it names
+/// **The certified-leaf replay door** (ERROR-DESIGN E12): a leaf
+/// replays at the certified scalar. It lives inside `eval/mod.rs` because it names
 /// `EvalScalar`, which the evaluation-service seam confines to this file
 /// and `parts.rs`.
-#[cfg(feature = "interval")]
 pub(crate) mod leaf {
     use super::{
-        CancelToken, ContentKey, EvalOptions, EvalScalar, Evaluation, NodeResult, ValuePayload,
-        evaluate,
+        CancelToken, ContentKey, EvalOptions, EvalScalar, Evaluation, ValuePayload, evaluate,
     };
 
     // ------------------------------------------- the certified-leaf replay
     //
-    // Gated on `interval` for the driver's own reason (`crate::drive`'s
-    // module gate): a leaf replays at the certified scalar, so without it
-    // there is no leaf and nothing to replay.
+    // A leaf replays at the certified scalar, the one `crate::drive`
+    // certified it at.
 
     /// **Which lane a certified leaf is replayed on** (ERROR-DESIGN E12).
     ///
@@ -2533,8 +2851,8 @@ pub(crate) mod leaf {
                 .collect();
         }
         if let Some(id) = want.measure {
-            out.measure = Some(match ev.result(id) {
-                Some(NodeResult::Ok(v)) => match &v.payload {
+            out.measure = Some(match ev.usable(id) {
+                Ok(v) => match &v.payload {
                     ValuePayload::Measure { value, .. } => {
                         out.measure_bracket = Some((value.lo(), value.hi()));
                         Ok(geom_core::CertifiedEnclosure::certified_bracket(*value))
@@ -2547,18 +2865,15 @@ pub(crate) mod leaf {
                         format!("node evaluated to a {}, not a measure", other.kind_name()),
                     )),
                 },
-                _ => Err(ev.node_error(id).map_or_else(
-                    || (id, "not evaluated".to_owned()),
+                Err(standing) => Err(ev.node_error(id).map_or_else(
+                    || (id, standing.to_string()),
                     |e| (e.node, e.kind.to_string()),
                 )),
             });
         }
         if let Some(id) = want.assertion {
-            out.assertion = match ev.result(id) {
-                Some(NodeResult::Ok(v)) => match &v.payload {
-                    ValuePayload::Assertion(a) => Some(a.clone().map(&project)),
-                    _ => None,
-                },
+            out.assertion = match ev.value(id).map(|v| &v.payload) {
+                Some(ValuePayload::Assertion(a)) => Some(a.clone().map(&project)),
                 _ => None,
             };
         }
@@ -2566,7 +2881,6 @@ pub(crate) mod leaf {
     }
 }
 
-#[cfg(feature = "interval")]
 pub(crate) use leaf::{LeafLane, LeafPrior, LeafRequest, replay_leaf};
 
 /// Evaluation options (spec D5/D6).
@@ -2579,6 +2893,21 @@ pub struct EvalOptions {
     /// D6). A RUNTIME switch so the D9 determinism cross-check can
     /// compare both schedules in one test run; results land by node
     /// id either way — order is data, not schedule.
+    ///
+    /// The `k_stats` recordings (verdicts, escalations, `probe`
+    /// samples) are the serial walk's at any thread count, in the
+    /// serial walk's order, with one exception. When a document
+    /// instantiates the same part more than once, the part is evaluated
+    /// once, by whichever instance takes the part cache's lock first,
+    /// and that evaluation's `probe` samples are recorded with that
+    /// instance. The serial walk records them with the first instance
+    /// in its order; the level schedule may record them with another
+    /// (`work/wire/part-cache-miss-samples-land-on-whichever-instance-wins-the-lock.md`).
+    ///
+    /// A request, not a guarantee: while the calling thread has a
+    /// symbolic session or shape report installed
+    /// (`geom_core::sym::decisions_are_thread_portable`) the run is the
+    /// serial walk.
     pub parallel: bool,
     /// Which candidate-generation path boolean nodes run (M5 PR 8) —
     /// a runtime switch in the `parallel` mold so the BVH differential
@@ -2694,7 +3023,6 @@ impl SectionScalar for geom_core::Probe {
     }
 }
 
-#[cfg(feature = "interval")]
 impl SectionScalar for geom_core::Interval {
     fn pinned_f64(self) -> Option<f64> {
         None
@@ -2813,7 +3141,14 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
         tol: Tol,
     ) -> Self {
         Self {
-            parts: parts::PartCache::<T>::new(resolver, &[], boolean_sweep, profile_lift, tol),
+            parts: parts::PartCache::<T>::new(
+                resolver,
+                &[],
+                parts::Reached::none(),
+                boolean_sweep,
+                profile_lift,
+                tol,
+            ),
             tol,
         }
     }
@@ -2853,10 +3188,12 @@ pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartRea
 /// whole, recorded on [`Evaluation::prior_refused`], and the run
 /// recomputes every node.
 ///
-/// `cancel` is checked between nodes (sequential) or between levels
-/// (parallel) — spec D5's cooperative yield points at node
-/// granularity; a canceled run returns the completed prefix with
-/// [`EvalOutcome::Canceled`].
+/// `cancel` is checked between nodes on the serial walk and between
+/// levels on the level schedule — spec D5's cooperative yield points at
+/// node granularity; a canceled run returns the completed prefix with
+/// [`EvalOutcome::Canceled`]. A `parallel` request runs as the serial
+/// walk, and is checked between nodes, while a symbolic session or
+/// shape report is installed ([`EvalOptions::parallel`]).
 pub fn evaluate<T>(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
@@ -2867,13 +3204,15 @@ pub fn evaluate<T>(
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, prior, cancel, opts, &[], tol)
+    evaluate_at_descent(doc, prior, cancel, opts, &[], parts::Reached::none(), tol)
 }
 
 /// An instantiated document's own evaluation (ASM-2A D-3), one level
 /// deeper than its instantiator's. `chain` is the descent — every
 /// reference this run was reached through — which is what makes a
-/// cycle decidable at the seam. No prior: a referenced document is
+/// cycle decidable at the seam. `reached` holds the parts the document
+/// instantiates, already evaluated (see [`parts::PartCache`] on why
+/// the descent runs bottom-up). No prior: a referenced document is
 /// resolved fresh, and the memo that keeps THAT from costing anything
 /// is the part cache, one layer up.
 pub(crate) fn evaluate_nested<T>(
@@ -2881,12 +3220,20 @@ pub(crate) fn evaluate_nested<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
+    reached: parts::Reached<T>,
     tol: Tol,
 ) -> Evaluation<T>
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, None, cancel, opts, chain, tol)
+    evaluate_at_descent(doc, None, cancel, opts, chain, reached, tol)
+}
+
+/// Whether `doc` was recorded at the process's ε — the D4 door below.
+/// A document that was not refuses every node before any of them runs,
+/// so its evaluation reaches none of its parts.
+pub(crate) fn recorded_at_process_eps<P>(doc: &Doc<P>, tol: Tol) -> bool {
+    doc.epsilon().to_bits() == tol.eps().to_bits()
 }
 
 fn evaluate_at_descent<T>(
@@ -2895,6 +3242,7 @@ fn evaluate_at_descent<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
+    reached: parts::Reached<T>,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -2916,9 +3264,8 @@ where
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
-    let process_eps = tol.eps();
-    if doc.epsilon().to_bits() != process_eps.to_bits() {
-        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, process_eps);
+    if !recorded_at_process_eps(doc, tol) {
+        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, tol.eps());
     }
     // The lane environment, built ONCE and shared by every reader
     // below (slot evaluation, the lift's second pass, the two profile
@@ -2950,6 +3297,7 @@ where
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
+        reached,
         opts.boolean_sweep,
         opts.profile_lift,
         tol,
@@ -2960,9 +3308,10 @@ where
     // node is not an optimization — a per-node solve would be a second
     // answer to "where does this cluster sit". Its one geometric read
     // — each mated part's extent, the lever — comes off THIS run's
-    // part cache, lazily: a mated part is evaluated here, once, under
-    // the cache's own shielding bracket, and its instantiate node
-    // then hits the cache.
+    // part cache: at the top a mated part is evaluated on its first
+    // ask, once, under the cache's shielding bracket, and below the
+    // top the descent has already entered it. Either way its
+    // instantiate node then hits the cache.
     let reach = CacheReach { parts: &parts, tol };
     let poses = crate::mate::solve_with_env(doc, &nominal_env, &reach, tol);
     let op_env = wire::OpEnv {
@@ -2981,7 +3330,20 @@ where
     let mut reused = 0usize;
     let mut outcome = EvalOutcome::Completed;
 
-    if opts.parallel {
+    // The level schedule runs only where a decision is thread-portable
+    // (`geom_core::sym::decisions_are_thread_portable`): under an
+    // installed symbolic session or shape report a node decided on a
+    // worker would decide, count and report differently from one
+    // decided here, so the walk is the serial one below, exactly.
+    if opts.parallel && geom_core::sym::decisions_are_thread_portable() {
+        // What each node recorded outside its own bracket — its `probe`
+        // samples, and anything its bracket did not take — held until
+        // the walk ends and then spliced in `sched.order`, which is the
+        // order the serial walk records in. Levels are not that order
+        // (a later level's node can precede an earlier level's in it),
+        // so splicing level by level would give the same population in
+        // a schedule-shaped sequence.
+        let mut recordings: BTreeMap<RecipeNodeId, geom_core::k_stats::Detached> = BTreeMap::new();
         for level in &sched.levels {
             if cancel.is_canceled() {
                 outcome = EvalOutcome::Canceled;
@@ -2991,14 +3353,20 @@ where
             // per-node slots — results land keyed by node id, the
             // combination is positional (one map entry per node),
             // never arithmetic, so the schedule cannot leak into bits.
-            use rayon::prelude::*;
-            let results: Vec<(RecipeNodeId, NodeStep<T>)> = level
-                .par_iter()
-                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior, &op_env, tol)))
-                .collect();
-            for (id, step) in results {
+            // Each node runs under a K-funnel frame of its own; its
+            // bracket in `eval_node` nests inside that frame.
+            let results = geom_core::k_stats::map_detached(level, |&id| {
+                eval_node(doc, &env, id, &nodes, prior, &op_env, tol)
+            });
+            for (&id, (step, recording)) in level.iter().zip(results) {
                 bookkeep(&step, &mut recomputed, &mut reused);
                 nodes.insert(id, step.result);
+                recordings.insert(id, recording);
+            }
+        }
+        for id in &sched.order {
+            if let Some(recording) = recordings.remove(id) {
+                geom_core::k_stats::splice(recording);
             }
         }
     } else {
@@ -3033,23 +3401,8 @@ where
 
     // Appearance resolution (M4 PR 7): a total post-pass over the
     // result DAG — canceled prefixes resolve what completed and report
-    // the rest as typed TargetNotEvaluated losses.
-    let states: BTreeMap<RecipeNodeId, appearance::NodeState<'_>> = nodes
-        .iter()
-        .map(|(&id, res)| {
-            let s = match res {
-                NodeResult::Ok(v) => appearance::NodeState::Ok(&v.name_table),
-                NodeResult::Failed(_) => appearance::NodeState::Failed,
-                NodeResult::Poisoned { through } => {
-                    appearance::NodeState::Poisoned { through: *through }
-                }
-            };
-            (id, s)
-        })
-        .collect();
-    let resolved_appearance =
-        appearance::resolve(doc.appearance(), |id| doc.node(id).is_some(), &states);
-    drop(states);
+    // the rest as typed losses carrying their standing.
+    let resolved_appearance = resolve_appearance(doc, &order, &nodes);
 
     Evaluation {
         epoch: opts.epoch,
@@ -3157,13 +3510,7 @@ where
             )
         })
         .collect();
-    let states: BTreeMap<RecipeNodeId, appearance::NodeState<'_>> = nodes
-        .keys()
-        .map(|&id| (id, appearance::NodeState::Failed))
-        .collect();
-    let resolved_appearance =
-        appearance::resolve(doc.appearance(), |id| doc.node(id).is_some(), &states);
-    drop(states);
+    let resolved_appearance = resolve_appearance(doc, &order, &nodes);
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
@@ -3176,6 +3523,25 @@ where
         part_evaluations: 0,
         appearance: resolved_appearance,
     }
+}
+
+/// The document's appearance store against one evaluation's results:
+/// every node of `order` — which covers every live node — answers its
+/// name table or its standing through [`usable_in`], so a node the
+/// order does not hold is one the document does not have.
+fn resolve_appearance<T: Decide>(
+    doc: &Doc<ProfileProgram>,
+    order: &[RecipeNodeId],
+    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+) -> AppearanceResolution {
+    let states: BTreeMap<RecipeNodeId, appearance::NodeState<'_>> = order
+        .iter()
+        .map(|&id| {
+            let state = usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id });
+            (id, state.map(|v| &*v.name_table))
+        })
+        .collect();
+    appearance::resolve(doc.appearance(), &states)
 }
 
 /// One node's evaluation step: the result plus whether it was a memo
@@ -3253,23 +3619,25 @@ where
     let mut upstream_keys: Vec<ContentKey> = Vec::new();
     let mut upstream_naming: Vec<(RecipeNodeId, NamingKey)> = Vec::new();
     for input in node.inputs() {
-        match results.get(&input) {
-            None => return fail(bracket, NodeErrorKind::MissingInput { input }),
-            Some(NodeResult::Failed(_)) => {
-                return NodeStep {
-                    result: NodeResult::Poisoned { through: input },
-                    reused: false,
-                };
-            }
-            Some(NodeResult::Poisoned { through }) => {
-                return NodeStep {
-                    result: NodeResult::Poisoned { through: *through },
-                    reused: false,
-                };
-            }
-            Some(NodeResult::Ok(v)) => {
+        // Every input the document has precedes this node in the
+        // order and so has its result: an absent one is not in it.
+        match usable_in(results, input, || NodeStanding::NotInDocument {
+            node: input,
+        }) {
+            Ok(v) => {
                 upstream_keys.push(v.content_key);
                 upstream_naming.push((input, v.naming_key));
+            }
+            Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
+                return fail(bracket, NodeErrorKind::MissingInput { input });
+            }
+            Err(
+                NodeStanding::Failed { node: through } | NodeStanding::Poisoned { through, .. },
+            ) => {
+                return NodeStep {
+                    result: NodeResult::Poisoned { through },
+                    reused: false,
+                };
             }
         }
     }
@@ -3329,7 +3697,7 @@ where
                 Ok(placement) => placement,
                 Err(kind) => return fail(bracket, kind),
             };
-            match wire::prepare_profile(placement, resolved, tol) {
+            match wire::prepare_profile(placement, resolved, &program.ids, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(bracket, kind),
             }
@@ -3427,7 +3795,7 @@ where
     // drops a foreign one before the schedule is built (DI3), so this
     // lookup cannot serve a coincidental id collision from another
     // document.
-    if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
+    if let Some(v) = prior.and_then(|p| p.value(id))
         && v.content_key == content_key
         && v.naming_key == naming_key
     {
@@ -3498,6 +3866,7 @@ where
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 name_table: out.names,
+                fragment_groups: out.groups,
                 contacts: out.contacts,
                 carried: out.carried,
                 verdicts: Arc::new(recorded.verdicts),
@@ -4188,6 +4557,18 @@ where
                 }
                 None => h.write_tag(tag::presence::ABSENT),
             }
+            // The steps' minted ids: what every name a sweep over this
+            // profile publishes spells (N1), so two programs that
+            // replay alike but carry different ids — one step
+            // re-authored in place of another — are two keys, and a
+            // memo hit cannot serve one's names for the other's.
+            h.write_u64(program.ids.len() as u64);
+            for ids in &program.ids {
+                h.write_u64(ids.len() as u64);
+                for id in ids {
+                    h.write_u64(id.0);
+                }
+            }
             // The f64 stream above IS the structure identity and stays
             // in the key unconditionally, lane-independent as ever.
             // What follows is the lane's own geometry, and only when
@@ -4515,8 +4896,32 @@ where
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
-        | Node::Transform { .. } => {}
+        | Node::Boolean { .. } => {}
+        // A placement's STEP STRUCTURE and its literal frames are
+        // recipe payload outside the slots: the slot values below are
+        // fed by position, so a chain's kinds and order must feed here
+        // or `[rigid, literal]` and `[literal, rigid]` over the same
+        // numbers would share a key. Frames by bits, as an explicit
+        // rule's are.
+        Node::Transform { placement, .. } => {
+            h.write_u64(placement.steps.len() as u64);
+            for step in &placement.steps {
+                match step {
+                    crate::placement::Step::Rigid { .. } => h.write_tag(0),
+                    crate::placement::Step::Literal(frame) => {
+                        h.write_tag(1);
+                        for x in frame
+                            .columns
+                            .iter()
+                            .flatten()
+                            .chain(frame.translation.iter())
+                        {
+                            h.write_f64_bits(*x);
+                        }
+                    }
+                }
+            }
+        }
         // The member list is edges, so the upstream keys carry it — in
         // list order, and prefixed by their total length, so neither a
         // reordering nor a dropped member can alias another list. What
@@ -5061,7 +5466,7 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
             e.param_refs(&mut params);
             h.write_u64(params.len() as u64);
             for (name, dim) in params {
-                h.write_str(&name.0);
+                h.write_str(name.as_str());
                 h.write_tag(dimension_tag(dim));
             }
         }
@@ -5117,18 +5522,59 @@ fn feed_scalar_join(
 /// a name is an identity, and two names differing anywhere are two
 /// different recipe payloads. Names are float-free by construction
 /// (pure tags and integers), so nothing here is eps-dependent.
+///
+/// A name holds names as deep as its derivation runs, so the feed keeps
+/// its own stack: each level's segments are fed into a [`SegFeed`],
+/// which holds a name it meets in place, and the stream is then fed in
+/// order, each held name fed where it stands.
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
-    h.write_tag(match name.kind {
-        EntityKind::Body => 1,
-        EntityKind::Face => 2,
-        EntityKind::Edge => 3,
-        EntityKind::Vertex => 4,
-    });
-    h.write_u64(name.node.0);
-    h.write_u64(name.path.len() as u64);
-    for seg in &name.path {
-        feed_role_seg(h, seg);
+    let mut fed = vec![Fed::Name(name)];
+    while let Some(item) = fed.pop() {
+        match item {
+            Fed::Tag(tag) => h.write_tag(tag),
+            Fed::U64(x) => h.write_u64(x),
+            Fed::Name(name) => {
+                h.write_tag(match name.kind {
+                    EntityKind::Body => 1,
+                    EntityKind::Face => 2,
+                    EntityKind::Edge => 3,
+                    EntityKind::Vertex => 4,
+                });
+                h.write_u64(name.node.0);
+                h.write_u64(name.path.len() as u64);
+                let mut level = SegFeed(Vec::new());
+                for seg in &name.path {
+                    feed_role_seg(&mut level, seg);
+                }
+                fed.extend(level.0.into_iter().rev());
+            }
+        }
+    }
+}
+
+/// One item of a name's content-key stream.
+enum Fed<'a> {
+    Tag(u8),
+    U64(u64),
+    /// A held name, fed whole where it stands.
+    Name(&'a StableName),
+}
+
+/// One level of a name's content-key stream, in order.
+struct SegFeed<'a>(Vec<Fed<'a>>);
+
+impl<'a> SegFeed<'a> {
+    fn write_tag(&mut self, tag: u8) {
+        self.0.push(Fed::Tag(tag));
+    }
+
+    fn write_u64(&mut self, x: u64) {
+        self.0.push(Fed::U64(x));
+    }
+
+    fn name(&mut self, name: &'a StableName) {
+        self.0.push(Fed::Name(name));
     }
 }
 
@@ -5160,6 +5606,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::RimEdge => 4,
         S::LateralEdge => 5,
         S::CapVertex => 6,
+        S::LoftWall => 45,
+        S::LoftSeam => 46,
         S::Band => 7,
         S::BandRim => 8,
         S::BandRimPi => 9,
@@ -5203,8 +5651,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
 
 /// Feeds one role segment: its word from [`seg_content_tag`], then the
 /// payload its variant carries.
-fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
-    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict};
+fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
+    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg};
     let cap = |c: CapEnd| match c {
         CapEnd::End => 1u8,
         CapEnd::Start => 2,
@@ -5220,30 +5668,59 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         crate::names::RimSupport::Host => 1u8,
         crate::names::RimSupport::Mate => 2,
     };
-    let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| {
-        h.write_u64(u64::from(e.loop_index));
-        h.write_u64(u64::from(e.segment));
+    // A locator: its form's word, then the step's minted id or the
+    // section's circle, then the role (its word, and a piece's index).
+    let role = |h: &mut SegFeed<'a>, r: crate::names::PieceRole| {
+        use crate::names::PieceRole;
+        match r {
+            PieceRole::Leg => h.write_tag(1),
+            PieceRole::RunIn => h.write_tag(2),
+            PieceRole::Arc => h.write_tag(3),
+            PieceRole::RunOut => h.write_tag(4),
+            PieceRole::Piece(k) => {
+                h.write_tag(5);
+                h.write_u64(u64::from(k));
+            }
+        }
     };
-    let pv = |h: &mut KeyHasher, v: crate::names::ProfileVertexRef| {
-        h.write_u64(u64::from(v.loop_index));
-        h.write_u64(u64::from(v.vertex));
+    let circle = |c: crate::names::SectionCircle| match c {
+        crate::names::SectionCircle::Outer => 1u8,
+        crate::names::SectionCircle::Bore => 2,
     };
-    let qual = |h: &mut KeyHasher, q: &Qualifier| {
+    let pe = |h: &mut SegFeed<'a>, e: crate::names::ProfileEdgeRef| match e {
+        crate::names::ProfileEdgeRef::Piece { step, role: r } => {
+            h.write_tag(1);
+            h.write_u64(step.0);
+            role(h, r);
+        }
+        crate::names::ProfileEdgeRef::Section { circle: c, role: r } => {
+            h.write_tag(2);
+            h.write_tag(circle(c));
+            role(h, r);
+        }
+    };
+    let pv = |h: &mut SegFeed<'a>, v: crate::names::ProfileVertexRef| match v {
+        crate::names::ProfileVertexRef::Piece { step, role: r } => {
+            h.write_tag(1);
+            h.write_u64(step.0);
+            role(h, r);
+        }
+        crate::names::ProfileVertexRef::Section { circle: c, role: r } => {
+            h.write_tag(2);
+            h.write_tag(circle(c));
+            role(h, r);
+        }
+    };
+    let qual = |h: &mut SegFeed<'a>, q: &'a Qualifier| {
         h.write_tag(match q {
-            Qualifier::SideOf(..) => 1,
             Qualifier::OrderAlong { .. } => 2,
+            Qualifier::Borders(..) => 3,
         });
         match q {
-            Qualifier::SideOf(vec) => {
-                h.write_u64(vec.len() as u64);
-                for (name, v) in vec {
-                    feed_stable_name(h, name);
-                    h.write_tag(match v {
-                        SideVerdict::Positive => 1,
-                        SideVerdict::Negative => 2,
-                        SideVerdict::Mixed => 3,
-                        SideVerdict::On => 4,
-                    });
+            Qualifier::Borders(walls) => {
+                h.write_u64(walls.len() as u64);
+                for name in walls {
+                    h.name(name);
                 }
             }
             Qualifier::OrderAlong { rank, of } => {
@@ -5253,8 +5730,8 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         }
     };
     // The segment's word first, from `seg_content_tag`; the match
-    // below feeds payloads only. The closures above (qualifier,
-    // verdict, cap end, meridian end, split half, rim support) are
+    // below feeds payloads only. The closures above (qualifier, cap
+    // end, meridian end, split half, rim support) are
     // vocabularies of their own, each read under a segment word.
     h.write_tag(seg_content_tag(SegTag::of(seg)));
     match seg {
@@ -5275,6 +5752,18 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         RoleSeg::CapVertex(c, v) => {
             h.write_tag(cap(*c));
             pv(h, *v);
+        }
+        RoleSeg::LoftWall(es) => {
+            h.write_u64(es.len() as u64);
+            for e in es {
+                pe(h, *e);
+            }
+        }
+        RoleSeg::LoftSeam(vs) => {
+            h.write_u64(vs.len() as u64);
+            for v in vs {
+                pv(h, *v);
+            }
         }
         RoleSeg::Band(e) => {
             pe(h, *e);
@@ -5306,19 +5795,19 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             pe(h, *e);
         }
         RoleSeg::FromA(inner) => {
-            feed_stable_name(h, inner);
+            h.name(inner);
         }
         RoleSeg::FromB(inner) => {
-            feed_stable_name(h, inner);
+            h.name(inner);
         }
         RoleSeg::Seam { a, b } => {
-            feed_stable_name(h, a);
-            feed_stable_name(h, b);
+            h.name(a);
+            h.name(b);
         }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);
             for n in names {
-                feed_stable_name(h, n);
+                h.name(n);
             }
         }
         RoleSeg::Fragment(q) => {
@@ -5333,69 +5822,70 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         }
         RoleSeg::SectionEdge { side, face } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, face);
+            h.name(face);
         }
         RoleSeg::SplitFragment { side, parent } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, parent);
+            h.name(parent);
         }
         RoleSeg::CrossingVertex { side, edge } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, edge);
+            h.name(edge);
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, of);
+            h.name(of);
         }
         RoleSeg::InPart { of } => {
-            feed_stable_name(h, of);
+            h.name(of);
         }
         RoleSeg::Instance { i, of } => {
             h.write_u64(u64::from(*i));
-            feed_stable_name(h, of);
+            h.name(of);
         }
         RoleSeg::FromTarget(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::BlendFace(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::CornerFace(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::TrimEdge { edge, support } => {
-            feed_stable_name(h, edge);
-            feed_stable_name(h, support);
+            h.name(edge);
+            h.name(support);
         }
         RoleSeg::FootVertex { vertex, support } => {
-            feed_stable_name(h, vertex);
-            feed_stable_name(h, support);
+            h.name(vertex);
+            h.name(support);
         }
         RoleSeg::EndArc { vertex, edge } => {
-            feed_stable_name(h, vertex);
-            feed_stable_name(h, edge);
+            h.name(vertex);
+            h.name(edge);
         }
         RoleSeg::BandFace(names) => {
             h.write_u64(names.len() as u64);
             for n in names {
-                feed_stable_name(h, n);
+                h.name(n);
             }
         }
         RoleSeg::BandTrim { edge, support } => {
-            feed_stable_name(h, edge);
+            h.name(edge);
             h.write_tag(rim(*support));
         }
         RoleSeg::BandFoot(n) => {
-            feed_stable_name(h, n);
-        }
-        RoleSeg::BandCross(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::BandCut(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
-        RoleSeg::BandSlit(n) => {
-            feed_stable_name(h, n);
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            h.name(edge);
+            h.write_u64(band.len() as u64);
+            for n in band {
+                h.name(n);
+            }
         }
         // The n-ary union's member key. BOTH halves feed: two members
         // of one union can be
@@ -5405,16 +5895,16 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         // exists to prevent.
         RoleSeg::FromMember { member, of } => {
             h.write_u64(member.0);
-            feed_stable_name(h, of);
+            h.name(of);
         }
         // The shell's three roles. Each wraps one source name; the hole
         // rim carries its pairing index beside it, the way `Instance`
         // carries `i`.
-        RoleSeg::Inner(n) => feed_stable_name(h, n),
-        RoleSeg::Rim(n) => feed_stable_name(h, n),
+        RoleSeg::Inner(n) => h.name(n),
+        RoleSeg::Rim(n) => h.name(n),
         RoleSeg::HoleRim { of, hole } => {
             h.write_u64(u64::from(*hole));
-            feed_stable_name(h, of);
+            h.name(of);
         }
     }
 }
@@ -5735,7 +6225,7 @@ mod tag_vocabulary_tests {
     /// sharing a tag make two different names hash alike, and a content
     /// key that collides serves one node's cached geometry for
     /// another's. The nested vocabularies a segment carries (qualifier,
-    /// verdict, cap end, meridian end, split half, rim support) are
+    /// cap end, meridian end, split half, rim support) are
     /// each read under a segment word this row holds unique.
     #[test]
     fn seg_content_tags_are_injective() {
@@ -5990,12 +6480,112 @@ mod alignment_key {
 ///
 /// It lives HERE, beside [`KeyHasher`], rather than in
 /// [`crate::report`] where its callers are, because
-/// [`crate::mc`] needs it and that lane is pure `f64`: a helper in an
-/// `interval`-gated module was the only thing keeping the advisory
-/// estimator out of a default build (M10-6, R2's MINOR-9).
+/// [`crate::mc`] needs it too, and that lane is the pure-`f64` advisory
+/// estimator rather than a part of the certified reporting layer.
 pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
     let mut h = KeyHasher::new();
     h.write_tag(tag);
     h.write_str(serialized);
     h.finish()
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod name_feed_tests {
+    //! A name's content-key feed keeps its own stack, and feeds the
+    //! stream a descent level by level would.
+
+    use super::memo::ContentKey;
+    use super::{Fed, KeyHasher, SegFeed, feed_role_seg, feed_stable_name};
+    use crate::names::{CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
+    use crate::node::RecipeNodeId;
+
+    fn key(name: &StableName) -> ContentKey {
+        let mut h = KeyHasher::new();
+        feed_stable_name(&mut h, name);
+        h.finish()
+    }
+
+    /// The feed as a descent: each held name fed, whole, where its
+    /// holder's segment meets it.
+    fn descending(h: &mut KeyHasher, name: &StableName) {
+        h.write_tag(match name.kind {
+            EntityKind::Body => 1,
+            EntityKind::Face => 2,
+            EntityKind::Edge => 3,
+            EntityKind::Vertex => 4,
+        });
+        h.write_u64(name.node.0);
+        h.write_u64(name.path.len() as u64);
+        for seg in &name.path {
+            let mut level = SegFeed(Vec::new());
+            feed_role_seg(&mut level, seg);
+            for item in level.0 {
+                match item {
+                    Fed::Tag(tag) => h.write_tag(tag),
+                    Fed::U64(x) => h.write_u64(x),
+                    Fed::Name(n) => descending(h, n),
+                }
+            }
+        }
+    }
+
+    fn leaf(node: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        }
+    }
+
+    /// `name` one level deeper, held in turn by each shape a segment
+    /// holds a name in, beside payload the feed writes around it.
+    fn wrap(name: StableName, level: usize) -> StableName {
+        let r = NameRef::new(name.clone());
+        let seg = match level % 5 {
+            0 => RoleSeg::Instance { i: 3, of: r },
+            1 => RoleSeg::Fragment(Qualifier::Borders(vec![leaf(7), name])),
+            2 => RoleSeg::BandCross {
+                edge: NameRef::new(leaf(8)),
+                band: vec![name],
+            },
+            3 => RoleSeg::SectionEdge {
+                side: SplitHalf::Below,
+                face: r,
+            },
+            _ => RoleSeg::Seam {
+                a: r,
+                b: NameRef::new(leaf(9)),
+            },
+        };
+        StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId(level as u64 + 10),
+            path: vec![
+                seg,
+                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_name_feeds_the_stream_a_descent_feeds() {
+        let mut name = leaf(1);
+        for level in 0..12 {
+            name = wrap(name, level);
+            let mut h = KeyHasher::new();
+            descending(&mut h, &name);
+            assert_eq!(key(&name), h.finish(), "at depth {level}");
+        }
+    }
+
+    #[test]
+    fn a_name_nested_past_every_stack_keys_on_the_smallest_stack() {
+        test_utils::own_thread::on_the_smallest_stack(|| {
+            let deep = |bottom| (0..20_000).fold(leaf(bottom), wrap);
+            let (a, again, b) = (deep(1), deep(1), deep(2));
+            assert_eq!(key(&a), key(&again), "one name, one key");
+            assert_ne!(key(&a), key(&b), "a difference at the bottom moves the key");
+        });
+    }
 }

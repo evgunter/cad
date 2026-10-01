@@ -23,7 +23,7 @@
 //! not a row here. Run these:
 //!
 //! ```sh
-//! cargo test -p editor-core --features interval --test all -- \
+//! cargo test -p editor-core --test all -- \
 //!   decide_1_self_dot_interval:: --ignored --nocapture --test-threads 1
 //! ```
 //!
@@ -35,7 +35,6 @@
 //! document it does not fit in the memory of a box the size of this
 //! lane's. Its bracket is measured; its `Invalid` count is not taken,
 //! and the row says so.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ProfileDoc;
@@ -108,14 +107,14 @@ fn only_doc() -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-/// The PREDICATE a refusal names, out of the refusal's own message —
-/// the quoted name after `predicate `. The whole message is a
+/// The PREDICATE a refusal names, out of the refusal's `Debug` —
+/// the quoted name in `predicate: Some(..)`. The whole message is a
 /// paragraph of recourse; what a census row wants is which predicate
 /// ended the replay.
 fn refusal_predicate(refusal: &str) -> String {
     refusal
-        .split_once("predicate '")
-        .and_then(|(_, rest)| rest.split_once('\''))
+        .split_once("predicate: Some(\"")
+        .and_then(|(_, rest)| rest.split_once('"'))
         .map_or_else(|| head(refusal, 60), |(name, _)| name.to_owned())
 }
 

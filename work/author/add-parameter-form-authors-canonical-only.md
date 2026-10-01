@@ -46,7 +46,7 @@ picked yet", when Create is refused anyway. The bullet is struck
 rather than re-pointed because there is no surviving subject to point
 at: the defect it described was fixed, not moved. (It was never load-
 bearing for this item, which is about the declared UNIT, not the tick;
-`work/chrome/drag-tick-has-three-homes.md` (CHROME's, and still there) is where the tick question
+`work/forms/drag-tick-has-three-homes.md` (CHROME's, and still there) is where the tick question
 lives, and it now records `add_param_ui` as one of the two converted
 sites.)
 

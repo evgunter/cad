@@ -614,3 +614,63 @@ fn bounds_whose_half_extents_square_to_infinity_are_not_a_scene() {
     // And the ordinary case is untouched.
     Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
 }
+
+/// **The camera's own door at the display seam refuses**, and refuses
+/// the case every guard above it admits.
+///
+/// [`Camera::view_projection`] states the algebra and answers in
+/// `f64`; `view_projection_f32` is the same matrix narrowed to what a
+/// GPU holds, and `f32::MAX` is about `3.40e38` where `f64` reaches
+/// `1.8e308`. So a camera framed against a scene a couple of hundred
+/// orders of magnitude across is one this module is happy with —
+/// every field finite, the distance inside its band — whose
+/// projection cannot be handed to a renderer. What the unfixed path
+/// handed over was an infinity.
+///
+/// The pair is the point: the ordinary camera's two answers agree
+/// entry for entry, so the refusal is not the door declining work it
+/// could do.
+#[test]
+fn the_narrowed_view_projection_refuses_what_a_gpu_cannot_hold() {
+    let aspect = 16.0 / 9.0;
+
+    let ordinary = framed();
+    let wide = ordinary
+        .view_projection(aspect)
+        .expect("the plate projects");
+    let narrow = ordinary
+        .view_projection_f32(aspect)
+        .expect("and it narrows");
+    for (column, source) in narrow.iter().zip(wide) {
+        for (entry, from) in column.iter().zip(source) {
+            #[allow(clippy::cast_possible_truncation)]
+            let expected = from as f32;
+            assert_eq!(*entry, expected, "the narrowed matrix IS the matrix");
+        }
+    }
+
+    // A scene radius of `1e300` is a number, and `Camera::new` takes
+    // it: nothing here is a NaN and nothing is an infinity.
+    let huge = Camera::new(
+        pncad::geom_core::Point3::new(0.0, 0.0, 0.0),
+        1.0e300,
+        0.0,
+        0.0,
+        1.0,
+        1.0e300,
+    )
+    .expect("every field is finite and the radius is positive");
+    assert!(
+        huge.view_projection(aspect)
+            .expect("the algebra is defined")
+            .iter()
+            .flatten()
+            .all(|entry| entry.is_finite()),
+        "every entry is a number before the seam"
+    );
+    assert_eq!(
+        huge.view_projection_f32(aspect),
+        Err(CameraError::UndrawableProjection),
+        "and the seam is what refuses it"
+    );
+}

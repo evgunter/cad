@@ -30,7 +30,7 @@ use editor_core::{
 use geom_core::Tol;
 
 fn p() -> ParamName {
-    ParamName::new("p")
+    ParamName::from_static("p")
 }
 
 /// `p` a Length parameter at `nominal`; a circle of radius `p` on the
@@ -58,6 +58,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
                 centre: [fixture::len(0.0), fixture::len(0.0)],
                 radius: Expr::param(p(), Dimension::Length),
             }],
+            ids: Vec::new(),
         }),
     );
     let (doc, upper_frame) = fixture::insert(
@@ -72,6 +73,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
                 centre: [fixture::len(0.0), fixture::len(0.0)],
                 radius: fixture::len(1.0),
             }],
+            ids: Vec::new(),
         }),
     );
     fixture::insert(

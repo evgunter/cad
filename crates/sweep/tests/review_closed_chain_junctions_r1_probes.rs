@@ -18,7 +18,7 @@ use core::f64::consts::PI;
 
 use crate::common::approx::band;
 use geom_core::{Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::battery::{Chain, ChainClosure, Convexity};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
@@ -314,11 +314,11 @@ fn top_rim(body: &Body<f64>, h: f64) -> Vec<EdgeKey> {
 
 /// Every joint of `vs` is tangent (line into arc into line), declared
 /// as the profile door requires.
-fn extruded(vs: Vec<ProfileVertex<f64>>, h: f64) -> Body<f64> {
+fn extruded(vs: Vec<(Point2<f64>, f64)>, h: f64) -> Body<f64> {
     let joints: Vec<usize> = (0..vs.len()).collect();
     let pf = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(vs).with_tangent_joints(joints)],
+        vec![bulge_loop(vs).with_tangent_joints(joints)],
     )
     .validate(tol())
     .unwrap();
@@ -327,7 +327,7 @@ fn extruded(vs: Vec<ProfileVertex<f64>>, h: f64) -> Body<f64> {
 
 /// A stadium: two lines and two semicircles, CCW.
 fn stadium(a: f64, r: f64) -> Body<f64> {
-    let v = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
+    let v = |x: f64, y: f64, b: f64| (Point2::new(x, y), b);
     extruded(
         vec![v(-a, -r, 0.0), v(a, -r, 1.0), v(a, r, 0.0), v(-a, r, 1.0)],
         1.0,
@@ -337,7 +337,7 @@ fn stadium(a: f64, r: f64) -> Body<f64> {
 /// A rounded square of half-side `a` and corner radius `c`, CCW: four
 /// lines and four quarter arcs.
 fn rounded_square(a: f64, c: f64) -> Body<f64> {
-    let v = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
+    let v = |x: f64, y: f64, b: f64| (Point2::new(x, y), b);
     let q = (PI / 8.0).tan();
     extruded(
         vec![

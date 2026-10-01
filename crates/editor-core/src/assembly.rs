@@ -71,11 +71,10 @@ use geom_core::Decide;
 use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError};
 
 use crate::doc::Doc;
-use crate::eval::{Evaluation, NodeResult, ValuePayload};
+use crate::eval::{Evaluation, ValuePayload};
 use crate::mate::{
     ClassAdmission, ContactClass, MateSide, NO_AT_REST_RECORD_RECOURSE, class_admission,
 };
-use crate::names::interrogate::value_of;
 use crate::names::{Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId, SitedFace};
 use crate::product::{Product, ProductError, product_recorded};
@@ -321,7 +320,7 @@ pub enum RefusedRef {
     /// ONE face, and a tie is never broken by picking.
     Ambiguous {
         /// How many entities the tie holds.
-        width: u32,
+        width: usize,
     },
 }
 
@@ -449,7 +448,7 @@ impl core::fmt::Display for Attribution {
                 subject(f, declaration, *relation)?;
                 write!(f, " (carried from {route})")
             }
-            Self::Unattributed => f.write_str("no declaration answers for this finding"),
+            Self::Unattributed => f.write_str("no mate declared this"),
         }
     }
 }
@@ -720,7 +719,7 @@ impl AssemblyError {
     /// without re-spelling them.
     #[must_use]
     pub fn product_refusal(source: &crate::ProductError) -> String {
-        format!("assembly: {source}")
+        source.to_string()
     }
 }
 
@@ -747,21 +746,16 @@ impl core::fmt::Display for AssemblyError {
                 crate::finding::render_lines(f, refusals)
             }
             Self::AtRest { findings } => {
-                write!(
-                    f,
-                    "assembly: the at-rest gate refused ({} finding(s))",
-                    findings.len()
-                )?;
+                write!(f, "{} finding(s) against this assembly:", findings.len())?;
                 crate::finding::render_list(f, findings)
             }
             Self::Uncertified { findings, .. } => {
+                // Nothing was decided either way: the declared
+                // direction's frontier, not a finding against the
+                // document (the arm's docs).
                 write!(
                     f,
-                    "assembly: the at-rest gate could not certify {} declared \
-                     face pair(s) and did not refute any — no certifier lane, so \
-                     nothing was decided about this geometry either way (the \
-                     declared direction's frontier, not a finding against the \
-                     document)",
+                    "nothing was refuted, but {} declared face pair(s) could not be certified:",
                     findings.len()
                 )?;
                 crate::finding::render_list(f, findings)
@@ -798,8 +792,11 @@ impl core::error::Error for AssemblyError {}
 /// through, fed the records the mates declared. The door is reached
 /// through the SCALAR'S at-rest policy ([`topo::AtRestPolicy`],
 /// `docs/DUAL-DESIGN.md` DL3): certifying scalars run
-/// [`topo::validate_pseudomanifold`] verbatim; at a dual the gate is
-/// structurally absent, and its success arm says so
+/// [`topo::validate_pseudomanifold`]'s verdict, reading tier 3's half of
+/// it off the verdict the gather kept on the product's body
+/// ([`topo::AtRestBody::validate_pseudomanifold`]), so the local battery
+/// runs once per aggregate and the census is what this gate adds; at a
+/// dual the gate is structurally absent, and its success arm says so
 /// ([`topo::AtRestOutcome::NotRunAtThisScalar`]).
 ///
 /// **The pairing obligation (DL3), stated at this door**: at a
@@ -901,7 +898,7 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
     }
     match T::gate_at_rest_declared(&body, &contacts, tol) {
         Ok(_) => Ok(Assembly {
-            body,
+            body: body.into_body(),
             names,
             contacts,
             minted,
@@ -976,10 +973,10 @@ pub(crate) fn mint<P, T: Decide>(
         };
         // A mate that is not a live value of this evaluation declares
         // nothing here (see the doc comment).
-        if !matches!(
-            evaluation.result(id),
-            Some(NodeResult::Ok(v)) if matches!(v.payload, ValuePayload::Mate(_))
-        ) {
+        if !evaluation
+            .value(id)
+            .is_some_and(|v| matches!(v.payload, ValuePayload::Mate(_)))
+        {
             continue;
         }
         let (face_a, face_b) = match (
@@ -1072,9 +1069,8 @@ fn resolve_face<P, T: Decide>(
     match entry {
         Entry::Unique(ent) => {
             // A face by the head's type and the table's own rule that
-            // a row's kind is its name's — `NameTable::insert` and
-            // `NameTable::insert_tied` are the only doors that seat a
-            // row, and both refuse a key whose kind disagrees with the
+            // a row's kind is its name's — every `NameTable` door that
+            // seats a row refuses a key whose kind disagrees with the
             // name's. A key that is not a face here is that rule
             // broken, which is this crate's bug and not a document:
             // asserted, and answered with the silence in release.
@@ -1085,17 +1081,15 @@ fn resolve_face<P, T: Decide>(
             );
             ent.key.face().ok_or_else(|| refuse(RefusedRef::Vanished))
         }
-        Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous {
-            width: u32::try_from(ents.len()).unwrap_or(u32::MAX),
-        })),
+        Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous { width: ents.len() })),
     }
 }
 
 /// **The operand's answer**, asked only once the product's table is
 /// silent on a reference: does the OPERAND the mate reads at spell
 /// the name? Its own table is the `name_table` of `at`'s live value,
-/// read through the same door the name interrogation doors read it
-/// ([`value_of`]). One match, three answers, in this order:
+/// read through the one door every node read takes
+/// ([`Evaluation::usable`]). One match, three answers, in this order:
 ///
 /// 1. Silent there too → [`RefusedRef::Vanished`]: the name names
 ///    nothing where the mate reads it.
@@ -1118,8 +1112,8 @@ fn resolve_face<P, T: Decide>(
 /// and the gate never asks it: every live node sits under some root
 /// (A10 coverage), so an operand that failed or was poisoned has a
 /// failed or poisoned root above it, and the gather's first pass
-/// refuses the document (`ProductError::RootFailed` /
-/// `RootPoisoned`) before any mate is read — the mate itself may
+/// refuses the document (`ProductError::Root`, with the root's
+/// standing) before any mate is read — the mate itself may
 /// well be live and `Determining`. The ladder's other rungs are
 /// answered `Vanished` here rather than unwrapped.
 fn operand_answer<P, T: Decide>(
@@ -1129,8 +1123,8 @@ fn operand_answer<P, T: Decide>(
 ) -> RefusedRef {
     let at = reference.at;
     let rooted = doc.roots().contains(&at);
-    let entry = value_of(evaluation, at)
-        .ok()
+    let entry = evaluation
+        .value(at)
         .and_then(|value| value.name_table.lookup(&reference.name));
     match entry {
         None => RefusedRef::Vanished,
@@ -1324,12 +1318,12 @@ fn attribute(
         // is the curve-record confirm pass, which names its witness
         // EDGE — a carried `CurveContact`, never a minted one.
         //
-        // `CensusLaneUnsupported` is a fact about the RUN's scalar —
-        // the conformal arm had no certified overlap lane at all — so
-        // it is not a verdict on any declaration and no mate can
-        // answer for it. Its recourse is to replay the document at a
-        // certifying scalar, which is the document's business and not
-        // a mate's.
+        // `CensusLaneUnsupported` is a fact about the DOOR the census
+        // ran through — it held no certified chart-overlap lane, so a
+        // census arm that needs one examined nothing — and so it is not
+        // a verdict on any declaration and no mate can answer for it.
+        // Its recourse is the certified door at a certifying scalar,
+        // which is the caller's business and not a mate's.
         //
         // `CensusUndecidable` cannot name a minted declaration in
         // either of its two arms. The cross-solid face-pair arm skips
@@ -1375,7 +1369,10 @@ fn attribute(
         | ValidationError::PoisonedSurfaceDescription { .. }
         | ValidationError::DegenerateTorus { .. }
         | ValidationError::DegenerateTorusEscalated { .. }
-        | ValidationError::NonpositiveTorusTube { .. }
+        | ValidationError::PoisonedSurfaceDatum { .. }
+        | ValidationError::UnrepresentableSurfaceDatum { .. }
+        | ValidationError::PoisonedCurveDatum { .. }
+        | ValidationError::UnrepresentableCurveDatum { .. }
         | ValidationError::ApproxCertification { .. }
         | ValidationError::ApproxLaneUnsupported { .. }
         | ValidationError::EdgeCertification { .. }
@@ -1387,24 +1384,21 @@ fn attribute(
         | ValidationError::SliverDihedral { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
-        // The material-wedge arm's two refusals are findings about an
-        // EDGE of this body, not about a contact record: the lamina
-        // states that two of its own faces osculate, and the
-        // undeclared cusp states that NO declaration names the pair —
-        // which is `UndeclaredContact`'s reasoning one granularity
-        // down, and the same reason neither can name a mate.
-        | ValidationError::UndeclaredCusp { .. }
+        // The material-wedge arm's refusal is a finding about an EDGE
+        // of this body, not about a contact record: the lamina states
+        // that two of its own faces osculate, which no mate names.
         | ValidationError::LaminaWedge { .. }
         | ValidationError::ScaffoldAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
-        | ValidationError::NegativeVolume
+        | ValidationError::NegativeVolume { .. }
         | ValidationError::VolumeUncomputable { .. }
         | ValidationError::Pcurve { .. }
         | ValidationError::RingMeetsOuter { .. }
         | ValidationError::RingContactEscalated { .. }
         | ValidationError::RingOutsideOuter { .. }
         | ValidationError::RingNestingUndecided { .. }
+        | ValidationError::ShellWinding { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }
@@ -1507,7 +1501,7 @@ mod attribution {
         let mut body = topo::Body::<f64>::new();
         let mut mint_face = || {
             let created = body
-                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex");
             (created.face, created.vertex)
         };
@@ -1558,7 +1552,7 @@ mod attribution {
     }
 
     /// A census refusal about a candidate face pair, declined by the
-    /// chart-region lane on a boundary it could not decide — the
+    /// chart-region predicate on a boundary it could not decide — the
     /// commonest cause, and an arbitrary one for a row about the
     /// relation.
     fn unsupported_pair(a: FaceKey, b: FaceKey) -> ValidationError {
@@ -1676,7 +1670,7 @@ mod attribution {
     {
         let mut body = topo::Body::<f64>::new();
         let mut mint_face = || {
-            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex")
                 .face
         };
@@ -1698,9 +1692,10 @@ mod attribution {
 
     fn escalation() -> geom_core::Indeterminate {
         geom_core::Indeterminate {
-            margin: MarginDiag::Value(0.0),
+            margin: MarginDiag::value(0.0),
             band: Band::linear(Tol::witness()).expect("the ambient tolerance builds a band"),
             predicate: None,
+            terminal_sliver: false,
         }
     }
 
@@ -1826,7 +1821,7 @@ mod attribution {
     fn a_face_in_two_declarations_answers_each_pair_to_its_own_mate() {
         let mut body = topo::Body::<f64>::new();
         let mut mint_face = || {
-            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex")
                 .face
         };

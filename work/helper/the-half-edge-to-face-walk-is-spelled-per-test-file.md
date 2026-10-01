@@ -41,7 +41,7 @@ type-checks, so it never warns. The eight are
 `m3_pr3_split.rs` (~:385), `verbs_f7_collinear_seam.rs` (~:84),
 `bool4r1_probes.rs` (~:198) and `trim_3_chart_bound.rs` (~:582).
 
-This row is `tint`'s rather than `tcost`'s per `work/dup/program.md`'s
+This row is `tint`'s rather than `tcost`'s per `work/reroute/program.md`'s
 `keep_out`: both claim `crates/*/tests/*`, and a row that is both a
 duplication row and a test-integrity row goes to S-TINT first.
 
@@ -55,3 +55,34 @@ duplication row and a test-integrity row goes to S-TINT first.
 - It counts field WRITES and 2-hop reads alongside 3-hop read walks, so
   the bucket totals above are an upper bound on the foldable set, not a
   fold count.
+
+## One more instance, and it was written TWICE in one test (ATREST-2, 2026-09-21)
+
+`crates/sweep/tests/m5_s10_face_sense.rs`, in
+`every_sense_reading_gate_shuts_on_the_arc_loft` as landed by ATREST-2.
+The row's third gate needed "does this half-edge's face carry a spline
+chart", spelled it as an `is_spline` closure doing the full
+half-edge → face → surface walk with `face_of_half_edge` — and the
+SAME face → surface test was already written out inline twelve lines
+above, in the row's second gate, over a face key. Two spellings of one
+predicate inside one `#[test]` body, neither reaching for the other.
+
+Folded by this unit into a local `is_spline_chart_face(body, face)`
+that both gates call; the half-edge gate reaches it through
+`Body::face_of_half_edge` (the `topo/src` door this class's parent row
+names), so the walk itself is no longer restated.
+
+The instance is small and the point it carries is not: the duplicate
+was minted inside a single function, by one author, in one sitting. A
+census that reasons about this class as a per-FILE or per-SUITE
+phenomenon will not predict that, and the fold that prevents it is a
+named local predicate rather than a shared home.
+
+## Three named helpers gone (S-DUP batch 6, 2026-09-26)
+
+`shell7_dump::face_of_he`, `shell7_common::face_of_he` and
+`shell8_common::face_of_he` — plus `shell8_multi_solid::face_of_he_pub`,
+a one-caller wrapper over the last — are deleted, and their twelve
+call sites across eight `sweep/tests` files read
+`Body::face_of_half_edge(..).unwrap()`. The rest of this row's
+population is untouched, so it stays open.

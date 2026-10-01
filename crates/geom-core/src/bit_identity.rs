@@ -99,7 +99,6 @@ mod tests {
         assert_eq!(eq_bits(&a, &a), None);
     }
 
-    #[cfg(feature = "interval")]
     #[test]
     fn interval_channel_distinguishes_bounds_and_decoration() {
         use crate::Real;

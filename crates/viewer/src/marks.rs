@@ -1,13 +1,13 @@
 //! What a frame MARKS, over an index someone else built.
 //!
-//! # The three marks
+//! # The marks
 //!
 //! Each is a pure function of a built
-//! [`crate::pickindex::PickIndex`] and what is selected, and each
-//! answers *what should be lit* — a different question from *what is
-//! under the cursor*, which is [`crate::pickindex`]'s and stays
-//! there. Nothing here decides anything about picking, holds state, or
-//! builds an index.
+//! [`crate::pickindex::PickIndex`] and what is selected or held, and
+//! each answers *what should be lit* — a different question from
+//! *what is under the cursor*, which is [`crate::pickindex`]'s and
+//! stays there. Nothing here decides anything about picking, holds
+//! state, or builds an index.
 //!
 //! - [`highlight`] — the patch ids a selection and a hover light, as
 //!   a pure function of what is drawn and what is selected;
@@ -17,15 +17,18 @@
 //!   rather than a set of ids, and which therefore settles
 //!   selected-over-hovered here rather than leaving it to the shader
 //!   the way [`highlight`] does;
+//! - [`compose`] — both of the above with the picks a form or tool
+//!   HOLDS ([`Held`]) added: everything a frame marks about picks, as
+//!   the one value the viewport draws them from;
 //! - [`focus`] — **not a cursor question at all**: which drawn
 //!   patches the side panel's selection is RESPONSIBLE for, which for
 //!   a parameter means walking `doc.order()` for the nodes it drives.
 //!   It reaches for an index because that is where the ids live, not
 //!   because it is about a pick.
 //!
-//! **The three read the index through its public doors only** —
-//! `ids`, `name_of`, `ids_of_node`, `ids_of_target`, `edges_of_target`
-//! and `edge_polyline_for` — so no layout inside `PickIndex` is
+//! **They read the index through its public doors only** —
+//! `ids`, `name_of`, `ids_of_node`, `ids_of_target`, `edges_of_target`,
+//! `edge_names_in` and `edge_polyline_for` — so no layout inside `PickIndex` is
 //! reachable from here and none of these answers can be tightened by
 //! reaching past one. That property is what made the module separable,
 //! and keeping it is what keeps the two files independent.
@@ -45,8 +48,10 @@
 //! four semantic marks — selected, hovered, probe, focus — and only
 //! the last of those is also a door here. One door feeds several of
 //! the theme's marks (an [`EdgeOverlay`] carries a selected lane, a
-//! hovered lane and two probe flags), so the two lists correspond
-//! many-to-many and a reader should not expect to line them up.
+//! hovered lane, a held lane and a probe flag on each), so the two
+//! lists correspond many-to-many and a reader should not expect to
+//! line them up. The held mark's colour is `Theme::held`, which is not
+//! one of the four.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries). It names no driver type and no `app`-only crate.
@@ -55,39 +60,43 @@ use std::collections::BTreeSet;
 
 use pncad::document::{Doc, ParamName, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Point3;
-use pncad::prelude::{NameOrigin, attribute};
+use pncad::prelude::{NameOrigin, StableName, attribute};
 
 use crate::display::DisplayView;
-use crate::pickindex::{EdgeId, IdMap, PickIndex};
+use crate::narrowing::Narrow;
+use crate::pickindex::{EdgeId, EdgeNamesRefused, IdMap, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
 use crate::vocab::vocabulary;
 
 /// Which drawn patches the viewport should mark, and how.
 ///
 /// **A pure function of (index, selection, hover)** — see
-/// [`highlight`]. Nothing is retained: the value is recomputed each
+/// [`highlight`] — and of the held picks, through [`compose`]. Nothing
+/// is retained: the value is recomputed each
 /// frame from state that lives in exactly one place, which is the
 /// discipline the panels established and the reason no widget here
 /// holds a "currently highlighted" field.
 ///
-/// Both fields are [`IdMap::NOTHING`] when nothing is marked, so the
+/// Every field is [`IdMap::NOTHING`] when nothing is marked, so the
 /// GPU consumes them as plain uniforms with no branch for absence.
 ///
-/// **`hovered` is not narrowed against `selected`.** A hover on the
-/// patch that is already selected sets BOTH fields to that patch's id,
-/// and which mark it wears is settled downstream: `crate::gpu`'s
-/// `fs_main` tests the selected lane before the hovered one. The
-/// precedence lives there because the fragment sees both lanes at
-/// once, so every producer of this value gets the same ruling — and
-/// these fields are public, so this module is not the only producer.
-/// [`EdgeOverlay`] carries the OPPOSITE convention; [`edge_overlay`]
-/// states why.
+/// **No field is narrowed against another.** One id may sit in two
+/// fields — a hover on the selection, a held face that is also
+/// selected — and which mark it wears is settled where the fragment
+/// sees every lane at once, `crate::gpu`'s `fs_main`, in the order
+/// [`Held`] states; so every producer of this value gets the same
+/// ruling, and these fields are public, so this module is not the only
+/// producer. [`EdgeOverlay`] carries the OPPOSITE convention;
+/// [`edge_overlay`] states why.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Highlight {
     /// The selected patch's id, or [`IdMap::NOTHING`].
     pub selected: u32,
     /// The hovered patch's id, or [`IdMap::NOTHING`].
     pub hovered: u32,
+    /// The held faces' patch ids, slot for slot with [`Held::faces`],
+    /// each [`IdMap::NOTHING`] where its slot holds nothing drawn.
+    pub held: [u32; HELD_FACES],
 }
 
 /// The highlight for a selection and a hover, against the index that
@@ -108,21 +117,173 @@ pub struct Highlight {
 /// drawn but not on the body it was picked from, which is the same
 /// statement said about a stale index.
 pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovered>) -> Highlight {
-    let mark = |face: &FaceSelection| {
-        index
-            .ids_of_target(face)
-            .first()
-            .copied()
-            .unwrap_or(IdMap::NOTHING)
-    };
+    let mark = |face: &FaceSelection| face_id(index, face);
     Highlight {
         selected: selection.face().map_or(IdMap::NOTHING, mark),
         hovered: hover.and_then(Hovered::face).map_or(IdMap::NOTHING, mark),
+        // Nothing a SELECTION implies: a held pick is held by a form
+        // or a tool, so [`compose`] adds it from [`Held`].
+        held: [IdMap::NOTHING; HELD_FACES],
     }
 }
 
-/// The edge marks a frame draws: the drawn polylines of the selected
-/// and hovered edges, as line-list segment pairs in world space.
+/// **One face pick's patch id**: the id [`PickIndex::ids_of_target`]
+/// narrows it to on its own (node, body), or [`IdMap::NOTHING`] — the
+/// rule [`highlight`]'s doc states.
+fn face_id(index: &PickIndex, face: &FaceSelection) -> u32 {
+    index
+        .ids_of_target(face)
+        .first()
+        .copied()
+        .unwrap_or(IdMap::NOTHING)
+}
+
+/// **The patch a face pick is drawn as, if the picture draws it**:
+/// its id on its own (node, body) ([`highlight`]'s narrowing), on a
+/// root the display does not hide — the rule
+/// [`PickIndex::edge_polyline_for`] applies to an edge.
+///
+/// The one answer to "is this pick in the picture": the held mark
+/// lights what this answers, and the add-datum form refuses a held
+/// face it answers `None` for (`crate::session::face_frame_seat_drawn`),
+/// so the button never commits against a face the viewport is not
+/// marking.
+pub fn drawn_patch(index: &PickIndex, display: &DisplayView, face: &FaceSelection) -> Option<u32> {
+    if display.hidden_roots.contains(&face.node) {
+        return None;
+    }
+    Some(face_id(index, face)).filter(|&id| id != IdMap::NOTHING)
+}
+
+/// **How many held face picks a frame can mark at once** — the length
+/// of [`Held::faces`] and of [`Highlight::held`].
+///
+/// A count of held faces, not a tuning: the driver that gathers
+/// [`Held`] writes its slots as one array literal, so a slot added
+/// there without this count does not compile, and `crate::gpu` refuses
+/// at compile time a count its uniform lane cannot carry.
+pub const HELD_FACES: usize = 3;
+
+/// **The picks a form or a tool HOLDS**: the second source of marks
+/// beside the live selection.
+///
+/// A held pick outlives the selection that made it. The add-datum
+/// form latches a face so that an author can click the feature tree
+/// without losing it, and a modal tool keeps its picks until it
+/// commits. Nothing in the selection says so, so a picture that marked
+/// the selection alone would show no sign of a pick the next click
+/// commits against.
+///
+/// **What the held mark means: a choice a form or tool is holding,
+/// which is not the live selection.** It wears the selection's colour
+/// (`Theme::held`) and is told from the selection by shape — stripes
+/// on a face, a hollow line on an edge (`crate::gpu`).
+///
+/// **Precedence:** selected over hovered over held.
+/// A held pick that is also the selection or the hover wears that
+/// mark; `crate::gpu`'s `fs_main` rules it for faces and
+/// [`EdgeLane::DRAW_ORDER`] for edges.
+///
+/// A value built per frame from the holders' own state and never
+/// kept. Which holders there are is the viewport's to gather, in one
+/// place; each held face is narrowed by [`drawn_patch`], so one whose
+/// body is not in the picture marks nothing rather than another copy
+/// of its name.
+#[derive(Clone, Copy, Debug)]
+pub struct Held<'a> {
+    /// The held face picks, a slot per held face, `None` where that
+    /// slot holds nothing.
+    pub faces: [Option<&'a FaceSelection>; HELD_FACES],
+    /// A held edge SET, if a tool holds one.
+    pub edges: Option<HeldEdges<'a>>,
+}
+
+/// **A held edge set, as the marks read it**: the drawn body the edges
+/// are on and their names — what a tool holding a set hands over
+/// (`crate::blend::BlendTool::held_edges`).
+#[derive(Clone, Copy, Debug)]
+pub struct HeldEdges<'a> {
+    /// The node whose drawn body the edges were picked on.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+    /// The held edges' names.
+    pub names: &'a BTreeSet<StableName>,
+}
+
+impl HeldEdges<'_> {
+    /// **The held mark**: the drawn segments of the whole set, from one
+    /// pass over the body's drawn edges testing membership per edge —
+    /// and the index's refusal when some of those edges have no name.
+    ///
+    /// Not one [`edge_segments`] search per held name, which scans the
+    /// body's whole edge run each time — `O(E²)` name comparisons every
+    /// frame on a body with `E` edges. The narrowing is a single
+    /// selection's: scoped to (node, body), empty for a body this index
+    /// does not draw or the display hides, and silent about a held name
+    /// with no drawn edge.
+    ///
+    /// **The refusal is not silent**: a drawn edge with no name cannot
+    /// be told held or not, so the segments may be short by it, and
+    /// [`EdgeOverlay::held_refused`] carries it to the chrome.
+    pub fn mark(
+        &self,
+        index: &PickIndex,
+        display: &DisplayView,
+    ) -> (Vec<[f32; 3]>, Option<EdgeNamesRefused>) {
+        let drawn = index.edge_names_in(self.node, self.body);
+        let mut out = Vec::new();
+        for (id, name) in drawn.named {
+            if self.names.contains(name) {
+                out.extend(edge_id_segments(index, display, id));
+            }
+        }
+        (out, drawn.refused)
+    }
+}
+
+/// **Everything a frame marks about picks**: the selection and the
+/// hover ([`highlight`], [`edge_overlay`]) with every [`Held`] pick
+/// added — the held faces' ids in [`Highlight::held`] through
+/// [`drawn_patch`], and the held edges in [`EdgeOverlay::held`]
+/// through [`HeldEdges::mark`], flagged off the set's one body for
+/// [`EdgeOverlay::selected_probed`]'s reason.
+pub fn compose(
+    index: &PickIndex,
+    display: &DisplayView,
+    selection: &Selection,
+    hover: Option<&Hovered>,
+    held: &Held<'_>,
+) -> (Highlight, EdgeOverlay) {
+    let highlight = Highlight {
+        held: held.faces.map(|face| {
+            face.and_then(|face| drawn_patch(index, display, face))
+                .unwrap_or(IdMap::NOTHING)
+        }),
+        ..highlight(index, selection, hover)
+    };
+    let (held_segments, held_refused) = held
+        .edges
+        .map(|set| set.mark(index, display))
+        .unwrap_or_default();
+    let edges = EdgeOverlay {
+        held: held_segments,
+        held_refused,
+        held_probed: held.edges.is_some_and(|set| moved(display, set.node)),
+        ..edge_overlay(index, display, selection, hover)
+    };
+    (highlight, edges)
+}
+
+/// Whether `node` is a free-moved root — the one read behind every
+/// probe flag on an [`EdgeOverlay`].
+fn moved(display: &DisplayView, node: RecipeNodeId) -> bool {
+    display.moved_roots.contains_key(&node)
+}
+
+/// The edge marks a frame draws: the drawn polylines of the marked
+/// edges, and the other world-space lanes drawn over the solid, as
+/// line-list segment pairs in world space.
 ///
 /// **A value, so the marking is checkable without pixels.** A test
 /// asserts which segments a selection lights and where they are; what
@@ -130,8 +291,12 @@ pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovere
 /// neither is asserted here.
 ///
 /// The buffers are `f32` because that is what a GPU consumes and this
-/// is the display seam — the same cast, at the same boundary, that
-/// [`crate::scene::SceneMesh`] makes.
+/// is the display seam. **The narrowing itself is not spelled here**
+/// — [`crate::narrowing::Narrow`] is the one door every lane crosses,
+/// so this doc no longer holds sites in correspondence by naming
+/// them, which is a job a sentence cannot keep: the one it replaced
+/// said *the same cast that `SceneMesh` makes* and there were three
+/// such casts, not two.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct EdgeOverlay {
     /// The selected edge's segments, two positions per segment.
@@ -149,15 +314,29 @@ pub struct EdgeOverlay {
     /// the un-probed body colour would quietly undo on exactly the
     /// geometry it is about.
     ///
-    /// One flag per marked edge rather than per segment, which is
-    /// enough while the marks are single-select. A consumer holding a
-    /// SET spanning several instances wants a flag per member and
-    /// should build its overlay through [`edge_segments`], asking the
-    /// display view per edge as this function does.
+    /// One flag per lane rather than per segment, which is enough
+    /// while every lane's edges are on one body: the selection and the
+    /// hover are one edge each, and a held set is on one body
+    /// ([`EdgeOverlay::held_probed`]). A lane spanning several
+    /// instances would want a flag per member.
     pub selected_probed: bool,
     /// Whether the hovered edge belongs to a free-moved instance. See
     /// [`EdgeOverlay::selected_probed`].
     pub hovered_probed: bool,
+    /// **The edges a tool HOLDS** ([`Held::edges`]), two positions per
+    /// segment: the held mark. Not narrowed against the selected or
+    /// hovered edge — [`Held`] states which wins.
+    pub held: Vec<[f32; 3]>,
+    /// **What the index could not name on the held body**
+    /// ([`HeldEdges::mark`]): [`EdgeOverlay::held`] may be short by
+    /// those edges. `None` when every drawn edge there is named, and
+    /// when nothing is held.
+    pub held_refused: Option<EdgeNamesRefused>,
+    /// Whether the held edges belong to a free-moved instance — one
+    /// flag, because a held set is on one body
+    /// ([`crate::blend::BlendTarget`]). See
+    /// [`EdgeOverlay::selected_probed`].
+    pub held_probed: bool,
     /// **Segments that are not in the document at all**: the
     /// wireframe of something a form is composing, in the same
     /// line-list shape as the marks above.
@@ -216,10 +395,9 @@ vocabulary! {
     ///   usually lies in.
     /// - A preview is over the committed profiles: it is what the person
     ///   is composing now, possibly on top of one.
-    /// - The marks are last, selected above hovered: a mark is the
+    /// - The marks are last, in [`Held`]'s precedence: a mark is the
     ///   answer to "which one is that", and it is worthless where
-    ///   something else covers it. Selection is the state the user
-    ///   committed to, so it outranks the hover.
+    ///   something else covers it.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub enum EdgeLane {
         /// [`EdgeOverlay::datums`].
@@ -228,6 +406,8 @@ vocabulary! {
         Profile,
         /// [`EdgeOverlay::preview`].
         Preview,
+        /// [`EdgeOverlay::held`].
+        Held,
         /// [`EdgeOverlay::hovered`].
         Hovered,
         /// [`EdgeOverlay::selected`].
@@ -261,16 +441,18 @@ impl EdgeOverlay {
             EdgeLane::Datum => &self.datums,
             EdgeLane::Profile => &self.profiles,
             EdgeLane::Preview => &self.preview,
+            EdgeLane::Held => &self.held,
             EdgeLane::Hovered => &self.hovered,
             EdgeLane::Selected => &self.selected,
         }
     }
 
     /// Whether `lane`'s edges belong to a free-moved instance — the
-    /// two marks carry the flag, and nothing else in the overlay
+    /// three marks carry the flag, and nothing else in the overlay
     /// belongs to an instance at all.
     pub fn probed(&self, lane: EdgeLane) -> bool {
         match lane {
+            EdgeLane::Held => self.held_probed,
             EdgeLane::Hovered => self.hovered_probed,
             EdgeLane::Selected => self.selected_probed,
             EdgeLane::Datum | EdgeLane::Profile | EdgeLane::Preview => false,
@@ -301,8 +483,8 @@ impl EdgeOverlay {
 /// screen anyway — but it would still be a value naming one edge in two
 /// lanes, and what a test reads of this overlay is the value. So the
 /// selection is settled here, and the draw order is what keeps it
-/// settled for a producer that did not narrow (the blend tool appends
-/// its held set to the selected lane without asking the hover).
+/// settled for a producer that did not narrow (a held edge is drawn in
+/// its own lane, [`EdgeOverlay::held`], without asking either mark).
 /// [`Highlight`] can leave its pair to the shader because a fragment
 /// sees both of its lanes.
 pub fn edge_overlay(
@@ -317,17 +499,21 @@ pub fn edge_overlay(
         // The one already marked as selected is not marked twice.
         selected_edge != Some(*edge)
     });
-    let probed = |edge: &EdgeSelection| display.moved_roots.contains_key(&edge.node);
+    let probed = |edge: &EdgeSelection| moved(display, edge.node);
     EdgeOverlay {
         selected: selected_edge.map(mark).unwrap_or_default(),
         hovered: hovered_edge.map(mark).unwrap_or_default(),
         selected_probed: selected_edge.is_some_and(probed),
         hovered_probed: hovered_edge.is_some_and(probed),
-        // Nothing a SELECTION implies: a preview is about something
-        // that is not in the document, so it is added by whoever is
-        // composing it, not derived from what is picked. Datums are
-        // not derived from a pick either — they are simply what the
-        // document holds — so the same line covers both.
+        // Nothing a SELECTION implies: a held pick is added by
+        // [`compose`], from whoever holds it; a preview is about
+        // something that is not in the document, so it is added by
+        // whoever is composing it. Datums are not derived from a pick
+        // either — they are simply what the document holds — so the
+        // same line covers them.
+        held: Vec::new(),
+        held_refused: None,
+        held_probed: false,
         preview: Vec::new(),
         datums: Vec::new(),
         profiles: Vec::new(),
@@ -335,22 +521,12 @@ pub fn edge_overlay(
 }
 
 /// **One edge selection's drawn segments**, as the line-list pairs a
-/// renderer consumes — the conversion [`edge_overlay`] is built from,
-/// public because the next consumer holds a SET.
+/// renderer consumes — the conversion [`edge_overlay`] is built from.
 ///
-/// A blend tool accumulates edges in tool state and wants all of them
-/// marked; [`EdgeOverlay`]'s fields are public, so it concatenates
-/// these instead of copying the polyline-to-line-list step. The
-/// narrowing is the same one a single selection gets — scoped to the
-/// selection's own (node, body), empty for a name this index does not
-/// draw there — so a set marks exactly the members that still denote
-/// something.
-///
-/// **A SET is marked through [`edge_id_segments`] instead.** This door
-/// SEARCHES the target's whole edge run for the name, so one call per
-/// held name costs `O(E²)` name comparisons on a body with `E` edges,
-/// every frame. A set-held tool walks the run once and tests
-/// membership — `crate::blend::BlendTool::mark_segments`.
+/// Scoped to the selection's own (node, body), empty for a name this
+/// index does not draw there. It SEARCHES the target's edge run for
+/// the name, so a SET is marked through [`HeldEdges::mark`], which
+/// walks the run once.
 pub fn edge_segments(
     index: &PickIndex,
     display: &DisplayView,
@@ -371,16 +547,109 @@ pub fn edge_segments(
 /// part is hidden: [`PickIndex::edge_polyline_for`]'s rule unaltered,
 /// so the two doors cannot disagree about what is in the picture.
 pub fn edge_id_segments(index: &PickIndex, display: &DisplayView, id: EdgeId) -> Vec<[f32; 3]> {
-    segments_of(&index.edge_polyline_for(id, display))
+    edge_id_lane(index, display, id).into_segments()
 }
 
-/// A polyline as the line-list pairs a GPU draws.
-fn segments_of(polyline: &[Point3<f64>]) -> Vec<[f32; 3]> {
-    let corner = |point: &Point3<f64>| [point.x as f32, point.y as f32, point.z as f32];
-    polyline
-        .windows(2)
-        .flat_map(|pair| [corner(&pair[0]), corner(&pair[1])])
-        .collect()
+/// [`edge_id_segments`] with the display seam's own answer kept: the
+/// same legs, and how many this edge lost to the narrowing.
+///
+/// The door [`edge_id_segments`] is written in terms of, public
+/// because the drop is otherwise unobservable — an edge every leg of
+/// which is past `f32::MAX` and an edge this index never drew both
+/// answer the empty `Vec`.
+#[must_use]
+pub fn edge_id_lane(index: &PickIndex, display: &DisplayView, id: EdgeId) -> LegLane {
+    LegLane::of_polyline(&index.edge_polyline_for(id, display))
+}
+
+/// **An overlay lane at the display seam**: the legs a GPU can hold,
+/// as the line-list pairs it draws, and a COUNT of the legs it cannot.
+///
+/// # The rule, in one place
+///
+/// **A leg with an end the display seam refuses is not drawn, it is
+/// not half drawn, and the rest of the lane is.** An overlay lane is
+/// a list of independent pairs, so a leg the GPU cannot hold is the
+/// one thing at this seam with an answer short of refusing the whole
+/// mark: what [`crate::narrowing::Narrow`] declines is a coordinate
+/// past `f32::MAX`, where the leg's two ends are not places on the
+/// screen in the first place, and the alternative is a pair of
+/// infinities the rasterizer smears across the pane.
+///
+/// Both of the crate's leg producers reach the rule here — the drawn
+/// edges of an indexed body ([`edge_id_segments`]) and the
+/// sketch-plane lanes the viewport composes — because a rule spelled
+/// at two sites is two rules that agree today.
+///
+/// # Why the count is part of the value
+///
+/// A lane that dropped a leg and a lane that had none to draw are the
+/// same `Vec`, and they are not the same picture: a leg refused
+/// between two legs that were drawn leaves an outline with a gap in
+/// it, and a gap in an outline reads to a person as an authoring
+/// mistake rather than as a number too large to show. [`undrawn`] is
+/// the only thing that can tell them apart, so it is held beside the
+/// segments rather than recomputed by whoever wants to say so.
+///
+/// [`undrawn`]: LegLane::undrawn
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LegLane {
+    segments: Vec<[f32; 3]>,
+    undrawn: usize,
+}
+
+impl LegLane {
+    /// The lane a polyline draws as: one leg per adjacent pair.
+    #[must_use]
+    pub fn of_polyline(polyline: &[Point3<f64>]) -> Self {
+        let mut lane = Self::default();
+        lane.polyline(polyline);
+        lane
+    }
+
+    /// Append one leg, or refuse it and count it.
+    ///
+    /// Generic over the shape an end is written in, because the
+    /// crate's producers hold their positions differently — an
+    /// indexed edge's polyline is [`Point3<f64>`] and a datum mark's
+    /// segment list is `[f64; 3]` — and which of those a lane was fed
+    /// is not a difference the seam's rule has ever had.
+    pub fn leg<T>(&mut self, from: T, to: T)
+    where
+        T: Narrow<Narrowed = [f32; 3]> + Copy,
+    {
+        match [from, to].narrow() {
+            Some(pair) => self.segments.extend(pair),
+            None => self.undrawn += 1,
+        }
+    }
+
+    /// Append every leg of a polyline, in order.
+    pub fn polyline(&mut self, polyline: &[Point3<f64>]) {
+        for pair in polyline.windows(2) {
+            self.leg(pair[0], pair[1]);
+        }
+    }
+
+    /// The drawn legs, two positions per leg.
+    #[must_use]
+    pub fn segments(&self) -> &[[f32; 3]] {
+        &self.segments
+    }
+
+    /// The drawn legs, taken.
+    #[must_use]
+    pub fn into_segments(self) -> Vec<[f32; 3]> {
+        self.segments
+    }
+
+    /// **How many legs the display seam refused** — the state a
+    /// reader would need to be told that an outline is missing a leg
+    /// rather than ending where it looks like it ends.
+    #[must_use]
+    pub fn undrawn(&self) -> usize {
+        self.undrawn
+    }
 }
 
 /// **What the picture marks because it is what the side panel is
@@ -536,4 +805,200 @@ fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &ParamName) -> bo
             refs.iter().any(|(referenced, _)| referenced == name)
         })
     })
+}
+
+/// **What the display seam does to a drawn mark**, through the doors a
+/// frame actually calls.
+///
+/// The rule under test is [`LegLane`]'s: a leg with an end the seam
+/// refuses is dropped, the rest of the lane is drawn, and the drop is
+/// counted. It is asserted here rather than at the arithmetic because
+/// the question is REACHABILITY — whether the legs a frame asks for
+/// come back short — and a row against a private helper answers a
+/// different question. The held mark's other way of coming back short,
+/// a drawn edge the index cannot name, is asked the same way.
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use pncad::document::{Frame, RecipeNodeId};
+    use pncad::geom_core::{Point3, Tol};
+    use pncad::prelude::StableName;
+
+    use super::{HELD_FACES, Held, HeldEdges, LegLane, compose, edge_id_lane, edge_id_segments};
+    use crate::display::DisplayView;
+    use crate::pickindex::{EdgeId, EdgeNamesRefused, PickIndex};
+    use crate::session::Selection;
+    use crate::test_support::plate_indexed;
+
+    /// The view that puts `node`'s drawn geometry `shift` metres out.
+    fn moved(node: RecipeNodeId, shift: f64) -> DisplayView {
+        DisplayView {
+            moved_roots: BTreeMap::from([(node, Frame::translation([shift, 0.0, 0.0]))]),
+            ..DisplayView::none()
+        }
+    }
+
+    fn some_edge(index: &PickIndex, node: RecipeNodeId) -> EdgeId {
+        *index
+            .edges_in(node, 0)
+            .first()
+            .expect("the plate draws edges")
+    }
+
+    /// **The public door comes back short, and only the seam can have
+    /// shortened it.**
+    ///
+    /// The same index and the same edge id, asked twice: once where
+    /// the body is drawn and once where a probe frame has put it past
+    /// `f32::MAX`. The first answer is the edge's legs; the second is
+    /// no legs at all, with every one of them counted as refused. A
+    /// caller that kept a leg whose end does not narrow would answer
+    /// the same list both times.
+    #[test]
+    fn an_edge_placed_past_the_display_seam_is_not_drawn_at_all() {
+        let (_, index, extrude) = plate_indexed(Tol::witness());
+        let id = some_edge(&index, extrude);
+        let here = edge_id_lane(&index, &DisplayView::none(), id);
+        assert!(
+            !here.segments().is_empty(),
+            "the plate's first drawn edge has legs to lose"
+        );
+        assert_eq!(here.undrawn(), 0, "nothing about the plate is past 3.4e38");
+        assert!(
+            here.segments().iter().flatten().all(|c| c.is_finite()),
+            "a drawn leg is made of numbers"
+        );
+
+        let far = moved(extrude, 1.0e300);
+        let out_there = edge_id_lane(&index, &far, id);
+        assert!(
+            out_there.segments().is_empty(),
+            "every leg of this edge has both ends past f32::MAX"
+        );
+        assert_eq!(
+            out_there.undrawn(),
+            here.segments().len() / 2,
+            "the legs that were dropped are the legs that were drawn"
+        );
+        assert!(
+            edge_id_segments(&index, &far, id).is_empty(),
+            "the door the frame calls answers the same"
+        );
+    }
+
+    /// **The case a person can author and can see**: an outline most
+    /// of which is ordinary and one corner of which is past the seam.
+    ///
+    /// `7e307` is a number the add-profile form takes, because it is a
+    /// number. The lane draws the legs between the ordinary corners
+    /// and drops the two that reach the far one, so what is on screen
+    /// is a chain with a gap in it at a camera framed on the ordinary
+    /// corners — which is why the count is part of the value rather
+    /// than the emptiness of the `Vec` being the whole answer.
+    #[test]
+    fn a_lane_draws_the_legs_it_can_and_counts_the_ones_it_cannot() {
+        let corner = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let authored = [
+            corner(0.0, 0.0),
+            corner(1.0, 0.0),
+            corner(7.0e307, 0.0),
+            corner(0.0, 1.0),
+            corner(0.0, 0.0),
+        ];
+        let lane = LegLane::of_polyline(&authored);
+        assert_eq!(
+            lane.segments(),
+            &[
+                [0.0_f32, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0]
+            ],
+            "the two legs clear of the seam are drawn, in order, and nothing else is"
+        );
+        assert_eq!(lane.undrawn(), 2, "the two legs reaching the far corner");
+        assert!(
+            lane.segments().iter().flatten().all(|c| c.is_finite()),
+            "no infinity reaches the vertex buffer"
+        );
+    }
+
+    /// **A lane that lost every leg is not a lane that had none**, and
+    /// the segments alone cannot tell them apart.
+    #[test]
+    fn an_empty_lane_and_a_refused_one_differ_only_in_the_count() {
+        let far = Point3::new(7.0e307, 0.0, 0.0);
+        let refused = LegLane::of_polyline(&[far, far]);
+        let nothing = LegLane::of_polyline(&[Point3::new(0.0, 0.0, 0.0)]);
+        assert_eq!(refused.segments(), nothing.segments());
+        assert_eq!(nothing.undrawn(), 0);
+        assert_eq!(refused.undrawn(), 1);
+        assert_ne!(refused, nothing);
+    }
+
+    /// A single leg is offered and refused one at a time, which is the
+    /// door the viewport's sketch lanes use.
+    #[test]
+    fn a_single_leg_is_refused_on_its_own() {
+        let mut lane = LegLane::default();
+        lane.leg(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 2.0, 3.0));
+        lane.leg(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 7.0e307));
+        assert_eq!(
+            lane.clone().into_segments(),
+            vec![[0.0_f32, 0.0, 0.0], [1.0, 2.0, 3.0]]
+        );
+        assert_eq!(lane.undrawn(), 1);
+    }
+
+    /// **A held mark on a body the index cannot wholly name carries the
+    /// index's refusal** to the composed value, and draws the held edges
+    /// it can name. The naming layer's refusal is planted on a held
+    /// edge (`PickIndex::unname_edge`). A held set on a body the index
+    /// does not draw — the ordinary arm's case — marks nothing and
+    /// refuses nothing.
+    #[test]
+    fn a_held_mark_the_index_cannot_wholly_name_carries_its_refusal() {
+        let (_, mut index, extrude) = plate_indexed(Tol::witness());
+        let drawn = index.edges_in(extrude, 0).to_vec();
+        let names: BTreeSet<StableName> = drawn[..2]
+            .iter()
+            .map(|id| index.edge_name_of(*id).expect("named").clone())
+            .collect();
+        let held = |body| Held {
+            faces: [None; HELD_FACES],
+            edges: Some(HeldEdges {
+                node: extrude,
+                body,
+                names: &names,
+            }),
+        };
+        let display = DisplayView::none();
+        let first = index.unname_edge(drawn[1]);
+
+        let (_, marked) = compose(&index, &display, &Selection::None, None, &held(0));
+        assert_eq!(
+            marked.held,
+            edge_id_segments(&index, &display, drawn[0]),
+            "the held edge the index names is drawn, and only it"
+        );
+        assert_eq!(
+            marked.held_refused,
+            Some(EdgeNamesRefused {
+                node: extrude,
+                body: 0,
+                first,
+                named: drawn.len() - 1,
+                refused: 1,
+            }),
+            "the held edge it cannot name is not dropped silently"
+        );
+
+        let (_, elsewhere) = compose(&index, &display, &Selection::None, None, &held(7));
+        assert!(elsewhere.held.is_empty());
+        assert_eq!(elsewhere.held_refused, None, "the ordinary arm stays quiet");
+    }
 }

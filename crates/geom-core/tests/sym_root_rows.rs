@@ -21,7 +21,6 @@
 //!    way, which is what "one door" means when it is a claim and not a
 //!    wish.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin, Sign};

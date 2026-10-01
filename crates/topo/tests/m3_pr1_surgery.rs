@@ -13,10 +13,6 @@ use crate::common;
 use common::{declined_cube, describe_as_intersections, geometric_cube, line};
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 /// Builds a cube with a detached closed inner box grown from an empty
 /// ring on the top face, closed by mfkrh (the cross-shell lmfkrh
 /// motion). Returns (body, shell, top_face, promoted_inner_face).
@@ -46,7 +42,7 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
                 he1: top_he,
                 he2: top_he,
             },
-            pt(0.25, 0.25, 1.25),
+            Point3::new(0.25, 0.25, 1.25),
             Tol::witness(),
         )
         .unwrap();
@@ -54,8 +50,8 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
     // Grow a closed inner box from the ring (the cube sequence rooted
     // in the ring loop; the ring itself becomes the box's last face by
     // promotion).
-    let p = |x: f64, y: f64| pt(0.25 + x, 0.25 + y, 1.5);
-    let q = |x: f64, y: f64| pt(0.25 + x, 0.25 + y, 1.75);
+    let p = |x: f64, y: f64| Point3::new(0.25 + x, 0.25 + y, 1.5);
+    let q = |x: f64, y: f64| Point3::new(0.25 + x, 0.25 + y, 1.75);
     let i_ab = body
         .mev_line(
             MevSite::Lone {
@@ -178,7 +174,9 @@ fn revert_involution_and_tiers() {
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
         validate_geometric(&reverted, Tol::witness()),
-        Err(vec![topo::ValidationError::NegativeVolume])
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }])
     );
     // Genuinely reversed: some plane normal is negated.
     assert_ne!(format!("{reverted:?}"), original);
@@ -348,16 +346,17 @@ fn merge_coplanar_declared_vs_numeric() {
     // declaration: stays unmerged post-retirement (M4 PR 5, ladder
     // rung (b) — value equality never glues; the M3-era bit rung is
     // gone).
-    let mut bit_equal = build(|_| {
-        FaceSurface::New(plane(
+    let mut bit_equal = build(|_| FaceSurface::New {
+        surface: plane(
             &[
-                pt(0.0, 0.0, 1.0),
-                pt(1.0, 0.0, 1.0),
-                pt(1.0, 1.0, 1.0),
-                pt(0.0, 1.0, 1.0),
+                Point3::new(0.0, 0.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(1.0, 1.0, 1.0),
+                Point3::new(0.0, 1.0, 1.0),
             ],
             Tol::witness(),
-        ))
+        ),
+        sense: true,
     });
     let outcome = bit_equal.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups, vec![]);
@@ -365,16 +364,17 @@ fn merge_coplanar_declared_vs_numeric() {
     // Declared, N6 same-source rung: stamp BOTH descriptions with one
     // GeomSource — the provenance lookup merges with zero numerics
     // and zero per-call declarations.
-    let mut same_source = build(|_| {
-        FaceSurface::New(plane(
+    let mut same_source = build(|_| FaceSurface::New {
+        surface: plane(
             &[
-                pt(0.0, 0.0, 1.0),
-                pt(1.0, 0.0, 1.0),
-                pt(1.0, 1.0, 1.0),
-                pt(0.0, 1.0, 1.0),
+                Point3::new(0.0, 0.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(1.0, 1.0, 1.0),
+                Point3::new(0.0, 1.0, 1.0),
             ],
             Tol::witness(),
-        ))
+        ),
+        sense: true,
     });
     let src = topo::GeomSource::minted(42, 0);
     let coplanar_keys: Vec<_> = same_source
@@ -397,18 +397,54 @@ fn merge_coplanar_declared_vs_numeric() {
     let outcome = same_source.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups.len(), 1);
     assert_eq!(same_source.faces().count(), 6);
+    // Mirrored, N6: the chord twin carries the top plane's reversal,
+    // stamped with the reverted source, on a face of the same sense.
+    // The recipe declared a surface and its mirror, whose outward
+    // sides face apart — not one surface: stays unmerged.
+    let mut mirrored = build(|_| FaceSurface::New {
+        surface: geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            normal: Point3::new(0.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 1.0),
+            u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
+        },
+        sense: true,
+    });
+    let on_top = |normal_z: f64| {
+        mirrored
+            .faces()
+            .filter(|(_, f)| {
+                matches!(
+                    mirrored.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, normal, .. })
+                        if origin.z == 1.0 && normal.z == normal_z
+                )
+            })
+            .map(|(_, f)| (f.surface, f.sense))
+            .collect::<Vec<_>>()
+    };
+    let (up, down) = (on_top(1.0), on_top(-1.0));
+    assert_eq!((up.len(), down.len()), (1, 1), "{up:?} {down:?}");
+    assert_eq!(up[0].1, down[0].1, "the mirrored pair shares a sense");
+    mirrored.set_surface_source(up[0].0, src.clone()).unwrap();
+    mirrored
+        .set_surface_source(down[0].0, src.reverted())
+        .unwrap();
+    let outcome = mirrored.merge_coplanar_faces(Tol::witness()).unwrap();
+    assert_eq!(outcome.groups, vec![], "a mirrored pair does not glue");
+    assert_eq!(mirrored.faces().count(), 7);
     // Declared, per-call surface pair (F5): same geometry, fresh
     // build, intent supplied by the call — merges after verification.
-    let mut declared = build(|_| {
-        FaceSurface::New(plane(
+    let mut declared = build(|_| FaceSurface::New {
+        surface: plane(
             &[
-                pt(0.0, 0.0, 1.0),
-                pt(1.0, 0.0, 1.0),
-                pt(1.0, 1.0, 1.0),
-                pt(0.0, 1.0, 1.0),
+                Point3::new(0.0, 0.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(1.0, 1.0, 1.0),
+                Point3::new(0.0, 1.0, 1.0),
             ],
             Tol::witness(),
-        ))
+        ),
+        sense: true,
     });
     let pair: Vec<_> = declared
         .faces()
@@ -430,12 +466,13 @@ fn merge_coplanar_declared_vs_numeric() {
     // Numeric-only: geometrically the same plane, but the description
     // differs (another origin on the plane) — stays unmerged BY
     // DESIGN: coincidence is structural or declared, never inferred.
-    let mut numeric = build(|_| {
-        FaceSurface::New(geom::Surface::Plane {
-            origin: pt(0.25, 0.75, 1.0),
+    let mut numeric = build(|_| FaceSurface::New {
+        surface: geom::Surface::Plane {
+            origin: Point3::new(0.25, 0.75, 1.0),
             normal: Point3::new(0.0, 0.0, 1.0) - Point3::new(0.0, 0.0, 0.0),
             u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
-        })
+        },
+        sense: true,
     });
     let outcome = numeric.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups, vec![]);
@@ -447,7 +484,7 @@ fn merge_coplanar_declared_vs_numeric() {
 #[test]
 fn merge_coplanar_refuses_open_input() {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let _ = seed;
     let before = format!("{body:?}");
     let err = body.merge_coplanar_faces(Tol::witness()).unwrap_err();

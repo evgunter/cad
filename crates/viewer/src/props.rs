@@ -116,10 +116,13 @@
 //! `SessionOp::SetParamText`, which takes a number and its notation
 //! (`50 mm`) and refuses every other expression by name.
 //!
-//! What a slot field SHOWS is [`field_text`]: a bare literal shows its
-//! number alone (the unit is the picker's to say, not the field's),
-//! and everything else shows its source. A parameter's always shows
-//! its number, because a parameter is never driven by anything.
+//! A slot field that evaluated to a literal shows its number, which
+//! the widget formats (`crate::widgets::number_text`); the unit is the
+//! picker's to say, not the field's. Every other slot field shows
+//! [`field_text`] in its number's place: a driven slot the value its
+//! expression equals, with its keyboard edit opening on the source
+//! ([`field_source`]). A parameter's always shows its number, because
+//! a parameter is never driven by anything.
 //!
 //! **Text the field itself produced is not an edit**, at either field
 //! — [`echoed`], one function because it is one rule, asked of the
@@ -248,6 +251,77 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
     canonical / unit.factor()
 }
 
+/// [`in_written`] where that value IS a number, and `None` where the
+/// notation cannot name this value at all.
+///
+/// **A notation is a change of exponent, and an exponent can leave the
+/// type.** The divide is by a factor below one for six of the closed
+/// table's eight rows, so it is a multiplication UP by up to three
+/// decades, and a canonical length above `f64::MAX * MILLI`
+/// (`1.7976931348623156e305` m) has no millimetre value — the quotient
+/// is `inf`, which [`render_number`] spells `inf` and
+/// [`crate::readout::number`] spells `inf` too. A text reading
+/// infinity names no value, and the value it was asked about is one
+/// the document holds perfectly well.
+///
+/// **The other end is the same question and is not symmetric.** One
+/// row's factor is above one — `pi rad`, at π — so a canonical angle
+/// of exactly `5e-324` rad divides to `0.0`, and a text reading zero
+/// is a hundred percent away from the value it claims to be, which is
+/// the first thing [`crate::readout::number`] refuses. It is
+/// one value rather than a band because π is barely above one: two
+/// subnormals up, the quotient is a subnormal again. Measured, not
+/// reasoned: `5e-324 / π == 0.0` and `1e-323 / π == 5e-324`.
+///
+/// The sweep behind both sentences is `quantity::UNITS` read for its
+/// `factor`, every row: `mm` `1e-3`, `cm` `1e-2`, `in` `0.0254` and
+/// `deg` `π/180` are below one, `m`, `rad` and the dimensionless row
+/// are exactly one, and `pi rad` is π. So the overflow arm is live for
+/// four rows and the flush-to-zero arm for one, and a row added to the
+/// table is covered the day it lands rather than the day this sentence
+/// is updated.
+///
+/// `None` is a fact about the PAIR and not about either half: the
+/// value is a number and the unit is a unit, and the value written in
+/// that unit is neither.
+pub fn written(canonical: f64, unit: UnitDef) -> Option<f64> {
+    let written = in_written(canonical, unit);
+    let names_the_value = written.is_finite() && (written != 0.0 || canonical == 0.0);
+    names_the_value.then_some(written)
+}
+
+/// What a render says where [`written`] answers `None` — the one
+/// spelling of that refusal, so the three renders that can meet it
+/// say the same thing.
+///
+/// It names the unit because the unit is half of what failed: the
+/// reader's next move is to write the row in a coarser notation, and
+/// a marker that did not say which notation could not name the value
+/// would not tell them that.
+pub fn no_reading(unit: UnitDef) -> String {
+    format!("no {} reading", unit.symbol())
+}
+
+/// A canonical value as text a person reads, written in `unit` and
+/// carrying its symbol.
+///
+/// **The crate's render ([`crate::readout::number`]) over
+/// [`written`]**, which is the pairing every chrome sentence that
+/// writes a canonical value in a display unit wants: the shortest
+/// spelling that reads back, of a value that exists. Where the value
+/// does not exist it is [`no_reading`], never `inf`.
+///
+/// `render_number` is deliberately not the render here. That one is a
+/// FIELD's — exact round-tripping digits, because the text a
+/// field shows is the text an edit starts from — and a sentence is not
+/// a commit path.
+pub fn written_text(canonical: f64, unit: UnitDef) -> String {
+    match written(canonical, unit) {
+        Some(value) => format!("{} {}", crate::readout::number(value), unit.symbol()),
+        None => no_reading(unit),
+    }
+}
+
 /// A written value back to canonical — `n * factor`, which is exactly
 /// the literal semantics `parse_expr` applies to `n <symbol>`, so a
 /// number typed into a panel field and the same number typed into the
@@ -266,6 +340,50 @@ pub fn from_written(written: f64, unit: UnitDef) -> f64 {
 /// written twice, free to become two.
 pub fn shown_in(unit: Option<UnitDef>, canonical: f64) -> f64 {
     unit.map_or(canonical, |unit| in_written(canonical, unit))
+}
+
+/// [`written`] over a field that may name NO unit — the number such a
+/// field SHOWS, or the unit that cannot name it.
+///
+/// [`shown_in`]'s total twin, and the question a FIELD has to ask
+/// where a sentence asks [`written_text`]: a sentence composes a
+/// `String` and can put [`no_reading`] in it, and a field is an
+/// `egui::DragValue` handed the `f64` it holds, with no unit in scope
+/// and no way to say *this notation cannot name my value* other than
+/// not being drawn. So the refusal has to be answered ABOVE the
+/// widget, which means the conversion answers it rather than
+/// producing `inf` for the formatter to spell.
+///
+/// `Err` carries the unit rather than nothing, because the caller's
+/// next move is [`no_reading`] and the unit is half of what failed —
+/// an `Option` here would make every caller reach back for a unit it
+/// had just established was the problem, and the arm where it has
+/// none is not reachable: a field with no notation cannot fail to
+/// name its value in one, which is the `None => Ok` arm below.
+pub fn shown_value(unit: Option<UnitDef>, canonical: f64) -> Result<f64, UnitDef> {
+    match unit {
+        None => Ok(canonical),
+        Some(unit) => written(canonical, unit).ok_or(unit),
+    }
+}
+
+/// [`written_text`] over a field that may name NO unit — one canonical
+/// value as text a person reads, in the notation such a field shows.
+///
+/// `None` means what it means in [`shown_in`]: the field is a number
+/// rather than a quantity, so there is no conversion to make and no
+/// symbol to carry, and the render is [`crate::readout::number`]
+/// alone. A value cannot fail to be nameable in no notation, which is
+/// why this answers a `String` where [`written`] answers an `Option`.
+///
+/// Spelled here rather than as a `map_or` at each caller for
+/// [`shown_in`]'s own reason: a hand-written `map_or` is the same
+/// identity written twice, free to become two.
+pub fn shown_text(unit: Option<UnitDef>, canonical: f64) -> String {
+    unit.map_or_else(
+        || crate::readout::number(canonical),
+        |unit| written_text(canonical, unit),
+    )
 }
 
 /// [`from_written`] over a field that may name no unit — one number
@@ -440,21 +558,34 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
     }
 }
 
-/// What the value field SHOWS for one row.
+/// What a slot's value field shows in its number's place.
 ///
-/// **The unit is the picker's to say, not the field's.** A bare
-/// literal therefore shows its number ALONE, in the unit the row is
-/// written in — the same number [`in_written`] gives and the combo box
-/// beside it names, said once instead of twice.
+/// **A driven slot shows [`DRIVEN`] and the value its expression
+/// equals** ([`computed_text`]), not its source: the value is bounded
+/// and carries its unit, and the source is said under the row and
+/// opens the field's keyboard edit ([`field_source`]). A driven slot
+/// that did not evaluate shows [`NO_VALUE`] after the mark.
 ///
-/// Everything else shows its SOURCE: a driven slot says what drives
-/// it, which is both the honest reading of a computed value and the
-/// text an edit to it revises. A slot whose value did not evaluate is
-/// the same case — the source is what there is to fix.
+/// A literal whose value did not evaluate shows its source, which is
+/// a literal's and so a number and its unit. A literal that evaluated
+/// shows its number ALONE, in the unit the row is written in, or
+/// [`no_reading`] where that notation cannot name it ([`written`]).
 pub fn field_text(row: &SlotRow) -> String {
     match (&row.driver, &row.value) {
         (SlotDriver::Literal, Ok(value)) => match row.unit {
-            Some(unit) => render_number(in_written(value.as_f64(), unit)),
+            // **And the notation may not be able to name it**, which
+            // is [`written`]'s question and not this one's: a literal
+            // above `f64::MAX * MILLI` metres has no millimetre value,
+            // and `{:?}` spells that `inf` — a field claiming a value
+            // the document does not hold. [`no_reading`] says so
+            // instead, and a marker is safe in a field for the reason
+            // [`echoed`] gives: every field built through
+            // `crate::widgets::number_field` refuses text equal to its
+            // own render, so the marker cannot be handed back as an
+            // edit.
+            Some(unit) => {
+                written(value.as_f64(), unit).map_or_else(|| no_reading(unit), render_number)
+            }
             // D2 addendum row 4: this arm IS the literal case, and
             // every literal names the unit it was written in
             // (`Expr::display_unit` answers `None` only for the kinds
@@ -466,20 +597,69 @@ pub fn field_text(row: &SlotRow) -> String {
                 row.slot
             ),
         },
-        _ => row.source.clone().unwrap_or_default(),
+        (SlotDriver::Expression { .. }, Ok(value)) => {
+            format!("{DRIVEN} {}", computed_text(row.dimension, value.as_f64()))
+        }
+        (SlotDriver::Expression { .. }, Err(_)) => format!("{DRIVEN} {NO_VALUE}"),
+        (SlotDriver::Literal, Err(_)) => row.source.clone().unwrap_or_default(),
     }
 }
 
-/// A number as the field writes it: `{:?}`'s shortest round-tripping
-/// digits, with a bare integral form (`8.0` → `8`) — a field showing
-/// `8` and a field showing `8.0` say the same thing, and the shorter
-/// one is what a user typed.
-fn render_number(value: f64) -> String {
-    let repr = format!("{value:?}");
-    match repr.strip_suffix(".0") {
-        Some(integral) => integral.to_string(),
-        None => repr,
-    }
+/// **A COMPUTED value as the chrome says it**: in the notation a
+/// computed value is rendered in ([`rendering_unit`]'s canonical one,
+/// which remembers no unit of its own) and carrying that unit's
+/// symbol, through [`shown_text`] — so bounded by
+/// [`crate::readout::MAX_CHARS`] and a symbol.
+///
+/// One spelling for every computed value the chrome says: a driven
+/// slot's field ([`field_text`]), the refusal's affordance
+/// (`crate::session::Refusal::affordance`), a measure's tree row
+/// ([`crate::tree::Measured::Value`]) and an assertion's numbers
+/// ([`crate::tree::Asserted`]) — so one quantity never reads two ways.
+/// The symbol is carried because nothing else says the unit: a
+/// computed slot's picker says `computed`, and a measure has no picker
+/// at all.
+pub fn computed_text(dimension: Dimension, canonical: f64) -> String {
+    shown_text(rendering_unit(dimension, None), canonical)
+}
+
+/// The mark a driven slot's field wears in front of its value: the
+/// value is what an expression EQUALS, and the expression is said
+/// under the row as `label = source`.
+pub const DRIVEN: &str = "=";
+
+/// What a driven slot's field shows after [`DRIVEN`] when its
+/// expression did not evaluate.
+pub const NO_VALUE: &str = "?";
+
+/// **The text a keyboard edit to a slot's field starts from, where
+/// that is not the text the field shows**: a driven slot's source.
+///
+/// [`field_text`] shows a driven slot's value, bounded, and an edit to
+/// it revises the expression — so the edit is seeded with the source
+/// (`crate::widgets::value_field_ops`), and handing that source back
+/// unchanged is an echo like handing back the render. `None` for a
+/// literal, whose field's edit starts from what it shows.
+pub fn field_source(row: &SlotRow) -> Option<String> {
+    row.driver.is_driven().then(|| row.source.clone()).flatten()
+}
+
+/// A number as the chrome writes it: [`pncad::geom_core::Readable`]'s
+/// shortest round-tripping digits, positional at modelling magnitudes
+/// with a bare integral form (`8`, not `8.0`) and scientific past them
+/// — a field showing `8` and a field showing `8.0` say the same thing,
+/// and the shorter one is what a user typed.
+///
+/// One of the crate's TWO number policies, and the one for a number
+/// in an editable field or in a sentence quoting one: the value fields
+/// here, and the frame poses the picker and the feature tree name a
+/// frame by ([`crate::tree::frame_pose`]). The other is
+/// [`crate::readout::number`], which spells a number to fit a FIXED
+/// WIDTH and trades digits for it — right for the View pane's δ field,
+/// wrong for a coordinate a reader compares against what the panel
+/// shows.
+pub fn render_number(value: f64) -> String {
+    pncad::geom_core::Readable(value).to_string()
 }
 
 /// What text typed into a value field MEANS.
@@ -539,7 +719,7 @@ pub fn field_edit(text: &str) -> FieldEdit {
 /// rendered and writes the parse back when focus leaves, so clicking
 /// into a field and clicking away again hands the chrome's own render
 /// straight back at it. That text is accepted within the render's own
-/// accuracy ([`crate::readout::REL_TOLERANCE`], through
+/// accuracy ([`crate::readout::reads_back`], through
 /// `crate::widgets::number_text`), so writing it back can move the
 /// value by up to that much AND cost an undo step for a click nobody
 /// meant as one. `readout`'s own words: the number a value moves to on
@@ -942,6 +1122,28 @@ pub fn slot_unit_edit(
     slot: SlotId,
     unit: UnitDef,
 ) -> Result<DocEdit<ProfileProgram>, SlotUnitFault> {
+    let value = slot_literal(doc, node, slot)?;
+    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
+        .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
+    Ok(DocEdit::SetParam { node, slot, expr })
+}
+
+/// **The half of [`slot_unit_edit`] that does not read the unit**: the
+/// slot's bare literal value, or the refusal for a slot that has no
+/// written notation to change at all.
+///
+/// A control asks this ahead of the pick. The other half, whether the
+/// picked unit measures the slot, is answered at the pick by
+/// `slot_unit_edit` itself.
+///
+/// # Errors
+///
+/// [`SlotUnitFault::NoExpression`] or [`SlotUnitFault::NotALiteral`].
+pub fn slot_literal(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> Result<f64, SlotUnitFault> {
     let expr = doc
         .node(node)
         .and_then(|n| n.expr(slot))
@@ -950,12 +1152,8 @@ pub fn slot_unit_edit(
     // computed, so there is no authored notation to change — refused
     // rather than silently flattened to the computed number, which is
     // the same direction `SlotDriver` refuses a numeric edit in.
-    let value = expr
-        .literal_value()
-        .ok_or(SlotUnitFault::NotALiteral { node, slot })?;
-    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
-        .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
-    Ok(DocEdit::SetParam { node, slot, expr })
+    expr.literal_value()
+        .ok_or(SlotUnitFault::NotALiteral { node, slot })
 }
 
 /// Why a display-unit change was refused.
@@ -1015,3 +1213,148 @@ impl core::fmt::Display for SlotUnitFault {
 }
 
 impl core::error::Error for SlotUnitFault {}
+
+#[cfg(test)]
+mod written_tests {
+    use super::{in_written, no_reading, written, written_text};
+    use pncad::document::{Dimension, SlotId};
+    use pncad::prelude::{M, MM, PI, RAD};
+
+    /// **A notation is a change of exponent, and an exponent can leave
+    /// the type** — in both directions, and [`written`] is the one
+    /// place that is asked.
+    ///
+    /// **The pair, because neither half says anything alone.** A door
+    /// answering `None` for everything would satisfy the first two
+    /// assertions; the values below them are the ones the chrome shows
+    /// and they have to come back. Both edges are named as the
+    /// PRODUCTS they are rather than as magnitudes somebody typed —
+    /// `f64::MAX * MILLI` is the coarsest length with a millimetre
+    /// value, two subnormals is the smallest angle `pi rad` does not
+    /// divide to zero — so a bound drawn at a round number fails the
+    /// second half of each pair.
+    #[test]
+    fn a_value_the_notation_cannot_name_has_no_written_value() {
+        let (mm, pi_rad) = (MM.def(), PI.def());
+
+        assert_eq!(
+            written(1.0e306, mm),
+            None,
+            "1e306 m has no millimetre value: the quotient is inf"
+        );
+        let coarsest = f64::MAX * 1.0e-3;
+        assert_eq!(
+            written(coarsest, mm),
+            Some(in_written(coarsest, mm)),
+            "the coarsest length whose millimetre value is a number is written in millimetres"
+        );
+
+        assert_eq!(
+            written(5.0e-324, pi_rad),
+            None,
+            "the smallest subnormal over π is 0.0, which is not this angle"
+        );
+        let two_subnormals = 1.0e-323;
+        assert_eq!(
+            written(two_subnormals, pi_rad),
+            Some(in_written(two_subnormals, pi_rad)),
+            "one step up the quotient is a subnormal again, and a subnormal is a value"
+        );
+
+        // The values the chrome actually shows, on both dimensions and
+        // on the canonical rows, which divide by one.
+        assert_eq!(written(0.025, mm), Some(25.0));
+        assert_eq!(written(1.5, M.def()), Some(1.5));
+        assert_eq!(written(1.0, RAD.def()), Some(1.0));
+        assert_eq!(
+            written(0.0, mm),
+            Some(0.0),
+            "a value that IS zero is a zero in every notation"
+        );
+    }
+
+    /// **The render says the notation cannot name it, and never spells
+    /// `inf`** — which is the whole of this class: `inf` is a text
+    /// that reads back as no value at all, offered for a value the
+    /// document holds perfectly well.
+    #[test]
+    fn a_render_of_an_unnameable_value_is_not_an_infinity() {
+        let mm = MM.def();
+        assert_eq!(no_reading(mm), "no mm reading");
+        assert_eq!(written_text(1.0e306, mm), no_reading(mm));
+        assert!(
+            !written_text(1.0e306, mm).contains("inf"),
+            "the render spelled the product instead of refusing it"
+        );
+        assert_eq!(
+            written_text(5.0e-324, PI.def()),
+            no_reading(PI.def()),
+            "and the other end is the same refusal, not a zero"
+        );
+        // The ordinary case is a number and its symbol, unchanged.
+        assert_eq!(written_text(0.025, mm), "25 mm");
+        assert_eq!(written_text(1.5, M.def()), "1.5 m");
+    }
+
+    /// **A FIELD's conversion answers the same question, and its
+    /// no-notation arm cannot fail.**
+    ///
+    /// [`super::shown_value`] is the door a panel field's number comes
+    /// through, and the two arms are different in kind: a field
+    /// written in a unit can meet a value that unit cannot name, and a
+    /// field written in no unit at all shows its canonical number and
+    /// has nothing to fail at. Held over the value the class is about
+    /// and over the count/scalar arm, because collapsing the second
+    /// into the first is how a count acquires a refusal it can never
+    /// reach.
+    #[test]
+    fn a_fields_conversion_refuses_what_its_notation_cannot_name() {
+        let mm = MM.def();
+        assert_eq!(super::shown_value(Some(mm), 0.025), Ok(25.0));
+        assert_eq!(
+            super::shown_value(Some(mm), 1.0e306),
+            Err(mm),
+            "and it hands back the unit, which is what the marker names"
+        );
+        for canonical in [0.0, 1.0e306, -3.5, f64::MIN_POSITIVE] {
+            assert_eq!(
+                super::shown_value(None, canonical),
+                Ok(canonical),
+                "a field that names no notation shows its number"
+            );
+        }
+    }
+
+    /// **A field's text is what an edit starts from**, so the one
+    /// thing it must not be is a value the document does not hold.
+    /// `render_number` spells an overflowed quotient
+    /// `inf`; the marker is what stands there instead.
+    ///
+    /// **The pair**: the same row a decade below the overflow shows an
+    /// ordinary number, so a `field_text` that gave up on millimetres
+    /// altogether fails the second half.
+    #[test]
+    fn a_literal_with_no_millimetre_value_does_not_show_one() {
+        let row = |canonical: f64| super::SlotRow {
+            slot: SlotId::ShellThickness,
+            dimension: Dimension::Length,
+            structural: false,
+            driver: super::SlotDriver::Literal,
+            value: Ok(super::SlotValue::Continuous(canonical)),
+            unit: Some(MM.def()),
+            source: Some("unused".to_owned()),
+        };
+        assert_eq!(
+            super::field_text(&row(1.0e306)),
+            no_reading(MM.def()),
+            "a literal whose millimetre value is not a number showed one"
+        );
+        assert_eq!(
+            super::field_text(&row(1.0e304)),
+            "9.999999999999999e306",
+            "and one decade below the overflow is an ordinary field, spelled \
+             by `{{:?}}`'s exact round-tripping digits — the quotient's, \
+             which is not `1e307`"
+        );
+    }
+}

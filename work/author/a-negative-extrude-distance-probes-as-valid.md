@@ -5,7 +5,8 @@ title: The probe reports every negative extrude distance as valid, so a length f
 status: open
 opened: 2026-09-15
 priority: P0
-cost: E
+cost: M
+design: true
 ---
 
 
@@ -59,7 +60,7 @@ rows CI gates, failing nodes each time:
    0.8 mm seed reports `low: Open { probed: -1.6304 }`; a 1 m seed
    reports `Open { probed: -2047.992 }`. Any row asserting a bracket
    on a length field rests on that coincidence, which is what
-   `work/chrome/probe-rows-assert-in-one-direction-only.md`'s
+   `work/vacuity/probe-rows-assert-in-one-direction-only.md`'s
    discharge note now says out loud. At `ε = 1e-6` the region is wide
    enough (~1e-5) that the same ladder lands in it for a different
    reason — the bracket is not evidence of a point.
@@ -89,3 +90,7 @@ only failure is a point, and any row that assumes a floor.
 CHROME, because the evidence and the affected rows are in
 `crates/viewer`. Re-home it to whichever program owns the answer once
 the question above is decided — the header move, per `work/README.md`.
+
+## Re-priced 2026-09-30: a design fork, not a drive-by
+
+Priced `E` and parked as a drive-by "waiting for a lane in `bounds.rs`", but the row's own "It may not be viewer's to fix" section is the reason it is not dispatchable. Either a negative extrude distance is meant to build, and the gap is that a thickness has no declared non-negative domain (a document/parameter question), or it isn't, and the refusal belongs in evaluation (`eval/mod.rs`, WIRE's ground). The probe reports the kernel faithfully either way. So it is re-priced `M` with `design: true`. It goes through the designer lanes (`docs/prompts/designer.md`) and then an `[ev]` PR before any lane builds it.

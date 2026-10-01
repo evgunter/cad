@@ -12,7 +12,7 @@
 //! trees and diffed. Adopted here with its rows intact and its verdict
 //! turned into assertions, because a test that prints is evidence for
 //! whoever is reading that day and a gate for nobody
-//! (`memories/test-suite-cost.md`).
+//! (implementer-discipline §8).
 //!
 //! Eight distinct `expected:` phrases over four distinct `found:`
 //! families, so two independent things are pinned and a door that lost
@@ -518,8 +518,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
 /// refusal built in another module (`mate/member.rs` builds one; it
 /// reads `eval::phrase::DATUM_AXIS` since #2984, so the phrase is
 /// shared and only the construction is out of this scan's reach — the
-/// row that asked for it closed with DOOR, `docs/DOC-LEDGER.md`
-/// sweep 19),
+/// row that asked for it closed with DOOR),
 /// a phrase reached through a helper that takes it as an argument from
 /// elsewhere, the other kind-mismatch vocabularies in this crate
 /// (`work/wire/the-entity-kind-door-has-six-spellings.md` enumerates
@@ -579,6 +578,11 @@ mod source_rules {
                 out.push((&code[head..name_end], slot));
             }
         }
+        assert!(
+            !out.is_empty(),
+            "eval/wire.rs: the operand-door region declares no `fn` taking an `expected` — \
+             the sentinels or the scan have drifted from the doors they read"
+        );
         out
     }
 
@@ -670,21 +674,14 @@ mod source_rules {
         // Set A: every mention of the vocabulary.
         let mut vocabulary: Vec<usize> = Vec::new();
         for prefix in ["super::family::", "super::phrase::"] {
-            for (at, _) in code.match_indices(prefix) {
-                vocabulary.push(at);
-            }
+            vocabulary.extend(source::required_matches(&code, "eval/wire.rs", prefix));
         }
-        assert!(
-            !vocabulary.is_empty(),
-            "eval/wire.rs mentions no `family::` or `phrase::` const at all — the vocabulary \
-             moved and this row is reading the wrong file"
-        );
         // Set B: every door call's `expected` argument that names one.
         let doors = doors(&code);
         assert!(
             doors.len() >= 2,
-            "the door region declares {} function(s) taking an `expected` — the sentinels or \
-             the scan have drifted from the doors they read",
+            "the door region declares {} function(s) taking an `expected`, and the value door \
+             has two",
             doors.len()
         );
         let mut said: Vec<usize> = Vec::new();
@@ -843,6 +840,11 @@ mod source_rules {
                 used.push(word);
             }
         }
+        assert!(
+            !arms.is_empty(),
+            "eval/mod.rs: the `OPERAND-VOCABULARY` region yielded no `family_word!` arm — the \
+             sentinels or the scan have drifted from the macro they read"
+        );
         for (word, lit) in &arms {
             assert_eq!(
                 word, lit,
@@ -857,13 +859,7 @@ mod source_rules {
         assert_eq!(
             heads, sorted_used,
             "every `family_word!` arm owes exactly one `family::` const and every const owes \
-             an arm; an arm with no const is dead text no lint reads. An empty pair here is a \
-             scan that has drifted off the macro, and reds for the same reason"
-        );
-        assert!(
-            !heads.is_empty(),
-            "the vocabulary census read no macro arm at all — the sentinels or the scan have \
-             drifted from the macro they read"
+             an arm; an arm with no const is dead text no lint reads"
         );
         // No arm of either kind function spells a family word itself.
         let code = source::blanked(source::code_only, "eval/mod.rs", MOD);

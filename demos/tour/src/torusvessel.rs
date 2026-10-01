@@ -434,6 +434,7 @@ fn wall_probes(tol: Tol) {
                                 source: pncad::geom_brep::PropsError::Unimplemented,
                                 ..
                             },
+                            ..
                         }]
                     )
             )

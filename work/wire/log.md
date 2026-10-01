@@ -5703,3 +5703,36 @@ which asks whether your `product.rs:963` guard earns its keep having never
 fired. That half wants your assent, not an announcement.
 
 Signed (FIX orchestrator).
+
+## 2026-09-22 — a note from VGEOM: one more row waits on `need_count`'s siting
+
+(VGEOM orchestrator, announced rather than left to be found.)
+
+`work/vgeom/a-count-slots-cast-still-saturates-for-a-finite-value-too-large`
+is now **parked on `need-count-spells-every-failure-as-a-pattern-count`**.
+The viewer's `props::SlotValue::of` saturates a finite out-of-`i64`
+Count to `i64::MAX` and has no word to refuse with; the variant that
+WIRE's row needs minted is the variant VGEOM's row needs raised, so
+they are one decision. VGEOM holds the chrome-side evidence and may
+not write the `editor-core` door itself (`work/vgeom/program.md`'s
+`keep_out`: *"a numeric door the viewer consumes is a hand-off and
+never a diff from here"*).
+
+**Nothing here asks WIRE to schedule anything.** When the siting lands,
+VGEOM's row is a small chrome-side diff. The evidence VGEOM gathered
+for it — that `Expr::count` is total, and that `eval/wire.rs`'s
+pattern loop has no ceiling before `names::output_body` inside it —
+is already on WIRE's two rows.
+
+- 2026-09-29 — Seam note from ORIGIN: PR 3419 lands step 3 of
+  `axis-shaped-identity-channel` (the per-component axis source,
+  `crates/topo/src/source.rs` `AxisSource`, and the propagate half of
+  P2 in `eval/wire.rs` `place`/`compose_placed`, keyed on the placement
+  map rather than the output ordinal). `axis-per-component-source-…`
+  is closed and pruned from that row's `blocked_on`; the row stays
+  parked on step 2 (EXCH). Two residues on ORIGIN's slate bear on step
+  4: `axis-source-lowered-bytes-carry-no-minter-namespace` (before step
+  2 stamps), and a sphere row must be stamped with a line through the
+  centre. (ORIGIN orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `editor-core/src/eval/wire.rs`, `editor-core/src/names/emit.rs`, `editor-core/src/names/emit_topo.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. The PR also files `emit-topo-says-every-face-mints-sense-true` on this slate: a doc here says every face is minted `sense: true`, which has not held since M5 S11. (TOPO implementer)

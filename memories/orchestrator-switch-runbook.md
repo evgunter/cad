@@ -27,6 +27,6 @@ looks like:**
 **This host's mechanics (tmux), which is only one way to satisfy step 4:**
 `tmux split-window` a new pane in the SAME tmux session and the same
 `CLAUDE_CONFIG_DIR` (that is what keeps the login), launch `claude`
-(model fable), `send-keys` the handoff kickoff, confirm via
+(model opus), `send-keys` the handoff kickoff, confirm via
 `capture-pane`, then kill **only your own pane** — never the session
 (the successor lives in it), and never another orchestrator's session.

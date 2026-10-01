@@ -52,6 +52,8 @@ mod bool_bodies;
 mod booleans;
 mod bossplate;
 mod bud;
+mod chain;
+mod chaintol;
 mod checks;
 mod crosslap;
 mod curvedcut;
@@ -66,6 +68,7 @@ mod klein;
 mod letterforms;
 mod lily;
 mod mate7a_r2_probes;
+mod mcchain;
 mod mcplate;
 mod plate;
 #[cfg(feature = "probe")]
@@ -78,7 +81,6 @@ mod skinned;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
-#[cfg(feature = "interval")]
 mod tolerance;
 mod torusvessel;
 mod tube;
@@ -381,12 +383,13 @@ fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
 /// target is a length that scales with ε while the schedule's floor is
 /// a property of the part, so a body whose sign is definite may have
 /// no number at this ε. Such a body is VALID, and what the tour
-/// reports for it is the bracket its sign was decided on.
+/// reports for it is the narrowest bracket the certificate or its
+/// continuation held.
 enum Measured {
     /// The reporting-level reading: volume, area, and their pads.
     Number(pncad::topo::MassProperties<f64>),
-    /// The sign-level enclosure: two ends and the area lever, with no
-    /// volume number in it by construction.
+    /// The bracket `TargetUnreached` carries: two ends and the area
+    /// lever, with no volume number in it by construction.
     Bracket(pncad::topo::VolumeEnclosure<f64>),
 }
 
@@ -418,6 +421,27 @@ fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured {
     )
 }
 
+/// A gate's certificate, continued to the number where the quadrature
+/// can reach it.
+fn continued(label: &str, certificate: pncad::topo::SignCertificate<'_, f64>) -> Measured {
+    match certificate.measure() {
+        Ok(props) => Measured::Number(props),
+        // A body the gate ADMITTED whose schedule cannot reach the
+        // reporting target: its sign is definite and its volume is not
+        // measurable at this ε. The bracket is the whole of what the
+        // quadrature is entitled to say, so the ribbon says it rather
+        // than the tour dying on a body the gate just certified. The
+        // kernel classifies the refusal (`TargetUnreached::bracket`);
+        // every OTHER refusal is a body with no volume at all, and
+        // stays fail-loud.
+        Err(pncad::topo::TargetUnreached {
+            bracket: Some(bracket),
+            ..
+        }) => Measured::Bracket(bracket),
+        Err(unreached) => panic!("{label}: mass properties failed: {unreached}"),
+    }
+}
+
 fn run_body(
     sb: &SceneBody,
     delta: f64,
@@ -440,17 +464,15 @@ fn run_body(
     // Every arm takes the gate door that HANDS ITS MEASUREMENT BACK,
     // so a body is measured by the gate it passes and not a second
     // time after it
-    // (`work/perf/gate-then-measure-pays-two-quadratures.md`). The two
-    // doors stop at different levels: 3′'s certificate is the number,
-    // tier 3's is the sign and a continuation.
+    // (`work/perf/gate-then-measure-pays-two-quadratures.md`). Both
+    // doors stop at the same level — the sign, and a continuation to
+    // the number — so every arm continues the certificate the same way.
     let measured = match &sb.contacts {
         Some(contacts) if sb.at_rest => {
-            match pncad::topo::validate_pseudomanifold_certificate_certified(
-                &sb.body, contacts, tol,
-            ) {
-                Ok(props) => {
+            match pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol) {
+                Ok(certificate) => {
                     println!("   [{label}] tier-3' at rest: every declaration certified");
-                    Measured::Number(props)
+                    continued(label, certificate)
                 }
                 // The at-rest arm TOLERATES its refusal — the scene
                 // asserts the verdict, so the tour narrates it and
@@ -467,47 +489,18 @@ fn run_body(
                 }
             }
         }
-        Some(contacts) => Measured::Number(
-            pncad::topo::validate_pseudomanifold_certificate_certified(&sb.body, contacts, tol)
+        Some(contacts) => continued(
+            label,
+            pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol)
                 .unwrap_or_else(|e| {
                     panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
                 }),
         ),
-        None => {
-            let certificate = pncad::topo::validate_geometric_certificate(&sb.body, tol)
-                .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}"));
-            // Read the bracket BEFORE the continuation consumes the
-            // certificate: it is the enclosure check 7 decided this
-            // body's orientation on, and the only thing left to report
-            // if the continuation cannot reach the reporting target.
-            let sign_level = certificate.enclosure();
-            match certificate.refine_to_target() {
-                Ok(props) => Measured::Number(props),
-                // A body tier 3 ADMITTED whose schedule cannot reach
-                // the reporting target: its sign is definite and its
-                // volume is not measurable at this ε. The bracket is
-                // the whole of what the quadrature is entitled to say,
-                // so the ribbon says it rather than the tour dying on a
-                // body the gate just certified. Every OTHER refusal is
-                // a body with no volume at all, and stays fail-loud.
-                //
-                // GAP (`memories/demo-purpose.md`): a consumer should
-                // not have to reach two crates down and re-spell
-                // `geom_brep::PropsError`'s arm to ask "is this the
-                // refusal my certificate warned about". The
-                // certificate knows — `SignCertificate::target_refusal`
-                // says so before the continuation runs — but reading
-                // it there means asking before there is an answer, and
-                // the certificate is consumed by the call that
-                // produces one. Filed as `work/perf`'s
-                // `budget-refusal-drops-the-enclosure-the-caller-needs`.
-                Err(pncad::topo::MassPropsError::Face {
-                    source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
-                    ..
-                }) => Measured::Bracket(sign_level),
-                Err(e) => panic!("{label}: mass properties failed: {e:?}"),
-            }
-        }
+        None => continued(
+            label,
+            pncad::topo::validate_geometric_certificate(&sb.body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}")),
+        ),
     };
 
     let counts = euler_counts(&sb.body);
@@ -582,16 +575,17 @@ fn run_body(
             let slack = delta * mesh_area(&mesh);
             assert!(
                 v_mesh > enclosure.volume_lo - slack && v_mesh < enclosure.volume_hi + slack,
-                "{label}: mesh signed volume {v_mesh} is outside the certified SIGN-level \
-                 bracket [{}, {}] widened by the chordal slack {slack:e}",
+                "{label}: mesh signed volume {v_mesh} is outside the certified bracket \
+                 [{}, {}] widened by the chordal slack {slack:e}",
                 enclosure.volume_lo,
                 enclosure.volume_hi
             );
             println!(
-                "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3 at SIGN level (tier 3 certified \
-                 the sign; the reporting target 1024·ε is under this body's quadrature floor, \
-                 so it has no volume NUMBER at this ε), A = {:.6} m^2; mesh (delta = {:.0e}): \
-                 {} triangles, V_mesh = {v_mesh:.6e} (inside the bracket, chordal slack ±{slack:.1e})",
+                "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3, certified bracket \
+                 (tier 3 certified the sign; the reporting target 1024·ε is under this \
+                 body's quadrature floor, so it has no volume NUMBER at this ε), \
+                 A = {:.6} m^2; mesh (delta = {:.0e}): {} triangles, \
+                 V_mesh = {v_mesh:.6e} (inside the bracket, chordal slack ±{slack:.1e})",
                 enclosure.volume_lo,
                 enclosure.volume_hi,
                 enclosure.surface_area,
@@ -962,20 +956,9 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     );
     checks::narration(tol);
 
-    // The tolerance cell (M10-6 §6): narration-only, and behind the
-    // `interval` feature because its whole subject is the certified
-    // scalar's leaves. A tour built without the feature says so rather
-    // than silently walking one scene fewer.
-    #[cfg(feature = "interval")]
-    {
-        println!("\n-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --");
-        tolerance::narration(tol);
-    }
-    #[cfg(not(feature = "interval"))]
-    println!(
-        "\n-- the two-hole plate (M10/E10) is SKIPPED: build with `--features interval`, \
-         whose certified scalar is the cell's entire subject --"
-    );
+    // The plate's certified tolerance cell is not walked here: it runs in
+    // `demo-tour certified` ([`certified_cells`]), which
+    // `tests/eps_regression.rs` runs at every ε row.
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
@@ -986,13 +969,24 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
 }
 
+/// The two certified cells: the plate's tolerance study (M10-6 §6) and
+/// the chain on the certified lane (E6/E12). Narration only, and off
+/// the scene walk — their subject is the certified scalar's leaves, not
+/// a body, and they cost minutes where the walk's scenes cost seconds.
+fn certified_cells(tol: Tol) {
+    println!("\n-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --");
+    tolerance::narration(tol);
+    println!("\n-- the chain on the certified lane (E6/E12: one leaf per link count, measured) --");
+    chaintol::narration(tol);
+}
+
 fn main() {
     // The tour is an entry point: it mints the run's tolerance witness
     // once, here, and hands it to every scene it walks.
     let tol = Tol::witness();
     let outdir = std::env::args().nth(1).expect(
         "usage: demo-tour <outdir> | demo-tour gallery [dir] | \
-                 demo-tour die-corpus <file> | \
+                 demo-tour certified | demo-tour die-corpus <file> | \
                  demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
     );
@@ -1015,6 +1009,11 @@ fn main() {
     // replays at every CI ε row, so this door writes the empty
     // document plus the whole model as an edit log (the derivation and
     // its exactness assert live at `corpus_text`).
+    // The certified cells ([`certified_cells`]) and nothing else.
+    if outdir == "certified" {
+        certified_cells(tol);
+        return;
+    }
     if outdir == "die-corpus" {
         let path = std::env::args()
             .nth(2)
@@ -1109,6 +1108,22 @@ fn main() {
         mc_path.display(),
         svg.len()
     );
+
+    // The chain's density cell (`mcchain`), beside the plate's and for
+    // the same reason: a second 2-D picture the tour draws itself.
+    println!("\n-- the MC density chain (E11.1: four links, an angular error at every joint) --");
+    let chain_svg = mcchain::narration(tol);
+    let chain_path = mc_dir.join("chain-density.svg");
+    std::fs::write(&chain_path, &chain_svg).expect("write the chain density sheet");
+    println!(
+        "   wrote {} ({} bytes) — compose with demos/render-mc.sh",
+        chain_path.display(),
+        chain_svg.len()
+    );
+
+    // The chain's certified half runs in `demo-tour certified`
+    // ([`certified_cells`]), which `tests/eps_regression.rs` runs at every
+    // ε row.
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");

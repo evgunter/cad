@@ -43,7 +43,7 @@
 //!   (`w · n > 0`) puts the canonical winding on the **top** cap;
 //!   extruding along `−n` puts it on the **bottom** cap. Implementation
 //!   form: the swept-face loops traverse the canonical chains as-is for
-//!   `w · n > 0` and **reversed** (endpoints swapped, bulges negated,
+//!   `w · n > 0` and **reversed** (endpoints swapped, sweeps negated,
 //!   turns flipped — the profile crate's reversal involution) for
 //!   `w · n < 0`; the built solid is outward-oriented in both cases.
 //! - **Arc carriers: axis = turn-signed plane normal.** A profile arc
@@ -52,11 +52,11 @@
 //!   segment and `axis = −n` for a clockwise one, so that increasing
 //!   carrier parameter always runs along the segment's traversal —
 //!   satisfying the ratified `he_plus` forward contract with positive
-//!   parameter spans. The span is **θ = 4·atan(σ·b)**, from the
-//!   stored bulge `b` signed by the turn `σ` the profile decided (the
-//!   sanctioned re-inspection; never endpoint `atan2`). `σ` is the
-//!   certified sign of `b`, so `σ·b` is `|b|` to the bit, and the span
-//!   is the atom the pushforward's `4·atan b` mints. A carrier circle's `u_ref` points from the center at the
+//!   parameter spans. The span is the arc's |Δθ|, spelled as the
+//!   stored sweep signed by the decided turn (never endpoint `atan2`,
+//!   never `abs`): that is the expression the swept span identity is
+//!   registered about, and it is the very node the pushforward turns
+//!   through. A carrier circle's `u_ref` points from the center at the
 //!   segment's start vertex; a shared side cylinder's `u_ref` comes
 //!   from the first segment of its cosurface run in sweep order (seam
 //!   placement is conventional data, D2 — no `Seam` edges exist in an
@@ -106,7 +106,8 @@
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share
-//!   the surface **key** (`FaceSurface::Shared`), decided by the named
+//!   the surface **key** (`FaceSurface::Shared`, stating the wall's
+//!   own `sense` beside it), decided by the named
 //!   predicates `side_planes_cosurface` (margin: perpendicular distance
 //!   of the next chord's far endpoint from the previous carrier line)
 //!   and `side_cylinders_cosurface` (margin: center distance plus
@@ -170,7 +171,7 @@ pub use revolve::{
 // are `Section`s — `profile::ProfileLoop` lists, re-exported here so
 // section authors need not depend on `profile` directly.
 pub use geom_brep::SketchSegment;
-pub use profile::{ProfileLoop, ProfileVertex};
+pub use profile::ProfileLoop;
 pub use skin::{
     LoftGeometry, Section, SkinError, loft_geometry, loft_parameters, make_compatible,
     segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,

@@ -4,7 +4,7 @@ kind: issue
 title: What the layer-3 pre-check sweep could not see: three named blind spots
 status: open
 opened: 2026-09-04
-refs: [set-param-prechecks-what-the-door-refuses, self-boolean-precheck-duplicates-the-doors-duplicate-input, 1846]
+refs: [1846]
 priority: P4
 cost: E
 ---

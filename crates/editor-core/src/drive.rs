@@ -92,7 +92,7 @@ use std::sync::Arc;
 
 use geom_core::interval::Interval;
 use geom_core::sym;
-use geom_core::{MarginDiag, Sym, SymCounts, Tol};
+use geom_core::{Sym, SymCounts, Tol};
 
 #[cfg(feature = "probe")]
 use crate::analysis::BoxAxis;
@@ -159,11 +159,12 @@ pub struct DriveConfig {
     /// form every other leaf of this drive would build; the memo hands
     /// it back instead of rebuilding it, which on the M10-3 slab is a
     /// walk the tier otherwise repeats once per leaf. Every verdict and
-    /// every decision count is the same either way, and the receipt's
-    /// `frozen` column means the same thing either way — the DISTINCT
+    /// every decision count is the same either way, and so is the
+    /// `frozen` column on both receipts — the drive's is the DISTINCT
     /// nodes frozen over the drive, which the memo counts whether or
-    /// not it is serving forms (`geom_core::SymCounts::frozen` argues
-    /// the column).
+    /// not it is serving forms, and a leaf's is its NEED against that
+    /// same set, which is what it reached and not what it computed
+    /// (`geom_core::SymCounts::frozen` argues the column).
     ///
     /// Off is the differential lane the pins compare against, in
     /// `parallel`'s own mould: a dial whose effect on a document is a
@@ -244,19 +245,19 @@ pub struct DriveConfig {
 /// tier the FASTER lane — the work it saves is the subdivision it makes
 /// unnecessary. Where it cannot certify, it is pure overhead, and the
 /// worst measured case is curved geometry: 17x for nothing, because the
-/// arc family it cannot discharge (M10-8, `docs/DOC-LEDGER.md`
-/// sweep 13) means the box
+/// arc family it cannot discharge (M10-8) means the box
 /// refuses either way.
 ///
 /// Two things keep that bill down and both are measured rather than
 /// argued. A margin the numeric channel has already proved NON-ZERO
 /// is never DECIDED by its form (`geom_core::sym`'s `Decide` impl —
-/// a certified enclosure excluding zero is a proof no normal form can
-/// contradict), which is most margins on most documents; the form is
-/// still BUILT for it wherever debug assertions are on (dev, test and
-/// this workspace's release profile), by the contradiction assertion
-/// at that site — a tenth of the slab's plain forms, measured
-/// (`geom_core::sym`'s `# Cost`). And
+/// at this lane's EXACT witness a certified enclosure excluding zero
+/// is a proof no normal form can contradict), which is most margins on
+/// most documents; the form is still BUILT for it by the contradiction
+/// check at that site, which at an exact witness is a `debug_assert!`
+/// and so runs wherever debug assertions are on (dev, test and this
+/// workspace's release profile) — a tenth of the slab's plain forms,
+/// measured (`geom_core::sym`'s `# Cost`). And
 /// `Poly::mul` refuses on pre-bounds instead of building a product and
 /// discarding it, so an over-budget multiplication costs its two
 /// operands' sizes rather than their product.
@@ -720,8 +721,10 @@ pub struct CertifiedLeaf {
     /// What its replay produced.
     pub results: LeafResults,
     /// How this leaf's decisions were answered — the E12 receipt
-    /// ([`SymbolicDials`]). All zero when the tier is off, because no
-    /// session exists to count in.
+    /// ([`SymbolicDials`]), `frozen` being this leaf's NEED of the
+    /// drive's frozen set rather than the work it happened to do
+    /// (`geom_core::SymCounts::frozen`). All zero when the tier is off,
+    /// because no session exists to count in.
     pub decisions: SymCounts,
 }
 
@@ -733,7 +736,8 @@ pub struct RefusedLeaf {
     /// The typed reason.
     pub reason: RefusalReason,
     /// How this leaf's decisions were answered before it refused — the
-    /// E12 receipt ([`SymbolicDials`]).
+    /// E12 receipt ([`SymbolicDials`]), `frozen` being this leaf's NEED
+    /// of the drive's frozen set (`geom_core::SymCounts::frozen`).
     pub decisions: SymCounts,
 }
 
@@ -821,9 +825,11 @@ impl ParamBoxVerdict {
     /// `numeric`, with `frozen` beside them.
     ///
     /// **`frozen` is the odd one out**: the decision columns are sums
-    /// over the leaves, and `frozen` is the DISTINCT nodes frozen over
-    /// the drive (`geom_core::sym::DriveMemo::frozen`). `SymCounts::frozen`
-    /// is where the column's two meanings are argued.
+    /// over the leaves, and `frozen` is a SET — the DISTINCT nodes
+    /// frozen over the drive (`geom_core::sym::DriveMemo::frozen`),
+    /// which is not the sum of the leaves' own columns because those
+    /// are sets over the same nodes and they overlap.
+    /// `SymCounts::frozen` argues both receipts' column.
     ///
     /// All zero when the symbolic tier is off ([`SymbolicDials::off`]),
     /// which is not a claim that nothing decided: with no session
@@ -960,6 +966,22 @@ impl ParamBoxVerdict {
             if self.decisions.retried != 0 {
                 let _ = write!(s, " retried={}", self.decisions.retried);
             }
+            // The theorem channels' refusal column, by the same rule
+            // again. **It costs no schema bump because there is no
+            // schema to bump**: this text is written and never parsed.
+            // Its two consumers are `content_key`, which hashes it
+            // (derived on demand, never persisted — E10), and the rows
+            // that compare two renderings byte for byte. Neither reads
+            // a FIELD, so a key added here cannot break a reader; what
+            // the present-only-when-nonzero rule buys is that the hash
+            // and those comparisons do not move — and here the column
+            // cannot be non-zero at all, because a drive replays at
+            // `Sym<Interval>`, whose witness is EXACT, so the
+            // contradiction is asserted rather than counted
+            // (`geom_core::SymCounts::theorems_disputed`).
+            if self.decisions.theorems_disputed != 0 {
+                let _ = write!(s, " theorems_disputed={}", self.decisions.theorems_disputed);
+            }
             let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
@@ -1050,6 +1072,13 @@ impl ParamBoxVerdict {
                     s,
                     "; {} registered identity/identities CONTRADICTED by a definite enclosure",
                     d.registrations_contradicted
+                );
+            }
+            if d.theorems_disputed != 0 {
+                let _ = write!(
+                    s,
+                    "; {} theorem(s) DISPUTED by an inexact value channel",
+                    d.theorems_disputed
                 );
             }
             let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
@@ -1280,14 +1309,15 @@ pub fn drive(
     // bit (the lift's own differential pin), so this changes the build
     // it produces in no way and makes the two passes the same code.
     let witness: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
-    if let Some(&node) = witness
+    if let Some(standing) = witness
         .order
         .iter()
-        .find(|id| !matches!(witness.nodes.get(id), Some(NodeResult::Ok(_))))
+        .find_map(|&id| witness.usable(id).err())
     {
+        let node = standing.node();
         let cause = witness
             .node_error(node)
-            .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string());
+            .map_or_else(|| standing.to_string(), |e| e.kind.to_string());
         return Err(DriveRefusal::WitnessDoesNotBuild { node, cause });
     }
     let witness_vector = Arc::new(certifying_vector(doc, &witness));
@@ -1681,7 +1711,7 @@ fn classify_replay<T: geom_core::Decide>(
     // escalation where an arm speaks for the one the error carried, and
     // those differ on a node that recovered from an earlier one — so it
     // wants its own red-first row and its own measurement, which
-    // `work/props/should-classify-replays-error-enum-arms-be-deleted.md`
+    // `work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`
     // holds. What HAS been discharged is the precondition the arms were
     // kept for: the log now carries the op-minted escalations too.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
@@ -1719,8 +1749,8 @@ fn classify_replay<T: geom_core::Decide>(
             return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
         }
         // (2) The escalation log.
-        if let Some(first) = escalations.first() {
-            return indeterminate(&first.source);
+        if let Some(verdict) = log_read(escalations) {
+            return verdict;
         }
         // (3) The error-enum arms.
         let Some(err) = failure else {
@@ -1796,6 +1826,15 @@ fn classify_replay<T: geom_core::Decide>(
     })
 }
 
+/// Read (2) of [`classify_replay`]: what a node's escalation log makes
+/// of the leaf — its FIRST escalation speaks — or `None` for an empty
+/// log, which leaves the node to read (3).
+fn log_read(escalations: &[geom_core::k_stats::Escalation]) -> Option<LeafVerdict> {
+    escalations
+        .first()
+        .map(|first| indeterminate(&first.source))
+}
+
 /// What one escalation makes of a leaf: a terminal sliver when its
 /// enclosure sits wholly inside the band ([`sliver`]), otherwise the
 /// cue to bisect. One spelling for the three reads of `classify_replay`.
@@ -1807,30 +1846,17 @@ fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
 
 /// The predicate name of an escalation whose enclosure sits WHOLLY
 /// inside the ambiguity band `(ε, Kε)` — the ratified terminal-sliver
-/// test — or `None` when refinement could still decide it.
+/// test, the classifier's own verdict
+/// ([`geom_core::Indeterminate::terminal_sliver`]) — or `None` when
+/// refinement could still decide it.
 ///
-/// The test is on the enclosure, both ends: an enclosure that reaches
-/// the coincidence threshold might enclose a genuine coincidence, and
-/// one that reaches past `escalate` might enclose a definite sign, so
-/// either way there is something narrowing could still resolve. Only an
-/// enclosure strictly between the two thresholds, on one side of zero,
-/// describes a quantity that IS in the band.
 /// **Crate-visible because the clearance engine's inner subdivision
-/// refuses by the same rule** ([`crate::clearance`]): a cell pair whose
-/// separation margin sits wholly inside the band is terminal for
-/// exactly this reason — interval enclosures shrink monotonically under
-/// subdivision, so a sub-cell's enclosure stays inside the band its
-/// parent's was inside. One home, so the two subdivisions cannot drift
-/// apart on what a sliver is.
+/// refuses by the same rule** ([`crate::clearance`]): one home, so the
+/// two subdivisions cannot drift apart on what a sliver is.
 pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
-    let MarginDiag::Enclosure { lo, hi } = source.margin else {
-        // A point margin (an `f64` lane) or an invalid one says nothing
-        // about a box.
-        return None;
-    };
-    let (zero, escalate) = (source.band.zero(), source.band.escalate());
-    let inside = (zero < lo && hi < escalate) || (-escalate < lo && hi < -zero);
-    inside.then_some(source.predicate.unwrap_or("<unnamed>"))
+    source
+        .terminal_sliver
+        .then_some(source.predicate.unwrap_or("<unnamed>"))
 }
 
 /// The D9 split: the axis of greatest relative width, ties to the
@@ -2011,7 +2037,7 @@ pub(crate) fn render_box(b: &ParamBox) -> String {
         let _ = write!(
             s,
             "{}=[{:016x},{:016x}] ",
-            name.0,
+            name.as_str(),
             lo.to_bits(),
             hi.to_bits()
         );
@@ -2084,7 +2110,7 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
     match m {
         Ok(v) => format!("{:016x}", v.to_bits()),
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            format!("refused band:{}", param.0)
+            format!("refused band:{}", param.as_str())
         }
     }
 }
@@ -2141,30 +2167,185 @@ pub fn assertion_at(
 /// The measure-refusal classes a smaller box cannot change
 /// ([`RefusalReason::MeasureRefused`]).
 ///
-/// Conservative by construction: a class is here only when refinement
-/// PROVABLY cannot alter it, and everything else keeps bisecting. The
-/// cost of being wrong in this direction is a leaf refused early
-/// (visible, priced under its own name); the cost of being wrong the
-/// other way is a leaf that could have certified and did not, which is
-/// why the list is enumerated rather than defaulted.
+/// Conservative by construction: a class is terminal only when
+/// refinement PROVABLY cannot alter it, and everything else keeps
+/// bisecting. The two mistakes are not priced alike. A class wrongly
+/// kept bisecting costs budget: the driver re-derives the same refusal
+/// down to its depth limit and prices the mass as `Budget`, visibly and
+/// under the symptom's name. A class wrongly made terminal costs a leaf
+/// that a smaller box would have certified. So the terminal classes are
+/// enumerated, and every refusal not listed bisects.
+///
+/// The clearance arm matches every [`ClearanceRefusal`] arm, but its
+/// carrier's one producer — `clearance::min_separation`, through
+/// [`MinClearanceLane`]'s interval impl — refuses with four of them:
+/// `EmptyScope`, `NoAdmittedPair`, `Unsupported` and `PoisonEnclosure`.
+/// The other seven are classed by what they mean, so the match stays
+/// exhaustive and an arm added to the enum does not compile unclassed;
+/// the carrier narrows to the measure path's own arms when the enum
+/// splits (`work/clear/SHELL-3.md`).
+///
+/// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
+/// [`MinClearanceLane`]: crate::measure::MinClearanceLane
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
     match kind {
         // The selection resolved to the wrong KIND of entity. Document
         // structure; no parameter value moves it.
         NodeErrorKind::MeasureSelectionKind { .. } => Some("selection_kind"),
-        NodeErrorKind::MeasureClearanceRefused(r) => match r.class {
-            // Which faces are admitted, whether the two scopes pair at
-            // all, and whether the carrier has an implementation: all
-            // decided by the document's own topology and the engine's
-            // support table, not by the box.
-            c @ ("no_admitted_pair" | "unsupported" | "selection" | "empty_scope"
-            | "not_a_distance") => Some(c),
-            // `budget`, `sliver`, `poison_enclosure`, `witness_unverified`,
-            // `nothing_certified`, `tolerance_has_no_band`: every one of
-            // these can differ over a smaller box, so refinement is the
-            // right answer and the catch-all keeps it.
-            _ => None,
-        },
+        NodeErrorKind::MeasureClearanceRefused(r) => {
+            use crate::clearance::ClearanceRefusal as C;
+            match r {
+                // Reached: which faces are in scope, whether the two
+                // scopes pair at all, and whether the carrier has an
+                // implementation are decided by the document's own
+                // topology and the engine's support table, not by the box.
+                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => Some(r.name()),
+                // Not reached from `min_separation`. The bound and the
+                // run's tolerance are fixed for the whole drive, so no
+                // sub-box changes them either.
+                C::NotADistance { .. } | C::ToleranceHasNoBand => Some(r.name()),
+                // Reached: an enclosure that did not evaluate over this
+                // box (NaI, or empty) may evaluate over a smaller one, so
+                // nothing proves it box-independent.
+                C::PoisonEnclosure { .. } => None,
+                // Not reached from `min_separation`. Each is a function
+                // of the box — a budget, an in-band decision, a witness,
+                // a certified leaf, or a selection read at one leaf's
+                // replay (a node that did not build there) — and can
+                // differ over a smaller one.
+                C::Budget(_)
+                | C::Selection(_)
+                | C::Sliver { .. }
+                | C::WitnessUnverified { .. }
+                | C::NothingCertified { .. } => None,
+            }
+        }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom::{Curve3, Surface};
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
+    use geom_core::k_stats::{Bracket, Escalation};
+    use geom_core::{Band, Point3, Real, Vec3};
+
+    use super::*;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the run's linear band")
+    }
+
+    /// A tangency certificate of the line `(x, 0, z)`, `z ∈ [0, 1]`,
+    /// between a cylinder of radius `r` about z (as `s1`) and a plane
+    /// through the line tilted by `tilt` — at `Interval`, the driver's
+    /// lane — and the escalation log a node bracket would have kept.
+    /// Re-spells `certify_line_at_interval` and `cylinder_of` in
+    /// `geom-brep/tests/m5_pr9_tangent.rs`, whose rows pin these logs.
+    fn tangent_log(r: Option<f64>, x: f64, tilt: f64) -> Vec<Escalation> {
+        let lift = Interval::from_f64;
+        let s1 = r.map_or(
+            Surface::Plane {
+                origin: Point3::new(x, 0.0, 0.0),
+                normal: Vec3::new(1.0, 0.0, 0.0),
+                u_ref: Vec3::new(0.0, 0.0, 1.0),
+            },
+            |radius| Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+        );
+        let (sin, cos) = tilt.sin_cos();
+        let s2 = Surface::Plane {
+            origin: Point3::new(x, 0.0, 0.0),
+            normal: Vec3::new(cos, sin, 0.0),
+            u_ref: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let mut arena: slotmap::SlotMap<SurfaceKey, Surface<Interval>> =
+            slotmap::SlotMap::with_key();
+        let k1 = arena.insert(s1.map_scalar(lift));
+        let k2 = arena.insert(s2.map_scalar(lift));
+        let carrier = Curve3::Line {
+            origin: Point3::new(x, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        }
+        .map_scalar(lift);
+        let (t0, t1) = (lift(0.0), lift(1.0));
+        let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::TangentIntersection {
+                s1: k1,
+                s2: k2,
+                witness: carrier.eval(lift(0.5)),
+            },
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        };
+        let bracket = Bracket::open();
+        let refused = EdgeCurve::certify(spec, p0, p1, |k| arena.get(k).cloned(), band()).is_err();
+        assert!(refused, "the configuration is not a tangency");
+        bracket.finish().escalations
+    }
+
+    /// The sliver radius: its sagitta `R/2` over its own arm is `0.8·Kε`,
+    /// wholly in the band. The same constant as `sliver_radius` in
+    /// `geom-brep/tests/m5_pr9_tangent.rs`.
+    fn sliver_radius() -> f64 {
+        1.6 * band().escalate()
+    }
+
+    /// **A refusal the certificate renamed to `TangentParallel` reads as
+    /// the definite refusal it is, not as an osculating sliver.** The
+    /// second-order enclosure is wholly in band and the parallelism
+    /// defect at the folded arm is definite (`sin θ = 0.9`): the log is
+    /// empty, so read (2) passes the node to read (3), which reads the
+    /// error the same way whatever order the certificate's readings took.
+    #[test]
+    fn a_renamed_tangent_refusal_is_not_a_second_order_sliver() {
+        let r = sliver_radius();
+        let log = tangent_log(Some(r), r, 0.9f64.asin());
+        assert!(
+            log_read(&log).is_none(),
+            "the log named a cause the error does not: {log:?}"
+        );
+    }
+
+    /// **A definite second-order refusal is not a parallelism sliver.**
+    /// Two planes through one line refuse `NotSecondOrderSeparated`
+    /// definitely; the naming reading's in-band defect at the extent
+    /// only names, so it is not on the log.
+    #[test]
+    fn a_definite_second_order_refusal_is_not_a_parallelism_sliver() {
+        let b = band();
+        let in_band = (b.zero() * b.escalate()).sqrt().asin();
+        let log = tangent_log(None, 1.0, in_band);
+        assert!(
+            log_read(&log).is_none(),
+            "the naming reading's escalation spoke for the node: {log:?}"
+        );
+    }
+
+    /// The control: where the in-band second-order reading IS the
+    /// refusal (`sin θ = 0.3`, a defect in band too), the same cylinder
+    /// is a terminal sliver named by `tangent_second_order`.
+    #[test]
+    fn an_in_band_second_order_refusal_is_a_second_order_sliver() {
+        let r = sliver_radius();
+        let log = tangent_log(Some(r), r, 0.3f64.asin());
+        assert!(
+            matches!(
+                log_read(&log),
+                Some(LeafVerdict::Refused(RefusalReason::SliverTerminal {
+                    predicate: "tangent_second_order"
+                }))
+            ),
+            "the in-band second-order refusal is a sliver: {log:?}"
+        );
     }
 }

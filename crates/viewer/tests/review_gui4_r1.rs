@@ -27,7 +27,7 @@
 //! identity-commit edge.
 //!
 //! No fuzzing, no seeds: every witness here is one that can be written
-//! down ([[test-suite-cost]]'s second shape), and the rows are merged so
+//! down (implementer-discipline §8's second shape), and the rows are merged so
 //! each expensive fixture is built once. Assertions are labelled so a
 //! red row names its own property.
 
@@ -41,35 +41,17 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, PatternKind,
-    ProfileDoc, RecipeNodeId, assemble, class_admission, parse_expr,
+    ClassAdmission, DocEdit, DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId,
+    assemble, class_admission, parse_expr,
 };
-use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::{ContactClass, Ray, face_frame};
+use pncad::geom_core::{Point3, Tol};
+use pncad::select::{ContactClass, face_frame};
 use pncad::workspace::Workspace;
 use viewer::display::{AdmissionFault, DisplayFault};
-use viewer::matetool::{MateChoice, MateTool, admitted_classes};
+use viewer::matetool::{MateTool, admitted_classes};
 use viewer::scene::SceneMesh;
-use viewer::session::{DocSession, FaceSelection, Refusal, SessionOp};
+use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
-
-/// The choice every committing row here uses.
-fn rest_choice() -> MateChoice {
-    MateChoice {
-        class: ContactClass::Rest,
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    }
-}
-
-/// A ray straight up from below at `(x, y)`.
-fn up_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, -1.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    }
-}
 
 /// **This file's own inverse.** A rigid frame's world→part map, written
 /// out longhand rather than called through `Affine3::inverse`, so the
@@ -108,16 +90,6 @@ fn close(got: [f64; 3], want: [f64; 3], eps: f64, what: &str) {
             "{what}: component {i} — got {got:?}, want {want:?}"
         );
     }
-}
-
-/// Pick one face through the real cursor path under the session's
-/// display view.
-fn pick(session: &DocSession, index: &viewer::pickindex::PickIndex, ray: &Ray) -> FaceSelection {
-    let (_, eval) = session.landed_pair().expect("a landed evaluation");
-    index
-        .face_at_for(eval, ray, &session.display_view())
-        .expect("the pick answers")
-        .expect("the ray hits something")
 }
 
 // ── 1. The mate tool's pull-back, re-derived ──────────────────────
@@ -190,7 +162,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     // The quarter turn about z maps the part's (x, y) footprint
     // [0,s]×[0,s] to [−s,0]×[0,s]; the shift puts its centre here.
     let s = asm::POST_SECTION;
-    let post_a_top = pick(
+    let post_a_top = common::displayed_face_at(
         &session,
         &index,
         &asm::down_at(-0.05 - s / 2.0, 0.04 + s / 2.0),
@@ -199,14 +171,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
         post_a_top.node, rot_post,
         "the rotated instance is where the placement puts it"
     );
-    let shelf_bottom = pick(
-        &session,
-        &index,
-        &up_at(
-            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-        ),
-    );
+    let shelf_bottom = asm::shelf_underside(&session);
     assert_eq!(shelf_bottom.node, rot_shelf);
 
     let mut tool = MateTool::new();
@@ -214,7 +179,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, rest_choice())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
         .expect("the tool proposes");
 
     // The independent derivation: the picked face's WORLD pose, read
@@ -264,10 +229,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     );
 
     // The edit lands once and the document stays green.
-    let outcome = session.perform(proposal.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    session.pump();
+    common::commit_mate(&mut session, proposal.op());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after the mate: {row:?}");
     }
@@ -440,12 +402,12 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     );
 
     // Mate it: the probe is discarded and reported in the same outcome.
-    let first = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat(),
-    });
+    let first = session.perform(asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    ));
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(first.committed.len(), 1);
     let [superseded] = &first.withdrawn.superseded[..] else {
@@ -473,12 +435,12 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     // decides, the session must not report success while the tree hides
     // a refusal. Both outcomes are acceptable; a green tree over a
     // second unresolved constraint is not.
-    let second = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat(),
-    });
+    let second = session.perform(asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    ));
     session.pump();
     let rows = session.tree_rows();
     let all_ok = rows.iter().all(|r| r.status == RowStatus::Ok);
@@ -508,29 +470,6 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
             }
             other => panic!("a mated instance must refuse the probe, got {other:?}"),
         }
-    }
-}
-
-/// The seat alignment the composition row authors directly.
-fn seat() -> pncad::document::Alignment {
-    pncad::document::Alignment {
-        a: pncad::document::MateFrame {
-            origin: [
-                asm::POST_SECTION / 2.0,
-                asm::POST_SECTION / 2.0,
-                asm::POST_HEIGHT,
-            ],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: pncad::document::MateFrame {
-            origin: [asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
     }
 }
 
@@ -584,7 +523,7 @@ fn r1_the_memo_bounds_scan_at_resolution_a_changed_store_is_not_re_read() {
     let fresh = asm::open_bench(&bench, tol);
     let mut failed = 0usize;
     for row in fresh.tree_rows() {
-        if let RowStatus::Failed { message } = &row.status {
+        if let RowStatus::Failed { message, .. } = &row.status {
             assert!(
                 message.contains("no document with id"),
                 "the store's own refusal, at the instantiate node: {message}"
@@ -605,7 +544,7 @@ fn r1_the_memo_bounds_scan_at_resolution_a_changed_store_is_not_re_read() {
     let broken = asm::open_bench(&bench, tol);
     for row in broken.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("r1-junk.pncad"),
                 "the scan refusal names the offending file: {message}"
             ),
@@ -651,7 +590,7 @@ fn r1_save_as_rebinds_the_directory_and_the_rebind_re_resolves() {
     );
     let mut failed = 0usize;
     for row in session.tree_rows() {
-        if let RowStatus::Failed { message } = &row.status {
+        if let RowStatus::Failed { message, .. } = &row.status {
             assert!(
                 message.contains("no document with id"),
                 "the LIVE session re-resolved against the new directory and \
@@ -674,7 +613,7 @@ fn r1_save_as_rebinds_the_directory_and_the_rebind_re_resolves() {
     reopened.pump();
     for row in reopened.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
                 "the new directory has no parts, and a fresh open says so: {message}"
             ),
@@ -725,18 +664,16 @@ fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() 
     // A committed Tangent: green document, refused assembly.
     let bench = asm::bench("r1tangent", tol);
     let mut session = asm::open_bench(&bench, tol);
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Tangent,
-        alignment: seat(),
-    });
-    assert!(
-        outcome.refusal.is_none(),
-        "a Tangent mate commits: {:?}",
-        outcome.refusal
+    // A Tangent mate commits: the insert door admits it.
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Tangent,
+            asm::middle_seat_alignment(),
+        ),
     );
-    session.pump();
     for row in session.tree_rows() {
         assert_eq!(
             row.status,
@@ -839,12 +776,12 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         instance: bench.post_b,
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat(),
-    });
+    let outcome = session.perform(asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
         outcome.withdrawn.superseded.is_empty(),
@@ -901,15 +838,15 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let index = asm::index_of(&session);
     let s = asm::POST_SECTION;
 
-    let top = pick(
+    let top = common::displayed_face_at(
         &session,
         &index,
         &asm::down_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
     );
-    let bottom = pick(
+    let bottom = common::displayed_face_at(
         &session,
         &index,
-        &up_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
+        &asm::up_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
     );
     assert_eq!(top.node, bench.post_b);
     assert_eq!(bottom.node, bench.post_b);
@@ -919,7 +856,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     tool.pick(top);
     tool.pick(bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, &session.eval_options(), tol, rest_choice()) {
+    match tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
             assert_eq!(head, bench.post_b);
         }
@@ -1132,7 +1069,7 @@ fn r1_an_assembly_alone_in_an_empty_directory_opens_and_badges() {
     assert_eq!(rows.len(), 3, "the tree still shows every instance");
     for row in &rows {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
                 "each instantiate refuses typed, naming the missing id: {message}"
             ),

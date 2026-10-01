@@ -11,7 +11,7 @@
 //! `review_m2_pr3.rs`'s setter row already pairs a typed refusal with
 //! a body-untouched snapshot — including one on `set_face_surface`,
 //! for a stale *surface* key (`StaleGeometry`, raised by
-//! `check_face_surface`). What no row anywhere pinned is a stale
+//! `resolve_face_surface`). What no row anywhere pinned is a stale
 //! **entity argument** at these doors: the `get_face(face)` /
 //! `get_edge(edge)` gates that guard the converted writes are a
 //! different gate from the ones already covered, and reaching them
@@ -54,13 +54,9 @@ use crate::fixtures::deep_snapshot;
 use crate::test_support_fixtures::declined_cube;
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 fn a_plane() -> Surface<f64> {
     Surface::Plane {
-        origin: pt(0.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     }
@@ -79,7 +75,13 @@ fn d21_set_face_surface_refuses_a_stale_face_typed() {
     body.faces.remove(dead);
     let before = deep_snapshot(&body);
     let err = body
-        .set_face_surface(dead, FaceSurface::New(a_plane()))
+        .set_face_surface(
+            dead,
+            FaceSurface::New {
+                surface: a_plane(),
+                sense: true,
+            },
+        )
         .unwrap_err();
     assert_eq!(
         err,
@@ -108,7 +110,7 @@ fn d21_set_edge_curve_refuses_a_stale_edge_typed() {
     let err = body
         .set_edge_curve(
             dead,
-            EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)),
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
             tol,
         )
         .unwrap_err();

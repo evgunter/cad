@@ -38,7 +38,7 @@ So two claims in that paragraph are wrong:
    named, the free-move probe, and `add_param_ui`.
 2. **"It is not the creation forms' answer"** — it is exactly
    `add_param_ui`'s answer, and that site is the shipped precedent for
-   the change `work/chrome/drag-tick-has-three-homes.md` proposes for
+   the change `work/forms/drag-tick-has-three-homes.md` proposes for
    the rest of them. The comment hides the one piece of evidence that
    the proposed unification already works.
 

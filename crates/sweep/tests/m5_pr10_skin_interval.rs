@@ -1,4 +1,4 @@
-//! M5 PR 10 §2, the Interval lane (feature `interval`).
+//! M5 PR 10 §2, the Interval lane.
 //!
 //! Q8's claim is that the produced NURBS **is** the definition — its
 //! control bits are DATA, not a measurement. The consequence this row
@@ -8,14 +8,13 @@
 //! structure at `Interval`; that would be a different surface, and the
 //! definitional posture forbids it.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Vec3};
 use sweep::skin::{make_compatible, segment_curve, skin, skin_parameters};
+use sweep::test_support::bulge_arc;
 
 fn ring() -> f64 {
     Band::linear(Tol::witness())
@@ -29,11 +28,11 @@ fn strip() -> Vec<NurbsCurve3<f64>> {
     let at = |z: f64, s: f64| {
         segment_curve(
             0,
-            SketchSegment::Arc {
-                a: Point2::new(2.0 * s, 0.0),
-                b: Point2::new(2.0 * s, 1.0 * s),
-                bulge: 0.25,
-            },
+            bulge_arc(
+                Point2::new(2.0 * s, 0.0),
+                Point2::new(2.0 * s, 1.0 * s),
+                0.25,
+            ),
             Affine3::translation(Vec3::new(0.0, 0.0, z)),
         )
         .expect("converts")

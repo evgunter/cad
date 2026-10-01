@@ -102,17 +102,20 @@ impl ParamSource {
 
 /// **The stored scalar fields a surface description has**, closed.
 ///
-/// One variant per named scalar in [`Surface`]'s analytic arms. This is
-/// the declaration the side records are keyed at — a field a recipe
-/// parameter can land in gets a variant here, and every match over it
-/// is visited (D3, no wildcard arms). The spline arms (`Nurbs`,
+/// One variant per [`geom::DatumValue::Scalar`] datum that
+/// [`Surface::data`] yields for an analytic kind, named with its kind.
+/// This is the declaration the side records are keyed at — a field a
+/// recipe parameter can land in gets a variant here, and every match
+/// over it is visited (D3, no wildcard arms). The spline arms (`Nurbs`,
 /// `Approx`) have no named scalar a parameter flows into: their data is
 /// a control net, and a control point is not a stored parameter.
 ///
-/// Placement data — origins, axes, seam references — is deliberately
-/// ABSENT. Those are not motion-invariant, so a token attached to one
-/// would have to be composed through rigid placement, which is exactly
-/// the structure this channel does not carry (module docs).
+/// **The walk's `Point` and `Direction` data are excluded** — origins,
+/// apexes, centres, normals, axes, seam references. Those are placement
+/// data, not motion-invariant, so a token attached to one would have to
+/// be composed through rigid placement, which is exactly the structure
+/// this channel does not carry (module docs). The tests' census row
+/// holds the enum to exactly the walk's scalars.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SurfaceField {
     /// [`Surface::Cylinder`]'s `radius`.
@@ -230,11 +233,8 @@ pub enum ParamAttachError {
 impl core::fmt::Display for ParamAttachError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::StaleKey => write!(f, "param-source attachment: stale surface key"),
-            Self::FieldNotOnKind { field } => write!(
-                f,
-                "param-source attachment: the surface has no {field:?} field"
-            ),
+            Self::StaleKey => write!(f, "the surface key is stale"),
+            Self::FieldNotOnKind { field } => write!(f, "the surface has no {field:?} field"),
         }
     }
 }
@@ -303,7 +303,13 @@ mod tests {
         let mut body = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
         let face = crate::query::all_faces(&body)[0];
         let key = body
-            .set_face_surface(face, FaceSurface::New(cyl(radius)))
+            .set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface: cyl(radius),
+                    sense: true,
+                },
+            )
             .expect("a live face takes a new surface");
         (body, face, key)
     }
@@ -341,6 +347,50 @@ mod tests {
         );
         for &field in SurfaceField::ALL {
             assert!(field.index() < SurfaceField::COUNT);
+        }
+    }
+
+    /// **The census is the walk's scalars**: on each analytic kind
+    /// ([`geom::test_support::analytic_surfaces`]), the fields that
+    /// belong to it are exactly the [`geom::DatumValue::Scalar`] data
+    /// [`Surface::data`] yields, compared as field identities — kind
+    /// and datum — so a field that belongs to the wrong kind reds even
+    /// where the two kinds' datums share a name (a cylinder's and a
+    /// sphere's `radius`). A scalar a kind gains is walked the day it
+    /// is declared, and reds here until the census covers it.
+    #[test]
+    fn the_field_census_is_the_walks_scalar_data() {
+        use geom::test_support::SurfaceVariant as K;
+        use geom::{DatumValue, SurfaceData, SurfaceDatum as D};
+        fn identity(field: SurfaceField) -> (K, D) {
+            match field {
+                SurfaceField::CylinderRadius => (K::Cylinder, D::Radius),
+                SurfaceField::ConeHalfAngle => (K::Cone, D::HalfAngle),
+                SurfaceField::SphereRadius => (K::Sphere, D::Radius),
+                SurfaceField::TorusMajorRadius => (K::Torus, D::MajorRadius),
+                SurfaceField::TorusMinorRadius => (K::Torus, D::MinorRadius),
+            }
+        }
+        let base = geom::test_support::scalar_base();
+        for kind in geom::test_support::analytic_surfaces() {
+            let surface = (kind.build)(&base);
+            let SurfaceData::Analytic(data) = surface.data() else {
+                panic!("{surface:?}: an analytic kind reads as analytic data")
+            };
+            let scalars: Vec<(K, D)> = data
+                .into_iter()
+                .filter(|(_, value)| matches!(value, DatumValue::Scalar(_)))
+                .map(|(d, _)| (K::from(&surface), d))
+                .collect();
+            let census: Vec<(K, D)> = SurfaceField::ALL
+                .iter()
+                .filter(|f| f.belongs_to(&surface))
+                .map(|&f| identity(f))
+                .collect();
+            assert_eq!(
+                census, scalars,
+                "{surface:?}: the fields that belong to it are not the walk's scalars"
+            );
         }
     }
 
@@ -455,8 +505,14 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        body.set_face_surface(face, FaceSurface::New(plane))
-            .expect("a live face takes a new surface");
+        body.set_face_surface(
+            face,
+            FaceSurface::New {
+                surface: plane,
+                sense: true,
+            },
+        )
+        .expect("a live face takes a new surface");
         assert!(
             body.surface_field_source(key, SurfaceField::CylinderRadius)
                 .is_none(),

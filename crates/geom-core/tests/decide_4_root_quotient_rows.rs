@@ -31,7 +31,6 @@
 //!    `sqrt(N)/sqrt(D)` it met with the dial off —
 //!    `work/decide/the-exact-quotient-re-keys-a-root-the-split-met`.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin, Sign};

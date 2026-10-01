@@ -26,14 +26,10 @@ use geom::Surface;
 use geom_brep::Nappe;
 use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{
-    ArcSweep, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, bulge_from_center,
+    ArcSweep, Profile, ProfileLoop, SketchPlane, bulge_from_center, test_support::bulge_loop,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 const T: f64 = 1.0 / 128.0;
 const H: f64 = 8.0 / 64.0;
@@ -47,7 +43,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -58,11 +54,11 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
 }
 
 fn frustum(r0: f64, r1: f64) -> Body<f64> {
-    revolved(ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(r0, 0.0), 0.0),
-        ProfileVertex::new(p2(r1, H), 0.0),
-        ProfileVertex::new(p2(0.0, H), 0.0),
+    revolved(bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r0, 0.0), 0.0),
+        (Point2::new(r1, H), 0.0),
+        (Point2::new(0.0, H), 0.0),
     ]))
 }
 
@@ -71,23 +67,6 @@ fn cone_faces(body: &Body<f64>) -> Vec<FaceKey> {
         .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
-}
-
-fn chart_moves(body: &Body<f64>, d: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut moves: Vec<topo::ChartMove<f64>> = Vec::new();
-    for (k, f) in body.faces() {
-        match moves
-            .iter_mut()
-            .find(|m| body.get_face(m.faces[0]).unwrap().surface == f.surface)
-        {
-            Some(m) => m.faces.push(k),
-            None => moves.push(topo::ChartMove {
-                faces: vec![k],
-                distance: d,
-            }),
-        }
-    }
-    moves
 }
 
 fn cone_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {
@@ -209,7 +188,7 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
         // The per-chart door on the same faces, both signs.
         for d in [-T, T] {
             let mut work = body.clone();
-            let got = topo::replace_faces_offset(&mut work, &group, d, band(), Tol::witness());
+            let got = topo::replace_faces_offset(&mut work, &group, d, Tol::witness());
             match &got {
                 Ok(()) => println!(
                     "[r1] {what} per-chart d={d}: BUILT, volume {}",
@@ -224,7 +203,7 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
         }
         // A single band of the two-band chart: the door names the sharer.
         let mut work = body.clone();
-        let got = topo::replace_face_offset(&mut work, group[0], -T, band(), Tol::witness());
+        let got = topo::replace_face_offset(&mut work, group[0], -T, Tol::witness());
         println!(
             "[r1] {what} single band: {}",
             got.as_ref().err().map(name).unwrap_or_default()
@@ -255,10 +234,16 @@ fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Surfac
         u_ref,
     };
     let key = body
-        .set_face_surface(group[0], topo::FaceSurface::New(surface.clone()))
+        .set_face_surface(
+            group[0],
+            topo::FaceSurface::New {
+                surface: surface.clone(),
+                sense: true,
+            },
+        )
         .expect("re-anchor");
     for &f in &group[1..] {
-        body.set_face_surface(f, topo::FaceSurface::Shared(key))
+        body.set_face_surface(f, topo::FaceSurface::Shared { key, sense: true })
             .expect("share");
     }
     surface
@@ -287,24 +272,34 @@ fn sphere_capped_cone(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64) -> (Body<
     let (c0, c1) = (center(r0, z0), center(r1, z1));
     let big0 = (r0 * r0 + (z0 - c0).powi(2)).sqrt();
     let big1 = (r1 * r1 + (z1 - c1).powi(2)).sqrt();
-    let bottom = p2(0.0, c0 - big0);
-    let top = p2(0.0, c1 + big1);
+    let bottom = Point2::new(0.0, c0 - big0);
+    let top = Point2::new(0.0, c1 + big1);
     println!(
         "[r1] sphere-capped cone: apex_y {apex_y}, images {:?} {:?}, spheres c0={c0} R0={big0} c1={c1} R1={big1}",
         image(r0, z0),
         image(r1, z1)
     );
-    let body = revolved(RawLoop::new(vec![
-        ProfileVertex::new(
+    let body = revolved(bulge_loop(vec![
+        (
             bottom,
-            bulge_from_center(bottom, p2(r0, z0), p2(0.0, c0), ArcSweep::Ccw),
+            bulge_from_center(
+                bottom,
+                Point2::new(r0, z0),
+                Point2::new(0.0, c0),
+                ArcSweep::Ccw,
+            ),
         ),
-        ProfileVertex::new(p2(r0, z0), 0.0),
-        ProfileVertex::new(
-            p2(r1, z1),
-            bulge_from_center(p2(r1, z1), top, p2(0.0, c1), ArcSweep::Ccw),
+        (Point2::new(r0, z0), 0.0),
+        (
+            Point2::new(r1, z1),
+            bulge_from_center(
+                Point2::new(r1, z1),
+                top,
+                Point2::new(0.0, c1),
+                ArcSweep::Ccw,
+            ),
         ),
-        ProfileVertex::new(top, 0.0),
+        (top, 0.0),
     ]));
     (body, apex_y)
 }
@@ -362,7 +357,7 @@ fn r1_per_chart_cone_offset_reachability_attack() {
         println!("[r1] {what}: faces {kinds:?}");
         for (d, chosen) in [(d_door, true), (-d_door, false)] {
             let mut work = body.clone();
-            let got = topo::replace_faces_offset(&mut work, &group, d, band(), Tol::witness());
+            let got = topo::replace_faces_offset(&mut work, &group, d, Tol::witness());
             match &got {
                 Ok(()) => {
                     let v1 = volume(&work);

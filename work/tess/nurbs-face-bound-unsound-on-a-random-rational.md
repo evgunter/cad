@@ -2,11 +2,12 @@
 id: nurbs-face-bound-unsound-on-a-random-rational
 kind: issue
 title: nurbs_face_bound is UNSOUND on a random rational surface: r1_random_rational_soundness_sweep failed hosted at seed 0xdae51dbd4e1b79fd
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1850, rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes]
 priority: P0
 cost: H
+closed: 2026-09-22
 ---
 
 
@@ -184,3 +185,12 @@ of the certified); all components (uu, uv, vv): sampled (…) against certified 
 `<=` with no allowance, so the row still goes red on the seeds that
 expose PROPS' defect, and that is correct until PROPS' fix lands. Items
 2 and 3 above are untouched.
+
+## Closed (2026-09-22)
+
+With TESS-2 (PR 3080): the certificate encloses the described patch,
+the bilinear-stratified census is 0 in 30,000 on the fix, and the
+exact-referee rows red on the old bound. The sweep itself still
+compares through a 64-ulp allowance — CHORD's
+`soundness-sweep-allowance-is-fifty-times-the-measured-sampler-error`
+carries that with the measured numbers.

@@ -880,12 +880,12 @@ fn pair_reach<P: crate::ProfilePayload>(
     child: &Member,
 ) -> Result<f64, super::LeverRefusal> {
     let of = |instance: RecipeNodeId| {
-        let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(instance) else {
+        let Some(doc_ref) = crate::eval::parts::instantiated(doc, instance) else {
             return Err(super::LeverRefusal::NotAnInstance { node: instance });
         };
         reach
-            .reach(doc_ref)
-            .map_err(|refusal| super::LeverRefusal::of(refusal, instance, *doc_ref))
+            .reach(&doc_ref)
+            .map_err(|refusal| super::LeverRefusal::of(refusal, instance, doc_ref))
     };
     Ok(of(parent.instance)? + of(child.instance)?)
 }
@@ -1300,6 +1300,17 @@ pub enum ClusterMaintenance {
 }
 
 impl ClusterMaintenance {
+    /// The gauge the act moves: the absorbed cluster's for a `Join`,
+    /// the new gauge for a `Split` or `GaugeRewrite`, the dropped one
+    /// for a `Drop`. [`EditError::MaintenanceUnrecorded`] names it.
+    pub(crate) fn moved_gauge(&self) -> RecipeNodeId {
+        match self {
+            Self::Join { absorbed, .. } => *absorbed,
+            Self::Split { to, .. } | Self::GaugeRewrite { to, .. } => *to,
+            Self::Drop { gauge, .. } => *gauge,
+        }
+    }
+
     /// The frame the row carries, if any: an absorbed cluster's, a
     /// minted or rewritten gauge's, a dropped gauge's.
     pub fn frame(&self) -> Option<&Frame> {
@@ -1357,8 +1368,11 @@ pub(crate) enum Maintain<'a> {
     /// The live edit door: solve the PRIOR document through this
     /// reach, once, the first time a row needs it.
     Solve(&'a dyn MateReach),
-    /// Replay of a logged edit that recorded no rows: a row that needs
-    /// a solved frame refuses, because replay never solves.
+    /// Replay of a logged edit that recorded no rows: the entry claims
+    /// the edit performs no cluster maintenance, so any row refuses — a
+    /// row that needs a solved frame because replay never solves, and a
+    /// row derived from the documents alone because re-deriving it
+    /// would make the replay disagree with its entry.
     Never,
     /// Replay of a logged edit that recorded rows: they are what the
     /// maintenance decided, re-applied verbatim, and nothing is
@@ -1377,10 +1391,11 @@ impl<'a> Maintain<'a> {
     /// recorded the entry decided it over the parts it had in hand,
     /// and re-deciding it here would need a store replay never holds;
     /// everything decided on the datum alone is decided again. The
-    /// maintenance under `Never` REFUSES where a row needs a solved
-    /// frame ([`EditError::MaintenanceUnrecorded`]), because a frame
-    /// nothing decided cannot be recorded; under `Recorded` it
-    /// re-applies the rows the recording door minted. A decision
+    /// maintenance under `Never` REFUSES any row
+    /// ([`EditError::MaintenanceUnrecorded`]), because the entry
+    /// claimed none and a frame nothing decided cannot be recorded;
+    /// under `Recorded` it re-applies the rows the recording door
+    /// minted. A decision
     /// declined leaves nothing false in the document — the datum is
     /// what it was and the next solve decides it again; a frame
     /// invented would.
@@ -1412,7 +1427,21 @@ pub(crate) fn maintain<P: crate::ProfilePayload>(
             Ok(rows.to_vec())
         }
         Maintain::Solve(reach) => reconcile(before, after, tol, Some(reach)),
-        Maintain::Never => reconcile(before, after, tol, None),
+        // An entry with no rows claims the edit performed no cluster
+        // maintenance, and replay holds it to exactly that: a row that
+        // needs a solved frame refuses inside `reconcile`, and a row
+        // derived from the documents alone (a `Join`, a `Drop`) refuses
+        // here. Re-deriving it instead would give the log two answers
+        // to "what did this edit do" — the entry's and the replay's.
+        Maintain::Never => {
+            let acts = reconcile(before, after, tol, None)?;
+            match acts.first() {
+                None => Ok(acts),
+                Some(act) => Err(EditError::MaintenanceUnrecorded {
+                    gauge: act.moved_gauge(),
+                }),
+            }
+        }
     }
 }
 
@@ -1644,7 +1673,7 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::predicate::MarginDiag;
+    use geom_core::ErrorTextReading;
 
     const SITE: &str = "solve_test_direction";
 
@@ -1671,7 +1700,9 @@ mod tests {
             panic!("an in-band length escalates with its diagnostic: {in_band:?}");
         };
         assert_eq!(diag.predicate, Some(SITE));
-        assert!(matches!(diag.margin, MarginDiag::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9));
+        assert!(
+            matches!(diag.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9)
+        );
         assert_eq!(
             derived_direction(Vec3::new(0.5 * eps, 0.0, 0.0), SITE, band()).unwrap_err(),
             FrameError::Degenerate {

@@ -2,7 +2,7 @@
 id: index-request-and-index-inputs-are-one-concept-twice
 kind: issue
 title: IndexRequest and IndexInputs carry the same five fields, owned and borrowed, and nothing says they are one concept
-refs: [pick-and-parts-name-the-session-driver, 1953]
+refs: [1953]
 status: open
 opened: 2026-09-06
 priority: P1

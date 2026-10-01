@@ -108,7 +108,7 @@ layer whose types it serves (`topo/src/query.rs`):
   ask it, including the ones below this one.
 - **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** is a
   fourth EXACT door: the rim an arc belongs to, whole
-  (FILLET-RIM, retired into `docs/DOC-LEDGER.md`). It reads stored tags
+  (built by FILLET-RIM, PR 1821). It reads stored tags
   and stored carrier fields bit for bit, no funnel and no margin — but it
   returns a SET, so it refuses typed at every point a predicate would
   answer NO: an empty set and a partial set are both answers a caller
@@ -207,10 +207,14 @@ operand, the out-type, and the bound the door can run at) and that no
 row is a claim about any one alone. `One` and `Split` take the same
 operand and are two doors because their out-types differ; `One` and
 `Shell` agree at both ends and are two doors because the shell's op door
-demands certification rights (`Decide + PropsQuadLane + CertifiedBounds`)
-no `Dual` scalar has — which is why `run_shell` lives in a second `impl`
-block, so the mixed pass instantiated at `Dual` still compiles against
-`run`. The name is kept for continuity — it crosses the document layer's
+demands certification rights (`Decide + CertifiedBounds + AtRestPolicy`)
+no `Dual` scalar has — which `run_shell` asks for as a VALUE: a
+`topo::ShellDoor<T>` parameter whose one constructor is bounded on
+those rights. So the seat needs no second `impl` block for it, and the
+mixed pass instantiated at `Dual` still compiles against every door
+here — a scalar the per-scalar policy gives no door
+(`topo::AtRestPolicy::shell_door` answers `None`) has nothing to pass
+and refuses typed where it stands. The name is kept for continuity — it crosses the document layer's
 refusal payload (`NodeErrorKind::VerbArity`, re-exported through
 `pncad`) — at a rename price measured at approximately nothing, so
 keeping it is a decision someone may revisit, not a defect.

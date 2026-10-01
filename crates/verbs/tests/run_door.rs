@@ -27,6 +27,15 @@ use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
 
 use crate::fixture::{disc, offset_disc, pinch_plane, pinch_prism, tol, x_axis, z_plane};
 
+/// The `f64` shell door, read at the ONE seam that answers it
+/// (`topo::AtRestPolicy::shell_door`) rather than constructed here —
+/// so a scalar's policy arm that stopped handing out the door reds
+/// every shell row below instead of leaving them green against a door
+/// the production path no longer reaches.
+fn shell_door() -> topo::ShellDoor<f64> {
+    <f64 as topo::AtRestPolicy>::shell_door().expect("f64 certifies, so it holds the shell door")
+}
+
 /// Every vertex point's BITS, plus the entity census — enough that a
 /// carve differing anywhere in position or structure differs here.
 fn dump(body: &Body<f64>) -> String {
@@ -304,7 +313,7 @@ fn every_door(
         ),
         (Arity::Profile, verb.run_profile(disc, tol()).err()),
         (Arity::Split, verb.run_split(a, tol()).err()),
-        (Arity::Shell, verb.run_shell(a, tol()).err()),
+        (Arity::Shell, verb.run_shell(a, tol(), shell_door()).err()),
     ]
 }
 
@@ -461,7 +470,7 @@ fn the_arity_refusal_names_the_declared_operand_and_the_door() {
         edges: Vec::new(),
         radius: 0.1_f64,
     }
-    .run_shell(&cube, tol())
+    .run_shell(&cube, tol(), shell_door())
     .expect_err("a fillet does not hollow");
     assert_eq!(
         err.to_string(),
@@ -752,7 +761,7 @@ fn the_shell_dispatch_is_the_shell_door() {
             thickness: 0.1,
             open: open.clone(),
         }
-        .run_shell(&cube, tol())
+        .run_shell(&cube, tol(), shell_door())
         .unwrap_or_else(|e| panic!("the dispatch refused what the door accepted: {e}"));
 
         assert_eq!(dump(&door.body), dump(&via.body));
@@ -793,7 +802,7 @@ fn a_shell_refusal_crosses_the_dispatch_unaltered() {
         thickness: 0.0,
         open: Vec::new(),
     }
-    .run_shell(&cube, tol())
+    .run_shell(&cube, tol(), shell_door())
     .unwrap_err();
 
     let VerbError::Shell(carried) = via else {

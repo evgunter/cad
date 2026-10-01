@@ -129,3 +129,16 @@ The class this item is about is unchanged: the fallback still renders
 `{source}` whole, so `COINCIDENCE_RECOURSE` still arrives first, ahead
 of whatever the site's own levers are. Only the sentence that follows
 it has changed, from a false category to a named gap.
+
+## The routed arms, moved (CHROME concision-chains, 2026-09-23)
+
+`BlendError::Escalated`'s routed arms now render `source.payload()`
+and the routed recourse alone ("escalated at an edge: {payload}.
+Recourse: {routed}"), which is this row's shape for every name the
+recourse table knows; the concision pass needed the words, and the
+leading "declare the coincidence" was the half of the sentence this
+row shows is false at a blend door. The fall-through arm (a name no
+table routes) still renders the full `Indeterminate` Display, because
+`sweep/tests/review_recourse_roster_r2_probes.rs` holds the shared
+recourse on it; that arm, and the joint decision with
+`escalation-recourse-dispatch-has-three-homes`, are what stay open.

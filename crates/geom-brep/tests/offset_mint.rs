@@ -610,7 +610,7 @@ fn ambiguity_band_escalates_with_predicate_names() {
     let d_ring = 1.0 - 3.0 * eps;
     match offset_surface(&torus(2.0, 1.0), d_ring, band()) {
         Err(OffsetError::Escalated { source }) => {
-            assert_eq!(source.predicate, Some("offset_torus_ring"));
+            assert_eq!(source.predicate, Some("ring_torus_convention"));
         }
         other => panic!("expected the ring escalation, got {other:?}"),
     }
@@ -620,7 +620,6 @@ fn ambiguity_band_escalates_with_predicate_names() {
 // The interval lane: enclosures contain, refusals escalate honestly
 // ---------------------------------------------------------------------
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use crate::shared::interval::{ip, iv3 as iv};

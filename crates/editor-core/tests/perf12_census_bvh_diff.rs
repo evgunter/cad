@@ -41,14 +41,15 @@ use crate::fixture;
 
 use corpus::{documents, eval, failures};
 use editor_core::{
-    Datum, Dimension, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, TubeWindow, apply, product_recorded,
+    Datum, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram,
+    TubeWindow, apply, product_recorded,
 };
-use fixture::{Recorder, band, frame, len, xy_frame};
+use fixture::{Recorder, band, frame, len, scl, xy_frame};
 use geom_core::Tol;
 use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 use topo::{
-    CensusStrategy, CensusTrace, EntityId, PlantedDegradation, census_traces, census_traces_planted,
+    CensusStrategy, CensusTrace, EntityId, PlantedDegradation, RegionLane, census_traces,
+    census_traces_planted,
 };
 
 /// One strategy's run: the error vector rendered, and the trace.
@@ -68,7 +69,14 @@ fn run(name: &str, doc: &ProfileDoc, strategy: CensusStrategy) -> Run {
     );
     let product = product_recorded(doc, &ev, tol)
         .unwrap_or_else(|e| panic!("{name}: the product gathers: {e:?}"));
-    let (errors, trace) = census_traces(&product.body, &product.contacts, band(), tol, strategy);
+    let (errors, trace) = census_traces(
+        &product.body,
+        &product.contacts,
+        band(),
+        tol,
+        Some(RegionLane::certified()),
+        strategy,
+    );
     Run {
         errors: errors.iter().map(|e| format!("{e:?}")).collect(),
         trace,
@@ -104,10 +112,6 @@ fn pin(name: &str, doc: &ProfileDoc) -> usize {
     pruned
 }
 
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite")
-}
-
 /// A solid ring torus (R = 2, r = 0.5, axis z through the origin)
 /// resting on the top cap of a three-arc cylinder (radius 3, z ∈
 /// [-1.5, -0.5]): the torus's lowest circle lies on the planar cap.
@@ -115,11 +119,11 @@ fn torus_on_cylinder() -> ProfileDoc {
     let mut r = Recorder::new();
     let spine = r.insert(Node::Datum(Datum::Axis {
         origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scalar(0.0), scalar(0.0), scalar(1.0)],
+        direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
     r.insert(Node::Tube {
         spine,
-        u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
         major_radius: len(2.0),
         window: TubeWindow::Full,
         minor_radius: len(0.5),
@@ -128,6 +132,7 @@ fn torus_on_cylinder() -> ProfileDoc {
     let disc = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::circle_split(0.0, 0.0, 3.0, 3, 0.0).unwrap()],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: disc,
@@ -147,6 +152,7 @@ fn boss_on_plate() -> ProfileDoc {
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap(),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: plate,
@@ -156,6 +162,7 @@ fn boss_on_plate() -> ProfileDoc {
     let boss = r.insert(Node::Profile(ProfileProgram {
         plane: boss_plane,
         loops: vec![LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap()],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: boss,
@@ -173,6 +180,7 @@ fn tangent_cylinders() -> ProfileDoc {
         let disc = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::circle_split(cx, 0.0, 1.0, 3, 0.0).unwrap()],
+            ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: disc,
@@ -191,6 +199,7 @@ fn loft_with_brick() -> ProfileDoc {
         r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::polygon(pts).unwrap()],
+            ids: Vec::new(),
         }))
     };
     let bottom = section(&mut r, 0.0, PRISM_SQUARE);
@@ -206,6 +215,7 @@ fn loft_with_brick() -> ProfileDoc {
         loops: vec![
             LoopProgram::polygon([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]).unwrap(),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: brick,
@@ -234,6 +244,7 @@ fn grazing_notch() -> ProfileDoc {
             ])
             .unwrap(),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: l,
@@ -245,6 +256,7 @@ fn grazing_notch() -> ProfileDoc {
         loops: vec![
             LoopProgram::polygon([(1.25, 1.25), (1.75, 1.25), (1.75, 1.75), (1.25, 1.75)]).unwrap(),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: brick,
@@ -311,7 +323,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
     apply(
         &entry.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("fins"),
+            name: ParamName::from_static("fins"),
             value: DocParam::Count { value: fins },
         },
         Tol::witness(),
@@ -340,6 +352,7 @@ fn planted_degradation_is_caught() {
         &product.contacts,
         band(),
         tol,
+        Some(RegionLane::certified()),
         CensusStrategy::Idealized,
     );
     let &(_, EntityId::Face(face)) = ideal
@@ -355,6 +368,7 @@ fn planted_degradation_is_caught() {
         &product.contacts,
         band(),
         tol,
+        Some(RegionLane::certified()),
         CensusStrategy::Realized,
         PlantedDegradation { face },
     );

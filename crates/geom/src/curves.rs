@@ -74,6 +74,14 @@ pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
 #[derive(Clone, Debug)]
+// The variant roster the analytic-kind fixtures read
+// ([`crate::test_support`]; this crate's `test-support` feature,
+// test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(Curve3Variant), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum Curve3<T: Real> {
     /// The infinite straight line `P(t) = origin + dir·t`.
     ///
@@ -139,9 +147,12 @@ pub enum Curve3<T: Real> {
     ///   discipline) — and are refused by [`Curve3::ellipse`], the one
     ///   deciding constructor. Like every conventional invariant the
     ///   ordering is *data* here: evaluators consume the fields as
-    ///   given, tier-3 certification owns the invariant at rest, and a
-    ///   struct-literal that bypasses the constructor owns the
-    ///   consequences (well-defined garbage, not poison).
+    ///   given, and a struct-literal that bypasses the constructor owns
+    ///   the consequences (well-defined garbage, not poison). At rest,
+    ///   tier 3 certifies `major > 0` and `minor > 0`
+    ///   ([`Curve3::representability_margins`]) and NOT the ordering: a
+    ///   swapped pair names the same ellipse through a `u_ref` along its
+    ///   minor axis.
     Ellipse {
         /// The ellipse's center.
         center: Point3<T>,
@@ -306,7 +317,7 @@ pub enum SpiricInvalid {
     /// cutting plane is not parallel to the torus axis.
     FrameNotOrthogonal,
     /// A constructor predicate landed in the ambiguity band or was
-    /// poisoned (`spiric_minor_positive`, `spiric_ring`,
+    /// poisoned (`spiric_minor_positive`, `ring_torus_convention`,
     /// `spiric_two_ovals`, `spiric_frame_orthogonal`).
     Escalated(Indeterminate),
 }
@@ -347,7 +358,222 @@ impl core::fmt::Display for SpiricInvalid {
 
 impl std::error::Error for SpiricInvalid {}
 
+/// A stored datum of an analytic [`Curve3`] — the FIELD, named apart
+/// from the variant that carries it (a circle's and an ellipse's
+/// `center` are both [`CurveDatum::Center`]). The curve half of
+/// [`crate::SurfaceDatum`]; a consumer naming a datum names the curve
+/// kind beside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+// Every value, for `topo`'s samples (this crate's `test-support`
+// feature, test builds only).
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
+pub enum CurveDatum {
+    /// A line's `origin`.
+    Origin,
+    /// A line's `dir`.
+    Dir,
+    /// A circle's, ellipse's or spiric's `center`.
+    Center,
+    /// The `axis` of a circle, ellipse or spiric.
+    Axis,
+    /// The seam direction `u_ref` of a circle, ellipse or spiric.
+    URef,
+    /// A circle's `radius`.
+    Radius,
+    /// An ellipse's semi-major `major`.
+    Major,
+    /// An ellipse's semi-minor `minor`.
+    Minor,
+    /// A spiric's torus `major_radius`.
+    MajorRadius,
+    /// A spiric's torus `minor_radius`.
+    MinorRadius,
+    /// A spiric's plane stand-off `offset`.
+    Offset,
+    /// A `Nurbs` carrier's control net — the one datum a spline stores
+    /// that is a number at the curve's scalar (its knots and weights are
+    /// `f64` structure, validated finite at construction).
+    Control,
+}
+
+impl CurveDatum {
+    /// The datum's field name, as the variant spells it.
+    ///
+    /// **Hand-kept against the variants' field names**, and nothing
+    /// derives it: a renamed field leaves this string stale with
+    /// nothing red. The exhaustive match only guarantees every datum
+    /// HAS a name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Origin => "origin",
+            Self::Dir => "dir",
+            Self::Center => "center",
+            Self::Axis => "axis",
+            Self::URef => "u_ref",
+            Self::Radius => "radius",
+            Self::Major => "major",
+            Self::Minor => "minor",
+            Self::MajorRadius => "major_radius",
+            Self::MinorRadius => "minor_radius",
+            Self::Offset => "offset",
+            Self::Control => "control",
+        }
+    }
+}
+
+/// A carrier's stored data, by what kind of datum it stores
+/// ([`Curve3::data`]).
+#[derive(Debug)]
+pub enum CurveData<'a, T: Real> {
+    /// An analytic kind's fields.
+    Analytic(crate::AnalyticData<T, CurveDatum>),
+    /// A spline net, unread.
+    Nurbs(&'a Arc<NurbsCurve3<T>>),
+}
+
 impl<T: Real> Curve3<T> {
+    /// **The carrier's stored data** — the one walk of the analytic
+    /// kinds' fields, which each reader that visits them field by field
+    /// folds with its own question (a poison read, a hash key), and the
+    /// payload of the spline kind: the curve half of
+    /// [`crate::Surface::data`].
+    ///
+    /// The variants are destructured without `..`, so a field a variant
+    /// gains is a compile error here rather than a datum every reader
+    /// silently skips; a kind that is not read as fields is a new
+    /// [`CurveData`] arm, which every reader matches exhaustively. A field
+    /// that takes a kind past the walk's width is caught later, by the
+    /// build that first instantiates the walk (`AnalyticData::new`'s
+    /// bound), which `cargo check` does not reach.
+    pub fn data(&self) -> CurveData<'_, T> {
+        use crate::AnalyticData;
+        use crate::DatumValue::{Direction, Point, Scalar};
+        use CurveDatum as D;
+        CurveData::Analytic(match *self {
+            Curve3::Line { origin, dir } => {
+                AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
+            }
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::Radius, Scalar(radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::Major, Scalar(major)),
+                (D::Minor, Scalar(minor)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::URef, Direction(u_ref)),
+                (D::MajorRadius, Scalar(major_radius)),
+                (D::MinorRadius, Scalar(minor_radius)),
+                (D::Offset, Scalar(offset)),
+            ]),
+            Curve3::Nurbs(ref n) => return CurveData::Nurbs(n),
+        })
+    }
+}
+
+impl<T: Real> Curve3<T> {
+    /// **The representability margins of this carrier's datum
+    /// conventions** — the curve half of
+    /// [`crate::Surface::representability_margins`], with that door's
+    /// contract: each quantity a variant's docs require to be strictly
+    /// positive for its stored datum to describe the curve the variant
+    /// names at all, named by the datum it constrains and the END of the
+    /// convention it measures, scalar conventions first:
+    ///
+    /// - `Circle`: `radius`, lower end (`radius > 0`: at zero the circle
+    ///   is a point);
+    /// - `Ellipse`: `major` and `minor`, each at its lower end (a zero
+    ///   semi-axis is a segment or a point). The ordering
+    ///   `major > minor` relates two datums rather than bounding one,
+    ///   and is not a margin here — a swapped pair still describes an
+    ///   ellipse, and [`Curve3::ellipse`] is where the ordering is
+    ///   decided;
+    /// - `Spiric`: `minor_radius`, lower end (the `r > 0` half of the
+    ///   ring convention). `R > r` and `|offset| < R − r` relate datums,
+    ///   and [`Curve3::spiric`] decides them;
+    /// - **the frame**, for `Circle`, `Ellipse` and `Spiric`: `axis` and
+    ///   `u_ref` unit and `u_ref ⊥ axis` within `band`'s ε at the
+    ///   carrier's largest radius (the circle's `radius`, the larger
+    ///   semi-axis MAGNITUDE, the spiric's `R + r`) — the surface door's
+    ///   frame margins, for the same reason: a circle whose `axis` is
+    ///   `2·ẑ` evaluates an ellipse;
+    /// - `Line`, `Nurbs`: none — a line's `dir` spans the same line at
+    ///   any length, and a spline's datum is its net.
+    ///
+    /// **Nothing is decided here**, exactly as on the surface door: the
+    /// quantities are computed at `T` and returned, a margin of a
+    /// poisoned datum is poison, and the variants are destructured
+    /// without `..` so a field a variant gains is a compile error here.
+    pub fn representability_margins(
+        &self,
+        band: Band,
+    ) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
+        use crate::convention::{frame_margins, lower};
+        let frame = |axis, u_ref, arm| {
+            frame_margins(axis, u_ref, arm, band, CurveDatum::Axis, CurveDatum::URef)
+        };
+        match self {
+            Curve3::Circle {
+                center: _,
+                axis,
+                radius,
+                u_ref,
+            } => core::iter::once(lower(CurveDatum::Radius, *radius))
+                .chain(frame(*axis, *u_ref, *radius))
+                .collect(),
+            Curve3::Ellipse {
+                center: _,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => [
+                lower(CurveDatum::Major, *major),
+                lower(CurveDatum::Minor, *minor),
+            ]
+            .into_iter()
+            .chain(frame(*axis, *u_ref, major.abs().max(minor.abs())))
+            .collect(),
+            Curve3::Spiric {
+                center: _,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset: _,
+            } => core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
+                .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
+                .collect(),
+            Curve3::Line { origin: _, dir: _ } | Curve3::Nurbs(_) => Vec::new(),
+        }
+    }
+
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
     /// whose control points are all-poison, so evaluation yields the
@@ -415,7 +641,8 @@ impl<T: Decide> Curve3<T> {
     ///
     /// - `spiric_minor_positive` — margin `minor_radius` (m): Positive
     ///   required; else [`SpiricInvalid::MinorNotPositive`].
-    /// - `spiric_ring` — margin `major_radius − minor_radius` (m):
+    /// - `ring_torus_convention` ([`crate::ring_torus`], the convention's
+    ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
     /// - `spiric_two_ovals` — margin `(major_radius − minor_radius) −
     ///   |offset|` (m), the length the two-oval regime closes by,
@@ -450,7 +677,7 @@ impl<T: Decide> Curve3<T> {
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         let ring = major_radius - minor_radius;
-        match decide("spiric_ring", Margin::of(ring), band) {
+        match crate::ring_torus(major_radius, minor_radius, band).map(|d| d.sign) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotARing),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
@@ -1568,7 +1795,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "interval")]
     mod spiric_interval {
         use geom_core::{Bounds, Interval};
 
@@ -1684,7 +1910,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "interval")]
     mod ellipse_interval {
         use geom_core::{Bounds, Interval};
 
@@ -2053,10 +2278,9 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Interval instantiation (feature-gated)
+    // Interval instantiation
     // ------------------------------------------------------------------
 
-    #[cfg(feature = "interval")]
     mod interval {
         use geom_core::{Bounds, Interval};
 

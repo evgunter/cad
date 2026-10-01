@@ -56,15 +56,18 @@ fn three_arc_rim() -> (Body<f64>, [EdgeKey; 3]) {
     let third = TAU / 3.0;
     let mut body = Body::<f64>::new();
 
-    let seed = body.mvfs(at(0.0)).unwrap();
+    let seed = body.mvfs(at(0.0), true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
 
@@ -107,11 +110,14 @@ fn three_arc_rim() -> (Body<f64>, [EdgeKey; 3]) {
                 he2: a_fwd,
             },
             EdgeCurveSpec::arc_of_circle(rim_circle(), 2.0 * third, TAU).unwrap(),
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, RIM_Z),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, RIM_Z),
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
             tol,
         )
         .unwrap()

@@ -2,12 +2,14 @@
 id: SYM-11
 kind: unit
 title: the point channel is not a proof: the theorem-vs-numeric contradiction charged per witness kind
-status: dispatched
+status: closed
 opened: 2026-09-21
 priority: P0
 cost: H
 branch: sym/11-witness-kind
 refs: [sym-f64-far-placement-trips-the-theorem-vs-numeric-assert]
+pr: 3028
+closed: 2026-09-21
 ---
 
 ## What
@@ -27,3 +29,8 @@ discharge kind) with the numeric answer kept at an inexact one; the
 far-placement rows and the adversary become gating. No decision at
 `Sym<Interval>` moves. Block SYM-B3 slot 0 (H / STRUCTURAL, pre-draw);
 protocol v7 IN, the full v6 dual. Spec: `docs/SYM-11-SPEC.md`.
+
+The one narrowing SYM-11 left is filed as
+`work/sym/a-dispute-names-no-predicate-on-the-receipt.md`: a dispute is
+counted on the receipt and names no predicate (a new `ShapeOutcome`
+row would carry it); cited from `SymCounts::theorems_disputed`'s doc.

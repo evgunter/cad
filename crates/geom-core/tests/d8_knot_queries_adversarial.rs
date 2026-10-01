@@ -45,13 +45,14 @@
 
 test_utils::gated_to![
     "crates/geom-core/src/spline/",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
 ];
 
-use geom_core::ring_interval::RingInterval;
+use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
-use geom_core::spline::compose::CurveRingData;
-use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
+use geom_core::spline::compose::CurveCertData;
+use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
 use test_utils::fuzz;
 
 // ---------------------------------------------------------------------
@@ -209,7 +210,7 @@ fn interior_values(lo: f64, hi: f64, count: usize) -> Vec<f64> {
 }
 
 /// The written-down cases: every shape a draw is not guaranteed to
-/// produce (test-suite-cost shape 2 — construct, do not hunt).
+/// produce (implementer-discipline §8 shape 2 — construct, do not hunt).
 fn enumerated() -> Vec<(String, KnotVector)> {
     let mut out = Vec::new();
     let mut push = |name: String, kv: Option<KnotVector>| {
@@ -809,8 +810,8 @@ fn the_raw_slice_entitlement_survives_the_whole_mutation_sequence() {
 // C7: the public door
 // ---------------------------------------------------------------------
 
-fn lift(v: &[f64]) -> Vec<RingInterval> {
-    v.iter().map(|x| RingInterval::point(*x)).collect()
+fn lift(v: &[f64]) -> Vec<Interval> {
+    v.iter().map(|x| Interval::point(*x)).collect()
 }
 
 /// Drives the one public entry point that forwards caller-supplied
@@ -824,7 +825,7 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let kv_s = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
     let sw = vec![1.0; 8];
-    let sx: Vec<Vec<RingInterval>> = vec![
+    let sx: Vec<Vec<Interval>> = vec![
         lift(&[0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0]),
         lift(&[0.0, 0.4, 0.9, 0.0, 0.4, 0.9, 0.1, 0.2]),
         lift(&[0.0, 0.2, 0.0, 0.1, 0.3, 0.1, 0.0, 0.1]),
@@ -871,9 +872,9 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
             |scale: f64| -> Vec<f64> { (0..nc).map(|i| scale * i as f64 / nc as f64).collect() };
         let cw = vec![1.0; nc];
         let cx = vec![lift(&cramp(1.0)), lift(&cramp(0.5)), lift(&cramp(0.3))];
-        let s = SurfaceRingData::new(&ku, &kv_s, &sw, &sx).unwrap();
-        let pd = CurveRingData::new(&ck, &pw, &px).unwrap();
-        let cd = CurveRingData::new(&ckc, &cw, &cx).unwrap();
+        let s = SurfaceCertData::new(&ku, &kv_s, &sw, &sx).unwrap();
+        let pd = CurveCertData::new(&ck, &pw, &px).unwrap();
+        let cd = CurveCertData::new(&ckc, &cw, &cx).unwrap();
 
         let one_ulp_in = f64::from_bits(1.0f64.to_bits() - 1);
         let extras: Vec<(&str, Vec<f64>)> = vec![
@@ -924,7 +925,7 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
                 "{dname}/{ename}: the extras landed a different break structure"
             );
             // The bound must still be a real number: an extra that
-            // corrupted the break structure would show up as poison.
+            // corrupted the break structure would show up as a refusal.
             let sup = out.sup_bound();
             assert!(
                 sup.is_finite(),

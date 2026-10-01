@@ -66,7 +66,10 @@ pub mod projection;
 use std::sync::Arc;
 
 use geom_core::spline::SpanLocate;
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
+
+use crate::convention::{ConventionEnd, RepresentabilityMargin};
+use crate::datum::{AnalyticData, DatumValue};
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
@@ -88,6 +91,14 @@ pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
 #[derive(Clone, Debug)]
+// The variant roster the analytic-kind fixtures read
+// ([`crate::test_support`]; this crate's `test-support` feature,
+// test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(SurfaceVariant), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum Surface<T: Real> {
     /// The infinite plane `S(u, v) = origin + u_ref·u + v_ref·v` with
     /// `v_ref = normal × u_ref`.
@@ -158,8 +169,10 @@ pub enum Surface<T: Real> {
     ///   `radial(u)·cos α − axis·sin α` for `v > 0` (tilted outward,
     ///   perpendicular to the generator) and its negation for `v < 0`.
     /// - `half_angle` strictly inside (0, π/2) by convention: 0
-    ///   degenerates to a line, π/2 to a plane — both rejected upstream
-    ///   (evaluated as-is here, like every conventional invariant).
+    ///   degenerates to a line, π/2 to a plane — evaluated as-is here,
+    ///   like every conventional invariant; the net at rest is
+    ///   `topo::validate`'s tier-3 check 1, which reads
+    ///   [`Surface::representability_margins`].
     Cone {
         /// The apex point (`v = 0`).
         apex: Point3<T>,
@@ -222,8 +235,10 @@ pub enum Surface<T: Real> {
     ///   refuses them at construction, but the other door that can mint a
     ///   torus (`step-import`'s `TOROIDAL_SURFACE`) reads both radii
     ///   verbatim — so the net covering BOTH is `topo::validate`'s tier-3
-    ///   check 1, which reports `DegenerateTorus` on any face carrying one
-    ///   at rest.
+    ///   check 1, which refuses any face carrying one at rest: a tube
+    ///   radius that is not positive as `UnrepresentableSurfaceDatum`
+    ///   (through [`Surface::representability_margins`]), and a horn or
+    ///   spindle (`R ≤ r`) as `DegenerateTorus`.
     /// - Chart normal: `radial(u)·cos v + axis·sin v` — out of the tube
     ///   — since `∂u × ∂v = (that)·(r·(R + r·cos v))` and
     ///   `R + r·cos v > 0` for a ring torus. No chart singularities on
@@ -272,6 +287,94 @@ pub enum Surface<T: Real> {
     Approx(Arc<ApproxSurface<T>>),
 }
 
+/// **The ring-torus convention's ring half, decided: its one home.**
+///
+/// D3's convention for a torus is `R > r > 0`. This decides the half
+/// that relates the two datums, `R − r > 0`, as a length on the band
+/// under the one name `ring_torus_convention`. It lives here, in the
+/// crate that defines [`Surface::Torus`], so that every door that leans
+/// on the ring reads it whatever its layer: the spiric carrier's
+/// constructor in this crate, the offset door and the plane×torus
+/// section in `geom_brep`, and in `topo` tier 3, the trim door's
+/// meridian frame and the regular outward normal. Each maps a
+/// non-`Positive` answer into its own refusal; the verdict keeps the
+/// reporting margin for a refusal that quotes it (tier 3's
+/// `DegenerateTorus`).
+///
+/// The tube half `r > 0` is a separate datum and is not decided here:
+/// `R − r` alone passes a nonpositive tube radius whenever the
+/// difference stays positive (`r = −0.3` against `R = 0.75`), so a door
+/// that needs both asks the tube first.
+///
+/// A chart's azimuth stretch floor is the same number, `R − r`, but it
+/// is an arm bound that any positive floor satisfies, gated like every
+/// other kind's arm, and not a statement of the convention.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] when the margin lands in the
+/// escalation band.
+pub fn ring_torus<T: geom_core::Decide>(
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    geom_core::k_stats::decide_reported(
+        "ring_torus_convention",
+        geom_core::Margin::of(major_radius - minor_radius),
+        band,
+    )
+}
+
+/// **The ring-torus convention's tube half, decided**: `r > 0`, as a
+/// length on the band under `torus_tube_positive`, the verdict keeping
+/// its reporting margin as [`ring_torus`]'s does. The door that needs
+/// both halves asks this one first ([`ring_torus`]'s docs say why), or
+/// reads both through [`require_ring_torus`].
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] when the margin lands in the
+/// escalation band.
+pub fn torus_tube<T: geom_core::Decide>(
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    geom_core::k_stats::decide_reported(
+        "torus_tube_positive",
+        geom_core::Margin::of(minor_radius),
+        band,
+    )
+}
+
+/// **Both halves of the ring convention, as a requirement**: the tube
+/// (`r > 0`) and then the ring (`R − r > 0`), each through the funnel's
+/// collapsed-arm gate ([`geom_core::k_stats::decide_positive`]), so a
+/// decided non-positive half is the funnel's recorded escalation under
+/// the half's own name — for a door whose only answer to a non-ring
+/// torus is to decline the query.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] under `torus_tube_positive` or
+/// `ring_torus_convention`: in-band, or definitely non-positive.
+pub fn require_ring_torus<T: geom_core::Decide>(
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<(), geom_core::Indeterminate> {
+    geom_core::k_stats::decide_positive(
+        "torus_tube_positive",
+        geom_core::Margin::of(minor_radius),
+        band,
+    )?;
+    geom_core::k_stats::decide_positive(
+        "ring_torus_convention",
+        geom_core::Margin::of(major_radius - minor_radius),
+        band,
+    )
+}
+
 impl<T: Real> Surface<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
@@ -303,6 +406,305 @@ impl<T: Real> Surface<T> {
             | Surface::Torus { .. } => None,
             Surface::Nurbs(n) => Some(n),
             Surface::Approx(a) => Some(a.fit()),
+        }
+    }
+
+    /// **The representability margins of this surface's datum
+    /// conventions** — each quantity a variant's docs require to be
+    /// strictly positive for its stored datum to describe the surface
+    /// its variant names at all, named by the datum it constrains and
+    /// the END of the convention it measures:
+    ///
+    /// - `Cylinder`, `Sphere`: `radius`, lower end (`radius > 0`);
+    /// - `Cone`: `half_angle` at both ends — `half_angle` (lower: at `0`
+    ///   the cone is a line) and `π/2 − half_angle` (upper: at `π/2` it
+    ///   is a plane);
+    /// - `Torus`: `minor_radius`, lower end (the `r > 0` half of the
+    ///   ring convention `R > r > 0`). The other half, `R > r`, relates
+    ///   two datums rather than bounding one, and is not a margin here;
+    /// - **the frame**, for `Cylinder`, `Sphere` and `Torus`, after the
+    ///   scalar conventions: `axis` and `u_ref` unit and `u_ref ⊥ axis`,
+    ///   each within `band`'s coincidence threshold ε at the kind's
+    ///   radius (`convention::frame_margins`, which says what each frame
+    ///   margin protects — the locus, and on the cylinder's tilt the
+    ///   chart — and how the lever bounds the movement);
+    /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame moves no
+    ///   locus a datum can lever (a non-unit `normal` or `u_ref` spans
+    ///   the same plane, and a `u_ref` off `⊥ normal` tilts the chart
+    ///   by an amount that grows with distance from `origin`, which no
+    ///   datum bounds), and a spline's datum is its net
+    ///   ([`NurbsSurface::net_state`]). The `Cone`'s frame is not
+    ///   margined either, for the same reason as the plane's tilt: it
+    ///   moves the half-angle, a deviation that grows along the slant.
+    ///
+    /// **This is the one place in code these bounds are computed for
+    /// the at-rest check**, and it is not the only place they are
+    /// stated: the variant docs above state them in prose,
+    /// `step-import`'s `CONICAL_SURFACE` arm restates the cone's as an
+    /// `f64` literal, and `geom_brep`'s section arms decide the same
+    /// datums (`pt_tube_guard`, `coc_cylinder_radius`) on the
+    /// tolerance band rather than against zero — a different posture
+    /// on the same fact, recorded where each is.
+    ///
+    /// **Nothing is decided here.** The quantities are computed at `T`
+    /// and returned; whether one is positive is the consumer's
+    /// question, asked with the consumer's posture. Evaluation does not
+    /// ask it — a value outside a convention evaluates as given, per
+    /// the crate docs' conventional-and-unchecked rule — and a margin
+    /// of a poisoned datum is poison. The variants are destructured
+    /// without `..`, so a field a variant gains is a compile error
+    /// here rather than a convention this door silently omits. The
+    /// scalar conventions come first, so a consumer reading the first
+    /// failing margin names a non-positive radius before the frame it
+    /// levers.
+    pub fn representability_margins(&self, band: Band) -> Vec<RepresentabilityMargin<T>> {
+        use crate::convention::{frame_margins, lower};
+        let frame = |axis, u_ref, arm| {
+            frame_margins(
+                axis,
+                u_ref,
+                arm,
+                band,
+                SurfaceDatum::Axis,
+                SurfaceDatum::URef,
+            )
+        };
+        match self {
+            Surface::Cylinder {
+                origin: _,
+                axis,
+                radius,
+                u_ref,
+            }
+            | Surface::Sphere {
+                center: _,
+                radius,
+                axis,
+                u_ref,
+            } => core::iter::once(lower(SurfaceDatum::Radius, *radius))
+                .chain(frame(*axis, *u_ref, *radius))
+                .collect(),
+            Surface::Cone {
+                apex: _,
+                axis: _,
+                half_angle,
+                u_ref: _,
+            } => vec![
+                lower(SurfaceDatum::HalfAngle, *half_angle),
+                RepresentabilityMargin {
+                    datum: SurfaceDatum::HalfAngle,
+                    measure: crate::ConventionMeasure::Value,
+                    end: ConventionEnd::Upper,
+                    margin: T::pi() * T::from_f64(0.5) - *half_angle,
+                },
+            ],
+            Surface::Torus {
+                center: _,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
+                .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
+                .collect(),
+            Surface::Plane {
+                origin: _,
+                normal: _,
+                u_ref: _,
+            }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => Vec::new(),
+        }
+    }
+}
+
+/// A stored datum of an analytic [`Surface`] — the FIELD, named apart
+/// from the variant that carries it (a cylinder's and a sphere's
+/// `radius` are both [`SurfaceDatum::Radius`]). A consumer naming a
+/// datum names the surface kind beside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+// Every value, for `topo`'s samples (this crate's `test-support`
+// feature, test builds only).
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
+pub enum SurfaceDatum {
+    /// A plane's or cylinder's `origin`.
+    Origin,
+    /// A plane's `normal`.
+    Normal,
+    /// The seam direction `u_ref` of any analytic kind.
+    URef,
+    /// The `axis` of a cylinder, cone, sphere or torus.
+    Axis,
+    /// A cylinder's or sphere's `radius`.
+    Radius,
+    /// A cone's `apex`.
+    Apex,
+    /// A cone's `half_angle`.
+    HalfAngle,
+    /// A sphere's or torus's `center`.
+    Center,
+    /// A torus's `major_radius`.
+    MajorRadius,
+    /// A torus's `minor_radius`.
+    MinorRadius,
+}
+
+impl SurfaceDatum {
+    /// The datum's field name, as the variant spells it.
+    ///
+    /// **Hand-kept against the variants' field names**, and nothing
+    /// derives it: a renamed field leaves this string stale with
+    /// nothing red. The exhaustive match only guarantees every datum
+    /// HAS a name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Origin => "origin",
+            Self::Normal => "normal",
+            Self::URef => "u_ref",
+            Self::Axis => "axis",
+            Self::Radius => "radius",
+            Self::Apex => "apex",
+            Self::HalfAngle => "half_angle",
+            Self::Center => "center",
+            Self::MajorRadius => "major_radius",
+            Self::MinorRadius => "minor_radius",
+        }
+    }
+}
+
+/// A surface's stored data, by what kind of datum it stores
+/// ([`Surface::data`]).
+#[derive(Debug)]
+pub enum SurfaceData<'a, T: Real> {
+    /// An analytic kind's fields.
+    Analytic(AnalyticData<T, SurfaceDatum>),
+    /// A spline net, unread.
+    Nurbs(&'a Arc<NurbsSurface<T>>),
+    /// A fitted surface, unread.
+    Approx(&'a Arc<ApproxSurface<T>>),
+}
+
+/// Two surfaces read side by side ([`Surface::paired_with`]).
+#[derive(Debug)]
+pub enum SurfacePairing<'a, T: Real> {
+    /// The kinds differ, so no datum of one answers a datum of the
+    /// other.
+    KindsDiffer,
+    /// One analytic kind: each stored datum with its counterpart.
+    Analytic(AnalyticPairs<T>),
+    /// Two spline payloads, unread.
+    Nurbs(&'a Arc<NurbsSurface<T>>, &'a Arc<NurbsSurface<T>>),
+    /// Two fitted payloads, unread.
+    Approx(&'a Arc<ApproxSurface<T>>, &'a Arc<ApproxSurface<T>>),
+}
+
+/// Two surfaces of one analytic kind, datum against datum
+/// ([`SurfacePairing::Analytic`]).
+#[derive(Clone, Copy, Debug)]
+pub struct AnalyticPairs<T: Real>(AnalyticData<T, SurfaceDatum>, AnalyticData<T, SurfaceDatum>);
+
+impl<T: Real> AnalyticPairs<T> {
+    /// Each stored datum with its two values, in field order.
+    pub fn pairs(self) -> impl Iterator<Item = (SurfaceDatum, DatumValue<T>, DatumValue<T>)> {
+        self.0
+            .into_iter()
+            .zip(self.1)
+            .map(|((datum, x), (_, y))| (datum, x, y))
+    }
+}
+
+impl<T: Real> Surface<T> {
+    /// **The surface's stored data** — the one walk of the analytic
+    /// kinds' fields, which each reader that visits them field by
+    /// field folds with its own question (a poison read, a hash key, a
+    /// comparison through a comparator of its choosing), and the
+    /// payload of a spline kind.
+    ///
+    /// The variants are destructured without `..`, so a field a variant
+    /// gains is a compile error here rather than a datum every reader
+    /// silently skips; a kind that is not read as fields is a new
+    /// [`SurfaceData`] arm, which every reader matches exhaustively. A field
+    /// that takes a kind past the walk's width is caught later, by the
+    /// build that first instantiates the walk (`AnalyticData::new`'s
+    /// bound), which `cargo check` does not reach.
+    pub fn data(&self) -> SurfaceData<'_, T> {
+        use DatumValue::{Direction, Point, Scalar};
+        use SurfaceDatum as D;
+        SurfaceData::Analytic(match *self {
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Origin, Point(origin)),
+                (D::Normal, Direction(normal)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Origin, Point(origin)),
+                (D::Axis, Direction(axis)),
+                (D::Radius, Scalar(radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Apex, Point(apex)),
+                (D::Axis, Direction(axis)),
+                (D::HalfAngle, Scalar(half_angle)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Radius, Scalar(radius)),
+                (D::Axis, Direction(axis)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::MajorRadius, Scalar(major_radius)),
+                (D::MinorRadius, Scalar(minor_radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Nurbs(ref n) => return SurfaceData::Nurbs(n),
+            Surface::Approx(ref a) => return SurfaceData::Approx(a),
+        })
+    }
+
+    /// `self` and `other` read side by side: their [`Surface::data`]
+    /// paired when they are one kind, [`SurfacePairing::KindsDiffer`]
+    /// otherwise. Each comparator folds the pairs its own way; none
+    /// walks the fields again.
+    pub fn paired_with<'a>(&'a self, other: &'a Self) -> SurfacePairing<'a, T> {
+        use SurfaceData as S;
+        if core::mem::discriminant(self) != core::mem::discriminant(other) {
+            return SurfacePairing::KindsDiffer;
+        }
+        match (self.data(), other.data()) {
+            (S::Analytic(a), S::Analytic(b)) => SurfacePairing::Analytic(AnalyticPairs(a, b)),
+            (S::Nurbs(a), S::Nurbs(b)) => SurfacePairing::Nurbs(a, b),
+            (S::Approx(a), S::Approx(b)) => SurfacePairing::Approx(a, b),
+            (S::Analytic(_) | S::Nurbs(_) | S::Approx(_), _) => SurfacePairing::KindsDiffer,
         }
     }
 }
@@ -619,6 +1021,44 @@ mod tests {
 
     fn t_axis() -> Vec3<f64> {
         Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0)
+    }
+
+    /// The cone's two margins place each end of `(0, π/2)` exactly and
+    /// label it: the datum AT an end has a margin of zero at that end
+    /// (not a small positive one), and a datum ONE ULP inside either
+    /// end has two positive margins — so a bound written with any
+    /// tolerance, or as `π − α` or `α − π/2`, reds here.
+    #[test]
+    fn cone_margins_vanish_exactly_at_each_end_of_the_convention() {
+        let cone = |half_angle: f64| Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let margins = |a: f64| -> Vec<(ConventionEnd, f64)> {
+            cone(a)
+                .representability_margins(geom_core::Band::new(1e-9, 1e-8).unwrap())
+                .into_iter()
+                .map(|m| {
+                    assert_eq!(m.datum, SurfaceDatum::HalfAngle);
+                    (m.end, m.margin)
+                })
+                .collect()
+        };
+        use ConventionEnd::{Lower, Upper};
+        assert_eq!(margins(0.0), vec![(Lower, 0.0), (Upper, FRAC_PI_2)]);
+        assert_eq!(margins(FRAC_PI_2), vec![(Lower, FRAC_PI_2), (Upper, 0.0)]);
+        let just_above_zero = f64::from_bits(1);
+        let just_below_half_pi = f64::from_bits(FRAC_PI_2.to_bits() - 1);
+        for a in [just_above_zero, just_below_half_pi, FRAC_PI_6] {
+            assert!(
+                margins(a).iter().all(|(_, m)| *m > 0.0),
+                "{a:e} is inside the convention: {:?}",
+                margins(a)
+            );
+        }
+        assert!(margins(2.0)[1].1 < 0.0);
     }
 
     fn t_uref() -> Vec3<f64> {
@@ -1044,8 +1484,7 @@ mod tests {
 
     /// The approximating variant lifts as its payload too — the fit IS
     /// the geometry, so the lifted surface evaluates to the source —
-    /// and the description, window, tolerance and certificate ride
-    /// along verbatim.
+    /// and the description, window and certificate ride along verbatim.
     #[test]
     fn approx_lifts_as_its_payload_with_its_record() {
         let Surface::Nurbs(fit) = arch_sheet_nurbs() else {
@@ -1068,16 +1507,14 @@ mod tests {
             },
             fit: (*fit).clone(),
             window: ApproxWindow::of(&*fit),
-            tolerance: 1e-6,
         };
-        let approx = ApproxSurface::certify(spec, |_, _, _, _| Ok::<_, ()>(certificate)).unwrap();
+        let approx = ApproxSurface::certify(spec, |_, _, _| Ok::<_, ()>(certificate)).unwrap();
         let s = Surface::Approx(Arc::new(approx));
         let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
         let Surface::Approx(lifted) = &sd else {
             panic!("an approximating surface lifted to another variant");
         };
         assert_eq!(lifted.window(), ApproxWindow::of(&*fit));
-        assert_eq!(lifted.tolerance(), 1e-6);
         assert_eq!(lifted.certificate().hull_sup, certificate.hull_sup);
         assert_eq!(lifted.certificate().rounds, certificate.rounds);
         let SurfaceDescription::Offset { d, .. } = lifted.description();
@@ -1252,10 +1689,9 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Interval instantiation (feature-gated)
+    // Interval instantiation
     // ------------------------------------------------------------------
 
-    #[cfg(feature = "interval")]
     mod interval {
         use geom_core::{Bounds, Interval};
 

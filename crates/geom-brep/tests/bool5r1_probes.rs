@@ -294,7 +294,6 @@ fn probe_the_coincident_plane_ladder_at_f64() {
     }
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn probe_the_coincident_plane_ladder_at_interval() {
     use geom_core::{Bounds, Interval};

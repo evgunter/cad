@@ -38,8 +38,7 @@ use core::f64::consts::FRAC_1_SQRT_2;
 
 use crate::common::approx::band;
 use geom::Surface;
-use geom_core::Tol;
-use profile::ProfileVertex;
+use geom_core::{Point2, Tol};
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::battery::chain_g1;
@@ -55,11 +54,11 @@ fn tol() -> Tol {
 /// from the equator up 45°, on a flat base annulus, bored on-axis so the
 /// profile stays annular and the full revolve mints CLOSED latitude
 /// rims.
-fn dome_profile(r: f64) -> Vec<ProfileVertex<f64>> {
+fn dome_profile(r: f64) -> Vec<(Point2<f64>, f64)> {
     sweep::test_support::dome_profile(r)
 }
 
-fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
+fn revolved(verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
 
@@ -154,6 +153,11 @@ fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
     assert_eq!(rec.meridian_remnants.len(), 2, "one remnant per support");
     assert_eq!(rec.rim_trims.len(), 2, "one trim circle per side");
     assert_eq!(rec.slits.len(), 1, "one slit per band");
+    assert_eq!(
+        rec.slits[0].2,
+        vec![rim],
+        "the slit carries the band that slit it: its one source edge"
+    );
     assert!(
         rec.blends.is_empty() && rec.corners.is_empty() && rec.trims.is_empty(),
         "a lone closed rim fills no open-chain record"
@@ -351,16 +355,19 @@ fn a_planted_horn_torus_is_reported_by_tier_3() {
         panic!("the band's surface is a torus");
     };
     out.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             band_face,
-            FaceSurface::New(Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                // A spindle: the tube swallows the axis.
-                minor_radius: major_radius * 2.0,
-                u_ref,
-            }),
+            FaceSurface::New {
+                surface: Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    // A spindle: the tube swallows the axis.
+                    minor_radius: major_radius * 2.0,
+                    u_ref,
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let errors = validate_geometric(&out.body, tol())

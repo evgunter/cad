@@ -418,7 +418,6 @@ fn the_parse_decide_matches_certifications_arithmetic_rung_by_rung() {
     ladder_against_certification::<f64>();
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn the_parse_decide_matches_certifications_arithmetic_at_the_interval_scalar() {
     ladder_against_certification::<geom_core::Interval>();
@@ -509,7 +508,6 @@ fn an_admitted_spans_fold_is_the_same_with_and_without_the_clamp() {
 /// so the three dispositions land where the `f64` rows land: the 3π
 /// pair refuses at every consumer, a span inside the coincidence band
 /// above τ is answered, and the indeterminate band escalates.
-#[cfg(feature = "interval")]
 #[test]
 fn the_span_decide_holds_at_the_interval_scalar() {
     use geom_core::Interval;

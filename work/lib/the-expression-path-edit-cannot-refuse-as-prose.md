@@ -60,3 +60,14 @@ path MINTED, not a rendering re-pointed, and that door is LIB's. So
 nothing on EDIT's slate gates this row any more; it is open work here.
 Header edited from outside LIB's fence only to keep the tracker true
 (`work/README.md`: a fired trigger is not a blocker).
+
+## The prose half landed (CHROME concision fix pass, PR #3108, 2026-09-23)
+
+`EditError::PathOffTree` now reads "the expression path [0, 3] in node
+5's distance slot runs off the tree" (`crates/editor-core/src/edit.rs`,
+the node, the slot's `label()` and the child indices, no `Debug`), and
+its `KNOWN_BRACED` entry in `crates/pncad-py/src/prose_census.rs` is
+struck. The feature tree's shape guard
+(`viewer/tests/refusal_concision_edits.rs`, via
+`test_utils::refusal::debug_struct`) found it independently. What
+remains here is the door itself: `DocEdit.set_expression` and its rows.

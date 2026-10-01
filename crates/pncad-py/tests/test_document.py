@@ -4,6 +4,7 @@
 test here goes through a document; none reaches into the kernel.
 """
 
+import json
 import math
 import struct
 import unittest
@@ -31,9 +32,15 @@ from pncad import (
     Open,
     ParamName,
     PatternKind,
+    Piece,
+    Role,
+    SelectRefusal,
     Selector,
     SketchPlane,
     Start,
+    StepHandleError,
+    StepId,
+    circle_split,
     evaluate,
     import_step,
     load,
@@ -208,6 +215,11 @@ class TestNodeKindReadDoor(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.node_kind(stray[-1])
         self.assertEqual(caught.exception.variant, "unknown_node")
+        # The recourse is this read's own: no edit was made, so the
+        # edit door's "aim the edit" would be a recourse for nobody.
+        message = str(caught.exception)
+        self.assertIn("Recourse: ask for the kind of a node this document holds", message)
+        self.assertNotIn("aim the edit", message)
 
 
 class TestEvaluation(unittest.TestCase):
@@ -294,7 +306,7 @@ class TestEvaluation(unittest.TestCase):
         # problem and the two-armed recourse, not Debug guts.
         message = str(caught.exception)
         self.assertIn("Boolean refused an undeclared contact", message)
-        self.assertIn("declare that finding", message)
+        self.assertIn("declare the candidate pair", message)
         for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
             self.assertNotIn(guts, message)
 
@@ -316,7 +328,7 @@ class TestEvaluation(unittest.TestCase):
         # belongs to the node that refused; here it is None (attributes
         # never go missing, LIB-DOORS F3).
         self.assertIsNone(caught.exception.finding)
-        self.assertIn("poisoned by failed ancestor", str(caught.exception))
+        self.assertIn("is poisoned by the failure at node", str(caught.exception))
 
 
 class TestDetectDeclareDoors(unittest.TestCase):
@@ -417,7 +429,7 @@ class TestDetectDeclareDoors(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "no_findings")
         self.assertNotIn("  ", str(caught.exception))
 
-    def test_detection_answers_empty_for_separated_and_unevaluated(self):
+    def test_detection_answers_empty_for_separated_and_refuses_unevaluated(self):
         # Separated in EVERY plane family: a pair sharing any plane —
         # even with disjoint faces (two boxes side by side on one
         # floor) — is honestly a finding, so "no findings" needs no
@@ -427,9 +439,17 @@ class TestDetectDeclareDoors(unittest.TestCase):
         b = slab(doc, (3 * m, 4 * m), (5 * m, 6 * m), (2 * m, 3 * m))
         ev = evaluate(doc)
         self.assertEqual(ev.find_flush_candidates(a, b), [])
-        # A node the evaluation does not know: empty, like `select`.
+        # A node the evaluation does not know refuses under its
+        # standing: "no flush pair" would be a claim about geometry
+        # that was never built.
         c = slab(doc, (6 * m, 7 * m), (8 * m, 9 * m), (4 * m, 5 * m))
-        self.assertEqual(ev.find_flush_candidates(a, c), [])
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.find_flush_candidates(a, c)
+        self.assertEqual(caught.exception.reason, "node_has_no_value")
+        self.assertIn(
+            "is not a node of the document this evaluation ran over",
+            str(caught.exception),
+        )
 
     def test_findings_are_values_with_opaque_names(self):
         doc, lower, upper = self.stacked()
@@ -621,6 +641,83 @@ class TestPersistence(unittest.TestCase):
         self.assertGreater(refusal.column, 0)
         self.assertIn("no_such_field", refusal.detail)
         self.assertIsNone(refusal.found)
+
+    def test_a_saved_expression_the_dimension_checker_refuses_crosses_whole(self):
+        """The load door's half of the never-strings contract.
+
+        `load` rebuilds every saved expression through the AUTHORING
+        constructors, so a hand-edited file reaches the document layer's
+        dimension checker with no new binding at all. What it raises is
+        the refusal itself — `variant` says a dimension check failed,
+        `inner_variant` says WHICH, from the same vocabulary
+        `ParseError.kind` uses — rather than a sentence a caller would
+        have to parse.
+        """
+        length = {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}}
+        angle = {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}}
+        cases = {
+            "mismatch": {"Add": [length, angle]},
+            "mul_needs_scalar": {"Mul": [length, length]},
+            "div_needs_scalar_divisor": {"Div": [length, length]},
+            "trig_needs_angle": {"Sin": length},
+            "unknown_display_unit": {
+                "Literal": {"value": 1.0, "dim": "Length", "unit": "furlong"}
+            },
+        }
+        for inner, wire in cases.items():
+            with self.subTest(refusal=inner):
+                with self.assertRaises(pncad.PersistError) as caught:
+                    load(self._save_with_distance(wire))
+                refusal = caught.exception
+                self.assertEqual(refusal.variant, "dimension")
+                self.assertEqual(refusal.inner_variant, inner)
+                # Position rides along; the reporter's own words do not
+                # — there is nothing on this arm that needs a sentence
+                # to be branchable.
+                self.assertEqual(refusal.line, 1)
+                self.assertGreater(refusal.column, 0)
+                self.assertIsNone(refusal.detail)
+
+    def test_a_dimension_refusal_does_not_tell_the_caller_to_regenerate(self):
+        """`regenerate the file` is the recourse for a document this
+        build has lost the vocabulary for. An expression that is
+        dimensionally wrong is not one — regenerating it produces the
+        same refusal — and the message says what IS wrong instead."""
+        bad = self._save_with_distance(
+            {
+                "Add": [
+                    {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}},
+                    {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}},
+                ]
+            }
+        )
+        with self.assertRaises(pncad.PersistError) as caught:
+            load(bad)
+        message = str(caught.exception)
+        self.assertNotIn("regenerate", message)
+        self.assertIn("cannot apply `add` to length and angle", message)
+
+    def _save_with_distance(self, wire):
+        """A unit box's save text with the extrude's distance expression
+        replaced by `wire`.
+
+        Structural rather than a string substitution: an expression's
+        spelling carries whatever fields the wire form has today, so a
+        needle written out in full would stop matching without failing,
+        and an assertion nothing reaches asserts nothing. This one fails
+        the test if the slot it aims at is gone.
+        """
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        header, body_text = doc.save().split("\n", 1)
+        body = json.loads(body_text)
+        swapped = 0
+        for node in body["snapshot"]["nodes"].values():
+            if "Extrude" in node:
+                node["Extrude"]["distance"] = wire
+                swapped += 1
+        self.assertEqual(swapped, 1, "the fixture has one extrude to tamper")
+        return header + "\n" + json.dumps(body)
 
     def test_a_header_that_disagrees_with_the_snapshot_names_both_ids(self):
         """A tampered or hand-assembled file: the save door writes the
@@ -1361,9 +1458,11 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
     def test_the_edit_arms_that_hold_a_refusal_are_pre_checked_elsewhere(self):
         """Why the rows above reach ONE inner word and not four.
 
-        `EditError` has five arms carrying an inner refusal. The
-        placement axis is the only one an authoring caller can reach:
-        each of the others is refused at a NARROWER door first, which
+        Of the `EditError` arms carrying an inner refusal, the
+        placement axis and — through `DocEdit.set_program` — the
+        provenance fault are the ones an authoring caller can reach
+        (the provenance rows are `TestTheWholeProgramEdit`'s); each of
+        the others is refused at a NARROWER door first, which
         is the fail-loud shape working — the refusal a caller gets
         names the thing they typed. Pinned here so that a door
         widening later shows up as this test failing rather than as a
@@ -1423,6 +1522,7 @@ EDIT_ATTRS = (
     "value",
     "offered",
     "determinant",
+    "index",
     "path",
     "value_path",
     "pin",
@@ -1430,10 +1530,196 @@ EDIT_ATTRS = (
 )
 
 
+class TestTheWholeProgramEdit(unittest.TestCase):
+    """`DocEdit.set_program` — a live profile's program replaced whole.
+    Each step carries the id the document minted for it (`Doc.step`
+    binds the handle its verb returned to it); the edit keeps an old
+    step by mapping the handle of a step of the NEW program to the old
+    id, a step it does not name is new, and a name follows the steps it
+    spells."""
+
+    @staticmethod
+    def chain(points):
+        """A closed polygon through `points`, and the handle of each of
+        its steps as its verb returned it."""
+        path = Open.at((points[0][0] * m, points[0][1] * m))
+        steps = [path.step]
+        for x, y in points[1:]:
+            path = path.line_to((x * m, y * m))
+            steps.append(path.step)
+        closed = path.line_to(Start)
+        steps.append(closed.step)
+        return closed, steps
+
+    def filleted_box(self):
+        """A square prism with a fillet on the rim edge the top wall
+        (drawn by step 3's leg) shares with the end cap;
+        `(doc, profile, box, rim, ids)`, `ids` the old steps' ids."""
+        doc = Doc()
+        frame = doc.sketch_frame()
+        square, steps = self.chain([(0, 0), (2, 0), (2, 2), (0, 2)])
+        profile = doc.insert(Node.profile(square, plane=frame))
+        box = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
+        piece = str(doc.piece(profile, 0, steps[3].leg))
+        rim = [
+            name
+            for name in evaluate(doc).all_edges(box)
+            if "RimEdge" in name and piece in name and '"End"' in name
+        ]
+        self.assertEqual(len(rim), 1, rim)
+        doc.insert(Node.fillet(box, Expr.length_in(0.1, m), rim))
+        ids = [doc.step(profile, 0, h) for h in steps]
+        return doc, profile, box, rim[0], ids
+
+    def test_the_insert_door_mints_one_id_per_authored_step(self):
+        doc, profile, _box, _rim, ids = self.filleted_box()
+        self.assertEqual(len(set(ids)), 5, "the start, four legs, each its own id")
+        self.assertEqual(doc.step_ids(profile), [ids], "the positional reading agrees")
+
+    def test_a_reshaped_program_keeping_the_step_keeps_the_fillets_name(self):
+        """A leg inserted before the filleted wall's step moves the
+        wall from segment 2 to segment 3; the step that draws it is
+        kept, so the fillet's name still denotes it and the accepted
+        edit reports nothing. The document round-trips through the
+        persisted form."""
+        doc, profile, _box, rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[4]: s[3], new[5]: s[4]}
+        doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
+        self.assertEqual(doc.last_maintenance, [])
+        self.assertEqual(evaluate(doc).resolve(rim).status, "resolved")
+        self.assertEqual(doc.step(profile, 0, new[4]), s[3], "the kept step keeps its id")
+        self.assertNotIn(doc.step(profile, 0, new[2]), s, "the new leg mints fresh")
+        # `Doc.save` writes the document as a SNAPSHOT with no log
+        # (the binding holds a value, not a history), so the reshaped
+        # program crosses in the snapshot and the loaded document
+        # re-saves to the same bytes.
+        text = doc.save()
+        loaded = load(text)
+        self.assertEqual(loaded.edit_count, 0)
+        self.assertEqual(loaded.doc.save(), text)
+
+    def test_a_step_the_edit_drops_strands_the_fillets_name(self):
+        """The same program with the wall's step left out of `keep`:
+        the fillet's name keeps its spelling and is reported as a
+        `strand` on the fillet node. Pushed back through
+        `Evaluation.resolve`, it is a typed `vanished` failure — the new
+        step's leg is under an id never minted before, so the name
+        never comes to denote it."""
+        doc, profile, _box, rim, s = self.filleted_box()
+        fillet = doc.order()[-1]
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        keep = {new[0]: s[0], new[1]: s[1], new[3]: s[2], new[5]: s[4]}
+        doc.apply(DocEdit.set_program(profile, reshaped, [keep]))
+        (row,) = doc.last_maintenance
+        self.assertEqual(row.variant, "strand")
+        self.assertEqual(row.node, fillet)
+        self.assertEqual(row.name, rim)
+        verdict = evaluate(doc).resolve(row.name)
+        self.assertEqual(verdict.status, "failed")
+        self.assertEqual(verdict.variant, "vanished")
+
+    def test_a_handle_off_the_new_program_refuses_before_the_edit(self):
+        """The old square's closer is a `line_to(Start)` at index 4; in
+        the reshaped program index 4 is a `line_to` a point, so the
+        handle is off it and `set_program` refuses to build the edit."""
+        _doc, profile, _box, _rim, s = self.filleted_box()
+        _square, old = self.chain([(0, 0), (2, 0), (2, 2), (0, 2)])
+        reshaped, _new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(StepHandleError) as caught:
+            DocEdit.set_program(profile, reshaped, [{old[4]: s[4]}])
+        self.assertEqual(caught.exception.variant, "handle_off_program")
+        self.assertEqual((caught.exception.loop_, caught.exception.index), (0, 4))
+
+    def test_an_old_id_kept_twice_refuses_before_the_program_is_read(self):
+        doc, profile, _box, _rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_program(profile, reshaped, [{new[1]: s[1], new[2]: s[1]}]))
+        self.assertEqual(caught.exception.variant, "step_ids_refused")
+        self.assertEqual(caught.exception.inner_variant, "repeated")
+        self.assertEqual(caught.exception.node, profile)
+        self.assertEqual(doc.last_maintenance, [])
+
+    def test_keep_is_stated_and_an_empty_dict_keeps_nothing(self):
+        doc, profile, _box, _rim, s = self.filleted_box()
+        reshaped, new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(TypeError):
+            DocEdit.set_program(profile, reshaped)
+        doc.apply(DocEdit.set_program(profile, reshaped, [{}]))
+        fresh = [doc.step(profile, 0, h) for h in new]
+        self.assertEqual(set(fresh) & set(s), set(), "every step minted fresh")
+
+    def test_a_keep_list_short_of_the_outline_refuses(self):
+        doc, profile, _box, _rim, _ids = self.filleted_box()
+        reshaped, _new = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_program(profile, reshaped, []))
+        self.assertEqual(caught.exception.inner_variant, "loop_count")
+
+
+class TestAuthoredStepHandles(unittest.TestCase):
+    """A chain state's `.step` is the address of the step its verb
+    recorded; `Doc.step` binds it to the id the placement minted, in the
+    loop the author states, and its role accessors are the verb's role
+    list."""
+
+    def setUp(self):
+        start = Open.at((0 * m, 0 * m)).toward(1, 0)
+        self.bind = start.step
+        opened = start.fillet(0.5 * m)
+        self.fillet = opened.step
+        top = opened.toward(0, 1).to((2 * m, 2 * m)).line_to((0 * m, 2 * m))
+        self.top = top.step
+        self.loop = top.line_to(Start)
+        self.doc = Doc()
+        frame = self.doc.sketch_frame()
+        self.a = self.doc.insert(Node.profile(self.loop, plane=frame))
+        self.b = self.doc.insert(Node.profile(self.loop, plane=frame))
+
+    def test_one_loop_placed_twice_binds_one_handle_to_two_ids(self):
+        a = self.doc.step(self.a, 0, self.top)
+        self.assertIsInstance(a, StepId)
+        self.assertNotEqual(a, self.doc.step(self.b, 0, self.top))
+        self.assertEqual(self.doc.step_ids(self.a)[0][self.top.index], a)
+
+    def test_the_right_wall_is_the_fillets_run_out(self):
+        wall = self.doc.piece(self.a, 0, self.fillet.run_out)
+        self.assertEqual(wall, Piece(self.doc.step(self.a, 0, self.fillet), Role.RunOut))
+        self.assertIn(wall, self.doc.pieces(self.a)[0])
+
+    def test_the_accessors_are_the_verbs_role_list(self):
+        self.assertEqual(self.top.leg.role, Role.Leg)
+        self.assertEqual(
+            [self.fillet.run_in.role, self.fillet.arc.role, self.fillet.run_out.role],
+            [Role.RunIn, Role.Arc, Role.RunOut],
+        )
+        for handle, role in ((self.top, "arc"), (self.fillet, "leg"), (self.bind, "leg")):
+            with self.assertRaises(AttributeError, msg=f"{handle!r}.{role}"):
+                getattr(handle, role)
+        ring = circle_split((0 * m, 0 * m), 1 * m, 3, 0 * rad)
+        self.assertEqual(ring.step.piece(2).role, Role.piece(2))
+        with self.assertRaises(StepHandleError) as caught:
+            ring.step.piece(3)
+        self.assertEqual(caught.exception.variant, "role_not_drawn")
+        self.assertEqual(caught.exception.role, Role.piece(3))
+
+    def test_a_loop_the_profile_does_not_have_refuses(self):
+        with self.assertRaises(StepHandleError) as caught:
+            self.doc.step(self.a, 1, self.top)
+        self.assertEqual(caught.exception.variant, "handle_off_program")
+        self.assertEqual((caught.exception.loop_, caught.exception.index), (1, 5))
+
+    def test_a_piece_prints_the_kernels_text(self):
+        wall = self.doc.piece(self.a, 0, self.top.leg)
+        self.assertIn('"Leg"', str(wall))
+        self.assertNotEqual(str(wall), str(self.doc.piece(self.b, 0, self.top.leg)))
+
+
 class TestTheEditDoorsPayload(unittest.TestCase):
     """The refusing arm's payload, off real edits.
 
-    The document layer's `EditError` has 58 arms and many have no
+    The document layer's `EditError` has 68 arms and many have no
     Python door — a witness, an appearance write and an
     expression-path edit are not among the `DocEdit` verbs. What the
     rows below pin is the half a Python caller can provoke: the
@@ -1653,3 +1939,30 @@ class TestTheEditDoorsPayload(unittest.TestCase):
             Node.placed_union(box, Expr.count(3), PatternKind.explicit([]))
         self.assertEqual(caught.exception.variant, "placement_rule_mismatch")
         self.assertEqual(self.set_of(caught.exception), {"variant"})
+
+
+class TestParamNameAdmissibility(unittest.TestCase):
+    """`ParamName(text)` is the boundary that turns text into a name,
+    and the document layer's one rule for a name — one identifier an
+    expression reads back — is held by the constructor there. Python
+    holds the text until this call, so the binding calls the
+    constructor here and publishes its refusal under the boundary's own
+    word: a blank or a spaced name never reaches a document, and no
+    door downstream has a second copy of the rule to drift."""
+
+    def test_a_text_the_parser_cannot_read_back_refuses_at_the_constructor(self):
+        for text in ["", "   ", "1 2", "a+b", " width ", "hole#", "sin("]:
+            with self.subTest(text=text):
+                with self.assertRaises(EditError) as caught:
+                    ParamName(text)
+                err = caught.exception
+                self.assertEqual(err.variant, "param_name_not_an_identifier")
+                # The sentence quotes the bytes offered, as the parse
+                # door does for text it read.
+                self.assertIn(f'parameter name "{text}"', str(err))
+
+    def test_an_identifier_is_a_name_and_the_grammar_reserves_no_words(self):
+        self.assertEqual(ParamName("hole_r").name, "hole_r")
+        # A bare function word is looked up as a parameter — `sin` is
+        # a call only when `(` follows it — so it is admissible.
+        self.assertEqual(ParamName("sin").name, "sin")

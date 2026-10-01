@@ -198,7 +198,7 @@ four probes adopted from `review/strands-rv` authorship-preserving
 alone: the deleted minting node is `name.node` by construction, and a
 third field repeating it is a disagreement waiting to happen. The
 spec's CHROME filing was not made as a new file — the row already
-existed as `work/chrome/cascade-delete-shows-the-strand-count`, parked
+existed as `work/offer/cascade-delete-shows-the-strand-count`, parked
 on this unit, and this PR corrects its count definition in place rather
 than opening a second file (`work/README.md` "One file, one item";
 `docs/prompts/implementer-discipline.md` §6, "add your evidence to it

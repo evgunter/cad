@@ -18,7 +18,7 @@ not.** Nothing here says the row should close.
 
 ## What the row says
 
-`work/chrome/drag-tick-has-three-homes.md:12-14`:
+`work/forms/drag-tick-has-three-homes.md:12-14`:
 
 > "How fast does a field of this dimension move" is answered in **three
 > places** in `crates/viewer/src/app.rs`, and in one of them the answers
@@ -48,7 +48,7 @@ has grown above them and all six are now wrong by exactly +76, the
 `:430`/`:439`/`:449`/`:453`, `FieldWriting::of` at `:513`. They
 are left as written because this report is closed and a closed row's
 body is a record of what was read when. The live citations are in
-`work/chrome/drag-tick-has-three-homes.md`, which carries no line
+`work/forms/drag-tick-has-three-homes.md`, which carries no line
 numbers at all. Noted so the next reader does not re-discover it.)*
 
 **`crates/viewer/src/app.rs` holds none of them.** The module split
@@ -103,7 +103,7 @@ call-site argument and any other mention is what would settle it.
 
 ## Closed — the row is re-pointed, and both of this report's shapes are taken (2026-09-15, `chrome/citation-repoint`)
 
-`work/chrome/drag-tick-has-three-homes.md` now cites every one of the
+`work/forms/drag-tick-has-three-homes.md` now cites every one of the
 six subjects by NAME and file, with no line number anywhere in it
 (`docs/prompts/implementer-discipline.md` §7). Both shapes this report
 asked for are done:

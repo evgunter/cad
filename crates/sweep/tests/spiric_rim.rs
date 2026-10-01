@@ -18,126 +18,25 @@
 use core::f64::consts::TAU;
 
 use geom::{Curve3, Surface};
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
-use profile::path::{Open, Start};
-use profile::{ArcSweep, Center, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError, transform_rigid};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
+use crate::common::charts::hollow_moves;
+use crate::common::poses::torax_pose;
+use crate::common::torus_walls::{klein_elbow, vessel_cavity, vessel_quarter};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-/// The klein elbow of `torax_axial`: a disc of radius `r` centred
-/// `R = 1.2` off the axis, revolved a quarter turn.
-fn klein_elbow(r: f64) -> Body<f64> {
-    let profile = Profile::new(
-        SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(-r, 0.0), 1.0),
-            ProfileVertex::new(p2(r, 0.0), 1.0),
-        ])],
-    )
-    .validate(tol())
-    .expect("the elbow's cross-section validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(1.2, 0.0),
-            dir: Vec2::new(0.0, -1.0),
-        },
-        Revolution::Partial(-core::f64::consts::FRAC_PI_2),
-        tol(),
-    )
-    .expect("the elbow revolves")
-    .body
-}
-
-/// The tour's torus-walled vessel meridian (`demos/tour/src/torusvessel.rs`,
-/// the BELLIED centre), spelled from the same stations so the sectioned
-/// vessel's door is measured here on the scene's own body.
-fn vessel_quarter() -> Body<f64> {
-    let (r_foot, r_band, r_neck) = (5.0 / 64.0, 9.0 / 64.0, 7.0 / 64.0);
-    let (y_foot, y_shoulder, y_mouth) = (4.0 / 64.0, 12.0 / 64.0, 24.0 / 64.0);
-    let (h_tube, r_bellied) = (8.0 / 64.0, 6.0 / 64.0);
-    let lp: ProfileLoop<f64> = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(r_foot, 0.0), tol())
-        .expect("the base disc")
-        .line_to(p2(r_foot, y_foot), tol())
-        .expect("the foot")
-        .line_to(p2(r_band, y_foot), tol())
-        .expect("the lower shoulder")
-        .arc_to(
-            Center {
-                c: p2(r_bellied, h_tube),
-                winding: ArcSweep::Ccw,
-                p: p2(r_band, y_shoulder),
-            },
-            tol(),
-        )
-        .expect("the band")
-        .line_to(p2(r_neck, y_shoulder), tol())
-        .expect("the upper shoulder")
-        .line_to(p2(r_neck, y_mouth), tol())
-        .expect("the neck")
-        .line_to(p2(0.0, y_mouth), tol())
-        .expect("the mouth disc")
-        .line_to(Start, tol())
-        .expect("the axis closes the meridian")
-        .into();
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("the meridian validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Partial(core::f64::consts::FRAC_PI_2),
-        tol(),
-    )
-    .expect("the meridian revolves")
-    .body
-}
-
-/// The chart moves `shell` would make for an inward wall `t`, one per
-/// surface (`torax_axial::hollow_moves`, at any deciding scalar).
-fn hollow_moves<T: geom_core::Real>(body: &Body<T>, t: T) -> Vec<topo::ChartMove<T>> {
-    let mut charts: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
-}
-
-/// The sectioned vessel's cavity through the axial door — the body
-/// `shell` builds and stops on at tier 3, taken BEFORE tier 3 so its
-/// carriers can be read.
-fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
-    let quarter = vessel_quarter();
-    let mut cavity = quarter.clone();
-    let band = Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(&quarter, t), band, tol())
-        .expect("the vessel's corners solve and its rims mint");
-    (quarter, cavity)
+/// The klein elbow on a disc of radius `r`.
+fn klein_elbow_of_disc(r: f64) -> Body<f64> {
+    klein_elbow(vec![bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ])])
 }
 
 /// Every spiric carrier of a body with its span.
@@ -330,12 +229,18 @@ fn the_box_contains_every_sample_of_the_minted_rim() {
 #[test]
 fn the_minted_rim_survives_a_rigid_re_pose() {
     let (quarter, cavity) = vessel_cavity(1.0 / 128.0);
-    let map = Affine3::rotation_about_axis(
-        Point3::new(0.25, -0.5, 0.125),
-        Vec3::new(1.0, 0.0, 0.0),
-        0.7,
+    let map = torax_pose();
+    // The cavity is sound short of check 7, which it reaches and cannot
+    // pass at any door (the vessel row below): the `_structural` door's
+    // only finding is the closed form's typed refusal there.
+    let verdict = topo::validate_geometric_structural(&cavity, tol());
+    assert!(
+        matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
+            e,
+            topo::ValidationError::VolumeUncomputable { .. }
+        ))),
+        "the cavity fails nothing but check 7: {verdict:?}"
     );
-    assert_eq!(topo::validate_geometric_structural(&cavity, tol()), Ok(()));
     let posed_after = transform_rigid(&cavity, &map, tol()).expect("the cavity re-poses");
     let posed_first = transform_rigid(&quarter, &map, tol()).expect("the operand re-poses");
     let mut offset_after = posed_first.clone();
@@ -411,7 +316,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let other = klein_elbow(0.1);
+    let other = klein_elbow_of_disc(0.1);
     let e = topo::union(&cavity, &other, tol()).expect_err("the boolean fence refuses the kind");
     assert!(
         matches!(e, topo::BooleanError::CurvedEdgeUnsupported { .. }),
@@ -454,7 +359,7 @@ fn the_census_refusals_through_public_doors() {
 /// such seam and reaches check 7.
 #[test]
 fn the_elbow_stops_at_its_seam_reauthor() {
-    let elbow = klein_elbow(0.275);
+    let elbow = klein_elbow_of_disc(0.275);
     let e = topo::shell(&elbow, 0.05, tol()).expect_err("the equator seams' re-author");
     println!("[spiric] the elbow's door: {e:?}");
     let ShellError::Face { error, .. } = e else {
@@ -504,6 +409,7 @@ fn the_sectioned_vessel_stops_at_the_props_door() {
                     source: geom_brep::PropsError::Unimplemented,
                     ..
                 },
+                ..
             }]
         ),
         "check 7 at a cap's loop area, got {errors:?}"
@@ -645,36 +551,33 @@ fn a_spiric_rim_splits_at_its_mid_parameter() {
     );
 }
 
-#[cfg(feature = "interval")]
 mod interval_rows {
-    use geom_core::{Bounds, Interval, Real};
+    use geom_core::{Bounds, Interval};
 
     use super::*;
 
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
+    use crate::common::interval::iv;
 
     /// The vessel's meridian as a raw loop at any deciding scalar — the
     /// band arc as its bulge (`tan(θ/4) = 1/2`, the 3-4-5 arc), so the
     /// interval and f64 twins are built by one spelling.
+    /// NOT `common::torus_walls::vessel_quarter`: the scalar-generic twin,
+    /// its band an exact bulge rather than an arc about its centre.
     fn vessel_loop<T: geom_core::Real>(iv: &impl Fn(f64) -> T) -> ProfileLoop<T> {
         let p = |x: f64, y: f64| Point2::new(iv(x), iv(y));
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p(5.0 / 64.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p(5.0 / 64.0, 4.0 / 64.0), iv(0.0)),
-            ProfileVertex::new(p(9.0 / 64.0, 4.0 / 64.0), iv(0.5)),
-            ProfileVertex::new(p(9.0 / 64.0, 12.0 / 64.0), iv(0.0)),
-            ProfileVertex::new(p(7.0 / 64.0, 12.0 / 64.0), iv(0.0)),
-            ProfileVertex::new(p(7.0 / 64.0, 24.0 / 64.0), iv(0.0)),
-            ProfileVertex::new(p(0.0, 24.0 / 64.0), iv(0.0)),
+        bulge_loop(vec![
+            (p(0.0, 0.0), iv(0.0)),
+            (p(5.0 / 64.0, 0.0), iv(0.0)),
+            (p(5.0 / 64.0, 4.0 / 64.0), iv(0.0)),
+            (p(9.0 / 64.0, 4.0 / 64.0), iv(0.5)),
+            (p(9.0 / 64.0, 12.0 / 64.0), iv(0.0)),
+            (p(7.0 / 64.0, 12.0 / 64.0), iv(0.0)),
+            (p(7.0 / 64.0, 24.0 / 64.0), iv(0.0)),
+            (p(0.0, 24.0 / 64.0), iv(0.0)),
         ])
     }
 
-    fn vessel_at<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
-        iv: &impl Fn(f64) -> T,
-    ) -> Body<T> {
+    fn vessel_at<T: geom_core::Decide + topo::AtRestPolicy>(iv: &impl Fn(f64) -> T) -> Body<T> {
         let tol = Tol::witness();
         let profile = Profile::new(SketchPlane::<T>::xy(), vec![vessel_loop(iv)])
             .validate(tol)

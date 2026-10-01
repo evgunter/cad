@@ -1,0 +1,145 @@
+Datum(Plane { origin: [#0, #1, #2], normal: [#3, #4, #5] })
+  #0 Origin(X)
+  #1 Origin(Y)
+  #2 Origin(Z)
+  #3 Normal(X)
+  #4 Normal(Y)
+  #5 Normal(Z)
+Datum(Axis { origin: [#0, #1, #2], direction: [#3, #4, #5] })
+  #0 Origin(X)
+  #1 Origin(Y)
+  #2 Origin(Z)
+  #3 Direction(X)
+  #4 Direction(Y)
+  #5 Direction(Z)
+Datum(Point { position: [#0, #1, #2] })
+  #0 Origin(X)
+  #1 Origin(Y)
+  #2 Origin(Z)
+Datum(AxisInPlane { plane: RecipeNodeId(0), origin: [#0, #1], direction: [#2, #3] })
+  #0 Origin(X)
+  #1 Origin(Y)
+  #2 Direction(X)
+  #3 Direction(Y)
+Datum(Frame { origin: [#0, #1, #2], u: [#3, #4, #5], v: [#6, #7, #8] })
+  #0 Origin(X)
+  #1 Origin(Y)
+  #2 Origin(Z)
+  #3 U(X)
+  #4 U(Y)
+  #5 U(Z)
+  #6 V(X)
+  #7 V(Y)
+  #8 V(Z)
+Datum(FaceFrame { at: RecipeNodeId(0), face: StableName { kind: Face, node: RecipeNodeId(0), path: [Cap(Start)] }, spin: #0 })
+  #0 Spin
+Profile(ProfileProgram { plane: RecipeNodeId(0), loops: [Chain([At([#0, #1]), LineTo(Point([#2, #3])), LineTo(Point([#4, #5])), LineTo(Point([#6, #7])), LineTo(Start)])], ids: [] })
+  #0 Profile { loop_: 0, step: 0, arg: PointX }
+  #1 Profile { loop_: 0, step: 0, arg: PointY }
+  #2 Profile { loop_: 0, step: 1, arg: TargetX }
+  #3 Profile { loop_: 0, step: 1, arg: TargetY }
+  #4 Profile { loop_: 0, step: 2, arg: TargetX }
+  #5 Profile { loop_: 0, step: 2, arg: TargetY }
+  #6 Profile { loop_: 0, step: 3, arg: TargetX }
+  #7 Profile { loop_: 0, step: 3, arg: TargetY }
+Extrude { profile: RecipeNodeId(1), distance: #0 }
+  #0 Distance
+Revolve { profile: RecipeNodeId(1), axis: RecipeNodeId(0), angle: #0 }
+  #0 RevolveAngle
+Tube { spine: RecipeNodeId(1), u_ref: [#0, #1, #2], major_radius: #3, window: Full, minor_radius: #4 }
+  #0 Direction(X)
+  #1 Direction(Y)
+  #2 Direction(Z)
+  #3 TubeMajorRadius
+  #4 TubeMinorRadius
+Tube { spine: RecipeNodeId(1), u_ref: [#0, #1, #2], major_radius: #3, window: Arc { t0: #5, t1: #6 }, minor_radius: #4 }
+  #0 Direction(X)
+  #1 Direction(Y)
+  #2 Direction(Z)
+  #3 TubeMajorRadius
+  #4 TubeMinorRadius
+  #5 TubeWindowStart
+  #6 TubeWindowEnd
+HollowTube { spine: RecipeNodeId(1), u_ref: [#0, #1, #2], major_radius: #3, window: Arc { t0: #5, t1: #6 }, minor_radius: #4, wall: #7 }
+  #0 Direction(X)
+  #1 Direction(Y)
+  #2 Direction(Z)
+  #3 TubeMajorRadius
+  #4 TubeMinorRadius
+  #5 TubeWindowStart
+  #6 TubeWindowEnd
+  #7 TubeWall
+Loft { profiles: [RecipeNodeId(1), RecipeNodeId(2)], v_degree: #0 }
+  #0 VDegree
+Sweep { profile: RecipeNodeId(1), path: RecipeNodeId(2), stations: #0, v_degree: #1 }
+  #0 Stations
+  #1 VDegree
+Fillet { target: RecipeNodeId(1), radius: #0, selection: [] }
+  #0 Radius
+Chamfer { target: RecipeNodeId(1), distance: #0, selection: [] }
+  #0 ChamferDistance
+Shell { target: RecipeNodeId(1), thickness: #0, open: [] }
+  #0 ShellThickness
+Split { target: RecipeNodeId(1), tool: RecipeNodeId(2) }
+Boolean { op: Union, a: RecipeNodeId(1), b: RecipeNodeId(2), declare: None }
+Union { members: [RecipeNodeId(1), RecipeNodeId(2)], declare: None }
+Transform { input: RecipeNodeId(1), placement: Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }
+  #0 Translation(X)
+  #1 Translation(Y)
+  #2 Translation(Z)
+  #3 RotationAxis(X)
+  #4 RotationAxis(Y)
+  #5 RotationAxis(Z)
+  #6 RotationAngle
+Transform { input: RecipeNodeId(1), placement: Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }, Literal(Frame { columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], translation: [0.0, 1.0, 0.0] }), Rigid { translation: [#7, #8, #9], axis: [#10, #11, #12], angle: #13 }] } }
+  #0 Translation(X)
+  #1 Translation(Y)
+  #2 Translation(Z)
+  #3 RotationAxis(X)
+  #4 RotationAxis(Y)
+  #5 RotationAxis(Z)
+  #6 RotationAngle
+  #7 PlacementStep { step: 2, arg: Translation(X) }
+  #8 PlacementStep { step: 2, arg: Translation(Y) }
+  #9 PlacementStep { step: 2, arg: Translation(Z) }
+  #10 PlacementStep { step: 2, arg: RotationAxis(X) }
+  #11 PlacementStep { step: 2, arg: RotationAxis(Y) }
+  #12 PlacementStep { step: 2, arg: RotationAxis(Z) }
+  #13 PlacementStep { step: 2, arg: RotationAngle }
+Transform { input: RecipeNodeId(1), placement: Placement { steps: [Literal(Frame { columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 2.0] })] } }
+Pattern { input: RecipeNodeId(1), count: #0, kind: Linear { direction: [#1, #2, #3], spacing: #4 } }
+  #0 Count
+  #1 Direction(X)
+  #2 Direction(Y)
+  #3 Direction(Z)
+  #4 Spacing
+PlacedUnion { input: RecipeNodeId(1), count: Some(#0), kind: Linear { direction: [#1, #2, #3], spacing: #4 } }
+  #0 Count
+  #1 Direction(X)
+  #2 Direction(Y)
+  #3 Direction(Z)
+  #4 Spacing
+PlacedUnion { input: RecipeNodeId(1), count: None, kind: Linear { direction: [#0, #1, #2], spacing: #3 } }
+  #0 Direction(X)
+  #1 Direction(Y)
+  #2 Direction(Z)
+  #3 Spacing
+Pattern { input: RecipeNodeId(1), count: #0, kind: Circular { axis: RecipeNodeId(0), step: #1 } }
+  #0 Count
+  #1 Step
+PlacedUnion { input: RecipeNodeId(1), count: Some(#0), kind: Circular { axis: RecipeNodeId(0), step: #1 } }
+  #0 Count
+  #1 Step
+PlacedUnion { input: RecipeNodeId(1), count: None, kind: Circular { axis: RecipeNodeId(0), step: #0 } }
+  #0 Step
+Pattern { input: RecipeNodeId(1), count: Expr { dim: Count, nesting: 1, kind: CountLiteral(3) }, kind: Explicit([]) }
+PlacedUnion { input: RecipeNodeId(1), count: Some(Expr { dim: Count, nesting: 1, kind: CountLiteral(3) }), kind: Explicit([]) }
+PlacedUnion { input: RecipeNodeId(1), count: None, kind: Explicit([]) }
+Part { of: RecipeNodeId(1), select: Instance(#0) }
+  #0 Instance
+Part { of: RecipeNodeId(1), select: SplitHalf(Above) }
+Declare { pairs: [] }
+InstantiatePart { doc_ref: DocRef { id: DocumentId(272522191089886152265255929154993748228), pin: ContentPin([205, 5, 221, 101, 178, 25, 73, 194, 233, 249, 132, 107, 246, 149, 121, 4, 119, 31, 132, 192, 233, 43, 185, 169, 63, 156, 228, 98, 7, 179, 48, 228]) }, interface: InterfaceRecord { crossings: [] } }
+Mate { a: SitedFace { at: RecipeNodeId(1), name: FaceName(StableName { kind: Face, node: RecipeNodeId(1), path: [Cap(Start)] }) }, b: SitedFace { at: RecipeNodeId(2), name: FaceName(StableName { kind: Face, node: RecipeNodeId(2), path: [Cap(End)] }) }, class: Rest, alignment: Alignment { a: MateFrame { origin: [0.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], reference: [1.0, 0.0, 0.0] }, b: MateFrame { origin: [0.0, 0.0, 0.0], axis: [0.0, 0.0, 1.0], reference: [1.0, 0.0, 0.0] }, primitive: Coaxial, sense: Aligned, clocking: None } }
+Measure { expr: MeasureExpr { dim: Length, nesting: 1, kind: Value(Expr { dim: Length, nesting: 1, kind: Literal(Lit { value: 1.0, display_unit: UnitSym(2) }) }) }, refs: [] }
+Assertion { measure: RecipeNodeId(1), bound: Expr { dim: Length, nesting: 1, kind: Literal(Lit { value: 1.0, display_unit: UnitSym(2) }) }, dir: AtLeast }

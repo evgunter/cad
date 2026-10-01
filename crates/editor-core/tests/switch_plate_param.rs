@@ -14,13 +14,14 @@
 use crate::corpus;
 use crate::fixture;
 
+use crate::fixture::len;
 use corpus::plate_param::{
     HOLE_CENTRES, HOLE_R, HOLE_R_VALUE, PLATE, PLATE_DEPTH, hole_loop, plate_profile,
 };
 use corpus::{body_of, eval};
 use editor_core::{
-    Dimension, DocEdit, DocParam, EvalOutcome, Expr, Node, NodeErrorKind, NodeResult, ParamName,
-    ProfileDoc, ProfilePayload, RecipeNodeId, SlotId, StepArg, apply,
+    Dimension, DocEdit, DocParam, EvalOutcome, Node, NodeErrorKind, NodeResult, ParamName,
+    ProfileDoc, RecipeNodeId, SlotId, StepArg, apply,
 };
 use geom_core::Tol;
 use profile::{ContactKind, PathError, ProfileError, ReplayErrorKind};
@@ -42,7 +43,7 @@ fn scene() -> Scene {
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(HOLE_R),
+            name: ParamName::from_static(HOLE_R),
             value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
         },
         Tol::witness(),
@@ -75,7 +76,7 @@ fn scene() -> Scene {
         &DocEdit::InsertNode {
             node: Node::Extrude {
                 profile,
-                distance: Expr::literal(PLATE_DEPTH, Dimension::Length).expect("depth"),
+                distance: len(PLATE_DEPTH),
             },
         },
         Tol::witness(),
@@ -92,11 +93,11 @@ fn scene() -> Scene {
 
 /// Re-point `hole_r` — the edit that must NEVER refuse at the door
 /// (§4d: `SetDocParam` does not refuse for downstream profile breakage).
-fn set_hole_r(doc: &ProfileDoc, value: f64) -> ProfileDoc {
+fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(HOLE_R),
+            name: ParamName::from_static(HOLE_R),
             value: DocParam::continuous(Dimension::Length, value),
         },
         Tol::witness(),
@@ -107,7 +108,7 @@ fn set_hole_r(doc: &ProfileDoc, value: f64) -> ProfileDoc {
 }
 
 /// The failure a node reported, if it failed.
-fn node_error(doc: &ProfileDoc, id: RecipeNodeId) -> Option<String> {
+fn node_error(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> Option<String> {
     let ev = eval::<f64>(doc);
     match ev.nodes.iter().find(|(n, _)| **n == id).map(|(_, r)| r) {
         Some(NodeResult::Failed(e)) => Some(format!("{:?}", e.kind)),
@@ -306,7 +307,7 @@ fn the_authoring_door_refuses_but_set_doc_param_does_not() {
         &DocEdit::SetParam {
             node: s.profile,
             slot: radius_slot,
-            expr: Expr::literal(0.0, Dimension::Length).expect("zero literal"),
+            expr: len(0.0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -331,7 +332,7 @@ fn the_authoring_door_refuses_but_set_doc_param_does_not() {
         &DocEdit::SetParam {
             node: s.profile,
             slot: radius_slot,
-            expr: Expr::literal(0.3, Dimension::Length).expect("literal"),
+            expr: len(0.3),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -358,7 +359,7 @@ fn the_hole_radii_are_addressable_slots() {
             arg: StepArg::Radius,
         };
         assert!(
-            program.slots().contains(&slot),
+            node.slots().contains(&slot),
             "loop {loop_}'s radius should be addressable"
         );
     }

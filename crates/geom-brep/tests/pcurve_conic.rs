@@ -345,7 +345,6 @@ fn ellipse_evaluator_differential_vs_rational_quadratic() {
 /// The interval lane of the differential: the oracle's enclosures
 /// contain points whose frame-quadratic residual encloses zero —
 /// agreement to certified enclosure width (§6).
-#[cfg(feature = "interval")]
 #[test]
 fn ellipse_differential_interval_lane() {
     use geom_core::{Bounds, Interval, Real};
@@ -361,11 +360,7 @@ fn ellipse_differential_interval_lane() {
     .unwrap();
     let oracle = rational_quadratic_arc(&e, 0.3, 2.9);
     // Lift the oracle to Interval (same structure, bracketed data).
-    let ctrl: Vec<Point3<Interval>> = oracle
-        .control()
-        .iter()
-        .map(|p| Point3::new(iv(p.x), iv(p.y), iv(p.z)))
-        .collect();
+    let ctrl: Vec<Point3<Interval>> = oracle.control().iter().map(|p| p.map(iv)).collect();
     let oracle_iv =
         geom::NurbsCurve3::<Interval>::new(oracle.knots().clone(), ctrl, oracle.weights().to_vec())
             .unwrap();

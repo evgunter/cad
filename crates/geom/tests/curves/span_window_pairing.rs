@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
@@ -149,7 +150,7 @@ fn degree_one_and_degree_five_read_exactly_their_windows() {
 // with a legal twin; the row below is the curve-side half.
 
 /// **A curve's own coordinate channels mint against its own vector, and
-/// the windows they mint are the curve's windows.** `ring_coords()` and
+/// the windows they mint are the curve's windows.** `certified_coords()` and
 /// `knots()` are read from one curve, so every channel mints (`Some`),
 /// every window the pair mints selects the span the curve mints at that
 /// index and refuses the indices the curve refuses, and the window's
@@ -163,7 +164,7 @@ fn a_curves_channels_mint_against_its_own_vector() {
     for (knots, degree) in span_families() {
         let c = curve(knots, degree);
         let k = c.knots();
-        let coords = c.ring_coords();
+        let coords = c.certified_coords();
         for (ch, coeffs) in coords.iter().enumerate() {
             let pair = k
                 .with_coeffs(coeffs)
@@ -205,7 +206,7 @@ fn a_curves_channels_mint_against_its_own_vector() {
         vec![0.0, 0.0, 0.0, 0.0, 0.2, 0.4, 0.6, 1.0, 1.0, 1.0, 1.0],
         3,
     );
-    let theirs = longer.ring_coords();
+    let theirs = longer.certified_coords();
     assert!(mine.knots().with_coeffs(&theirs[0]).is_none());
     assert!(longer.knots().with_coeffs(&theirs[0]).is_some());
 }

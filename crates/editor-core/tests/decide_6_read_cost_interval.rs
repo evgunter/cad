@@ -30,7 +30,6 @@
 //! `decide_6_the_profile_decides_nothing` GATES: the instrument
 //! re-encloses what the read enclosed, so a profiled replay must land
 //! every decision where an unprofiled one does.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the tier (the read and its instrument live in it), the

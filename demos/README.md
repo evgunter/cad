@@ -24,14 +24,18 @@ become a kernel dependency.
 cd demos/tour
 cargo run --release -- ../out                  # build, narrate, export STL + STEP
 cargo run --release -- gallery ../out/gallery  # the same scenes as .pncad documents
+cargo run --release -- certified               # the certified cells: plate tolerance, chain
 ```
 
 The first command builds every scene through the public API, narrates each
 one, and writes binary STL, AP214 STEP and `scenes.json` into `demos/out/`.
 The second writes the document-authored scenes as `.pncad` files the GUI
-opens — *The document gallery*, below.
+opens — *The document gallery*, below. The third narrates the two cells
+whose subject is the certified scalar rather than a scene (`tolerance.rs`,
+`chaintol.rs`); they take minutes where a scene takes seconds, so the walk
+leaves them to their own mode.
 
-**Neither renders anything, and neither needs the render guard's override
+**None of them renders anything, and none needs the render guard's override
 sentence.** The pictures in this repository are produced and committed by
 CI; *Rendering the montages* is that lane, and it is what the rest of this
 page is mostly about.
@@ -61,7 +65,7 @@ page is mostly about.
 | `hollowelbow` | the windowed hollow elbow — `tube_along_arc_hollow` over an arc window: a wall, and an open bore |
 | `hollowtorus` | the full-period hollow tube — `TubeWindow::Full`, where the inner traversal closes and enters as a REVERSED cavity shell through the shared void-insertion door |
 | `fivewall` | **every analytic surface kind the kernel holds, hollowed in ONE `shell` call**: one annular meridian mints two planes, two cylinders, a cone, a sphere and a torus, and the scene reads all five offsets back out of the STORED surfaces — each wall's cavity is a face of its OWN kind with one number moved (radius `∓ t`, the bore's growing where the rim's shrinks; the cone's half-angle unchanged and its apex slid; the torus's minor radius moved and its major left alone). The two arcs are what separate the last two kinds: `Center` ON the axis revolves to a sphere, the same arc about a centre OFF it to a torus. The curved radii are asserted as a GAP rather than bitwise, because an arc's radius is reconstructed from its endpoints and lands one ulp off its authored dyadic — stated rather than authored around. Genus 1 solid, genus 2 hollowed (the meridian never touches the axis, so the body is a bored SLEEVE); beside it in the same cell the same sleeve through `shell_open`, one annular rim, ONE shell |
-| `teapot` | **`shell`'s designated demo**: FOUR solids from ONE recipe document — a pot that is `Profile → Revolve → Node::Shell` opened at its mouth (one annular rim, genus 0), a lid whose three rims roll, and a CANAL of a spout and a handle set BESIDE the pot rather than joined. The spout is seven ANNULAR sections standing on the tangent frames of a circular arc, skinned by ONE `Node::Loft`: it bends 45°, tapers to half its root radius and thins as it goes, so no revolve reaches it at any axis and no extrude does either — which is what retired this scene's old finding that "a spout the shape of a spout is not authorable at all". **Its sections are ROUND, and what that costs at a tight ε is a volume NUMBER rather than a certificate.** A circle is RATIONAL, so lofted circular sections make rational walls; a rational wall is a quadrature face whose certified enclosure is chased to a reporting target derived from ε; and at ε = 1e-12 the schedule's own last-round bound proves that target unreachable after round 0 (`rounds: 1`, no work spent). **Tier 3 admits the body anyway**, and that is the part worth reading: the +V check consumes only the SIGN of that enclosure — the tier's own docs say deciding the sign "is an act of certification rather than a measurement" — and the enclosure excludes zero by about five orders of magnitude at the very round the chase stops on. So the scene certifies at every ε, and the volume ribbon reports the SIGN-level bracket (`V in [lo, hi] m^3 at SIGN level`) where it has no number to print. More budget would not buy the number back, measured: one more round makes the early exit stop firing and the face then runs over half an hour without finishing. An OCTAGONAL authoring had a number at every ε — straight sides make polynomial walls, which take the integral lane's exact per-span rule, the same reason `twisted_tube` next door can be a loft and a solid at every ε — and it is REVERTED, because the shape a potter draws is round and a demo bent around a kernel's reporting floor hides the floor. So the scene PROBES its mass rather than asserting through a door that may not open, and where the door opens it asserts the BRACKET: the straightened frustum inside the kernel's own certified enclosure. The two joins still refuse, at TWO DIFFERENT RUNGS of the operand gate: handle ∪ pot is `CurvedPairUnsupported` on a face-kind pair (torus × sphere — the handle's tube against the pot's SPHERICAL belly), while spout ∪ pot now gets PAST the pair rung — a loft's walls are `Nurbs` and that arm exists — and dies one door in at `CurvedEdgeUnsupported` on the canal's own seams, because rung-3 edges are what the curved zip mints and not what it consumes. Making the spout the shape a potter draws moved the refusal off a pair nobody modelled and onto the body's own edges. Rendered see-through: a cavity is invisible in an opaque render at every camera |
+| `teapot` | **`shell`'s designated demo**: FOUR solids from ONE recipe document — a pot that is `Profile → Revolve → Node::Shell` opened at its mouth (one annular rim, genus 0), a lid whose three rims roll, and a CANAL of a spout and a handle set BESIDE the pot rather than joined. The spout is seven ANNULAR sections standing on the tangent frames of a circular arc, skinned by ONE `Node::Loft`: it bends 45°, tapers to half its root radius and thins as it goes, so no revolve reaches it at any axis and no extrude does either — which is what retired this scene's old finding that "a spout the shape of a spout is not authorable at all". **Its sections are ROUND, and what that costs at a tight ε is a volume NUMBER rather than a certificate.** A circle is RATIONAL, so lofted circular sections make rational walls; a rational wall is a quadrature face whose certified enclosure is chased to a reporting target derived from ε; and at ε = 1e-12 the schedule's own last-round bound proves that target unreachable after round 0 (`rounds: 1`, no work spent). **Tier 3 admits the body anyway**, and that is the part worth reading: the +V check consumes only the SIGN of that enclosure — the tier's own docs say deciding the sign "is an act of certification rather than a measurement" — and the enclosure excludes zero at the very round the chase stops on, its lower end about ten of its own half-widths clear at ε = 1e-12. So the scene certifies at every ε, and the volume ribbon reports the certified bracket (`V in [lo, hi] m^3, certified bracket`) where it has no number to print. More budget would not buy the number back, measured: one more round makes the early exit stop firing and the face then runs over half an hour without finishing. An OCTAGONAL authoring had a number at every ε — straight sides make polynomial walls, which take the integral lane's exact per-span rule, the same reason `twisted_tube` next door can be a loft and a solid at every ε — and it is REVERTED, because the shape a potter draws is round and a demo bent around a kernel's reporting floor hides the floor. So the scene PROBES its mass rather than asserting through a door that may not open, and where the door opens it asserts the BRACKET: the straightened frustum inside the kernel's own certified enclosure. The two joins still refuse, at TWO DIFFERENT RUNGS of the operand gate: handle ∪ pot is `CurvedPairUnsupported` on a face-kind pair (torus × sphere — the handle's tube against the pot's SPHERICAL belly), while spout ∪ pot now gets PAST the pair rung — a loft's walls are `Nurbs` and that arm exists — and dies one door in at `CurvedEdgeUnsupported` on the canal's own seams, because rung-3 edges are what the curved zip mints and not what it consumes. Making the spout the shape a potter draws moved the refusal off a pair nobody modelled and onto the body's own edges. Rendered see-through: a cavity is invisible in an opaque render at every camera |
 | `torusvessel` | the torus-walled vessel, hollowed — a donut band in the wall, `shell` of a revolve whose belly arc has its centre OFF the axis |
 | `torusvesselcup` | the same vessel opened at its mouth — `shell_open` on the mouth's chart, then `merge_coplanar_faces`: one annular rim, coplanar with the wall's top, the revolve's seam retired before the glue through the Euler doors alone |
 | `s_duct` | the first CURVED-path sweep body: a 0.5 m square swept through an S — two OPPOSED quarter arcs of radius 2 (degree-3 interpolant through exact points), v-degree 3, path-following frame (planar path ⇒ no roll). Not the not-a-revolve claim: TWO GLUED partial revolves reach this shape, since each planar arc sweep is a partial revolve's orbit. Volume expectation A·L (curvature moment cancels) |
@@ -76,7 +80,7 @@ page is mostly about.
 | `crosslap_exploded` | the same joint exploded via `transform_rigid`, with re-minted witnesses |
 | `twopeg` | **the declared CYLINDRICAL contact**: two 6×4×1 plates located on each other by a mating plane and two peg-in-hole fits — plate P is the plate ∪ two three-arc pegs; plate Q is ONE extrude of a profile whose two circular INNER LOOPS are the bores, genus 2 by construction. So P is a boolean result and the mate is a boolean of one boolean. Three declared `Rest` contacts (one planar, two cylindrical) unlock the zip; UNDECLARED the mate still refuses at the coincidence door, and that contrast is narrated live. Volume is EXACTLY additive against a closed form — vol(P) + vol(Q) = (24 + π/2) + (24 − π/2) = 48, bitwise — and full engagement removes every cylindrical patch, so the finished body carries no cylinder face at all: each peg survives as a rim circle, an inner ring on the plate's top. ONE cell carries both framings — the mated body and, beside it, the same two parts apart with Q lifted, so the three contacts are visible before the union makes them interior |
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — the longest sequential boolean chain — and beside it in the SAME cell the first `topo::split`, that body cut by a tilted plane and the halves pulled apart, a machinist's section. The cell takes the SECTION's camera: the box is a box from any azimuth, the section is only a section from one |
-| `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's organic subject and a deliberate stress test. The **ROOTSTOCK** is the plant's one JOIN: a corm revolved with a coaxial cylindrical socket authored into its meridian, and the stem's foot standing in it, glued on two declared `Rest` contacts of which one is CYLINDRICAL. The **stem** is torus-segment tubes from the tube door, walked by a turtle so consecutive arcs are **G1 by construction**, carrying the AUTHORED `minor_radius` rather than a bulge-arc reconstruction of it. The **lantern** is a sphere zone from `revolve(Full)`, with a conical mouth below and a neck cone above cut at the arch tube's own radius — its rim IS that tube's terminal meridian circle, so flower and stem meet on one shared circle rather than crossing. The **bud** is that same meridian said three times PARTIALLY: pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally. The **blades** are the fitted pieces, a B-spline wall through exact spine points — the SWEPT ones hold one width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame; the LOFTED ones do both, because `loft_body` takes sections and placements as separate lists, so the long basal leaf runs rectangle to wide diamond to small diamond while turning about its own spine, and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Blade sections are straight lines today; restoring the lanceolate arcs is outstanding work on this stop and no longer gated on the kernel, since the span meter's rational arm landed (`sweep`'s `cert5_offgrid_knot_rational::the_lily_crescent_blade_certifies` is the standing row). Everything ELSE is set beside its neighbour rather than welded, and the stop is followed by **live wall probes** that attempt the joins and shapes a plant actually wants and assert each typed refusal, panicking if one ever retires |
+| `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's organic subject and a deliberate stress test. The **ROOTSTOCK** is the plant's one JOIN: a corm revolved with a coaxial cylindrical socket authored into its meridian, and the stem's foot standing in it, glued on two declared `Rest` contacts of which one is CYLINDRICAL. The **stem** is torus-segment tubes from the tube door, walked by a turtle so consecutive arcs are **G1 by construction**, carrying the AUTHORED `minor_radius` rather than a bulge-arc reconstruction of it. The **lantern** is a sphere zone from `revolve(Full)`, with a conical mouth below and a neck cone above cut at the arch tube's own radius — its rim IS that tube's terminal meridian circle, so flower and stem meet on one shared circle rather than crossing. The **bud** is that same meridian said three times PARTIALLY: pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally. The **blades** are the fitted pieces, a B-spline wall through exact spine points — the SWEPT ones hold one width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame; the LOFTED ones do both, because `loft_body` takes sections and placements as separate lists, so the long basal leaf runs rectangle to wide diamond to small diamond while turning about its own spine, and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Blade sections are straight lines today; restoring the lanceolate arcs is outstanding work on this stop and no longer gated on the kernel, since the span meter's rational arm landed (`sweep`'s `cert5_offgrid_knot_rational` rows pin rational walls with off-grid knots). Everything ELSE is set beside its neighbour rather than welded, and the stop is followed by **live wall probes** that attempt the joins and shapes a plant actually wants and assert each typed refusal, panicking if one ever retires |
 | `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder plus two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards, which is the better construction for coaxial supports and the one `fillet_edges` cannot make. The **top loop** is two thin elbows, `revolve(Partial)` of the annular section, 270° over the top and 90° turning back onto the axis — two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights, which is geometry and not a kernel limit. The three bodies MEET on coincident annular faces and NONE can be joined: the boolean operand gate is per-face-kind and PAIR-scoped (M5 PR 9), so what disqualifies a join is a kind with no arm on a pair whose boxes may meet — and here the cone and torus faces really do reach the other operand, so each join refuses on a named germ pair (union on Cone × Plane, subtract on Torus × Torus). The self-intersection an immersed Klein bottle must have is left un-trimmed for the same reason. Rendered SEE-THROUGH (the manifest's per-body `transparency`) from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **live wall probes**, one of which used to pin a DEFECT rather than an absence — `mesh::planar`'s banked sub-floor chart residue, which this bulb's annular cap is what hit. That case is CLOSED (issue 555): the projection writes the chart frame's structurally-zero far-point coordinate and floors every chart coordinate at spade's `MIN_ALLOWED_VALUE`, so wall 7 no longer pins a refusal — it re-runs the four flare-angle x rim-radius cells that used to refuse and requires all four to mesh |
 | `heatsink5/7/9` | **the recipe layer**: ONE document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `PlacedUnion`; each re-eval recomputes exactly 2 nodes and reuses 4 (counted in the caption); stable names survive the edits. The WHOLE part is in the document — `PlacedUnion(fin, Linear{count})` fuses the fins into one body and a `Boolean(Union)` folds them into the base, so the two recomputed nodes are the group and the union below it while everything upstream of the edited slot is reused by content key. The fins overlap the base by 1/16 rather than sitting flush, which is what a real extruded heat sink does not do: flush bases are a declared contact the scene does not yet author. Montage cell RETIRED in favour of `impeller12` below, which says the same thing about a relation rather than a number; all three counts keep their standalone renders |
 | `impeller6/8/12` | **the recipe layer's CIRCULAR rule: one parameter, TWO slots**. A 24-gon hub, one blade, and a `PlacedUnion` that places the blade about the hub's own `Datum::Axis` and fuses the group into ONE body, folded into the hub by a `Boolean(Union)` beside it. What separates this from `heatsink` above is that the blade COUNT and the angular STEP are not independent: the count is `blades` and the step is `360 deg / scalar(blades)`, both reading the SAME document parameter, so the tour's 6 → 8 → 12 is one `SetDocParamValue` each time and the blades still close the circle. A comb's count and spacing genuinely are independent; a wheel's are not, and the recipe layer can say which it is. Each edit recomputes exactly 2 nodes and reuses 7. The three volumes are EXACTLY linear in the count, and the reason is a constraint the scene chose on purpose: 6, 8 and 12 all divide the hub's 24 facets, so every blade meets the faceted hub at a clocking the hub repeats at. 5 blades (72°, not a multiple of 15°) breaks that linearity at 8e-5 relative — measured, and the faceted hub's own asymmetry showing up in a number. The hub is a PRISM rather than a cylinder because `cylinder ∪ box` refuses at the boolean's curved-pierce door, so a ROUND hub cannot have a blade unioned into it at all: that is a library finding the scene is shaped around rather than hiding |
@@ -341,10 +345,8 @@ guard's header gives.
 
 The rule is structural, not sniffed: there is no `GITHUB_ACTIONS` check
 in the guard. The sanctioned automated callers — `render.yml`'s render
-jobs, which declare the hosted sentence, and `ci-local.sh`'s
-`uv_sheet_drift`, which declares the local one because it genuinely is a
-local pass — each set their sentence **in the file, at the step that
-renders**, where a reviewer sees it. A sniffed exemption would be
+jobs, which declare the hosted sentence — set it **in the file, at the
+step that renders**, where a reviewer sees it. A sniffed exemption would be
 invisible at the call site and would grow silently with every new runner
 and local CI emulator.
 
@@ -355,11 +357,11 @@ and local CI emulator.
 per scene plus `montage.png`); `demos/renders-freecad/*.png` (tracked —
 the montage cells plus `montage-freecad.png`);
 `demos/renders-wild/*.png` (tracked); `demos/renders-uv/montage-uv.svg`
-and `demos/renders-mc/plate-density.svg` (both tracked, both text); and
+and `demos/renders-mc/*.svg` (both tracked, both text); and
 — only under `render.sh --matplotlib` —
 `demos/renders-preview/renders/*.png` (gitignored). The MC lane's own
-input is `demos/out/mc/plate-density.svg` (untracked), written by the
-tour itself.
+inputs are `demos/out/mc/*.svg` (untracked), written by the tour
+itself.
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
 published to the lane directory only once it is complete. The staging
@@ -416,9 +418,8 @@ Three layers keep a matplotlib frame out of a committed path:
   matplotlib-authored frame (`Software: Matplotlib …`) in a committed
   path fails loud, naming the file. Both `render.sh` lanes run it after
   the stamp strip and **before** composing the montage, so a sheet is
-  never composed from an uncertified cell set; it is also an always-run
-  row in `local-scripts/ci-local.sh` and a step in ci.yml's `discipline`
-  job (stdlib only — no venv, no FreeCAD). The wild lane runs under the
+  never composed from an uncertified cell set (stdlib only — no venv, no
+  FreeCAD). The wild lane runs under the
   same guard with INVERTED per-lane rules: there matplotlib is the
   primary renderer, and cells must carry the wild lane's own `Author`
   stamp.
@@ -637,13 +638,9 @@ Consequences worth stating:
   pinned-container work described in render.yml. This lane draws no 3-D,
   so its sheet is byte-reproducible anywhere. Hosted CI nonetheless does
   not fail on it: `render.yml`'s uv lane re-baselines the committed sheet
-  and reports the difference as a neutral check, so the hosted `uv sheet
-  drift (demos)` row was retired in 2026-08. What survives is
-  `ci-local.sh`'s `sheet drift (demos: uv + mc)`, which regenerates this
-  sheet and the MC lane's from ONE tour run and diffs both, and DOES
-  fail — because a developer box cannot re-baseline itself, and there
-  being told is the whole point. A failure there is
-  either an uncommitted regeneration or a D9 determinism finding.
+  and reports the difference as a neutral check; no row fails on it. A
+  difference is either an uncommitted regeneration or a D9 determinism
+  finding.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
   derive-on-demand, because a face the tessellator refuses is exactly the
@@ -761,10 +758,13 @@ and genuinely on screen, but it is a COUNT, not a distance.
 
 ## The MC density lane (`render-mc.sh`)
 
-**`renders-mc/plate-density.svg` — the population an advisory number is
-a summary of.** The fourth lane, and the second renderer-free one: the
-tour writes the sheet and `render-mc.sh` only publishes it. No compose
-step, because the cell is one sheet with two panels rather than a grid.
+**Two sheets, each the population an advisory number is a summary of.**
+The fourth lane, and the second renderer-free one: the tour writes the
+sheets and `render-mc.sh` only publishes them, one line of `SHEETS` per
+cell. Still no compose step — two sheets at two aspect ratios, each laid
+out where its own numbers are measured, is not a grid.
+
+### `renders-mc/plate-density.svg` — the two-hole plate
 
 The subject is the same two-hole plate the tolerance cell narrates
 (`demos/tour/src/plate.rs` holds the document; `tolerance.rs` runs the
@@ -811,9 +811,64 @@ carries its own scale bar — rather than only stated in the caption.
   (`mc::DEFAULT_SEED`) and printed on the sheet, so a change is an
   intended study change or a determinism finding, never noise.
   `render.yml` re-baselines the lane and reports neutral, exactly as it
-  does for uv; `ci-local.sh`'s `sheet drift (demos: uv + mc)` row fails
-  on a developer box, where being told is the point. One tour run gates
-  both sheets.
+  does for uv.
+
+### `renders-mc/chain-density.svg` — the four-link chain
+
+**Error propagation with a lever on it.** Four bars joined end to end,
+each joint carrying an independent normal angular error at σ = 0.01 rad;
+joint `j` rotates every link below it, so the last link has the longest
+lever and the fan gets wider all the way down. The document is
+`demos/tour/src/chain.rs` (read by both of its cells, as `plate.rs` is),
+the sheet is `mcchain.rs`, and the certified half is `chaintol.rs`.
+
+Everything the plate's sheet does, this does with a longer document:
+512 replays from `mc::sample_offsets`, the four numbers checked BIT FOR
+BIT against `monte_carlo`'s own, the seed on the sheet, a diff meaning
+the draws moved.
+
+* **Every polygon is a link the kernel built**, walked off that body's
+  own cap face — `face.outer`, the loop's cycle, each half-edge's start
+  vertex through `readback::vertex_point` — and every pin is a
+  `Surface::Cylinder` read off the same body. A link drawn where the
+  parameters say it should be rather than where the transform stack put
+  it would make the sheet a picture of the arithmetic instead of of the
+  kernel.
+* **The growth is checked, not admired.** With one law at every joint
+  the lateral spread at pin `k` is `L·σ·sqrt(Σ (k−j)²)` over the joints
+  above it — `1 : 2.24 : 3.74 : 5.48` across four links — and the sheet
+  prints the measured ratio beside the predicted one.
+* **Two panels, two centres.** The plate's two panels share a centre;
+  these do not, because the chain is 48 mm long and its tip is at one
+  end of it. The wide panel carries the whole chain at 19 px/mm with
+  each joint's measured lateral range dimensioned on it; the tip panel
+  is 48 px/mm on the target pin and the asserted 1 mm position band.
+* **The certified half is on the sheet, unlike the plate's.** The
+  widest box that certifies this chain whole is 0.111 of the study —
+  not `7.81e-7` — so the enclosure per joint is millimetre-scale and
+  DRAWS. In teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
+  across the chain (the worst-case lever sum, every joint at its own
+  extreme at once) while the advisory σ grows `1 : 2.24 : 3.74 : 5.48`
+  (the quadrature sum). E11's trade, in one picture. Along the chain
+  the enclosure is microns, so the box draws as a line and is widened
+  to a 5 px floor to be visible at all; the true number is in the
+  legend.
+* **The teal is drawn only at the ε it was measured at.** `0.111` is a
+  default-ε measurement and the box MOVES with ε (`0.1083` at `1e-6`,
+  measured); why it moves is not established — the wall's refusal is
+  a poisoned margin, not a quantity a band classifies — so at another
+  ε it is a different box, and `chaintol` (`demo-tour certified`)
+  declares that frontier at the same ε. The sheet asks the run's ε and, away from the default, prints
+  the frontier where the legend would have gone and draws no band. A
+  run at another ε where the box happens to certify anyway is
+  under-claimed, which is the direction to be wrong in.
+* **The sheet is checked by being read back.** The bit-equality
+  self-check covers the MEASURE and not the 10,752 coordinates the
+  picture is made of, so after the SVG is written every `<polygon>`
+  and every pin dot is parsed out of it, run through the inverse of
+  the panel map it was drawn with, and required to be the replay's own
+  coordinate. A one-millimetre displacement of every drawn pin — or of
+  one corner of every bar — reds it.
 
 ## Renderers
 

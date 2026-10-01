@@ -2,10 +2,13 @@
 id: culling-is-load-bearing-with-no-pixel-test
 kind: issue
 title: Which faces exist is now a rendering decision, and nothing in CI ever looks at a pixel
-status: open
+status: closed
+branch: chrome/pixel-test
 opened: 2026-09-04
+closed: 2026-09-29
+pr: 3486
 priority: P3
-cost: D
+cost: M
 ---
 
 
@@ -61,3 +64,18 @@ either should read both.
 `crates/viewer/tests/` are this program's ground.
 
 Opened from issue #1097's hardware run (Ev, 2026-09-04).
+
+## Re-homed to CHROME (2026-09-28)
+
+Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`): the missing pixel test is viewer coverage.
+
+## Closed
+
+PR 3486: `gpu::tests::the_culled_passes_draw_every_face_that_faces_the_eye`
+renders a kernel-built cube through `ViewportCallback`'s `prepare` (the
+id pass) and `paint` (the shaded pass, offscreen) from two opposite
+eyes, and at the centre of every face that faces the eye reads back
+that face's id and a depth nearer than the cube's centre. Which faces
+face the eye is decided from face centres, not winding. It runs in
+`ci.yml`'s `viewer` job on lavapipe. The convention it sets for a row
+about a rendered image: read back ids and depth, never colours.

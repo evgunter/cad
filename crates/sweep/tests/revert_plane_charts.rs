@@ -129,7 +129,9 @@ fn reverted_drum_cavity_re_certifies_edge_for_edge_and_tier_3_reports_only_the_c
     );
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
-        Err(vec![ValidationError::NegativeVolume]),
+        Err(vec![ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
         "a reverted body bounds the complement and nothing else fails"
     );
 }
@@ -210,6 +212,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
             None,
             mirrored.pcurve().chart_box(t0, t1),
             band,
+            <f64 as topo::AtRestPolicy>::fitted_lane(),
         )
         .expect("the mirrored row certifies on the reverted plane");
     assert_eq!(
@@ -217,7 +220,14 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         format!("{:?}", row.certificate()),
         "a fresh run on the reverted body metres the same numbers"
     );
-    let stale = row.recertify(&carrier3, reverted_plane, None, window, band);
+    let stale = row.recertify(
+        &carrier3,
+        reverted_plane,
+        None,
+        window,
+        band,
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
+    );
     assert!(
         matches!(
             stale,
@@ -270,9 +280,15 @@ fn plane_face_with(image: Pcurve<f64>, carrier: Curve3<f64>, t0: f64, t1: f64) -
     };
     let mut body = Body::<f64>::new();
     let (start, end) = (carrier.eval(t0), carrier.eval(t1));
-    let seed = body.mvfs(start).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(plane))
-        .unwrap();
+    let seed = body.mvfs(start, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: plane,
+            sense: true,
+        },
+    )
+    .unwrap();
     let chart = body.get_face(seed.face).unwrap().surface;
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::chart_image(chart, image),

@@ -1,45 +1,34 @@
 //! The refinement loop's four faces, pinned from outside the module
 //! over a corpus rather than one instance each: every refusal the
 //! corpus reaches keeps its face's own payload invariants — the two
-//! faces that carry a bound carry a finite one, the cap face never
-//! fires on the round budget's last round (the budget test precedes
-//! the marking), `rounds` never exceeds the budget, a not-finite face
-//! carries the last finite bound or none — and every message names the
-//! lever its face's doc claims.
+//! faces that carry a bound carry a finite one, every face that carries
+//! a bound also carries the smallest any round reached, no larger than
+//! its last and on a grid no finer, the cap face never fires on the
+//! round budget's last round (the budget test precedes the marking),
+//! `rounds` never exceeds the budget, a not-finite face carries the
+//! smallest finite bound or none — and every message names the lever
+//! its face's doc claims.
 //!
-//! The corpus is 2 bases x 7 deltas x 5 tolerances, and each (base, δ)
-//! column is its own `#[test]`: `fit_offset_at` is seconds per cell, so
-//! a corpus in one row is a row the runner cannot spread over its
-//! cores and is the whole binary's wall. The columns are independent —
-//! a cell's assertions read only that cell's payload — so the split
-//! costs nothing but the fixture, rebuilt per column.
+//! The corpus is the quarter cylinder at two deltas x 5 tolerances,
+//! one `#[test]` per (base, δ) column: the sample cap's witness
+//! (δ = 1e-6) and the witness of a not-finite bound with no finite
+//! round behind it (δ = 1e-8). `tests/offset_fit.rs` pins each refusal
+//! face by name in a single row; these columns read the same faces
+//! across a tolerance sweep. Each column claims its face by name, and
+//! refuses to pass if it reached no refusal face at all.
 //!
-//! What a column claims beyond its cells: that it reached at least one
-//! refusal face. A column every tolerance fits is a column whose
-//! payload assertions never ran, and it says so rather than passing.
-//! The two faces the corpus is here for — the sample cap and a
-//! not-finite bound with no finite round behind it — are claimed by
-//! name on the columns that reach them.
+//! **Each column also pins its five OUTCOMES**, face and digits, to
+//! `1e-3` relative: the door's bound is not monotone in the cell bound
+//! — a tightening reorders the refinement marking, and a different
+//! schedule is a different fitted surface (`offset_fit`'s `measure`,
+//! where the marking's cut is taken) — so a request whose bound GREW
+//! reds here rather than passing the payload invariants above, which
+//! hold whatever the numbers are.
 //!
-//! **Each column also pins its five OUTCOMES**, face and digits, and
-//! the fourteen tables together are the corpus census: which face
-//! each of the 70 requests wears and what bound it carries. Two
-//! things need that and neither is served by the payload invariants
-//! above, which hold whatever the numbers are.
-//!
-//! - **A face count stated in prose is checkable against it.** A
-//!   change that moves requests between faces has to move rows here,
-//!   one per request, so the count in the change's own description is
-//!   read off a table rather than assembled by hand.
-//! - **A bound that GREW reds here.** The cell bound is monotone on a
-//!   fixed grid, but the door's is not monotone in it — a tightening
-//!   reorders the refinement marking, and a different schedule is a
-//!   different fitted surface
-//!   (`work/props/offset-fit-door-bound-is-not-monotone-in-the-cell-bound`).
-//!   So "every bound only goes down" is not available as an argument
-//!   and the corpus has to be measured. The digits are pinned at
-//!   `1e-3` relative: tight enough to red on the 1.8% the one grown
-//!   request moved by, loose enough not to chase an ulp.
+//! The budget face is pinned by its reading too: `budget` on
+//! `LastRound::Improved`, `budget-did-not-improve` on
+//! `LastRound::DidNotImprove`, since those are two different sentences
+//! to the caller.
 //!
 //! Re-baselining a row here is the ordinary answer when a bound
 //! moves; what the table forbids is moving one silently.
@@ -48,14 +37,42 @@
 
 use geom::NurbsSurface;
 use geom_brep::offset_fit::{
-    OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, fit_offset_at,
+    BestBound, LastRound, OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, fit_offset_at,
 };
+use geom_core::KERNEL_LIMIT_LAST_RESORT;
 
-use crate::shared::fixture::{bumpy_patch, quarter_cylinder};
+use crate::shared::fixture::quarter_cylinder;
 use crate::shared::tol::band;
 
 /// The tolerances every column sweeps.
 const TOLS: [f64; 5] = [1e-15, 1e-12, 1e-9, 1e-6, 1e-3];
+
+/// The best bound a face carries against the last one it carries:
+/// finite, above the tolerance (the round that reached it would
+/// otherwise have certified), no larger than the last,
+/// and reached on a grid no finer. Returns the best bound, for the
+/// census to pin.
+fn best_is_the_smallest(
+    at: &str,
+    achieved: f64,
+    grid: (usize, usize),
+    tolerance: f64,
+    BestBound {
+        bound: best,
+        grid: best_grid,
+    }: BestBound,
+) -> f64 {
+    assert!(
+        best.is_finite() && best > tolerance && best <= achieved,
+        "{at}: the best bound {best:e} is not the smallest of a run ending on {achieved:e} \
+         against {tolerance:e}"
+    );
+    assert!(
+        best_grid.0 <= grid.0 && best_grid.1 <= grid.1,
+        "{at}: the best bound's grid {best_grid:?} is finer than the last {grid:?}"
+    );
+    best
+}
 
 /// The refusal faces one column reached, one counter each.
 #[derive(Default)]
@@ -82,12 +99,21 @@ impl Faces {
 /// its face carries one. `f64::NAN` in a `want` entry is the face
 /// that carries no number.
 ///
+/// The census pins the face's LAST bound, so a cell whose best bound
+/// differs from its last by more than `1e-3` relative reds: it would
+/// need a pin of its own.
+///
 /// Returns the faces the column reached, and refuses a column that
 /// reached none — five fits and nothing asserted is a column that
 /// proves nothing, which is the one way this sweep can rot silently.
 fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) -> Faces {
     let mut seen = Faces::default();
+    // EVERY census cell that moved, not the first: a re-pin reads the
+    // whole column at once, and a first-mismatch report costs one full
+    // refinement sweep per cell.
+    let mut moved: Vec<String> = Vec::new();
     for (i, t) in TOLS.into_iter().enumerate() {
+        let mut got_best: Option<f64> = None;
         let got: (&str, f64) = match fit_offset_at(base, d, t, band()) {
             Ok((_, c)) => ("certified", c.hull_sup),
             Err(OffsetFitError::BudgetExhausted {
@@ -95,8 +121,12 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 grid,
                 achieved,
                 tolerance,
+                last_round,
+                best,
             }) => {
                 seen.budget += 1;
+                let at = format!("{name} d={d} t={t}");
+                got_best = Some(best_is_the_smallest(&at, achieved, grid, tolerance, best));
                 assert_eq!(budget, OFFSET_FIT_BUDGET, "{name} d={d} t={t}");
                 assert!(
                     achieved.is_finite(),
@@ -107,7 +137,10 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                     grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP,
                     "{name} d={d} t={t}: grid past the cap"
                 );
-                ("budget", achieved)
+                match last_round {
+                    LastRound::Improved => ("budget", achieved),
+                    LastRound::DidNotImprove => ("budget-did-not-improve", achieved),
+                }
             }
             Err(OffsetFitError::SampleCapReached {
                 cap,
@@ -115,8 +148,11 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 grid,
                 achieved,
                 tolerance,
+                best,
             }) => {
                 seen.cap += 1;
+                let at = format!("{name} d={d} t={t}");
+                got_best = Some(best_is_the_smallest(&at, achieved, grid, tolerance, best));
                 assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP, "{name} d={d} t={t}");
                 assert!(
                     achieved.is_finite(),
@@ -141,7 +177,7 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 grid,
                 d: dd,
                 tolerance,
-                last_finite,
+                best,
             }) => {
                 assert_eq!(dd, d, "{name} d={d} t={t}");
                 assert_eq!(tolerance, t, "{name} d={d} t={t}");
@@ -153,7 +189,7 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                     grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP,
                     "{name} d={d} t={t}"
                 );
-                match last_finite {
+                match best.map(|b| b.bound) {
                     None => {
                         seen.not_finite_none += 1;
                         ("not-finite", f64::NAN)
@@ -170,9 +206,15 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 }
             }
             Err(OffsetFitError::RefinementStalled {
-                rounds, achieved, ..
+                rounds,
+                grid,
+                achieved,
+                tolerance,
+                best,
             }) => {
                 seen.stalled += 1;
+                let at = format!("{name} d={d} t={t}");
+                got_best = Some(best_is_the_smallest(&at, achieved, grid, tolerance, best));
                 assert!(
                     (rounds as usize) <= OFFSET_FIT_BUDGET,
                     "{name} d={d} t={t}: rounds past the budget"
@@ -192,16 +234,28 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
             "{name} d={d} t={t}: the face moved to {} carrying {:e}",
             got.0, got.1
         );
-        if want[i].1.is_finite() {
-            assert!(
-                (got.1 - want[i].1).abs() <= want[i].1.abs() * 1e-3,
-                "{name} d={d} t={t}: the {} face carries {:e}, pinned at {:e}",
-                got.0,
-                got.1,
-                want[i].1
-            );
+        if want[i].1.is_finite() && (got.1 - want[i].1).abs() > want[i].1.abs() * 1e-3 {
+            moved.push(format!(
+                "t={t}: the {} face carries {:e}, pinned at {:e}",
+                got.0, got.1, want[i].1
+            ));
+        }
+        if let Some(b) = got_best
+            && (b - got.1).abs() > got.1 * 1e-3
+        {
+            moved.push(format!(
+                "t={t}: the {} face's best bound {b:e} differs from its last {:e} and has no \
+                 pin of its own",
+                got.0, got.1
+            ));
         }
     }
+    assert!(
+        moved.is_empty(),
+        "{name} d={d}: {} census cell(s) moved — {}",
+        moved.len(),
+        moved.join("; ")
+    );
     eprintln!(
         "{name} d={d}: budget={} cap={} not_finite(none)={} not_finite(lost)={} stalled={}",
         seen.budget, seen.cap, seen.not_finite_none, seen.not_finite_lost, seen.stalled
@@ -239,24 +293,6 @@ fn quarter_cylinder_at_delta_1e_8_keeps_every_faces_payload_invariants() {
 }
 
 /// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_1e_7_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        1e-7,
-        [
-            ("cap", 5.8549822e-7),
-            ("cap", 5.8549822e-7),
-            ("cap", 5.8549822e-7),
-            ("certified", 5.8549822e-7),
-            ("certified", 5.8549822e-7),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
 /// the table is this column's row of the corpus census, and this is
 /// the corpus's witness of the sample-cap face.
 #[test]
@@ -280,227 +316,86 @@ fn quarter_cylinder_at_delta_1e_6_keeps_every_faces_payload_invariants() {
     );
 }
 
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_1e_5_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        1e-5,
-        [
-            ("budget", 3.6255804e-7),
-            ("budget", 3.6255804e-7),
-            ("budget", 3.6255804e-7),
-            ("certified", 3.6255804e-7),
-            ("certified", 7.1460400e-6),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_0_01_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        0.01,
-        [
-            ("budget", 3.6726212e-7),
-            ("budget", 3.6726212e-7),
-            ("budget", 3.6726212e-7),
-            ("certified", 3.6726212e-7),
-            ("certified", 6.5181412e-5),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_0_05_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        0.05,
-        [
-            ("budget", 3.8180980e-7),
-            ("budget", 3.8180980e-7),
-            ("budget", 3.8180980e-7),
-            ("certified", 3.8180980e-7),
-            ("certified", 6.7531657e-5),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_minus_0_05_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        -0.05,
-        [
-            ("budget", 3.4544881e-7),
-            ("budget", 3.4544881e-7),
-            ("budget", 3.4544881e-7),
-            ("certified", 3.4544881e-7),
-            ("certified", 6.1050669e-5),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_1e_8_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        1e-8,
-        [
-            ("not-finite", f64::NAN),
-            ("not-finite", f64::NAN),
-            ("not-finite", f64::NAN),
-            ("not-finite", f64::NAN),
-            ("not-finite", f64::NAN),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_1e_7_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        1e-7,
-        [
-            ("cap", 3.3545915e-7),
-            ("cap", 3.3545915e-7),
-            ("cap", 3.3545915e-7),
-            ("certified", 3.3545915e-7),
-            ("certified", 3.3545915e-7),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_1e_6_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        1e-6,
-        [
-            ("cap", 2.4521974e-7),
-            ("cap", 2.4521974e-7),
-            ("certified", 7.6102157e-10),
-            ("certified", 7.6102157e-10),
-            ("certified", 3.4386399e-6),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_1e_5_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        1e-5,
-        [
-            ("cap", 1.6337241e-7),
-            ("cap", 1.6337241e-7),
-            ("certified", 8.3373901e-10),
-            ("certified", 8.3373901e-10),
-            ("certified", 3.0299228e-5),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_0_01_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        0.01,
-        [
-            ("cap", 1.4792482e-7),
-            ("cap", 1.4792482e-7),
-            ("cap", 1.4792482e-7),
-            ("certified", 6.0162261e-7),
-            ("certified", 1.9331467e-5),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_0_05_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        0.05,
-        [
-            ("cap", 6.5406620e-7),
-            ("cap", 6.5406620e-7),
-            ("cap", 6.5406620e-7),
-            ("certified", 6.5406620e-7),
-            ("certified", 4.0378183e-5),
-        ],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_minus_0_05_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        -0.05,
-        [
-            ("cap", 6.5784386e-7),
-            ("cap", 6.5784386e-7),
-            ("cap", 6.5784386e-7),
-            ("certified", 6.5784386e-7),
-            ("certified", 4.3826144e-5),
-        ],
-    );
-}
-
-/// Each message names the lever the face's doc claims, and no other.
+/// Each message names what stopped the loop and the repair the face's
+/// doc claims, and no other: the budget and the cap are told apart by
+/// what they name, the budget's two readings say which one it was, the
+/// message reports the best bound rather than the last, a face with a
+/// geometry lever names it and no loosening, a face with none names
+/// loosening to the best bound as the last resort, and the two
+/// not-finite cases send the caller to two different repairs.
 #[test]
 fn each_faces_message_names_its_lever() {
-    let b = OffsetFitError::BudgetExhausted {
-        budget: OFFSET_FIT_BUDGET,
-        grid: (9, 9),
-        achieved: 1e-3,
-        tolerance: 1e-9,
+    let budget = |last_round| {
+        OffsetFitError::BudgetExhausted {
+            budget: OFFSET_FIT_BUDGET,
+            grid: (9, 9),
+            achieved: 2e-3,
+            tolerance: 1e-9,
+            last_round,
+            best: BestBound {
+                bound: 1e-3,
+                grid: (7, 9),
+            },
+        }
+        .to_string()
+    };
+    let (improved, flat) = (
+        budget(LastRound::Improved),
+        budget(LastRound::DidNotImprove),
+    );
+    for b in [&improved, &flat] {
+        assert!(
+            b.contains(&format!("all {OFFSET_FIT_BUDGET} refinement rounds")),
+            "{b}"
+        );
+        assert!(!b.contains("samples"), "{b}");
+        assert!(b.contains("best certified error was 0.001 m"), "{b}");
+        assert!(!b.contains("0.002"), "the last bound is named: {b}");
     }
-    .to_string();
-    assert!(b.contains("OFFSET_FIT_BUDGET"), "{b}");
-    assert!(!b.contains("OFFSET_FIT_SAMPLE_CAP"), "{b}");
+    // Splitting the face buys each piece rounds, which is a repair
+    // only while rounds were still paying, and a reading with a
+    // geometry lever advises no loosening. The did-not-improve reading
+    // has no lever but the tolerance, so it names that as the last
+    // resort, with the kernel-bug note. The recourse is compared WHOLE,
+    // from its marker to the end, so no rewording of the clause before
+    // it can hide a split creeping back in, or a loosening.
+    let recourse = |m: &str| m.split_once("Recourse: ").map(|(_, r)| r.to_owned());
+    assert!(improved.contains("while still improving"), "{improved}");
+    assert_eq!(
+        recourse(&improved).as_deref(),
+        Some("split the face so each piece fits in fewer rounds"),
+        "{improved}"
+    );
+    assert!(
+        !flat.contains("still improving") && flat.contains("did not improve on the one before"),
+        "{flat}"
+    );
+    let want = format!("loosen the tolerance to 0.001 m or more, {KERNEL_LIMIT_LAST_RESORT}");
+    assert_eq!(recourse(&flat).as_deref(), Some(want.as_str()), "{flat}");
     let c = OffsetFitError::SampleCapReached {
         cap: OFFSET_FIT_SAMPLE_CAP,
         rounds: 5,
         grid: (41, 40),
-        achieved: 1e-3,
+        achieved: 2e-3,
         tolerance: 1e-9,
+        best: BestBound {
+            bound: 1e-3,
+            grid: (33, 40),
+        },
     }
     .to_string();
-    assert!(c.contains("OFFSET_FIT_SAMPLE_CAP"), "{c}");
     assert!(
-        c.contains(&format!("5 of {OFFSET_FIT_BUDGET} rounds")),
+        c.contains(&format!(
+            "limit of {OFFSET_FIT_SAMPLE_CAP} samples per direction"
+        )),
+        "{c}"
+    );
+    assert!(!c.contains("rounds"), "{c}");
+    assert!(c.contains("best certified error was 0.001 m"), "{c}");
+    assert!(!c.contains("0.002"), "the last bound is named: {c}");
+    assert_eq!(
+        recourse(&c).as_deref(),
+        Some("split the face so each piece needs fewer samples"),
         "{c}"
     );
     let n = OffsetFitError::BoundNotFinite {
@@ -508,32 +403,37 @@ fn each_faces_message_names_its_lever() {
         grid: (25, 17),
         d: 1e-7,
         tolerance: 1e-3,
-        last_finite: None,
+        best: None,
     }
     .to_string();
+    assert!(n.contains("offset distance of 0.0000001 m"), "{n}");
     assert!(
-        n.contains("without any round producing a finite sup bound"),
+        n.contains("Recourse: use an offset distance of larger magnitude"),
         "{n}"
     );
+    // The never-finite message names no knob of the loop, and no
+    // tolerance to loosen to: there is no bound to size one against.
     assert!(
-        n.contains("neither the round budget nor the sample cap"),
+        !n.contains("rounds") && !n.contains("samples") && !n.contains("loosen"),
         "{n}"
     );
-    // The never-finite message names no constant a caller could raise.
-    assert!(!n.contains("OFFSET_FIT_"), "{n}");
     let l = OffsetFitError::BoundNotFinite {
         rounds: 4,
         grid: (25, 17),
         d: 1e-7,
         tolerance: 1e-3,
-        last_finite: Some(3.2e-4),
+        best: Some(BestBound {
+            bound: 3.2e-4,
+            grid: (17, 17),
+        }),
     }
     .to_string();
-    assert!(l.contains("the schedule is the lever"), "{l}");
-    assert!(
-        l.contains("0.00032 m"),
-        "the lost bound is not in the message: {l}"
+    let want = format!("loosen the tolerance to 0.00032 m or more, {KERNEL_LIMIT_LAST_RESORT}");
+    assert_eq!(
+        recourse(&l).as_deref(),
+        Some(want.as_str()),
+        "the lost bound is not what the repair is sized to: {l}"
     );
-    assert!(!l.contains("OFFSET_FIT_"), "{l}");
+    assert!(!l.contains("offset distance"), "{l}");
     assert_ne!(n, l, "the two not-finite cases must read differently");
 }

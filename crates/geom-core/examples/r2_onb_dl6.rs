@@ -12,16 +12,10 @@
 //! not refuse), and the normalization of a candidate (well conditioned
 //! at the chosen axis, degenerate only at the one never chosen).
 //!
-//! Run:  cargo run -p geom-core --features interval --example r2_onb_dl6
+//! Run:  cargo run -p geom-core --example r2_onb_dl6
 #![allow(clippy::print_stdout)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[cfg(not(feature = "interval"))]
-fn main() {
-    println!("needs --features interval");
-}
-
-#[cfg(feature = "interval")]
 fn main() {
     use geom_core::Vec3;
     use geom_core::interval::Interval;

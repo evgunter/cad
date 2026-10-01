@@ -13,12 +13,15 @@
 //! document ships to someone (`docs/DESIGN.md`, the Band 4 roadmap
 //! line).
 //!
-//! What stays is ONE door: a file this build cannot read refuses TYPED
-//! ([`PersistError::Unreadable`]) with [`REGENERATE_RECOURSE`], carried
-//! by the deserializer's own rejection of unknown or missing
-//! vocabulary — serde_json names the variant or field it could not
-//! place, and the refusal forwards that name. Both directions of
-//! growth follow from that one door. An OLDER document lacking
+//! What stays is one door for the VOCABULARY question: a file this
+//! build cannot read refuses TYPED ([`PersistError::Unreadable`]) with
+//! [`REGENERATE_RECOURSE`], carried by the deserializer's own
+//! rejection of unknown or missing vocabulary — serde_json names the
+//! variant or field it could not place, and the refusal forwards that
+//! name. (It is one of two doors a body's typed rejection can take:
+//! the other is [`PersistError::Dimension`], for the one rejection
+//! that is not about vocabulary at all — see below.) Both directions
+//! of growth follow from that one door. An OLDER document lacking
 //! vocabulary this build has since grown (a new node arm, a new
 //! optional field) never names it, so it loads — additive growth
 //! invalidates nothing. A NEWER document carrying a field this build
@@ -33,8 +36,8 @@
 //! is that instance;
 //! `work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
 //! is the class, and holds the question of what would detect the next
-//! one — a tracker path deleted at its program's close resolves through
-//! `docs/DOC-LEDGER.md`),
+//! one — a tracker path deleted at its program's close is recoverable
+//! in git history),
 //! so the rule above is what this format means by a stale reader and
 //! not a property its types enforce everywhere it is asserted. Where a
 //! declaration has no named field ANYWHERE the attribute is inert: a
@@ -48,16 +51,29 @@
 //! `id:` line is a file this build cannot read too.
 //!
 //! Which arm a refusal lands on is decided by serde_json's own
-//! classification of its failure and by nothing else — the one
+//! classification of its failure and, for the `Data` class alone, by
+//! whether a rebuild recorded a typed refusal on its way out — the one
 //! statement of that seam, with its executed edges, is on
-//! [`parse_err`].
+//! [`parse_err`], and how the typed value travels is
+//! [`refusal`]'s subject. No message is inspected either way.
+//!
+//! That second input is what splits the `Data` class in two.
+//! [`PersistError::Dimension`] is the arm for a body the reader
+//! accepted and the DIMENSION checker refused, and it is deliberately
+//! not [`PersistError::Unreadable`]: nothing about it is vocabulary
+//! this build lacks, so [`REGENERATE_RECOURSE`] would be advice that
+//! reproduces the refusal. Every route to it is a rebuild through the
+//! same smart constructors an author calls — [`crate::expr::Expr`]'s,
+//! `MeasureExpr`'s and [`crate::expr::UnitSym`]'s closed-table
+//! lookup — so the refusal
+//! a file earns is the one its authoring would have earned.
 //!
 //! # Format (spec D1)
 //!
 //! A save is TEXT: an `id: <32 lowercase hex>` header line naming the
 //! document's identity (ASM-1 D-6 — the workspace scan reads it
 //! without parsing the body), then a JSON body
-//! `{ "snapshot": <Doc>, "edits": [<DocEdit>…] }` — the full document
+//! `{ "snapshot": <Doc>, "edits": [<LoggedEdit>…] }` — the full document
 //! snapshot plus the edit log since that snapshot. (One known hatch,
 //! pinned rather than closed: serde's derived struct visitor also
 //! accepts the two fields POSITIONALLY, so a body spelled
@@ -105,7 +121,11 @@
 //!   through the dimension-checking constructors and the wire-only
 //!   canonical-set rule, [`wire`]) → the shared validator → edit
 //!   replay through [`crate::edit::apply`]'s doors → ε reconciliation
-//!   (D4). No silent best-effort loads, ever.
+//!   (D4). No silent best-effort loads, ever. A rebuild refusal keeps
+//!   its STRUCTURE across the deserializer, which gives it nowhere to
+//!   put one ([`refusal`]), and refuses as
+//!   [`PersistError::Dimension`] carrying the document layer's own
+//!   [`crate::expr::DimensionError`].
 //!
 //! # ε wiring (spec D4)
 //!
@@ -121,20 +141,26 @@
 mod canon;
 mod check;
 pub mod hexbytes;
+pub(crate) mod jsontext;
 /// The bytes of kernel types, described from above the layering
 /// boundary — see the module's own docs for the rules a new one
 /// follows.
 pub(crate) mod kernel_wire;
+pub(crate) mod nesting;
 pub(crate) mod pairs;
+/// The refusal channel. `pub(crate)` for its `record` alone: the
+/// display-unit door that records into it is `crate::expr`'s, outside
+/// this module, and the module's own docs name every recorder.
+pub(crate) mod refusal;
 pub(crate) mod strict;
 pub(crate) mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
-use crate::edit::{Applied, EditError, EditRecord, LoggedEdit, replay_entry};
+use crate::edit::{EditError, EditRecord, LoggedEdit, apply_logged};
 use crate::ident::DocumentId;
-use crate::mate::MateReach;
 use crate::program::{ProfileDoc, ProfileProgram};
+use crate::sentence::{Labelled, Labels, Staged};
 use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
@@ -167,8 +193,8 @@ struct FileBody {
 pub struct Loaded {
     /// The snapshot as saved.
     pub snapshot: ProfileDoc,
-    /// The edit log as saved — or, through [`load_with`], as
-    /// migrated: every entry carrying the rows it performed.
+    /// The edit log as saved: every entry carrying the rows it
+    /// performed.
     pub edits: Vec<LoggedEdit<ProfileProgram>>,
     /// The current document: snapshot with every edit replayed.
     pub doc: ProfileDoc,
@@ -283,10 +309,13 @@ pub enum PersistError {
     /// The body passed the JSON reader and this build's TYPES rejected
     /// it — serde_json's `Data` class (the seam is stated once, on
     /// [`parse_err`]): a variant or field this build has no name for,
-    /// a required field it lacks, a wrong type, a rebuild refusal.
+    /// a required field it lacks, a wrong type, a duplicate key.
     /// `detail` is the deserializer's own words and the offending name
-    /// is in there. Both directions of growth meet this arm or none
-    /// (module docs): an OLDER document that merely lacks vocabulary
+    /// is in there. A DIMENSION refusal is the one `Data` failure that
+    /// does not land here: it has a typed value to carry and carries it
+    /// ([`Self::Dimension`]). Both directions of growth meet this arm
+    /// or none (module docs): an OLDER document that merely lacks
+    /// vocabulary
     /// grown since does NOT land here — it loads; an OLDER document
     /// missing a field since made required lands here naming it; a
     /// NEWER document carrying a field this build lacks lands here
@@ -303,6 +332,39 @@ pub enum PersistError {
         /// The deserializer's message, naming the vocabulary it could
         /// not place.
         detail: String,
+    },
+    /// The body parsed and the document layer's dimension checker
+    /// refused one of its values on rebuild.
+    ///
+    /// **Three routes, one arm**, because they are one fault:
+    /// [`wire::WireExpr::rebuild`] and its measurement twin re-run the
+    /// authoring constructors (so a file cannot carry a tree the
+    /// authoring API refuses), and [`crate::expr::UnitSym`]'s
+    /// `Deserialize` runs the same closed-table lookup for a display
+    /// unit stored beside a document PARAMETER. An off-table symbol is
+    /// the same `UnknownDisplayUnit` wherever it sits, and answering
+    /// it differently by route would be one fault crossing one door
+    /// under two classes with contradictory recourse.
+    ///
+    /// The refusal crosses whole, not as prose: this is the load
+    /// door's half of the bindings' never-strings contract, and the
+    /// structure is what lets a caller branch on WHICH check failed
+    /// rather than read a sentence. How a typed value leaves a
+    /// `Deserialize` impl at all is [`refusal`]'s subject.
+    ///
+    /// Not [`Self::Unreadable`], although serde_json classes both as
+    /// `Data` (see [`parse_err`]): these bytes are not a document this
+    /// build has lost the vocabulary for, so [`REGENERATE_RECOURSE`] is
+    /// the wrong advice — regenerating a file whose expression is
+    /// dimensionally wrong produces the same refusal. What is wrong is
+    /// the expression.
+    Dimension {
+        /// Line within the body (serde_json's 1-based position).
+        line: usize,
+        /// Column within the line.
+        column: usize,
+        /// The document layer's own refusal.
+        error: crate::expr::DimensionError,
     },
     /// The snapshot violates a document invariant — a parsed one on
     /// load, or an in-memory one at save (which would have written an
@@ -366,15 +428,23 @@ pub const REGENERATE_RECOURSE: &str = "regenerate the file from its source recip
 
 impl core::fmt::Display for PersistError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", Labelled(self, Labels::Kept))
+    }
+}
+
+// The stage word is this door's only label: a carrier that names the
+// stage itself (a store's "refused to load") renders the sentence alone.
+impl Staged for PersistError {
+    const STAGE: &'static str = "persist";
+
+    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, _: Labels) -> core::fmt::Result {
         match self {
-            Self::NonFinite { site } => write!(f, "persist: non-finite float at {site}"),
-            Self::ProfileProgram { node, fault } => write!(
-                f,
-                "persist: profile program fault at node {}: {fault}",
-                node.0
-            ),
+            Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
+            Self::ProfileProgram { node, fault } => {
+                write!(f, "profile program fault at node {}: {fault}", node.0)
+            }
             Self::Distribution { name, fault } => {
-                write!(f, "persist: document parameter {name}: {fault}")
+                write!(f, "document parameter {name}: {fault}")
             }
             Self::DisplayUnit {
                 name,
@@ -382,54 +452,63 @@ impl core::fmt::Display for PersistError {
                 declared,
             } => write!(
                 f,
-                "persist: document parameter {name} is declared {declared} but its display \
+                "document parameter {name} is declared {declared} but its display \
                  unit measures {unit}"
             ),
-            Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
+            Self::Serialize { message } => write!(f, "serializer failed: {message}"),
             Self::HeaderId { found } => {
                 write!(
                     f,
-                    "persist: no `id: <32 lowercase hex>` header line (found: {found:?}) — \
+                    "no `id: <32 lowercase hex>` header line (found: {found:?}) — \
                      {REGENERATE_RECOURSE}"
                 )
             }
             Self::IdMismatch { header, snapshot } => write!(
                 f,
-                "persist: header id {header} disagrees with the snapshot's id {snapshot} — \
+                "header id {header} disagrees with the snapshot's id {snapshot} — \
                  tampered or hand-assembled file"
             ),
             Self::Parse {
                 line,
                 column,
                 message,
-            } => write!(f, "persist: body line {line} column {column}: {message}"),
+            } => write!(f, "body line {line} column {column}: {message}"),
             Self::Unreadable {
                 line,
                 column,
                 detail,
             } => write!(
                 f,
-                "persist: this build cannot read the document (body line {line} column \
+                "this build cannot read the document (body line {line} column \
                  {column}: {detail}) — {REGENERATE_RECOURSE}"
             ),
-            Self::Snapshot(e) => write!(f, "persist: invalid snapshot: {e}"),
+            Self::Dimension {
+                line,
+                column,
+                error,
+            } => write!(
+                f,
+                "body line {line} column {column}: refused by the document \
+                 layer's dimension checker: {error}"
+            ),
+            Self::Snapshot(e) => write!(f, "invalid snapshot: {e}"),
             Self::EditReplay { index, error } => {
-                write!(f, "persist: edit {index} refused on replay: {error}")
+                write!(f, "edit {index} refused on replay: {error}")
             }
             // The frame rule's ONE prose, forwarded into this door's
             // subject the way the snapshot's placement arms forward it.
             Self::MaintenanceFrame { index, row, fault } => write!(
                 f,
-                "persist: edit {index}'s maintenance row {row} records a frame that {fault}, so \
+                "edit {index}'s maintenance row {row} records a frame that {fault}, so \
                  it is not a placement"
             ),
             Self::ToleranceConflict { process, document } => write!(
                 f,
-                "persist: document ε {document:e} conflicts with the process ε {process:e} \
+                "document ε {document:e} conflicts with the process ε {process:e} \
                  (one process, one ε)"
             ),
             Self::ToleranceInvalid { value } => {
-                write!(f, "persist: recorded ε {value:e} is not a valid tolerance")
+                write!(f, "recorded ε {value:e} is not a valid tolerance")
             }
         }
     }
@@ -464,14 +543,21 @@ pub fn save(
     // that would need a store to load refuses at save too.
     let mut replay = snapshot.clone();
     for (index, entry) in edits.iter().enumerate() {
-        replay = replay_entry(&replay, entry, tol, None)
+        replay = apply_logged(&replay, entry, tol)
             .map_err(|error| PersistError::EditReplay { index, error })?
             .doc;
     }
     let body = SerBody { snapshot, edits };
-    let json = serde_json::to_string_pretty(&body).map_err(|e| PersistError::Serialize {
-        message: e.to_string(),
+    // Written compact inside the writing door, so a stable name of any
+    // depth writes one level at a time (`names::nest`), then laid out
+    // as `to_string_pretty` lays it out, compact past the load door's
+    // nesting limit (`jsontext::pretty`).
+    let json = crate::names::write_door(|| serde_json::to_string(&body)).map_err(|e| {
+        PersistError::Serialize {
+            message: e.to_string(),
+        }
     })?;
+    let json = jsontext::pretty(&json);
     // The `id:` header line duplicates the snapshot's id (ASM-1 D-6)
     // so a workspace scan reads identity without parsing the body;
     // load verifies the two agree.
@@ -495,31 +581,6 @@ struct SerBody<'a> {
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
 pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
-    load_replaying(text, tol, None)
-}
-
-/// **The migration door**: [`load`] for a file whose log may predate
-/// the maintenance rows (bare entries that moved a gauge, which
-/// [`load`] refuses `EditReplay` carrying
-/// [`EditError::MaintenanceUnrecorded`]). Entries with rows replay
-/// from them; entries with none are applied through `reach` and their
-/// rows derived, so the returned [`Loaded::edits`] is the migrated
-/// log — re-save it with [`save`], after which [`load`] reads it with
-/// no store in hand.
-///
-/// # Errors
-///
-/// [`load`]'s, with the live door's own refusals
-/// ([`EditError::MaintenanceRefused`]) in place of `Unrecorded`.
-pub fn load_with(text: &str, tol: Tol, reach: &dyn MateReach) -> Result<Loaded, PersistError> {
-    load_replaying(text, tol, Some(reach))
-}
-
-fn load_replaying(
-    text: &str,
-    tol: Tol,
-    migrate: Option<&dyn MateReach>,
-) -> Result<Loaded, PersistError> {
     // The header carries the document's id (ASM-1 D-6); it is parsed
     // before the body so a malformed header refuses in header terms,
     // then verified against the snapshot below.
@@ -541,26 +602,16 @@ fn load_replaying(
     // replayed state, never trusted bytes.
     let mut doc = body.snapshot.clone();
     let mut records = Vec::with_capacity(body.edits.len());
-    let mut edits = Vec::with_capacity(body.edits.len());
-    for (index, entry) in body.edits.into_iter().enumerate() {
-        // With `migrate` in hand a bare entry goes through the live
-        // door and comes back with the rows it performed.
-        let applied = replay_entry(&doc, &entry, tol, migrate)
+    for (index, entry) in body.edits.iter().enumerate() {
+        let applied = apply_logged(&doc, entry, tol)
             .map_err(|error| PersistError::EditReplay { index, error })?;
-        edits.push(LoggedEdit {
-            edit: entry.edit,
-            maintenance: applied.cluster_rows(),
-        });
-        let Applied {
-            doc: next, record, ..
-        } = applied;
-        doc = next;
-        records.push(record);
+        doc = applied.doc;
+        records.push(applied.record);
     }
     reconcile_epsilon(doc.epsilon())?;
     Ok(Loaded {
         snapshot: body.snapshot,
-        edits,
+        edits: body.edits,
         doc,
         records,
     })
@@ -615,7 +666,35 @@ pub fn header_document_id(text: &str) -> Result<DocumentId, PersistError> {
 }
 
 fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
-    serde_json::from_str(body_text).map_err(parse_err)
+    // The refusal frame is the read's own (`nesting::read` opens one
+    // around the read that answers, `refusal`).
+    let (parsed, refused) = nesting::read(body_text);
+    parsed.map_err(|e| match e {
+        nesting::Refused::Json(e) => {
+            parse_err(e.classify(), e.line(), e.column(), e.to_string(), refused)
+        }
+        // A name's text refused where it is written: the reader's own
+        // class and words, placed in the body.
+        nesting::Refused::Name {
+            line,
+            column,
+            category,
+            message,
+        } => parse_err(
+            category,
+            line,
+            column,
+            format!("{message} at line {line} column {column}"),
+            refused,
+        ),
+        // The reader's class (`parse_err`): the body is refused before
+        // any type is consulted.
+        nesting::Refused::TooDeep(at) => PersistError::Parse {
+            line: at.line,
+            column: at.column,
+            message: at.to_string(),
+        },
+    })
 }
 
 /// THE seam, stated once (the variant docs and the module header point
@@ -630,34 +709,65 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
 /// from a `&str` source and is grouped with the reader's classes
 /// rather than left to a wildcard.
 ///
+/// **One refusal inside `Data` is told apart from the rest, and not by
+/// its message**: an expression the document layer's dimension checker
+/// refused on rebuild arrives here with its TYPED value beside it
+/// ([`refusal`]), and that is what routes it to
+/// [`PersistError::Dimension`]. Nothing is sniffed — the structured
+/// value is either in hand or it is not. A `Syntax`/`Eof` failure with
+/// a refusal recorded is a refusal that did not decide the parse, and
+/// the reader's class still wins.
+///
 /// The executed edges, so nobody has to guess where the line falls
 /// (`tests/bool13_r1_probes.rs`, `tests/bool13r2_probes.rs`):
 /// unknown variant, unknown field, missing field, duplicate field, a
 /// wrong type at any depth, a body that is `null` / `5` / `[]` / a
-/// string, a nesting bomb (the typed visitor fails at depth three
-/// before the reader's recursion limit), and the crate's own rebuild
+/// string, a nesting bomb within the door's nesting limit (the typed
+/// visitor fails at depth three), and the crate's own rebuild
 /// refusals (duplicate strict-map key, ill-dimensioned expression,
 /// unknown display unit) are all `Data` → `Unreadable`. A syntax error,
-/// truncation, an empty body, trailing bytes after the value, a `NaN`
-/// or `Infinity` token, and a decimal literal outside `f64` (`1e999`,
+/// truncation, an empty body, trailing bytes after the value, a body
+/// nested past the door's nesting limit (`nesting`, refused by the
+/// door's own scan before the reader runs, so it never reaches this
+/// function), a `NaN` or `Infinity` token, and a decimal literal
+/// outside `f64` (`1e999`,
 /// "number out of range" — serde_json rejects it at the TOKEN, so it is
 /// `Syntax` although the bytes are grammatical JSON) are all
 /// → `Parse`. That last edge is the one place the two descriptions
 /// "not JSON" and "reader-rejected" part company, and the reader's
-/// class is the one this door follows.
-fn parse_err(e: serde_json::Error) -> PersistError {
+/// class is the one this door follows. The two rebuild refusals named
+/// above have MOVED off `Unreadable` since: an ill-dimensioned
+/// expression and an unknown display unit are the document layer's
+/// `DimensionError` and land on [`PersistError::Dimension`], while a
+/// duplicate strict-map key is the format's own rule and stays here.
+fn parse_err(
+    category: serde_json::error::Category,
+    line: usize,
+    column: usize,
+    words: String,
+    refused: Option<crate::expr::DimensionError>,
+) -> PersistError {
     use serde_json::error::Category;
-    let (line, column, message) = (e.line(), e.column(), e.to_string());
-    match e.classify() {
-        Category::Data => PersistError::Unreadable {
-            line,
-            column,
-            detail: message,
+    // The reporter's words are rendered per arm rather than up front:
+    // the `Dimension` arm carries a structured refusal and needs no
+    // sentence, which is the whole point of it.
+    match category {
+        Category::Data => match refused {
+            Some(error) => PersistError::Dimension {
+                line,
+                column,
+                error,
+            },
+            None => PersistError::Unreadable {
+                line,
+                column,
+                detail: words,
+            },
         },
         Category::Syntax | Category::Eof | Category::Io => PersistError::Parse {
             line,
             column,
-            message,
+            message: words,
         },
     }
 }

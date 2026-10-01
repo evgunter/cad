@@ -205,14 +205,13 @@
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKind};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
+use crate::attach::Rechart;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
-use crate::euler::FaceSurface;
 use crate::geometry::SurfaceKey;
 use crate::offset_together::ChartMove;
-use crate::props::PropsQuadLane;
 use crate::replace_face::ReplaceFaceError;
 
 /// The revolution axis every accepted surface shares, with the scope's
@@ -373,7 +372,7 @@ impl<T: Decide> Profile<T> {
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
 /// plan is decided before anything is written, and the writes go to a
 /// clone that replaces `body` only on success.
-pub fn offset_charts_together<T: Decide + PropsQuadLane>(
+pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,
@@ -601,7 +600,7 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
     // adopted on is the door's own whole-body check.
     let mut staged = body.clone();
     let mut work = staged.begin_surgery();
-    let mut minted: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
+    let mut charts: Vec<Rechart<T>> = Vec::new();
     for m in moves {
         let Some(&first) = m.faces.first() else {
             return Err(ReplaceFaceError::EmptyGroup);
@@ -617,36 +616,13 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
             Ok(_) => {}
             Err(source) => return Err(ReplaceFaceError::Escalated { source }),
         }
-        let new_key = work
-            .set_face_surface(first, FaceSurface::New(c.new.clone()))
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-        for &member in &m.faces[1..] {
-            work.set_face_surface(member, FaceSurface::Shared(new_key))
-                .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-        }
-        minted.push((c.old_key, new_key));
+        charts.push(crate::replace_face::offset_rechart(
+            &work,
+            c.new.clone(),
+            &m.faces,
+        )?);
     }
-    for (vertex, point) in &moved {
-        let old_point = work
-            .get_vertex(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point;
-        let new_point = work.add_point(*point);
-        work.get_vertex_mut(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point = new_point;
-        work.remove_point_if_orphaned(old_point);
-    }
-    for (edge, mut spec) in specs {
-        for (old, new) in &minted {
-            spec.description = crate::replace_face::remap_description(spec.description, *old, *new);
-        }
-        work.set_edge_curve(edge, spec, tol)
-            .map_err(|error| ReplaceFaceError::Op {
-                edge: Some(edge),
-                error,
-            })?;
-    }
+    crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)?;
     // Every edge OF THE SCOPE was re-described, and the charts here DO
     // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
     // pass is load-bearing rather than the planar door's inert one. It
@@ -2361,17 +2337,12 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
         Surface::Plane { origin, normal, .. } => normal.dot(p - *origin),
         Surface::Cylinder { radius, .. } => frame.radial(p).norm() - *radius,
         Surface::Sphere { center, radius, .. } => p.distance(*center) - *radius,
+        // The double cone's elevation about the frame's own axis line
+        // (`frame.dir` is the cone's axis up to sign, and the
+        // double-cone reading is symmetric in it).
         Surface::Cone {
             apex, half_angle, ..
-        } => {
-            // The cone's own unit normal in the meridian half-plane is
-            // `(cos α, −sin α)`, so this is the projection of the metre
-            // vector `(ρ, |h|)` onto it.
-            let (sin_a, cos_a) = half_angle.sin_cos();
-            let v = p - *apex;
-            let hh = v.dot(frame.dir);
-            (v - frame.dir * hh).norm() * cos_a - hh.abs() * sin_a
-        }
+        } => geom_brep::cone_elevation(*apex, frame.dir, *half_angle, None, p),
         // The torus's own meridian distance, in the same `(ρ, h)`
         // half-plane the corner solve works in. Without it the
         // edge-on-surface meter would read `zero` on every torus chart
@@ -2466,10 +2437,11 @@ fn restate<T: Decide>(
 /// A mapped description re-authored in its own sketch plane from the
 /// endpoints the corner solves put it between.
 ///
-/// A LINE takes the two points. An ARC takes them and the included
-/// angle they subtend at the moved carrier's own centre — the offset of
-/// a meridian arc is concentric, so the centre is the datum that does
-/// not move and the sweep is what the endpoints say it is. A POINT's
+/// A LINE takes the two points. An ARC takes them, the moved carrier
+/// itself (its centre and radius), and the included angle the points
+/// subtend at that centre — the offset of a meridian arc is concentric,
+/// so the centre is the datum that does not move and the sweep is what
+/// the endpoints say it is. A POINT's
 /// trajectory — extruded along a vector, or revolved about an axis —
 /// is the same trajectory of the moved point: the vector, the axis and
 /// the angle are the operand's own conventional data and are carried,
@@ -2503,19 +2475,22 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { .. } => {
-                        let Curve3::Circle { center, .. } = carrier else {
+                        let Curve3::Circle { center, radius, .. } = carrier else {
                             return Err(refuse(
                                 "a declaring pushforward whose sketch arc has no moved circle \
                                  to be re-authored about",
                             ));
                         };
-                        let c = flat(*center);
-                        let (u, v) = (a - c, b - c);
-                        let theta = u.perp_dot(v).atan2(u.dot(v));
+                        let centre = flat(*center);
+                        let (u, v) = (a - centre, b - centre);
                         geom_brep::SketchSegment::Arc {
                             a,
                             b,
-                            bulge: (theta / T::from_f64(4.0)).tan(),
+                            arc: Arc2 {
+                                centre,
+                                radius: *radius,
+                                sweep: u.perp_dot(v).atan2(u.dot(v)),
+                            },
                         }
                     }
                 },
