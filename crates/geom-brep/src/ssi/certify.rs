@@ -109,6 +109,7 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
+use geom_core::interval::norm_sup;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
@@ -832,7 +833,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 let (ud, vd) = (n.knots_u().domain(), n.knots_v().domain());
                 let nb = NurbsBoxes::new(n);
                 let speed = |bx: Box3| {
-                    let m = bx.speed_sup();
+                    let m = norm_sup(&[bx.x, bx.y, bx.z]);
                     SupSpeed::new(if m > 0.0 { m } else { f64::NAN })
                 };
                 let su = speed(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true));

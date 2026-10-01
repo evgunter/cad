@@ -143,6 +143,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::norm_sup;
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -437,27 +438,6 @@ pub(crate) fn norm_sq(v: &[Interval; 3]) -> Interval {
     v[0].sqr() + v[1].sqr() + v[2].sqr()
 }
 
-/// A certified upper bound on `‖v‖` for a componentwise enclosure.
-///
-/// Every step rounds outward: the per-component `sqr()` and the two
-/// ring sums, then [`sqrt_up`]. An `f64` fold of the same endpoints
-/// rounds to nearest at each step and can land BELOW the real norm
-/// by ulps, which is the unsound side wherever the result is a
-/// divisor of a lower bound — so a site that wants an upper bound on
-/// a norm calls this rather than re-spelling the fold.
-/// A refused enclosure answers `NaN` — no bound at all, which is what
-/// every consumer of this value already treats as unbounded. The
-/// refusal is asked by name because a refused enclosure carries ordinary
-/// endpoints and `sqrt_up` of one would be a plausible bound with
-/// nothing behind it.
-pub(crate) fn norm_sup(v: &[Interval; 3]) -> f64 {
-    let sq = norm_sq(v);
-    if !sq.is_certified() {
-        return f64::NAN;
-    }
-    sqrt_up(sq.hi())
-}
-
 /// One cell's chart-normal facts: the enclosure of `S_u × S_v` and
 /// certified bounds on its magnitude (module docs, meter 1).
 #[derive(Clone, Copy, Debug)]
@@ -579,11 +559,10 @@ pub struct PatchRegularity {
 
 impl PatchRegularity {
     /// The lever the regularity predicate divides by: the patch's
-    /// faster chart speed, in metres per unit parameter. The max of
-    /// two sup bounds is a sup bound, so the pair's tag survives the
-    /// fold.
+    /// faster chart speed, in metres per unit parameter, folded on the
+    /// rate type so a refused axis refuses the lever.
     pub fn speed_lever(&self) -> SupSpeed<f64> {
-        SupSpeed::new(self.speed_u.get().max(self.speed_v.get()))
+        self.speed_u.max(self.speed_v)
     }
 
     /// The margin [`offset_normal_floor`] classifies — the chart
@@ -617,8 +596,8 @@ impl PatchRegularity {
 pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     let mut floor = f64::INFINITY;
     let mut sup = 0.0f64;
-    let mut speed_u = 0.0f64;
-    let mut speed_v = 0.0f64;
+    let mut speed_u = SupSpeed::new(0.0f64);
+    let mut speed_v = SupSpeed::new(0.0f64);
     for cell in cells {
         let n = cell_normal(cell);
         // `cell_normal` never answers a NaN floor — its assemblies
@@ -630,8 +609,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
             floor = n.floor;
         }
         sup = sup.max(n.sup);
-        speed_u = speed_u.max(norm_sup(&cell.s_u));
-        speed_v = speed_v.max(norm_sup(&cell.s_v));
+        speed_u = speed_u.max(SupSpeed::new(norm_sup(&cell.s_u)));
+        speed_v = speed_v.max(SupSpeed::new(norm_sup(&cell.s_v)));
         if n.sup.is_nan() {
             sup = f64::NAN;
         }
@@ -639,7 +618,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     if cells.is_empty() {
         floor = 0.0;
     }
-    let denom = speed_u * speed_v;
+    let denom = speed_u.get() * speed_v.get();
     let sine_floor = if denom > 0.0 && denom.is_finite() {
         (floor / denom).next_down()
     } else {
@@ -649,8 +628,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     PatchRegularity {
         floor,
         sup,
-        speed_u: SupSpeed::new(speed_u),
-        speed_v: SupSpeed::new(speed_v),
+        speed_u,
+        speed_v,
         sine_floor,
         cells: cells.len() as u32,
     }

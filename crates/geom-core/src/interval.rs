@@ -301,6 +301,31 @@ impl Interval {
     }
 }
 
+/// A certified upper bound on `‖v‖` for a componentwise enclosure —
+/// the kernel's one spelling of a norm read from above.
+///
+/// Every step rounds outward: the dependent square per component (so a
+/// side straddling zero keeps a zero lower end), both sums in interval
+/// arithmetic, then the correctly rounded `sqrt` of the upper end
+/// stepped one ulp up. An `f64` fold of the same endpoints rounds to
+/// nearest at each step and can land BELOW the real norm, which is the
+/// unsound side wherever the result divides a lower bound or crosses a
+/// metre length into chart units.
+///
+/// A refused enclosure answers `NaN`: no bound at all. It is asked by
+/// name because a refused enclosure carries ordinary endpoints, and a
+/// root of one would be a plausible bound with nothing behind it. An
+/// overflowed sum answers `+∞`.
+#[must_use]
+pub fn norm_sup(v: &[Interval; 3]) -> f64 {
+    let sq = Real::powi(v[0], 2) + Real::powi(v[1], 2) + Real::powi(v[2], 2);
+    if !sq.is_certified() {
+        return f64::NAN;
+    }
+    let hi = Bounds::hi(sq);
+    if hi > 0.0 { hi.sqrt().next_up() } else { hi }
+}
+
 impl Add for Interval {
     type Output = Self;
 

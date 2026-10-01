@@ -125,6 +125,7 @@ pub mod system;
 use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
+use geom_core::interval::norm_sup;
 use geom_core::{Band, Indeterminate, Margin, Point3};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
@@ -1002,7 +1003,7 @@ pub fn plane_nurbs_ssi(
     let nb = NurbsBoxes::new(wall);
     let du = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true);
     let dv = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false);
-    let speed = nan_propagating_max(du.speed_sup(), dv.speed_sup());
+    let speed = nan_propagating_max(norm_sup(&[du.x, du.y, du.z]), norm_sup(&[dv.x, dv.y, dv.z]));
     // A speed OUTSIDE the positive-finite class can never translate a
     // floor: `floor / ∞` is exactly zero — a floor no cell can ever
     // reach — so a non-finite speed would let the sweep run to its
