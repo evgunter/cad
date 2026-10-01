@@ -55,7 +55,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
+use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
 use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
@@ -298,9 +298,12 @@ pub fn segment_curve(
         SketchSegment::Arc {
             a,
             b,
-            centre: center,
-            radius,
-            sweep: theta,
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    sweep: theta,
+                },
         } => {
             if !(a.distance(b) > 0.0) {
                 return Err(degenerate("zero-length chord"));
@@ -765,7 +768,7 @@ pub type Section = Vec<ProfileLoop<f64>>;
 /// selected by the validated segment's kind; an arc crosses into the
 /// sketch-segment form with its carrier and sweep.
 fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
-    crate::swept::canonical_sketch_segment(&lp.segments()[j])
+    crate::swept::sketch_segment(&lp.segments()[j])
 }
 
 /// Validates every section at the door: each section runs

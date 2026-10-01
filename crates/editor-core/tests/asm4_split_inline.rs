@@ -37,9 +37,7 @@ use std::sync::Arc;
 /// centered at `cx` (the asm2a fixture).
 /// **Positions** in a `part` document's node order — its sketch
 /// frame, the profile drawn on it, then the extrude that is its body.
-/// These index `doc.order()`; they are not node ids, which is why
-/// they do not borrow `fixture::resolver::PART_BODY`'s name even
-/// though this suite's parts are the same three-node shape.
+/// These index `doc.order()`; they are not node ids.
 const PLANE_POSITION: usize = 0;
 const PROFILE_POSITION: usize = 1;
 const BODY_POSITION: usize = 2;
@@ -731,12 +729,14 @@ fn row3_further_typed_refusals() {
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let (host, consumer) = insert(
         host,
-        Node::Transform {
-            input: inst,
-            translation: [len(1.0), len(0.0), len(0.0)],
-            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            inst,
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceConsumed { node, by }) => {

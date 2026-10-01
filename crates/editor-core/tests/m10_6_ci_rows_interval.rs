@@ -260,7 +260,7 @@ fn distributed_plate() -> ProfileDoc {
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Circle {
-            centre: [Expr::neg(hs.clone()), len(0.0)],
+            centre: [Expr::neg(hs.clone()).expect("a shallow negation"), len(0.0)],
             radius: Expr::param(name("hole_a_r"), Dimension::Length),
         }],
         ids: Vec::new(),
@@ -415,16 +415,18 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         profile,
         distance: len(2.0),
     });
-    let placed = r.insert(Node::Transform {
-        input: solid,
-        translation: [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let placed = r.insert(Node::transform(
+        solid,
+        editor_core::Step::Rigid {
+            translation: [
+                Expr::param(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let measure = r.insert(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),

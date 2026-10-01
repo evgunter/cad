@@ -22,8 +22,8 @@
 //! driver's own K population, whose subdivision refines margins toward
 //! zero by construction and therefore crowds the escalation band in
 //! bulk without anything being wrong; `docs/K-REPORT.md`'s recourse 2
-//! is the demotion this implements, and ci.yml's step carries the
-//! recorded justification.
+//! is the demotion this implements, and nightly.yml's step carries
+//! the recorded justification.
 //!
 //! It is deliberately NOT `--advisory`: rule 1 is the trigger E6 names
 //! for re-opening the K question, so a flag the caller cannot demote

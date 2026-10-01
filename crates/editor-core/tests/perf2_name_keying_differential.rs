@@ -118,27 +118,27 @@ fn sans_epsilon(t: &str) -> String {
 
 /// `(document, both-direction name digest, persisted-text digest)`.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0xb894_8d14_7ea8_f683, 0x9370_394e_d97b_c6c1),
+    ("die", 0xb894_8d14_7ea8_f683, 0x103b_ff54_177b_cea8),
     ("corner_table", 0x5049_8282_2abc_6576, 0x1d9b_9b04_66bf_23a9),
-    ("heat_sink", 0x3f75_2e44_c653_a195, 0x8ec1_ebe0_a821_d93e),
+    ("heat_sink", 0x3f75_2e44_c653_a195, 0xc121_bd20_aa40_3afb),
     (
         "crossing_slots",
-        0x45b0_d3fb_4a80_e28e,
+        0xda43_6c13_abf1_d594,
         0x8699_30d6_d9f4_5832,
     ),
     (
         "nested_islands_105",
-        0x55fb_fae6_e9ea_bbaa,
+        0x744f_c58b_23ea_7a32,
         0xa54b_1d87_1ad6_144e,
     ),
     (
         "nested_islands_106_depth1",
-        0xcfc7_86a6_ce50_f94b,
+        0x0b43_088d_fcfc_dc99,
         0x93de_1cd7_5952_da4f,
     ),
     (
         "nested_islands_106_depth2",
-        0x2a68_0235_6d92_659e,
+        0x3adb_b7f9_21b4_8ace,
         0xa58c_369b_0600_ab56,
     ),
     (
@@ -146,13 +146,13 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x8d76_33c1_671d_4a60,
         0x70a2_f947_1ec9_50dc,
     ),
-    ("kitchen_sink", 0x90ac_7090_7b34_a265, 0xd967_834a_07f2_425b),
+    ("kitchen_sink", 0x90ac_7090_7b34_a265, 0x092c_cfed_118a_86d2),
     ("cut_cylinder", 0x834e_c919_bea5_e627, 0x031f_091f_86a3_bbf2),
     ("measured_web", 0x08a9_cca4_099a_f6eb, 0x0f41_ad3c_a6aa_7857),
     ("boss_union", 0x3ae1_d9ac_7a23_a219, 0x9ec6_3539_b5fa_b0ad),
     ("die_fillet", 0x0870_50ac_c9dd_c471, 0x342c_e205_8a5c_4b86),
     ("die_chamfer", 0x0870_50ac_c9dd_c471, 0x044e_6dd6_a945_e3cb),
-    ("die_pips", 0xf92a_497e_183a_d145, 0xf43e_f760_364c_08db),
+    ("die_pips", 0xf92a_497e_183a_d145, 0x9329_0046_2b0f_d692),
     (
         "heat_sink_fins",
         0x9ab9_8e4e_263d_f73d,
@@ -160,13 +160,13 @@ const PINNED: &[(&str, u64, u64)] = &[
     ),
     ("die_tool", 0xdaa2_9bd7_da39_9be8, 0x870f_c3b5_cad7_3495),
     ("face_sketch", 0xaebd_8352_c897_9f38, 0x0e14_fd88_e2a3_89f0),
-    ("part_select", 0x1bda_a086_1125_bace, 0xab94_ed1e_cd79_1017),
+    ("part_select", 0x1bda_a086_1125_bace, 0xa3d4_56af_fd7a_fca2),
     ("loft_prism", 0x2c5c_54f7_0e9b_3170, 0x7114_73e9_367c_ca4a),
-    ("die_composed", 0xdc85_e49e_ad92_0861, 0xc420_b75d_124d_8234),
+    ("die_composed", 0xdc85_e49e_ad92_0861, 0xb9bc_3e41_cb1d_1f0d),
     (
         "die_composed_tour",
         0xf33d_572d_3f14_cc11,
-        0x50b9_6a36_5284_5c9c,
+        0x53eb_2155_9ec9_d281,
     ),
     ("plate_param", 0x6531_364f_7c5b_9574, 0x299b_671a_375b_e29f),
     ("kiss_carry", 0x31d0_3adb_a450_3576, 0x97c1_41bc_2508_3e86),

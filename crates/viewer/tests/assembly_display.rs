@@ -21,8 +21,12 @@ use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::display::{self, AdmissionFault, DisplayFault};
 use viewer::frame;
+use viewer::marks;
+use viewer::pickindex::IdMap;
 use viewer::scene::SceneMesh;
-use viewer::session::{DocSession, Refusal, SessionOp};
+use viewer::session::{
+    DocSession, FaceFrameFault, Refusal, Selection, SessionOp, face_frame_seat_drawn,
+};
 use viewer::tree::RowStatus;
 
 /// Every `Node::Mate` the session's document holds, document order —
@@ -222,6 +226,51 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     });
     let restored = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(restored.stats().triangles, full.stats().triangles);
+}
+
+/// **A held face on a hidden instance is neither marked nor committed
+/// against.** Hiding edits what the picture emits and not what an id
+/// means, so the face's patch id outlives the hide; what the held mark
+/// and the add-datum form's gate both read is whether the picture
+/// DRAWS it (`marks::drawn_patch`), and after the hide it does not.
+#[test]
+fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
+    let tol = Tol::witness();
+    let bench = asm::bench("held-hide", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let index = asm::index_of(&session);
+    let face = asm::pick_face(&session, &asm::over_post_b());
+    assert_eq!(face.node, bench.post_b, "the pick is on post_b");
+    let held = marks::Held {
+        faces: [Some(&face), None, None],
+        edges: None,
+    };
+    let read = |session: &DocSession| {
+        let view = session.display_view();
+        let (marked, _) = marks::compose(&index, &view, &Selection::None, None, &held);
+        let seat = face_frame_seat_drawn(session.landed_pair(), Some(&face), Some((&index, &view)));
+        (marked.held[0], seat)
+    };
+    let (mark, seat) = read(&session);
+    assert_ne!(mark, IdMap::NOTHING, "a drawn held face is marked");
+    assert_ne!(
+        seat,
+        Err(FaceFrameFault::NotDrawn),
+        "and not refused as undrawn"
+    );
+
+    let outcome = session.perform(SessionOp::SetInstanceHidden {
+        instance: bench.post_b,
+        hidden: true,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let (mark, seat) = read(&session);
+    assert_eq!(mark, IdMap::NOTHING, "a hidden held face is not marked");
+    assert_eq!(
+        seat,
+        Err(FaceFrameFault::NotDrawn),
+        "the button would commit against a face nothing marks"
+    );
 }
 
 /// Two instances of one part consumed by a single boolean: the drawn
@@ -866,6 +915,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
         op: pncad::document::BooleanOp::Union,
         a: bench.post_b,
         b: bench.post_a,
+        declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [dropped] = &outcome.withdrawn.dropped_hides[..] else {

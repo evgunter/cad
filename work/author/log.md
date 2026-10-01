@@ -1306,3 +1306,273 @@ described above:
 - `Refusal::parse_error` lists `Duplicate(_)` under `None`.
 
 (CHROME implementer lane, chrome/subset-policy)
+
+## 2026-09-30 — AUTH-5 MERGED (`5255964e`); Ev ruled on the edit door and confirmed AUTH-6's P0
+
+**Ev's rulings this stretch.** (1) The P0 triage of
+`the-viewer-keeps-its-profile-lock-and-order-search-after-set-program`
+is confirmed ("your p0 ranking call is good"). (2) The edit door during
+a refused edit: hide the committed shape, consistently — the review had
+found the picture flipped on whether a prefix happened to replay — and
+file a faint ghost of it as a follow-up (on VGEOM).
+
+**AUTH-5's arc.** Implementer, two reviews, a fix pass, a follow-up for
+Ev's ruling, and a narrow review of the fix pass's new acceptance rule.
+The narrow review found the rule sound and one claim overstated (C4),
+filed rather than fixed, since it is not a regression.
+
+**CI policy changed under this program on 2026-09-28** (discipline §2):
+the per-PR gate is sized for latency and the nightly runs the full
+matrix, k-lint and the render lanes. My specs had kept telling lanes to
+count the full matrix; AUTH-5's lane read the new §2 and corrected me.
+A red nightly is now a red main owned by the orchestrator.
+
+**Merges I resolve myself are built, not just resolved.** AUTH-6's
+merge of main had one textual conflict and two semantic clashes with no
+markers (`resolver_seam()` returning `Arc`; `ParamName::new` now
+fallible). And `cargo test` stops at the first failing target: the two
+no-adapter GPU rows in the lib suite hid that the integration suite had
+not run. The integration suite is now its own run.
+
+**A mistake of mine.** While narrowing the C4 claim in PR 3440's body I
+called the update with a stub and replaced the whole body with the word
+"PLACEHOLDER". Restored within a minute from the copy I had saved before
+editing, and verified by length, the edited sentence, and the footer.
+The saved copy is why it was recoverable: edit a PR body from a file,
+and keep the file until the update is verified.
+
+## 2026-09-30 — AUTH-6 MERGED (`75d074e3`): a committed sketch can be reshaped
+
+Six units closed across these sittings. AUTH-6 ran: implementer; a
+merge of main I resolved myself (built, and found two clashes without
+markers); correctness and style reviews in parallel; a repair pass on a
+fresh lane, since the implementer could not be resumed after a
+container restart. No narrow re-review: the fix pass repaired findings
+rather than adding design, and its one rewrite of the id rule carried
+its own proof (all 1369 pairs of 37 steps agree with the old rule).
+
+Merged over 42 commits of `main` that changed no viewer file; GitHub
+reported a clean merge with nothing to resolve.
+
+## 2026-09-30 — AUTH-7 dispatched: a measure shows its value
+
+Next P0 on the slate. Tiers 1 and 2 of the row: the value, or the kernel's typed absence and the door it names. The clearance consumer (tier 3) is a design item and is split out. Verified before specifying: the kernel exposes both payloads through `pncad::document`, and nothing in the viewer reads them.
+
+`a-negative-extrude-distance-probes-as-valid` is re-priced from `E` to `M` with `design: true`. Its own text says the fix is a kernel/document decision (does a negative distance build, or does a thickness get a declared domain), so it is a design fork, not a drive-by.
+
+`addboolean-doc-names-a-vocabulary-that-does-not-exist` still waits on EDIT's `DocEdit` vocabulary, as `plan.md` says.
+
+## 2026-09-30 — AUTH-7 MERGED (`6e9523dd`): measures show their values
+
+Seven units closed on AUTHOR's slate. Both reviews came back
+mergeable, and correctness could not falsify any claim.
+
+**The trap fired a seventh time, and the review caught it again.** The
+row painter was extracted so the harness could drive "what the pane
+paints", but `feature_row` still owned the layout and the tests drove a
+copy of it. The fix put the layout in one free function. That also
+moved the click handling for every feature row: label-select and the
+instance toggle. I held the merge for two rows pinning those clicks,
+because the refactor made them testable for the first time and no test
+had ever held them. Four mutations, all red.
+
+**Units** are Ev's to rank: `work/chrome/a-computed-slots-value-reads-in-metres-and-radians`
+(P3, design). A 12.5 mm part's measure reads `0.0125 m` and a right
+angle `1.5707963268 rad`, consistent with driven slots.
+
+## 2026-09-30 — AUTH-8 dispatched: an assertion row shows its verdict
+
+The only dispatchable P0 left. Of the others, the negative-extrude fork waits on the designer lanes and Ev, and `AddBoolean` waits on EDIT. AUTH-8 builds on AUTH-7's `Measured` and `feature_row_ui`. The tone of a `Violated` row is left to the lane with both readings stated. If it is close, it goes to Ev.
+- 2026-09-30 — Seam note from TOPO: AUTH-7's `repair_of` (`viewer/src/tree.rs`) and a `pane/features.rs` test premise read a node's result outside `Evaluation::usable`; editor-core's `every_node_result_reader_goes_through_usable_or_is_listed` now lists them (the change filter never ran editor-core's tests on AUTH-7's viewer-only diffs, so main stayed green). (TOPO orchestrator)
+
+## 2026-09-30 — AUTH-8 MERGED (`237e1be9`); a red main that was already fixed
+
+Eight units closed. Both reviews said mergeable, and the duplication trap fired for the eighth time. This time it was small: tests copied the kernel's short words instead of reading `label()`/`symbol()`.
+
+**A red main, and what it taught about merging viewer PRs.** AUTH-8's lane noticed that editor-core's `node_standing::every_node_result_reader_goes_through_usable_or_is_listed` was failing on `main`. Two merges had crossed: #3537 listed AUTH-7's reads in the `READERS` census, and #3536 then moved those reads to `usable`. I verified the red by running the census. By the time I had the counts, `c31098e14` had already fixed it (8, and no `features.rs` line), so I dropped my branch.
+
+The cause is deliberate policy, not a gap. The 2026-09-28 CI-latency cut removed the change filter's read reach (`scripts/ci-filter.py`, "NO READ REACH"), so a tree-wide guard runs only when its own crate is in the closure, and every night. A viewer-only PR never builds editor-core's census, yet the census counts viewer reads. **So before merging a viewer unit that changes how it reads an evaluation, I run editor-core's `node_standing` census myself.** I did that for AUTH-8 on its head with `main` merged in: green.
+
+## 2026-09-30 — AUTH-9 dispatched: the AddBoolean row was unblocked eleven days ago
+
+`plan.md` parked `addboolean-doc-names-a-vocabulary-that-does-not-exist` behind EDIT, and I kept reporting it as blocked. When I checked, the dependency (`work/edit/a-declared-union-has-no-one-pass-authoring-path`) had closed on 2026-09-19 via #2809, with a one-pass declared union ruled by Ev. The row was dispatchable the whole time. **Blocked-on claims get re-checked against the blocker's status every time I name one**, not carried forward from the plan.
+
+## 2026-09-30 — AUTH-9 MERGED (`8bc49ad7`): a union that declares its contact
+
+Nine units closed. The flush boss-on-a-face union is now a refusal with a Declare offer. Accepting commits `Declare` + union as one action and one undo.
+
+**The trap fired a ninth time, one level up.** This time it was not a number or a sentence but a mechanism: a second refuse-then-offer beside `creation_offer`/`offer_wording`, with its own wording home, reader and staleness rule, and OFFER's P1 row (which names this exact case) was not told. The style review caught it; the fix pass moved it into the existing homes and put the evidence on OFFER's row. The staleness rules stay two, on purpose: a name to create doesn't depend on the document, a declaration does.
+
+**Fix pass reached the evaluator, so I read it before merging.** `probe::evaluate_with` became `evalseam::evaluate_beside`, with one `EvalOptions` spelling. The range probe now resolves through the seam's resolver instead of `None`, and both it and the judge prime only under the same resolver (`memo_under`). I checked that `same_resolver`'s pointer compare means something: `resolver_seam()` returns the session's one directory `Arc` or the one shared `NoFile::seam()`. `node_standing::` census on the head: 7 pass.
+
+**For Ev, separately:** `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added` (design). A union made flush by a later edit, or by a repaired ancestor, has no recourse but delete and re-add. The correctness review reads that as DM6's own reopening trigger. Filed without `needs_ev`.
+
+## 2026-09-30 — AUTH-10 dispatched: a held face pick is drawn; negative-extrude designers out
+
+**The P0 fork went to the designer pair** (`docs/prompts/designer.md`), dispatched together with one problem statement and no candidate answers. The blinding byte is on `analysis/design-fork/author-negative-extrude-2026-09-30`. The `[ev]` PR follows once the two reports are reconciled.
+
+**AUTH-10** takes the P1 `held-face-pick-is-invisible-in-the-viewport`, the add-datum form's latched face pick that nothing draws. The mate tool's held faces look undrawn as well, so the unit covers the class, not the one site. Review tier: correctness + style, as for every unit so far. The change reaches the viewport's marks, and possibly the shader, both shared ground.
+
+Not taken yet, with reasons:
+- `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
+- `no-row-holds-that-the-create-pane-offers-the-tools-it-has` is a harness-or-refactor choice across seven panels in a five-program file, and wants its own sitting.
+
+## 2026-09-30 — negative-extrude fork: the designers converged; `[ev]` PR opened
+
+Two designers, one problem statement, no candidate answers (byte 92 on `analysis/design-fork/author-negative-extrude-2026-09-30`).
+
+**First reports disagreed.** A: extrude distance becomes a positive depth, plus a structural `side`, refused in the kernel door. B: keep the signed distance and have the range probe ask "same build?" over the decision logs.
+
+**Round 1** gave each the other's report and asked each to settle the claim the other's case rested on. Both ran fixtures.
+- **A downstream reference to the end cap follows the flip silently: true.** A boss on the block's `Cap(End)` rebuilds below the plane at −10 mm, and nothing fails. The decision diff is `extrusion_normal_component` ×1 and `side_planes_cosurface` ×4.
+- **"Ordinary edits flip no decisions": false.**
+  - `plate_param`: 78 of 138 small literal edits (down to 1e-7 relative) flip a decision without failing, e.g. `bool_join_nearest` Zero→nonzero at the boss height and a `point_in_loop_arm` count.
+  - Corpus: 4 of 29 documents diff under their own recorded bump.
+  - A same-build oracle would therefore collapse ranges to a point on most documents with a boolean.
+
+B moved to A's answer and withdrew its oracle. A kept its answer and adopted B's idea of naming the refusal at a bracket's invalid end. A converged recommendation, not a crossover. The `[ev]` PR (#3551) carries both reports' `For Ev` sections verbatim as A and B; fork-log row 22.
+
+**Filed off the question**, not waiting on Ev:
+- CHROME: `the-range-panels-open-sentence-claims-values-it-never-sampled` (the Open sentence claims more than was sampled; a bracket's invalid end could name what refused).
+- Corrected the vacuity row's two stale citations of this row (it lives in `work/author/`, not `work/chrome/`).
+- Corrected `plan.md`'s `E` price for it (it is `M`, design).
+
+**Measured, not filed; seam note on EDIT (owner of `editor-core/src/range.rs`):** `plate_param`'s nominal sits exactly on `bool_join_nearest` Zero verdicts. That is probably authored coincident geometry, and would bear on the certified range's "certifies nothing on the corpus" table.
+
+## 2026-09-30 — AUTH-10 MERGED (`ff728d14`): a held face pick is drawn
+
+Ten units closed. **The duplication trap fired a tenth time**, as two colour decisions in `gpu.rs` beside `theme.rs`, plus a half-done rename. The style review caught both.
+
+**This unit's lesson is about CI's reach, not duplication.** The first head's edge shader used `@interpolate(linear)`. naga validates it, and it builds on Vulkan (lavapipe), but it cannot be written as GLSL ES, so the viewer would have panicked on WebGL2 and native GLES. No CI job exercises the GL backend: the device row is Vulkan and the wasm32 job only runs clippy. The correctness reviewer found it by running naga's GLSL writer. The unit now carries a no-GPU row, `gpu::tests::every_entry_point_translates_to_glsl_es_300`, which holds the class.
+
+**A re-verification after the fix pass was worth it.** The fix pass reached new code (a refusal arm, an opaque `Composed`, a `HeldEdges` refactor). The reviewer confirmed that F1 and F2 were closed, and found the fix's own "exact interpolation" claim false; it was fixed before merge.
+
+Review tier: correctness + style, then a correctness re-verification of the fix pass.
+
+## 2026-09-30 — AUTH-11 dispatched: an unfinished chain awaiting a binder is drawn
+
+The row was marked design, but its one open call is which sentence to show beside a drawn prefix. I decided it in the spec: the tip-state sentence, which is true, rather than `OpenChain`'s, which is false for a binder-awaiting tip. Not a fork.
+
+Review tier: correctness + style, as before. The unit changes what an existing preview case says, and it is AUTH-5's walk-back applied to a new class.
+
+Still not taken:
+- `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
+- `no-row-holds-that-the-create-pane-offers-the-tools-it-has` wants its own sitting. AUTH-10's `Composed` shows a type-level hold is sometimes cheaper than a harness, which may bear on its shape.
+
+## 2026-09-30 — AUTH-11 MERGED (`ede1dc1d`): an unclosable chain draws its prefix
+
+Eleven units closed. **The duplication trap fired an eleventh time, in tests:** the tip-state census and the per-state fixture were copied from `profile`'s `arc_spec_census.rs`. The style review caught it, and the fix pass hosted both in `profile::test_support`.
+
+**My spec's premise was loose.** I called `OpenChain`'s "target the start" false for a binder-awaiting tip. The correctness review noted that the chosen `Transition` sentence also ends "…the last verb has to target the start". That clause is true of the loop as a whole, and the sentence names the tip state first, which is the gain. No change. Also, "the kernel's `Display`" was the viewer's own `PreviewError` `Display`; the lane said so.
+
+**Before merging I ran main's new gate** (`bit-identity-debug-only.sh`, from #3531, which landed after the head) on a trial merge: OK. No code overlap.
+
+Filed from the unit: `a-close-refused-on-its-geometry-draws-nothing` (P2, M). Its measured members are the zero-length close, the straight-on close (`JunctionTangent`) and the pending-fillet family (`NoCornerForFillet`). A collinear back-track was run and is *not* a member.
+
+## 2026-09-30 — AUTH-12 dispatched: a tool census; face-pick naming to the designers
+
+**AUTH-12** takes `no-row-holds-that-the-create-pane-offers-the-tools-it-has`. It had waited on a harness-or-refactor choice that no longer exists: the whole-app harness in `app.rs` (2026-09-25) already paints the full app. The unit is therefore a census row over `ToolKind::ALL`. It also routes the nine literal button labels through `ToolKind::label()`, which already claims to be their one home. Review tier: style only. The change is a test row and a label routing, readable end to end.
+
+Blockers re-checked before choosing: `materole-has-no-display` (MSOLVE) and `clearance-refusal-names-one-face-twice-across-bodies` (CLEAR) are both still open.
+
+## 2026-09-30 — face-naming fork: the designers agreed on their first reports; `[ev]` #3571
+
+The designer pair was given one problem statement and no candidate answers (byte on `analysis/design-fork/author-face-naming-2026-09-30`). Both first reports recommended the same final state:
+- a face is told apart by its **leaf role in words**, from one public names-layer renderer promoted from `resolve::role_words`;
+- `StableName`'s own `Display` carries that role;
+- one viewer composer, which also settles "face of feature N" (it currently names three different features across sites);
+- a picture where the face is drawn, including a hover mark on each line of the declare offer;
+- **not the pose.**
+
+No reconciliation round was needed. Both corrected the row's premises: role words already exist, privately, and "prose never renders the role path" is agent text (#1454) that #3205 already contradicts.
+
+**Why it went to Ev anyway.** No ratified text is involved, but `StableName`'s `Display` changes across editor-core, pncad and viewer, and a stated stance is reversed. The names layer is EDIT's ground, so the editor-core unit is EDIT's and the viewer unit is AUTHOR's. Fork-log row 23.
+
+**Filed off the question:**
+- CHROME: `focus-per-segment-is-no-longer-blocked-on-a-guess`.
+- AUTHOR: `committed-nodes-do-not-light-the-faces-they-reference`.
+- Already on file: the flush refusal's `Debug` face keys (`work/issues/flush-in-band-refusal-advises-widening-the-tolerance`).
+- Folded into the design, not filed: `descent_leaf` and `SegOrigin` listing the carry-through wrappers twice, and `SelectRefusal`'s hand-spelled `named` helper.
+
+## 2026-09-30 — AUTH-12 MERGED (`0c9f05e1`): every tool is reachable, and a row says so
+
+Twelve units closed. **The trap fired a twelfth time, test-side only:** kind→section was written twice in one test module. The one style review (the tier chosen at dispatch) caught it, together with copied section headings. The fix pass also took the commit-button duplication the lane had filed as P3, which turned out to be the same one-function fix. It left one row: the mate and blend commit rows restate `tool_commit_row`'s shape.
+
+The premise the row was parked on ("no test can build `ViewerBehavior`") had been stale for five days, since the whole-app harness landed on 2026-09-25. I only caught it by reading the tree before specifying.
+
+## 2026-09-30 — AUTH-13 dispatched: a geometry-refused close still draws what was written
+
+Two P2 rows as one unit: `a-close-refused-on-its-geometry-draws-nothing` (filed by AUTH-11) and `a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at` (filed by AUTH-5's review). They share one open question, what a last leg onto the start means, and one walk-back.
+
+Review tier: correctness + style. This is the third change to the preview's semantics, and the draw-no-more-than-was-written invariant is what a review must attack.
+
+The P0 (negative extrude, #3551) and the P1 face-naming row (#3571) are with Ev. The other P1s stay blocked on MSOLVE and CLEAR rows, both still open.
+
+## 2026-09-30 — AUTH-13 MERGED (`f60af7d1`): a geometry-refused close still draws what was written
+
+Thirteen units closed. **The duplication trap fired a thirteenth time**, as a second error variant (`Close` beside `Geometry`) whose sentence was built in three places. The style review caught it.
+
+**A correctness MAJOR the review ran, and the reason to re-verify every fix pass that reaches semantics.** The first head read the loop's start from the first `at` *anywhere* in the chain. For a fused `arc_fillet` entry, whose start the kernel seeds with no `at`, that is a mid-chain anchor, so the preview drew a close nobody wrote. It was a regression against main. The fix reads the start from the entry, the same field the kernel seeds. The re-verification then showed the fix pass's own claim ("the kind restriction is inert by construction") false with a witness, and found two re-spellings that did not compose. Both were fixed and pinned before merge.
+
+**Where this leaves the preview:**
+- A geometry-refused close walks back like a refused step and says the kernel's own reason, advisory.
+- A decided tangency is re-spelled (`continue_to`, a declared seam, or both), and the re-spelling is never painted.
+- An escalation says "too close to call".
+- A last leg onto the start is the close when its own step names the start.
+- The residue is `a-last-leg-no-close-can-follow-is-dropped` (P3).
+
+Review tier: correctness + style, then two correctness re-verifications.
+
+## 2026-09-30 — AUTH-14 dispatched: a blend target whose edges cannot be named says so
+
+`blend-swallows-the-edge-name-fault-the-index-calls-loud` (P2). The index's loud `EdgeNameFault` arms are collapsed to "no edges" and to a silently shorter mark. Review tier: **one FULL review** (correctness claims alongside the style questions). The change is small and readable, but reaching the loud arms at all is the part a reader cannot simply believe.
+
+Not taken yet:
+- `the-boolean-door-evaluates-its-boolean-twice` (P2, a performance row, AUTH-9's cost).
+- `a-seated-tools-held-node-is-drawn-nowhere` and `a-union-that-becomes-flush-later-…` (both design; the second is the DM6 question for Ev).
+
+## 2026-09-30 — AUTH-14 MERGED (`cd6cc9a0`): a blend target whose edges cannot be named says so
+
+Fourteen units closed. The container restarted mid-unit. The lane, target and pushed commit survived, and resuming the same implementer from its transcript lost nothing.
+
+**One FULL review** (the tier chosen at dispatch) found no MAJOR, but it did show a badge that latches passing every row. **My own read before merging found the unit re-minting the defect it was removing:** `named_in` read a window with `.get(range).unwrap_or_default()` and `zip`, so a broken index would again read as "no edges". Before merging, the lane made it an `unreachable!` stating the invariant, and fixed `in_target`'s identical collapse on the way.
+
+**Lesson:** the class a unit fixes is the class to grep its own diff for. `unwrap_or_default` and a truncating `zip` are the Option-collapse shapes.
+
+The lane filed CHROME's badge-channel row at P1. That looks high for a three-field consolidation, but it is CHROME's to triage, so I left it.
+
+## 2026-09-30 — boolean-judge fork: converged after one round; `[ev]` #3587
+
+Designer pair on `the-boolean-door-evaluates-its-boolean-twice` (byte on `analysis/design-fork/author-boolean-judge-2026-09-30`).
+
+**First reports agreed on the spine:** stop judging at the door; commit every boolean; the seam evaluates it once; the offer goes on the row.
+**They split on the recourse:**
+- A: replace a consumer-less boolean, leaving DM6 untouched.
+- B: attach a declaration to a live boolean, narrowing DM6.
+
+**Round 1.** Both measured `find_flush_candidates`. It is a strict superset (two blocks apart on one ground plane report 4 pairs, and the union builds undeclared), so neither kept it as a pre-commit prompt.
+- A moved to attach. A declaration is name-inert and operand-bound, so DM6's splice reasons don't reach it. Replace dead-ends mid-chain and strands appearance keys. The kernel's own recourse already prescribes attach.
+- B kept attach as the final state and added replace as an interim.
+
+**Converged on the final state;** not a crossover, because B never left attach. The shape (A1: a DM6 exception; A2: declared pairs as payload, a DM4 shape change) is Ev's, with both leaning A2 and unsure. The later-flush row travels on the same PR. Fork-log row 24.
+
+**Sequencing, my call:** no interim replace. The current door gives correct answers at a frame cost; it doesn't give wrong ones. The viewer unit waits on the shape.
+
+**Filed off the question:**
+- ZIP: `a-boolean-reports-one-undeclared-contact-per-refusal`.
+- VSEAM `ui-thread-work-after-the-index-seam`: evidence for `session::probe` as a fourth frame-thread evaluation.
+
+## 2026-09-30 — AUTH-15 dispatched: accept a part's updated version from the viewer
+
+Everything P0–P2 on this slate is with Ev (#3551, #3571, #3587), blocked on another program's row, or a design row. So the next unit is the P3 door `viewer-has-no-door-to-accept-a-parts-updated-version`: a refusal whose recourse the GUI cannot take, which is this program's charter exactly. The offer must live in the existing refuse-then-offer homes (the AUTH-9 lesson). Review tier: one FULL review.
+- 2026-09-30 — Seam note from TOPO: `viewer::sketch::tests::a_last_leg_no_close_can_follow_is_walked_back` (AUTH-13) was red at ε 1e-6 and 1e-12. Its `banded` and `banded_short` legs placed their in-band offsets at literal `1e-9` and `4e-10`, which sit inside the band only at the default ε, while `previewed` reads `Tol::witness()`. They now read `Tol::witness().eps()` (1ε and 0.4ε, the same points at the default ε). Main stayed green because viewer-only diffs never select the ε rows; TOPO's PR 3570 found it. (TOPO orchestrator)
+
+## 2026-09-30 — AUTH-15 MERGED (`f88b6438`): accept a part's updated version from the viewer
+
+Fifteen units closed. **The trap fired a fifteenth time:** the button's label was a hand copy of the kernel recourse's "accept updated version". The one FULL review caught it. The label is now one const, and a row asserts that the recourse sentence contains it.
+
+The review also caught:
+- a stale offer, drawn until the accept's run landed, where a second click read as hex ids;
+- a README promise that a live session cannot keep.
+
+**This is the third refuse-then-offer instance** (after `creation_offer` and AUTH-9's `declare_offer`). All three live in one home, but in three shapes. The general `Offer` type they want is named on OFFER's P1 row as evidence.

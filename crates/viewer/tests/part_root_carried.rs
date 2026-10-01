@@ -246,12 +246,14 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
     );
     let bracket_root = common::insert_into(
         &mut bracket,
-        Node::Transform {
-            input: inner,
-            translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
-            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: common::ang(0.0),
-        },
+        Node::transform(
+            inner,
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        ),
         tol,
     );
     store
@@ -309,7 +311,8 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
     std::fs::remove_dir_all(&dir).expect("remove the fixture directory");
 }
 
-fn block(label: &str, tol: Tol) -> ProfileDoc {
+/// A small block, as a whole part document, and its body.
+fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = common::framed_square(&Doc::empty_derived(label, tol), 0.02, tol);
     common::inserted(
         &doc,
@@ -319,7 +322,6 @@ fn block(label: &str, tol: Tol) -> ProfileDoc {
         },
         tol,
     )
-    .0
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
@@ -344,8 +346,8 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     let tol = Tol::witness();
     let dir = common::tempdir("partroot-carried-mate");
     let mut store = Workspace::open(&dir).expect("the empty workspace opens");
-    let leg = block("partroot-carried-leg", tol);
-    let top = block("partroot-carried-top", tol);
+    let (leg, leg_body) = block("partroot-carried-leg", tol);
+    let (top, top_body) = block("partroot-carried-top", tol);
     store.save_at(&leg, "leg.pncad", tol).expect("stores");
     store.save_at(&top, "top.pncad", tol).expect("stores");
 
@@ -373,10 +375,10 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
-                    of: in_part(legs, CapEnd::End).into(),
+                    of: in_part(legs, leg_body, CapEnd::End).into(),
                 }],
             }),
-            b: common::head(in_part(cap, CapEnd::Start)),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),

@@ -3,7 +3,6 @@ id: placement-is-spelled-three-ways-node-registry-and-rule
 kind: issue
 title: Placement is spelled three ways — a DAG node, a document registry row, and a pattern rule — and the three disagree on whether a placement can be parametric
 status: spec
-branch: edit/placement-type
 opened: 2026-09-21
 priority: P0
 cost: H
@@ -228,3 +227,27 @@ the lanes.
 - **P3**, the viewer's group-wide probe and "place where shown", filed on the viewer owner's slate when P2 merges.
 
 The row closes when P2 merges.
+
+## Built (P1, 2026-09-29, PR 3497)
+
+`Node::Transform` holds one `Placement` (`crates/editor-core/src/placement.rs`):
+- A chain of `Step::Rigid` (the three `Expr` components) and `Step::Matrix(Frame)`, composed left to right as a product (`[a, b]` is `a ∘ b`).
+- One evaluator: `Placement::eval`, over the construction the node evaluation and the mate solve both read. A one-step rigid chain moves every corpus body by the bits it did before (51 transforms, pinned on the merge base).
+- `Placement::literal` is the bit-exact `Frame` door.
+- Addressing: a later rigid step's components are `SlotId::PlacementStep { step, arg }` through `SlotId::rigid`, and step 0 keeps the transform's three slots.
+- A matrix step is held to A6 at the edit door and at load.
+- An old file refuses `Unreadable`.
+- Python: `Placement` and `Node.transform_by`.
+
+Not built here, as P2's: `Doc::placements`, `InstantiatePart`'s gauge and offset, the maintenance's removal, and gauges.
+
+The row stays open for P2 and is set back to `spec` when this merges.
+
+Filed from the sweep: `work/edit/node-bit-eq-compares-a-mates-alignment-by-value.md`.
+
+### Fix pass (2026-09-30, PR 3497)
+
+- The step kinds are `Step::Rigid` and `Step::Literal` (the wire too), and `Placement::compose` (`a.compose(b)` is `a ∘ b`, `Frame::compose`'s order) builds a chain from two, in Rust and Python.
+- The chain folds through one composition rule with `Frame::compose` (`placement::Motion`), so an identity literal anywhere moves no bit; the empty chain is the identity (`Placement::IDENTITY`), admitted at both doors. P2's identity offset can be it.
+- A literal frame is rigid at every door that admits one — a transform's step, the registry, an explicit rule's listed frame — by the evaluation's own predicate (`topo::check_rigid`), refused `NonRigidPlacement` naming the frame.
+- Filed: `work/lib/python-slot-words-stop-short-of-a-step-index.md` (LIB), `work/offer/viewer-free-move-decides-rigidity-by-its-own-predicate.md` (OFFER, for P3).

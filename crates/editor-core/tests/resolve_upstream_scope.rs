@@ -58,12 +58,14 @@ fn block(
 fn placed(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     )
 }
 
@@ -126,7 +128,6 @@ fn diagnosis(
             eval: ev1,
         },
         name,
-        Tol::witness(),
     );
     let Resolution::Failed(f) = res else {
         panic!("{name:?}: expected Failed, got {res:?}");
@@ -549,14 +550,14 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     );
 }
 
-/// The ORDER among causes: the qualifier delta — a flip of the name's
-/// own qualifier, recovered from the names on its path — outranks an
+/// The ORDER among causes: the border delta — a change of the name's
+/// own walls, read off the names at its minting node — outranks an
 /// upstream flip. Hand-built runs over a real two-node chain: the
-/// name is minted at `n = Transform(u)`, its qualifier re-signed in
-/// the current table (a clean one-entry `SideOf` delta), and `u`'s
-/// verdict log flips. Both rungs have evidence; the path's wins.
+/// name is minted at `n = Transform(u)`, its piece borders one more
+/// wall in the current table, and `u`'s verdict log flips. Both rungs
+/// have evidence; the path's wins.
 #[test]
-fn the_qualifier_delta_outranks_an_upstream_flip() {
+fn the_border_delta_outranks_an_upstream_flip() {
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, u) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, n) = placed(doc, u);
@@ -568,15 +569,16 @@ fn the_qualifier_delta_outranks_an_upstream_flip() {
     };
     let f = fixture::minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let p = fixture::minted(EntityKind::Body, m, RoleSeg::OutputBody);
-    let frag = |v| StableName {
+    let q = fixture::minted(EntityKind::Body, u, RoleSeg::OutputBody);
+    let frag_of = |ws: &[&StableName]| StableName {
         kind: EntityKind::Body,
         node: n,
         path: vec![
             RoleSeg::FromA(f.clone().into()),
-            RoleSeg::Fragment(Qualifier::SideOf(vec![(p.clone(), v)])),
+            RoleSeg::Fragment(Qualifier::Borders(ws.iter().map(|&w| w.clone()).collect())),
         ],
     };
-    let old = frag(editor_core::SideVerdict::Negative);
+    let old = frag_of(&[&p]);
     let table = |name: &StableName| {
         let mut t = NameTable::new();
         t.insert(name.clone(), body(0)).unwrap();
@@ -592,7 +594,7 @@ fn the_qualifier_delta_outranks_an_upstream_flip() {
     let now = two_node_eval(
         &doc,
         (u, vec![verdict(Sign::Positive)]),
-        (n, table(&frag(editor_core::SideVerdict::Positive))),
+        (n, table(&frag_of(&[&p, &q]))),
     );
     assert!(
         editor_core::diff_verdicts(&prior, &now)
@@ -603,11 +605,10 @@ fn the_qualifier_delta_outranks_an_upstream_flip() {
     );
     assert_eq!(
         diagnosis((&doc, &now), (&doc, &prior), &old),
-        Diagnosis::PredicateFlip {
-            predicate: "name_frag_side_of",
-            from: Sign::Negative,
-            to: Sign::Positive,
-            source: editor_core::FlipSource::VerdictLog,
+        Diagnosis::BorderDelta {
+            node: n,
+            gone: vec![],
+            new: vec![q],
         }
     );
 }

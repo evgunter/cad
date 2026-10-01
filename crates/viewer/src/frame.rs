@@ -21,8 +21,10 @@
 //! the types decide which, not the caller — and [`frame_status`]'s
 //! ranking over a frame's news. **The toolbar
 //! badge for the landed product** ([`product_badge`]) and the rest of
-//! the badge family beside it. **The draft and the offer a refused
-//! batch leaves behind** ([`retype_draft`], [`creation_offer`]).
+//! the badge family beside it. **The draft and the offers a refused
+//! batch leaves behind** ([`retype_draft`], [`creation_offer`],
+//! [`declare_offer`]), **and the one a failed instance makes**
+//! ([`version_offer`]).
 //! **What a folded event stream amounts to** ([`folded_moved`],
 //! [`fold_status`]), **what a frame says about work outstanding**
 //! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
@@ -203,7 +205,8 @@
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
 //! store that keeps no preferences ([`prefs_badge`]), the datums this
 //! view draws nothing of ([`datums_badge`]), the profiles it draws
-//! nothing of ([`profiles_badge`]), and the three display seams that
+//! nothing of ([`profiles_badge`]), the held edges the index cannot
+//! name ([`held_edges_badge`]), and the three display seams that
 //! hold a refusal — the scene ([`scene_badge`]), the pick index
 //! ([`index_badge`]) and the projection ([`projection_badge`]).
 //! The population is every function here returning `Option<Badge>`,
@@ -226,8 +229,8 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, NodeStanding, ParamName, ParseError, ProductError,
-    ProductErrorKind, RecipeNodeId, SlotId,
+    ChecksReport, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
+    PartFault, ProductError, ProductErrorKind, RecipeNodeId, ResolveFault, SlotId,
 };
 use pncad::select::HitTestError;
 
@@ -237,13 +240,16 @@ use crate::camera::Folded;
 use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
+use crate::parts::PartFiles;
 use crate::pickcache::NotIndexed;
-use crate::pickindex::{PickError, PickIndexError};
+use crate::pickindex::{EdgeNamesRefused, PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
-use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
+use crate::session::{
+    AtRestBadge, DeclareOffer, OpOutcome, Outstanding, Refusal, SessionOp, VersionOffer,
+};
 use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
 
@@ -790,7 +796,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. } => true,
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. } => true,
     }
 }
 
@@ -1773,10 +1780,12 @@ trait SeamSubject {
 }
 
 /// **The pick-index seam's subject**, named by both of the types its
-/// refusals arrive as. One edit here moves both channels; that is the
-/// "by construction" the trait's argument rests on, and it is written
+/// build refusals arrive as. One edit here moves both channels; that is
+/// the "by construction" the trait's argument rests on, and it is written
 /// as a constant because a seam whose two impls each spelled a literal
-/// would be back to the convention.
+/// would be back to the convention. A built index's refusal to NAME an
+/// edge ([`EdgeNamesRefused`]) is not one of them: its subject is the
+/// document's, and its impl says why.
 const PICK_INDEX_SEAM: Subject = Subject::Display;
 
 /// **The scene seam's subject**, named by the rebuild's refusal and by
@@ -1806,6 +1815,16 @@ impl SeamSubject for PickIndexError {
 /// door.
 impl SeamSubject for NotIndexed {
     const SUBJECT: Subject = PICK_INDEX_SEAM;
+}
+
+/// **The document, not the pick-index seam.** The index reads the
+/// names off the evaluation's tables, so an index rebuilt over the same
+/// evaluation refuses the same edge again; what can change the answer is
+/// an edit the document accepts. The refused load says it on the line
+/// through [`tool_notice`], which is [`Subject::Document`] too, so the
+/// one fault wears one subject on both channels.
+impl SeamSubject for EdgeNamesRefused {
+    const SUBJECT: Subject = Subject::Document;
 }
 
 // # The subject-assigning doors
@@ -2070,7 +2089,9 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
         ToolNotice::Blend(
-            BlendEvent::NoEdgesOnTarget { .. } | BlendEvent::TargetHasNoValue { .. },
+            BlendEvent::NoEdgesOnTarget { .. }
+            | BlendEvent::EdgesUnnamed { .. }
+            | BlendEvent::TargetHasNoValue { .. },
         ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.to_string(), retold)
@@ -2562,6 +2583,28 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
     })
 }
 
+/// **What the chrome badges about a held edge set whose body the index
+/// cannot wholly name**, and `None` while it can, or while nothing is
+/// held.
+///
+/// The held mark lights the drawn edges whose names a tool holds
+/// ([`crate::marks::HeldEdges::mark`]), and a drawn edge with no name
+/// cannot be told held or not, so the mark may be short by it. This is
+/// what says so. Per-frame and unlatched, for [`datums_badge`]'s
+/// reasons: the viewport writes it from the marks it composes. The
+/// refusal is the naming layer's bug report, which no reader can act
+/// on, so [`Tone::Advisory`]; its subject is the document's
+/// (`SeamSubject for EdgeNamesRefused` says why).
+pub fn held_edges_badge(refused: Option<&EdgeNamesRefused>) -> Option<Badge> {
+    refused.map(|refused| {
+        Badge::read(
+            EdgeNamesRefused::SUBJECT,
+            format!("held edges: the mark may leave some out — {refused}"),
+            Tone::Advisory,
+        )
+    })
+}
+
 /// **What the chrome badges about a store that keeps nothing**, and
 /// `None` while preferences are kept.
 ///
@@ -2682,6 +2725,81 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
         | ParseError::UnknownFunction { .. }
         | ParseError::WrongArity { .. }
         | ParseError::Dimension { .. } => None,
+    }
+}
+
+/// **The declare offer a refused batch leaves behind** — the offer a
+/// boolean's undeclared-contact refusal makes
+/// ([`crate::session::RefusedBoolean::offer`]), for the frame loop to
+/// hold for the boolean tool the way it holds [`creation_offer`]'s name
+/// for the add-parameter form. `None` for every other refusal and for a
+/// clean batch.
+///
+/// The two offers go stale differently, and each says how where it is
+/// shown: a name to create stands until the name field moves past it,
+/// while a declaration is sited in one document, so it stands only at
+/// the generation it was refused at ([`DeclareOffer::is_for`]).
+pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
+    match refusal? {
+        Refusal::Contact(refused) => refused.offer(),
+        Refusal::DrivenByExpression { .. }
+        | Refusal::NoSuchSlot { .. }
+        | Refusal::NoSuchParam(_)
+        | Refusal::ParamNotANumber { .. }
+        | Refusal::ParamExists { .. }
+        | Refusal::EmptyName
+        | Refusal::WrongNodeKind { .. }
+        | Refusal::Duplicate(_)
+        | Refusal::Edit(_)
+        | Refusal::Dimension(_)
+        | Refusal::Parse(_)
+        | Refusal::NoGesture
+        | Refusal::GestureInFlight
+        | Refusal::WrongGesture
+        | Refusal::Io(_)
+        | Refusal::NothingToDo { .. }
+        | Refusal::Display(_)
+        | Refusal::SlotUnit(_)
+        | Refusal::NoDocumentDirectory
+        | Refusal::Workspace(_)
+        | Refusal::SelfInstance { .. }
+        | Refusal::ProfileEditStale { .. } => None,
+    }
+}
+
+/// **The accept offer an instance's own failure makes** — the offer to
+/// move its part's references onto the version the store holds, when
+/// the failure is that the reference's pin no longer holds. The part is
+/// named by its file in `files`, as the instance's row names it. `None`
+/// for every other failure.
+///
+/// The outer pattern takes the one [`NodeErrorKind`] arm a part's
+/// resolution fails through; the decision is over that arm's faults.
+pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionOffer> {
+    let NodeErrorKind::Part { doc_ref, fault } = kind else {
+        return None;
+    };
+    match fault {
+        PartFault::Unresolved { fault, .. } => match fault {
+            ResolveFault::PinMismatch => Some(VersionOffer::new(
+                doc_ref.id,
+                files.name(doc_ref.id).to_owned(),
+            )),
+            // The part's file cannot be read here, or records another
+            // ε: there is no version of it this process could accept.
+            ResolveFault::EpsilonSeam | ResolveFault::Unresolved => None,
+        },
+        // The reference resolved, or was never tried: the pin is not
+        // what failed. A part root failing on a mismatch of its OWN
+        // references is repaired in that part, not here.
+        PartFault::NoResolver
+        | PartFault::PartRootFailed { .. }
+        | PartFault::PartRootPoisoned { .. }
+        | PartFault::RootFailureUnrecorded { .. }
+        | PartFault::PartProduct { .. }
+        | PartFault::ReferenceCycle { .. }
+        | PartFault::DepthExceeded
+        | PartFault::NotEntered => None,
     }
 }
 
@@ -3515,5 +3633,100 @@ mod tests {
         // `Withdrawal::of`'s decision, executed through the one door
         // rather than asserted of each constructor.
         assert_eq!(Withdrawal::all(&PruneReport::default()).count(), 0);
+    }
+
+    /// **Which arm of [`PartFault`] a census witness stands for** — an
+    /// exhaustive match, so a new arm does not compile until it has an
+    /// index here and a witness below.
+    fn part_fault_arm(fault: &PartFault) -> usize {
+        match fault {
+            PartFault::NoResolver => 0,
+            PartFault::Unresolved { fault, .. } => match fault {
+                ResolveFault::PinMismatch => 1,
+                ResolveFault::EpsilonSeam => 2,
+                ResolveFault::Unresolved => 3,
+            },
+            PartFault::PartRootFailed { .. } => 4,
+            PartFault::PartRootPoisoned { .. } => 5,
+            PartFault::RootFailureUnrecorded { .. } => 6,
+            PartFault::PartProduct { .. } => 7,
+            PartFault::ReferenceCycle { .. } => 8,
+            PartFault::DepthExceeded => 9,
+            PartFault::NotEntered => 10,
+        }
+    }
+
+    /// **Only a pin that no longer holds offers the accept**, over one
+    /// witness of every [`PartFault`] arm, naming the part by the file
+    /// the scan found. The part-root arms carry a NESTED pin mismatch:
+    /// that pin is the part's own reference, repaired in the part, so
+    /// it offers nothing here. Red if any other arm offers, or the
+    /// offer names another part.
+    #[test]
+    fn only_a_pin_that_no_longer_holds_offers_the_accept() {
+        use pncad::document::{NodeRefusal, ProductErrorKind};
+
+        use crate::test_support::{PART_FILE, part_refused};
+        let unresolved = |fault| PartFault::Unresolved {
+            fault,
+            message: "the store's own words".to_owned(),
+        };
+        let (mismatch, _) = part_refused(unresolved(ResolveFault::PinMismatch));
+        let NodeErrorKind::Part { doc_ref, .. } = &mismatch else {
+            unreachable!("the fixture is a part refusal")
+        };
+        let nested = || NodeRefusal::from(part_refused(unresolved(ResolveFault::PinMismatch)).0);
+        let witnesses = [
+            PartFault::NoResolver,
+            unresolved(ResolveFault::PinMismatch),
+            unresolved(ResolveFault::EpsilonSeam),
+            unresolved(ResolveFault::Unresolved),
+            PartFault::PartRootFailed {
+                node: RecipeNodeId(7),
+                refusal: nested(),
+            },
+            PartFault::PartRootPoisoned {
+                root: RecipeNodeId(8),
+                through: RecipeNodeId(7),
+                refusal: nested(),
+            },
+            PartFault::RootFailureUnrecorded {
+                node: RecipeNodeId(7),
+            },
+            PartFault::PartProduct {
+                kind: ProductErrorKind::RootFailed,
+                message: "the part's product refused".to_owned(),
+            },
+            PartFault::ReferenceCycle {
+                cycle: vec![*doc_ref],
+            },
+            PartFault::DepthExceeded,
+            PartFault::NotEntered,
+        ];
+        let mut seen = [false; 11];
+        for fault in witnesses {
+            let arm = part_fault_arm(&fault);
+            assert!(!seen[arm], "two witnesses for arm {arm}: {fault:?}");
+            seen[arm] = true;
+            let offers = arm == part_fault_arm(&unresolved(ResolveFault::PinMismatch));
+            let (kind, files) = part_refused(fault);
+            match version_offer(&kind, &files) {
+                Some(offer) => {
+                    assert!(offers, "only a pin mismatch offers: {kind:?}");
+                    assert!(
+                        matches!(offer.accept(), SessionOp::AcceptPartVersion { id } if id == doc_ref.id),
+                        "{:?}",
+                        offer.accept()
+                    );
+                    assert!(
+                        Refusal::version_question(&offer).contains(PART_FILE),
+                        "{}",
+                        Refusal::version_question(&offer)
+                    );
+                }
+                None => assert!(!offers, "a pin mismatch offers the accept"),
+            }
+        }
+        assert!(seen.iter().all(|&s| s), "arms with no witness: {seen:?}");
     }
 }

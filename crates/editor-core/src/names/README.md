@@ -16,8 +16,8 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
 | N1's profile step ids: the mint chain and mint log (`StepMint`) | `crates/editor-core/src/step_mint.rs`; `StepId` in `crates/editor-core/src/node.rs` |
-| N2 discriminators; tie propagation | `discriminate.rs`; `defer.rs` |
-| A path's canonical form: its name-ordered positions (N3 sets, `SideOf` partners, a junction's lines, a union seam's sides), and what ordering a union seam does to its ranks | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
+| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, the ranking predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
+| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, a junction's lines, a union seam's sides), and what ordering a union seam does to its ranks | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
@@ -172,8 +172,15 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:
-`Qualifier::SideOf`, a sign vector of `name_frag_side_of` verdicts against the
-cutting partners' outward-oriented carrier planes, or `Qualifier::OrderAlong {
+for a face piece of a boolean or union, `Qualifier::Borders`, the sorted set of
+the piece's divider walls — the faces across its seam edges where it meets an
+obstacle that divides the parent, each cited by its parent's name. An
+obstacle is a connected part of the parent's region that no piece holds; it
+divides the parent when it borders two or more pieces, so a boss or notch on
+one piece is never cited and nothing in a piece's name lies beyond its own
+boundary. Pieces with equal sets are N4's tie. The Split op's pieces keep
+their tool plane's side (`SplitFragment`): there the plane is what the author
+drew. For edges, `Qualifier::OrderAlong {
 rank, of }`, the `name_frag_order_along` rank along the parent's oriented line
 — for pieces on a seam line whose pair's two sides carry distinguishable names,
 the seam pair's `n_a × n_b` (the pair's `a` face first, one orientation
@@ -201,12 +208,14 @@ A union's face is named for its PARENT, read off the finished body.
 Each merged face links the member faces it lists, and linking is
 transitive; the member faces so linked are one parent, named
 `Merged` of all of them, and a member face no merge links is its own
-parent. A parent the finished body holds as one face is that face's
-name. A parent it holds as several faces qualifies each with one
-`Fragment(SideOf)`: the partners are the parents of the faces across
-the group's seam edges, each cited by its parent name. So a face
+parent. A parent is a set of member-face entities, never a name: the
+candidates of a tied row are separate parents that happen to be
+spelled alike. A parent the finished body holds as one face is that
+face's name. A parent it holds as several faces qualifies each with
+one `Fragment(Borders)` over its divider walls, the rule above, which
+the pair boolean reads too. So a face
 merged and then cut, and a face cut and then merged, are both
-`Merged(set)` + `SideOf`; a face cut by two members is one `SideOf`
+`Merged(set)` + `Borders`; a face cut by two members is one `Borders`
 over both members' walls, whether one fold step cut it or two. The
 fold's spellings are replaced, not refined: which step cut a face,
 and whether it met the cut or the merge first, depend on member
@@ -238,7 +247,7 @@ offers and the union's look-through read a flat set. The
 constituents retire. In a union no face publishes under a constituent's
 name: every piece of a member face a merge links is a piece of its parent
 (N2), including a piece that never itself merged. A seam cites, as each
-side, the parent of the face beside it, and a `SideOf` partner cites its
+side, the parent of the face beside it, and a `Borders` wall cites its
 parent. Two edges of one seam between the same two faces are two pieces of
 that seam, ranked along its line (N2), never told apart by citing a
 retired constituent. Referencing a constituent fails with the merged name offered, and
@@ -319,7 +328,8 @@ compare would restore the cost the cache exists to remove.
 last_good: Option<Tombstone> }`, `Ambiguous { name, candidates, tie: TieWitness }`
 or `NodeGone { name, edit }`. `Diagnosis` is `PredicateFlip { predicate, from,
 to }`, `StructuralParam { node, param }`, `RecipeEdit { edit }`, `Cascade
-{ through }` (an embedded operand name vanished first), `GroupResized { node,
+{ through }` (an embedded operand name vanished first), `BorderDelta { node,
+gone, new }` (a face piece's walls changed, below), `GroupResized { node,
 was, now, cutters }` (the fragment's group changed in number, and `cutters`
 names the seams on its parent only one run spells), `Upstream
 { node, cause }` (evidence upstream of the minting node, off the derivation
@@ -335,21 +345,17 @@ nodes that were strict ancestors of the minting node in the last-good document
 or in the current one, each walked within its own document, minus the path,
 answering `Upstream { node, cause }` — a candidate cause that fed the name
 without deciding it. A node in neither set is never read. When the path is
-silent the ladder is `Cascade`, then the qualifier-delta rung (a
-`PredicateFlip` recovered from `SideOf` verdicts stored in the names), then
+silent the ladder is `Cascade`, then the qualifier-delta rung (for a face
+piece, the BORDER delta: the divider walls a vanished piece bordered last run
+and does not now, and the reverse), then
 the upstream scope, then the GROUP-SIZE rung, then
 `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
 NodeChanged(minting node) }`, a site rather than a claim that an edit happened —
 reached in particular when the evidence lived on a pair the boolean's BVH sweep
-pruned; results are unaffected, only diagnosis richness degrades. Between the
-flip diff and the qualifier-delta rung sits the SHADOW-EXECUTION rung
-(`resolve::shadow_exec_flip`): when a run recorded no `name_frag_side_of`
-verdict at the minting node at all, it re-runs the vanished name's own
-discriminator pairs against both contexts — the partner read at the boolean's
-operand, the per-vertex stream aggregated through this module's own
-`aggregate_side`, and the answer calibrated against the verdict the qualifier
-records — and reports the first partner whose side changed, marked
-`FlipSource::ShadowExec` so no reader mistakes it for a line of a log. The
+pruned; results are unaffected, only diagnosis richness degrades. The border
+delta (`resolve::border_delta`) reads the walls off the names: the vanished
+piece's against those of the current piece of its parent nearest it, and
+declines where two are equally near. The
 GROUP-SIZE rung (`resolve::group_resized`, whose docs say why a fragment name
 can vanish with no flip) needs a prior run: when the last-good table at the
 minting node carried the name, and the group its emitter divided the

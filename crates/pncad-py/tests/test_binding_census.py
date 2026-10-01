@@ -697,7 +697,7 @@ BOUND_AS = {
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
     # `part_root_failed`, `part_root_poisoned`,
     # `part_root_failure_unrecorded`, `part_product`,
-    # `part_reference_cycle`, `part_depth_exceeded` —
+    # `part_reference_cycle`, `part_depth_exceeded`, `part_not_entered` —
     # the same flattening `NodeErrorKind` gets above. They left the
     # `gap` roster at LIB-G18a, when the resolver parameter made them
     # reachable: the tags existed before it, and `part_no_resolver` was
@@ -1041,9 +1041,14 @@ BOUND_AS = {
     "LeverRefusal": "MateFault.inner_variant",
     # What a frame fails to be a placement: the word `PersistError`'s
     # `maintenance_frame` arm publishes on `inner_variant` (`non_finite`,
-    # `improper`) for a recorded maintenance row held to the
+    # `improper`, `not_rigid`) for a recorded maintenance row held to the
     # `SetPlacement` door's rule at load.
     "FrameFault": "PersistError.inner_variant",
+    # Which of a node's placement frames an edit refusal is about: its
+    # position crosses as `EditError.index` (a transform's step, an
+    # explicit rule's listed placement), `None` for an instance's own
+    # placement frame, the only one it has.
+    "FrameSite": "EditError.index",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
@@ -2396,6 +2401,9 @@ NOT_BOUND = {
     # name, and a Python caller holds a name as opaque TEXT. Anything
     # it appears in reaches Python as the name it wraps.
     "NameRef": SHAPE,
+    # Why a name's text did not read: crosses as the `ValueError` a
+    # name's text refuses with, its words and place in the message.
+    "NameTextError": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     # The display-unit CODE a `DocParam` carries. A one-byte index into
@@ -2465,6 +2473,13 @@ NOT_BOUND = {
     # into the word (`origin_x`), so a family and its axis read off
     # one string rather than off a type Python would have to hold.
     "VectorSlot": SHAPE,
+    # A rigid step's component, the index `SlotId::rigid` maps onto a
+    # slot at any step: `VectorSlot`'s argument, one level in.
+    "RigidArg": SHAPE,
+    # A placement's step: Python builds each as a one-step `Placement`
+    # (`Placement.rigid`, `Placement.literal`) and chains them with
+    # `Placement.compose`, so no value of the step type crosses.
+    "Step": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
     "bulge_from_center": SHAPE,
@@ -3400,6 +3415,7 @@ MEMBERS_BOUND_AS = {
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
     "EditError::NonFinitePlacement": "EditError.variant",
+    "EditError::NonRigidPlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::NonFiniteAlignment": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
@@ -3851,6 +3867,10 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
+    # The chain is authored through `Placement`'s constructors and
+    # `then`, and read back only as its length: the steps are the
+    # `Step` entry's `different-shape` argument, one level in.
+    "Placement::steps": SHAPE,
     # THE PATH VERBS' ARC SPECS, one family. A spec's fields are its
     # CONSTRUCTOR's arguments — `Bulge(p, b)`, `Center(c, winding, p)` —
     # and nothing reads one back: the spec is consumed by the verb it is

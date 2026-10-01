@@ -6,7 +6,7 @@ status: open
 opened: 2026-08-21
 track: M
 pr: 883
-refs: [H5, 867, 886]
+refs: [867, 886]
 priority: P1
 cost: H
 ---

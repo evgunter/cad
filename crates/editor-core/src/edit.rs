@@ -28,6 +28,7 @@ use crate::node::{
     AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
     StableName, StepId,
 };
+use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
@@ -1307,15 +1308,32 @@ pub enum EditError {
     /// silently trusted to leave every orientation-sensitive predicate
     /// and every outward normal intact.
     ImproperPlacement {
-        /// The offending target.
+        /// The node holding the frame.
         node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
         /// The linear part's determinant.
         determinant: f64,
     },
     /// A placement frame carrying a non-finite coordinate.
     NonFinitePlacement {
-        /// The offending target.
+        /// The node holding the frame.
         node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
+    },
+    /// A proper placement frame that is not definitely a rigid motion
+    /// at tolerance — it may scale or shear an axis. The evaluation
+    /// refuses to move a body by one ([`topo::TransformError::NotRigid`],
+    /// the same predicate), so the document never admits one.
+    NonRigidPlacement {
+        /// The node holding the frame.
+        node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
+        /// The rigidity check that refused; routing, never rendered by
+        /// name.
+        check: &'static str,
     },
     /// **A placement frame's ROTATION AXIS has no definite
     /// direction** — the [`crate::AxisRefusal`]
@@ -1500,6 +1518,37 @@ impl Tail {
         match self {
             Self::Recourse => write!(f, ". {ending}"),
             Self::ProblemOnly => Ok(()),
+        }
+    }
+}
+
+/// **A placement frame's refusal**: the frame's subject at its site,
+/// the frame rule's own clause, and its recourse
+/// ([`FrameFault::recourse`]), which every door that raises one can
+/// honour — each refuses the edit that carried the frame.
+fn frame_refusal(
+    f: &mut core::fmt::Formatter<'_>,
+    tail: Tail,
+    node: RecipeNodeId,
+    at: FrameSite,
+    fault: FrameFault,
+) -> core::fmt::Result {
+    write!(f, "{} {fault}", at.subject(node))?;
+    tail.recourse(f, format_args!("{}", fault.recourse()))
+}
+
+impl EditError {
+    /// The arm a frame the admission rule refused is reported under,
+    /// at `at` on `node`.
+    fn placement_frame(node: RecipeNodeId, at: FrameSite, fault: FrameFault) -> Self {
+        match fault {
+            FrameFault::NonFinite => Self::NonFinitePlacement { node, at },
+            FrameFault::Improper { determinant } => Self::ImproperPlacement {
+                node,
+                at,
+                determinant,
+            },
+            FrameFault::NotRigid { check } => Self::NonRigidPlacement { node, at, check },
         }
     }
 }
@@ -2184,23 +2233,31 @@ impl EditError {
             Self::PlacementRuleMismatch { node } => {
                 write!(f, "node {}: {}", node.0, PlacementRuleFault::CountSpelling)
             }
-            Self::ImproperPlacement { node, determinant } => write!(
+            Self::ImproperPlacement {
+                node,
+                at,
+                determinant,
+            } => frame_refusal(
                 f,
-                "the placement frame for node {} is improper (determinant {determinant}); \
-                 mirrored placements are admitted only behind the equivariance audit",
-                node.0
+                tail,
+                *node,
+                *at,
+                FrameFault::Improper {
+                    determinant: *determinant,
+                },
             ),
+            Self::NonRigidPlacement { node, at, check } => {
+                frame_refusal(f, tail, *node, *at, FrameFault::NotRigid { check })
+            }
             Self::PlacementAxis { error } => {
                 write!(
                     f,
                     "the placement frame's rotation axis is unusable: {error}"
                 )
             }
-            Self::NonFinitePlacement { node } => write!(
-                f,
-                "the placement frame for node {} carries a non-finite coordinate",
-                node.0
-            ),
+            Self::NonFinitePlacement { node, at } => {
+                frame_refusal(f, tail, *node, *at, FrameFault::NonFinite)
+            }
             Self::NonFiniteAlignment { node } => {
                 write!(
                     f,
@@ -3781,7 +3838,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the
             // NodeGone repair; never-minted is a typo.
-            if from.node.0 >= new.next_id {
+            if !new.has_minted(from.node) {
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
             // One-shot rewrite of every EXACT reference, at every
@@ -3984,16 +4041,14 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // predicate the load door's walk asks
             // (`crate::doc::placement_fault`); this is the edit door's
             // name for its answer.
-            if let Some(fault) = crate::doc::placement_fault(&new, *node, frame) {
+            if let Some(fault) = crate::doc::placement_fault(&new, *node, frame, tol) {
                 return Err(match fault {
                     PlacementFault::NotAnInstance => {
                         EditError::PlacementOnNonInstance { node: *node }
                     }
-                    PlacementFault::NonFiniteFrame => EditError::NonFinitePlacement { node: *node },
-                    PlacementFault::ImproperFrame { determinant } => EditError::ImproperPlacement {
-                        node: *node,
-                        determinant,
-                    },
+                    PlacementFault::Frame(fault) => {
+                        EditError::placement_frame(*node, FrameSite::Registry, fault)
+                    }
                 });
             }
             // A11: the record keys on the cluster, never the
@@ -4047,13 +4102,14 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     crate::roots::check(&new).map_err(EditError::Roots)?;
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
-    // lists at least one placement, and its frames meet the SAME A6/A11
-    // bar `SetPlacement` holds a cluster frame to — finite and proper.
+    // lists at least one placement, and its frames meet the SAME bar
+    // `SetPlacement` holds a cluster frame to (`Frame::admission_fault`).
     // Checked over the whole document rather than per arm because a
     // structural slot edit can reach a bad state from a node that was
     // consistent before.
     for (&node, n) in &new.nodes {
-        match n.placement_rule_fault() {
+        let listed = |index| FrameSite::Listed { index };
+        match n.placement_rule_fault(tol) {
             None => {}
             Some(PlacementRuleFault::CountSpelling) => {
                 return Err(EditError::PlacementRuleMismatch { node });
@@ -4061,12 +4117,35 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             Some(PlacementRuleFault::NoPlacements) => {
                 return Err(EditError::EmptyPlacementList { node });
             }
-            Some(PlacementRuleFault::NonFiniteFrame { .. }) => {
-                return Err(EditError::NonFinitePlacement { node });
+            Some(PlacementRuleFault::NonFiniteFrame { index }) => {
+                return Err(EditError::NonFinitePlacement {
+                    node,
+                    at: listed(index),
+                });
             }
-            Some(PlacementRuleFault::ImproperFrame { determinant, .. }) => {
-                return Err(EditError::ImproperPlacement { node, determinant });
+            Some(PlacementRuleFault::ImproperFrame { index, determinant }) => {
+                return Err(EditError::ImproperPlacement {
+                    node,
+                    at: listed(index),
+                    determinant,
+                });
             }
+            Some(PlacementRuleFault::NonRigidFrame { index, check }) => {
+                return Err(EditError::NonRigidPlacement {
+                    node,
+                    at: listed(index),
+                    check,
+                });
+            }
+        }
+        // A transform's literal steps meet the same bar, by the same
+        // predicate.
+        if let Some((index, fault)) = n.placement_frame_fault(tol) {
+            return Err(EditError::placement_frame(
+                node,
+                FrameSite::Step { index },
+                fault,
+            ));
         }
     }
     let mut maintenance = reported;

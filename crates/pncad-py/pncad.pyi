@@ -176,6 +176,7 @@ class EditError(PncadError):
     value: Optional[float]
     offered: Optional[float | int]
     determinant: Optional[float]
+    index: Optional[int]
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
     pin: Optional[ContentPin]
@@ -232,6 +233,10 @@ class EvaluationError(PncadError):
     `DocRef` for a part's node, or `None` for a node of the evaluated
     document itself. A part inside a part is a
     chain of causes, one per document, ending at the node that refused.
+    A chain links at most 256 causes, so every interpreter can print
+    it: past that depth the last cause is raised for the node that
+    refused, and its message holds every level it stands for, one line
+    each, deepest first.
     """
 
     reason: str
@@ -1939,6 +1944,61 @@ class Frame:
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
 
+class Placement:
+    """Where `Node.transform_by` puts its input: a chain of steps, each
+    a rigid step of expressions or a literal frame.
+
+    The chain composes as a product: `a.compose(b)` is `a ∘ b`, in
+    `Frame.compose`'s order, so `b` acts on the body first, in the frame
+    `a` builds. A rigid step's components are slot expressions a
+    parameter can drive; a literal frame is held to the placement bar
+    (finite, proper and rigid) at the edit door.
+    """
+
+    @staticmethod
+    def rigid(
+        *,
+        translation: tuple[Expr, Expr, Expr],
+        axis: tuple[Expr, Expr, Expr],
+        angle: Expr,
+    ) -> Placement:
+        """One rigid step: rotate by `angle` about the axis through the
+        origin with direction `axis`, then translate — `Node.transform`'s
+        convention. Keyword-only. The components' dimensions are checked
+        where the step lands (`Node.transform_by`), whose refusal names
+        that step's slot."""
+
+    @staticmethod
+    def literal(frame: Frame) -> Placement:
+        """One literal step: exactly `frame`, bit for bit."""
+
+    @staticmethod
+    def point_at(
+        eye: tuple[Length, Length, Length],
+        target: tuple[Length, Length, Length],
+        roll_reference: tuple[float, float, float],
+    ) -> Placement:
+        """One literal step: `Frame.point_at`'s frame. Refuses as that
+        constructor does (FrameError)."""
+
+    @staticmethod
+    def path_start_frame(
+        origin: tuple[Length, Length, Length],
+        tangent: tuple[float, float, float],
+    ) -> Placement:
+        """One literal step: `Frame.path_start_frame`'s frame. Refuses
+        as that constructor does (FrameError)."""
+
+    def compose(self, inner: Placement) -> Placement:
+        """The composition `self ∘ inner`: `inner` acts on the body
+        first, in the frame `self` builds."""
+
+    def __len__(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+
+    # Equality is BIT-exact over every step, `Frame.__eq__`'s rule. No
+    # `__hash__`, as `Frame` has none.
+
 class PatternKind:
     """A pattern's replication rule: how a prototype's placements are
     generated.
@@ -2083,6 +2143,12 @@ class MeasureExpr:
     `Doc.apply` after it. The refusal is LiteralError, carrying the
     mismatch's own tag as `kind`.
 
+    A measurement nests at most 128 levels, the bound it shares with
+    `Expr`, a value leaf counting as the expression it holds; a
+    constructor that would nest deeper refuses (`kind`
+    `"nested_too_deep"`), so a flat chain of more than 128 terms
+    refuses.
+
     No `__hash__`, for `Expr`'s reason: equality is an IEEE comparison
     of the literals inside, so `0.0` and `-0.0` are equal trees whose
     bit patterns are not.
@@ -2106,7 +2172,9 @@ class MeasureExpr:
     def sub(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
     @staticmethod
     def neg(a: MeasureExpr) -> MeasureExpr:
-        """Negation — any dimension, and total."""
+        """Negation — any dimension. Refuses (LiteralError, `kind`
+        `"nested_too_deep"`) only a tree that would nest deeper than an
+        expression may, as every constructor here does."""
 
     @staticmethod
     def mul(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
@@ -2364,6 +2432,13 @@ class Node:
         """
 
     @staticmethod
+    def transform_by(input: NodeId, placement: Placement) -> Node:
+        """A placement of an upstream body by a `Placement` chain.
+        `Node.transform` is this with one rigid step. Every rigid step's
+        components are checked against the slot they land in (EditError
+        `slot_dimension_mismatch` naming that step's slot)."""
+
+    @staticmethod
     def boolean(
         op: BooleanOp, a: NodeId, b: NodeId, declare: Optional[NodeId] = None
     ) -> Node:
@@ -2610,6 +2685,12 @@ class Expr:
     a rendering, not your original string. `params` names the document
     parameters it references, which is what tells you when a value you
     displayed has gone stale.
+
+    An expression nests at most 128 levels along its longest chain
+    from the root to a leaf; a constructor that would nest deeper
+    refuses (`kind` `"nested_too_deep"`). The operators associate to
+    the left, so a flat chain of more than 128 terms refuses, and the
+    same terms grouped (`(a + b) + (c + d)`) nest less.
 
     Unhashable on purpose. Equality is the kernel's `PartialEq`, an
     IEEE comparison of the literals inside, so `0.0` and `-0.0` are
@@ -3593,6 +3674,13 @@ class Doc:
         is not. Note the `2.0`: a bare integer is an exact `count`,
         and dividing a length by one needs an explicit promotion, so
         the decimal is what makes the divisor dimensionless.
+
+        An expression nests at most 128 levels along its longest chain
+        from the root to a leaf, and a text nested deeper refuses
+        `variant == "dimension"`, `kind == "nested_too_deep"`. The
+        operators associate to the left, so a flat chain of more than
+        128 terms (`"a + b + ..."`) refuses; the same terms grouped
+        (`"(a + b) + (c + d)"`) nest less. Brackets alone nest nothing.
 
         Raises ParseError, carrying `variant` and the byte offset
         `pos`."""

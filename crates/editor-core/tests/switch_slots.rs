@@ -14,18 +14,16 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
     Datum, Dimension, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Expr,
-    ExprPath, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
-    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
-    SplitHalf, StepArg, TubeWindow, ValuePayload, evaluate,
+    ExprPath, Frame, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, Placement, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, SlotId, SplitHalf, Step, StepArg, TubeWindow, ValuePayload, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
 
-/// Every document below is a frame and then the profile drawn on it,
-/// in that order.
-const PLANE: RecipeNodeId = RecipeNodeId(0);
-const PROFILE: RecipeNodeId = RecipeNodeId(1);
+// Every document below is a frame and then the profile drawn on it,
+// in that order: `doc.order()[0]` and `doc.order()[1]`.
 
 fn circle_doc(r: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
@@ -41,7 +39,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: PLANE,
+                plane: doc.order()[0],
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
             }),
@@ -67,7 +65,7 @@ fn radius_slot() -> SlotId {
 #[test]
 fn profile_nodes_enumerate_program_slots() {
     let doc = circle_doc(0.5);
-    let Some(node) = doc.node(PROFILE) else {
+    let Some(node) = doc.node(doc.order()[1]) else {
         panic!("profile node");
     };
     let slots = node.slots();
@@ -102,7 +100,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
     let grown = doc
         .apply(
             &DocEdit::SetParam {
-                node: PROFILE,
+                node: doc.order()[1],
                 slot: radius_slot(),
                 expr: len(0.75),
             },
@@ -121,7 +119,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(v) = ev.value(PROFILE) else {
+    let Some(v) = ev.value(doc.order()[1]) else {
         panic!("profile evaluates");
     };
     let ValuePayload::Profile(pv) = &v.payload else {
@@ -146,7 +144,7 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = doc
         .apply(
             &DocEdit::SetParam {
-                node: PROFILE,
+                node: doc.order()[1],
                 slot: radius_slot(),
                 expr: sum,
             },
@@ -156,7 +154,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         .unwrap()
         .doc;
     let path = ExprPath {
-        node: PROFILE,
+        node: doc.order()[1],
         slot: radius_slot(),
         path: vec![0],
     };
@@ -189,7 +187,7 @@ fn program_slots_refuse_wrong_dimensions() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: PROFILE,
+            node: doc.order()[1],
             slot: radius_slot(),
             expr: ang(0.5),
         },
@@ -214,7 +212,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: PROFILE,
+            node: doc.order()[1],
             slot: radius_slot(),
             expr: len(0.0),
         },
@@ -222,7 +220,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node, PROFILE);
+            assert_eq!(node, doc.order()[1]);
             match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
@@ -268,7 +266,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: PLANE,
+                    plane: doc.order()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
@@ -301,7 +299,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.nodes.get(&PROFILE) {
+    match ev.nodes.get(&doc.order()[1]) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_: 0, error } => {
                 assert_eq!(error.step, 0, "the circle step names itself");
@@ -332,7 +330,7 @@ fn insert_node_checks_program_dimensions() {
         .unwrap()
         .doc;
     let bad = ProfileProgram {
-        plane: PLANE,
+        plane: doc.order()[0],
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             // An Angle where the Radius role demands Length.
@@ -439,7 +437,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             arg: arrival,
         };
         let mut program: ProfileNode = Node::Profile(ProfileProgram {
-            plane: PLANE,
+            plane: doc.order()[0],
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At([len(0.0), len(0.0)]),
                 ProgramStep::ArcFilletArc {
@@ -687,11 +685,38 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             members: vec![nid(1), nid(2)],
             declare: None,
         },
+        Node::transform(
+            nid(1),
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
+        // A chain: rigid, literal, rigid — the literal takes no slot and
+        // its index is skipped, so the second rigid step is step 2.
         Node::Transform {
             input: nid(1),
-            translation: [len(1.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
+            placement: Placement {
+                steps: vec![
+                    Step::Rigid {
+                        translation: [len(1.0), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                    Step::Literal(Frame::translation([0.0, 1.0, 0.0])),
+                    Step::Rigid {
+                        translation: [len(0.0), len(0.0), len(1.0)],
+                        axis: [scl(1.0), scl(0.0), scl(0.0)],
+                        angle: ang(0.5),
+                    },
+                ],
+            },
+        },
+        // A literal alone: no slot at all.
+        Node::Transform {
+            input: nid(1),
+            placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
         },
     ]);
     for kind in [

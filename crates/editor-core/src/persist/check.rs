@@ -42,6 +42,7 @@ use crate::meta::MetaVersionError;
 use crate::names::StableName;
 use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault};
+use crate::placement::{FrameFault, FrameSite};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
 use geom_core::Tol;
@@ -238,7 +239,7 @@ impl Walk {
             Walk::NonFinite => first_non_finite(snapshot, edits)
                 .map(|site| super::PersistError::NonFinite { site }),
             Walk::MaintenanceFrame => {
-                first_maintenance_frame_fault(edits).map(|(index, row, fault)| {
+                first_maintenance_frame_fault(edits, tol).map(|(index, row, fault)| {
                     super::PersistError::MaintenanceFrame { index, row, fault }
                 })
             }
@@ -263,7 +264,7 @@ impl Walk {
                 .map(|(node, fault)| param_ref_refusal(node, ParamRefAddress::Payload, fault)),
             Walk::Program => first_program_fault(snapshot, tol)
                 .map(|(node, fault)| super::PersistError::ProfileProgram { node, fault }),
-            Walk::Snapshot => validate_snapshot(snapshot)
+            Walk::Snapshot => validate_snapshot(snapshot, tol)
                 .err()
                 .map(super::PersistError::Snapshot),
         }
@@ -527,16 +528,17 @@ fn first_payload_param_ref_fault(
 /// placement** — the log's rows are trusted bytes otherwise, and a
 /// row's frame enters the registry at replay without passing the
 /// `SetPlacement` door, so it is held here to exactly what that door
-/// holds a frame to ([`crate::Frame::admission_fault`]: finite, and
-/// proper). Named by the entry's index in the log and the row's index
+/// holds a frame to ([`crate::Frame::admission_fault`]: finite, proper
+/// and rigid). Named by the entry's index in the log and the row's index
 /// in the entry.
 fn first_maintenance_frame_fault(
     edits: &[LoggedEdit<ProfileProgram>],
+    tol: Tol,
 ) -> Option<(usize, usize, crate::placement::FrameFault)> {
     edits.iter().enumerate().find_map(|(index, entry)| {
         entry.maintenance.iter().enumerate().find_map(|(row, act)| {
             act.frame()
-                .and_then(|f| f.admission_fault())
+                .and_then(|f| f.admission_fault(tol))
                 .map(|fault| (index, row, fault))
         })
     })
@@ -812,23 +814,42 @@ pub enum SnapshotError {
         /// The offending key.
         node: RecipeNodeId,
     },
-    /// A placement frame carrying a non-finite coordinate. The edit
-    /// door refuses it, so a file holding one is corrupt — refused,
-    /// never repaired.
+    /// A placement frame carrying a non-finite coordinate — a
+    /// registry row's, or a literal step of a transform's placement.
+    /// The edit door refuses it, so a file holding one is corrupt —
+    /// refused, never repaired.
     PlacementNonFinite {
-        /// The offending key.
+        /// The registry key, or the transform.
         node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
     },
     /// An IMPROPER placement frame — determinant ≤ 0, the A6 mirror
     /// case R4 gates. Its own arm rather than
     /// [`SnapshotError::PlacementNonFinite`]: a mirror is authored data
     /// this build declines to admit, a non-finite coordinate is data no
-    /// predicate can read, and the repairs differ.
+    /// predicate can read, and the repairs differ. A registry row's
+    /// frame, or a literal step of a transform's placement.
     PlacementImproper {
-        /// The offending key.
+        /// The registry key, or the transform.
         node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
         /// The linear part's determinant.
         determinant: f64,
+    },
+    /// A proper placement frame that is not definitely a rigid motion
+    /// at tolerance — a registry row's, or a literal step of a
+    /// transform's placement. The edit door refuses it by the
+    /// predicate the evaluation moves a body by.
+    PlacementNonRigid {
+        /// The registry key, or the transform.
+        node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
+        /// The rigidity check that refused; routing, never rendered by
+        /// name.
+        check: &'static str,
     },
     /// A placement row keyed by an instance that is NOT its cluster's
     /// gauge (ASM-R2a D-3). A11 puts the frame on the cluster, and the
@@ -992,6 +1013,50 @@ pub enum SnapshotError {
     },
 }
 
+impl SnapshotError {
+    /// The arm a frame the admission rule refused is reported under,
+    /// at `at` on `node`.
+    fn placement_frame(node: RecipeNodeId, at: FrameSite, fault: FrameFault) -> Self {
+        match fault {
+            FrameFault::NonFinite => Self::PlacementNonFinite { node, at },
+            FrameFault::Improper { determinant } => Self::PlacementImproper {
+                node,
+                at,
+                determinant,
+            },
+            FrameFault::NotRigid { check } => Self::PlacementNonRigid { node, at, check },
+        }
+    }
+}
+
+/// **A placement frame's refusal at load**: the frame's subject at its
+/// site and the frame rule's own clause, then what a user holding the
+/// file can do. The edit doors never admitted a non-finite or a
+/// mirrored frame, so a file holding one was not written by them; a
+/// frame that is not rigid was admitted by earlier builds at the
+/// registry and in an explicit rule, and a current build refuses it at
+/// the edit door with that frame's own recourse.
+fn frame_refusal(
+    f: &mut core::fmt::Formatter<'_>,
+    node: RecipeNodeId,
+    at: FrameSite,
+    fault: FrameFault,
+) -> core::fmt::Result {
+    write!(f, "{} {fault}. ", at.subject(node))?;
+    match fault {
+        FrameFault::NonFinite | FrameFault::Improper { .. } => {
+            f.write_str(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
+        }
+        FrameFault::NotRigid { .. } => {
+            write!(
+                f,
+                "{}",
+                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            )
+        }
+    }
+}
+
 // The document layer's prose for a corrupt snapshot: each arm states
 // WHAT is wrong and WHERE, and forwards the payload's own `Display`
 // wherever the payload has one (`RootFault`, `PlacementRuleFault`,
@@ -1066,20 +1131,24 @@ impl core::fmt::Display for SnapshotError {
             // (`crate::placement::FrameFault`); these arms supply only
             // the subject, so a reader sees one sentence about a frame
             // wherever a frame was refused.
-            Self::PlacementNonFinite { node } => write!(
+            Self::PlacementNonFinite { node, at } => {
+                frame_refusal(f, *node, *at, FrameFault::NonFinite)
+            }
+            Self::PlacementImproper {
+                node,
+                at,
+                determinant,
+            } => frame_refusal(
                 f,
-                "the placement frame on node {} {}",
-                node.0,
-                crate::placement::FrameFault::NonFinite
+                *node,
+                *at,
+                FrameFault::Improper {
+                    determinant: *determinant,
+                },
             ),
-            Self::PlacementImproper { node, determinant } => write!(
-                f,
-                "the placement frame on node {} {}",
-                node.0,
-                crate::placement::FrameFault::Improper {
-                    determinant: *determinant
-                }
-            ),
+            Self::PlacementNonRigid { node, at, check } => {
+                frame_refusal(f, *node, *at, FrameFault::NotRigid { check })
+            }
             Self::PlacementNotGauge { node, gauge } => write!(
                 f,
                 "the placement keyed by node {} belongs on its cluster's gauge, node {}",
@@ -1193,7 +1262,7 @@ impl core::fmt::Display for SnapshotError {
 
 /// Re-checks the document invariants `apply` maintains — on a parsed
 /// snapshot (load) and on the in-memory snapshot (save) alike.
-fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
+fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // order ↔ nodes agreement (and no duplicates: equal lengths plus
     // every order id resolving implies a bijection on a BTreeMap).
     let mut position = std::collections::BTreeMap::new();
@@ -1210,10 +1279,10 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     if !crate::doc::epsilon_admissible(doc.epsilon) {
         return Err(SnapshotError::EpsilonInvalid { value: doc.epsilon });
     }
-    // Every id in the document stays below the mint counter — replay
+    // Every id in the document is one the document has minted — replay
     // after load must never re-mint a referenced id.
     let check_id = |id: RecipeNodeId| -> Result<(), SnapshotError> {
-        if id.0 >= doc.next_id {
+        if !doc.has_minted(id) {
             Err(SnapshotError::IdBeyondCounter {
                 id,
                 next_id: doc.next_id,
@@ -1279,8 +1348,18 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // and every rule on the wire must be one the edit door would
         // have accepted — one spelling of the count, at least one
         // placement, and frames that are finite and proper.
-        if let Some(fault) = node.placement_rule_fault() {
+        if let Some(fault) = node.placement_rule_fault(tol) {
             return Err(SnapshotError::PlacementRule { node: id, fault });
+        }
+        // A transform's literal frames, held by the predicate the edit
+        // door asks, for the rule's reason: the snapshot is the one road
+        // to a document that does not pass `apply`.
+        if let Some((index, fault)) = node.placement_frame_fault(tol) {
+            return Err(SnapshotError::placement_frame(
+                id,
+                FrameSite::Step { index },
+                fault,
+            ));
         }
         // DM5's third caller, for the reason the placement rule above
         // has one: a saved file is DATA, and a SNAPSHOT is the one way
@@ -1392,12 +1471,11 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // have accepted.
     for (&node, frame) in &doc.placements {
         check_id(node)?;
-        if let Some(fault) = crate::doc::placement_fault(doc, node, frame) {
+        if let Some(fault) = crate::doc::placement_fault(doc, node, frame, tol) {
             return Err(match fault {
                 PlacementFault::NotAnInstance => SnapshotError::PlacementSite { node },
-                PlacementFault::NonFiniteFrame => SnapshotError::PlacementNonFinite { node },
-                PlacementFault::ImproperFrame { determinant } => {
-                    SnapshotError::PlacementImproper { node, determinant }
+                PlacementFault::Frame(fault) => {
+                    SnapshotError::placement_frame(node, FrameSite::Registry, fault)
                 }
             });
         }
@@ -1547,6 +1625,7 @@ mod tests {
     use crate::expr::Dimension;
     use crate::node::{Node, RecipeNodeId, SlotId};
     use crate::persist::{PersistError, SnapshotError, save};
+    use crate::placement::FrameSite;
     use crate::program::ProfileDoc;
     use geom_core::Tol;
 
@@ -1613,6 +1692,7 @@ mod tests {
             PlacementSite,
             PlacementNonFinite,
             PlacementImproper,
+            PlacementNonRigid,
             PlacementNotGauge,
             MateAlignment,
             PlacementRule,
@@ -1652,6 +1732,7 @@ mod tests {
             | SnapshotError::PlacementSite { .. }
             | SnapshotError::PlacementNonFinite { .. }
             | SnapshotError::PlacementImproper { .. }
+            | SnapshotError::PlacementNonRigid { .. }
             | SnapshotError::PlacementNotGauge { .. }
             | SnapshotError::MateAlignment { .. }
             | SnapshotError::PlacementRule { .. }
@@ -1757,10 +1838,19 @@ mod tests {
                 descendant: RecipeNodeId(2),
             }),
             SnapshotError::PlacementSite { node },
-            SnapshotError::PlacementNonFinite { node },
+            SnapshotError::PlacementNonFinite {
+                node,
+                at: FrameSite::Registry,
+            },
             SnapshotError::PlacementImproper {
                 node,
+                at: FrameSite::Step { index: 1 },
                 determinant: -1.0,
+            },
+            SnapshotError::PlacementNonRigid {
+                node,
+                at: FrameSite::Step { index: 1 },
+                check: "transform_rigid_col0_unit",
             },
             SnapshotError::PlacementNotGauge {
                 node,
@@ -1998,7 +2088,7 @@ mod tests {
             },
         );
         match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::PlacementNonFinite { node })) => {
+            Err(PersistError::Snapshot(SnapshotError::PlacementNonFinite { node, .. })) => {
                 assert_eq!(node, ids[0]);
             }
             other => panic!("a non-finite placement must refuse at save, got {other:?}"),

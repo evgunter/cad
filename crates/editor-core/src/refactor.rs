@@ -107,7 +107,7 @@ use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
 use crate::names::{
-    EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
+    Carry, EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
     StableName,
 };
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId};
@@ -922,6 +922,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::EmptyPlacementList { .. }
             | EditError::ImproperPlacement { .. }
             | EditError::NonFinitePlacement { .. }
+            | EditError::NonRigidPlacement { .. }
             | EditError::PlacementAxis { .. }
             | EditError::NonFiniteAlignment { .. }
             | EditError::UpdateOnNonInstance { .. }
@@ -1114,7 +1115,7 @@ fn remap_derivation(
         path: path.to_vec(),
     }
     .rewrite_path(&mut Remapping(map, steps))?;
-    Ok((to, rewritten.path))
+    Ok((to, rewritten.into_path()))
 }
 
 /// **The split re-map as a [`SegRewrite`]**: every carried name is
@@ -1156,8 +1157,21 @@ impl SegRewrite for Remapping<'_> {
         })
     }
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
-        remap_name(n, self.0, self.1).map(Some)
+    // [`remap_name`], one level at a time: the minting node is mapped
+    // (and an unmapped one refused) before the path is walked, and the
+    // walked path is then put under it.
+    fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
+        self.member(n.node)?;
+        Ok(Carry::Descend)
+    }
+
+    fn descended(
+        &mut self,
+        n: &StableName,
+        mut walked: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
+        walked.node = self.member(n.node)?;
+        Ok(Some(walked))
     }
 
     fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Self::Error> {
@@ -1416,16 +1430,9 @@ fn remap_node(
             members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
             declare: declare.map(id).transpose()?,
         },
-        Node::Transform {
-            input,
-            translation,
-            rotation_axis,
-            rotation_angle,
-        } => Node::Transform {
+        Node::Transform { input, placement } => Node::Transform {
             input: id(*input)?,
-            translation: translation.clone(),
-            rotation_axis: rotation_axis.clone(),
-            rotation_angle: rotation_angle.clone(),
+            placement: placement.clone(),
         },
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: id(*input)?,
@@ -2652,7 +2659,7 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
 #[allow(clippy::expect_used)]
 mod a_remap_that_reorders_ids_republishes_the_canonical_form {
     use super::{NodeMap, StepMap, remap_name};
-    use crate::names::{NameRef, Qualifier, RoleSeg, SideVerdict, StableName};
+    use crate::names::{NameRef, Qualifier, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
 
@@ -2740,7 +2747,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
     }
 
     #[test]
-    fn a_pair_booleans_sets_side_of_and_junction_are_resorted_and_its_seams_stay_sided() {
+    fn a_pair_booleans_sets_borders_and_junction_are_resorted_and_its_seams_stay_sided() {
         // Boolean 5 over operands 1 and 2, with 3 a third name.
         let face = |n| cap(EntityKind::Face, n);
         let was = name(
@@ -2748,10 +2755,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             5,
             vec![
                 RoleSeg::Merged(vec![face(1), face(2)]),
-                RoleSeg::Fragment(Qualifier::SideOf(vec![
-                    (face(1), SideVerdict::Positive),
-                    (face(2), SideVerdict::Negative),
-                ])),
+                RoleSeg::Fragment(Qualifier::Borders(vec![face(1), face(2)])),
             ],
         );
         let out = remap_name(&was, &map(), &StepMap::new()).expect("covered");
@@ -2759,10 +2763,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             out.path,
             vec![
                 RoleSeg::Merged(vec![face(30), face(31)]),
-                RoleSeg::Fragment(Qualifier::SideOf(vec![
-                    (face(30), SideVerdict::Negative),
-                    (face(31), SideVerdict::Positive),
-                ])),
+                RoleSeg::Fragment(Qualifier::Borders(vec![face(30), face(31)])),
             ]
         );
         let junction = name(

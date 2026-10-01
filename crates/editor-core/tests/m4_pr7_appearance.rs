@@ -362,12 +362,14 @@ fn transform_pass_through_carries_the_attribute_downstream() {
     );
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: ext,
-            translation: [len(4.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            ext,
+            editor_core::Step::Rigid {
+                translation: [len(4.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
@@ -667,17 +669,19 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     // Review A2 (adapted from the reviewer's transform-duplicate
     // probe): a tied name passed through a Transform appears in TWO
     // tables; the loss report stays per-name — exactly ONE Ambiguous
-    // row, `at` = the first carrying node in id order (the subtract),
-    // the rest derivable by table lookup.
+    // row, `at` = the first carrying node in id order, the rest
+    // derivable by table lookup.
     let (doc, sub) = tie_fixture();
-    let (doc, _moved) = insert(
+    let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: sub,
-            translation: [len(10.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            sub,
+            editor_core::Step::Rigid {
+                translation: [len(10.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     let ev = run(&doc);
     let tied = tied_name(&ev, sub);
@@ -692,7 +696,10 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     assert_eq!(ev.appearance.losses[0].name, tied);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::Ambiguous { at: sub, width: 2 }
+        AppearanceLossCause::Ambiguous {
+            at: sub.min(moved),
+            width: 2
+        }
     );
     assert!(ev.appearance.resolved.is_empty(), "ties are never painted");
 }

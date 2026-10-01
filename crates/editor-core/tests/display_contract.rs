@@ -1011,6 +1011,7 @@ test_utils::f6_variants! {
         PlacementSite,
         PlacementNonFinite,
         PlacementImproper,
+        PlacementNonRigid,
         PlacementNotGauge,
         MateAlignment,
         PlacementRule,
@@ -1177,15 +1178,31 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["keyed by node 5", "does not instantiate a part"],
         ),
         (
-            SnapshotError::PlacementNonFinite { node },
-            vec!["placement frame on node 5", "non-finite coordinate"],
+            SnapshotError::PlacementNonFinite {
+                node,
+                at: editor_core::FrameSite::Registry,
+            },
+            vec!["placement frame for node 5", "non-finite coordinate"],
         ),
         (
             SnapshotError::PlacementImproper {
                 node,
+                at: editor_core::FrameSite::Step { index: 1 },
                 determinant: -1.0,
             },
-            vec!["placement frame on node 5", "improper (mirroring)"],
+            vec!["step 2 of node 5's placement", "improper (mirroring)"],
+        ),
+        (
+            SnapshotError::PlacementNonRigid {
+                node,
+                at: editor_core::FrameSite::Registry,
+                check: "transform_rigid_col01_orth",
+            },
+            vec![
+                "placement frame for node 5",
+                "not definitely rigid",
+                "may shear",
+            ],
         ),
         (
             SnapshotError::PlacementNotGauge {
@@ -1434,14 +1451,13 @@ fn a_predicate_flip_names_its_signs_as_words() {
     let sign_words = as_strs(&sign_debug);
     assert_f6(
         &Diagnosis::PredicateFlip {
-            predicate: "name_frag_side_of",
+            predicate: "name_frag_order_along",
             from: geom_core::predicate::Sign::Positive,
             to: geom_core::predicate::Sign::Negative,
-            source: editor_core::FlipSource::VerdictLog,
         },
         &[
-            "the margin deciding the side of a cut a face lies on flipped from positive to \
-             negative",
+            "the margin deciding the order of two pieces along an edge flipped from positive \
+             to negative",
         ],
         // Every `Sign`, not the two this row happens to construct: a
         // rendering that leaked `Zero` would be just as much a dump.
@@ -1449,7 +1465,7 @@ fn a_predicate_flip_names_its_signs_as_words() {
         // renders that one arm.
         &[
             sign_words.as_slice(),
-            &["PredicateFlip", "name_frag_side_of"],
+            &["PredicateFlip", "name_frag_order_along"],
         ]
         .concat(),
     );
@@ -1460,7 +1476,6 @@ fn a_predicate_flip_names_its_signs_as_words() {
         predicate: "volume_backstop",
         from: geom_core::predicate::Sign::Zero,
         to: geom_core::predicate::Sign::Positive,
-        source: editor_core::FlipSource::VerdictLog,
     }
     .to_string();
     assert!(
@@ -1470,68 +1485,40 @@ fn a_predicate_flip_names_its_signs_as_words() {
     );
 }
 
-/// The RECOVERED flip says so, and names the partner through the
-/// stable name's own `Display` — the two halves a reader needs to know
-/// that this flip is in no log they could go and check, and which pair
-/// it is about.
+/// The border delta names the walls in words through the stable
+/// name's own `Display`, both directions, and says "no wall" where a
+/// direction has none.
 #[test]
-fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
-    let sign_debug: Vec<String> = all_signs().iter().map(|s| format!("{s:?}")).collect();
-    let sign_words = as_strs(&sign_debug);
+fn a_border_delta_names_the_walls_that_moved() {
+    let wall = |n| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(n),
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    };
     assert_f6(
-        &Diagnosis::PredicateFlip {
-            predicate: "name_frag_side_of",
-            from: geom_core::predicate::Sign::Positive,
-            to: geom_core::predicate::Sign::Negative,
-            source: editor_core::FlipSource::ShadowExec {
-                partner: Box::new(face_name()),
-            },
+        &Diagnosis::BorderDelta {
+            node: RecipeNodeId(7),
+            gone: vec![wall(3), wall(4)],
+            new: vec![],
         },
         &[
-            "the margin deciding the side of a cut a face lies on flipped from positive to \
-             negative",
-            &face_name().to_string(),
-            "recovered by re-running the pair at diagnosis time",
-            "one of the two runs recorded no side verdict at the name's minting node",
+            "at node 7",
+            &format!("no longer borders the {} and the {}", wall(3), wall(4)),
+            "borders no wall it did not",
         ],
+        &["BorderDelta", "gone", "new"],
+    );
+    assert_f6(
+        &Diagnosis::BorderDelta {
+            node: RecipeNodeId(7),
+            gone: vec![],
+            new: vec![wall(5)],
+        },
         &[
-            sign_words.as_slice(),
-            &[
-                "PredicateFlip",
-                "ShadowExec",
-                "FlipSource",
-                "name_frag_side_of",
-            ],
-        ]
-        .concat(),
-    );
-}
-
-/// The shadow rung's REFUSAL states what stood between the diagnosis
-/// and evidence that exists — both arms, because a refusal a reader
-/// cannot act on is the fall-through it was written to replace.
-#[test]
-fn the_shadow_exec_refusal_states_which_wall_it_hit() {
-    assert_f6(
-        &Diagnosis::ShadowExecDeclined {
-            node: RecipeNodeId(7),
-            reason: editor_core::ShadowExecRefusal::PairTooWide {
-                pairs: 33,
-                ceiling: 32,
-            },
-        },
-        &["no side verdict", "minting node", "33", "32", "re-execute"],
-        &["ShadowExecDeclined", "PairTooWide", "ShadowExecRefusal"],
-    );
-    assert_f6(
-        &Diagnosis::ShadowExecDeclined {
-            node: RecipeNodeId(7),
-            reason: editor_core::ShadowExecRefusal::ProbeRefused {
-                probe: "a probe's own sentence".to_owned(),
-            },
-        },
-        &["a probe refused", "a probe's own sentence"],
-        &["ShadowExecDeclined", "ProbeRefused", "ShadowExecRefusal"],
+            "no longer borders no wall",
+            &format!("borders the {} it did not", wall(5)),
+        ],
+        &["BorderDelta"],
     );
 }
 
@@ -1686,7 +1673,6 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 predicate: "bool_point_in_solid_plane",
                 from: Sign::Negative,
                 to: Sign::Positive,
-                source: editor_core::FlipSource::VerdictLog,
             },
             "the margin deciding which side of a face's plane a point lies on flipped from \
              negative to positive on the name's derivation path"
@@ -1893,7 +1879,8 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     );
     let shown = editor_core::FaceName::new(StableName {
         kind: EntityKind::Vertex,
-        ..edge_name.clone()
+        node: edge_name.node,
+        path: edge_name.path.clone(),
     })
     .expect_err("a vertex is not a face name")
     .to_string();
@@ -2421,6 +2408,7 @@ test_utils::f6_variants! {
         MergedChordConstituents,
         SeamLineSides,
         MemberEdgeTied,
+        SplitReference,
         NarrowBand,
         Band,
         Escalated,
@@ -2592,8 +2580,24 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["naming band is too narrow", "below 2"],
         ),
         (
+            NamingError::SplitReference {
+                group: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(41),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                }),
+                reference: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(43),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                }),
+                curved: false,
+            },
+            vec!["node 41", "node 43", "several faces on different carriers"],
+        ),
+        (
             NamingError::Escalated {
-                predicate: "name_frag_side_of",
+                predicate: "name_frag_order_along",
                 source: geom_core::Indeterminate {
                     margin: geom_core::predicate::MarginDiag::INVALID,
                     band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
@@ -2601,7 +2605,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     terminal_sliver: false,
                 },
             },
-            vec!["the side of a cut", "too close to call"],
+            vec!["the order of two pieces along an edge", "too close to call"],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);

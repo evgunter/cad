@@ -117,7 +117,6 @@ fn with_measure(
     expr: MeasureExpr,
     refs: Vec<StableName>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let id = RecipeNodeId(doc.len() as u64);
     let refs: Vec<SitedRef> = refs.into_iter().map(SitedRef::at_mint).collect();
     let doc = push(
         doc,
@@ -125,6 +124,7 @@ fn with_measure(
             node: Node::measure(expr, refs).expect("indices in range"),
         },
     );
+    let id = crate::fixture::newest(&doc);
     (doc, id)
 }
 
@@ -162,14 +162,13 @@ fn boxed(
     z0: f64,
     h: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let plane = RecipeNodeId(doc.len() as u64);
     let doc = push(
         doc,
         &DocEdit::InsertNode {
             node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
         },
     );
-    let p = RecipeNodeId(doc.len() as u64);
+    let plane = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -179,7 +178,7 @@ fn boxed(
             )),
         },
     );
-    let e = RecipeNodeId(doc.len() as u64);
+    let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -189,6 +188,7 @@ fn boxed(
             },
         },
     );
+    let e = crate::fixture::newest(&doc);
     (doc, e)
 }
 
@@ -203,24 +203,23 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = RecipeNodeId(doc.len() as u64);
     let doc = push(
         doc,
         &DocEdit::InsertNode {
             node: fixture::frame([0.0, 0.0, cz], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
         },
     );
+    let plane = crate::fixture::newest(&doc);
     // The frame's v is world +Z and its origin sits ON the world Z
     // axis, so the pole axis is this frame's own +y through (0, 0) —
     // and it is minted AFTER the frame it names.
-    let axis = RecipeNodeId(doc.len() as u64);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
         },
     );
-    let p = RecipeNodeId(doc.len() as u64);
+    let axis = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -231,7 +230,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
             }),
         },
     );
-    let s = RecipeNodeId(doc.len() as u64);
+    let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -242,6 +241,7 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
             },
         },
     );
+    let s = crate::fixture::newest(&doc);
     (doc, s)
 }
 
@@ -255,14 +255,13 @@ fn cylinder(
     z0: f64,
     h: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let plane = RecipeNodeId(doc.len() as u64);
     let doc = push(
         doc,
         &DocEdit::InsertNode {
             node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
         },
     );
-    let p = RecipeNodeId(doc.len() as u64);
+    let plane = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -276,7 +275,7 @@ fn cylinder(
             }),
         },
     );
-    let e = RecipeNodeId(doc.len() as u64);
+    let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -286,6 +285,7 @@ fn cylinder(
             },
         },
     );
+    let e = crate::fixture::newest(&doc);
     (doc, e)
 }
 
@@ -711,7 +711,6 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
     let (d1, c1) = cylinder(&d0, 0.001, 0.0, 0.0, 0.0, 0.01);
     // The second cylinder on a frame tilted by theta about x: its
     // extrude direction (and so its axis) tilts with the plane normal.
-    let plane = RecipeNodeId(d1.len() as u64);
     let d1 = push(
         &d1,
         &DocEdit::InsertNode {
@@ -722,7 +721,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
             ),
         },
     );
-    let p = RecipeNodeId(d1.len() as u64);
+    let plane = crate::fixture::newest(&d1);
     let d2 = push(
         &d1,
         &DocEdit::InsertNode {
@@ -736,7 +735,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
             }),
         },
     );
-    let c2 = RecipeNodeId(d2.len() as u64);
+    let p = crate::fixture::newest(&d2);
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
@@ -746,6 +745,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
             },
         },
     );
+    let c2 = crate::fixture::newest(&d3);
     let ev = eval(&d3);
     let f1 = faces(&ev, c1, geom_brep::SurfaceKind::Cylinder);
     let f2 = faces(&ev, c2, geom_brep::SurfaceKind::Cylinder);
@@ -785,7 +785,6 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         vec![vs[0].clone(), vs[1].clone()],
     );
-    let assertion = RecipeNodeId(d2.len() as u64);
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
@@ -798,6 +797,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             },
         },
     );
+    let assertion = crate::fixture::newest(&d3);
     let ev = eval(&d3);
     assert!(
         matches!(
@@ -830,12 +830,14 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
             (
                 "transform",
-                Node::Transform {
-                    input: victim,
-                    translation: [len(1.0), len(0.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(0.0),
-                },
+                Node::transform(
+                    victim,
+                    editor_core::Step::Rigid {
+                        translation: [len(1.0), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                ),
             ),
             (
                 "extrude-profile",
@@ -846,13 +848,13 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
         ];
         for (what, node) in attempts {
-            let id = RecipeNodeId(d3.len() as u64);
             match try_push(&d3, &DocEdit::InsertNode { node }) {
                 // Refused at the edit door: ideal.
                 Err(_) => {}
                 // Admitted: it MUST then fail typed at evaluation, and
                 // must not produce a body.
                 Ok(doc) => {
+                    let id = crate::fixture::newest(&doc);
                     let ev = eval(&doc);
                     match ev.nodes.get(&id) {
                         Some(NodeResult::Failed(_)) => {}
@@ -884,7 +886,6 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         vec![vs[0].clone(), vs[1].clone()],
     );
-    let assertion = RecipeNodeId(with_measure_doc.len() as u64);
     let with_assertion = push(
         &with_measure_doc,
         &DocEdit::InsertNode {
@@ -895,6 +896,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
             },
         },
     );
+    let assertion = crate::fixture::newest(&with_assertion);
     let a = eval(&with_assertion);
     let c = eval(&with_measure_doc);
     assert!(
@@ -1038,18 +1040,20 @@ fn r2_a_transform_has_no_emission_to_measure() {
     let d0 = empty("r2-minted");
     let (d1, b) = boxed(&d0, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (d2, fixed) = boxed(&d1, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
-    let moved = RecipeNodeId(d2.len() as u64);
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Transform {
-                input: b,
-                translation: [len(100.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            node: Node::transform(
+                b,
+                editor_core::Step::Rigid {
+                    translation: [len(100.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         },
     );
+    let moved = crate::fixture::newest(&d3);
     let ev = eval(&d3);
     let vs_minted = vertices(&ev, b);
     let vs_moved = vertices(&ev, moved);
@@ -1235,7 +1239,6 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
             vec![fo[0].clone(), fi[0].clone()],
         );
-        let assertion = RecipeNodeId(d3.len() as u64);
         let d4 = push(
             &d3,
             &DocEdit::InsertNode {
@@ -1246,6 +1249,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
                 },
             },
         );
+        let assertion = crate::fixture::newest(&d4);
         let ev = eval(&d4);
         let g = measured(&ev, measure);
         assert!(
@@ -1422,7 +1426,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
         &d2,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: RecipeNodeId(1),
+                profile: d1.order()[1],
                 distance: Expr::div(
                     len(13.0),
                     Expr::param(ParamName::from_static("s"), Dimension::Scalar),
@@ -1432,7 +1436,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
         },
     );
     if let Ok(doc) = slotted {
-        let sid = RecipeNodeId(d2.len() as u64);
+        let sid = crate::fixture::newest(&doc);
         let sev = eval(&doc);
         eprintln!(
             "R2/nonfinite: the same division in a SLOT evaluates to {:?}",
@@ -1482,7 +1486,6 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     )
     .expect("Length / Scalar");
     let (d2, measure) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
-    let assertion = RecipeNodeId(d2.len() as u64);
     let Ok(d3) = try_push(
         &d2,
         &DocEdit::InsertNode {
@@ -1496,6 +1499,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         eprintln!("R2/nonfinite-assert: the assertion was refused at the edit door");
         return;
     };
+    let assertion = crate::fixture::newest(&d3);
     let ev = eval(&d3);
     match ev.nodes.get(&assertion) {
         Some(NodeResult::Ok(v)) => match &v.payload {

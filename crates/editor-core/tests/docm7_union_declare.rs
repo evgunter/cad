@@ -70,12 +70,14 @@ pub(crate) fn block(
 fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(dx), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+            editor_core::Step::Rigid {
+                translation: [len(dx), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     )
 }
 
@@ -670,8 +672,8 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     let doc = ProfileDoc::empty_derived("docm7_forward", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    // An id no node has yet — one past the last live node.
-    let future = RecipeNodeId(doc.order().last().expect("a node").0 + 1);
+    // An id no node has yet: the one the next insert would mint.
+    let future = fixture::next_mint(&doc);
     let refused = doc.apply(
         &DocEdit::InsertNode {
             node: Node::declare_rest(vec![(
@@ -1046,7 +1048,11 @@ fn a_union_refusal_against_a_merged_wall_names_two_members() {
             other => panic!("the refusal a caller can act on, got {other:?}"),
         }
     }
-    assert_eq!(refused, [(m1, m3), (m2, m3)]);
+    // Each pair is spelled lower id first, and refused in id order.
+    let by_id = |x: RecipeNodeId, y: RecipeNodeId| (x.min(y), x.max(y));
+    let mut want = vec![by_id(m1, m3), by_id(m2, m3)];
+    want.sort();
+    assert_eq!(refused, want);
 }
 
 /// **The site is the OPERAND, not the minting node** — through a

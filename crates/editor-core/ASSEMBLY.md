@@ -315,9 +315,12 @@ declaration C6 above describes, are not implemented.
 
 **A6 — Mirror and improper frames.** `Frame` stores a general linear
 part so an improper frame (det = −1) is representable, and it is
-refused: `DocEdit::SetPlacement` refuses `EditError::ImproperPlacement`
-for det ≤ 0 and the load validator refuses the same. Mirrored instances
-are not implemented; STEP import refuses a mirroring placement.
+refused wherever a document admits a frame, by one predicate
+(`Frame::admission_fault`): `DocEdit::SetPlacement`'s frame, an
+explicit placement rule's listed frames and a transform's literal
+steps refuse `EditError::ImproperPlacement` for det ≤ 0, naming which
+frame, and the load validator refuses the same. Mirrored instances are
+not implemented; STEP import refuses a mirroring placement.
 
 ## Interchange
 

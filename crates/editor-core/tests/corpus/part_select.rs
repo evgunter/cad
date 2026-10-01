@@ -129,12 +129,14 @@ pub fn document() -> CorpusDoc {
         of: pattern,
         select: PartSelect::Instance(Expr::count(1)),
     });
-    let lifted = r.insert(Node::Transform {
-        input: middle,
-        translation: [len(0.0), len(0.0), len(LIFT)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let lifted = r.insert(Node::transform(
+        middle,
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), len(LIFT)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let _ = lifted;
 
     CorpusDoc {

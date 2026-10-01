@@ -2329,6 +2329,7 @@ fn node_error_tags_are_the_published_words() {
         PlacementRuleNoPlacements => "empty_placement_list",
         PlacementRuleNonFiniteFrame => "non_finite_placement",
         PlacementRuleImproperFrame => "improper_placement",
+        PlacementRuleNonRigidFrame => "non_rigid_placement",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
         ParamSourceAttach => "param_source_attach",
@@ -2367,6 +2368,7 @@ fn node_error_tags_are_the_published_words() {
         PartProduct => "part_product",
         PartReferenceCycle => "part_reference_cycle",
         PartDepthExceeded => "part_depth_exceeded",
+        PartNotEntered => "part_not_entered",
         MatePosesOfAnotherDocument => "mate_poses_of_another_document",
         MateFrame => "mate_frame_degenerate",
         MateClassNotAdmitted => "mate_class_not_admitted",
@@ -2684,7 +2686,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::PlacementOnNonInstance { node: id(1) }, &["node"]);
     carries(&E::PlacementRuleMismatch { node: id(1) }, &["node"]);
     carries(&E::EmptyPlacementList { node: id(1) }, &["node"]);
-    carries(&E::NonFinitePlacement { node: id(1) }, &["node"]);
+    carries(
+        &E::NonFinitePlacement {
+            node: id(1),
+            at: pncad::document::FrameSite::Registry,
+        },
+        &["node"],
+    );
     carries(&E::NonFiniteAlignment { node: id(1) }, &["node"]);
     // The door's per-mate admission carries the solve's fault WHOLE
     // beside the mate: the one payload that crosses as a value.
@@ -2967,9 +2975,18 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::ImproperPlacement {
             node: id(1),
+            at: pncad::document::FrameSite::Step { index: 2 },
             determinant: -1.0,
         },
-        &["node", "determinant"],
+        &["node", "determinant", "index"],
+    );
+    carries(
+        &E::NonRigidPlacement {
+            node: id(1),
+            at: pncad::document::FrameSite::Listed { index: 0 },
+            check: "transform_rigid_col0_unit",
+        },
+        &["node", "index"],
     );
     carries(
         &E::PinUnchanged {
@@ -4073,12 +4090,13 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                 *word,
                 "`{word}` reads back as a slot the forward map spells otherwise"
             ),
-            // The one word an address is not completed by: a profile
+            // The two words an address is not completed by: a profile
             // program's expression is reached by a loop index, a step
-            // index and an argument role, none of which the word
+            // index and an argument role, and a later placement step's
+            // by a step index and a component, none of which the word
             // carries.
-            None => assert_eq!(
-                *word, "profile",
+            None => assert!(
+                matches!(*word, "profile" | "placement_step"),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
         }
@@ -4568,6 +4586,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_pierce_unsupported",
             "curved_sector_side_unsupported",
             "declaration_contradicted",
+            "degenerate_torus",
             "escalated",
             "euler",
             "fallback_extent_unsupported",
@@ -4742,6 +4761,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_alignment",
             "non_finite_doc_param",
             "non_finite_placement",
+            "non_rigid_placement",
             "not_structural_slot",
             "path_off_tree",
             "payload_doc_param_dimension",
@@ -4852,6 +4872,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "div_needs_scalar_divisor",
             "mismatch",
             "mul_needs_scalar",
+            "nested_too_deep",
             "non_finite",
             "not_count",
             "trig_needs_angle",
@@ -4903,7 +4924,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "frame_fault_tag",
-        values: &["improper", "non_finite"],
+        values: &["improper", "non_finite", "not_rigid"],
         delegates: &[],
     },
     TagEntry {
@@ -5055,6 +5076,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_vertex_parentage",
             "seam_vertex_partners",
             "split_lineage_cycle",
+            "split_reference",
             "unnamed",
         ],
         delegates: &["band_error_tag", "rim_share_tag"],
@@ -5121,10 +5143,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_direction",
             "non_finite_placement",
             "non_positive_count",
+            "non_rigid_placement",
             "param_box",
             "param_source_attach",
             "part_depth_exceeded",
             "part_no_resolver",
+            "part_not_entered",
             "part_product",
             "part_reference_cycle",
             "part_root_failed",
@@ -5591,6 +5615,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "origin_x",
             "origin_y",
             "origin_z",
+            "placement_step",
             "profile",
             "radius",
             "revolve_angle",
@@ -5642,6 +5667,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "payload_unknown_doc_param",
             "placement_improper",
             "placement_non_finite",
+            "placement_non_rigid",
             "placement_not_gauge",
             "placement_rule",
             "placement_site",
@@ -5999,6 +6025,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
+    // Overlapping, not one fact: at rest the word is the ring half's
+    // decided refusal alone (a nonpositive tube is
+    // `unrepresentable_surface_datum` there); at the Boolean's pierce
+    // it is either half's (`topo::TorusConvention`).
+    ("degenerate_torus", 2),
     // Three, and ALL THREE are one fact: `parse_error_tag`,
     // `persist_error_tag` and `edit_error_tag` each mean "the document
     // layer's dimension checker refused", at the text door, the load
@@ -6035,8 +6066,12 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
+    ("non_rigid_placement", 2),
     ("not_a_body", 2),
     ("not_an_instance", 2),
+    // One predicate (`topo::check_rigid`), one word: the kernel's own
+    // refusal of a map, and a frame a document door refuses by it.
+    ("not_rigid", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
     ("part_unresolved", 2),

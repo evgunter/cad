@@ -809,11 +809,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     // A POISONED root: the extrude fails and the transform over it is
     // the root the index refuses on. The badge names the extrude.
     let (doc, extrude, moved) = common::broken_document(tol);
-    assert_eq!(
-        (extrude, moved),
-        (RecipeNodeId(2), RecipeNodeId(3)),
-        "the fixture's ids, which the literals below spell"
-    );
+    assert_ne!(extrude, moved, "the root over the failure is another node");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
@@ -822,7 +818,10 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
-        format!("pick index: waits on feature 2, which failed — {consequence}"),
+        format!(
+            "pick index: waits on feature {}, which failed — {consequence}",
+            extrude.0
+        ),
         "the row the tree blames, not the root the build refused on"
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
@@ -861,11 +860,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         },
         tol,
     );
-    assert_eq!(
-        (healthy, broken),
-        (RecipeNodeId(2), RecipeNodeId(5)),
-        "the fixture's ids, which the literal below spells"
-    );
+    assert_ne!(healthy, broken, "two roots");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
@@ -874,14 +869,21 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
-        format!("pick index: waits on feature 5, which failed — {consequence}")
+        format!(
+            "pick index: waits on feature {}, which failed — {consequence}",
+            broken.0
+        )
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
     assert_eq!(
         badge.detail(),
         Some(
-            "pick index: root 5 could not be indexed: pick: node 5 failed, so it has no \
-             value — fix the node's own failure"
+            format!(
+                "pick index: root {0} could not be indexed: pick: node {0} failed, so it has \
+                 no value — fix the node's own failure",
+                broken.0
+            )
+            .as_str()
         ),
         "the tooltip says the root was not indexed and the standing says why"
     );
@@ -958,14 +960,18 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     let badge = frame::index_badge(Some(&refusal), session.evaluation())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
-        (offender, *root, *failed),
-        (RecipeNodeId(3), RecipeNodeId(1), RecipeNodeId(1)),
-        "the fixture's ids: the index's words name the root, and the root is not the mate"
+        (*root, *failed),
+        (bench.shelf_i, bench.shelf_i),
+        "the index's words name the root, which failed"
     );
+    assert_ne!(offender, *root, "and the root is not the mate");
     assert_eq!(
         badge.label(),
-        "pick index: waits on feature 3, which failed — until the index builds, no pick \
-         is answered and the picture is not redrawn",
+        format!(
+            "pick index: waits on feature {}, which failed — until the index builds, no pick \
+             is answered and the picture is not redrawn",
+            offender.0
+        ),
         "the mate the tree blames, not the root the index's words name"
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
@@ -1176,9 +1182,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + bare_badge
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 10, "the badge family");
+    assert_eq!(badge_doors, 11, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — ten"),
+        readme.contains("`frame` function returning `Option<Badge>`** — eleven"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -1244,6 +1250,44 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         None,
         "every committed profile drew, or there are none — the same zero"
     );
+    assert_eq!(
+        frame::held_edges_badge(None),
+        None,
+        "nothing held, or a held body the index names whole"
+    );
+}
+
+/// A refusal of one of `target`'s drawn edges' names, as
+/// `PickIndex::edge_names_in` answers it.
+fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused {
+    pickindex::EdgeNamesRefused {
+        node: target.node,
+        body: target.body,
+        first: common::unnamed_edge(target.node, target.body),
+        named: 11,
+        refused: 1,
+    }
+}
+
+/// **One fault, one subject.** A drawn edge the index cannot name is
+/// badged on the held mark and said on the line by the refused load,
+/// and both wear the document's subject: the names are the document's
+/// evaluation's, so what can change the answer is an edit the document
+/// accepts, not another index build over the same table.
+#[test]
+fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::tools::ToolNotice;
+
+    let target = BlendTarget {
+        node: RecipeNodeId(3),
+        body: 0,
+    };
+    let refused = unnamed_on(target);
+    let badge = frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
+    let line = frame::tool_notice(&ToolNotice::Blend(BlendEvent::EdgesUnnamed { refused }));
+    assert_eq!(badge.subject(), frame::Subject::Document);
+    assert_eq!(line.subject(), badge.subject());
 }
 
 /// **The profiles badge counts, in agreeing words, and says it is the
@@ -2074,12 +2118,14 @@ fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId)
     let place = |doc: &Doc<ProfileProgram>, x: f64| {
         common::inserted(
             doc,
-            Node::Transform {
-                input: extrude,
-                translation: [common::len(x), common::len(0.0), common::len(0.0)],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+            Node::transform(
+                extrude,
+                pncad::document::Step::Rigid {
+                    translation: [common::len(x), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
             tol,
         )
     };
@@ -3074,6 +3120,13 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     );
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    // The mate the op landed, read off the document rather than off the
+    // fault under test.
+    let landed = *session.doc().order().last().expect("the mate landed");
+    assert!(
+        matches!(session.doc().node(landed), Some(Node::Mate { .. })),
+        "the newest node is the mate"
+    );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
@@ -3093,8 +3146,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         )
     };
     assert_eq!(*instance, bench.post_b, "the fault names the same instance");
-    assert!(
-        !mates.is_empty(),
+    assert_eq!(
+        mates,
+        &vec![landed],
         "and names the mate that landed, which is what the line then reads"
     );
 
@@ -3171,15 +3225,18 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // The fault is said twice, once as why the drag refused and once
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
+    let (post, mate_node) = (bench.post_b.0, landed.0);
     assert_eq!(
         line.text(),
-        "instance 2 is mate-constrained (mate node(s) 3): its pose is mate-derived, so the \
-         free-move probe refuses — delete the mate(s) if free relative motion is intended \
-         \u{2022} free move: a committed placement was discarded — instance 2 is \
-         mate-constrained (mate node(s) 3): its pose is mate-derived, so the free-move probe \
-         refuses — delete the mate(s) if free relative motion is intended"
+        format!(
+            "instance {post} is mate-constrained (mate node(s) {mate_node}): its pose is \
+             mate-derived, so the free-move probe refuses — delete the mate(s) if free \
+             relative motion is intended \u{2022} free move: a committed placement was \
+             discarded — instance {post} is mate-constrained (mate node(s) {mate_node}): its \
+             pose is mate-derived, so the free-move probe refuses — delete the mate(s) if \
+             free relative motion is intended"
+        )
     );
-    assert_eq!(bench.post_b.0, 2, "the premise the literal above names");
 }
 
 /// **What rides beside a refusal is news nothing will say again** —
@@ -3390,7 +3447,7 @@ fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
 /// **Every arm of every tool's event vocabulary answers for itself.**
 /// `a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not`
 /// drives two of them through the ranking; this one
-/// reads the answer off each of the six, so an arm that flips sides
+/// reads the answer off each of them, so an arm that flips sides
 /// goes red by name rather than waiting for a frame that happens to
 /// carry it beside a refusal.
 #[test]
@@ -3469,6 +3526,13 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "blend: the all-edges door found none",
             ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { target }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: the all-edges door's target draws edges the index cannot name",
+            ToolNotice::Blend(BlendEvent::EdgesUnnamed {
+                refused: unnamed_on(target),
+            }),
             frame::Retold::Again,
         ),
         (

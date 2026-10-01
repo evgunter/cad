@@ -1116,3 +1116,94 @@ track budgets, spec notes under `docs/doc-ledger/`.
 - CHROME's `viewer-own-refusals-are-held-to-no-shape-guard`
 
 - 2026-09-30 — Seam note from TOPO: PR 3493 (`topo/route-refusal-subjects`) gives `topo::decision_words` words for the containment walk's predicates, the sector rungs and `split_edge_param_interior`, read from the Boolean's closed decision types, and takes none for `bool_contact_vertex` or `bool_contact_arc`, each raised under two decisions. In your files, `edit_refusal_recourse.rs`'s `WORDLESS` drops the ten predicates that now have words and lists `bool_contact_vertex` under "one name, two decisions"; `refusal_concision_chains.rs` builds `SplitReduceError::CrossingEscalated` with a `topo::ConicRootFault`. The new counts are on `flip-reports-name-no-decision-for-most-predicates`. (TOPO implementer)
+
+## 2026-09-30 — eighteenth sitting: the Placement type and the depth bound merged; split and inline under gauges put to Ev
+
+**Merged.**
+- **The part-refusal feature-tree half (#3492).** Single review, then a fix pass.
+  - The `Workspace` door's unknown-id recourse is worded per door: "…then open the store again". `WorkspaceError::resolve_failure` takes the resolver's `Scan` posture (`AtOpen`, `PerResolution`), because a `Workspace` is a snapshot by contract.
+  - The resolve door's `Io` and `Pin` arms state their recourses.
+  - `WithPart`'s pin arm is reachable, so it states a recourse and not a defect ending.
+  - One `sentence::Staged` rendering serves three error types.
+  - The viewer carries a `NoFile` resolver, so a no-file session's badge moves from `NoResolver` to `Unresolved`.
+  - Both riders are closed; the main row stays open.
+- **Triage (#3498).** Three rows banded P3: the name-door role check (`design: true`), the flip-report words, and persist's replay recourse.
+- **P1 of the placement slate: `Node::Transform` holds a `Placement` (#3497).** The review was dual, row DR-26.
+  - Both reviews: APPROVE-WITH-FIXES, no MAJOR. Both found every corpus motion bit-identical, base against head.
+  - The blinded coding tallied 0 of 21 groups, so the readout counts stay at 4 of 8 and 9 of 12.
+  - The fix pass took the union:
+    - `then` is retired for `compose`, in `Frame::compose`'s order.
+    - The content key's arm is guarded.
+    - A non-rigid literal, registry frame or listed frame is refused at the edit and load doors by the evaluation's own predicate, `topo::check_rigid`. The mate solve's `PlacerRefused` now names the transform.
+    - The A6 arms carry the frame site and a recourse: 2 of the shape-guard row's 7 placement arms are done.
+    - There is one composition rule, so an identity step moves no bit.
+    - `Step::Rigid` has named fields, and Python's `Placement.rigid` is keyword-only, so no positional `[Expr; 3]` swap is minted.
+    - `Step::Literal` is the name everywhere, wire included.
+    - Labels count from one.
+  - The placement row returned to `spec` for P2 (#3507).
+- **The part depth bound (#3501).** Single review, then a fix pass.
+  - The part descent runs bottom-up on the heap, so a chain one past `MAX_DEPTH` (still 1024) refuses `DepthExceeded` on a 1 MiB stack.
+  - A miss below the top is a typed kernel defect, `PartFault::NotEntered`, and never a recursion.
+  - Below the top, every instantiated part is evaluated whether or not its instance asks. This is disclosed: a sym session or shape report sees the extra decisions and the bottom-up order, but no shipped door installs one over a resolver.
+  - Python chains fold past 256 links, because CPython 3.11's excepthook gives up at about 1000.
+
+**Rows filed off these units:**
+- EXCH: `step-parser-recurses-once-per-nested-list-and-a-deep-file-kills-the-process` (P1).
+- ORIGIN: `a-source-expr-nests-one-level-per-placement-and-every-copy-clones-the-chain` (P2); time at the depth bound is quadratic.
+- LIB: `python-slot-words-stop-short-of-a-step-index`.
+- OFFER: `viewer-free-move-decides-rigidity-by-its-own-predicate`, for P3.
+- EDIT: the expression-nesting and stable-name-nesting P1 crash rows.
+
+**`[ev]` #3505: what split and inline do with gauges** (fork-log row 21; designer pair, one reconciliation round).
+- The designers agree on these points:
+  - Gauges nest.
+  - Split and inline move authored structure verbatim and compute no frame.
+  - Anything needing a computed frame refuses, typed.
+  - A mate crosses the seam only when its frame's coordinates do not change.
+- Four choices are stated at my leans.
+- The broader fix, M1 (a mate frame written in the face's own document), is its own MSOLVE question. Ev asked whether it supersedes the PR; I answered that it does not, since it only dissolves the frame rule and settles choice 1.
+- Defects on main that the designers found, moot once P2 lands and to be pinned by P2's rows:
+  - inline reads the cluster's frame (`gauge_of`), not the instance's pose;
+  - inline rebinds mate heads without re-coordinating their frames;
+  - the code's cluster "gauge" (`gauge_of`, `TornCluster { gauge }`) needs renaming to "root" before gauge nodes land.
+
+**Operations.**
+- A container restart at about 23:40 killed both live lanes. The P1 implementer had finished: its PR and CI were complete, and only its report was lost. The depth lane's uncommitted work was pushed as a WIP commit, and the lane was re-dispatched.
+- Wave 28: the two nesting P1 rows, dispatched as `edit/expr-nesting-bound` and `edit/name-nesting-stack-safe`.
+
+## 2026-09-30 — nineteenth sitting: both nesting crashes closed; main's census crossing fixed twice
+
+**Merged.**
+- **The expression nesting bound (#3510, row closed by #3520).** Single full review (APPROVE-WITH-FIXES, no MAJOR), then a fix pass.
+  - `expr::MAX_NESTING` = 128, refused typed at every door. The load door's `persist::nesting` pre-scan replaces serde_json's recursion limit: `BODY_NESTING` = 271, and `ENVELOPE` is pinned by a census over the snapshot's types.
+  - The ruling on the bound: it is not a limit ordinary use meets. The deepest expression in the 229 committed documents nests 6 levels, and on main a flat sum of about 62 terms already saved into a file that would not load. "A flat chain of more than 128 terms refuses" is stated in the Python and Rust docs.
+  - `-<number>` parses as a signed literal, so every tree the constructors admit renders to text that parses back to the same tree.
+  - Bracket depth and tree nesting are two bounds, each with its own true sentence.
+  - `test_utils::own_thread::{WASM_STACK, on_the_smallest_stack}` is the one 1 MiB-thread helper.
+- **Stable names stack-safe (#3512).** The review was dual, row DR-27.
+  - Both reviews: APPROVE-WITH-FIXES, no MAJOR. Both found the head equal to main's derived impls over hundreds of generated names, and saved bytes, pins and content keys unchanged.
+  - Blinded coding: no candidate, so the readout stays at 4 of 8.
+  - The fix pass took the union:
+    - reconciled onto #3510: the load door exempts exactly the names its reader proves it read, so a Pattern `kind` or user metadata exempts nothing;
+    - one JSON walker, `persist::jsontext::tokens`;
+    - a nested name's refusal is placed at its own byte, in the derived words;
+    - one linear descent driver for rewrite and collapse;
+    - the saved layout is compact past `BODY_NESTING`, so size is linear in depth (1 024 levels: 42 MB → 482 KB). No loadable file changes a byte;
+    - a test-only copy of the derived types checks the claims. `Hash` is claimed only as consistent with `Eq`, and `Debug` only for `{:?}`/`{:#?}`.
+- **Main's `NodeResult` census (#3536, then #3538).** AUTH-7 left two value reads outside `Evaluation::usable`. Its viewer-only diffs never select editor-core's tests, so main was latently red.
+  - #3536 reads both through `usable` and admits them by name in the viewer's `tree_badges` census.
+  - TOPO's #3537 fixed the same break a few minutes earlier by listing the reads. The two crossed, and main went red on the over-count.
+  - #3538 restored `READERS` to 11 entries (`tree.rs` 8, no `features.rs` line).
+  - Both fixes were ported into #3512 before it merged, and DR-27 records them. Seam note on TCOST's log.
+
+**Rows filed off these units:**
+- EDIT: `a-flat-chain-of-more-than-128-terms-refuses` (P4). It names both routes: an n-ary `Add`/`Mul` (`design: true`), or an iterative serde path for expression subtrees.
+- EDIT: `a-metadata-value-nested-deep-enough-kills-the-process` (P2). One type-agnostic scan gives `MetaValue` the deepest type's budget.
+- EDIT: `a-rank-rewrite-can-ask-the-rewriter-for-a-name-inside-another-documents-part` (P3).
+- EDIT: `a-name-through-a-non-json-serializer-recurses-once-per-level` (P3).
+- LIB: `a-python-pattern-builder-copies-the-whole-pattern-per-wrap` (P3).
+
+**`[ev]` #3505.** Ev leans A on choice 2 and B on choice 3, asked what inlining means here (choice 1), and asked whether an unplaced state belongs in the kernel at all or only in the GUI (choice 4). Both were answered on the PR, and it waits for Ev's rulings on 1 and 4. P2 is specced once they land.
+
+**Operations.** EDIT's load is over budget, so no new row is pulled until #3505 rules and P2 is dispatched. Main's census crossing is the lesson: before merging a fix for a red main, re-check main's head for a fix that has just landed.
+- 2026-09-30 — Seam note from AUTHOR: while weighing AUTHOR's negative-extrude fork (#3551), a designer measured `plate_param` (corpus). Its nominal sits exactly on `bool_join_nearest` Zero verdicts: every edit of the boss height from ±1e-7 relative to ±10% flips it Zero→nonzero without any failure, and outline corners move `point_in_loop_arm` counts at 1e-7 relative. Across the 29 corpus documents under their recorded bump, 4 diff their decision logs without failing. If the Zero verdicts are authored coincident geometry, that coincidence rather than the driver's width may be what limits `range.rs`'s certified range on the corpus ("certifies nothing" table). Not filed as a row: yours to judge. Scratch evidence was in the designer lanes and is deleted. (AUTHOR orchestrator)

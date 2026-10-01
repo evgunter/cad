@@ -129,6 +129,9 @@ pub enum NodeErrorClass {
     /// [`NodeErrorKind::PlacementRule`] carrying
     /// [`PlacementRuleFault::ImproperFrame`].
     PlacementRuleImproperFrame,
+    /// [`NodeErrorKind::PlacementRule`] carrying
+    /// [`PlacementRuleFault::NonRigidFrame`].
+    PlacementRuleNonRigidFrame,
     /// [`NodeErrorKind::UnschedulableCycle`].
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
@@ -213,6 +216,8 @@ pub enum NodeErrorClass {
     PartReferenceCycle,
     /// [`NodeErrorKind::Part`] carrying [`PartFault::DepthExceeded`].
     PartDepthExceeded,
+    /// [`NodeErrorKind::Part`] carrying [`PartFault::NotEntered`].
+    PartNotEntered,
     /// [`NodeErrorKind::Mate`] carrying
     /// [`MateFault::PosesOfAnotherDocument`].
     MatePosesOfAnotherDocument,
@@ -362,6 +367,7 @@ impl NodeErrorKind {
                 PartFault::PartProduct { .. } => C::PartProduct,
                 PartFault::ReferenceCycle { .. } => C::PartReferenceCycle,
                 PartFault::DepthExceeded => C::PartDepthExceeded,
+                PartFault::NotEntered => C::PartNotEntered,
             },
             Self::Mate(fault) => C::of_mate(fault),
             Self::CrossingUnverified { .. } => C::CrossingUnverified,
@@ -399,6 +405,7 @@ impl NodeErrorClass {
             PlacementRuleFault::NoPlacements => Self::PlacementRuleNoPlacements,
             PlacementRuleFault::NonFiniteFrame { .. } => Self::PlacementRuleNonFiniteFrame,
             PlacementRuleFault::ImproperFrame { .. } => Self::PlacementRuleImproperFrame,
+            PlacementRuleFault::NonRigidFrame { .. } => Self::PlacementRuleNonRigidFrame,
         }
     }
 
@@ -523,6 +530,7 @@ mod tests {
         PlacementRuleNoPlacements,
         PlacementRuleNonFiniteFrame,
         PlacementRuleImproperFrame,
+        PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
         ParamSourceAttach,
@@ -561,6 +569,7 @@ mod tests {
         PartProduct,
         PartReferenceCycle,
         PartDepthExceeded,
+        PartNotEntered,
         MatePosesOfAnotherDocument,
         MateFrame,
         MateClassNotAdmitted,
@@ -797,6 +806,12 @@ mod tests {
                     determinant: -1.0,
                 })
             }
+            C::PlacementRuleNonRigidFrame => {
+                K::PlacementRule(crate::PlacementRuleFault::NonRigidFrame {
+                    index: 2,
+                    check: "transform_rigid_col0_unit",
+                })
+            }
             C::UnschedulableCycle => K::UnschedulableCycle,
             C::Naming => K::Naming(crate::NamingError::Emission {
                 what: "a cap face with no profile loop behind it",
@@ -933,6 +948,7 @@ mod tests {
                 cycle: vec![doc_ref(), doc_ref()],
             }),
             C::PartDepthExceeded => part(crate::PartFault::DepthExceeded),
+            C::PartNotEntered => part(crate::PartFault::NotEntered),
             C::MatePosesOfAnotherDocument => mate(crate::MateFault::PosesOfAnotherDocument {
                 expected: crate::DocumentId::derive("a"),
                 found: crate::DocumentId::derive("b"),

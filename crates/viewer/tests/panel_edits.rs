@@ -675,6 +675,7 @@ test_utils::f6_variants! {
         EmptyName,
         WrongNodeKind,
         Duplicate,
+        Contact,
         Edit,
         Dimension,
         Parse,
@@ -688,9 +689,6 @@ test_utils::f6_variants! {
         NoDocumentDirectory,
         Workspace,
         SelfInstance,
-        ProfileRestructure,
-        ProfileEditOrder,
-        ProfileEditOrderCapped,
         ProfileEditStale,
     ];
 }

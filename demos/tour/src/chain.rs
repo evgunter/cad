@@ -435,12 +435,14 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             let step = if j == 1 { 0.0 } else { LINK_LENGTH };
             node = insert(
                 doc,
-                Node::Transform {
-                    input: node,
-                    translation: [len(step), len(0.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: Expr::param(joint_name(j), Dimension::Angle),
-                },
+                Node::transform(
+                    node,
+                    pncad::document::Step::Rigid {
+                        translation: [len(step), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: Expr::param(joint_name(j), Dimension::Angle),
+                    },
+                ),
                 tol,
             );
         }

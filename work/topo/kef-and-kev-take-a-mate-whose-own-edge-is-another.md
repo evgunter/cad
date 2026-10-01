@@ -2,11 +2,14 @@
 id: kef-and-kev-take-a-mate-whose-own-edge-is-another
 kind: issue
 title: kef and kev take the mate from the killed edge's slots and never check the mate's own edge: a torn edge bijection kills an edge that other half-edges still name
-status: open
+status: closed
+pr: 3570
+branch: topo/kill-proves-removals
 opened: 2026-09-29
 refs: [kill-ops-anchor-emanating-on-an-unproven-next-mate-step]
 priority: P3
 cost: E
+closed: 2026-09-30
 ---
 
 ## What
@@ -46,6 +49,21 @@ which leaves `m`'s own edge naming a dead half-edge. The probe selects
 on the fan, so it does not size the whole class; a row in the style
 of `kill_anchors_on_torn_bodies` counting `DanglingTopology` among
 `kef`'s and `kev`'s `Ok` results would.
+
+PR 3495's review adds a constructed case (its S11): the strut cube
+with a second strut planted two steps along the top loop, the first
+strut's edge torn to claim the second strut's tip half `m` as the
+mate of the first's tip half `he`, and `next(m)` torn onto `he`. The
+orbit walk from `m` steps through `m`'s own edge and closes at once,
+so the fan reads empty; `next(m) == he` with `next(he) != m` is the
+mirror arm with the survivor anchored `None`. At the review head
+`kev(he)` returns `Ok` through both the ungated kill and `kev`, and
+`validate` reports `DanglingTopology`, `HalfEdgeUnclaimed`,
+`OrphanEntity` and `UnreachableHalfEdge`. At the fix-pass head it
+refuses `OrbitBroken` naming `he`: the anchor proof now requires a
+`None` anchor to be held by a loop the kill empties, and the mirror
+arm empties none. The refusal comes from the anchor proof, not from a
+check of the mate's own edge, so this row's subject stands.
 
 ## The shape to give
 

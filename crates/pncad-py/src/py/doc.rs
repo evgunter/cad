@@ -50,7 +50,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 24] {
+) -> [(&'static str, Py<PyAny>); 25] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -111,6 +111,10 @@ fn edit_fields(
         (
             "determinant",
             num(payload.determinant.map(|v| infallible(v.into_pyobject(py)))),
+        ),
+        (
+            "index",
+            num(payload.index.map(|n| infallible(n.into_pyobject(py)))),
         ),
         (
             "path",
@@ -687,7 +691,7 @@ pub(crate) fn slot_expr(
 /// whitespace and parse to the same JSON value — and a name taken
 /// from either round-trips through the other.
 pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> PyResult<String> {
-    serde_json::to_string(name).map_err(|err| {
+    name.to_json().map_err(|err| {
         // Not a kernel arm: nothing in the document layer refuses a
         // name for failing to serialize — `StableName` has one
         // serialization and it does not fail — so there is no enum
@@ -732,7 +736,7 @@ pub(crate) fn piece_text(piece: &pncad::select::ProfileEdgeRef) -> PyResult<Stri
 /// nothing in this document refuses at the kernel's own door
 /// (`fillet_selection_resolve`), which is where that belongs.
 pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName> {
-    serde_json::from_str(text).map_err(|err| {
+    pncad::prelude::StableName::from_json(text).map_err(|err| {
         pyo3::exceptions::PyValueError::new_err(format!(
             "not a stable name: {text:?} ({err}) — names come from \
              `Evaluation.all_edges` and its siblings"
@@ -776,9 +780,9 @@ pub(crate) fn face_name_from_text(
 /// carry is a different question and belongs to the kernel, which
 /// answers it as `unknown_slot` naming the slot the node lacks.
 ///
-/// `profile` is a word of the alphabet with no slot to read back:
-/// the rest of its address is two integers and an argument role that
-/// the word does not carry, so it refuses in its own sentence rather
+/// `profile` and `placement_step` are words of the alphabet with no
+/// slot to read back: the rest of each address holds an integer the
+/// word does not carry, so each refuses in its own sentence rather
 /// than as a misspelling.
 fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
     if let Some(slot) = crate::slot_word::slot_from_word(word) {
@@ -789,6 +793,11 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
             "`profile` addresses one expression inside a profile program, and the rest of \
          that address — a loop index, a step index and which argument — is not carried \
          by the word: a profile's numbers are re-authored, not edited at a slot"
+                .to_owned()
+        } else if word == "placement_step" {
+            "`placement_step` addresses one expression of a later step of a transform's \
+         placement, and the rest of that address — the step index and which component — \
+         is an integer the word does not carry, so no slot word here writes at it"
                 .to_owned()
         } else {
             format!(
@@ -1417,6 +1426,12 @@ impl Doc {
     /// exact `Count`, and dividing a length by one needs an explicit
     /// promotion, so the decimal point is what makes the divisor
     /// dimensionless.
+    ///
+    /// An expression nests at most 128 levels along its longest chain
+    /// from the root to a leaf. The operators associate to the left, so
+    /// a flat chain of more than 128 terms (`"a + b + ..."`) refuses
+    /// `nested_too_deep`; the same terms grouped (`"(a + b) + (c + d)"`)
+    /// nest less. Brackets alone nest nothing.
     ///
     /// Refuses typed on `ParseError`, carrying `variant` and the byte
     /// offset `pos`; a reduction the dimension checker refused
@@ -2552,6 +2567,9 @@ impl Node {
     /// `translation`'s slots are `Length`s; the axis's are
     /// dimensionless, matching `SlotId::RotationAxis`'s `Scalar`; the
     /// angle's is an `Angle`.
+    ///
+    /// `Node.transform_by(input, Placement.rigid(...))`, spelled with
+    /// its three components; the checks are that door's.
     #[staticmethod]
     fn transform(
         py: Python<'_>,
@@ -2560,17 +2578,33 @@ impl Node {
         rotation_axis: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
         rotation_angle: &super::expr::Expr,
     ) -> PyResult<Self> {
-        let translation = direction_expr(py, d::VectorSlot::Translation, &translation)?;
-        let rotation_axis = direction_expr(py, d::VectorSlot::RotationAxis, &rotation_axis)?;
-        let rotation_angle = slot_expr(py, d::SlotId::RotationAngle, rotation_angle)?;
-        Ok(Self {
-            inner: d::Node::Transform {
-                input: input.0,
-                translation,
-                rotation_axis,
-                rotation_angle,
-            },
-        })
+        Self::transform_by(
+            py,
+            input,
+            &super::place::Placement::rigid(translation, rotation_axis, rotation_angle),
+        )
+    }
+
+    /// A placement of an upstream body by a `Placement` chain — rigid
+    /// steps a parameter can drive, literal frames, or both.
+    /// `Node.transform` is this with one rigid step.
+    ///
+    /// Every rigid step's components are checked against the slot
+    /// they land in, so a refusal names that step's own slot: an angle
+    /// handed to a later step's translation says which step.
+    #[staticmethod]
+    fn transform_by(
+        py: Python<'_>,
+        input: &NodeId,
+        placement: &super::place::Placement,
+    ) -> PyResult<Self> {
+        let inner = d::Node::transform(input.0, placement.0.clone());
+        for slot in inner.slots() {
+            if let Some(expr) = inner.expr(slot) {
+                slot_expr(py, slot, &super::expr::Expr(expr.clone()))?;
+            }
+        }
+        Ok(Self { inner })
     }
 
     /// A Boolean of two upstream solids.

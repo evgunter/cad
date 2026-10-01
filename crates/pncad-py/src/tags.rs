@@ -434,12 +434,12 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 /// slots and a caller branching on it could not tell which expression
 /// refused.
 ///
-/// `profile` is the one arm that stops one level, and it stops for the
-/// reason [`profile_error_tag`]'s family does: what is left below it —
-/// the loop index, the step index and which of the step's arguments —
-/// is two integers and a third enum, and no `&'static str` carries an
-/// integer. The address is in the refusal's prose; the word says the
-/// slot is a profile program's.
+/// `profile` and `placement_step` are the two arms that stop one level,
+/// and they stop for the reason [`profile_error_tag`]'s family does:
+/// what is left below them — a profile's loop index, step index and
+/// argument role; a later placement step's index and component — holds
+/// an integer, and no `&'static str` carries one. The address is in the
+/// refusal's prose; the word says which kind of slot it is.
 pub fn slot_id_tag(slot: &SlotId) -> &'static str {
     match slot {
         SlotId::Origin(axis) => match axis {
@@ -496,6 +496,7 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::VDegree => "v_degree",
         SlotId::Stations => "stations",
         SlotId::Profile { .. } => "profile",
+        SlotId::PlacementStep { .. } => "placement_step",
     }
 }
 
@@ -592,6 +593,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
+        EditError::NonRigidPlacement { .. } => "non_rigid_placement",
         EditError::PlacementAxis { .. } => "placement_axis",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
@@ -914,6 +916,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PlacementRuleNoPlacements => "empty_placement_list",
         C::PlacementRuleNonFiniteFrame => "non_finite_placement",
         C::PlacementRuleImproperFrame => "improper_placement",
+        C::PlacementRuleNonRigidFrame => "non_rigid_placement",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
         C::ParamSourceAttach => "param_source_attach",
@@ -979,6 +982,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartProduct => "part_product",
         C::PartReferenceCycle => "part_reference_cycle",
         C::PartDepthExceeded => "part_depth_exceeded",
+        C::PartNotEntered => "part_not_entered",
         // The mate solve's refusals tag per FAULT, the way
         // the root invariants do — UNDER, CONTRADICTORY and a
         // dangling head carry different recourses, so a caller
@@ -1222,6 +1226,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::EmptyPlacementList { .. } => None,
         EditError::ImproperPlacement { .. } => None,
         EditError::NonFinitePlacement { .. } => None,
+        EditError::NonRigidPlacement { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
         EditError::NonFiniteAlignment { .. } => None,
@@ -1447,6 +1452,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
     match kind {
         BooleanErrorKind::Band => "band",
         BooleanErrorKind::CurvedBooleanUnsupported => "curved_boolean_unsupported",
+        BooleanErrorKind::DegenerateTorus => "degenerate_torus",
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
         BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
@@ -1587,6 +1593,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
         NamingError::SeamLineSides { .. } => "seam_line_sides",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
+        NamingError::SplitReference { .. } => "split_reference",
         NamingError::NarrowBand { .. } => "narrow_band",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
@@ -1705,6 +1712,7 @@ pub fn frame_fault_tag(fault: &FrameFault) -> &'static str {
     match fault {
         FrameFault::NonFinite => "non_finite",
         FrameFault::Improper { .. } => "improper",
+        FrameFault::NotRigid { .. } => "not_rigid",
     }
 }
 
@@ -1792,6 +1800,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::PlacementSite { .. } => "placement_site",
         SnapshotError::PlacementNonFinite { .. } => "placement_non_finite",
         SnapshotError::PlacementImproper { .. } => "placement_improper",
+        SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
         SnapshotError::PlacementNotGauge { .. } => "placement_not_gauge",
         SnapshotError::MateAlignment { .. } => "mate_alignment",
         SnapshotError::PlacementRule { .. } => "placement_rule",
@@ -2039,6 +2048,7 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::NonFiniteLiteral => "non_finite",
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
+        DimensionError::NestedTooDeep { .. } => "nested_too_deep",
     }
 }
 

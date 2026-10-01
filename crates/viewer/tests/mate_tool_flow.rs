@@ -459,6 +459,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
             op: pncad::document::BooleanOp::Union,
             a: bench.post_b,
             b: bench.post_a,
+            declare: Vec::new(),
         },
     );
     session.pump();

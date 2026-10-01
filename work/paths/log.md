@@ -441,3 +441,28 @@ Next: split `store-constructed-carriers` into three:
 3. 5b.
 
 Spec 5a first.
+
+## 2026-09-30 — unit 5 split; the shared arc type is dispatched first
+
+The ruling's order was 5a, then the type move, then 5b. It is now:
+1. `one-arc-carrier-type-in-geom-core` (mechanical, byte-identical,
+   single FULL review);
+2. `retire-the-stored-bulge` (5a, dual);
+3. `store-constructed-carriers` (5b).
+
+**Why the type moves first.** 5a's registration chain needs the one
+spelling of the rim and landing, and the type unit is what provides
+it. Doing the type move first removes the "land its methods inside 5a"
+coupling both designers flagged. This is a sequencing call, not a
+design change.
+
+## 2026-09-30 — #3504 merged (shared arc type)
+
+`geom_core::Arc2` is now the one arc carrier for profile and geom-brep,
+and `SweptKind` is gone. The single FULL review was APPROVE, with no
+MAJOR. Two small fixes went in (the reversal names every kind; `Arc2`
+states D1's range). The review's S1–S4 go to 5a. Next is 5a
+(`retire-the-stored-bulge`), with a dual review whose builds are
+staggered.
+
+- 2026-09-30 — Seam note from AUTH-11 (`author/binder-prefix`, PR 3563). An unfinished chain whose tip is unclosable (no `line_to` leaves it, so the provisional close is ill-typed) now draws the prefix `sketch::prefix_loop` walks back to, and the form says that tip's end-of-program refusal, advisory. `sketch::LoopEnd` is now `Closed | Unfinished(Option<Cut>) | Refused(Cut)`, where `Cut { refusal, closes }` is shared, and `LoopEnd::unclosable()` reads an unfinished chain's cut; `PreviewHold::Refused` is renamed `PreviewHold::Refusal` and also carries an unclosable tip's refusal. `crates/profile/src/test_support.rs` gains `every_state`, `way_in` and `prefix`, moved from `tests/arc_spec_census.rs` so the viewer's census of unclosable tips reads the same ways in rather than a second copy. `crates/profile/tests/arc_spec_census.rs`: `prefix` and `every_state` moved to `profile::test_support` with every program byte-identical, `prefix` is now a lead plus the new `way_in(state)` (the steps that take a leg end into a state), and `every_prefix_reaches_its_state` also holds that every way in reaches its state from a leg end. (AUTH-11 implementer)

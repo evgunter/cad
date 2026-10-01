@@ -176,6 +176,17 @@ pub(crate) fn with_carried(py: Python<'_>, err: PyErr, chain: d::CarriedChain<'_
     err
 }
 
+/// The most `EvaluationError`s a carried chain links as `__cause__`s.
+///
+/// CPython 3.11's default excepthook prints a cause chain by recursing
+/// once per link and gives up at the recursion limit (1000 by default):
+/// it prints `lost sys.stderr` and no traceback at all, from 999
+/// linked exceptions up. A part refusal carries up to 1024 levels (the
+/// kernel's nesting bound), so the binding links at most this many and
+/// folds the rest into the last one (see [`carried_cause`]), leaving
+/// the recursion limit ample room however deep the frame that prints.
+pub(crate) const LINKED_LEVELS: usize = 256;
+
 /// **A carried chain, typed**: one `EvaluationError` per level of the
 /// kernel's chain ([`d::NodeErrorKind::carried_chain`]), each raised
 /// for its node as [`node_failure`] raises one and each the `__cause__`
@@ -183,25 +194,36 @@ pub(crate) fn with_carried(py: Python<'_>, err: PyErr, chain: d::CarriedChain<'_
 /// one per document. A level's `node` is in the id space of its
 /// `document`, the part's `DocRef`, or `None` for the evaluated
 /// document's own. `None` for a chain with no level.
+///
+/// A chain deeper than [`LINKED_LEVELS`] links that many: the last is
+/// raised for the deepest level, the node that refused, and its message
+/// is every level it stands for, one line each, deepest first — the
+/// order CPython prints a cause chain in. So the printed traceback
+/// still has one line per document level.
 pub(crate) fn carried_cause(py: Python<'_>, chain: d::CarriedChain<'_>) -> Option<PyErr> {
     let levels: Vec<d::CarriedLevel<'_>> = chain.collect();
-    levels.iter().rev().fold(None, |inner, level| {
+    let (linked, folded) = levels.split_at(levels.len().min(LINKED_LEVELS).saturating_sub(1));
+    let raise = |level: &d::CarriedLevel<'_>, message: String| {
         let document = match level.document {
             d::CarriedIn::ThisDocument => None,
             d::CarriedIn::Part(doc_ref) => Some(doc_ref),
         };
-        let err = refused(
+        refused(
             py,
             NodeId(level.node),
             level.refusal.kind(),
-            level.line(),
+            message,
             document,
-        );
-        if inner.is_some() {
-            err.set_cause(py, inner);
-        }
-        Some(err)
-    })
+        )
+    };
+    let deepest = folded.last()?;
+    let lines: Vec<String> = folded.iter().rev().map(d::CarriedLevel::line).collect();
+    let innermost = raise(deepest, lines.join("\n"));
+    Some(linked.iter().rev().fold(innermost, |inner, level| {
+        let err = raise(level, level.line());
+        err.set_cause(py, Some(inner));
+        err
+    }))
 }
 
 /// Raise `EvaluationError` for a POISONED node: `through` names the

@@ -351,17 +351,19 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
     );
     let (doc, placed) = common::inserted(
         &doc,
-        Node::Transform {
-            input: extrude,
-            translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: Expr::literal_with_unit(
-                core::f64::consts::FRAC_PI_2,
-                Dimension::Angle,
-                DEG.def(),
-            )
-            .expect("a right angle"),
-        },
+        Node::transform(
+            extrude,
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: Expr::literal_with_unit(
+                    core::f64::consts::FRAC_PI_2,
+                    Dimension::Angle,
+                    DEG.def(),
+                )
+                .expect("a right angle"),
+            },
+        ),
         tol,
     );
     let before = props::slot_rows(&doc, placed)

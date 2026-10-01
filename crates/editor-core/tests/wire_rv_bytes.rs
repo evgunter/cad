@@ -162,7 +162,7 @@ fn exprs() -> Exprs {
     let length = Expr::max(
         Expr::min(
             Expr::add(
-                Expr::sub(Expr::neg(len(3.0)), len(0.5)).unwrap(),
+                Expr::sub(Expr::neg(len(3.0)).expect("a shallow negation"), len(0.5)).unwrap(),
                 Expr::mul(len(2.0), scl(1.5)).unwrap(),
             )
             .unwrap(),

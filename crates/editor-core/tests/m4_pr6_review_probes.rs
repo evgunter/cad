@@ -137,14 +137,24 @@ fn attack_duplicate_json_keys() {
     }
 }
 
-/// ATTACK 2b: duplicate node-id keys ("0" twice).
+/// The node map's first two keys as the save spells them, `"<id>":`:
+/// the map is keyed by id, so they are the two smallest ids.
+fn first_two_node_keys(doc: &ProfileDoc) -> (String, String) {
+    let mut ids = doc.order().to_vec();
+    ids.sort();
+    let key = |i: usize| format!("\"{}\":", ids[i].0);
+    (key(0), key(1))
+}
+
+/// ATTACK 2b: duplicate node-id keys (one key twice).
 #[test]
 fn attack_duplicate_node_keys() {
-    let (_, text) = small();
-    // Find the node map entry for id 0 and duplicate the whole entry.
-    let start = text.find("\"0\":").expect("node 0 key");
-    // Node 0's value runs until "\n      \"1\":" at the same level.
-    let end = text.find("\"1\":").expect("node 1 key");
+    let (doc, text) = small();
+    // Find the node map's first entry and duplicate the whole entry:
+    // it runs until the second key at the same level.
+    let (first, second) = first_two_node_keys(&doc);
+    let start = text.find(&first).expect("the first node key");
+    let end = text.find(&second).expect("the second node key");
     let entry = &text[start..end];
     let doubled = format!(
         "{}{}{}",
@@ -163,15 +173,16 @@ fn attack_duplicate_node_keys() {
     }
 }
 
-/// ATTACK 2c: non-canonical integer key text ("00" vs "0") — two
+/// ATTACK 2c: non-canonical integer key text (a leading zero) — two
 /// spellings of one id.
 #[test]
 fn attack_noncanonical_integer_keys() {
-    let (_, text) = small();
-    let start = text.find("\"0\":").expect("node 0 key");
-    let end = text.find("\"1\":").expect("node 1 key");
+    let (doc, text) = small();
+    let (first, second) = first_two_node_keys(&doc);
+    let start = text.find(&first).expect("the first node key");
+    let end = text.find(&second).expect("the second node key");
     let entry = &text[start..end];
-    let alias = entry.replacen("\"0\":", "\"00\":", 1);
+    let alias = entry.replacen(&first, &first.replacen('"', "\"0", 1), 1);
     let doubled = format!(
         "{}{}{}",
         &text[..start],
@@ -180,7 +191,7 @@ fn attack_noncanonical_integer_keys() {
     );
     match load(&doubled, Tol::witness()) {
         Err(_) => {}
-        Ok(_) => panic!("\"0\" and \"00\" both accepted as node id 0 — silent last-wins"),
+        Ok(_) => panic!("{first} and its zero-padded spelling both accepted — silent last-wins"),
     }
 }
 
@@ -610,7 +621,7 @@ fn attack_meta_order_canonical() {
     let (doc, _) = small();
     let name = StableName {
         kind: EntityKind::Body,
-        node: RecipeNodeId(2),
+        node: doc.order()[2],
         path: vec![RoleSeg::OutputBody],
     };
     let tree = |order: bool| {
@@ -656,7 +667,7 @@ fn duplicate_keys_refuse_in_every_map() {
     let doc = apply(
         &doc,
         &DocEdit::ReWitness {
-            node: RecipeNodeId(1),
+            node: doc.order()[1],
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x11],
@@ -669,7 +680,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .doc;
     let body = StableName {
         kind: EntityKind::Body,
-        node: RecipeNodeId(2),
+        node: doc.order()[2],
         path: vec![RoleSeg::OutputBody],
     };
     let doc = apply(
@@ -698,16 +709,20 @@ fn duplicate_keys_refuse_in_every_map() {
     .unwrap()
     .doc;
     let text = save(&doc, &[], Tol::witness()).unwrap();
+    // The key the document ALREADY carries (the profile's): the row is
+    // about the strict map's duplicate refusal, and a second, unused
+    // node id would be a witness on a node that cannot hold one — a
+    // different door (`WitnessSite`).
+    let witness_again = format!(
+        "\"witnesses\": {{\"{}\": {{\"schema\": 9, \"bytes\": \"22\"}}, ",
+        doc.order()[1].0
+    );
 
     // (surgery pattern, expected section words)
     let cases: [(&str, &str, &str); 5] = [
         (
             "\"witnesses\": {",
-            // The key the document ALREADY carries: the row is about
-            // the strict map's duplicate refusal, and a second, unused
-            // node id would be a witness on a node that cannot hold
-            // one — a different door (`WitnessSite`).
-            "\"witnesses\": {\"1\": {\"schema\": 9, \"bytes\": \"22\"}, ",
+            &witness_again,
             "duplicate witness node key",
         ),
         (

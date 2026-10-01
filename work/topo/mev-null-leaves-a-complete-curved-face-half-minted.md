@@ -1,12 +1,15 @@
 ---
 id: mev-null-leaves-a-complete-curved-face-half-minted
 kind: issue
-title: mev_null adds two rowless half-edges to a face whose pcurve rows are complete, the one Euler operator still returning a face half-minted
-status: open
+title: mev_null returns a minted face half-minted, and the null edge's first description re-mints it
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: M
 design: true
+branch: topo/null-edge-remint
+pr: 3500
+closed: 2026-09-30
 ---
 
 
@@ -43,3 +46,34 @@ first); (b) keeps the rows but needs a rule for "complete except for
 these halves". Measure first which intermediate step of the boolean
 reads a row between the scaffold and its description (`split_edge`'s
 restriction does), since (a) changes what that step sees.
+
+## Closed (2026-09-30, PR 3500)
+
+Built to Ev's PR 2527 ruling: "mints its row at the mint site; the
+closing-mint convention retires". A null edge has no carrier, so its
+rows' mint site is its first description. That door (`set_edge_curve`
+and `set_edge_curve_nurbs_lane`) now re-mints, through the one
+site-mint face loop `plan_site_rows_as` and before it mutates, every
+face its halves are on when all three hold:
+- the face was minted (it stores a row);
+- every loop walks;
+- no other null edge is on it.
+
+The re-minted face gets the closing pass's rows, byte for byte, so
+two null edges on one wall, or an operator on the half-minted wall,
+complete at the last description. A spline chart keeps today's
+answer. `set_edge_curve` is declared under a fourth posture,
+`Completes`. The posture set lives in `pcurves`' own docs: the
+earlier "no fourth posture" was a fix-pass call about `revert`, not a
+ruling.
+
+The single review found the first head's predicate covered only the
+edge's own two halves. The fix pass closed that and unified the loop
+and the spline decision.
+
+**What remains, filed:**
+- `a-null-edge-that-is-killed-leaves-its-face-half-minted` (P2, M).
+  No production pipeline describes a null edge: they kill them
+  undescribed, so the closing mint still closes the state there.
+- `kev-describing-a-null-member-leaves-its-face-missing-its-rows`
+  (P3, E).
