@@ -351,10 +351,9 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                            — refused rather than represented by a midpoint";
     match *s {
         Surface::Plane { origin, normal, .. } => {
-            let (Some(point), Some(normal)) = (
-                exact3([origin.x, origin.y, origin.z]),
-                exact3([normal.x, normal.y, normal.z]),
-            ) else {
+            let (Some(point), Some(normal)) =
+                (exact3(origin.to_array()), exact3(normal.to_array()))
+            else {
                 return Err(WIDENED);
             };
             Ok((
@@ -364,9 +363,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
             ))
         }
         Surface::Sphere { center, radius, .. } => {
-            let (Some(center), Some(radius)) =
-                (exact3([center.x, center.y, center.z]), exact(radius))
-            else {
+            let (Some(center), Some(radius)) = (exact3(center.to_array()), exact(radius)) else {
                 return Err(WIDENED);
             };
             Ok((
@@ -383,8 +380,8 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
             ..
         } => {
             let (Some(point), Some(axis), Some(radius)) = (
-                exact3([origin.x, origin.y, origin.z]),
-                exact3([axis.x, axis.y, axis.z]),
+                exact3(origin.to_array()),
+                exact3(axis.to_array()),
                 exact(radius),
             ) else {
                 return Err(WIDENED);

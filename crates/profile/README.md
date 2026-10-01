@@ -149,9 +149,10 @@ the document vocabulary does not spell yet
 
 **V5 — The v1-form → program lift is a development tool.** `profile::lift`
 mints a chain- or carrier-vocabulary program from a lowered loop (its
-vertices and the bulge each segment was lowered from) with declared
+vertices and stored segments) with declared
 joints: declared junctions become `.tangent()`, every
-other junction a sharp `line_to`/`arc_to`, the seam rotated to the first
+other junction a sharp `line_to`/`arc_to` (an arc about its stored
+centre, `arc_to(Center)`), the seam rotated to the first
 undeclared joint — and when there is none, seamed at 0 with the closing
 target carrying joint 0's declaration (`Start.arrives_tangent()`); no
 director is ever emitted, so no
@@ -168,7 +169,9 @@ replayed output under every binding: flags verified-never-trusted
 (`UndeclaredTangency`, `TangencyContradicted`), same-carrier
 continuation is identity and is legal declared or undeclared, fit
 gating; a `ValidatedProfile` is minted by the validate doors
-(`validate`, `validate_recording`, `validate_guided`) on segments and by
+(`validate` and `validate_recording` on a `Profile` or a
+`ConstructedProfile`, and `validate_guided` on a `ConstructedProfile`) on
+segments and by
 `ValidatedProfile::lift_onto` from an `f64` one, and
 extrude/revolve/fillet/loft/sweep never see a program. Junction
 predicates classify at replay exactly as at
@@ -205,6 +208,33 @@ independent closed-form oracles.
 plus a corpus scene with a real parameter driven from geometry into a
 typed refusal naming the step
 (`crates/editor-core/tests/corpus/plate_param.rs`).
+
+## Where an arc's consistency is decided
+
+D1 asks that an arc's consistency conditions (start on the carrier, the
+sweep landing on the far vertex, 0 < |Δθ| ≤ 2π) each be checked at
+validate or hold by construction, and never be decided twice. Which one
+applies is a fact of the loop's provenance, carried by its type.
+
+- **A table** (`ProfileLoop`: the fixture door, a hand-built loop,
+  `map_scalar`, a pinned lift) is checked: `Profile::validate` decides
+  the three as ε-decisions at the validating scalar (`arc_start_on_carrier`,
+  `arc_landing`, `arc_sweep_range`) and refuses `InconsistentArc`. A
+  check whose difference the scene cannot resolve at ε (its scale times
+  the check's stated rounding bound in ulps past the band) refuses
+  `ArcBelowSceneResolution` instead, never `InconsistentArc`.
+- **A loop the path lattice closes** (`ConstructedLoop`, minted at the
+  lattice's closing by the builder and by every replay) holds by
+  construction: `ConstructedProfile`'s validate doors, `pncad::validated`
+  and the loft's constructed sections do not decide the three again. A
+  `Center` arc's landing is the path door's own predicate
+  (`path_arc_center_equidistant`), decided inline at every scalar; a
+  lowered arc's facts are the identities `lower_arc` registers, which an
+  exact scalar's witness checks and a point scalar takes on the
+  lowering's proof. Re-deciding them could only confirm Zero or escalate
+  on dependency width, never catch an inconsistency.
+- Giving up the provenance (`ConstructedLoop::into_loop`) makes the loop
+  a table again, and it is checked.
 
 ## Enclosing tangency
 
@@ -246,7 +276,7 @@ corner" one: the corner exists; a fillet of it at this radius does not.
 ## The fillet door never mints a joint the verify layer refuses
 
 A fillet's declared tangency is a claim about the carriers the loop
-STORES, and a loop stores an arc as its chord and a bulge. Two things can
+STORES, and a loop stores an arc as its chord and a carrier. Two things can
 happen to that claim between the door's arithmetic and the stored form,
 and both are refused at the door rather than left for validation. A
 fillet whose sagitta `r(1 − cos(θ/2))` sits at or below ε is read back as
@@ -256,7 +286,8 @@ or a larger radius). A fillet whose stored arc IS an arc can still lose
 its joint to arithmetic: a carrier clearance is a difference of lengths
 at the scene's own magnitude, so it resolves only to about that
 magnitude times 2⁻⁵², and past the radius or the distance from the origin
-where that floor is coarser than ε the joint cannot be classified at all
+where that floor is coarser than ε the joint cannot be classified at all,
+nor the stored carrier read against its own vertex
 (`PathError::FilletCarrierBelowSceneResolution`; the levers run the other
 way — a smaller radius, or the geometry nearer the origin). Both read
 back through `seg::build_seg` and `seg::joint_tangency`, the verify

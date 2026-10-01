@@ -62,7 +62,8 @@ fn two_hole_box_split_between_rehomes_both_ways() {
 fn split_through_hole_two_section_polygons() {
     let body = holed_block::<f64>(6.0, &[1.0, 5.0], Tol::witness());
     let s = topo::plane_section(&body, &plane_x::<f64>(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 2, "channel splits the section in two");
+    assert_eq!(s.regions.len(), 2, "channel splits the section in two");
+    assert!(s.regions.iter().all(|r| r.holes.is_empty()));
     let r = split(&body, &plane_x(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));

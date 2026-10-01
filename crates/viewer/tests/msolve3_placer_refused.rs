@@ -116,12 +116,12 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "node {:012x} failed: the mate solve refused: mate {:012x}'s a reference has no \
-             derived pose: node {p:012x}, on its derivation, refuses. Recourse: repair node \
-             {p:012x}",
-            mate.0,
-            mate.0,
-            p = pattern.0,
+            "node {} failed: the mate solve refused: mate {}'s a reference has no \
+             derived pose: node {p}, on its derivation, refuses. Recourse: repair node \
+             {p}",
+            test_utils::refusal::tag(mate.0),
+            test_utils::refusal::tag(mate.0),
+            p = test_utils::refusal::tag(pattern.0),
         ),
         "the row names the placer the evaluation typed"
     );
@@ -133,9 +133,9 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         &vec![viewer::tree::CarriedLine {
             document: viewer::tree::THIS_DOCUMENT.to_owned(),
             line: format!(
-                "node {:012x} failed: the pattern direction has no finite length (a component \
+                "node {} failed: the pattern direction has no finite length (a component \
                  overflows the norm or is not a number). Recourse: {}",
-                pattern.0,
+                test_utils::refusal::tag(pattern.0),
                 geom_core::RANGE_RECOURSE
             ),
         }],
@@ -159,7 +159,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     // an author goes and fixes is one click from the words, and it is
     // the only link any row draws beside a `Poisoned` pointer.
     assert_eq!(
-        row.repair_at.map(|at| at.id()),
+        row.repair_at.as_ref().map(|at| at.id()),
         Some(pattern),
         "the mate's row links to the placer"
     );
@@ -285,7 +285,7 @@ fn mate_fault(ev: &Evaluation<f64>, mate: RecipeNodeId) -> MateFault {
 fn assert_no_row_links(rows: &[tree::TreeRow]) {
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at.id())))
+        .filter_map(|row| row.repair_at.as_ref().map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(linking, Vec::new(), "no row links to a node to repair");
 }
@@ -465,7 +465,7 @@ fn a_part_past_its_patterns_count_fails_beside_the_mate() {
     assert!(carried.is_empty(), "the refusal is drawn once: {carried:?}");
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at.id())))
+        .filter_map(|row| row.repair_at.as_ref().map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(
         linking,
@@ -544,7 +544,7 @@ fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
     );
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at.id())))
+        .filter_map(|row| row.repair_at.as_ref().map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(
         linking,

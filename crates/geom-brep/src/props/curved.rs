@@ -28,7 +28,9 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decide, Margin, OrthoFrame, Point3, Real, Sign, UnitVec3, UnitVec3Error, Vec3,
+};
 
 use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use crate::dihedral::decide;
@@ -3361,6 +3363,13 @@ fn fold_chain<T: Decide>(
 /// Chart orientation of the anchor meridian: `v` winds right-handed
 /// about `−τ̂` at its minor center, so `dv/dt = −orient`. Definite by
 /// construction (the `Zero` arm refuses typed).
+///
+/// `τ̂ = â × ρ̂` is the frame [`OrthoFrame::from_aim_and_reference`]
+/// mints about the torus axis with the meridian centre's offset as the
+/// reference, so both lengths are decided before the orientation is:
+/// the axis under `props_torus_axis`, the radial under
+/// `props_meridian_radial`. A meridian centred on the axis has no
+/// radial, and refuses as that.
 fn torus_meridian_orient<T: Decide>(
     m0: &TorusMeridian<T>,
     center: Point3<T>,
@@ -3368,9 +3377,24 @@ fn torus_meridian_orient<T: Decide>(
     minor: T,
     band: Band,
 ) -> Result<Sign, PropsError> {
-    let w = m0.c_c - center;
-    let rho_hat = (w - axis * w.dot(axis)).normalize();
-    let tau = axis.cross(rho_hat);
+    let aim = UnitVec3::new(axis, "props_torus_axis", band).map_err(|e| {
+        torus_frame_refused(e, "props_torus_axis", "torus axis length not measurable")
+    })?;
+    let frame = OrthoFrame::from_aim_and_reference(
+        center,
+        aim,
+        m0.c_c - center,
+        "props_meridian_radial",
+        band,
+    )
+    .map_err(|e| {
+        torus_frame_refused(
+            e.error,
+            "props_meridian_radial",
+            "torus meridian radial length not measurable",
+        )
+    })?;
+    let tau = frame.v().get();
     let orient = classify(
         "props_meridian_orient",
         Margin::levered(m0.n_c.dot(tau), minor),
@@ -3382,6 +3406,25 @@ fn torus_meridian_orient<T: Decide>(
         });
     }
     Ok(orient)
+}
+
+/// A torus frame leg's refusal under [`PropsError::NotIsoRectangle`]'s
+/// convention: a length the funnel decided to zero is named by the
+/// predicate that decided it (`decided`); a length refused before any
+/// margin was decided — not a finite number, or underflowed out of the
+/// format — gets the structural sentence (`unmeasured`).
+fn torus_frame_refused(
+    e: UnitVec3Error,
+    decided: &'static str,
+    unmeasured: &'static str,
+) -> PropsError {
+    match e {
+        UnitVec3Error::Escalated(cause) => PropsError::Escalated { cause },
+        UnitVec3Error::Degenerate => PropsError::NotIsoRectangle { what: decided },
+        UnitVec3Error::NonFiniteLength | UnitVec3Error::UnderflowedLength => {
+            PropsError::NotIsoRectangle { what: unmeasured }
+        }
+    }
 }
 
 /// The rim topologically adjacent to the anchor meridian's `t0`

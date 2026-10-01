@@ -146,6 +146,10 @@ mod ring2_r2_probes;
 
 #[path = "cert5_r2_probes.rs"]
 mod cert5_r2_probes;
+#[path = "chart_incidence.rs"]
+mod chart_incidence;
+#[path = "cone_incidence_fuzz.rs"]
+mod cone_incidence_fuzz;
 #[path = "offset_mint.rs"]
 mod offset_mint;
 #[path = "pcurve_cone_section.rs"]
@@ -255,3 +259,5 @@ mod pcurve_spiric;
 mod r2_mesh7_door_probes;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
+#[path = "torus_meridian_radial.rs"]
+mod torus_meridian_radial;

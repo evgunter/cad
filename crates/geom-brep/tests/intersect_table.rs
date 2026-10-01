@@ -2591,8 +2591,16 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
     ] {
         let err = cone_cylinder_section(cone, &cyl, 1.0, band())
             .expect_err("an in-band guard must escalate");
-        let SectionError::Escalated(diag) = err else {
-            panic!("{what}: expected escalation, got {err:?}");
+        // The radius guard names whose radius it read; the aperture
+        // guards escalate untyped
+        // (`work/issues/section-arm-guards-escalate-untyped-and-certify-reads-the-dihedral-arm-as-transversality.md`).
+        let diag = match err {
+            SectionError::RadiusEscalated {
+                radius: geom_brep::SectionRadius::Cylinder,
+                diag,
+            } if what == "radius" => diag,
+            SectionError::Escalated(diag) if what != "radius" => diag,
+            _ => panic!("{what}: expected its escalation, got {err:?}"),
         };
         assert_eq!(diag.predicate, Some(predicate), "{what}");
     }

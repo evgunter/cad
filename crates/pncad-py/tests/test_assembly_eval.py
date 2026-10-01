@@ -693,12 +693,13 @@ class TestNestingPastTheBound(unittest.TestCase):
         self.assertNotIn("lost sys.stderr", child.stderr)
         self.assertIn(f"deeper than {DEPTH_BOUND} documents", child.stderr)
         self.assertEqual(
-            child.stderr.count("the part's node 000000000000 failed"),
+            len(re.findall(r"the part's node [0-9a-f]{12} failed", child.stderr)),
             DEPTH_BOUND,
             "one line for the instance and one for each document above the bound",
         )
-        self.assertTrue(
-            child.stderr.rstrip().splitlines()[-1].startswith("pncad.EvaluationError: node 000000000000 failed"),
+        self.assertRegex(
+            child.stderr.rstrip().splitlines()[-1],
+            r"^pncad\.EvaluationError: node [0-9a-f]{12} failed",
             "the traceback ends at the refusal that was raised",
         )
 
@@ -821,6 +822,8 @@ class TestTheMemoIsObservable(CorpusCase):
         store, docs = opened()
         layout = evaluate(docs["layout"], resolver=store)
         stand = evaluate(docs["stand"], resolver=store, prior=layout)
+        shared = [n for n in stand.order() if n in layout.order()]
+        self.assertTrue(shared, "the two share an id, so the memo could have hit")
         self.assertEqual(failures(stand), {})
         self.assertEqual(stand.reused, 0, "no cross-document reuse, by construction")
         self.assertEqual(stand.recomputed, len(stand.order()))

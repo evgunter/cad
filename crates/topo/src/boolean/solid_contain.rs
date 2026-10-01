@@ -2367,7 +2367,7 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
     // the axis — and takes the funnel's escalation rather than a poison
     // direction.
     if u_win.is_some() || v_win.is_some() {
-        geom_core::k_stats::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
+        crate::validate::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
             .map_err(escalate)?;
     }
     if let Some(az) = u_win {
@@ -3915,8 +3915,9 @@ pub(super) enum WallRoots<T> {
 ///
 /// # Errors
 ///
-/// [`geom_core::Indeterminate`] — an in-band discriminant or an in-band
-/// axis-parallel test. The caller wraps it in its own error type.
+/// [`WallRootFault`] — an in-band axis-parallel test or an in-band
+/// discriminant, with the rung that escalated. The caller wraps it in
+/// its own error type.
 pub(super) fn line_wall_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
@@ -3924,14 +3925,18 @@ pub(super) fn line_wall_roots<T: Decide>(
     axis: Vec3<T>,
     radius: T,
     band: Band,
-) -> Result<WallRoots<T>, geom_core::Indeterminate> {
+) -> Result<WallRoots<T>, WallRootFault> {
     let w0 = q - origin;
     let w0p = w0 - axis * w0.dot(axis);
     let dp = d - axis * d.dot(axis);
     let a2 = dp.norm_squared();
     let two_r = T::from_f64(2.0) * radius;
     // Ledger row F2: sin²/2r is 1/m — flagged, not cast.
-    match geom_core::k_stats::decide_flagged("bool_point_in_solid_denom", a2 / two_r, band, "F2")? {
+    match geom_core::k_stats::decide_flagged("bool_point_in_solid_denom", a2 / two_r, band, "F2")
+        .map_err(|diag| WallRootFault {
+            rung: WallRung::AxisParallel,
+            diag,
+        })? {
         Sign::Positive => {}
         _ => return Ok(WallRoots::AxisParallel),
     }
@@ -3947,7 +3952,11 @@ pub(super) fn line_wall_roots<T: Decide>(
         disc / two_r.powi(2),
         band,
         "F2",
-    )? {
+    )
+    .map_err(|diag| WallRootFault {
+        rung: WallRung::Discriminant,
+        diag,
+    })? {
         Sign::Positive => {}
         Sign::Zero => return Ok(WallRoots::Tangent),
         Sign::Negative => return Ok(WallRoots::Miss),
@@ -3957,6 +3966,32 @@ pub(super) fn line_wall_roots<T: Decide>(
         (T::zero() - b2 - root) / a2,
         (T::zero() - b2 + root) / a2,
     ]))
+}
+
+/// **Which rung of [`line_wall_roots`] escalated**: the two questions
+/// the line × wall quadratic asks before it has roots. Each passes on a
+/// definite sign, and neither margin is a length (both are ledger row
+/// F2's flagged forms), so no refusal of either names a tolerance to
+/// tighten below.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(strum::EnumIter))]
+pub enum WallRung {
+    /// Whether the line runs parallel to the wall's axis
+    /// (`bool_point_in_solid_denom`, `|d⊥|²/2r`): a positive margin has
+    /// roots to find, a zero one a constant residual.
+    AxisParallel,
+    /// Whether the line crosses the wall, grazes it or misses it
+    /// (`bool_ray_cylinder_disc`, `disc/(2r)²`).
+    Discriminant,
+}
+
+/// An escalation of [`line_wall_roots`], with the rung that raised it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WallRootFault {
+    /// The rung that could not decide.
+    pub rung: WallRung,
+    /// Its diagnostics.
+    pub diag: Indeterminate,
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
@@ -4641,7 +4676,8 @@ fn cast_ray<T: Decide>(
                 h,
                 sense,
             } => {
-                let roots = line_wall_roots(q, d, origin, axis, radius, band).map_err(escalate)?;
+                let roots = line_wall_roots(q, d, origin, axis, radius, band)
+                    .map_err(|fault| escalate(fault.diag))?;
                 let ts = match roots {
                     // Axis-parallel ray: constant residual; the pre-pass
                     // said q is off the wall, so it misses entirely.
@@ -5170,7 +5206,7 @@ mod per_solid_entry_tests {
         let tol = Tol::witness();
         let mut body = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
         let other = quad_prism(&[(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)], 1.0, tol);
-        crate::instance::graft_disjoint(&mut body, &other, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &other).unwrap();
         body
     }
 

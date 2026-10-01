@@ -273,7 +273,7 @@ pub fn classify_neighborhood<T: Decide>(
                         Ok(geom_brep::EntersMaterial::Enters) => PlaneSide::Below,
                         Ok(geom_brep::EntersMaterial::Exits) => PlaneSide::Above,
                         Ok(geom_brep::EntersMaterial::Tangent) => PlaneSide::On,
-                        Err(diag) => {
+                        Err(geom_brep::LeverEscalation { diag, .. }) => {
                             let (face, _, _) = sector_face(body, vertex, he)?;
                             return Err(SplitReduceError::SliverSector { vertex, face, diag });
                         }

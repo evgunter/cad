@@ -954,7 +954,7 @@ mod scope_walks {
             tol,
         )
         .unwrap();
-        let second = crate::graft_disjoint(&mut body, &placed, tol).unwrap();
+        let second = crate::graft_disjoint(&mut body, &placed).unwrap();
         assert!(crate::validate::validate_closed(&body).is_ok());
         (body, first, second)
     }

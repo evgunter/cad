@@ -43,14 +43,19 @@
 //! a single bound is NOT overlap.
 
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::{BooleanDecision, BooleanError, Operand, SideCode};
+use super::{
+    BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SelfCheck,
+    SideCode,
+};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
+use geom_brep::recourse::Refused;
 
 /// What stands behind a sector bound, which decides how its side of a
 /// plane is read ([`side_code`]).
@@ -79,6 +84,17 @@ impl<T: geom_core::Real> Reach<T> {
         match self {
             Self::Chord { base, far } => (far - base).norm(),
             Self::Extent(l) | Self::Bisector(l) => l,
+        }
+    }
+
+    /// The bound's signed departure from the plane through its base
+    /// vertex with unit normal `n`, as [`side_code`] reads it: a line
+    /// edge's far vertex, in metres; any other bound's direction `dir`
+    /// levered at its reach.
+    pub(super) fn departure(self, dir: Vec3<T>, n: Vec3<T>) -> T {
+        match self {
+            Self::Chord { base, far } => crate::sector_shape::plane_offset(base, n, far),
+            Self::Extent(l) | Self::Bisector(l) => dir.normalize().dot(n) * l,
         }
     }
 }
@@ -341,9 +357,11 @@ pub(super) fn sector_face<T: Decide>(
     Ok((resolved.face, resolved.normal))
 }
 
+/// The refusal of a norm read definitely negative: poisoned input, the
+/// kernel's ([`SelfCheck::Normals`]).
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::Coincidence,
+        decision: BooleanDecision::SelfCheck(SelfCheck::Normals),
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::INVALID,
             band,
@@ -360,7 +378,7 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
 /// known: the reading lies within `±zero`.
 pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::Coincidence,
+        decision: BooleanDecision::BisectorSide,
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
             band,
@@ -467,7 +485,13 @@ pub(super) fn side_code<T: Decide>(
                 Ok(Sign::Negative) => SideCode::In,
                 Ok(Sign::Positive) => SideCode::Out,
                 Ok(Sign::Zero) => return Ok(SideCode::On),
-                Err(diag) => return Err(BooleanError::coincidence(diag)),
+                Err(diag) => {
+                    return Err(BooleanError::coincidence(
+                        Coincide::SectorSide,
+                        DeclarationRead::Moot,
+                        diag,
+                    ));
+                }
             };
             (verdict, offset.abs(), (far - base).norm())
         }
@@ -476,7 +500,18 @@ pub(super) fn side_code<T: Decide>(
                 Ok(EntersMaterial::Enters) => SideCode::In,
                 Ok(EntersMaterial::Exits) => SideCode::Out,
                 Ok(EntersMaterial::Tangent) => return Ok(SideCode::On),
-                Err(diag) => return Err(BooleanError::coincidence(diag)),
+                Err(escalation) => {
+                    return Err(BooleanError::of_lever(
+                        LeverArm::SectorSide,
+                        DeclarationRead::Moot,
+                        at_departure(
+                            escalation,
+                            lever_arm,
+                            dir.normalize().dot(n) * lever_arm,
+                            band,
+                        ),
+                    ));
+                }
             };
             (
                 verdict,
@@ -495,14 +530,18 @@ pub(super) fn side_code<T: Decide>(
     // spec writes `arm²/(2·lever)`; this is that term with the constant
     // corrected in the REFUSING direction, the only direction a
     // soundness charge may be wrong in.
-    let at_arm = decide(
+    let at_arm = crate::validate::decide_reported(
         "bool_pierce_sector_side_curved",
         Margin::of((dir.normalize().dot(n) * arm).abs() - arm.powi(2) / lever),
         band,
     );
-    if matches!(at_arm, Ok(Sign::Positive)) {
-        return Ok(verdict);
-    }
+    let at_arm = match at_arm {
+        Ok(decided) => match Refused::of(decided, band) {
+            None => return Ok(verdict),
+            Some(refused) => Ok(refused),
+        },
+        Err(diag) => Err(diag),
+    };
     let at_length = decide(
         "bool_pierce_sector_side_curved",
         Margin::of(displacement - length.powi(2) / lever),
@@ -510,8 +549,51 @@ pub(super) fn side_code<T: Decide>(
     );
     match (at_length, at_arm) {
         (Ok(Sign::Positive), _) => Ok(verdict),
-        (_, Ok(_)) => Err(BooleanError::CurvedSectorSideUnsupported { band }),
-        (_, Err(diag)) => Err(BooleanError::coincidence(diag)),
+        (_, Ok(refused)) => Err(BooleanError::CurvedSectorSideUnsupported { verdict: refused }),
+        (_, Err(diag)) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::PierceCurvature,
+            diag,
+        }),
+    }
+}
+
+/// **A side reading's arm gate, quoted at the departure it reads**: the
+/// arm is in band or decided zero, and the reading it meters is the
+/// bound's departure from the face over that arm, `d̂·n̂·arm`, no longer
+/// than the arm. A tolerance that decides the arm but leaves the
+/// departure in band reads no side, so the escalation carries the
+/// departure's own margin, through the arm gate's funnel, and the
+/// tolerance it offers decides both, logged under its own name
+/// (`"enters_material_rise"`). An exactly zero departure (a bound in the
+/// face's plane) reads `On` at every tolerance that decides the arm, so
+/// there the arm binds and keeps its own margin, the edge's length, as a
+/// poisoned arm does.
+fn at_departure<T: Decide>(
+    escalation: geom_brep::LeverEscalation,
+    arm: T,
+    departure: T,
+    band: Band,
+) -> geom_brep::LeverEscalation {
+    // `arm / departure` is finite unless the departure is exactly zero
+    // (or poison).
+    if escalation.rung != geom_brep::LeverRung::Arm
+        || escalation.diag.margin.is_invalid()
+        || !geom_core::is_finite_length(arm / departure)
+    {
+        return escalation;
+    }
+    match geom_core::k_stats::decide_positive_reported(
+        "enters_material_rise",
+        Margin::of(departure.abs()),
+        band,
+    ) {
+        Err(diag) => geom_brep::LeverEscalation {
+            rung: geom_brep::LeverRung::Arm,
+            diag,
+        },
+        // Unreachable: the departure is no longer than an arm that did
+        // not read positive.
+        Ok(()) => escalation,
     }
 }
 
@@ -554,12 +636,19 @@ pub(super) fn tangent_lump<T: Decide>(
     on_side: Operand,
     sector_face: FaceKey,
     arm: T,
+    read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     use super::rest::{TangentLocus, TangentLocusError, tangent_locus};
     let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
         Ok(TangentLocus::Line { dir, .. }) => dir,
-        Err(TangentLocusError::Escalated(diag)) => return Err(BooleanError::coincidence(diag)),
+        Err(TangentLocusError::Escalated(diag)) => {
+            return Err(BooleanError::coincidence(
+                Coincide::TangentLocus,
+                read,
+                diag,
+            ));
+        }
         // The sector pair read geometrically ON while the carriers are
         // definitely apart or crossing: the same self-contradiction
         // family as a coplanar sector with definitely-distinct planes.
@@ -590,6 +679,7 @@ pub(super) fn tangent_lump<T: Decide>(
         p,
         d_hat,
         arm,
+        read,
         band,
     )? {
         SideCode::In => Ok(SideCode::In),
@@ -620,6 +710,7 @@ pub(super) fn tangent_lump<T: Decide>(
 /// either carrier along it separates at no order this kernel
 /// measures) — the ON-direction machinery downstream adjudicates it,
 /// exactly as a first-order On flows to the recl edge engine.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn tangent_relative_side<T: Decide>(
     sector_surface: &geom::Surface<T>,
     other_surface: &geom::Surface<T>,
@@ -627,6 +718,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
     p: geom_core::Point3<T>,
     d: Vec3<T>,
     arm: T,
+    read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let n_ref = other_outward.vec();
@@ -646,7 +738,11 @@ pub(super) fn tangent_relative_side<T: Decide>(
         Ok(EntersMaterial::Enters) => Ok(SideCode::In),
         Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
         Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
-        Err(diag) => Err(BooleanError::coincidence(diag)),
+        Err(escalation) => Err(BooleanError::of_lever(
+            LeverArm::SectorCurving,
+            read,
+            escalation,
+        )),
     }
 }
 
@@ -667,7 +763,9 @@ pub(super) struct PairRecord {
 }
 
 /// Whether `dir` lies within the convex sector (Zero grazes count —
-/// module docs). `strict` demands definite interior.
+/// module docs). `strict` demands definite interior. `read` is what the
+/// calling door read of the pair's declaration: the primitive takes
+/// none of its own, and no declaration settles a direction's membership.
 ///
 /// Sense-invariant given the sector: `start`/`end` are traversal-
 /// derived and `normal` already carries the sense, and `revert` flips
@@ -677,12 +775,14 @@ pub(super) fn within<T: Decide>(
     s: &BoolSector<T>,
     dir: Vec3<T>,
     strict: bool,
+    read: DeclarationRead,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
     let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
-    let t1 = decide("bool_sector_within", c1, band).map_err(BooleanError::coincidence)?;
-    let t2 = decide("bool_sector_within", c2, band).map_err(BooleanError::coincidence)?;
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
+    let t1 = decide("bool_sector_within", c1, band).map_err(escalate)?;
+    let t2 = decide("bool_sector_within", c2, band).map_err(escalate)?;
     Ok(if strict {
         t1 == Sign::Positive && t2 == Sign::Positive
     } else {
@@ -701,13 +801,39 @@ fn parallel_same<T: Decide>(
     match decide("bool_dir_parallel", cross_margin, band) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::coincidence(diag)),
+        Err(diag) => {
+            return Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            ));
+        }
     }
-    match decide("bool_dir_same", Margin::levered(u.dot(v), arm), band) {
-        Ok(Sign::Positive) => Ok(true),
-        Ok(Sign::Negative) => Ok(false),
-        Ok(Sign::Zero) => Err(invalid_escalation(band, "bool_dir_same")),
-        Err(diag) => Err(BooleanError::coincidence(diag)),
+    direction_sense(u, v, arm, band)
+}
+
+/// Whether two directions read parallel point the same way (`true`)
+/// or opposite ways, their cosine levered at `arm`
+/// ([`BooleanDecision::DirectionSense`]). A decided zero refuses with
+/// its decided margin, as the in-band arm does: both say the arm is
+/// too short to tell.
+pub(super) fn direction_sense<T: Decide>(
+    u: Vec3<T>,
+    v: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    match crate::validate::decide_nonzero_reported(
+        "bool_dir_same",
+        Margin::levered(u.dot(v), arm),
+        band,
+    ) {
+        Ok(NonzeroSign::Positive) => Ok(true),
+        Ok(NonzeroSign::Negative) => Ok(false),
+        Err(diag) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::DirectionSense,
+            diag,
+        }),
     }
 }
 
@@ -718,7 +844,7 @@ fn sector_overlap<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     for (s, dir) in [(a, b.start), (a, b.end), (b, a.start), (b, a.end)] {
-        if within(s, dir, true, band)? {
+        if within(s, dir, true, DeclarationRead::Moot, band)? {
             return Ok(true);
         }
     }
@@ -788,14 +914,21 @@ pub(super) fn pair_search<T: Decide>(
                 Ok(Sign::Negative) => {
                     return Err(invalid_escalation(band, "bool_faces_parallel"));
                 }
-                Err(diag) => return Err(BooleanError::coincidence(diag)),
+                Err(diag) => {
+                    return Err(BooleanError::coincidence(
+                        Coincide::Sectors,
+                        DeclarationRead::Moot,
+                        diag,
+                    ));
+                }
             };
             let hit = if coplanar {
                 sector_overlap(sa, sb, band)?
             } else {
                 let d = int.normalize();
-                (within(sa, d, false, band)? && within(sb, d, false, band)?)
-                    || (within(sa, -d, false, band)? && within(sb, -d, false, band)?)
+                let moot = DeclarationRead::Moot;
+                (within(sa, d, false, moot, band)? && within(sb, d, false, moot, band)?)
+                    || (within(sa, -d, false, moot, band)? && within(sb, -d, false, moot, band)?)
             };
             if !hit {
                 continue;
@@ -822,10 +955,149 @@ pub(super) fn pair_search<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::contact::ContactClass;
     use geom_core::Tol;
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **A direction's membership in a sector names no declaration**: a
+    /// direction an in-band angle past the sector's start bound, read
+    /// by `within` ahead of any declaration (the sector primitives take
+    /// none), escalates as the sectors' coincidence with nothing read,
+    /// and ends in its lever and the tolerance the gap gives.
+    #[test]
+    fn a_direction_on_a_sector_bound_escalates_with_no_declaration_read() {
+        let b = band();
+        let mid = (b.zero() + b.escalate()) / 2.0;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let s = BoolSector {
+            he: HalfEdgeKey::default(),
+            start: x,
+            end: y,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + x,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + y,
+            },
+            face: FaceKey::default(),
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            arm: 1.0,
+        };
+        let err = within(
+            &s,
+            Vec3::new(1.0, -mid, 0.0),
+            false,
+            DeclarationRead::Moot,
+            b,
+        )
+        .expect_err("an in-band direction escalates");
+        let BooleanError::Escalated { decision, diag } = &err else {
+            panic!("an escalation: {err:?}");
+        };
+        assert_eq!(
+            *decision,
+            BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Moot)
+        );
+        assert_eq!(diag.predicate, Some("bool_sector_within"));
+        let text = err.to_string();
+        assert!(
+            text.starts_with("how two corners of the two solids overlap where they meet is ")
+                && text.contains(
+                    "Recourse: move the parts so they clearly meet or clearly stand apart there, \
+                     or, if this gap is intended, tighten the tolerance below "
+                )
+                && !text.contains("declare"),
+            "{text}"
+        );
+    }
+
+    /// **Two parallel directions' sense is its own decision, and its
+    /// decided zero refuses as its in-band arm does**: read at an arm in
+    /// the band, and at one in the zero band, the cosine of two equal
+    /// directions escalates as [`BooleanDecision::DirectionSense`] with
+    /// the margin the funnel read, and both end in the corner's lever
+    /// and the tolerance that margin gives (the decision passes on
+    /// either definite sign, so a zero-band margin is a size a smaller
+    /// tolerance decides). A clear arm reads the sense.
+    #[test]
+    fn a_direction_sense_refuses_its_decided_zero_as_its_in_band_arm() {
+        let b = band();
+        let (z, e) = (b.zero(), b.escalate());
+        let u = Vec3::new(1.0, 0.0, 0.0);
+        assert!(direction_sense(u, u, 1.0, b).expect("a clear arm reads the sense"));
+        assert!(!direction_sense(u, -u, 1.0, b).expect("a clear arm reads the sense"));
+        for arm in [(z + e) / 2.0, 0.5 * z] {
+            let err = direction_sense(u, u, arm, b).expect_err("a short arm refuses");
+            let BooleanError::Escalated { decision, diag } = &err else {
+                panic!("{arm:e}: an escalation: {err:?}");
+            };
+            assert_eq!(*decision, BooleanDecision::DirectionSense, "{arm:e}");
+            assert_eq!(diag.predicate, Some("bool_dir_same"), "{arm:e}");
+            assert_eq!(
+                diag.margin.diagnostic_f64_for_error_text().value(),
+                Some(arm),
+                "{arm:e}: the margin the funnel read"
+            );
+            let text = err.to_string();
+            assert!(
+                text.starts_with(
+                    "whether two parallel directions at a corner point the same way or opposite \
+                     ways is undecided: "
+                ) && text.ends_with(&format!(
+                    "Recourse: make the edges at the corner where the two faces meet clearly \
+                     longer than the tolerance, or, if this length of the corner's shorter edge \
+                     is intended, tighten the tolerance below {:e} m",
+                    arm / (e / z)
+                )),
+                "{arm:e}: {text}"
+            );
+        }
+    }
+
+    /// **A direction sense's refusal is on the frame's escalation log**,
+    /// its decided zero as its in-band arm (the second review's probe
+    /// P3, adopted): each refusal is the funnel's own escalation, beside
+    /// the verdict it decided, as `kstats_escalation_channel` pins for the
+    /// lever-arm gates, so the log sees every refusal the Boolean raises.
+    #[test]
+    fn a_direction_senses_refusal_is_on_the_escalation_log() {
+        use geom_core::k_stats::Bracket;
+        let b = band();
+        let u = Vec3::new(1.0, 0.0, 0.0);
+        for (arm, decided) in [
+            (0.5 * b.zero(), true),
+            ((b.zero() + b.escalate()) / 2.0, false),
+        ] {
+            let bracket = Bracket::open();
+            let err = direction_sense(u, u, arm, b).expect_err("a short arm refuses");
+            let log = bracket.finish();
+            let BooleanError::Escalated { diag, .. } = err else {
+                panic!("{arm:e}: an escalation: {err:?}");
+            };
+            assert_eq!(
+                log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                vec![diag],
+                "{arm:e}: the refusal is the log's escalation"
+            );
+            assert_eq!(
+                log.verdicts
+                    .iter()
+                    .map(|v| (v.predicate, v.sign))
+                    .collect::<Vec<_>>(),
+                if decided {
+                    vec![("bool_dir_same", Sign::Zero)]
+                } else {
+                    vec![]
+                },
+                "{arm:e}: a decided zero is the verdict beside it"
+            );
+        }
     }
 
     /// The 15.7 sign resolution, mirror-pinned (F3): against a face
@@ -895,10 +1167,28 @@ mod tests {
         let s = sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
         let b = band();
         let mid = Vec3::new(1.0, 1.0, 0.0).normalize();
-        assert!(within(&s, mid, true, b).unwrap());
-        assert!(!within(&s, Vec3::new(-1.0, -0.5, 0.0), false, b).unwrap());
-        assert!(within(&s, Vec3::new(1.0, 0.0, 0.0), false, b).unwrap());
-        assert!(!within(&s, Vec3::new(1.0, 0.0, 0.0), true, b).unwrap());
+        assert!(within(&s, mid, true, DeclarationRead::Moot, b).unwrap());
+        assert!(
+            !within(
+                &s,
+                Vec3::new(-1.0, -0.5, 0.0),
+                false,
+                DeclarationRead::Moot,
+                b
+            )
+            .unwrap()
+        );
+        assert!(
+            within(
+                &s,
+                Vec3::new(1.0, 0.0, 0.0),
+                false,
+                DeclarationRead::Moot,
+                b
+            )
+            .unwrap()
+        );
+        assert!(!within(&s, Vec3::new(1.0, 0.0, 0.0), true, DeclarationRead::Moot, b).unwrap());
     }
 
     /// `sectoroverlap`: strict overlap yes; identical sectors yes;
@@ -973,6 +1263,207 @@ mod tests {
         assert_eq!(
             side_code(d, Reach::Bisector(0.5), n, 0.5, NO_CURVATURE::<f64>(), b).unwrap(),
             SideCode::Out
+        );
+    }
+
+    /// **A declared-`Tangent` sector pair's second-order side escalates
+    /// as the side it reads, with no declaration**, on a real raise: a
+    /// unit sphere's sector against a plane it touches, read over an arm
+    /// at which the relative curvature's sagitta lies in the band. The
+    /// arm clears its gate, so the reading refuses; the pair is declared
+    /// already, so the refusal names which way the face curves away from
+    /// the other, the move that decides it and the tolerance, and no
+    /// declaration.
+    #[test]
+    fn a_tangent_pair_side_escalates_as_the_side_it_reads() {
+        let b = band();
+        let mid = (b.zero() + b.escalate()) / 2.0;
+        let (p, d) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let ball = geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, -1.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let floor = crate::test_support_fixtures::plane(
+            &[p, Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
+            Tol::witness(),
+        );
+        let accel = |s: &geom::Surface<f64>| {
+            -geom_brep::implicit_hessian_form(s, p, d)
+                / geom_brep::implicit_gradient(s, p).dot(n.vec())
+        };
+        let arm = (2.0 * mid / (accel(&ball) - accel(&floor)).abs()).sqrt();
+        let err = tangent_relative_side(
+            &ball,
+            &floor,
+            n,
+            p,
+            d,
+            arm,
+            DeclarationRead::Spent(ContactClass::Tangent),
+            b,
+        )
+        .expect_err("an in-band sagitta escalates the reading");
+        let BooleanError::Escalated { decision, diag } = err else {
+            panic!("the reading escalates: {err:?}");
+        };
+        assert_eq!(
+            decision,
+            BooleanDecision::Coincidence(
+                Coincide::TangentSide,
+                DeclarationRead::Spent(ContactClass::Tangent)
+            )
+        );
+        assert_eq!(diag.predicate, Some("tangent_sector_order2"));
+        let text = BooleanError::Escalated { decision, diag }.to_string();
+        assert!(
+            text.starts_with(
+                "which way a face of one solid curves away from a face of the other that it \
+                 touches is undecided: "
+            ) && text.contains(
+                "Recourse: make one face clearly curve away from the other where they touch, or \
+                 make both curve alike there, or, if this difference in bend is intended, \
+                 tighten the tolerance"
+            ) && !text.contains("declare"),
+            "{text}"
+        );
+    }
+
+    /// **A lever arm gate escalates as its own decision, on a real
+    /// raise**: a bound read over a curved edge whose extent lies in the
+    /// band reaches `enters_material`'s arm rung before any side is
+    /// read. The refusal names the arm's question and its lever, quotes
+    /// the departure from the face the arm meters (the edge at 45°, so
+    /// `extent/√2`), offers the tolerance that departure gives, which
+    /// decides the side as well as the arm, and no declaration: no face
+    /// pair names an edge's length. An extent that decides zero is the
+    /// same decision's band-decided arm: it quotes its departure's
+    /// decided margin and offers the tolerance it gives, not a kernel
+    /// bug. A clear extent reads the side, and the same routing sends
+    /// that reading's escalation to the coincidence it is, which no
+    /// declaration is read ahead of.
+    #[test]
+    fn a_lever_arm_gate_escalates_as_its_own_decision() {
+        use super::super::{Coincide, LeverArm};
+        use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
+        let b = band();
+        let (z, e) = (b.zero(), b.escalate());
+        let mid = (z + e) / 2.0;
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let departure = |extent: f64| Vec3::new(1.0, 0.0, 1.0).normalize().dot(n.vec()) * extent;
+        let err = side_code(
+            Vec3::new(1.0, 0.0, 1.0),
+            Reach::Extent(mid),
+            n,
+            1.0,
+            NO_CURVATURE(),
+            b,
+        )
+        .expect_err("an in-band extent escalates the arm gate");
+        let BooleanError::Escalated { decision, diag } = err else {
+            panic!("the arm gate escalates: {err:?}");
+        };
+        assert_eq!(decision, BooleanDecision::LeverArm(LeverArm::SectorSide));
+        assert_eq!(diag.predicate, Some("enters_material_rise"));
+        let text = BooleanError::Escalated { decision, diag }.to_string();
+        assert_eq!(recourse_markers(&text), 1, "{text}");
+        assert!(
+            subjectless_escalations(&text).is_empty() && stage_prefixes(&text, &[]).is_empty(),
+            "{text}"
+        );
+        assert!(
+            text.starts_with(
+                "whether an edge at a corner is long enough to read which side of a face it \
+                 leaves on is undecided: "
+            ) && text.ends_with(&format!(
+                "Recourse: make the edges at the corner where the two faces meet clearly longer \
+                 than the tolerance, or, if this edge's length or rise is intended, tighten \
+                 the tolerance below {:e} m",
+                departure(mid) / (e / z)
+            )) && !text.contains("declare"),
+            "{text}"
+        );
+        // The decided-zero arm: an extent inside the zero band.
+        let short = 0.5 * z;
+        let err = side_code(
+            Vec3::new(1.0, 0.0, 1.0),
+            Reach::Extent(short),
+            n,
+            1.0,
+            NO_CURVATURE(),
+            b,
+        )
+        .expect_err("a zero-band extent refuses the arm gate");
+        let text = err.to_string();
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::LeverArm(LeverArm::SectorSide),
+                    ..
+                }
+            ) && text.contains(&format!(
+                "margin {:e} lies within the zero band",
+                departure(short)
+            )) && text.ends_with(&format!(
+                "if this edge's length or rise is intended, tighten the tolerance below {:e} m",
+                departure(short) / (e / z)
+            )) && !text.contains("kernel bug"),
+            "{text}"
+        );
+        // A bound in the face's plane departs by exactly zero, which reads
+        // `On` at every tolerance that decides the arm: the arm binds, and
+        // the refusal quotes the edge's length under the arm's own name
+        // (the coincfr4 review's in-plane pose).
+        let err = side_code(
+            Vec3::new(1.0, 0.0, 0.0),
+            Reach::Extent(mid),
+            n,
+            1.0,
+            NO_CURVATURE(),
+            b,
+        )
+        .expect_err("an in-band extent escalates the arm gate");
+        let BooleanError::Escalated { decision, diag } = err else {
+            panic!("the arm gate escalates: {err:?}");
+        };
+        assert_eq!(decision, BooleanDecision::LeverArm(LeverArm::SectorSide));
+        assert_eq!(diag.predicate, Some("enters_material_arm"));
+        let text = BooleanError::Escalated { decision, diag }.to_string();
+        assert!(
+            text.contains(&format!("margin {mid:e} lies inside the ambiguity band"))
+                && text.ends_with(&format!(
+                    "if this edge's length or rise is intended, tighten the \
+                     tolerance below {:e} m",
+                    mid / (e / z)
+                )),
+            "{text}"
+        );
+        // The reading's own escalation, over a clear extent: a direction
+        // in band off the face's plane is the coincidence it names.
+        let err = side_code(
+            Vec3::new(1.0, 0.0, mid),
+            Reach::Extent(1.0),
+            n,
+            1.0,
+            NO_CURVATURE(),
+            b,
+        )
+        .expect_err("an in-band elevation escalates the reading");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::Coincidence(
+                        Coincide::SectorSide,
+                        DeclarationRead::Moot
+                    ),
+                    ..
+                }
+            ),
+            "{err:?}"
         );
     }
 
@@ -1077,6 +1568,7 @@ mod tests {
             Operand::B,
             FaceKey::default(),
             0.5,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         )
         .unwrap();
@@ -1093,6 +1585,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         )
         .unwrap();
@@ -1119,6 +1612,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.25,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         )
         .unwrap();
@@ -1146,6 +1640,7 @@ mod tests {
                 Operand::A,
                 FaceKey::default(),
                 arm,
+                DeclarationRead::Spent(ContactClass::Tangent),
                 b,
             )
         };
@@ -1182,6 +1677,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         ) {
             Err(BooleanError::ClassificationInvariant { .. }) => {}
@@ -1202,6 +1698,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         ) {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}

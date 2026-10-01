@@ -162,9 +162,16 @@ impl core::fmt::Display for UnitVec3Error {
                  names a direction. Recourse: {}",
                 crate::predicate::RANGE_RECOURSE
             ),
-            Self::Escalated(source) => {
-                write!(f, "a direction vector's length is indeterminate: {source}")
-            }
+            // A direction's length has no declaration object at any
+            // door that mints this witness, so the payload renders
+            // under the levers those doors do have.
+            Self::Escalated(source) => write!(
+                f,
+                "{} is undecided: {}. Recourse: {}",
+                crate::predicate::DIRECTION_LENGTH_SUBJECT,
+                source.payload(),
+                crate::predicate::NO_DECLARATION_RECOURSE
+            ),
         }
     }
 }
@@ -739,6 +746,22 @@ mod interval_tests {
             ),
             "an enclosure that cannot tell escalates"
         );
+        // Its sentence names the decision and offers only the levers a
+        // direction door has: no door that mints this witness takes a
+        // declaration.
+        let said = UnitVec3::new(straddling, "test_direction", band())
+            .map(|_| ())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            said.contains("whether a direction has any length is undecided"),
+            "{said}"
+        );
+        assert!(
+            said.contains(crate::predicate::NO_DECLARATION_RECOURSE),
+            "{said}"
+        );
+        assert!(!said.contains("declare"), "{said}");
     }
 
     /// **The underflow gate is a POINT-scalar gate**, exactly as the

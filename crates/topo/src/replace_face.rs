@@ -1903,7 +1903,8 @@ fn plan_edge<T: Decide>(
             let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
             let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
                 .map_err(|e| match e {
-                geom_brep::SectionError::Escalated(source) => {
+                geom_brep::SectionError::Escalated(source)
+                | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
                     ReplaceFaceError::Escalated { source }
                 }
                 // `route_pose` returns only an escalation or a

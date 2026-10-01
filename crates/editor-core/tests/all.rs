@@ -447,8 +447,12 @@ mod mate6r1_shared;
 mod mate6r2_probes;
 #[path = "name_depth.rs"]
 mod name_depth;
+#[path = "name_tables_by_position.rs"]
+mod name_tables_by_position;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
+#[path = "node_labels.rs"]
+mod node_labels;
 #[path = "node_standing.rs"]
 mod node_standing;
 #[path = "parallel_node_map_interval.rs"]

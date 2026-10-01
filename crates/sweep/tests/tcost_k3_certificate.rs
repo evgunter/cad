@@ -127,7 +127,7 @@ fn arc_prism_at(s: f64, dx: f64) -> Body<f64> {
 fn grafted(solids: &[Body<f64>]) -> Body<f64> {
     let mut body = Body::new();
     for solid in solids {
-        topo::graft_disjoint(&mut body, solid, Tol::witness()).expect("a disjoint graft");
+        topo::graft_disjoint(&mut body, solid).expect("a disjoint graft");
     }
     body
 }

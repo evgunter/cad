@@ -65,11 +65,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::authoring::{p2, polygon, v3};
+use pncad::authoring::{p2, polygon, v3, validated};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Tol, Vec3};
 use pncad::prelude::{SurfaceKindSet, query};
-use pncad::profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, circle_split};
+use pncad::profile::{ConstructedLoop, SketchPlane, ValidatedProfile, circle_split};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanBody, BooleanDeclarations};
 
@@ -151,7 +151,7 @@ const V_MATED: f64 = 2.0 * PLATE_VOL;
 /// ships SHARP, the fillets wait on the wall, and the scene does not
 /// contort itself — no mismatched radii between the two plates, no
 /// one-plate-only rounding — to manufacture a shape that dodges it.
-fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
+fn outline<S: Scalar>(tol: Tol) -> ConstructedLoop<S> {
     polygon(
         &[
             (0.0, 0.0),
@@ -174,7 +174,7 @@ fn outline<S: Scalar>(tol: Tol) -> ProfileLoop<S> {
 /// wall and bore wall are three faces each and [`declarations`]'s 3×3
 /// pairing is a fact about the loop rather than a coincidence between
 /// two spellings.
-fn rim<S: Scalar>(cx: f64, tol: Tol) -> ProfileLoop<S> {
+fn rim<S: Scalar>(cx: f64, tol: Tol) -> ConstructedLoop<S> {
     circle_split(p2(cx, PEG_Y), S::from_f64(PEG_R), 3, S::from_f64(0.0), tol)
         .expect("the three-arc peg rim authors")
         .into()
@@ -188,9 +188,7 @@ fn plate_profile<S: Scalar>(z0: f64, bores: bool, tol: Tol) -> ValidatedProfile<
     if bores {
         loops.extend(PEG_X.into_iter().map(|cx| rim::<S>(cx, tol)));
     }
-    Profile::new(plane, loops)
-        .validate(tol)
-        .expect("the plate profile validates")
+    validated(plane, loops, tol).expect("the plate profile validates")
 }
 
 /// A plate: the 6×4 footprint, thickness 1, sketched at `z0`.
@@ -207,9 +205,8 @@ fn plate<S: Scalar>(z0: f64, tol: Tol) -> Body<S> {
 /// A peg: [`rim`] extruded `h` from `z0`.
 fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> Body<S> {
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![rim::<S>(cx, tol)])
-        .validate(tol)
-        .expect("the peg profile validates");
+    let profile =
+        validated(plane, vec![rim::<S>(cx, tol)], tol).expect("the peg profile validates");
     extrude(&profile, Extrusion::Distance(S::from_f64(h)), tol)
         .expect("the peg extrudes")
         .body
