@@ -1446,7 +1446,8 @@ impl BooleanDecision {
             }
             // The margin is cos θ levered by the shorter edge: that
             // edge's projection onto the other, a length. A straight
-            // corner passes on a negative one; a sector bounded twice by
+            // corner passes on a negative one (`sector_shape` gates it with
+            // `decide_negative`); a sector bounded twice by
             // one edge passes on any definite one.
             Self::Corner(SectorRung::Straight { full_circle }) => sized(
                 CORNER_LEVER,

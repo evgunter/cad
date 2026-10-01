@@ -420,6 +420,27 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
+/// [`decide`] gated on a definitely positive margin
+/// ([`geom_core::k_stats::decide_positive`]): the rejection is the
+/// funnel's escalation, on the frame's log.
+pub(crate) fn decide_positive<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_positive(name, margin, band)
+}
+
+/// [`decide`] gated on a definitely negative margin
+/// ([`geom_core::k_stats::decide_negative`]).
+pub(crate) fn decide_negative<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_negative(name, margin, band)
+}
+
 /// [`decide`], keeping the reporting margin for a sized decision's
 /// refusal ([`geom_core::k_stats::decide_reported`]).
 pub(crate) fn decide_reported<T: Decide>(
@@ -6492,7 +6513,9 @@ pub(crate) enum RingOuterVerdict {
 ///
 /// **Escalate-never-guess (D4 ¶3)**: the first margin that lands in
 /// the ambiguity band returns [`RingOuterVerdict::Escalated`] and stops
-/// the walk. Both callers treat it as a refusal.
+/// the walk. Check 9 and the shell verb treat it as a refusal; the
+/// split's hole nesting (`splitting::finish`) reads it as "not decided
+/// disjoint" and leaves the hole its own face.
 pub(crate) fn ring_outer_contact<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
