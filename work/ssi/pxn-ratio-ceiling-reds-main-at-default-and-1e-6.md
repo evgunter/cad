@@ -40,7 +40,7 @@ ceiling's derivation assumed, and the ceiling's number is wrong; or the
 fold the ceiling was written to see is not reaching this fixture.
 
 Until it is fixed, every PR that seeds `geom-brep` reds in its eps
-step. That means its slow-set step is skipped, a silent coverage loss
-on top of the visible red.
+steps, and has to be merged over an inherited red. The slow-set step
+still runs (it is gated on `!cancelled()`, not on the earlier steps).
 
 Filed by the LINALG orchestrator.
