@@ -20,9 +20,9 @@
 //! `kef_minted`'s own body in `surgery.rs`, and it is the band twin:
 //! the carve holds a band and runs on minted bodies, where the keys-only
 //! door refuses the re-mint its kills owe. The second assertion pins
-//! the site census PR 1943 states (eight `kef_minted` calls, summed over
-//! the directory), so a ninth site is a deliberate re-count rather than
-//! a silent addition.
+//! the site census (nine `kef_minted` calls, summed over the
+//! directory), so a tenth site is a deliberate re-count rather than a
+//! silent addition.
 //!
 //! What this row does NOT pin — visibility across the `open/` boundary
 //! — is `review_fillet_split_r2_probes`'s.
@@ -113,8 +113,8 @@ fn every_kef_in_the_blend_surgery_goes_through_the_door() {
         .collect();
     let sites: usize = per_file.iter().map(|(_, n)| n).sum();
     assert_eq!(
-        sites, 8,
-        "the `kef` site census: PR 1943 states eight `kef_minted` calls (edge-strip, corner-strut, \
+        sites, 9,
+        "the `kef` site census: nine `kef_minted` calls (edge-strip, corner-strut, joint-strut, \
          rim, rim strut, annulus rim, annulus seam-crossing, ruled crease, cap sliver), summed \
          over every file under blend/ as {per_file:?}; a change in the count is a change to \
          re-take the census for, not to absorb"

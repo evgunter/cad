@@ -82,6 +82,8 @@ mod asm_roots;
 mod asm_upd_pin_update;
 #[path = "assemble_one_local_battery.rs"]
 mod assemble_one_local_battery;
+#[path = "band_joined_rim_names.rs"]
+mod band_joined_rim_names;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]

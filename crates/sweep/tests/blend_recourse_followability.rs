@@ -450,6 +450,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     for condition in [
         "fully requested trivalent plane\u{2013}plane corners",
         "of one convexity",
+        "chains of links sharing both supports",
         "junction carry-through and run-outs are not implemented",
     ] {
         assert!(
@@ -467,6 +468,37 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         &query::all_edges(&boxy),
         0.1,
         "single plane–plane links at fully-requested corners",
+    );
+    // The joined clause: a cube whose bottom side was authored as a
+    // declared straight continuation, its walls merged — two of its
+    // rims are two links each on one support pair.
+    let t = tol();
+    let joined: profile::ProfileLoop<f64> = profile::Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .and_then(|p| p.line(0.5, t))
+        .and_then(|p| p.continue_to(Point2::new(1.0, 0.0), t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.line_to(profile::Start, t))
+        .expect("the continuation authors")
+        .into();
+    let prof = Profile::new(SketchPlane::xy(), vec![joined])
+        .validate(t)
+        .expect("the profile validates");
+    let mut merged = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0), t)
+        .expect("the prism extrudes")
+        .body;
+    merged
+        .merge_coplanar_faces(t)
+        .expect("the continuation's walls merge");
+    builds(
+        &merged,
+        &query::all_edges(&merged),
+        0.1,
+        "plane–plane links joined where consecutive links share both supports",
     );
     builds(&d, &[equator], 0.1, "a closed circular plane–sphere rim");
     let body = waisted(tol());
