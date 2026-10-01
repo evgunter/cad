@@ -9,6 +9,18 @@
 //! concrete at `f64`), so a scalar without the right cannot hold one. It
 //! carries neither of the halves this census reads.
 //!
+//! **Why a wiring row compares pointers.** A row that compares a door's
+//! outputs cannot see the door re-pointed at a routine that agrees on
+//! the fixture in front of it, and a same-signature closure can agree
+//! by construction. A wiring row compares the stored function pointers
+//! instead, so a re-point is a failure no matter what it computes.
+//! Function-pointer identity is what `std::ptr::fn_addr_eq` compares
+//! and is not a language guarantee (identical function bodies may be
+//! merged), which costs nothing here: a false PASS from a merge would
+//! need the re-pointed routine to be instruction-identical to the one
+//! it replaced. Each door module's `wiring_rows` doc cites this
+//! paragraph.
+//!
 //! **Which scalars.** Each door's wiring rows are a hand-written list of
 //! the scalars whose door is pinned by pointer identity, one call of the
 //! door's helper per scalar. A new `impl CertifiedEnclosure` would form
@@ -47,6 +59,22 @@
 //! fn pointer behind a type alias, inside another type
 //! (`Option<fn(…)>`) or in a nested struct; and a `struct` defined
 //! outside the roster's file.
+//!
+//! **Which writes.** A helper pins what the constructor holds, not that
+//! the door's formation sites call it: the module that defines a door
+//! can write its private fields, so a literal there
+//! (`QuadLane { cut_face_rounds: … }`, `Self { … }`) holds whatever it
+//! names with every wiring row green.
+//! [`every_door_fn_pointer_field_is_written_by_its_constructor_alone`]
+//! reads the roster's file and every file of its child modules
+//! (`props.rs` and `props/**`) and requires each fn-pointer field to be
+//! written exactly once, inside a constructor of the door: a write is
+//! the field named in a struct literal, as `field: …` or the shorthand,
+//! or assigned as `….field = …`. It does not see: a write through a
+//! `&mut` to the field (`std::mem::replace(&mut lane.field, …)`); a
+//! field name a macro assembles; and a child module relocated by
+//! `#[path]`. A pattern that names the field (`let Door { field } =
+//! …`) reads as a write, the red direction.
 //!
 //! **What the door reader sees, and its blind spot.** A door
 //! constructor, for this reader, is a zero-parameter associated `fn`
@@ -130,7 +158,13 @@ struct Roster {
 }
 
 /// The rosters, one per door value in the tree.
-const ROSTERS: [Roster; 4] = [
+const ROSTERS: [Roster; 5] = [
+    Roster {
+        door: "FittedLane",
+        file: "crates/geom-brep/src/fitted_lane.rs",
+        helper: "holds_the_certified_fitted_lane",
+        formed: Formed::CertifyingScalars,
+    },
     Roster {
         door: "OffsetFitLane",
         file: "crates/geom-brep/src/offset_fit_lane.rs",
@@ -164,7 +198,13 @@ const ROSTERS: [Roster; 4] = [
 /// The types the door reader matches that are not door values, each
 /// with the reason no roster is owed. An entry here is an exemption and
 /// has to earn it; one the reader no longer matches is stale, and red.
-const NOT_A_DOOR: [(&str, &str); 0] = [];
+const NOT_A_DOOR: [(&str, &str); 1] = [(
+    "CertifiedLanes",
+    "a private bundle of door values that forms none of its own: its quadrature and region \
+     fields are `QuadLane::certified()` and `RegionLane::certified()`, which their own rosters \
+     pin, and check 2's lane is `plane_nurbs_limbs` by name, so it has no fn-pointer field a \
+     wiring helper could compare",
+)];
 
 /// The impls that are not door scalars, each with the reason no wiring
 /// row is owed. An entry here is an exemption and has to earn it; every
@@ -656,6 +696,117 @@ fn compared_fields(definition: &str) -> BTreeSet<String> {
     out
 }
 
+/// The offset of the `{` that opens the brace group `at` lies in.
+fn enclosing_brace(code: &str, at: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (i, c) in code[..at].char_indices().rev() {
+        match c {
+            '}' => depth += 1,
+            '{' if depth == 0 => return Some(i),
+            '{' => depth -= 1,
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The offsets in `code` where `field` is written as a field: named in
+/// a struct literal (`field: …`, or the shorthand `field` between `{`
+/// or `,` and `,` or `}`), or assigned (`….field = …`). A name in a
+/// `use` group (`path::{a, field}`) is not a write.
+fn field_writes(code: &str, field: &str) -> Vec<usize> {
+    code.match_indices(field)
+        .map(|(at, _)| at)
+        .filter(|&at| {
+            if !word_at(code, at, field) {
+                return false;
+            }
+            let before = code[..at].trim_end();
+            let rest = &code[skip_ws(code, at + field.len())..];
+            let named = before.ends_with(['{', ','])
+                && enclosing_brace(code, at)
+                    .is_some_and(|open| !code[..open].trim_end().ends_with("::"));
+            let initialised = rest.starts_with(':') && !rest.starts_with("::");
+            let shorthand = rest.starts_with([',', '}']);
+            let assigned =
+                before.ends_with('.') && rest.starts_with('=') && !rest.starts_with("==");
+            (named && (initialised || shorthand)) || assigned
+        })
+        .collect()
+}
+
+/// The files whose code can write a private field of a type defined in
+/// `file`: the file itself and every file of its child modules
+/// (`props.rs` and `props/**`).
+fn module_files(file: &str) -> Result<Vec<String>, String> {
+    let stem = file
+        .strip_suffix(".rs")
+        .filter(|s| !s.ends_with("/mod") && !s.ends_with("/lib"))
+        .ok_or_else(|| {
+            format!(
+                "{file} is not a `name.rs` module file, so this census cannot say which files \
+                 its child modules are"
+            )
+        })?;
+    let root = repo_root(env!("CARGO_MANIFEST_DIR"));
+    let mut out = vec![file.to_string()];
+    let children = root.join(stem);
+    if children.is_dir() {
+        for child in rust_sources(&children) {
+            out.push(
+                child
+                    .strip_prefix(&root)
+                    .expect("a child module is under the root")
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
+        }
+    }
+    Ok(out)
+}
+
+/// The bodies (braces included) of the top-level fns of every inherent
+/// `impl {door}` block in `code` that [`constructor`] reads as the
+/// door's constructors.
+fn constructor_bodies(file: &str, code: &str, door: &str) -> Vec<std::ops::Range<usize>> {
+    let mut unread = Vec::new();
+    let mut out = Vec::new();
+    for block in impl_blocks(file, code, &mut unread) {
+        if block.head.trait_path.is_some() || type_base(&block.head.self_type) != door {
+            continue;
+        }
+        let start = block.body.start + 1;
+        let inside = &code[start..block.body.end - 1];
+        for fn_at in top_level_fns(inside) {
+            if constructor(inside, fn_at, door).is_none() {
+                continue;
+            }
+            if let ItemBody::Body(body) = item_body(inside, fn_at) {
+                out.push(start + body.start..start + body.end);
+            }
+        }
+    }
+    out
+}
+
+/// The braced field list of `struct {door}` in `code`, when it is
+/// defined there exactly once.
+fn struct_body(code: &str, door: &str) -> Option<std::ops::Range<usize>> {
+    let mut defined = code.match_indices(door).map(|(at, _)| at).filter(|&at| {
+        let before = code[..at].trim_end();
+        word_at(code, at, door)
+            && before.ends_with("struct")
+            && word_at(before, before.len() - "struct".len(), "struct")
+    });
+    let (Some(at), None) = (defined.next(), defined.next()) else {
+        return None;
+    };
+    match item_body(code, at) {
+        ItemBody::Body(body) => Some(body),
+        _ => None,
+    }
+}
+
 #[test]
 fn every_door_value_has_a_roster_and_every_roster_a_door() {
     let mut failures = Vec::new();
@@ -820,6 +971,92 @@ fn every_door_helper_compares_every_fn_pointer_field() {
                  return `Err` naming it; {HELPER_SHAPE}",
                 roster.door, roster.helper, roster.file
             ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n\n"));
+}
+
+#[test]
+fn every_door_fn_pointer_field_is_written_by_its_constructor_alone() {
+    let mut failures = Vec::new();
+    for roster in &ROSTERS {
+        let code = match code_of(roster.file) {
+            Ok(code) => code,
+            Err(unread) => {
+                failures.push(unread);
+                continue;
+            }
+        };
+        let (fields, Some(definition)) = (
+            fn_pointer_fields(roster.file, &code, roster.door),
+            struct_body(&code, roster.door),
+        ) else {
+            failures.push(format!(
+                "{}: `struct {}` is not defined there exactly once with a braced field list, \
+                 so its writes are not checked",
+                roster.file, roster.door
+            ));
+            continue;
+        };
+        let fields = match fields {
+            Ok(fields) => fields,
+            Err(unread) => {
+                failures.push(format!(
+                    "{unread}; so {}'s writes are not checked",
+                    roster.door
+                ));
+                continue;
+            }
+        };
+        let constructors = constructor_bodies(roster.file, &code, roster.door);
+        let files = match module_files(roster.file) {
+            Ok(files) => files,
+            Err(unread) => {
+                failures.push(unread);
+                continue;
+            }
+        };
+        for field in &fields {
+            let mut in_constructor = 0usize;
+            for file in &files {
+                let text = if file == roster.file {
+                    code.clone()
+                } else {
+                    match code_of(file) {
+                        Ok(text) => text,
+                        Err(unread) => {
+                            failures.push(unread);
+                            continue;
+                        }
+                    }
+                };
+                for at in field_writes(&text, field) {
+                    let own = file == roster.file;
+                    if own && definition.contains(&at) {
+                        continue;
+                    }
+                    if own && constructors.iter().any(|c| c.contains(&at)) {
+                        in_constructor += 1;
+                        continue;
+                    }
+                    failures.push(format!(
+                        "{file}:{}: `{}`'s field `{field}` is written outside its constructor — \
+                         the module that defines a door can write its private fields, so a \
+                         literal or an assignment here holds whatever it names while the \
+                         wiring rows, which pin the constructor, stay green. Form the door by \
+                         its constructor",
+                        line(&text, at),
+                        roster.door
+                    ));
+                }
+            }
+            if in_constructor != 1 {
+                failures.push(format!(
+                    "{}: `{}`'s field `{field}` is written {in_constructor} times inside its \
+                     constructors — a door has one constructor, and it writes each field once",
+                    roster.file, roster.door
+                ));
+            }
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n\n"));
@@ -1022,5 +1259,33 @@ fn the_field_readers_see_fn_pointers_and_their_comparisons() {
     assert_eq!(
         compared_fields(&helper),
         BTreeSet::from(["fit".to_string(), "remap".to_string()])
+    );
+}
+
+/// The write reader on each write shape it claims to see, and on the
+/// reads beside them it must not count.
+#[test]
+fn the_write_reader_sees_literals_shorthand_and_assignment() {
+    let code = code_only(
+        "fn f() {\n\
+         let a = Lane { fit: other };\n\
+         let b = Self { mint, fit };\n\
+         lane.fit = other;\n\
+         let c = (lane.fit)(x);\n\
+         let d = lane.fit == other;\n\
+         let e = crate::m::fit::<T>;\n\
+         let g = Lane { ..base };\n\
+         use crate::m::{mint, fit};\n\
+         // Lane { fit: commented }\n\
+         }",
+    );
+    let lines: Vec<usize> = field_writes(&code, "fit")
+        .into_iter()
+        .map(|at| line(&code, at))
+        .collect();
+    assert_eq!(
+        lines,
+        [2, 3, 4],
+        "a literal, a shorthand and an assignment, and nothing else"
     );
 }

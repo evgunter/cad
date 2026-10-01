@@ -42,7 +42,7 @@ fn iv(x: f64) -> Interval {
 }
 
 fn p2(u: f64, v: f64) -> Point2<Interval> {
-    Point2::new(iv(u), iv(v))
+    Point2::new(u, v).map(iv)
 }
 
 /// A closed chord polygon of exact-structural segments.
@@ -439,15 +439,27 @@ fn t7_a_loop_that_wraps_the_chart_refuses() {
     let mut body = Body::<Interval>::new();
     let p0 = Point3::new(iv(1.0), iv(0.0), iv(0.0));
     let p1 = Point3::new(iv(-1.0), iv(0.0), iv(0.0));
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let cyl = body
-        .set_face_surface(seed.face, FaceSurface::New(unit_cylinder()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: unit_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     // A second seed carries the plane the rim arcs' description names;
     // it takes part in no loop of the face under test.
-    let anchor = body.mvfs(Point3::origin()).unwrap();
+    let anchor = body.mvfs(Point3::origin(), true).unwrap();
     let pln = body
-        .set_face_surface(anchor.face, FaceSurface::New(base_plane()))
+        .set_face_surface(
+            anchor.face,
+            FaceSurface::New {
+                surface: base_plane(),
+                sense: true,
+            },
+        )
         .unwrap();
     let spec = |start: f64| {
         let carrier = half_arc(start);

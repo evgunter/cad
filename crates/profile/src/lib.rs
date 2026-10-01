@@ -154,7 +154,7 @@ mod sugar;
 pub mod test_support;
 mod validate;
 
-use geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Arc2, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -168,14 +168,15 @@ pub use path::{
     circle_split,
 };
 pub use structure::{
-    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical, Piece,
-    PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure, SegmentShape,
-    StepSpan, StructureRefusal, StructureRefusalKind,
+    CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
+    LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
+    RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{
     BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
+    decision_subject,
 };
 /// The fillet recourse sentences and the map that selects one, under
 /// `test-support` only.
@@ -201,7 +202,8 @@ pub use validate::{
     FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE,
     FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
     FILLET_SCENE_RESOLUTION_RECOURSE, FILLET_STORED_FORM_INBAND_RECOURSE,
-    FILLET_TURN_INBAND_RECOURSE, SHARED_CLAUSE_ONLY, fillet_recourse_for, shared_clause_only,
+    FILLET_TURN_INBAND_RECOURSE, SHARED_CLAUSE_ONLY, UNNAMED_DECISION, fillet_recourse_for,
+    shared_clause_only,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed
@@ -223,16 +225,10 @@ pub enum Segment<T: Real> {
     /// A straight segment: its carrier is the chord between its two
     /// vertices, and the interval is the chord itself.
     Line,
-    /// A circular arc.
-    Arc {
-        /// The carrier circle's centre (sketch coordinates).
-        centre: Point2<T>,
-        /// The carrier circle's radius (positive).
-        radius: T,
-        /// The signed sweep Δθ from the segment's start vertex to its
-        /// end vertex about `centre`: positive counterclockwise.
-        sweep: T,
-    },
+    /// A circular arc: its carrier (sketch coordinates) and the signed
+    /// sweep Δθ from the segment's start vertex to its end vertex about
+    /// the centre, positive counterclockwise.
+    Arc(Arc2<T>),
 }
 
 /// **The lowering rule** every loop is built by: the canonical segment
@@ -243,26 +239,7 @@ pub(crate) fn lower_to<T: Real>(start: Point2<T>, bulge: T, end: Point2<T>) -> S
     if is_exact_zero(bulge) {
         return Segment::Line;
     }
-    let LoweredArc {
-        centre,
-        radius,
-        sweep,
-    } = lower_arc(start, end, bulge);
-    Segment::Arc {
-        centre,
-        radius,
-        sweep,
-    }
-}
-
-/// An arc's carrier and sweep, as [`lower_arc`] derives them.
-pub(crate) struct LoweredArc<T: Real> {
-    /// The carrier circle's centre.
-    pub centre: Point2<T>,
-    /// The carrier circle's radius.
-    pub radius: T,
-    /// The signed sweep Δθ.
-    pub sweep: T,
+    Segment::Arc(lower_arc(start, end, bulge))
 }
 
 /// **The arc lowering**: the carrier [`seg::arc_carrier`] puts on the
@@ -274,9 +251,9 @@ pub(crate) struct LoweredArc<T: Real> {
 /// arc's carrier and sweep through it at the target scalar. A bulge of
 /// exactly zero has no carrier (its centre is at infinity), and the
 /// lowering rule sends it to a line before it reaches here.
-pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> LoweredArc<T> {
+pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> Arc2<T> {
     let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
-    LoweredArc {
+    Arc2 {
         centre: carrier.center,
         radius: carrier.radius,
         sweep: T::from_f64(4.0) * bulge.atan(),
@@ -505,7 +482,7 @@ macro_rules! raw_door {
                     .iter()
                     .map(|segment| match *segment {
                         Segment::Line => T::zero(),
-                        Segment::Arc { sweep, .. } => (sweep / T::from_f64(4.0)).tan(),
+                        Segment::Arc(Arc2 { sweep, .. }) => (sweep / T::from_f64(4.0)).tan(),
                     })
                     .collect();
                 Self {
@@ -1037,6 +1014,7 @@ impl<T: Real> Profile<T> {
 #[allow(clippy::panic)]
 mod lowering_tests {
     use super::*;
+    use geom_core::interval::certification::Certification;
     use geom_core::{Dual, Dual64, DualInterval, Interval};
 
     /// The kind `b` lowers to on a unit chord.
@@ -1047,7 +1025,7 @@ mod lowering_tests {
             Point2::new(T::one(), T::zero()),
         ) {
             Segment::Line => "line",
-            Segment::Arc { .. } => "arc",
+            Segment::Arc(..) => "arc",
         }
     }
 
@@ -1139,16 +1117,16 @@ mod lowering_tests {
             match (lp.segments()[j], back.segments()[k]) {
                 (Segment::Line, Segment::Line) => {}
                 (
-                    Segment::Arc {
+                    Segment::Arc(Arc2 {
                         centre: c,
                         radius: r,
                         sweep: s,
-                    },
-                    Segment::Arc {
+                    }),
+                    Segment::Arc(Arc2 {
                         centre: cb,
                         radius: rb,
                         sweep: sb,
-                    },
+                    }),
                 ) => {
                     assert_eq!(bits(&sb), bits(&-s), "segment {k} sweep");
                     assert_eq!(bits(&rb), bits(&r), "segment {k} radius");

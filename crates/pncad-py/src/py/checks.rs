@@ -367,9 +367,9 @@ impl CheckEvidence {
     }
 
     /// The shell door's own refusal, as a branchable word, on
-    /// `escalated` and `unsupported`: `band`, `props`, `escalated` or
-    /// `zero_volume`. `reason` is the same refusal's sentence; this is
-    /// the part a caller matches on.
+    /// `escalated` and `unsupported`: `band`, `props`, `escalated`,
+    /// `zero_volume` or `straddles`. `reason` is the same refusal's
+    /// sentence; this is the part a caller matches on.
     #[getter]
     fn inner_variant(&self) -> Option<&'static str> {
         self.payload().inner_variant
@@ -583,7 +583,7 @@ pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
     // arrives here as a compile error rather than as a silently
     // unprojected payload.
     let node = match err {
-        d::ChecksError::Root { node } => Py::new(py, NodeId(*node))
+        d::ChecksError::Root(standing) => Py::new(py, NodeId(standing.node()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None()),
         // A tolerance that forms no band, a gather that yields no

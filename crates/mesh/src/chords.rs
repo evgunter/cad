@@ -58,6 +58,7 @@ use std::collections::HashMap;
 use geom::Curve3;
 use geom_brep::Pcurve;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::{KnotVector, SplineCoeffs};
 use topo::{Body, EdgeKey};
 
@@ -250,57 +251,35 @@ fn nurbs_chord_count(
     let m_bound = if rational {
         rational_carrier_m_bound(n, ek)?
     } else {
-        let mut sum_sq = Interval::zero();
-        for comp in 0..3 {
-            let coeffs: Vec<Interval> = n
-                .control()
-                .iter()
-                .map(|pt| {
-                    Interval::point(match comp {
-                        0 => pt.x,
-                        1 => pt.y,
-                        _ => pt.z,
-                    })
-                })
-                .collect();
-            let q1 = kv.difference_coeffs(&coeffs);
-            let inner = kv.derivative_knot_slice().to_vec();
-            let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
+        // The non-rational hull is `geom`'s, so the export lane's
+        // node-count schedule and this chord schedule read one
+        // spelling of the iterated difference-coefficient bound — and
+        // the door hands back WHICH structure denied a bound, so this
+        // caller's refusal keeps naming the same three classes it
+        // named when the arithmetic was inline here.
+        match geom::nonrational_second_derivative_sup(kv, n.control()) {
+            Ok(bound) => bound,
+            Err(why) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
-                    note: "B-spline carrier whose derivative knot vector fails to \
-                           materialise — outside the certified chord inventory",
+                    note: match why {
+                        geom::SecondDerivativeUnbounded::DegreeBelowTwo => {
+                            "B-spline carrier of degree below 2 — the hull sagitta bound \
+                             needs a second derivative to hull"
+                        }
+                        geom::SecondDerivativeUnbounded::DerivativeKnotVector => {
+                            "B-spline carrier whose derivative knot vector fails to \
+                             materialise — outside the certified chord inventory"
+                        }
+                        geom::SecondDerivativeUnbounded::PoisonedHull => {
+                            "B-spline carrier second-derivative hull is \
+                             unbounded/refused — outside the certified chord inventory"
+                        }
+                    },
                 });
-            };
-            // The hull of the SECOND-difference net, through the
-            // geom-core door rather than a fold spelled here: the
-            // second difference is the first difference of `q1`
-            // against the derivative vector `kv1`, which is exactly
-            // what `derivative_domain_hull` answers. A length the
-            // mint refuses arrives as poison, as `difference_coeffs`
-            // would have delivered it.
-            let hull = kv1
-                .with_coeffs(&q1)
-                .map_or_else(Interval::poison, SplineCoeffs::derivative_domain_hull);
-            sum_sq = sum_sq + hull.sqr();
-        }
-        // A refused hull has no bound to report: `NaN` is what the
-        // `is_finite` test below reads as "unbounded/poisoned", and
-        // the refusal is asked by name because interval arithmetic carries it in
-        // the decoration rather than in the endpoints.
-        if !sum_sq.is_certified() {
-            f64::NAN
-        } else {
-            sum_sq.hi().sqrt().next_up()
+            }
         }
     };
-    if !m_bound.is_finite() {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "B-spline carrier second-derivative hull is unbounded/poisoned — \
-                   outside the certified chord inventory",
-        });
-    }
     if m_bound == 0.0 {
         return Ok(1);
     }
@@ -327,11 +306,11 @@ fn nurbs_chord_count(
 /// weight range: for a SUP bound with a nonnegative numerator the
 /// conservative division is by `w_min` (the mirror image of the speed
 /// meter's lower-bound `w_max` choice — the interval division by
-/// `[w_lo, w_hi]` computes exactly that, outward-rounded, and poisons
+/// `[w_lo, w_hi]` computes exactly that, outward-rounded, and refuses
 /// if positivity was never proven). Recentring at the span's control
 /// centroid keeps the cross terms span-sized. The domain bound is the
 /// max over spans (hull of the squared enclosures), `next_up` after
-/// the final square root — poison flows to the caller's finite check.
+/// the final square root — a refusal flows to the caller's finite check.
 fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
@@ -399,7 +378,7 @@ fn rational_carrier_m_bound(
         })
         .collect();
     // The signed hull of `net[i] − c·wnet[i]` over `[i0, i1]`
-    // (out-of-range poisons; recentring commutes with differencing).
+    // (out-of-range is refused; recentring commutes with differencing).
     let window = |net: &[Interval],
                   wnet: &[Interval],
                   c: Interval,
@@ -409,14 +388,14 @@ fn rational_carrier_m_bound(
         for i in active {
             let e = match (net.get(i), wnet.get(i)) {
                 (Some(&a), Some(&w)) => a - c * w,
-                _ => Interval::poison(),
+                _ => Interval::refused(),
             };
             acc = Some(match acc {
                 None => e,
                 Some(h) => Interval::hull(h, e),
             });
         }
-        acc.unwrap_or_else(Interval::poison)
+        acc.unwrap_or_else(Interval::refused)
     };
     let mag = |h: Interval| Interval::from_bounds(0.0, h.mag());
     let two = Interval::point(2.0);
@@ -450,21 +429,21 @@ fn rational_carrier_m_bound(
                 Some(h) => Interval::hull(h, *w),
             });
         }
-        let w_span = w_span.unwrap_or_else(Interval::poison);
+        let w_span = w_span.unwrap_or_else(Interval::refused);
         let zero = Interval::zero();
         // Active windows: value [s−p, s]; each differencing drops the
         // top index, which is what `derived_window` names — so `s − 1`
         // and `s − 2` are not subtractions at the use site either. The
         // caller's degree gate makes p ≥ 2, so the order-2 window is
         // always `Some`; if that ever stopped holding the bound
-        // POISONS (and the caller's finite check refuses) rather than
+        // is REFUSED (and the caller's finite check reads it) rather than
         // underflowing.
         // `p ≥ 2` (the caller's degree gate), so the order-2 window is
         // `Some` on every reachable path. It is asserted rather than
         // merely commented: `debug_assert` is the tree's fail-loud form
         // for a state that cannot occur — the panic family is denied in
         // kernel code (workspace lints), so the release build still
-        // takes the total route below and POISONS, which refuses the
+        // takes the total route below and REFUSES the
         // bound instead of quietly under-reporting it.
         let d2 = span.derived_window(2);
         debug_assert!(
@@ -474,7 +453,7 @@ fn rational_carrier_m_bound(
         let w1 = mag(window(&dw, &dw, zero, span.first_derived_window()));
         let w2 = mag(d2
             .clone()
-            .map_or_else(Interval::poison, |a| window(&ddw, &ddw, zero, a)));
+            .map_or_else(Interval::refused, |a| window(&ddw, &ddw, zero, a)));
         let mut sq = Interval::zero();
         for (c, (da, dda)) in a_nets.iter().enumerate() {
             let cc = Interval::point(cen[c]);
@@ -490,11 +469,11 @@ fn rational_carrier_m_bound(
                     Some(h) => Interval::hull(h, e),
                 });
             }
-            let v0 = mag(v0h.unwrap_or_else(Interval::poison));
+            let v0 = mag(v0h.unwrap_or_else(Interval::refused));
             let a1 = mag(window(da, &dw, cc, span.first_derived_window()));
             let a2 = mag(d2
                 .clone()
-                .map_or_else(Interval::poison, |a| window(dda, &ddw, cc, a)));
+                .map_or_else(Interval::refused, |a| window(dda, &ddw, cc, a)));
             let s1 = (a1 + v0 * w1) / w_span;
             let s2 = (a2 + two * s1 * w1 + v0 * w2) / w_span;
             sq = sq + s2.sqr();
@@ -608,6 +587,19 @@ fn nurbs_tighten(
             // the image's own differenced control net
             // ([`general_uv_speeds`]).
             Pcurve::General(image) => general_uv_speeds(image, params, ek)?,
+            // Unreachable by construction, and refused rather than
+            // given a bound: this loop runs only on SPLINE charts, and
+            // a spiric image certifies on a plane or a torus chart and
+            // nowhere else (`geom_brep::SpiricImage`). A cache that
+            // reached here would be a corrupt one, not a frontier.
+            Pcurve::Spiric { .. } => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
+                           chart images live on its own cutting plane and its own \
+                           torus, so no spline chart mints one",
+                });
+            }
         };
         n = n
             .max(ceil_count(su * span, hu)?)
@@ -706,12 +698,12 @@ fn general_uv_speeds(
             .iter()
             .map(|pt| Interval::point(if axis == 0 { pt.x } else { pt.y }))
             .collect();
-        // `mag` is NaN on poison — a coefficient array the mint
-        // refuses arrives as poison and leaves as the refusal below,
+        // `mag` is NaN on a refusal — a coefficient array the mint
+        // refuses arrives refused and leaves as the refusal below,
         // never as a finite bound.
         *s = kv
             .with_coeffs(&coeffs)
-            .map_or_else(Interval::poison, SplineCoeffs::derivative_domain_hull)
+            .map_or_else(Interval::refused, SplineCoeffs::derivative_domain_hull)
             .mag()
             .next_up();
     }
@@ -720,7 +712,7 @@ fn general_uv_speeds(
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "general curve-in-UV pcurve whose derivative control hull is \
-                   unbounded/poisoned — outside the certified chord inventory",
+                   unbounded/refused — outside the certified chord inventory",
         });
     }
     Ok((su, sv))
@@ -1292,7 +1284,7 @@ mod tests {
         }
     }
 
-    /// The POISON row the flip keeps: an ILLEGAL rational carrier
+    /// The refusal row the flip keeps: an ILLEGAL rational carrier
     /// (non-positive weight) cannot even be described —
     /// `NurbsCurve3::new` refuses at the door, so
     /// [`nurbs_chord_count`]'s own licence check is a defensive

@@ -10,13 +10,14 @@
 //! bulging across the axis).
 
 use geom_core::{
-    Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3, is_finite_length,
+    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3, is_finite_length,
     is_underflowed_length,
 };
 use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
-use crate::swept::{SweptKind, arc_apex, arc_span, decide};
+use crate::swept::{arc_apex, arc_span, decide};
+use profile::SegmentKind;
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -176,7 +177,7 @@ impl<T: Real> AxisFrame<T> {
 /// angles 0 and π of the radial direction), and whichever of those
 /// two points lies on the arc is folded in. Membership is the chord
 /// half-plane test the arc classes use (the chord splits the carrier
-/// into exactly two arcs; ours is the one opposite the bulge normal),
+/// into exactly two arcs; ours is on the side the sweep's sign names),
 /// folded **comparison-free** via `copysign`: the candidate enters
 /// the `max` lattice with the membership margin's sign, so an
 /// off-arc candidate is negated and never wins (`r_max ≥ 0`). A zero
@@ -194,20 +195,30 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
     for lp in profile.loops() {
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
-            if let profile::SegmentKind::Arc { center, radius, .. } = s.kind {
-                let apex = arc_apex(s.start, s.end, s.bulge);
+            if let SegmentKind::Arc {
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        sweep,
+                    },
+                turn,
+            } = s.kind
+            {
+                let apex = arc_apex(s.start, s.end, sweep, turn);
                 r_max = r_max.max(frame.r(apex).abs());
                 // Arc-interior radial extrema: the carrier points
-                // c ± R·ê_r, each folded in iff on the arc. The arc is
-                // the chord side of sign −bulge (apex side; see
-                // `arc_apex`), so with the chord normal
-                // n = (−chord.y, chord.x) the membership margin is
-                // −bulge·((p − a)·n) ≥ 0.
+                // c ± R·ê_r, each folded in iff on the arc. A
+                // counterclockwise arc (positive sweep) runs on the
+                // RIGHT of its chord, a clockwise one on the left, so
+                // with the chord's left normal n = (−chord.y, chord.x)
+                // the membership margin is −sweep·((p − a)·n) ≥ 0 —
+                // only its sign is read.
                 let chord = s.end - s.start;
                 let n = Vec2::new(T::zero() - chord.y, chord.x);
                 for dir in [T::one(), T::zero() - T::one()] {
                     let p = center + e_r * (radius * dir);
-                    let margin = T::zero() - s.bulge * (p - s.start).dot(n);
+                    let margin = T::zero() - sweep * (p - s.start).dot(n);
                     r_max = r_max.max(frame.r(p).abs().copysign(margin));
                 }
             }
@@ -255,14 +266,6 @@ impl<T: Real> WallClass<T> {
         match self {
             WallClass::OnAxis => None,
             WallClass::Wall { kind, .. } => Some(kind),
-        }
-    }
-
-    /// The wall face's orientation sense, if the segment sweeps one.
-    pub(super) fn sense(&self) -> Option<bool> {
-        match self {
-            WallClass::OnAxis => None,
-            WallClass::Wall { sense, .. } => Some(*sense),
         }
     }
 }
@@ -414,7 +417,7 @@ fn classify_segment<T: Decide>(
     // chord deltas and flipped turns, so `reverse` undoes it exactly.
     let canonical = |sign: Sign| if reverse { sign.flip() } else { sign };
     match s.kind {
-        SweptKind::Line => {
+        SegmentKind::Line => {
             if va.pinned && vb.pinned {
                 return Ok(WallClass::OnAxis);
             }
@@ -451,9 +454,13 @@ fn classify_segment<T: Decide>(
                 sense: !matches!(canonical(sz), Sign::Negative),
             })
         }
-        SweptKind::Arc {
-            center,
-            radius,
+        SegmentKind::Arc {
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    sweep,
+                },
             turn,
         } => {
             // Arc walls' sense (doc above), through the shared rule —
@@ -467,7 +474,7 @@ fn classify_segment<T: Decide>(
                     // exactly half its period, so a span definitely
                     // beyond π must dip below; the apex pins which
                     // half-circle branch the arc occupies.
-                    let span_margin = Margin::levered(T::pi() - arc_span(s.bulge), radius);
+                    let span_margin = Margin::levered(T::pi() - arc_span(turn, sweep), radius);
                     match decide("axis_arc_span", span_margin, band).map_err(escalated)? {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {
@@ -477,7 +484,7 @@ fn classify_segment<T: Decide>(
                             });
                         }
                     }
-                    let r_apex = frame.r(arc_apex(s.a, s.b, s.bulge));
+                    let r_apex = frame.r(arc_apex(s.a, s.b, sweep, turn));
                     match decide("axis_arc_apex", Margin::of(r_apex), band).map_err(escalated)? {
                         Sign::Positive => {}
                         // On or below the axis: tangential/crossing

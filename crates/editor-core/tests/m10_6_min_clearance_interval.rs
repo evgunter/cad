@@ -52,7 +52,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -75,8 +75,8 @@ const NECK_GAP: f64 = 0.4;
 /// answer a correct engine gives.
 const BOUND: f64 = 0.3;
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 /// The analysis half-width, in metres — M10-5's, for M10-5's reason.
@@ -104,7 +104,7 @@ fn dumbbell() -> Dumbbell {
             }),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -137,20 +137,18 @@ fn dumbbell() -> Dumbbell {
     // so every stored direction passes through the interval lane
     // exactly (M10-5's finding, and the reason its fixtures are placed
     // rather than sized).
-    let placed = r.insert(Node::Transform {
-        input: solid,
-        translation: [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    });
+    let placed = r.insert(Node::transform(
+        solid,
+        editor_core::Step::Rigid {
+            translation: [
+                Expr::param(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let measure = r.insert(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
@@ -169,7 +167,7 @@ fn dumbbell() -> Dumbbell {
     );
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(BOUND, Dimension::Length).expect("finite"),
+        bound: len(BOUND),
         dir: AssertionDir::AtLeast,
     });
     Dumbbell {
@@ -475,7 +473,7 @@ fn a_pairing_the_wedge_rule_empties_refuses_typed() {
 #[test]
 fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![

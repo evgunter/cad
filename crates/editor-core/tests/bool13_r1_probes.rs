@@ -190,15 +190,22 @@ fn trailing_garbage_after_a_valid_body_is_parse() {
     expect_parse("trailing", &trailing);
 }
 
-/// Deep nesting never reaches serde_json's recursion limit (a `Syntax`
-/// class): the typed visitor meets the first wrong-typed token and
-/// refuses `Data` at depth three. So a nesting bomb is Unreadable, with
-/// the recourse, not Parse.
+/// A nesting bomb within the load door's nesting limit meets a typed
+/// visitor that refuses the first wrong-typed token, `Data` at depth
+/// three, so it is Unreadable with the recourse. One past the limit
+/// never reaches a type: the door's scan refuses it as the reader's
+/// class, Parse, before anything descends into it.
 #[test]
-fn deep_nesting_is_unreadable_because_the_type_fails_first() {
+fn deep_nesting_is_unreadable_within_the_limit_and_unparsable_past_it() {
     let (header, _) = split(&small());
-    let deep = format!("{header}{{\"snapshot\": {}}}\n", "[".repeat(300));
-    expect_unreadable_naming("deep nesting", &deep, "invalid type: sequence");
+    let within = format!("{header}{{\"snapshot\": {}}}\n", "[".repeat(200));
+    expect_unreadable_naming("deep nesting", &within, "invalid type: sequence");
+    let past = format!("{header}{{\"snapshot\": {}}}\n", "[".repeat(100_000));
+    let msg = expect_parse("a nesting bomb", &past);
+    assert!(
+        msg.contains("the body nests deeper than"),
+        "the refusal names the nesting limit: {msg}"
+    );
 }
 
 /// serde's derived struct visitor accepts a SEQUENCE as a struct (fields
@@ -230,14 +237,18 @@ fn a_wrong_type_at_the_top_is_unreadable() {
 fn a_duplicate_node_key_names_the_section_and_carries_the_recourse() {
     let text = small();
     let (header, body) = text.split_once('\n').unwrap();
-    // Duplicate the whole `"1": {...}` node entry by re-parsing and
+    // Duplicate the first node entry by re-parsing and
     // re-emitting the nodes object with the key twice (serde_json's
     // Value cannot hold duplicates, so splice text).
     let needle = "\"nodes\": {";
     let at = body.find(needle).expect("a nodes section") + needle.len();
     let v: serde_json::Value = serde_json::from_str(body).unwrap();
-    let node0 = serde_json::to_string(&v["snapshot"]["nodes"]["0"]).unwrap();
-    let spliced = format!("{header}\n{}\"0\": {node0},{}", &body[..at], &body[at..]);
+    let (key, node) = v["snapshot"]["nodes"]
+        .as_object()
+        .and_then(|nodes| nodes.iter().next())
+        .expect("a node");
+    let node = serde_json::to_string(node).unwrap();
+    let spliced = format!("{header}\n{}\"{key}\": {node},{}", &body[..at], &body[at..]);
     expect_unreadable_naming(
         "duplicate node key",
         &spliced,
@@ -339,7 +350,11 @@ fn display_carries_a_long_detail_untruncated() {
 #[test]
 fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
     let (header, mut v) = split(&small());
-    let node = v["snapshot"]["nodes"]["2"].as_object_mut().unwrap();
+    let node = v["snapshot"]["nodes"]
+        .as_object_mut()
+        .and_then(|nodes| nodes.values_mut().find(|n| n.get("Extrude").is_some()))
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("the extrude");
     let payload = node.remove("Extrude").unwrap();
     node.insert("Extrudez".to_string(), payload);
     let detail = expect_unreadable_naming("Extrudez", &join(&header, &v), "Extrudez");
@@ -375,10 +390,13 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
 /// {Datum, Profile, Extrude} and nothing newer, so the row still says
 /// that a document lacking every later arm loads. Re-frozen again when
 /// a profile's steps gained minted ids (the program's `ids` and the
-/// document's `next_step`), the same kind of break.
+/// document's step counter), the same kind of break, and again when the
+/// counter became the step mint's chain and log.
 const OLDER_SHAPED: &str = concat!(
     "id: 12c74470374c7c76269f22a931efab85\n",
-    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"next_id\":3,\"next_step\":5,\"nodes\":{\"0",
+    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"next_id\":3,",
+    "\"step_mint\":{\"chain\":\"98758e3e7b3f173efd085e7b81a83f61319b60646c238a909cac90c0c3dd4bfd\",\"log\":[4546703346243476841,4990306042536128628,6747313831402317760,10985843265047041854,16639099113663446862]},",
+    "\"nodes\":{\"0",
     "\":{\"Datum\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"un",
     "it\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal",
     "\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0",
@@ -393,7 +411,7 @@ const OLDER_SHAPED: &str = concat!(
     "\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
     "\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{",
     "\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":",
-    "{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[0,1,2,3,4]]}},\"2\":",
+    "{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[6747313831402317760,4546703346243476841,4990306042536128628,16639099113663446862,10985843265047041854]]}},\"2\":",
     "{\"Extrude\":{\"profile\":1,\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",",
     "\"unit\":\"m\"}}}}},\"order\":[0,1,2],\"roots\":[2],\"placements\":{},\"params\":{},\"ep",
     "silon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",

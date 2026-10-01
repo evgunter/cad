@@ -115,8 +115,15 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             .faces()
             .find(|(_, f)| f.surface == bowed)
             .expect("the bowed wall has a face");
-        body.set_face_surface(fk, FaceSurface::New(flipped))
-            .expect("the bowed wall's face key resolves")
+        // Lifts both refusals: the bowed wall's replaced chart is the row's subject.
+        body.set_face_surface_stranding_for_tests(
+            fk,
+            FaceSurface::New {
+                surface: flipped,
+                sense: true,
+            },
+        )
+        .expect("the bowed wall's face key resolves")
     } else {
         bowed
     };
@@ -136,14 +143,18 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         let (a, b) = c.params();
         (c.carrier().clone(), a, b)
     };
+    // Lifts both refusals: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
     let plane = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -1.0, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, -1.0, 0.0),
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("the exactly-planar wall restates as a plane");
     let eps = Tol::witness().get().eps;
@@ -176,7 +187,9 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
                 },
         }) => {
             assert!(eps < 1e-9, "only the ε-fine cell refuses: {cause:?}");
-            let geom_core::MarginDiag::Value(sup) = cause.margin else {
+            let geom_core::ErrorTextReading::Value(sup) =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("the refusal carries the lane's measured bound: {cause:?}");
             };
             assert!(

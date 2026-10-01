@@ -278,7 +278,7 @@ fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
         source.predicate
     );
     assert!(
-        msg.starts_with("the hollow tube escalated:"),
+        msg.starts_with("whether the hollow tube's "),
         "a hollow-only predicate must name the hollow door: {msg}"
     );
     // And a SHARED arm does not claim either door: a reversed window
@@ -713,14 +713,11 @@ fn r2_wall_verdicts_preempt_the_window_verdicts() {
 // ---------------------------------------------------------------
 
 mod certified {
-    use geom_core::Real;
     use geom_core::interval::Interval;
 
     use super::*;
 
-    fn iv(x: f64) -> Interval {
-        <Interval as Real>::from_f64(x)
-    }
+    use crate::common::interval::{iv, p3, v3};
 
     fn hollow_iv(
         major: f64,
@@ -730,9 +727,9 @@ mod certified {
     ) -> Result<Revolved<Interval>, TubeError> {
         tube_along_arc_hollow::<Interval>(
             tube_frame(
-                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                p3(0.0, 0.0, 0.0),
+                v3(0.0, 1.0, 0.0),
+                v3(1.0, 0.0, 0.0),
                 Tol::witness(),
             ),
             iv(major),

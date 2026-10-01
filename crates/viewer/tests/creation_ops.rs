@@ -206,23 +206,7 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     );
     // Rectangle profile → extrude: a 40 × 20 × 10 mm block.
     let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.04,
-                height: 0.02,
-            })],
-        },
-    );
-    let extrude = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(0.01),
-        },
-    );
+    let (profile, extrude) = common::box_in(&mut session, plane, [0.04, 0.02, 0.01]);
     let v = body_volume(&mut session, extrude, tol);
     let want = 0.04 * 0.02 * 0.01;
     assert!(
@@ -316,16 +300,7 @@ fn new_document_derives_its_id_and_clears_the_session() {
     // Give the session things to clear: a selection, a hover, and —
     // via Save — a backing path and its directory resolver.
     let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.02,
-                height: 0.01,
-            })],
-        },
-    );
+    let profile = common::rectangle_in(&mut session, plane, 0.02, 0.01);
     session.perform(SessionOp::Select(Selection::Node(profile)));
     session.perform(SessionOp::Hover(Some(Hovered::Face(synthetic_face(
         profile,
@@ -544,15 +519,30 @@ fn the_rectangle_template_is_the_centred_polygon() {
             })],
         },
     );
+    // The session's only profile: its five steps (the start and four
+    // legs) are every id the document has minted.
+    let doc = session.committed_doc();
+    let Some(Node::Profile(minted)) = doc.node(profile) else {
+        panic!("the profile is live");
+    };
+    assert_eq!(
+        minted
+            .ids
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>(),
+        doc.step_mint().log().iter().copied().collect(),
+        "the profile's steps are the document's only mints"
+    );
+    assert_eq!(minted.ids.iter().flatten().count(), 5, "five steps");
     let want = Node::Profile(ProfileProgram {
         plane,
         loops: vec![
             LoopProgram::polygon([(-0.02, -0.01), (0.02, -0.01), (0.02, 0.01), (-0.02, 0.01)])
                 .expect("finite corners"),
         ],
-        // The session's only profile: its five steps (the start and
-        // four legs) are the document's first minted.
-        ids: vec![(0..5).map(pncad::document::StepId).collect()],
+        ids: minted.ids.clone(),
     });
     assert!(
         session
@@ -1210,12 +1200,10 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 /// evidence that a profile drew and extruded on it.
 ///
 /// **Not the union of block and boss.** A boss drawn on the face
-/// frame is FLUSH with the block at that face by construction, and
-/// this kernel refuses an undeclared coincident contact
-/// (`ValidationError::UndeclaredContact`); the declaration is a
-/// `Declare` node, which `SessionOp::AddBoolean` has no seat for. The
-/// sum-of-volumes assertion is therefore not authorable through the
-/// op vocabulary this row drives.
+/// frame is FLUSH with the block at that face by construction, so its
+/// union refuses until the contact is declared; that path, with its
+/// sum-of-volumes assertion, is `viewer::pane::create`'s
+/// `declared_union` rows.
 ///
 /// It is still a TWO-FORM trip for a person — add the datum, then draw
 /// on it — which is the residue
@@ -1224,24 +1212,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 fn a_boss_is_authored_on_a_picked_face() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.04,
-                height: 0.02,
-            })],
-        },
-    );
-    let block = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(0.01),
-        },
-    );
+    let block = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
     session.pump();
 
     // The pick, as the viewport makes it: the name, and the node whose

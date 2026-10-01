@@ -50,7 +50,7 @@ use geom_core::{BandError, CertifiedBounds, Decide, Tol};
 use topo::{AtRestPolicy, Body, ContactRecords, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
-use crate::eval::Evaluation;
+use crate::eval::{Evaluation, NodeStanding};
 use crate::node::RecipeNodeId;
 use crate::product;
 
@@ -385,9 +385,10 @@ pub enum CheckEvidence {
         /// default 1).
         expected: u32,
     },
-    /// A shell's orientation read escalated (in-band or zero signed
-    /// volume): the component count for this subject is UNKNOWABLE at
-    /// this tolerance, which is a finding, never a silent skip (F6).
+    /// A shell's orientation could not be read (an in-band or zero
+    /// signed volume, or a volume bracket straddling zero): the component
+    /// count for this subject is UNKNOWABLE, which is a finding, never a
+    /// silent skip (F6).
     Escalated {
         /// The typed refusal from the shell door.
         source: ShellClassifyError,
@@ -521,21 +522,16 @@ pub struct CheckFinding {
     pub evidence: CheckEvidence,
 }
 
-// One story, one recourse, in one place, through the document
-// layer's one sink ([`crate::finding`]; the eval/mod.rs one-vocabulary
-// lesson: a payload with no Display forces every consumer to invent
-// its own second vocabulary). The Unsupported arm FORWARDS its
-// payload's Display — the payload's own recourse rides the story, so
-// `recourse` answers "" there ("already told"). The Escalated arm
-// deliberately does NOT forward the funnel's generic coincidence
-// recourse ("declare the coincidence / move the geometry") — it is
-// meaningless for a shell-volume sign, and a kernel arena key names
-// nothing a document user can act on — so that arm renders the
-// margin-payload view (name + numbers, no recourse tail, no key) and
-// states the check's own recourse. StaleExpectation's recourse is
-// pinned prose riding the story's own "; " joint, so it too answers
-// "" rather than growing a second tail. The subject is the finding's
-// (root, output) attribution.
+// One story, one recourse, in one place, through the document layer's
+// one sink ([`crate::finding`]). The subject is the finding's (root,
+// output) attribution. Three arms end in a recourse the story already
+// carries, so `recourse` answers "" ("already told") there:
+// - Unsupported forwards its payload's `Display`, recourse included.
+// - Escalated renders the refusal's data view,
+//   [`ShellClassifyError::payload`] (no stage prefix and no arena key,
+//   neither of which a document user can act on), then the same ending
+//   the refusal's own `Display` ends in, [`ShellClassifyError::ending`].
+// - StaleExpectation's pinned prose ends in its own ". Recourse:".
 impl crate::finding::Finding for CheckFinding {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -552,18 +548,10 @@ impl crate::finding::Finding for CheckFinding {
                 "{actual} disconnected component(s) where {expected} was expected"
             ),
             CheckEvidence::Escalated { source } => {
-                f.write_str("the component count is unknowable at this tolerance: ")?;
-                match source {
-                    ShellClassifyError::Escalated { source, .. } => {
-                        write!(f, "{}", source.payload())
-                    }
-                    ShellClassifyError::ZeroVolume { .. } => f.write_str(
-                        "a shell's signed volume is definitely zero (or its certified \
-                         bracket straddles zero)",
-                    ),
-                    // run_checks routes only the two sign-read arms
-                    // here; any other source forwards its own story.
-                    other => write!(f, "{other}"),
+                write!(f, "the component count is unknowable: {}", source.payload())?;
+                match source.ending() {
+                    Some(ending) => write!(f, ". {ending}"),
+                    None => Ok(()),
                 }
             }
             CheckEvidence::Unsupported { source } => write!(
@@ -643,9 +631,6 @@ impl crate::finding::Finding for CheckFinding {
                  or an instance placed nowhere; if it is deliberate, state the expected count \
                  in ChecksConfig::expected_components"
             }
-            CheckEvidence::Escalated { .. } => {
-                "Recourse: thicken or remove the degenerate geometry, or lower the tolerance"
-            }
             CheckEvidence::NotSeparated { .. } => {
                 "Recourse: usually a feature left dangling as a second product root, so \
                  delete it or feed it downstream; roots meant to TOUCH want a mate, and \
@@ -672,7 +657,8 @@ impl crate::finding::Finding for CheckFinding {
                 "Recourse: evaluate the document at f64 to measure it, or turn this check \
                  off rather than reading its silence as a clean body"
             }
-            CheckEvidence::Unsupported { .. }
+            CheckEvidence::Escalated { .. }
+            | CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
             | CheckEvidence::SeparationUnavailable { .. } => "",
         }
@@ -723,15 +709,11 @@ impl fmt::Display for ChecksReport {
 /// not that a check fired.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChecksError {
-    /// A root produced no value in this evaluation (failed, poisoned,
-    /// or past a cancelation's prefix) — the [`crate::product()`]
-    /// posture: checks are defined over roots that evaluated, and a
-    /// report over a partial evaluation would claim more than was
-    /// checked.
-    Root {
-        /// The root without a value.
-        node: RecipeNodeId,
-    },
+    /// A root has no value in this evaluation, and its standing says
+    /// why and where the repair is — the [`crate::product()`] posture:
+    /// checks are defined over roots that evaluated, and a report over
+    /// a partial evaluation would claim more than was checked.
+    Root(NodeStanding),
     /// The run's tolerance cannot form a band.
     Band {
         /// The band construction failure.
@@ -813,12 +795,7 @@ impl ChecksError {
 impl fmt::Display for ChecksError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Root { node } => write!(
-                f,
-                "checks: root {} produced no value in this evaluation — evaluate to \
-                 completion (and fix or remove the failing root) before running checks",
-                node.0
-            ),
+            Self::Root(standing) => write!(f, "checks: {}", standing.of_root()),
             Self::Band { error } => write!(f, "checks: {error}"),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
@@ -1078,9 +1055,7 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
     // the walk is stale (an expectation with no subject).
     let mut unconsumed = cfg.expected_components.clone();
     for &root in doc.roots() {
-        let Some(value) = ev.value(root) else {
-            return Err(ChecksError::Root { node: root });
-        };
+        let value = ev.usable(root).map_err(ChecksError::Root)?;
         // Non-body roots (datums, mates, profiles, declarations)
         // denote no subject; an empty boolean denotes zero subjects.
         let Some(sources) = product::sources_of(value) else {
@@ -1117,7 +1092,8 @@ fn connectedness<P, T: Decide + CertifiedBounds>(
                 }
                 Err(
                     source @ (ShellClassifyError::Escalated { .. }
-                    | ShellClassifyError::ZeroVolume { .. }),
+                    | ShellClassifyError::ZeroVolume { .. }
+                    | ShellClassifyError::Straddles { .. }),
                 ) => {
                     report.findings.push(CheckFinding {
                         check: CheckId::Connectedness,
@@ -1180,9 +1156,7 @@ fn chart_coherence<P, T: Decide + ChartCoherenceLane>(
     report: &mut ChecksReport,
 ) -> Result<(), ChecksError> {
     for &root in doc.roots() {
-        let Some(value) = ev.value(root) else {
-            return Err(ChecksError::Root { node: root });
-        };
+        let value = ev.usable(root).map_err(ChecksError::Root)?;
         let Some(sources) = product::sources_of(value) else {
             continue;
         };
@@ -1241,32 +1215,18 @@ fn chart_coherence<P, T: Decide + ChartCoherenceLane>(
 /// # Cost, and the shape it would grow if it mattered
 ///
 /// One box per face, one small tree per solid, then a hull test per
-/// cross-subject pair — quadratic in the SOLID count, not in the
-/// entity count, which is the whole reason this resident exists
-/// instead of running the tier-3′ census over the aggregate.
+/// cross-subject pair — quadratic in the SOLID count.
 ///
-/// **The three terms are separable and separately measured**, because
-/// the registry no longer gathers its own subject. Over the corpus
-/// heat sink at 160 fins (161 solids / 991 faces): the gather ~250 ms,
-/// this registry over a subject already in hand ~8 ms, and the
-/// tier-3′ census over the same aggregate ~11.4 s — the term this
-/// resident exists INSTEAD OF, measured at this size rather than
-/// quoted from another one, and refusing here with 125 findings. So
-/// the gather dominates the registry by more than an order of
-/// magnitude, and a caller that already holds the product pays only
-/// the ~8 ms.
-///
-/// (The withdrawn claim's "~1.1 s" for the census is not restated: it
-/// was taken at a size nobody recorded, and it is not this one.)
-///
-/// Those numbers are a dev-profile wall clock and are machine-
-/// dependent; the figures OF RECORD are the hosted ones, re-taken by
-/// the `registry split` row of
-/// `crates/editor-core/tests/m4_pr8_latency.rs` and appended to
-/// `docs/perf-data/rebuild-latency/` — on a NIGHTLY cron, gated on
-/// `main` having moved, so at most one re-take a night and none on a
-/// quiet day. The SIZE they are taken at is exact rather than measured
-/// and gates on every PR
+/// The gather, this registry over a subject already in hand, and the
+/// tier-3′ census over the same aggregate are measured separately over
+/// the corpus heat sink at 160 fins (161 solids / 991 faces): the
+/// `registry split` row of `crates/editor-core/tests/m4_pr8_latency.rs`
+/// appends them to `docs/perf-data/rebuild-latency/` as
+/// `registry_split.gather_ms`, `checks_ms` and `census_ms`, on a
+/// nightly cron gated on `main` having moved. The registry is the
+/// smallest of the three by an order of magnitude, so a caller that
+/// already holds the product pays little for it. The SIZE is exact and
+/// gates on every PR
 /// (`docm5_subject::the_registry_split_is_measured_at_a_pinned_point`).
 ///
 /// A document with solids in the thousands would make the pair walk
@@ -1482,9 +1442,11 @@ mod tests {
     /// caller deriving its own subject can get wrong.
     #[test]
     fn the_subject_door_carries_the_class_of_the_gather_refusal_it_saw() {
-        let refusal = crate::ProductError::RootPoisoned {
-            node: RecipeNodeId(7),
-            through: RecipeNodeId(2),
+        let refusal = crate::ProductError::PlacedUnderTwoRoots {
+            placed: RecipeNodeId(2),
+            select: None,
+            first: RecipeNodeId(7),
+            second: RecipeNodeId(8),
         };
         let subject: Subject<'_, f64> = Subject::refused(&refusal);
         let Subject::Unavailable { kind, reason } = &subject else {
@@ -1535,10 +1497,10 @@ mod tests {
     fn the_subject_door_routes_an_absence_away_from_the_unavailable_arm() {
         for refusal in [
             crate::ProductError::NoBodyRoots,
-            crate::ProductError::RootPoisoned {
+            crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId(7),
                 through: RecipeNodeId(2),
-            },
+            }),
         ] {
             let absence = refusal.kind().means_no_body();
             let subject: Subject<'_, f64> = Subject::refused(&refusal);

@@ -116,10 +116,13 @@
 //! `SessionOp::SetParamText`, which takes a number and its notation
 //! (`50 mm`) and refuses every other expression by name.
 //!
-//! What a slot field SHOWS is [`field_text`]: a bare literal shows its
-//! number alone (the unit is the picker's to say, not the field's),
-//! and everything else shows its source. A parameter's always shows
-//! its number, because a parameter is never driven by anything.
+//! A slot field that evaluated to a literal shows its number, which
+//! the widget formats (`crate::widgets::number_text`); the unit is the
+//! picker's to say, not the field's. Every other slot field shows
+//! [`field_text`] in its number's place: a driven slot the value its
+//! expression equals, with its keyboard edit opening on the source
+//! ([`field_source`]). A parameter's always shows its number, because
+//! a parameter is never driven by anything.
 //!
 //! **Text the field itself produced is not an edit**, at either field
 //! — [`echoed`], one function because it is one rule, asked of the
@@ -555,21 +558,18 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
     }
 }
 
-/// What the value field SHOWS for one row.
+/// What a slot's value field shows in its number's place.
 ///
-/// **The unit is the picker's to say, not the field's.** A bare
-/// literal therefore shows its number ALONE, in the unit the row is
-/// written in — the same number [`in_written`] gives and the combo box
-/// beside it names, said once instead of twice.
+/// **A driven slot shows [`DRIVEN`] and the value its expression
+/// equals** ([`computed_text`]), not its source: the value is bounded
+/// and carries its unit, and the source is said under the row and
+/// opens the field's keyboard edit ([`field_source`]). A driven slot
+/// that did not evaluate shows [`NO_VALUE`] after the mark.
 ///
-/// Everything else shows its SOURCE: a driven slot says what drives
-/// it, which is both the honest reading of a computed value and the
-/// text an edit to it revises. A slot whose value did not evaluate is
-/// the same case — the source is what there is to fix.
-///
-/// **A literal whose value the notation cannot name shows
-/// [`no_reading`]** rather than a number, because there is no number
-/// to show ([`written`]).
+/// A literal whose value did not evaluate shows its source, which is
+/// a literal's and so a number and its unit. A literal that evaluated
+/// shows its number ALONE, in the unit the row is written in, or
+/// [`no_reading`] where that notation cannot name it ([`written`]).
 pub fn field_text(row: &SlotRow) -> String {
     match (&row.driver, &row.value) {
         (SlotDriver::Literal, Ok(value)) => match row.unit {
@@ -597,8 +597,51 @@ pub fn field_text(row: &SlotRow) -> String {
                 row.slot
             ),
         },
-        _ => row.source.clone().unwrap_or_default(),
+        (SlotDriver::Expression { .. }, Ok(value)) => {
+            format!("{DRIVEN} {}", computed_text(row.dimension, value.as_f64()))
+        }
+        (SlotDriver::Expression { .. }, Err(_)) => format!("{DRIVEN} {NO_VALUE}"),
+        (SlotDriver::Literal, Err(_)) => row.source.clone().unwrap_or_default(),
     }
+}
+
+/// **A COMPUTED value as the chrome says it**: in the notation a
+/// computed value is rendered in ([`rendering_unit`]'s canonical one,
+/// which remembers no unit of its own) and carrying that unit's
+/// symbol, through [`shown_text`] — so bounded by
+/// [`crate::readout::MAX_CHARS`] and a symbol.
+///
+/// One spelling for every computed value the chrome says: a driven
+/// slot's field ([`field_text`]), the refusal's affordance
+/// (`crate::session::Refusal::affordance`), a measure's tree row
+/// ([`crate::tree::Readout::Value`]) and an assertion's numbers
+/// ([`crate::tree::Asserted`]) — so one quantity never reads two ways.
+/// The symbol is carried because nothing else says the unit: a
+/// computed slot's picker says `computed`, and a measure has no picker
+/// at all.
+pub fn computed_text(dimension: Dimension, canonical: f64) -> String {
+    shown_text(rendering_unit(dimension, None), canonical)
+}
+
+/// The mark a driven slot's field wears in front of its value: the
+/// value is what an expression EQUALS, and the expression is said
+/// under the row as `label = source`.
+pub const DRIVEN: &str = "=";
+
+/// What a driven slot's field shows after [`DRIVEN`] when its
+/// expression did not evaluate.
+pub const NO_VALUE: &str = "?";
+
+/// **The text a keyboard edit to a slot's field starts from, where
+/// that is not the text the field shows**: a driven slot's source.
+///
+/// [`field_text`] shows a driven slot's value, bounded, and an edit to
+/// it revises the expression — so the edit is seeded with the source
+/// (`crate::widgets::value_field_ops`), and handing that source back
+/// unchanged is an echo like handing back the render. `None` for a
+/// literal, whose field's edit starts from what it shows.
+pub fn field_source(row: &SlotRow) -> Option<String> {
+    row.driver.is_driven().then(|| row.source.clone()).flatten()
 }
 
 /// A number as the chrome writes it: [`pncad::geom_core::Readable`]'s
@@ -1079,6 +1122,28 @@ pub fn slot_unit_edit(
     slot: SlotId,
     unit: UnitDef,
 ) -> Result<DocEdit<ProfileProgram>, SlotUnitFault> {
+    let value = slot_literal(doc, node, slot)?;
+    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
+        .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
+    Ok(DocEdit::SetParam { node, slot, expr })
+}
+
+/// **The half of [`slot_unit_edit`] that does not read the unit**: the
+/// slot's bare literal value, or the refusal for a slot that has no
+/// written notation to change at all.
+///
+/// A control asks this ahead of the pick. The other half, whether the
+/// picked unit measures the slot, is answered at the pick by
+/// `slot_unit_edit` itself.
+///
+/// # Errors
+///
+/// [`SlotUnitFault::NoExpression`] or [`SlotUnitFault::NotALiteral`].
+pub fn slot_literal(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    slot: SlotId,
+) -> Result<f64, SlotUnitFault> {
     let expr = doc
         .node(node)
         .and_then(|n| n.expr(slot))
@@ -1087,12 +1152,8 @@ pub fn slot_unit_edit(
     // computed, so there is no authored notation to change — refused
     // rather than silently flattened to the computed number, which is
     // the same direction `SlotDriver` refuses a numeric edit in.
-    let value = expr
-        .literal_value()
-        .ok_or(SlotUnitFault::NotALiteral { node, slot })?;
-    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
-        .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
-    Ok(DocEdit::SetParam { node, slot, expr })
+    expr.literal_value()
+        .ok_or(SlotUnitFault::NotALiteral { node, slot })
 }
 
 /// Why a display-unit change was refused.

@@ -55,8 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
-#[path = "band_declared_cusp_contacts.rs"]
-mod band_declared_cusp_contacts;
+#[path = "a_swept_cusp_is_legal_at_rest.rs"]
+mod a_swept_cusp_is_legal_at_rest;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -101,6 +101,12 @@ mod offd_r1_probes;
 mod p1b_r1_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "pipeline_null_edge_rows.rs"]
+mod pipeline_null_edge_rows;
+#[path = "pis_arc_capped_poses.rs"]
+mod pis_arc_capped_poses;
+#[path = "pis_cut_cavity.rs"]
+mod pis_cut_cavity;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -127,6 +133,8 @@ mod sf2b_interval_probe;
 mod sf2b_r1_probes;
 #[path = "sf2b_r2_probes.rs"]
 mod sf2b_r2_probes;
+#[path = "shallow_arc_extrude_grid_interval.rs"]
+mod shallow_arc_extrude_grid_interval;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
@@ -150,6 +158,8 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "axis_lap.rs"]
+mod axis_lap;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
 #[path = "bitdump.rs"]
@@ -186,6 +196,14 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "contfp_reads_arcs_on_their_carriers.rs"]
+mod contfp_reads_arcs_on_their_carriers;
+#[path = "encl_curved_loft_shell.rs"]
+mod encl_curved_loft_shell;
+#[path = "euler_site_row_frontiers.rs"]
+mod euler_site_row_frontiers;
+#[path = "euler_site_rows_equal_the_pass.rs"]
+mod euler_site_rows_equal_the_pass;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -286,6 +304,8 @@ mod must_carry_rule;
 mod r1_probes_issue1362_donut;
 #[path = "r2_sense_fold_probes.rs"]
 mod r2_sense_fold_probes;
+#[path = "reach_volume_backstop.rs"]
+mod reach_volume_backstop;
 #[path = "readback_doors.rs"]
 mod readback_doors;
 #[path = "recourse_roster.rs"]
@@ -468,17 +488,19 @@ test_utils::every_suite_file_is_aggregated!();
 #[path = "m8_3_rational_volume.rs"]
 mod m8_3_rational_volume;
 
-#[path = "reporting_door_bit_digest.rs"]
-mod reporting_door_bit_digest;
-
 #[path = "mass_props_are_thread_count_invariant.rs"]
 mod mass_props_are_thread_count_invariant;
+
+#[path = "thread_count_probe_populations.rs"]
+mod thread_count_probe_populations;
 
 #[path = "sign_walk_plus_v.rs"]
 mod sign_walk_plus_v;
 
 #[path = "shell_census_is_thread_count_invariant.rs"]
 mod shell_census_is_thread_count_invariant;
+#[path = "shell_winding_curved.rs"]
+mod shell_winding_curved;
 
 #[path = "continuation_is_thread_count_invariant.rs"]
 mod continuation_is_thread_count_invariant;
@@ -495,6 +517,28 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "full_turn_wall.rs"]
+mod full_turn_wall;
+#[path = "germ_circle_torus.rs"]
+mod germ_circle_torus;
+#[path = "germ_cone_apex_closure.rs"]
+mod germ_cone_apex_closure;
+#[path = "germ_cone_doors.rs"]
+mod germ_cone_doors;
+#[path = "germ_conic_plane_roots.rs"]
+mod germ_conic_plane_roots;
+#[path = "germ_coplanar_conic.rs"]
+mod germ_coplanar_conic;
+#[path = "germ_interior_oval.rs"]
+mod germ_interior_oval;
+#[path = "germ_interior_saddle.rs"]
+mod germ_interior_saddle;
+#[path = "germ_sphere_no_crossings.rs"]
+mod germ_sphere_no_crossings;
+#[path = "germ_torus_doors.rs"]
+mod germ_torus_doors;
+#[path = "germ_torus_rods.rs"]
+mod germ_torus_rods;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]
@@ -730,6 +774,9 @@ mod census_containment_cause;
 
 #[path = "wire_loft_end_profile_lift.rs"]
 mod wire_loft_end_profile_lift;
+
+#[path = "wedge_end_doors.rs"]
+mod wedge_end_doors;
 
 #[path = "review_recourse_roster_r1_probes.rs"]
 mod review_recourse_roster_r1_probes;

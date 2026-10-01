@@ -28,6 +28,7 @@ use crate::node::{
     AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
     StableName, StepId,
 };
+use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
@@ -124,7 +125,7 @@ pub enum DocEdit<P> {
     /// shape, and so is which of its steps are the old ones: `ids`
     /// gives each new step the [`StepId`] of the old step it KEEPS, or
     /// `None` for a step it adds, which the door mints from the
-    /// document's step counter (`names/README.md`, "N1, the profile
+    /// document's mint chain (`names/README.md`, "N1, the profile
     /// pieces"). The door is told, never guesses. A kept id must be a
     /// step of the program the node holds and stand for one step
     /// ([`EditError::StepIdsRefused`]).
@@ -1070,19 +1071,16 @@ pub enum EditError {
         name: StableName,
     },
     /// A name written into the document spells a profile step the
-    /// document never minted — one at or beyond its step counter. The
+    /// document never minted — one its mint log does not hold. The
     /// node half's rule ([`EditError::DeclareNamesMissingNode`]) for
     /// the half of a name that is a step id: a never-minted id is a
-    /// typo, and one written anyway would be minted for another step
-    /// later. (A step a `SetProgram` dropped was minted, so a name on
+    /// typo, or a name carried from another branch of the document. (A step a `SetProgram` dropped was minted, so a name on
     /// it is ALLOWED — it strands, DM7.)
     NameStepNeverMinted {
         /// The name.
         name: StableName,
         /// The step it spells.
         step: StepId,
-        /// The document's step counter.
-        next_step: u64,
     },
     /// A reference's READ SITE — the operand a mate is authored
     /// against ([`Node::payload_read_sites`]) — names a node that does
@@ -1310,15 +1308,32 @@ pub enum EditError {
     /// silently trusted to leave every orientation-sensitive predicate
     /// and every outward normal intact.
     ImproperPlacement {
-        /// The offending target.
+        /// The node holding the frame.
         node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
         /// The linear part's determinant.
         determinant: f64,
     },
     /// A placement frame carrying a non-finite coordinate.
     NonFinitePlacement {
-        /// The offending target.
+        /// The node holding the frame.
         node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
+    },
+    /// A proper placement frame that is not definitely a rigid motion
+    /// at tolerance — it may scale or shear an axis. The evaluation
+    /// refuses to move a body by one ([`topo::TransformError::NotRigid`],
+    /// the same predicate), so the document never admits one.
+    NonRigidPlacement {
+        /// The node holding the frame.
+        node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
+        /// The rigidity check that refused; routing, never rendered by
+        /// name.
+        check: &'static str,
     },
     /// **A placement frame's ROTATION AXIS has no definite
     /// direction** — the [`crate::AxisRefusal`]
@@ -1406,8 +1421,8 @@ impl From<crate::ident::Mispaired> for EditError {
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. The comment-style rule
-// applies — each arm states the PROBLEM (and where it is), not the
-// enum's guts; stable names, kinds and dimensions render through their
+// applies — each arm states the PROBLEM (and where it is) and then the
+// RECOURSE, not the enum's guts; stable names, kinds and dimensions render through their
 // own prose spellings (`StableName`'s `Display`, the `noun`
 // renderings, `Dimension`'s `Display`), never `Debug`. A name is
 // parenthesized apposition when the sentence's subject is a role word
@@ -1459,18 +1474,175 @@ impl From<crate::AxisRefusal> for EditError {
     }
 }
 
+// The recourse phrases more than one arm states, each written once.
+// `HELD_NODE`'s literal, for the `concat!` that composes it.
+macro_rules! held_node {
+    () => {
+        "a node the document holds"
+    };
+}
+/// The node a refusal's recourse points at instead of the one it names.
+const HELD_NODE: &str = held_node!();
+/// The recourse of a name whose node is not live.
+const NAME_A_HELD_ENTITY: &str = concat!("name an entity of ", held_node!());
+/// What an undeclared parameter reference can point at instead.
+const OR_A_DECLARED_PARAM: &str = ", or reference a declared parameter";
+/// The recourse of a rebind that would land two values on one name.
+const CLEAR_ONE_FIRST: &str = "clear one of the two first";
+
+/// Whether a rendering of an [`EditError`] ends with the recourse
+/// ([`EditError`]'s `Display`) or stops at the problem
+/// ([`EditError::problem`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tail {
+    Recourse,
+    ProblemOnly,
+}
+
+impl Tail {
+    /// Ends the sentence with `recourse`, labelled, or with nothing.
+    fn recourse(
+        self,
+        f: &mut core::fmt::Formatter<'_>,
+        recourse: core::fmt::Arguments<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Recourse => write!(f, ". {}", crate::sentence::Recourse(recourse)),
+            Self::ProblemOnly => Ok(()),
+        }
+    }
+
+    /// Ends the sentence with a dead end's whole ending, or with
+    /// nothing.
+    fn ending(self, f: &mut core::fmt::Formatter<'_>, ending: &str) -> core::fmt::Result {
+        match self {
+            Self::Recourse => write!(f, ". {ending}"),
+            Self::ProblemOnly => Ok(()),
+        }
+    }
+}
+
+/// **A placement frame's refusal**: the frame's subject at its site,
+/// the frame rule's own clause, and its recourse
+/// ([`FrameFault::recourse`]), which every door that raises one can
+/// honour — each refuses the edit that carried the frame.
+fn frame_refusal(
+    f: &mut core::fmt::Formatter<'_>,
+    tail: Tail,
+    node: RecipeNodeId,
+    at: FrameSite,
+    fault: FrameFault,
+) -> core::fmt::Result {
+    write!(f, "{} {fault}", at.subject(node))?;
+    tail.recourse(f, format_args!("{}", fault.recourse()))
+}
+
+impl EditError {
+    /// The arm a frame the admission rule refused is reported under,
+    /// at `at` on `node`.
+    fn placement_frame(node: RecipeNodeId, at: FrameSite, fault: FrameFault) -> Self {
+        match fault {
+            FrameFault::NonFinite => Self::NonFinitePlacement { node, at },
+            FrameFault::Improper { determinant } => Self::ImproperPlacement {
+                node,
+                at,
+                determinant,
+            },
+            FrameFault::NotRigid { check } => Self::NonRigidPlacement { node, at, check },
+        }
+    }
+}
+
+/// [`EditError::StepIdsRefused`]'s recourse, by the fault. `InsertNode`
+/// raises `Preminted`, `SetProgram` the shape and keep arms, and both
+/// `Collides`; `NotMinted` is the load door's, which an edit door
+/// spells [`EditError::NameStepNeverMinted`].
+fn step_ids_recourse(
+    f: &mut core::fmt::Formatter<'_>,
+    tail: Tail,
+    fault: &crate::program::StepIdFault,
+) -> core::fmt::Result {
+    use crate::program::StepIdFault as F;
+    match fault {
+        F::Preminted => tail.recourse(f, format_args!("clear the program's step ids first")),
+        F::LoopCount { .. } => tail.recourse(
+            f,
+            format_args!("give one list of kept ids per loop of the new program"),
+        ),
+        F::Shape { loop_, .. } => tail.recourse(
+            f,
+            format_args!(
+                "give loop {loop_} one entry per authored step, with no id for a step it adds"
+            ),
+        ),
+        F::NotThisProfiles { .. } => tail.recourse(
+            f,
+            format_args!("keep only ids of this node's own steps, and give a new step none"),
+        ),
+        F::Repeated { .. } => tail.recourse(
+            f,
+            format_args!("keep the id on one of the two steps, and give the other none"),
+        ),
+        // The mint draws from a SHA-256 chain over the document's own
+        // edits, so a draw the log already holds is a chain or log the
+        // file was damaged in, or a defect.
+        F::Collides { .. } => tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        F::NotMinted { .. } => tail.ending(f, geom_core::KERNEL_DEFECT_ENDING),
+    }
+}
+
+/// [`EditError::problem`]'s rendering.
+struct Problem<'a>(&'a EditError);
+
+impl core::fmt::Display for Problem<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.render(f, Tail::ProblemOnly)
+    }
+}
+
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.render(f, Tail::Recourse)
+    }
+}
+
+impl EditError {
+    /// The refusal without its recourse: what a door renders when it
+    /// forwards an edit the user did not author, and so states a
+    /// recourse of its own (`SplitError::PartEdit`, `InlineError::Edit`
+    /// and the other doors that replay or derive edits). An arm that
+    /// forwards another layer's sentence (`ProfileProgramRefused`,
+    /// `MateRefused`, `MaintenanceRefused`) forwards it whole here too:
+    /// the forwarded layer owns that text.
+    pub fn problem(&self) -> impl core::fmt::Display + '_ {
+        Problem(self)
+    }
+
+    #[allow(clippy::too_many_lines)] // one arm per variant, each short
+    fn render(&self, f: &mut core::fmt::Formatter<'_>, tail: Tail) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { id } => write!(f, "node {} is not live", id.0),
+            Self::UnknownNode { id } => {
+                write!(f, "node {} is not live", id.0)?;
+                tail.recourse(f, format_args!("aim the edit at {HELD_NODE}"))
+            }
             Self::ProfileProgramRefused { node, refusal } => {
                 write!(f, "node {}'s sketch refused: {refusal}", node.0)
             }
             Self::UnresolvedInput { input } => {
-                write!(f, "input {} does not resolve to a live node", input.0)
+                write!(f, "input {} does not resolve to a live node", input.0)?;
+                tail.recourse(f, format_args!("take the input from {HELD_NODE}"))
             }
+            // Only `SetMembers` can close a loop: an insert's inputs are
+            // already live, so none of them can be built from it.
             Self::WouldCycle { at } => {
-                write!(f, "the recipe graph would cycle (through node {})", at.0)
+                write!(f, "the recipe graph would cycle (through node {})", at.0)?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "take the members from nodes that are not built from the node being \
+                         edited"
+                    ),
+                )
             }
             // Forwarded, not restated: `InputFault` owns this
             // vocabulary and `node.rs` promises every door that renders
@@ -1491,190 +1663,326 @@ impl core::fmt::Display for EditError {
             //
             // The action is the door's to add: `InputFault` states the
             // rule ("pairwise distinct"), which says what is wrong and
-            // not what to do about it. `TooFew` needs no such clause —
-            // its own sentence carries the count that is required.
-            Self::DuplicateInput { input, .. } => write!(
-                f,
-                "the node this edit writes would be invalid: {}. Replace one of the two with a \
-                 different node.",
-                crate::node::InputFault::Duplicate { input: *input }
-            ),
-            Self::SetMembersOnNonList { node } => write!(
-                f,
-                "node {} carries no list input, so it has no members to set",
-                node.0
-            ),
-            Self::SetProgramOnNonProfile { node } => write!(
-                f,
-                "node {} holds no profile program, so it has no program to set",
-                node.0
-            ),
-            // The fault owns its sentence; the door adds which node's
-            // program the ids were about.
-            Self::StepIdsRefused { node, fault } => {
-                write!(f, "node {}'s program step ids: {fault}", node.0)
+            // not what to do about it.
+            Self::DuplicateInput { input, .. } => {
+                write!(
+                    f,
+                    "the node this edit writes would be invalid: {}",
+                    crate::node::InputFault::Duplicate { input: *input }
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("replace one of the two with a different node"),
+                )
             }
-            Self::TooFewMembers { found, .. } => write!(
-                f,
-                "the node this edit writes would be invalid: {}",
-                crate::node::InputFault::TooFew { found: *found }
-            ),
-            Self::RepeatedDesignation { first, again, .. } => write!(
-                f,
-                "the node this edit writes would be invalid: {}. Build it through `Node::shell`, \
-                 which keeps the first occurrence.",
-                crate::node::InputFault::RepeatedDesignation {
-                    first: *first,
-                    again: *again,
-                }
-            ),
-            Self::SelectionNotCanonical { at, .. } => write!(
-                f,
-                "the node this edit writes would be invalid: {}. Build it through \
-                 `Node::fillet` or `Node::chamfer`, which sort and deduplicate.",
-                crate::node::InputFault::SelectionNotCanonical { at: *at }
-            ),
-            Self::DeleteWouldDangle { id, referenced_by } => write!(
-                f,
-                "node {} is still an input to node {} — delete node {} first, \
-                 or delete node {} together with everything downstream of it",
-                id.0, referenced_by.0, referenced_by.0, id.0
-            ),
+            Self::SetMembersOnNonList { node } => {
+                write!(
+                    f,
+                    "node {} carries no list input, so it has no members to set",
+                    node.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "set the members of a node that takes a list, or insert a new node \
+                         over the inputs you want"
+                    ),
+                )
+            }
+            // A document's profile node always holds a program; the
+            // node named is of another kind.
+            Self::SetProgramOnNonProfile { node } => {
+                write!(
+                    f,
+                    "node {} holds no profile program, so it has no program to set",
+                    node.0
+                )?;
+                tail.recourse(f, format_args!("aim the edit at a profile node"))
+            }
+            // The fault owns its sentence, shared with the load door;
+            // the door adds which node's program the ids were about,
+            // and the recourse, since only it knows which edit wrote
+            // them.
+            Self::StepIdsRefused { node, fault } => {
+                write!(
+                    f,
+                    "node {}'s program cannot take the step ids given: {fault}",
+                    node.0
+                )?;
+                step_ids_recourse(f, tail, fault)
+            }
+            Self::TooFewMembers { found, .. } => {
+                write!(
+                    f,
+                    "the node this edit writes would be invalid: {}",
+                    crate::node::InputFault::TooFew { found: *found }
+                )?;
+                tail.recourse(f, format_args!("list two or more entries"))
+            }
+            Self::RepeatedDesignation { first, again, .. } => {
+                write!(
+                    f,
+                    "the node this edit writes would be invalid: {}",
+                    crate::node::InputFault::RepeatedDesignation {
+                        first: *first,
+                        again: *again,
+                    }
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "build it through `Node::shell`, which keeps the first occurrence"
+                    ),
+                )
+            }
+            Self::SelectionNotCanonical { at, .. } => {
+                write!(
+                    f,
+                    "the node this edit writes would be invalid: {}",
+                    crate::node::InputFault::SelectionNotCanonical { at: *at }
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "build it through `Node::fillet` or `Node::chamfer`, which sort and \
+                         deduplicate"
+                    ),
+                )
+            }
+            Self::DeleteWouldDangle { id, referenced_by } => {
+                write!(
+                    f,
+                    "node {} is still an input to node {}",
+                    id.0, referenced_by.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "delete node {} first, or delete node {} together with everything \
+                         downstream of it",
+                        referenced_by.0, id.0
+                    ),
+                )
+            }
             Self::UnknownSlot { id, slot } => {
-                write!(f, "node {} has no slot {}", id.0, slot.label())
+                write!(f, "node {} has no slot {}", id.0, slot.label())?;
+                tail.recourse(f, format_args!("edit a slot this node has"))
             }
             // The rule's own clause, forwarded rather than restated:
-            // this door's subject IS the slot, so the sentence is the
+            // this door's subject IS the slot, so the problem is the
             // clause and nothing more.
             Self::SlotDimensionMismatch {
                 slot,
                 expected,
                 found,
-            } => write!(
-                f,
-                "{}",
-                SlotDimensionFault {
-                    slot: *slot,
-                    expected: *expected,
-                    found: *found
-                }
-            ),
+            } => {
+                write!(
+                    f,
+                    "{}",
+                    SlotDimensionFault {
+                        slot: *slot,
+                        expected: *expected,
+                        found: *found
+                    }
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "write it from {expected} literals and parameters declared {expected}"
+                    ),
+                )
+            }
             Self::StructuralSlotNeedsStructuralEdit { slot } => {
                 write!(
                     f,
-                    "slot {} is structural — use a structural edit",
+                    "slot {} is structural, so a continuous edit cannot set it",
                     slot.label()
-                )
+                )?;
+                tail.recourse(f, format_args!("set it with a structural edit"))
             }
             Self::NotStructuralSlot { slot } => {
-                write!(f, "slot {} is continuous, not structural", slot.label())
+                write!(f, "slot {} is continuous, not structural", slot.label())?;
+                tail.recourse(f, format_args!("set it with a continuous edit"))
             }
-            Self::PayloadUnknownDocParam { name, node } => write!(
-                f,
-                "document parameter {name} does not exist (referenced by node {}'s \
-                 payload expression)",
-                node.0
-            ),
+            Self::PayloadUnknownDocParam { name, node } => {
+                write!(
+                    f,
+                    "document parameter {name} does not exist (referenced by node {}'s \
+                     payload expression)",
+                    node.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("{UNDECLARED_PARAM_RECOURSE}{OR_A_DECLARED_PARAM}"),
+                )
+            }
             Self::PayloadDocParamDimension {
                 name,
                 node,
                 declared,
                 referenced,
-            } => write!(
-                f,
-                "document parameter {name} is declared {declared} but node {}'s \
-                 payload expression references it as {referenced}",
-                node.0
-            ),
-            Self::MeasureMalformed { node, fault } => {
-                write!(f, "measure node {}: {fault}", node.0)
+            } => {
+                write!(
+                    f,
+                    "document parameter {name} is declared {declared} but node {}'s \
+                     payload expression references it as {referenced}",
+                    node.0
+                )?;
+                tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
             }
-            Self::AssertionTarget { node, measure } => write!(
-                f,
-                "assertion node {} references node {}, which is not a measure — an \
-                 assertion constrains a measurement",
-                node.0, measure.0
-            ),
-            Self::DeclareInputNotDeclare { node, input } => write!(
-                f,
-                "node {}'s declare input names node {}, which is not a declaration — \
-                 wire a Declare node there, or leave the input empty",
-                node.0, input.0
-            ),
+            Self::MeasureMalformed { node, fault } => {
+                write!(f, "measure node {}: {fault}", node.0)?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "read only a reference the measure carries, or add the one it reads to \
+                         its reference list"
+                    ),
+                )
+            }
+            Self::AssertionTarget { node, measure } => {
+                write!(
+                    f,
+                    "assertion node {} references node {}, which is not a measure — an \
+                     assertion constrains a measurement",
+                    node.0, measure.0
+                )?;
+                tail.recourse(f, format_args!("point the assertion at a measure node"))
+            }
+            Self::DeclareInputNotDeclare { node, input } => {
+                write!(
+                    f,
+                    "node {}'s declare input names node {}, which is not a declaration",
+                    node.0, input.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("wire a Declare node there, or leave the input empty"),
+                )
+            }
             Self::AssertionDimension {
                 node,
                 measure,
                 measured,
                 bound,
-            } => write!(
-                f,
-                "assertion node {} bounds {} {measured} measure (node {}) with {} \
-                 {bound} expression — an assertion compares like with like or not at all",
-                node.0,
-                measured.article(),
-                measure.0,
-                bound.article()
-            ),
-            Self::SlotUnknownDocParam { name, node, slot } => write!(
-                f,
-                "document parameter {name} does not exist (referenced by node {}, slot {})",
-                node.0,
-                slot.label()
-            ),
+            } => {
+                write!(
+                    f,
+                    "assertion node {} bounds {} {measured} measure (node {}) with {} \
+                     {bound} expression — an assertion compares like with like or not at all",
+                    node.0,
+                    measured.article(),
+                    measure.0,
+                    bound.article(),
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("bound it with {} {measured} expression", measured.article()),
+                )
+            }
+            Self::SlotUnknownDocParam { name, node, slot } => {
+                write!(
+                    f,
+                    "document parameter {name} does not exist (referenced by node {}, slot {})",
+                    node.0,
+                    slot.label()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("{UNDECLARED_PARAM_RECOURSE}{OR_A_DECLARED_PARAM}"),
+                )
+            }
             Self::SlotDocParamDimension {
                 name,
                 node,
                 slot,
                 declared,
                 referenced,
-            } => write!(
-                f,
-                "parameter {name} is declared {declared} but node {} (slot {}) references it as \
-                 {referenced}",
-                node.0,
-                slot.label()
-            ),
-            Self::ContinuousParamCannotBeCount { name } => write!(
-                f,
-                "parameter {name} is continuous, and a continuous parameter cannot be a count — \
-                 use a count parameter"
-            ),
-            // The closing clause is `UNDECLARED_PARAM_RECOURSE`, which
-            // the viewer's `Refusal::NoSuchParam` renders too; the
-            // const's own doc says why the two doors converge there.
-            Self::DocParamNotDeclared { name, door } => write!(
-                f,
-                "parameter {name} is not declared, so {door} has no declaration to carry \
-                 forward — {UNDECLARED_PARAM_RECOURSE}"
-            ),
-            Self::DocParamCountHasNoUnit { name } => write!(
-                f,
-                "parameter {name} is a count, and a count is an integer rather than a quantity — \
-                 it has no display unit to change"
-            ),
-            Self::DocParamCountHasNoDistribution { name } => write!(
-                f,
-                "parameter {name} is a count, and a count is a structural parameter that is fixed \
-                 under any error analysis — it has no distribution to change"
-            ),
+            } => {
+                write!(
+                    f,
+                    "parameter {name} is declared {declared} but node {} (slot {}) references \
+                     it as {referenced}",
+                    node.0,
+                    slot.label(),
+                )?;
+                tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
+            }
+            Self::ContinuousParamCannotBeCount { name } => {
+                write!(
+                    f,
+                    "parameter {name} is continuous, and a continuous parameter cannot be a \
+                     count"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "declare it as a count parameter, or give it a quantity's dimension"
+                    ),
+                )
+            }
+            // The recourse is `UNDECLARED_PARAM_RECOURSE`, which the
+            // viewer's `Refusal::NoSuchParam` renders too; the const's
+            // own doc says why the two doors converge there.
+            Self::DocParamNotDeclared { name, door } => {
+                write!(
+                    f,
+                    "parameter {name} is not declared, so {door} has no declaration to carry \
+                     forward"
+                )?;
+                tail.recourse(f, format_args!("{UNDECLARED_PARAM_RECOURSE}"))
+            }
+            // A count carries neither a unit nor a distribution, and the
+            // create-or-replace door redeclares it as a continuous
+            // parameter, which carries both. A slot that reads it as a
+            // count refuses that redeclaration with its own recourse
+            // (`SlotDocParamDimension`).
+            Self::DocParamCountHasNoUnit { name } => {
+                write!(
+                    f,
+                    "parameter {name} is a count, and a count is an integer rather than a \
+                     quantity, so it has no display unit to change"
+                )?;
+                tail.recourse(f, format_args!("{COUNT_REDECLARED}, which carries a unit"))
+            }
+            Self::DocParamCountHasNoDistribution { name } => {
+                write!(
+                    f,
+                    "parameter {name} is a count, and a count is a structural parameter that \
+                     is fixed under any error analysis, so it has no distribution to change"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("{COUNT_REDECLARED}, which carries a distribution"),
+                )
+            }
             Self::DocParamUnitMismatch {
                 name,
                 unit,
                 declared,
-            } => write!(
-                f,
-                "parameter {name} is declared {declared} but the display unit offered measures \
-                 {unit}"
-            ),
+            } => {
+                write!(
+                    f,
+                    "parameter {name} is declared {declared} but the display unit offered \
+                     measures {unit}"
+                )?;
+                tail.recourse(f, format_args!("offer a unit that measures {declared}"))
+            }
             Self::DocParamValueKindMismatch {
                 name,
                 declared,
                 offered,
-            } => write!(
-                f,
-                "parameter {name} is declared {declared} but the value edit offered a \
-                 {offered} — changing a parameter's kind is a redeclaration"
-            ),
+            } => {
+                write!(
+                    f,
+                    "parameter {name} is declared {declared} but the value edit offered a \
+                     {offered}, and changing a parameter's kind is a redeclaration"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("offer a value of the declared kind, or redeclare the parameter"),
+                )
+            }
             Self::PathOffTree { path } => {
                 let steps: Vec<String> = path.path.iter().map(u8::to_string).collect();
                 write!(
@@ -1683,116 +1991,231 @@ impl core::fmt::Display for EditError {
                     steps.join(", "),
                     path.node.0,
                     path.slot.label()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("address a subexpression the slot's expression holds"),
                 )
             }
-            Self::Dimension(e) => write!(f, "{e}"),
-            Self::NameStepNeverMinted {
-                name,
-                step,
-                next_step,
-            } => write!(
-                f,
-                "the {name} spells the profile step id #{}, which this document never minted (its step \
-                 counter is {next_step})",
-                step.0
-            ),
+            Self::Dimension(e) => {
+                write!(f, "{e}")?;
+                tail.recourse(
+                    f,
+                    format_args!("splice in an expression whose dimension fits its place"),
+                )
+            }
+            Self::NameStepNeverMinted { name, step } => {
+                write!(
+                    f,
+                    "the {name} spells the profile step id #{}, which this document never minted \
+                     (its mint log does not hold it)",
+                    step.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("name a piece of a step this document minted"),
+                )
+            }
             Self::DeclareNamesMissingNode { name } => {
-                write!(f, "the declared {name} refers to a node that is not live")
+                write!(f, "the declared {name} refers to a node that is not live")?;
+                tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
             }
-            Self::ReadSiteMissingNode { at } => write!(
-                f,
-                "the reference is read at node {}, which is not live",
-                at.0
-            ),
-            Self::NonFiniteDocParam { name, field } => write!(
-                f,
-                "parameter {name}'s {field} is not finite — the value and every distribution \
-                 offset must be a number"
-            ),
+            Self::ReadSiteMissingNode { at } => {
+                write!(
+                    f,
+                    "the reference is read at node {}, which is not live",
+                    at.0
+                )?;
+                tail.recourse(f, format_args!("read it at {HELD_NODE}"))
+            }
+            Self::NonFiniteDocParam { name, field } => {
+                write!(
+                    f,
+                    "parameter {name}'s {field} is not finite — the value and every \
+                     distribution offset must be a number"
+                )?;
+                tail.recourse(f, format_args!("give each of them a finite value"))
+            }
+            // A non-finite offset never arrives here: the edit door
+            // routes it to `NonFiniteDocParam` (`distribution_fault_error`).
             Self::InvalidDistribution { name, fault } => {
-                write!(f, "parameter {name} has an invalid distribution: {fault}")
+                write!(f, "parameter {name} has an invalid distribution: {fault}")?;
+                match fault {
+                    DistributionFault::NonFinite { .. } => {
+                        tail.ending(f, geom_core::KERNEL_DEFECT_ENDING)
+                    }
+                    DistributionFault::SigmaNotPositive { .. } => {
+                        tail.recourse(f, format_args!("give it a sigma above zero"))
+                    }
+                    DistributionFault::NominalOutsideSupport { .. } => tail.recourse(
+                        f,
+                        format_args!(
+                            "give lo and hi as offsets from the value, lo at or below zero and \
+                             hi at or above it"
+                        ),
+                    ),
+                }
             }
-            Self::RebindTargetMissingNode { name } => write!(
-                f,
-                "the rebind target ({name}) refers to a node that is not live"
-            ),
-            Self::RebindUnknownName { name } => write!(
-                f,
-                "the rebind source ({name}) was never minted by this document"
-            ),
-            Self::RebindKindMismatch { from, to } => write!(
-                f,
-                "a rebind cannot cross entity kinds ({} to {})",
-                from.noun(),
-                to.noun()
-            ),
-            Self::RebindIdentity { name } => write!(
-                f,
-                "rebinding the {name} to itself is a recorded no-op — refused"
-            ),
-            Self::RebindNoReferences { name } => write!(
-                f,
-                "no document site references the {name} — nothing to repair"
-            ),
-            Self::WitnessOnNonSketch { node } => write!(
-                f,
-                "node {} is not sketch-bearing — nothing to re-witness",
-                node.0
-            ),
+            Self::RebindTargetMissingNode { name } => {
+                write!(
+                    f,
+                    "the rebind target ({name}) refers to a node that is not live"
+                )?;
+                tail.recourse(f, format_args!("rebind to a name of {HELD_NODE}"))
+            }
+            Self::RebindUnknownName { name } => {
+                write!(
+                    f,
+                    "the rebind source ({name}) was never minted by this document"
+                )?;
+                tail.recourse(f, format_args!("rebind a name this document minted"))
+            }
+            Self::RebindKindMismatch { from, to } => {
+                write!(
+                    f,
+                    "a rebind cannot cross entity kinds ({} to {})",
+                    from.noun(),
+                    to.noun(),
+                )?;
+                tail.recourse(f, format_args!("rebind it to another {} name", from.noun()))
+            }
+            Self::RebindIdentity { name } => {
+                write!(f, "rebinding the {name} to itself would change nothing")?;
+                tail.recourse(f, format_args!("rebind it to a different name"))
+            }
+            Self::RebindNoReferences { name } => {
+                write!(
+                    f,
+                    "no document site references the {name}, so there is nothing to repair"
+                )?;
+                tail.recourse(f, format_args!("rebind a name the document references"))
+            }
+            Self::WitnessOnNonSketch { node } => {
+                write!(
+                    f,
+                    "node {} is not sketch-bearing, so it has nothing to re-witness",
+                    node.0
+                )?;
+                tail.recourse(f, format_args!("re-witness a sketch-bearing node"))
+            }
             Self::DuplicateWitnessEntry { node } => {
-                write!(f, "node {} appears twice in the re-witness bulk", node.0)
+                write!(f, "node {} appears twice in the re-witness bulk", node.0)?;
+                tail.recourse(f, format_args!("list each node once"))
             }
             Self::EmptyWitnessBulk => {
-                f.write_str("a re-witness bulk with no entries is a no-op — refused")
+                f.write_str("a re-witness bulk with no entries would change nothing")?;
+                tail.recourse(f, format_args!("list at least one node to re-witness"))
             }
-            Self::NameUnresolvedInEvaluation { name } => write!(
-                f,
-                "the {name} does not resolve in the supplied evaluation — recording the \
-                 reference would strand it"
-            ),
-            Self::EvaluationOfAnotherDocument { expected, found } => write!(
-                f,
-                "the supplied evaluation is of document {found}, not of document \
-                 {expected} — its names would be checked against another document's \
-                 tables"
-            ),
-            Self::RebindAppearanceCollision { name, kind } => write!(
-                f,
-                "the rebind would land two {} attributes on the {name} — clear one first",
-                kind.noun()
-            ),
-            Self::AppearanceWrongKind { name } => write!(
-                f,
-                "appearance attaches to faces and bodies only (refused for the {name})"
-            ),
-            Self::AppearanceNamesMissingNode { name } => write!(
-                f,
-                "the appearance target ({name}) refers to a node that is not live"
-            ),
+            Self::NameUnresolvedInEvaluation { name } => {
+                write!(
+                    f,
+                    "the {name} does not resolve in the supplied evaluation — recording the \
+                     reference would strand it"
+                )?;
+                tail.recourse(f, format_args!("name an entity the evaluation holds"))
+            }
+            Self::EvaluationOfAnotherDocument { expected, found } => {
+                write!(
+                    f,
+                    "the supplied evaluation is of document {found}, not of document \
+                     {expected} — its names would be checked against another document's \
+                     tables"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("evaluate this document and supply that evaluation"),
+                )
+            }
+            Self::RebindAppearanceCollision { name, kind } => {
+                write!(
+                    f,
+                    "the rebind would land two {} attributes on the {name}",
+                    kind.noun()
+                )?;
+                tail.recourse(f, format_args!("{CLEAR_ONE_FIRST}"))
+            }
+            Self::AppearanceWrongKind { name } => {
+                write!(
+                    f,
+                    "appearance attaches to faces and bodies only (refused for the {name})"
+                )?;
+                tail.recourse(f, format_args!("set it on a face or a body"))
+            }
+            Self::AppearanceNamesMissingNode { name } => {
+                write!(
+                    f,
+                    "the appearance target ({name}) refers to a node that is not live"
+                )?;
+                tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
+            }
             Self::AppearanceNotSet { name, kind } => {
-                write!(f, "no {} attribute is set on the {name}", kind.noun())
+                write!(f, "no {} attribute is set on the {name}", kind.noun())?;
+                tail.recourse(f, format_args!("clear only an attribute the name carries"))
             }
             Self::InvalidTolerance { value } => {
-                write!(f, "tolerance {value:e} is not finite and strictly positive")
+                write!(f, "tolerance {value:e} is not finite and strictly positive")?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "keep the tolerance the document records, or offer a positive length \
+                         in metres"
+                    ),
+                )
             }
-            Self::MetaUnversioned { name, key, error } => write!(
-                f,
-                "metadata {key:?} on the {name} does not carry the D7 integer \"v\" \
-                 version field: {error}"
-            ),
-            Self::MetaNonFinite { name, key, path } => write!(
-                f,
-                "metadata {key:?} on the {name} carries a non-finite float at {path}"
-            ),
+            Self::MetaUnversioned { name, key, error } => {
+                write!(
+                    f,
+                    "metadata {key:?} on the {name} does not carry an integer \"v\" version \
+                     field: {error}"
+                )?;
+                tail.recourse(f, format_args!("store a map with an integer \"v\" entry"))
+            }
+            Self::MetaNonFinite { name, key, path } => {
+                write!(
+                    f,
+                    "metadata {key:?} on the {name} carries a non-finite float at {path}"
+                )?;
+                tail.recourse(f, format_args!("store a finite number there"))
+            }
             Self::MetaNotSet { name, key } => {
-                write!(f, "no metadata {key:?} is set on the {name}")
+                write!(f, "no metadata {key:?} is set on the {name}")?;
+                tail.recourse(f, format_args!("clear only a key the name carries"))
             }
-            Self::RebindMetadataCollision { name, key } => write!(
-                f,
-                "the rebind would land two values under metadata {key:?} on the {name} — \
-                 clear one first"
-            ),
-            Self::Roots(fault) => write!(f, "{fault}"),
+            Self::RebindMetadataCollision { name, key } => {
+                write!(
+                    f,
+                    "the rebind would land two values under metadata {key:?} on the {name}"
+                )?;
+                tail.recourse(f, format_args!("{CLEAR_ONE_FIRST}"))
+            }
+            // `RootFault`'s sentence is the load door's too; the repair
+            // is this door's, since only an edit re-lists the roots.
+            Self::Roots(fault) => {
+                write!(f, "{fault}")?;
+                match fault {
+                    RootFault::NotLive { .. } => {
+                        tail.recourse(f, format_args!("list only live nodes as product roots"))
+                    }
+                    RootFault::Duplicate { .. } => {
+                        tail.recourse(f, format_args!("list each product root once"))
+                    }
+                    RootFault::Ancestor { ancestor, .. } => tail.recourse(
+                        f,
+                        format_args!(
+                            "drop root {} from the list, since its material reaches the \
+                             product through the other",
+                            ancestor.0
+                        ),
+                    ),
+                    RootFault::Uncovered { node } => tail.recourse(
+                        f,
+                        format_args!(
+                            "list node {} or a node built from it as a product root",
+                            node.0
+                        ),
+                    ),
+                }
+            }
             Self::PlacementOnNonInstance { node } => write!(
                 f,
                 "node {} does not instantiate a part, so it has no placement cluster to \
@@ -1810,43 +2233,69 @@ impl core::fmt::Display for EditError {
             Self::PlacementRuleMismatch { node } => {
                 write!(f, "node {}: {}", node.0, PlacementRuleFault::CountSpelling)
             }
-            Self::ImproperPlacement { node, determinant } => write!(
+            Self::ImproperPlacement {
+                node,
+                at,
+                determinant,
+            } => frame_refusal(
                 f,
-                "the placement frame for node {} is improper (determinant {determinant}); \
-                 mirrored placements are admitted only behind the equivariance audit",
-                node.0
+                tail,
+                *node,
+                *at,
+                FrameFault::Improper {
+                    determinant: *determinant,
+                },
             ),
+            Self::NonRigidPlacement { node, at, check } => {
+                frame_refusal(f, tail, *node, *at, FrameFault::NotRigid { check })
+            }
             Self::PlacementAxis { error } => {
                 write!(
                     f,
                     "the placement frame's rotation axis is unusable: {error}"
                 )
             }
-            Self::NonFinitePlacement { node } => write!(
-                f,
-                "the placement frame for node {} carries a non-finite coordinate",
-                node.0
-            ),
-            Self::NonFiniteAlignment { node } => write!(
-                f,
-                "the mate at node {} carries a non-finite alignment coordinate",
-                node.0
-            ),
+            Self::NonFinitePlacement { node, at } => {
+                frame_refusal(f, tail, *node, *at, FrameFault::NonFinite)
+            }
+            Self::NonFiniteAlignment { node } => {
+                write!(
+                    f,
+                    "the mate at node {} carries a non-finite alignment coordinate",
+                    node.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("give every alignment coordinate a finite value"),
+                )
+            }
             Self::MateRefused { node, fault } => write!(
                 f,
                 "the mate at node {} is refused by the solve on its own datum: {fault}",
                 node.0
             ),
-            Self::UpdateOnNonInstance { node } => write!(
-                f,
-                "node {} does not instantiate a part, so it has no pinned version to update",
-                node.0
-            ),
-            Self::PinUnchanged { node, pin } => write!(
-                f,
-                "node {} already pins {pin}, so this update would record no version move",
-                node.0
-            ),
+            Self::UpdateOnNonInstance { node } => {
+                write!(
+                    f,
+                    "node {} does not instantiate a part, so it has no pinned version to update",
+                    node.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("aim the update at a node that instantiates a part"),
+                )
+            }
+            Self::PinUnchanged { node, pin } => {
+                write!(
+                    f,
+                    "node {} already pins {pin}, so this update would record no version move",
+                    node.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("offer a version other than the one it pins"),
+                )
+            }
             Self::MaintenanceRefused { gauge, fault } => {
                 write!(
                     f,
@@ -1871,6 +2320,27 @@ impl core::fmt::Display for EditError {
 }
 
 impl core::error::Error for EditError {}
+
+/// The way through a count's unit or distribution: the
+/// create-or-replace door redeclares the parameter continuous.
+const COUNT_REDECLARED: &str = "redeclare it as a continuous parameter";
+
+/// The recourse of a parameter reference whose dimension disagrees
+/// with the declaration, as either door that reaches it states it: the
+/// write that made the reference, or a redeclaration that moved the
+/// dimension out from under it (`write_doc_param` re-checks every
+/// slot). Either side of the pair can be made to agree.
+struct ParamDimensionRecourse(Dimension);
+
+impl core::fmt::Display for ParamDimensionRecourse {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let referenced = self.0;
+        write!(
+            f,
+            "reference a parameter declared {referenced}, or declare this one {referenced}"
+        )
+    }
+}
 
 /// What an accepted edit did (spec D6: structural edits are FLAGGED
 /// in the returned record; the record also returns the minted id —
@@ -2189,15 +2659,14 @@ fn orphaned_declares<P: crate::ProfilePayload>(
 /// program is replayed (`names/README.md`, "N1, the profile pieces"):
 /// one list per new loop and one entry per authored step; every kept
 /// id a step of the program the node holds, and kept once. Each `None`
-/// is minted from the document's step counter, in loop then step
-/// order. Returns the new program's ids and the old steps it does not
-/// keep.
+/// is minted from the document's mint chain, in loop then step order.
+/// Returns the new program's ids and the old steps it does not keep.
 fn settle_step_ids(
     node: RecipeNodeId,
     old: &[Vec<StepId>],
     new: &[crate::program::LoopProgram],
     ids: &[Vec<Option<StepId>>],
-    counter: &mut u64,
+    mint: &mut crate::StepMint,
 ) -> Result<(Vec<Vec<StepId>>, std::collections::BTreeSet<StepId>), EditError> {
     use crate::program::{StepIdFault, program_index};
     let refuse = |fault| EditError::StepIdsRefused { node, fault };
@@ -2226,21 +2695,16 @@ fn settle_step_ids(
             }
         }
     }
-    let minted = ids
-        .iter()
-        .map(|given| {
-            given
-                .iter()
-                .map(|kept| {
-                    kept.unwrap_or_else(|| {
-                        let id = StepId(*counter);
-                        *counter += 1;
-                        id
-                    })
-                })
-                .collect()
-        })
-        .collect();
+    let minted = mint
+        .mint(
+            &crate::step_mint::MintingEdit::SetProgram {
+                node,
+                loops: new,
+                ids,
+            },
+            ids,
+        )
+        .map_err(refuse)?;
     Ok((minted, dropped))
 }
 
@@ -2480,19 +2944,18 @@ impl MaintenanceNet {
 
 /// A name written into the document spells only steps the document
 /// minted ([`EditError::NameStepNeverMinted`]) — the edit door's half
-/// of the load door's `SnapshotError::NameStepBeyondCounter`, so a
+/// of the load door's `SnapshotError::NameStepNotMinted`, so a
 /// document this door accepts is one the load door reads back.
 fn check_name_steps<P>(doc: &Doc<P>, name: &StableName) -> Result<(), EditError> {
     match name
         .piece_steps()
         .into_iter()
-        .find(|s| s.0 >= doc.next_step)
+        .find(|s| !doc.step_mint.has_minted(*s))
     {
         None => Ok(()),
         Some(step) => Err(EditError::NameStepNeverMinted {
             name: name.clone(),
             step,
-            next_step: doc.next_step,
         }),
     }
 }
@@ -2557,6 +3020,14 @@ fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditE
 /// [`DocEdit::SetDocParamValue`], [`DocEdit::SetDocParamUnit`] and
 /// [`DocEdit::SetDocParamDistribution`]. A fifth door writing a
 /// declaration routes through here too, and adds itself to that list.
+///
+/// **The NAME is not checked here, because it cannot be wrong**: a
+/// [`ParamName`] is admissible by construction — one identifier the
+/// expression parser reads back as a reference — so no edit can carry
+/// a name the document could not be asked about, and the load door
+/// refuses one at the token (`ParamName`'s `Deserialize` is the same
+/// constructor). One decision at the type, and neither door restates
+/// it.
 ///
 /// **The check order is the LOAD door's** (`persist::check`'s
 /// `validate_document`): floats first, then the distribution's shape,
@@ -3061,10 +3532,10 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                 })?;
             }
             // N1: every authored step is minted its id here, from the
-            // document's step counter.
+            // document's mint chain.
             let mut node = node.clone();
             if let Node::Profile(p) = &mut node {
-                p.mint_step_ids(&mut new.next_step)
+                p.mint_step_ids(id, &mut new.step_mint)
                     .map_err(|fault| EditError::StepIdsRefused { node: id, fault })?;
             }
             new.next_id += 1;
@@ -3196,11 +3667,11 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             };
             // The ids FIRST: ids the door could not honour make the
             // replay below moot, and the caller mends the field named
-            // rather than the program. Minting advances a counter held
+            // rather than the program. Minting extends a mint held
             // aside, so a refusal further down leaves the document's
             // untouched.
-            let mut counter = new.next_step;
-            let (minted, dropped) = settle_step_ids(*node, old_ids, loops, ids, &mut counter)?;
+            let mut mint = new.step_mint.clone();
+            let (minted, dropped) = settle_step_ids(*node, old_ids, loops, ids, &mut mint)?;
             let Some(rewritten) = payload.with_program(loops.clone(), minted) else {
                 return Err(EditError::SetProgramOnNonProfile { node: *node });
             };
@@ -3220,7 +3691,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     refusal: Box::new(refusal),
                 })?;
             new.nodes.insert(*node, probe);
-            new.next_step = counter;
+            new.step_mint = mint;
             // DM7: a name on a kept step keeps denoting its pieces and
             // is not touched; a name on a dropped step denotes nothing
             // from here on, and the door says so.
@@ -3367,7 +3838,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the
             // NodeGone repair; never-minted is a typo.
-            if from.node.0 >= new.next_id {
+            if !new.has_minted(from.node) {
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
             // One-shot rewrite of every EXACT reference, at every
@@ -3570,16 +4041,14 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // predicate the load door's walk asks
             // (`crate::doc::placement_fault`); this is the edit door's
             // name for its answer.
-            if let Some(fault) = crate::doc::placement_fault(&new, *node, frame) {
+            if let Some(fault) = crate::doc::placement_fault(&new, *node, frame, tol) {
                 return Err(match fault {
                     PlacementFault::NotAnInstance => {
                         EditError::PlacementOnNonInstance { node: *node }
                     }
-                    PlacementFault::NonFiniteFrame => EditError::NonFinitePlacement { node: *node },
-                    PlacementFault::ImproperFrame { determinant } => EditError::ImproperPlacement {
-                        node: *node,
-                        determinant,
-                    },
+                    PlacementFault::Frame(fault) => {
+                        EditError::placement_frame(*node, FrameSite::Registry, fault)
+                    }
                 });
             }
             // A11: the record keys on the cluster, never the
@@ -3633,13 +4102,14 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     crate::roots::check(&new).map_err(EditError::Roots)?;
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
-    // lists at least one placement, and its frames meet the SAME A6/A11
-    // bar `SetPlacement` holds a cluster frame to — finite and proper.
+    // lists at least one placement, and its frames meet the SAME bar
+    // `SetPlacement` holds a cluster frame to (`Frame::admission_fault`).
     // Checked over the whole document rather than per arm because a
     // structural slot edit can reach a bad state from a node that was
     // consistent before.
     for (&node, n) in &new.nodes {
-        match n.placement_rule_fault() {
+        let listed = |index| FrameSite::Listed { index };
+        match n.placement_rule_fault(tol) {
             None => {}
             Some(PlacementRuleFault::CountSpelling) => {
                 return Err(EditError::PlacementRuleMismatch { node });
@@ -3647,12 +4117,35 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             Some(PlacementRuleFault::NoPlacements) => {
                 return Err(EditError::EmptyPlacementList { node });
             }
-            Some(PlacementRuleFault::NonFiniteFrame { .. }) => {
-                return Err(EditError::NonFinitePlacement { node });
+            Some(PlacementRuleFault::NonFiniteFrame { index }) => {
+                return Err(EditError::NonFinitePlacement {
+                    node,
+                    at: listed(index),
+                });
             }
-            Some(PlacementRuleFault::ImproperFrame { determinant, .. }) => {
-                return Err(EditError::ImproperPlacement { node, determinant });
+            Some(PlacementRuleFault::ImproperFrame { index, determinant }) => {
+                return Err(EditError::ImproperPlacement {
+                    node,
+                    at: listed(index),
+                    determinant,
+                });
             }
+            Some(PlacementRuleFault::NonRigidFrame { index, check }) => {
+                return Err(EditError::NonRigidPlacement {
+                    node,
+                    at: listed(index),
+                    check,
+                });
+            }
+        }
+        // A transform's literal steps meet the same bar, by the same
+        // predicate.
+        if let Some((index, fault)) = n.placement_frame_fault(tol) {
+            return Err(EditError::placement_frame(
+                node,
+                FrameSite::Step { index },
+                fault,
+            ));
         }
     }
     let mut maintenance = reported;
@@ -3804,6 +4297,7 @@ mod tests {
 
     use super::DocEdit;
     use crate::program::ProfileProgram;
+    use crate::test_support::len;
 
     /// **The mate-graph question is answered by the edit, not by the
     /// arm that happens to remember.**
@@ -3827,14 +4321,7 @@ mod tests {
         let moves: [DocEdit<ProfileProgram>; 4] = [
             DocEdit::InsertNode {
                 node: crate::node::Node::Datum(crate::node::Datum::Point {
-                    position: [
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                    ],
+                    position: [len(0.0), len(0.0), len(0.0)],
                 }),
             },
             DocEdit::DeleteNode { id },
@@ -3913,14 +4400,7 @@ mod tests {
         let others: [DocEdit<ProfileProgram>; 3] = [
             DocEdit::InsertNode {
                 node: crate::node::Node::Datum(crate::node::Datum::Point {
-                    position: [
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                    ],
+                    position: [len(0.0), len(0.0), len(0.0)],
                 }),
             },
             DocEdit::Rebind {

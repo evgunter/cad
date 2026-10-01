@@ -109,15 +109,19 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
+use geom_core::spline::algebra::{GridSkip, domain_grid_points};
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign, SupSpeed, Vec3,
 };
 
-use crate::certify::CERT_SAMPLES;
-use crate::dihedral::decide;
+use crate::certify::{CERT_SAMPLES, sample_param};
+use crate::dihedral::{decide, decide_reported};
+use crate::recourse::Refused;
 
-use super::enclose::{Box3, NurbsBoxes, graph_margin};
+use super::enclose::{
+    Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
+};
 use super::{SsiError, SsiOperand, TubeScale};
 
 /// The **largest** tube radius tried, as a fraction of the caller's
@@ -231,7 +235,6 @@ impl SsiLimb {
 /// Refine the carrier so the hull limbs have small spans to work with
 /// (knot refinement is exact in ℝ; the curve is unchanged).
 fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
-    let (lo, hi) = curve.domain();
     let kv = curve.knots();
     // Already fine enough: refining a carrier that the marcher's step
     // rule already gave hundreds of spans buys nothing and costs an
@@ -239,16 +242,9 @@ fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     if kv.control_count() >= SSI_CERT_SPANS + kv.degree() {
         return curve.clone();
     }
-    let mut add = Vec::new();
-    for i in 1..SSI_CERT_SPANS {
-        #[allow(clippy::cast_precision_loss)]
-        let t = lo + (hi - lo) * (i as f64 / SSI_CERT_SPANS as f64);
-        // Skip parameters already present as knots (refinement would
-        // raise multiplicity, which is not what this is for).
-        if kv.multiplicity_of(t).is_none() {
-            add.push(t);
-        }
-    }
+    // Parameters already present as knots are skipped (refinement would
+    // raise multiplicity, which is not what this is for).
+    let add = domain_grid_points(kv, SSI_CERT_SPANS, GridSkip::BitEqual);
     curve.refine_knots(&add).unwrap_or_else(|_| curve.clone())
 }
 
@@ -361,8 +357,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let (t0, t1) = carrier.domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = sample_param(t0, t1, i);
         let r = crate::implicit::implicit_residual(surface, carrier.eval(T::from_f64(t))).abs();
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
@@ -385,8 +380,8 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let (form, to_meters) =
         composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
     let fine = refined(carrier);
-    let coords = fine.ring_coords();
-    let data = CurveRingData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
+    let coords = fine.certified_coords();
+    let data = CurveCertData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
         SsiError::UnsupportedCertificate {
             what: "the fitted carrier's enclosure data is malformed",
         }
@@ -422,8 +417,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let (t0, t1) = carrier.domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = sample_param(t0, t1, i);
         let c = carrier.eval(T::from_f64(t));
         // Warm-start from the trace's own pcurve: the projection is a
         // *check*, and starting it where the trace says the foot is
@@ -486,20 +480,20 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // The `SSI_CERT_SPANS` uniform breaks are injected for hull
     // tightness — the same structure choice `refined` makes for the box
     // chain (C6's f64 lane), expressed as breaks instead of a refit.
-    let coords = carrier.ring_coords();
-    let cdata = CurveRingData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
+    let coords = carrier.certified_coords();
+    let cdata = CurveCertData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
         SsiError::UnsupportedCertificate {
             what: "the fitted carrier's enclosure data is malformed",
         }
     })?;
-    let pcoords = pcurve.ring_coords();
-    let pdata = CurveRingData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
+    let pcoords = pcurve.certified_coords();
+    let pdata = CurveCertData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
         SsiError::UnsupportedCertificate {
             what: "the traced pcurve's enclosure data is malformed",
         }
     })?;
-    let scoords = surface.ring_coords();
-    let sdata = tensor::SurfaceRingData::new(
+    let scoords = surface.certified_coords();
+    let sdata = tensor::SurfaceCertData::new(
         surface.knots_u(),
         surface.knots_v(),
         surface.weights(),
@@ -522,7 +516,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         .sup_bound();
     // Unlike the analytic arm, the NURBS arm needs NO exactness gate:
     // every coefficient of every operand entered interval arithmetic through its
-    // own bracket (`ring_coords`), so a widened control net widens the
+    // own bracket (`certified_coords`), so a widened control net widens the
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
     match decide("ssi_hull_sup_chart", Margin::of(sup), band) {
@@ -542,7 +536,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
 ) -> Vec<(Box3, Vec3<T>)> {
     let fine = refined(carrier);
-    let coords = fine.ring_coords();
+    let coords = fine.certified_coords();
     let kv = fine.knots();
     let mut out = Vec::new();
     // One pair per coordinate channel, minted once outside the span
@@ -582,7 +576,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // lifted: it is a value branch, which generic evaluation code
         // may not take (Q1), and it bought nothing. A degenerate span
         // (zero-length tangent) divided by zero poisons `e`, the graph
-        // margin's certification enclosure poisons with it, and
+        // margin's certification enclosure is refused with it, and
         // `zero_free_lower_bound` reports 0 — the same typed refusal
         // the guarded zero vector produced, reached without a branch.
         let t = fine.deriv(T::from_f64(0.5 * (a + b)));
@@ -603,7 +597,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
 ///
 /// Returns the chain's smallest zero-free margin (dimensionless, the
 /// `sin θ` scale) and the box count; `None` when the chain is broken or
-/// an enclosure poisoned, which is a definite structural refusal.
+/// an enclosure refused, which is a definite structural refusal.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>)],
     s1: &Surface<T>,
@@ -649,7 +643,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Option<(f64, u32)> {
     let kv = pcurve.knots();
     let boxes = NurbsBoxes::new(surface);
-    let coords = pcurve.ring_coords();
+    let coords = pcurve.certified_coords();
     // One pair per chart channel, minted once: the coordinates and the
     // knots are both the pcurve's, so the count is `NurbsCurve2::new`'s
     // fact and the refusal arm is unreachable by construction; it
@@ -674,6 +668,11 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // so the derivative boxes below would be an arbitrary cell's
         // and the margin would certify from them. The probe refuses —
         // no span of this pcurve can be bounded, so none is probed.
+        // The window hull maps any refusal to NaI, so on it
+        // `!is_certified()` and `Real::is_poison` agree today and no row
+        // can tell them apart; the check asks `is_certified` because that
+        // is the question that stays right if the hull ever hands a
+        // refusal on with real endpoints.
         if !hu.is_certified() || !hv.is_certified() {
             return None;
         }
@@ -683,7 +682,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let dv = boxes.deriv_box(u0, u1, v0, v1, false);
         // The plane equation is what the whole limb certifies, so the
         // normal crosses through the CERTIFIED door: a component whose
-        // computation left its domain becomes poison and the
+        // computation left its domain is refused and the
         // transversality margin collapses to zero, rather than a
         // zero-free enclosure of an equation nobody evaluated.
         let n = [
@@ -691,8 +690,6 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             Interval::from_certified(normal.y),
             Interval::from_certified(normal.z),
         ];
-        let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
-        let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
         // The transverse chart direction is a DIRECTION — structure —
         // so it is selected through the bracket, exactly as the tube
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
@@ -702,38 +699,13 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // refuse. An admitted `+∞` here does not certify a wrong
         // number today (`ex`/`ey` become `0` or NaN and the stretch
         // guard below catches the residue), but which guard answers
-        // would then depend on the poison's arithmetic path rather
+        // would then depend on the refusal's arithmetic path rather
         // than on this test saying what it means.
         if !tn.is_finite() || tn <= 0.0 {
             return None;
         }
         let (tx, ty) = (t.x.hi(), t.y.hi());
-        // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
-        let ex = Interval::point(-ty / tn);
-        let ey = Interval::point(tx / tn);
-        // ∇φ·e⊥ is metres of plane-distance per CHART unit, so it is
-        // not yet a margin: multiplying it by a lever arm in metres
-        // would give metres² per chart unit (D4 ¶1 forbids exactly
-        // that). Dividing by the chart's own stretch along e⊥ —
-        // ‖S_u·ex + S_v·ey‖, metres per chart unit — cancels the chart
-        // units and leaves the dimensionless sine-like quantity the ℝ³
-        // lane's `(∇f₁×∇f₂)·e` already is. An UPPER bound on the
-        // stretch is used, which can only shrink the margin: the safe
-        // direction.
-        let vt = Box3 {
-            x: du.x * ex + dv.x * ey,
-            y: du.y * ex + dv.y * ey,
-            z: du.z * ex + dv.z * ey,
-        };
-        let stretch = vt.speed_sup();
-        // Positive FINITE only: an admitted `+∞` stretch divides the
-        // margin to an exact `0`, which the fold below then records as
-        // the certificate's worst transversality — a definite-looking
-        // number manufactured from an overflow, not a measurement.
-        if !stretch.is_finite() || stretch <= 0.0 {
-            return None;
-        }
-        let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;
+        let margin = chart_transverse_margin(n, du, dv, (tx, ty, tn))?;
         if margin < worst {
             worst = margin;
         }
@@ -743,25 +715,6 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         None
     } else {
         Some((worst, count))
-    }
-}
-
-/// The certified distance of an enclosure from zero: `0` when it
-/// straddles (or is poison), which is exactly what makes the trilean
-/// land in the sliver band.
-/// (The mignitude. `offset_meters::mig` is the same arithmetic read
-/// as a coefficient-hull assembly term rather than a decision; noted
-/// at both sites.)
-fn zero_free_lower_bound(i: Interval) -> f64 {
-    if !i.is_certified() {
-        return 0.0;
-    }
-    if i.lo() > 0.0 {
-        i.lo()
-    } else if i.hi() < 0.0 {
-        -i.hi()
-    } else {
-        0.0
     }
 }
 
@@ -916,28 +869,37 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             rungs: ladder.len() as u32,
         });
     };
-    // The margin is interval arithmetic's zero-free lower bound (`f64`, C9); the
-    // lever arm is the caller's scalar, so the product — the number the
-    // trilean classifies — is scalar-typed.
-    let transversality = Margin::levered(T::from_f64(margin), arm);
-    match decide("ssi_tube_transversality", transversality, band) {
-        Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) => {
-            return Err(SsiError::TubeStraddles {
-                margin: transversality.value().lo(),
-                boxes,
-            });
-        }
-        Err(diag) => return Err(SsiError::Escalated(diag)),
-    }
+    let transversality = tube_transversality(margin, arm, boxes, band)?;
     Ok(SsiCertificate {
         samples: CERT_SAMPLES,
         on_locus_max: on_locus,
         hull_sup,
         tube_radius: T::from_f64(radius),
-        tube_transversality: transversality.value(),
+        tube_transversality: transversality,
         tube_boxes: boxes,
     })
+}
+
+/// Limb 3's verdict on the chosen rung. `clearance` is interval
+/// arithmetic's zero-free lower bound (`f64`, C9) and `arm` the caller's
+/// scalar, so the product — the number the trilean classifies — is
+/// scalar-typed. The refusal carries the verdict and the reporting
+/// margin the classifier saw. Its `Negative` arm is unreachable while
+/// `arm` is positive: `zero_free_lower_bound` never returns a negative
+/// clearance.
+fn tube_transversality<T: Decide>(
+    clearance: f64,
+    arm: T,
+    boxes: u32,
+    band: Band,
+) -> Result<T, SsiError> {
+    let transversality = Margin::levered(T::from_f64(clearance), arm);
+    let decided = decide_reported("ssi_tube_transversality", transversality, band)
+        .map_err(SsiError::Escalated)?;
+    match Refused::of(decided, band) {
+        Some(verdict) => Err(SsiError::TubeStraddles { verdict, boxes }),
+        None => Ok(transversality.value()),
+    }
 }
 
 /// The witness of a rung-3 carrier: `carrier(mid)`, unchanged from M2
@@ -951,12 +913,55 @@ pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
 
 #[cfg(test)]
 mod tests {
+    /// **Limb 3's construction site carries the verdict and the margin
+    /// it classified.** A clearance inside the zero band refuses `Zero`
+    /// with the reporting margin the classifier saw — the levered
+    /// clearance, positive or exactly zero: a point at `f64`, a point
+    /// enclosure at `Interval` — and a clear one passes. `Negative` has
+    /// no row: the clearance is never negative (`zero_free_lower_bound`)
+    /// and the arm is positive.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn the_tube_site_carries_its_verdict_and_margin() {
+        use super::{SsiError, tube_transversality};
+        use crate::recourse::{Classified, Refused};
+        use geom_core::interval::certification::Certification;
+        use geom_core::{Band, Interval, MarginDiag};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let verdict = |got: Result<(), SsiError>| match got {
+            Err(SsiError::TubeStraddles { verdict, boxes: 4 }) => Some(verdict),
+            Ok(()) => None,
+            Err(other) => panic!("not the tube's refusal: {other}"),
+        };
+        let zero = |margin| Some(Refused::Zero(Classified { margin, band }));
+        for (clearance, arm, levered) in [
+            (5e-10, 1.0, Some(5e-10)),
+            (2.5e-10, 2.0, Some(5e-10)),
+            (0.0, 1.0, Some(0.0)),
+            (1e-6, 1.0, None),
+        ] {
+            let at_f64 = tube_transversality(clearance, arm, 4, band);
+            assert_eq!(
+                verdict(at_f64.map(|_| ())),
+                levered.and_then(|m| zero(MarginDiag::value(m))),
+                "f64: {clearance:e} at {arm}"
+            );
+            let at_interval = tube_transversality(clearance, Interval::point(arm), 4, band);
+            assert_eq!(
+                verdict(at_interval.map(|_| ())),
+                levered.and_then(|m| zero(MarginDiag::enclosure(m, m))),
+                "Interval: {clearance:e} at {arm}"
+            );
+        }
+    }
+
     /// **The mignitude refuses a refusal that carries real endpoints.**
-    /// This file has `Real` in scope, so `Real::is_poison` — NaI or
-    /// empty only — would compile at `zero_free_lower_bound` and read
-    /// this quotient (`Trv`, a strictly positive lower end) as a sound
-    /// bracket, handing its lower end back as a certified margin. The
-    /// refusal is `!is_certified()`.
+    /// `zero_free_lower_bound` lives in `ssi::enclose`, a certification
+    /// file with no `Real` in scope, and refuses by `!is_certified()`;
+    /// this quotient (`Trv`, a strictly positive lower end) is the value
+    /// an `is_poison` check would read as a sound bracket, handing its
+    /// lower end back as a certified margin. The row pins that the
+    /// transversality margin this file reads is `0.0` on it.
     #[test]
     fn the_mignitude_refuses_a_refusal_with_real_endpoints() {
         use super::zero_free_lower_bound;
@@ -1156,5 +1161,49 @@ mod tests {
                  hull was read for its endpoints"
             );
         }
+    }
+
+    /// A degree-2 carrier on `[0, 1]` with the given interior knots.
+    #[allow(clippy::unwrap_used)]
+    fn carrier(interior: &[f64]) -> geom::NurbsCurve3<f64> {
+        use geom_core::Point3;
+        use geom_core::spline::KnotVector;
+        let mut knots = vec![0.0, 0.0, 0.0];
+        knots.extend_from_slice(interior);
+        knots.extend([1.0, 1.0, 1.0]);
+        let kv = KnotVector::clamped(knots, 2).unwrap();
+        let n = kv.control_count();
+        #[allow(clippy::cast_precision_loss)]
+        let control = (0..n).map(|i| Point3::new(i as f64, 0.0, 0.0)).collect();
+        geom::NurbsCurve3::new(kv, control, vec![1.0; n]).unwrap()
+    }
+
+    /// `refined` inserts the DOMAIN's 32nds, skipping a grid point only
+    /// where a knot sits on it bit for bit: `0.5` is skipped, while a
+    /// knot one ulp above `2/32` does NOT suppress `2/32`.
+    #[test]
+    fn refined_inserts_the_domain_grid_skipping_bit_equal_knots() {
+        let near = f64::from_bits(0.0625f64.to_bits() + 1);
+        let fine = super::refined(&carrier(&[near, 0.5]));
+        let mut want = vec![0.0, 0.0, 0.0, near];
+        want.extend((1..32).map(|k| f64::from(k) / 32.0));
+        want.extend([1.0, 1.0, 1.0]);
+        want.sort_by(f64::total_cmp);
+        assert_eq!(fine.knots().knots(), want);
+    }
+
+    /// `refined`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`
+    /// control points is returned as it came, one with a control point
+    /// fewer still takes the whole grid. The interior knots are odd
+    /// 128ths, none on the 32nds grid.
+    #[test]
+    fn refined_leaves_a_carrier_at_the_cut_off_alone() {
+        let odd = |n: i32| -> Vec<f64> { (0..n).map(|j| f64::from(2 * j + 1) / 128.0).collect() };
+        let at = carrier(&odd(31));
+        assert_eq!(at.knots().control_count(), super::SSI_CERT_SPANS + 2);
+        assert_eq!(super::refined(&at).knots().knots(), at.knots().knots());
+        let below = carrier(&odd(30));
+        assert_eq!(below.knots().control_count(), 33);
+        assert_eq!(super::refined(&below).knots().control_count(), 33 + 31);
     }
 }

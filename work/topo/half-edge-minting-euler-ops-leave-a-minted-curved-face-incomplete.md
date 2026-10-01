@@ -2,11 +2,14 @@
 id: half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete
 kind: issue
 title: mev, mef and mekr mint half-edges into a cached curved face and no pcurve row with them, leaving the face half-minted
-status: open
+status: closed
 opened: 2026-09-13
 refs: [validate-pcurves-never-recertifies-a-face-it-finds-incomplete]
 priority: P0
 cost: H
+pr: 3160
+branch: topo/mint-rows-at-the-mint-site
+closed: 2026-09-29
 ---
 
 
@@ -39,7 +42,7 @@ restriction re-certifies through `PcurveCache::certify`, which sits in
 `geom_brep`'s `impl<T: Decide>` block. `mev`/`mef`/`mekr` mint a
 BRAND-NEW edge with no parent row to restrict; its chart image has to
 be DERIVED, and every derivation door in `topo::pcurves` (`pcurve_of`,
-`nurbs_iso_derive`, `mint_pcurves_of`) carries `T: PcurveFittedLane` —
+`nurbs_iso_derive`, `mint_pcurves_of`) carries `T: AtRestPolicy` —
 the bound ripple `mint_faces`'s own comment banks. So closing this
 either widens those operators' bound from `Decide` (and every
 generic caller's with it) or keeps the declared primitive posture and
@@ -58,7 +61,7 @@ cached face will be tier-3 invalid on return.
 
 Closing this is either a bound ripple — every half-edge-minting
 operator (`mev`, `mef`, `mekr`) and every generic caller widened from
-`Decide` to `PcurveFittedLane` so the op can derive the new edge's
+`Decide` to `AtRestPolicy` so the op can derive the new edge's
 chart image — or the declared primitive posture stated at each op
 ("this operator mints no pcurve row; a caller on a cached face runs
 `mint_pcurves_of` at its door's close"), which is what the producers
@@ -87,7 +90,8 @@ half) until a caller runs `mint_pcurves_of(face)`. Measured: one
 **Why the operator does not mint.** A brand-new edge's chart image
 has to be DERIVED (the 3D carrier projected into the surface's
 parameters, or fitted), and every derivation door carries the bound
-`T: PcurveFittedLane` — the fitting lane — while the Euler operators
+`T: AtRestPolicy` — the policy whose `fitted_lane()` answers the
+fitted door (`FittedLane`) — while the Euler operators
 are generic over `T: Decide` only. Widening them widens every generic
 caller (boolean, splitting, sweep, blend, the recipe layer); a
 sibling bound widening was measured at forty signatures across four
@@ -138,13 +142,13 @@ call; no half-done state a door can produce). Concretely:
    have closed forms — the door `mint_face` already routes every
    non-`General` image through. If that closed-form derivation can be
    stated under `T: Decide` (phase 1's question: today `pcurve_of`
-   carries `PcurveFittedLane` because one body serves both lanes), the
+   carries `AtRestPolicy` because one body serves both lanes), the
    operators mint the closed-form rows under their present bound and
    REFUSE typed (`UnsupportedCarrier`-shaped) where only the fitted
    lane could derive the image — honest, and the fitted case is a
    NURBS chart, which the Euler operators reach only from callers that
    hold the fitted lane anyway. If it cannot be split, the full bound
-   ripple (`Decide → PcurveFittedLane` on the minting operators and
+   ripple (`Decide → AtRestPolicy` on the minting operators and
    their generic callers) is the price, and it is a one-time signature
    cost, not a design cost.
 3. The declared posture (ii) is then only the interim statement of
@@ -174,7 +178,7 @@ that unit.
 **Tier: DUAL.** Phase 1 decides the bound structure of the pcurve
 derivation: whether the closed-form chart-image derivation can live
 under `T: Decide`, split from the fitted lane, or whether the minting
-operators take the `PcurveFittedLane` ripple. That is an architectural
+operators take the `AtRestPolicy` ripple. That is an architectural
 decision every generic caller of the Euler operators inherits, and it
 is hard to change later.
 
@@ -183,7 +187,7 @@ mints a half-edge into a cached curved face mints that half-edge's row
 at the mint site, so no Euler operator returns a half-minted face.
 
 **Phase 1: the split.** `pcurves::pcurve_of`, `nurbs_iso_derive` and
-`mint_pcurves_of` carry `T: PcurveFittedLane` because one body serves
+`mint_pcurves_of` carry `T: AtRestPolicy` because one body serves
 both lanes. The carriers the operators mint are lines and closed-form
 arcs, and on the analytic charts (plane, cylinder, sphere, torus,
 cone) their images have closed forms: the arms `mint_face` routes
@@ -193,7 +197,7 @@ written down, whether those arms can be stated under `T: Decide`.
   present bound. Where only the fitted lane could derive the image (a
   NURBS or `General` chart), they refuse typed (`UnsupportedCarrier`-
   shaped), BEFORE mutating.
-- **If they cannot**, the ripple (`Decide → PcurveFittedLane` on the
+- **If they cannot**, the ripple (`Decide → AtRestPolicy` on the
   minting operators and their generic callers) is ruled acceptable.
   Count it first, and report the count in the PR body before taking
   it.
@@ -242,3 +246,32 @@ tests.
 Branch `topo/mint-rows-at-the-mint-site`. PR title: "TOPO: Euler
 operators mint the row of every half-edge they add to a cached curved
 face". Do not close the item; the dual runs at review.
+
+## Note from SCALAR (2026-09-29)
+
+Since LANE-4 (PR #3194) the fitted door is a value (`FittedLane<T>`), so a derivation door could take `Option<FittedLane<T>>` under `T: Decide` (H5 ruling 3's shape) rather than widen to `AtRestPolicy` — a third answer beside the split and the ripple, as TQUERY's `split-edge-cannot-carry-a-fitted-or-general-pcurve-row` records for `split_edge`.
+
+## Closed (2026-09-29, PR 3160)
+
+`mev`, `mef` and `mekr` mint the row of every half-edge they add to a
+COMPLETE curved face, at the mint site and before any mutation.
+- The closed-form derivation is split from the fitted lane under
+  `T: Decide` (`walk_cycle`/`pin_branch`, and `certify_walked` shared
+  with the pass), so no signature moved.
+- A spline chart refuses typed (`PcurveMint { SplineChart }`) with the
+  body untouched.
+- An unminted or half-minted face is left as found.
+- A complete face the closed-form lane cannot mint after the surgery
+  is cleared rather than refused. That is ruled the operator's answer,
+  since every production clear is followed by its producer's closing
+  mint.
+
+The staleness postures (`Maintains` for `mev`/`mekr`) and the
+`MissingCache` door list say what holds.
+
+Residues filed:
+- `work/topo/mev-null-leaves-a-complete-curved-face-half-minted`;
+- `work/topo/loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`;
+- `work/topo/euler-site-mint-re-walks-the-rewired-loop-on-every-op`
+  (the pipeline-level quadratic);
+- the PCERT and WALKS rows amended.

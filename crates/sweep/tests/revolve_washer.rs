@@ -9,7 +9,7 @@ use crate::revolve_common;
 
 use geom::Surface;
 use geom_brep::EdgeDescription;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::ProfileLoop;
 use profile::{RawLoop, test_support::bulge_loop};
 use revolve_common::*;
@@ -17,7 +17,12 @@ use sweep::{Revolution, RevolvedKind, revolve};
 
 /// The rectangle x ∈ [1, 2], y ∈ [0, 1], counterclockwise.
 fn washer_profile() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ])
 }
 
 #[test]
@@ -110,7 +115,10 @@ fn donut_two_arc_profile_shares_one_torus() {
     // survives — definitely smooth); both meridian arcs lie on the
     // torus's u = 0 minor circle and carry `Seam { torus }`. Also the
     // minimal (m = 2) exercise of the kfmrh + zip closure.
-    let lp = bulge_loop(vec![(p2(1.0, 0.5), 1.0), (p2(2.0, 0.5), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(1.0, 0.5), 1.0),
+        (Point2::new(2.0, 0.5), 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);

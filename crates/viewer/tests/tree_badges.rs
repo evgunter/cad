@@ -38,7 +38,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
         .iter()
         .find(|row| row.id == extrude)
         .expect("the extrude has a row");
-    let RowStatus::Failed { message } = &failed.status else {
+    let RowStatus::Failed { message, .. } = &failed.status else {
         panic!("expected Failed, got {:?}", failed.status);
     };
     assert_eq!(failed.status.badge(), "FAILED");
@@ -79,8 +79,9 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
 
 /// **Only the row that refused is actionable**, over rows a real
 /// evaluation produced rather than hand-built statuses: the colour
-/// rule the Features pane draws is `RowStatus::tone()`'s answer, so a
-/// wrong tone is a wrong colour and this is where it goes red.
+/// rule the Features pane draws is `TreeRow::tone()`'s answer — the
+/// status's, on a document with no assertion — so a wrong tone is a
+/// wrong colour and this is where it goes red.
 #[test]
 fn only_the_row_whose_own_operation_refused_is_actionable() {
     let tol = Tol::witness();
@@ -94,7 +95,7 @@ fn only_the_row_whose_own_operation_refused_is_actionable() {
         session
             .tree_rows()
             .iter()
-            .all(|row| row.status.tone() == Tone::Advisory),
+            .all(|row| row.tone() == Tone::Advisory),
         "a document nobody has evaluated yet gives a reader nothing to act on"
     );
 
@@ -110,7 +111,7 @@ fn only_the_row_whose_own_operation_refused_is_actionable() {
     assert_eq!(tone_of(other_profile), Tone::Advisory, "a healthy row");
     assert_eq!(
         rows.iter()
-            .filter(|row| row.status.tone() == Tone::Actionable)
+            .filter(|row| row.tone() == Tone::Actionable)
             .count(),
         1,
         "one broken feature makes one loud row, whatever it poisons"
@@ -172,7 +173,11 @@ fn a_canceled_runs_missing_tail_reads_as_unevaluated() {
     let cancel = CancelToken::new();
     cancel.cancel();
     let evaluation = evaluate::<f64>(&doc, None, &cancel, &EvalOptions::default(), tol);
-    let rows = tree::rows(&doc, Some(&evaluation));
+    let rows = tree::rows(
+        &doc,
+        Some(&evaluation),
+        &viewer::parts::PartFiles::default(),
+    );
     assert!(!rows.is_empty());
     assert!(rows.iter().all(|row| row.status == RowStatus::Unevaluated));
     assert!(!tree::has_faults(&rows));
@@ -182,7 +187,7 @@ fn a_canceled_runs_missing_tail_reads_as_unevaluated() {
 fn the_tree_marks_the_documents_product_roots() {
     let tol = Tol::witness();
     let (doc, profile, extrude) = common::parametric_plate(tol);
-    let rows = tree::rows(&doc, None);
+    let rows = tree::rows(&doc, None, &viewer::parts::PartFiles::default());
     let root_ids: Vec<_> = rows
         .iter()
         .filter(|row| row.root)
@@ -224,26 +229,23 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     // to slide and spin, so the solve refuses UNDER naming that mate
     // — a verdict about the pair, which the edit door admits (a mate
     // the table refuses on its own datum is refused at the insert).
-    let add_mate = |session: &mut DocSession, post, alignment| {
-        common::session_insert(
-            session,
-            SessionOp::AddMate {
-                a: common::head(common::asm::in_part(post, &bench.post_top)),
-                b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-                class: ContactClass::Rest,
-                alignment,
-            },
-        )
-    };
-    let sound = add_mate(
+    let sound = common::session_insert(
         &mut session,
-        bench.post_a,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat_alignment(),
+        ),
     );
-    let offender = add_mate(
+    let offender = common::session_insert(
         &mut session,
-        bench.post_b,
-        common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
     );
     // ONE evaluation over both mates. Pumping between them would give
     // the same rows: a mate's key carries the solve's answer, so the
@@ -256,7 +258,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     let status_of = |id| common::status_of(&rows, id);
 
     // The offending mate is the cause, and the only row that is.
-    let RowStatus::Failed { message } = status_of(offender) else {
+    let RowStatus::Failed { message, .. } = status_of(offender) else {
         panic!(
             "the offending mate carries the cause: {:?}",
             status_of(offender)
@@ -329,29 +331,26 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
     let bench = common::asm::bench("badge-contradiction", tol);
     let mut session = common::asm::open_bench(&bench, tol);
 
-    let add_mate = |session: &mut DocSession, alignment| {
-        common::session_insert(
-            session,
-            SessionOp::AddMate {
-                a: common::head(common::asm::in_part(bench.post_a, &bench.post_top)),
-                b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-                class: ContactClass::Rest,
-                alignment,
-            },
-        )
-    };
     // The first mate lands and EVALUATES — the memo now holds an `Ok`
     // for it — and only then does the second one contradict it.
-    let held = add_mate(
+    let held = common::commit_mate(
         &mut session,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat_alignment(),
+        ),
     );
-    session.pump();
-    let added = add_mate(
+    let added = common::commit_mate(
         &mut session,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0 + 0.01, None),
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::contradicting_seat_alignment(),
+        ),
     );
-    session.pump();
 
     let rows = session.tree_rows();
     let status_of = |id| common::status_of(&rows, id);
@@ -435,6 +434,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
             op: BooleanOp::Union,
             a: bench.post_a,
             b: bench.shelf_i,
+            declare: Vec::new(),
         },
     );
     session.pump();
@@ -444,26 +444,23 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
         "the boolean builds before the cluster refuses"
     );
 
-    let add_mate = |session: &mut DocSession, post, alignment| {
-        common::session_insert(
-            session,
-            SessionOp::AddMate {
-                a: common::head(common::asm::in_part(post, &bench.post_top)),
-                b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-                class: ContactClass::Rest,
-                alignment,
-            },
-        )
-    };
-    add_mate(
+    common::session_insert(
         &mut session,
-        bench.post_a,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat_alignment(),
+        ),
     );
-    let offender = add_mate(
+    let offender = common::session_insert(
         &mut session,
-        bench.post_b,
-        common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
     );
     session.pump();
 
@@ -503,6 +500,413 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
     }
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
+
+/// **Every surface that says why a node has no value names the row the
+/// tree names** — over one cluster refusal, the node the kernel reports
+/// as its own `Failed` and the node it poisons through it.
+///
+/// The kernel's standing for `post_a` is `Failed` and for the boolean
+/// is poisoned through `post_a`; the tree draws both downstream of the
+/// offending mate. The properties panel's verdict on a picked face, the
+/// mate tool's dropped pick, the sketch-on-face seat, the duplicate
+/// door and the blend loader each carry a standing, and each must
+/// carry the TREE's. The product's gather refusal is drawn by none of
+/// them: the tree badges the refused root at its row, and the at-rest
+/// badge takes no verdict on a product that did not gather.
+#[test]
+fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
+    use pncad::document::{NodeStanding, ProductError};
+    use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
+    use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
+    use viewer::combine::DuplicateFault;
+    use viewer::matetool::{MateTool, MateToolError, MateToolEvent};
+    use viewer::session::{FaceFrameFault, FaceSelection, Selection, Standing};
+
+    let tol = Tol::witness();
+    let bench = common::asm::bench("panels-agree", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let boolean = common::session_insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: BooleanOp::Union,
+            a: bench.post_a,
+            b: bench.shelf_i,
+            declare: Vec::new(),
+        },
+    );
+    session.pump();
+
+    // A face of post_a, selected and held while it still resolves.
+    let face = FaceSelection {
+        name: common::asm::in_part(bench.post_a, &bench.post_top),
+        node: bench.post_a,
+        body: 0,
+    };
+    let outcome = session.perform(SessionOp::Select(Selection::Face(face.clone())));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        session.standing().live(),
+        "the premise: the picked face resolves before the cluster refuses: {:?}",
+        session.standing()
+    );
+    let mut mate_tool = MateTool::new();
+    mate_tool.pick(face.clone());
+    let index = common::asm::index_of(&session);
+
+    common::session_insert(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat_alignment(),
+        ),
+    );
+    let offender = common::session_insert(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
+    );
+    session.pump();
+
+    let rows = session.tree_rows();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    // The premise that makes this row a test: the kernel's own standing
+    // for each node is NOT the tree's.
+    assert_eq!(
+        ev.usable(bench.post_a).err(),
+        Some(NodeStanding::Failed { node: bench.post_a }),
+        "the kernel reports the cluster-refused instance as its own failure"
+    );
+    assert_eq!(
+        ev.usable(boolean).err(),
+        Some(NodeStanding::Poisoned {
+            node: boolean,
+            through: bench.post_a
+        }),
+        "and poisons the boolean through it"
+    );
+    // The tree's answer, which every other surface must carry.
+    let drawn = |id| match common::status_of(&rows, id) {
+        RowStatus::Poisoned { through, .. } => NodeStanding::Poisoned { node: id, through },
+        other => panic!("the tree draws {id:?} downstream, got {other:?}"),
+    };
+    let post_a = drawn(bench.post_a);
+    assert_eq!(
+        post_a,
+        NodeStanding::Poisoned {
+            node: bench.post_a,
+            through: offender
+        },
+        "the tree points post_a at the offending mate"
+    );
+    let two_hop = drawn(boolean);
+    assert_eq!(
+        tree::cause_row(bench.post_a, ev),
+        Some(offender),
+        "cause_row"
+    );
+
+    let indeterminate = |standing| Resolution::Indeterminate(ResolveIndeterminate { standing });
+    match session.standing() {
+        Standing::Face { resolution, .. } => assert_eq!(
+            resolution.as_deref(),
+            Some(&indeterminate(post_a)),
+            "the properties panel's verdict on the picked face"
+        ),
+        other => panic!("the face stays selected, got {other:?}"),
+    }
+    match mate_tool.reconcile(doc, ev).as_slice() {
+        [MateToolEvent::PickLost { resolution, .. }] => assert_eq!(
+            **resolution,
+            indeterminate(post_a),
+            "the mate tool's dropped pick"
+        ),
+        other => panic!("the mate tool drops its one pick, got {other:?}"),
+    }
+    match viewer::session::face_frame_seat(Some((doc, ev)), Some(&face)) {
+        Err(FaceFrameFault::Unresolved {
+            error: InterrogateError::Standing(standing),
+        }) => assert_eq!(standing, post_a, "the sketch-on-face seat"),
+        other => panic!("the seat refuses on the standing, got {other:?}"),
+    }
+    match viewer::combine::duplicate_step(ev, bench.post_a, tol) {
+        Err(DuplicateFault::NoValue(standing)) => {
+            assert_eq!(standing, post_a, "the duplicate door, post_a");
+        }
+        other => panic!("the duplicate door refuses post_a, got {other:?}"),
+    }
+    match viewer::combine::duplicate_step(ev, boolean, tol) {
+        Err(DuplicateFault::NoValue(standing)) => {
+            assert_eq!(standing, two_hop, "the duplicate door, the boolean");
+        }
+        other => panic!("the duplicate door refuses the boolean, got {other:?}"),
+    }
+    let target = BlendTarget {
+        node: bench.post_a,
+        body: 0,
+    };
+    match BlendTool::new().load_all_edges(target, ev, &index) {
+        Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
+            assert_eq!(standing, post_a, "the blend loader");
+        }
+        other => panic!("the blend loader refuses post_a, got {other:?}"),
+    }
+    // The mate tool's frame read, on a pick of post_a and one of post_b.
+    let mut both = MateTool::new();
+    both.pick(face.clone());
+    both.pick(FaceSelection {
+        name: common::asm::in_part(bench.post_b, &bench.post_top),
+        node: bench.post_b,
+        body: 0,
+    });
+    match both.proposal(
+        doc,
+        ev,
+        &session.eval_options(),
+        tol,
+        common::asm::seat_choice(),
+    ) {
+        Err(MateToolError::Frame {
+            error: InterrogateError::Standing(standing),
+            ..
+        }) => assert_eq!(standing, post_a, "the mate tool's frame read"),
+        other => panic!("the mate tool refuses the frame read, got {other:?}"),
+    }
+
+    // The pick index refuses on a root with no value; its tooltip
+    // carries that root's standing as the tree draws it.
+    let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
+        panic!("the index does not build over a root with no value");
+    };
+    let badge = viewer::frame::index_badge(Some(&refusal), Some(ev)).expect("a refusal badges");
+    let detail = badge
+        .detail()
+        .expect("the badge defers its words to the tooltip");
+    assert!(
+        detail.contains(&format!("failure at node {}", offender.0)) && !detail.contains("ancestor"),
+        "the pick index's tooltip names the offending mate: {detail}"
+    );
+
+    // The product gather: its value is the kernel's, the tree draws the
+    // refused root downstream of the mate, and the at-rest badge says
+    // nothing about it.
+    let root = match session.product_fault() {
+        Some(ProductError::Root(
+            NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. },
+        )) => *node,
+        other => panic!("the gather refuses on a root, got {other:?}"),
+    };
+    assert!(
+        matches!(common::status_of(&rows, root), RowStatus::Poisoned { through, .. } if through == offender),
+        "the refused root is drawn downstream of the offending mate"
+    );
+    assert_eq!(
+        session.at_rest(),
+        None,
+        "the at-rest badge takes no verdict on a gather refusal; the tree's row carries it"
+    );
+
+    std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
+
+/// **Every kernel door under `crates/viewer/src` that hands back a
+/// node's standing reads it through the tree's answer**, or is admitted
+/// below by name with the reason it need not.
+///
+/// A source census over the code view. A door call counts as read when
+/// it sits inside the argument list of a re-read (`*_as_drawn(…)`),
+/// or when a re-read appears in the rest
+/// of its own statement: from the call to the first `;` at the call's
+/// own brace depth, or to the end of the enclosing block. What it cannot
+/// see: a kernel door missing from `STANDING_DOORS`, and a door reached
+/// through a helper in another crate.
+#[test]
+fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
+    use test_utils::source::{balanced_end, boundary_before, code_only, rust_sources};
+
+    /// The kernel doors whose refusal carries a `NodeStanding`.
+    const STANDING_DOORS: &[&str] = &[
+        ".usable(",
+        "resolve(RunCtx",
+        "face_frame(",
+        "face_carrier_kind(",
+        "NodePick::build_all",
+        "patch_names(",
+        "boundary_names(",
+        "product_recorded(",
+        "product(",
+        "pick_face(",
+        "run_checks_on(",
+    ];
+    /// The re-reads a door call may sit inside, or share a statement
+    /// with.
+    const REREADS: &[&str] = &[
+        "standing_as_drawn(",
+        "resolution_as_drawn(",
+        "interrogation_as_drawn(",
+        "index_refusal_as_drawn(",
+    ];
+    /// `(file, door, reason)`: each admits exactly one unread call.
+    const ADMITTED: &[(&str, &str, &str)] = &[
+        (
+            "blend.rs",
+            ".usable(",
+            "asks only `is_err()` and draws nothing; the node's row carries it",
+        ),
+        (
+            "tree.rs",
+            ".usable(",
+            "`readout_of` is asked only of a row `rows` has read `Ok`: it picks which payload \
+             to show, never whether the row stands",
+        ),
+        (
+            "tree.rs",
+            ".usable(",
+            "`asserted` reads the dimension of a measure its assertion's verdict already \
+             compared, so the measure stands `Ok` by construction",
+        ),
+        (
+            "features.rs",
+            ".usable(",
+            "a unit test's premise: reads the measure's payload to name the reason it expects, \
+             and draws nothing",
+        ),
+        (
+            "pickindex.rs",
+            "NodePick::build_all",
+            "reaches the chrome only through `frame::index_badge`, which re-reads it",
+        ),
+        (
+            "pickindex.rs",
+            "NodePick::build_all",
+            "the memoised build; the same route as the one above",
+        ),
+        (
+            "pickindex.rs",
+            "patch_names(",
+            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+        ),
+        (
+            "pickindex.rs",
+            "boundary_names(",
+            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+        ),
+        (
+            "pickindex.rs",
+            "pick_face(",
+            "`HitTestError::Standing` cannot arise: the parts are built from the evaluation \
+             the ray is asked of",
+        ),
+        (
+            "pickindex.rs",
+            "pick_face(",
+            "the moved instances' pass; the same argument as the one above",
+        ),
+        (
+            "scene.rs",
+            "product(",
+            "`scene_of`'s headless path; no chrome surface draws its refusal",
+        ),
+        (
+            "scene.rs",
+            "product(",
+            "runs only over a pair whose gather already succeeded (the A5 gate ate the \
+             body), so no root refusal reaches it",
+        ),
+        (
+            "session.rs",
+            "product_recorded(",
+            "the landing keeps the typed refusal (`product_fault`), and `frame::badge_site` \
+             sends a root's refusal to the feature tree, so no surface draws its standing",
+        ),
+        (
+            "session.rs",
+            "run_checks_on(",
+            "the registry's refusal is dropped (`.ok()`), never drawn",
+        ),
+        (
+            "session.rs",
+            "run_checks_on(",
+            "the no-body subject's registry run; dropped the same way",
+        ),
+    ];
+
+    /// The end of the statement a call at `at` belongs to: the first
+    /// `;` at its own brace depth, or the close of its enclosing block.
+    fn statement_end(code: &str, at: usize) -> usize {
+        let mut depth = 0i32;
+        for (off, c) in code[at..].char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => {
+                    depth -= 1;
+                    if depth < 0 {
+                        return at + off;
+                    }
+                }
+                ';' if depth == 0 => return at + off,
+                _ => {}
+            }
+        }
+        code.len()
+    }
+
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut unread: Vec<(String, &str, String)> = Vec::new();
+    let mut calls = 0;
+    for path in rust_sources(&root) {
+        let text = std::fs::read_to_string(&path).expect("a source file reads");
+        let code = code_only(&text);
+        let file = path
+            .file_name()
+            .expect("a file name")
+            .to_string_lossy()
+            .into_owned();
+        // Every re-read's argument span, as byte ranges of `code`.
+        let spans: Vec<std::ops::Range<usize>> = REREADS
+            .iter()
+            .flat_map(|reread| {
+                code.match_indices(reread)
+                    .map(|(at, _)| at + reread.len() - 1)
+            })
+            .map(|open| open..balanced_end(&code, open).expect("a re-read's call closes"))
+            .collect();
+        for door in STANDING_DOORS {
+            for (at, _) in code.match_indices(door) {
+                if door.starts_with(|c: char| c.is_alphabetic()) && !boundary_before(&code, at) {
+                    continue;
+                }
+                calls += 1;
+                let inside = spans.iter().any(|span| span.contains(&at));
+                let rest = &code[at..statement_end(&code, at)];
+                let shares = REREADS.iter().any(|reread| rest.contains(reread));
+                if !inside && !shares {
+                    let line = test_utils::source::line(&code, at);
+                    unread.push((file.clone(), door, format!("{}:{line}", path.display())));
+                }
+            }
+        }
+    }
+    assert!(
+        calls >= 16,
+        "the census found the doors it names ({calls} calls)"
+    );
+
+    let mut admitted: Vec<(&str, &str)> = ADMITTED.iter().map(|(f, d, _)| (*f, *d)).collect();
+    admitted.sort_unstable();
+    let mut found: Vec<(&str, &str)> = unread.iter().map(|(f, d, _)| (f.as_str(), *d)).collect();
+    found.sort_unstable();
+    assert_eq!(
+        found, admitted,
+        "every standing door reads through the tree's answer or is admitted by name; \
+         unread calls: {unread:#?}"
+    );
 }
 
 // ---- The refusal that names no row ----
@@ -659,7 +1063,11 @@ fn child_band_refusal_rows() {
         &EvalOptions::default(),
         tol,
     );
-    let rows = tree::rows(&asm, Some(&evaluation));
+    let rows = tree::rows(
+        &asm,
+        Some(&evaluation),
+        &viewer::parts::PartFiles::default(),
+    );
     assert!(tree::has_faults(&rows), "the run refused: {rows:?}");
 
     // DOOR 3 — the fault is the MATE arm, not the evaluator's own
@@ -792,6 +1200,8 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         status,
         note: None,
         repair_at: None,
+        readout: None,
+        version_offer: None,
     };
     let rows = [
         row(1, RowStatus::Ok),
@@ -807,4 +1217,397 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         tree::has_faults(&rows),
         "a row showing someone else's failure still says the document is not building: {rows:?}"
     );
+}
+
+/// **A profile refused for its frame's direction links to the frame.**
+///
+/// The frame's own direction slot is what refused, at the nominal the
+/// profile reads, while the frame lands at the box's lane value — so
+/// the frame's row reads `Ok` and only the link gets a reader from the
+/// profile's words to the node they say to fix.
+#[test]
+fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
+    use std::collections::BTreeMap;
+
+    use pncad::analysis::{BoxAxis, ParamBox};
+    use pncad::document::{Datum, Dimension, DocParam, Expr, Node, NodeErrorKind, ParamName};
+
+    let tol = Tol::witness();
+    let span = ParamName::from_static("span");
+    let doc = common::declared(
+        "tree-frame-direction",
+        &span,
+        DocParam::continuous(Dimension::Scalar, 0.0),
+        tol,
+    );
+    let (doc, frame) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Frame {
+            origin: common::len3([0.0; 3]),
+            u: [
+                Expr::param(span.clone(), Dimension::Scalar),
+                common::scl(0.0),
+                common::scl(0.0),
+            ],
+            v: common::scl3([0.0, 1.0, 0.0]),
+        }),
+        tol,
+    );
+    let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
+    let mut axes = BTreeMap::new();
+    axes.insert(span, BoxAxis::Varying { lo: 1.0, hi: 1.0 });
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            param_box: Some(std::sync::Arc::new(ParamBox::from_axes(axes))),
+            ..EvalOptions::default()
+        },
+        tol,
+    );
+    assert!(
+        matches!(
+            ev.node_error(profile).map(|e| &e.kind),
+            Some(NodeErrorKind::FrameDirection { frame: named, .. }) if *named == frame
+        ),
+        "the fixture raises the arm under test: {:?}",
+        ev.result(profile)
+    );
+
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
+    let row = |id| {
+        rows.iter()
+            .find(|row| row.id == id)
+            .expect("every node has a row")
+    };
+    assert!(matches!(row(frame).status, RowStatus::Ok), "{rows:?}");
+    assert!(
+        matches!(row(profile).status, RowStatus::Failed { .. }),
+        "{rows:?}"
+    );
+    assert_eq!(
+        row(profile).repair_at,
+        Some(frame),
+        "the profile's row links to the frame whose slot refused"
+    );
+    assert_eq!(row(frame).repair_at, None, "an `Ok` row links nowhere");
+}
+
+/// **An empty value says so on its own row, and the node that refuses
+/// it links nowhere.** Each failing arm below names an input that
+/// evaluated to a legal value the failing node's own choice does not
+/// fit — nothing on the input refused — so its row carries no repair
+/// link, and the input's row says what its value is where that is
+/// the cause.
+///
+/// One document, built up: an intersect of two blocks that do not
+/// meet, first as the document's root and then under a transform; a
+/// split whose tool plane clears the block, with a `Part` reading its
+/// empty side; a `Part` indexed past a pattern's count; and a revolve
+/// whose axis lives on another frame than its profile.
+#[test]
+fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
+    use pncad::document::{
+        BooleanValue, Datum, Doc, Node, NodeErrorKind, PartSelect, PatternKind, ProfileProgram,
+        RecipeNodeId, SplitSide, ValuePayload,
+    };
+    use pncad::select::SplitHalf;
+    use viewer::tree::{Emptiness, Readout, TreeRow};
+
+    let tol = Tol::witness();
+    let run = |doc: &Doc<ProfileProgram>| {
+        let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+        let rows = tree::rows(doc, Some(&ev), &viewer::parts::PartFiles::default());
+        (ev, rows)
+    };
+    let row = |rows: &[TreeRow], id: RecipeNodeId| -> TreeRow {
+        rows.iter()
+            .find(|row| row.id == id)
+            .cloned()
+            .expect("every node has a row")
+    };
+
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("tree-empty-readout", tol);
+    let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
+    let block = |doc: &Doc<ProfileProgram>, x: f64| {
+        let (doc, profile) =
+            common::inserted(doc, common::rectangle(plane, [x, 0.0], 0.02, 0.02), tol);
+        common::inserted(
+            &doc,
+            Node::Extrude {
+                profile,
+                distance: common::len(0.02),
+            },
+            tol,
+        )
+    };
+    let (doc, near) = block(&doc, 0.0);
+    let (doc, far) = block(&doc, 0.1);
+    let (doc, apart) = common::inserted(
+        &doc,
+        Node::Boolean {
+            op: BooleanOp::Intersect,
+            a: near,
+            b: far,
+            declare: None,
+        },
+        tol,
+    );
+
+    // The empty intersect alone is the product: its row is the only
+    // place a reader learns the document makes nothing.
+    let (ev, rows) = run(&doc);
+    assert!(
+        matches!(
+            ev.usable(apart).ok().map(|value| &value.payload),
+            Some(ValuePayload::Boolean(BooleanValue::Empty))
+        ),
+        "the fixture's blocks do not meet: {:?}",
+        ev.result(apart)
+    );
+    let root = row(&rows, apart);
+    assert!(root.root, "the premise: the intersect is the product");
+    assert!(matches!(root.status, RowStatus::Ok), "{root:?}");
+    assert_eq!(
+        root.readout,
+        Some(Readout::Empty(Emptiness::Whole)),
+        "an empty root says so on its own row"
+    );
+    assert_eq!(
+        Emptiness::Whole.to_string(),
+        "empty",
+        "the phrase a reader sees"
+    );
+    assert_eq!(
+        row(&rows, near).readout,
+        None,
+        "a body's `Ok` says everything its value does"
+    );
+
+    // A consumer of the empty value: `EmptyOperand`.
+    let (doc, moved) = common::inserted(
+        &doc,
+        Node::transform(
+            apart,
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        ),
+        tol,
+    );
+
+    // A tool plane above the block: the split's above side is empty,
+    // and a `Part` reading it refuses `EmptyHalf`.
+    let (doc, tool) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Plane {
+            origin: [common::len(0.0), common::len(0.0), common::len(0.05)],
+            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+        }),
+        tol,
+    );
+    let (doc, split) = common::inserted(&doc, Node::Split { target: near, tool }, tol);
+    let (doc, above) = common::inserted(
+        &doc,
+        Node::Part {
+            of: split,
+            select: PartSelect::SplitHalf(SplitHalf::Above),
+        },
+        tol,
+    );
+
+    // Beside them, values with material: a subtract that leaves a
+    // body, and a split whose tool plane cuts the block in two.
+    let (doc, kept) = common::inserted(
+        &doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: near,
+            b: far,
+            declare: None,
+        },
+        tol,
+    );
+    let (doc, through) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Plane {
+            origin: [common::len(0.0), common::len(0.0), common::len(0.01)],
+            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+        }),
+        tol,
+    );
+    let (doc, halved) = common::inserted(
+        &doc,
+        Node::Split {
+            target: near,
+            tool: through,
+        },
+        tol,
+    );
+
+    // A three-instance pattern, and a `Part` reading instance 3.
+    let (doc, pattern) = common::inserted(
+        &doc,
+        Node::Pattern {
+            input: far,
+            count: pncad::document::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.05),
+            },
+        },
+        tol,
+    );
+    let (doc, past) = common::inserted(
+        &doc,
+        Node::Part {
+            of: pattern,
+            select: PartSelect::Instance(pncad::document::Expr::count(3)),
+        },
+        tol,
+    );
+
+    // A revolve whose axis lives on a second frame, parallel to the
+    // profile's and a metre up.
+    let (doc, other_plane) = common::inserted(
+        &doc,
+        common::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        tol,
+    );
+    let (doc, stranger) = common::inserted(
+        &doc,
+        Node::Datum(Datum::AxisInPlane {
+            plane: other_plane,
+            origin: [common::len(-0.01), common::len(0.0)],
+            direction: [common::scl(0.0), common::scl(1.0)],
+        }),
+        tol,
+    );
+    let (doc, section) =
+        common::inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.01, 0.01), tol);
+    let (doc, revolved) = common::inserted(
+        &doc,
+        Node::Revolve {
+            profile: section,
+            axis: stranger,
+            angle: common::ang(std::f64::consts::PI),
+        },
+        tol,
+    );
+
+    let (ev, rows) = run(&doc);
+    assert!(
+        matches!(
+            ev.usable(split).ok().map(|value| &value.payload),
+            Some(ValuePayload::Split {
+                above: SplitSide::Empty,
+                below: SplitSide::Body(_),
+            })
+        ),
+        "the fixture's tool plane clears the block: {:?}",
+        ev.result(split)
+    );
+    assert_eq!(
+        row(&rows, split).readout,
+        Some(Readout::Empty(Emptiness::Half(SplitHalf::Above))),
+        "a split with an empty side says which"
+    );
+    assert_eq!(
+        Emptiness::Half(SplitHalf::Above).to_string(),
+        "above half empty"
+    );
+    assert_eq!(
+        Emptiness::Half(SplitHalf::Below).to_string(),
+        "below half empty"
+    );
+    // The readout's half word is the kernel's, as `EmptyHalf` says it.
+    for half in SplitHalf::ALL {
+        let phrase = Emptiness::Half(half).to_string();
+        let word = phrase
+            .strip_suffix(" half empty")
+            .expect("the readout ends in its suffix");
+        let kernel = NodeErrorKind::EmptyHalf {
+            input: RecipeNodeId(0),
+            half,
+        }
+        .to_string();
+        assert!(
+            kernel.contains(&format!("the split's {word} half")),
+            "{half:?}: the readout says {phrase:?}, the kernel {kernel:?}"
+        );
+    }
+    assert_eq!(
+        row(&rows, apart).readout,
+        Some(Readout::Empty(Emptiness::Whole)),
+        "the intersect still says so once it is no longer the root"
+    );
+    assert_eq!(
+        row(&rows, pattern).readout,
+        None,
+        "a pattern's count is authored, and the refusal's words state it"
+    );
+    assert!(
+        matches!(
+            ev.usable(kept).ok().map(|value| &value.payload),
+            Some(ValuePayload::Boolean(BooleanValue::Body { .. }))
+        ),
+        "the subtract leaves the block: {:?}",
+        ev.result(kept)
+    );
+    assert_eq!(
+        row(&rows, kept).readout,
+        None,
+        "a boolean with a body says everything its value does"
+    );
+    assert!(
+        matches!(
+            ev.usable(halved).ok().map(|value| &value.payload),
+            Some(ValuePayload::Split {
+                above: SplitSide::Body(_),
+                below: SplitSide::Body(_),
+            })
+        ),
+        "the tool plane cuts the block: {:?}",
+        ev.result(halved)
+    );
+    assert_eq!(
+        row(&rows, halved).readout,
+        None,
+        "a split with two bodies says everything its value does"
+    );
+
+    // The arm each row raised, among the four under test.
+    let raised = |id| match ev.node_error(id).map(|error| &error.kind) {
+        Some(NodeErrorKind::EmptyOperand { .. }) => Some("EmptyOperand"),
+        Some(NodeErrorKind::EmptyHalf { .. }) => Some("EmptyHalf"),
+        Some(NodeErrorKind::InstanceOutOfRange { .. }) => Some("InstanceOutOfRange"),
+        Some(NodeErrorKind::AxisInDifferentPlane { .. }) => Some("AxisInDifferentPlane"),
+        _ => None,
+    };
+    let arms = [
+        (moved, "EmptyOperand"),
+        (above, "EmptyHalf"),
+        (past, "InstanceOutOfRange"),
+        (revolved, "AxisInDifferentPlane"),
+    ];
+    for (id, arm) in arms {
+        assert_eq!(
+            raised(id),
+            Some(arm),
+            "the fixture raises {arm}: {:?}",
+            ev.result(id)
+        );
+        let failed = row(&rows, id);
+        assert!(
+            matches!(failed.status, RowStatus::Failed { .. }),
+            "{arm}: {failed:?}"
+        );
+        assert_eq!(
+            failed.repair_at, None,
+            "{arm}: the input it names refused nothing, so the row links nowhere"
+        );
+    }
 }

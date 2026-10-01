@@ -268,6 +268,15 @@ pub trait Real:
     /// refused `Contradicted`, `Inexact` ⇔ `Disputed`.
     const WITNESS: Witness;
 
+    /// **This scalar's name, as a refusal names it** — prose written to
+    /// sit inside "at the … scalar" (`"interval"`, `"dual"`), and the
+    /// one home for it: every refusal that names the scalar it ran at
+    /// reads it off its own type parameter, so two refusals cannot
+    /// spell one scalar two ways. Declared, never defaulted,
+    /// so a new scalar is asked by the compiler; a wrapper states its
+    /// own name rather than composing its base's.
+    const NAME: &'static str;
+
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     fn from_f64(x: f64) -> Self;
 
@@ -838,8 +847,10 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 ///
 /// **Which doors ask it** — hand-kept, like its siblings' rosters:
 ///
-/// - `topo`'s tier-3 check 1, of a stored plane `normal`, where a zero
-///   normal is a datum that describes no locus. It does not DECIDE the
+/// - `topo`'s tier-3 check 1, of every stored direction of an analytic
+///   surface or edge carrier — a plane's `normal`, the `axis` and
+///   `u_ref` of the axisymmetric kinds, a line's `dir` — where a zero
+///   one is a datum that describes no locus. It does not DECIDE the
 ///   length (that is [`decide_unit_direction`](crate::decide_unit_direction)'s
 ///   job, metered and band-relative): a datum is asked whether it is
 ///   the zero vector, not whether it is short.
@@ -915,7 +926,7 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 /// on the prune/report side — vacuously and checkably: the file
 /// contains no [`Bounds`] read at all. No `lo`, no `hi`, no
 /// comparison; the bound appears exactly once, as an INLINE bound on
-/// the `impl<T: Decide + Bounds + PcurveFittedLane> Verb<T>` header
+/// the `impl<T: Decide + Bounds + AtRestPolicy> Verb<T>` header
 /// (not a `where` clause — the earlier wording of this entry said
 /// `where`-position and was simply wrong about the syntax), purely so
 /// the callee's bound is satisfiable. Nothing there decides anything,
@@ -937,7 +948,7 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 /// **On the second — the WEAKEST bound that works, with the next
 /// tighter one shown failing.** Dropping [`Bounds`] does not compile:
 /// the callees require it. The next tighter bound,
-/// `Decide + `[`CertifiedBounds`]` + PcurveFittedLane`, compiles in
+/// `Decide + `[`CertifiedBounds`]` + AtRestPolicy`, compiles in
 /// this crate and BREAKS its caller — `editor_core::eval::wire`'s
 /// blend lowering runs beneath `evaluate<T>`, a mixed pass
 /// instantiated at [`Dual`](crate::Dual) by the dual corpus, and no
@@ -957,7 +968,7 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 /// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02
 /// certified at-rest entry), and a bound that names the callee's
 /// rights cannot be merged into the first header: the paragraph above
-/// records that tightening `Decide + Bounds + PcurveFittedLane` to a
+/// records that tightening `Decide + Bounds + AtRestPolicy` to a
 /// certifying bound breaks `editor_core::eval::wire`'s
 /// `Dual`-instantiated blend lowering. That right is now a VALUE the
 /// caller passes — `topo::ShellDoor`, whose one constructor carries
@@ -1022,7 +1033,17 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 ///    echo a derived margin is asking to be a seam, ratified individually.
 ///    **No general projection helper exists, by this ruling** — a
 ///    `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
-///    precisely what was asked for and refused.
+///    precisely what was asked for and refused. The classify seam's own
+///    diagnostic is not such a helper: `MarginDiag`, minted inside each
+///    scalar's `Decide` impl on every outcome of a verdict the funnel
+///    records under its name (definite and indeterminate alike), is the
+///    one projection of a decided margin. A refusal payload may echo it,
+///    for error reporting only: a recourse table or a door's message
+///    chooses its words from it, and nothing decides on it. Its type
+///    makes that structural, not a convention — it offers no value a
+///    comparison could read in passing, so deciding on it takes an
+///    obviously wrong, visibly named step that review and a gate can
+///    see.
 ///
 /// For genuine decisions nothing changes: the metered predicate layer is
 /// the only spelling — it IS the "definite sign or indeterminate" trilean,
@@ -1226,9 +1247,16 @@ pub mod bounds_allowlist {
     //! `ssi_hull_sup`, `ssi_tube_transversality`, `pcurve_*` funnel margins)
     //! and consuming certification enclosures (limb 2 a control-hull bound, limb 3 a
     //! box-chain enclosure). Its refusing side is **not** empty:
-    //! `PcurveFittedLane` certifies at `f64`, [`Probe`](crate::Probe) and the
-    //! interval scalar and refuses at [`Dual`](crate::Dual), dual bodies
-    //! really validating and really not holding a fitted cache.
+    //! the fitted door (`geom_brep::FittedLane`, answered by
+    //! `topo::AtRestPolicy::fitted_lane`) is held at `f64`,
+    //! [`Probe`](crate::Probe), the interval scalar and `Sym` over any of
+    //! them, and absent at [`Dual`](crate::Dual), dual bodies really
+    //! validating and really not holding a fitted cache. That door's module, `geom_brep::fitted_lane`,
+    //! is the fitted lane's own seam and not a widening of it: its
+    //! constructor (`FittedLane::certified`) and that constructor's
+    //! pointer-identity helper carry the certification RIGHT the value
+    //! stands for, hold the three `pcurve_cache` bodies by pointer, and read
+    //! no bracket.
     //! `geom_brep::ssi::enclose` is deliberately absent: the enclosure machinery
     //! decides nothing and takes the sole bound the rule already allows.
     //!
@@ -1327,22 +1355,29 @@ pub mod bounds_allowlist {
     //! verbs**, the certified at-rest validator and the one verb that
     //! validates what it built. Tier 3's battery is nine checks, eight of
     //! which any deciding scalar answers and one of which — the +V global
-    //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE. The
-    //! battery is therefore two functions, `validate_geometric_structural`
-    //! at `T: Decide + Bounds + AtRestPolicy` and a private certified half at
+    //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE when it
+    //! is made through the certified quadrature. The entry is therefore
+    //! two private functions, a structural phase at
+    //! `T: Decide + Bounds + AtRestPolicy` and a certified half at
     //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds), and the public entry is their
     //! composition, so its bound is the union and IS the compound one this
-    //! file ratifies. `shell`/`shell_open` take the same bound because their
+    //! file ratifies. Its twin `validate_geometric_structural`, at the
+    //! structural phase's bound, holds no certified lane and makes the
+    //! orientation check through the closed form. `shell`/`shell_open` take the same bound because their
     //! last act is that entry.
     //!
     //! **What it owes "brackets never decide", stated at the substance and
     //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
     //! disclosed here rather than left to be discovered: check 1's
     //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
-    //! analytic surface's conventions state (`geom`'s
+    //! analytic surface's or edge carrier's conventions state (`geom`'s
     //! `Surface::representability_margins` — a cylinder's, sphere's or
     //! torus tube's radius, and a cone half-angle's distance from each end
-    //! of `(0, π/2)`), the representability read. The certified half's own
+    //! of `(0, π/2)` — and `Curve3::representability_margins`, a circle's
+    //! radius, an ellipse's semi-axes and a spiric's tube radius — and,
+    //! for the axisymmetric kinds of both, the frame's unit-ness and
+    //! orthogonality stated as ε-slack margins at the kind's radius), the
+    //! representability read. The certified half's own
     //! bracket read is `props`' certified quadrature, already ratified at
     //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
     //! its convention with zero — a radius that is zero, negative or poison
@@ -1350,9 +1385,11 @@ pub mod bounds_allowlist {
     //! describe one — so the read is about whether the datum lies inside
     //! the convention its variant states and not about where geometry lies,
     //! and the value never crosses into a certificate. It takes no `k_stats` name and
-    //! no band precisely because it meters nothing — the chamfer's
-    //! `NonpositiveSize` precedent — and the geometric question beside it
-    //! (`R - r`) does go through `decide`. `S88`'s named blind spot (a
+    //! no band of its own precisely because it meters nothing — the chamfer's
+    //! `NonpositiveSize` precedent; where a convention is itself stated to
+    //! within the run's ε (the frame's), the ε is inside the margin `geom`
+    //! computes and the read still compares with zero — and the geometric
+    //! question beside it (`R - r`) does go through `decide`. `S88`'s named blind spot (a
     //! bracket read behind a renamed accessor) has no instance here any
     //! more: the accessor is gone and the read is spelled `Bounds::lo`
     //! where a grep sees it. What this entry discloses is a different
@@ -1374,8 +1411,8 @@ pub mod bounds_allowlist {
     //! none of this gate's, invisible to every instrument. What changed is
     //! the mechanism, not the strictness: the refusal is retired and the
     //! call a dual cannot honour is unwritable instead. A dual keeps the
-    //! structural half, which is where every certificate its bit-identity
-    //! rows compare is produced.
+    //! `_structural` twin, which holds no certified lane and is where every
+    //! certificate its bit-identity rows compare is produced.
     //!
     //! **What a future row owes instead of citing this one.** Two negative
     //! results carried its first draft and neither reaches the question: that
@@ -1438,6 +1475,8 @@ pub mod bounds_allowlist {
 ///   brackets they store never leave the door.
 /// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
 ///   as `f64` does; D9 forbids the recording lane diverging.
+/// - [`crate::Sym`] — delegates to its numeric channel, so it refuses
+///   exactly where the scalar it wraps does.
 ///
 /// Every one of them therefore honours one postcondition, which is what
 /// a generic `T: CertifiedEnclosure` body may rely on: **a `Some` never
@@ -1557,6 +1596,8 @@ impl Real for f64 {
     /// reason is why a theorem contradicted by this channel is a
     /// dispute rather than a defect.
     const WITNESS: Witness = Witness::Inexact;
+
+    const NAME: &'static str = "f64";
 
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {

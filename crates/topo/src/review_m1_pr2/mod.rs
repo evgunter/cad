@@ -1,9 +1,6 @@
 //! The promoted M1 PR 2 adversarial review suites (this module's
 //! shared helpers plus the five probe submodules). Adversarial e2e
-//! review artifact for M1 PR 2 (2026-07-16); promoted per Ev's
-//! request (PR #17 thread).
-//!
-//! These are **independent derivations**.
+//! review artifact for M1 PR 2 (2026-07-16).
 //!
 //! **Moved from `tests/` into `src/` (cfg(test)) at M1 PR 5**, when the
 //! raw builder retreated to `pub(crate)`: the atomicity, degenerate-
@@ -15,7 +12,6 @@
 //! per-file `mod review_m1_pr2_common;` includes became submodule
 //! declarations here; the probes are otherwise verbatim.
 
-#![allow(dead_code)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod atomicity;
@@ -25,82 +21,7 @@ mod fan_semantics;
 mod release_corruption;
 
 use crate::readback::euler_counts;
-use crate::{Body, EntityId, EulerCounts, LoopBoundary};
-
-/// A full deep snapshot of a body: every key in all 10 arenas with its
-/// Debug-formatted payload, plus the provenance record of every topology
-/// entity. Two bodies (or one body before/after a failed op) are equal
-/// iff their snapshots are string-equal.
-pub(crate) fn deep_snapshot(body: &Body<f64>) -> String {
-    let mut s = String::new();
-    use std::fmt::Write;
-    for (k, v) in body.solids() {
-        writeln!(
-            s,
-            "solid {k:?} = {v:?} prov={:?}",
-            body.provenance(EntityId::Solid(k))
-        )
-        .unwrap();
-    }
-    for (k, v) in body.shells() {
-        writeln!(
-            s,
-            "shell {k:?} = {v:?} prov={:?}",
-            body.provenance(EntityId::Shell(k))
-        )
-        .unwrap();
-    }
-    for (k, v) in body.faces() {
-        writeln!(
-            s,
-            "face {k:?} = {v:?} prov={:?}",
-            body.provenance(EntityId::Face(k))
-        )
-        .unwrap();
-    }
-    for (k, v) in body.loops() {
-        writeln!(
-            s,
-            "loop {k:?} = {v:?} prov={:?}",
-            body.provenance(EntityId::Loop(k))
-        )
-        .unwrap();
-    }
-    for (k, v) in body.half_edges() {
-        writeln!(
-            s,
-            "he {k:?} = {v:?} prov={:?}",
-            body.provenance(EntityId::HalfEdge(k))
-        )
-        .unwrap();
-    }
-    for (k, v) in body.edges() {
-        writeln!(
-            s,
-            "edge {k:?} = {v:?} prov={:?}",
-            body.provenance(EntityId::Edge(k))
-        )
-        .unwrap();
-    }
-    for (k, v) in body.vertices() {
-        writeln!(
-            s,
-            "vertex {k:?} = {v:?} prov={:?}",
-            body.provenance(EntityId::Vertex(k))
-        )
-        .unwrap();
-    }
-    for (k, v) in body.points() {
-        writeln!(s, "point {k:?} = {v:?}").unwrap();
-    }
-    for (k, v) in body.curves() {
-        writeln!(s, "curve {k:?} = {v:?}").unwrap();
-    }
-    for (k, v) in body.surfaces() {
-        writeln!(s, "surface {k:?} = {v:?}").unwrap();
-    }
-    s
-}
+use crate::{Body, EulerCounts, LoopBoundary};
 
 /// The coordinates of a half-edge's start vertex.
 pub(crate) fn start_xyz(body: &Body<f64>, he: crate::HalfEdgeKey) -> (f64, f64, f64) {

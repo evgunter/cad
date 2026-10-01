@@ -75,3 +75,20 @@ each row names, or (b) extend the `blend_surgery` postcondition to the
 birth rows' SOURCE halves, so the plan-key discipline is enforced rather
 than commented, and keep the two spellings with that guard behind them.
 (b) is the cheaper half and is what the measurement above was written as.
+
+## The hand-kept `retain` is now load-bearing for NAME uniqueness (2026-09-25)
+
+`blend-slit-name-collides-when-two-rims-share-a-meridian` gave
+`BandSlit` and `BandCross` a band discriminator and left `BandCut`
+(`meridian_remnants`) keyed on the source meridian alone. That is sound
+only because a band that splits a piece an earlier band recorded
+retires that row first, and on the annulus arm that retire is exactly
+the hand-kept `retain` at the mate-seam loop and the `HostFoot::Seam`
+arm this finding calls drift. Drop either and two bands on one seam
+record two remnants of one source meridian, which the emitter names
+alike and refuses `Naming(Duplicate)`.
+`demos/tour/tests/teapot_document.rs`'s
+`one_band_cut_survives_between_two_bands` pins the outcome on the
+lid's flange seam: exactly one `BandCut` there, running crossing to
+crossing. Whichever way this item closes, the retire stays part of the
+split.

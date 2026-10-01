@@ -20,9 +20,10 @@ use test_utils::f6::{assert_f6, assert_f6_every_variant};
 /// refusal actually carries out of the verification ladder.
 fn in_band() -> Indeterminate {
     Indeterminate {
-        margin: MarginDiag::Value(3e-11),
+        margin: MarginDiag::value(3e-11),
         band: Band::new(1e-12, 1e-9).expect("zero < escalate"),
         predicate: Some("side_of_plane"),
+        terminal_sliver: false,
     }
 }
 
@@ -83,7 +84,7 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
         ),
         (
             ContactRefusal::Escalated { diag: in_band() },
-            vec!["escalated", "side_of_plane", topo::CONTACT_RECOURSE],
+            vec!["escalated", topo::CONTACT_RECOURSE],
         ),
         (
             ContactRefusal::Undeclared { diag: in_band() },

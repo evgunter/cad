@@ -2,9 +2,13 @@
 id: the-viewer-keeps-its-profile-lock-and-order-search-after-set-program
 kind: issue
 title: The viewer's profile editor still locks the shape and searches a write order: SetProgram exists and the lock, program_edits, accepted_order and three refusals are droppable
-status: open
+status: closed
 opened: 2026-09-20
 refs: [a-committed-profile-program-has-no-whole-program-edit]
+priority: P0
+cost: D
+closed: 2026-09-30
+pr: 3446
 ---
 
 ## The finding
@@ -103,3 +107,69 @@ enum and matches no word of the pattern; it was found by reading. The
 pattern cannot match a control that is disabled by a different word
 than `Locked` — none was found by reading `path_steps_ui`, which takes
 the enum.
+
+## Triaged P0 and dispatched (2026-09-29)
+
+Filed with no priority. Triaged **P0**: a committed sketch's shape controls are drawn disabled under a sentence (`SHAPE_LOCKED`) that has been false since `DocEdit::SetProgram` landed, so reshaping a sketch after committing it is a door the GUI cannot author, which is AUTHOR's charter. Dispatched as **AUTH-6** (`docs/AUTH-6-SPEC.md`, branch `author/profile-reshape`) in parallel with AUTH-5, which works in `sketch::preview`.
+
+## AUTH-6 landed the unit (2026-09-29, `author/profile-reshape`)
+
+The edit door commits one `DocEdit::SetProgram`. The lock,
+`program_edits`/`Restructure`, `accepted_order`/`ORDER_SEARCH_CAP` and
+the three refusals are gone, along with the rows that pinned them. The
+three design calls and the mutation table are in the PR body.
+
+**Two premises above were stale, and so was the spec.** Since #3193
+(2026-09-25), `SetProgram` carries `ids: Vec<Vec<Option<StepId>>>`, not
+a provenance. `LoopProvenance::identity` no longer exists, and neither
+does `Maintenance::Rebound`: a kept step's names keep their spelling and
+nothing is rewritten. The editor's provenance is therefore which
+committed step each held step IS (`ProfileEdit::ids`). The stale
+sentence in `SlotId::Profile`'s doc is filed as
+`work/edit/slot-id-profile-doc-says-set-program-rebinds-names`. Also,
+"the delete cascade's strand-count affordance" counts dependent
+features, not strands, so the strand count on the edit door's Apply is
+new, modelled on it.
+
+**The sweep's blind spot, checked.** Grepping the TYPE `ShapeEdits`
+rather than the variant `Locked` found a twelfth file the row's pattern
+missed: `widgets.rs`. Its `path_step_fields`, `arc_fields` and
+`target_fields` took `shape: ShapeEdits` and disabled the arc-mode,
+side, winding, target-form and split-count controls with
+`shape.free()`. No word of the row's pattern appears there. All are
+live now. A second pass, `rg 'add_enabled|add_enabled_ui'` over
+`pane/profile.rs`, `pane/create.rs` and `widgets.rs`, found no other
+shape control disabled by a word other than `Locked`.
+
+## Closed 2026-09-30 — PR 3446 merged (`75d074e3`)
+
+**A committed sketch's shape is editable.** The edit door commits the
+editor's whole program as one `DocEdit::SetProgram` — one edit, one
+undo, whatever changed: numbers, steps inserted, removed or reordered,
+verbs, arc modes, targets, a split circle's `n`. The lock, the per-slot
+diff, the write-order search and its cap, and the three refusals about
+states nobody writes any more are retired with the rows that pinned
+them. Ev confirmed the P0 triage (2026-09-29).
+
+**The tree had moved under the spec.** Since Ev's step-id ruling on
+#3193, `SetProgram` carries per-step `StepId`s, not a provenance, and
+rewrites no names. So the design call became *which committed step each
+held step is*: the editor tracks it through every row edit rather than
+guessing from values, and a held step keeps its id only while it draws
+the committed step's pieces (the kernel's own `Step::pieces`). A verb
+change, a new split count or a re-made step gets a fresh id, so its
+names strand and are reported — before Apply on the button's hover, and
+after it on the status line, in the kernel's own sentence.
+
+**Review.** The correctness review could not falsify the id table
+running edits through the real door; the before-Apply report matched
+the commit in every case run. The style review found the no-op rule
+and the strand sentence each with two homes; both now have one. The fix
+pass rewrote the id rule onto the kernel's `Step::pieces` and proved it
+identical to the old rule on all 1369 pairs of 37 steps.
+
+Residue filed: `work/edit/slot-id-profile-doc-says-set-program-rebinds-names`
+(six stale kernel sentences), `work/edit/set-program-ids-keep-all-is-hand-spelled-outside-the-kernel`,
+and `work/wire/a-split-circles-phase-edit-re-aims-its-piece-names-silently`
+— a name re-aimed with no report when a split circle's phase turns by
+2π/n, pre-existing and on the naming layer's ground.

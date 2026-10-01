@@ -10,13 +10,14 @@
 
 use crate::fixture;
 
+use bvh::test_support::ray;
+use editor_core::NodeStanding;
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, HitTestError, MeshPick, MeshPickError, Node,
-    PickTarget, ProfileDoc, Ray, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face,
-    resolve,
+    PickTarget, ProfileDoc, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
 };
 use fixture::{insert, len, on_frame};
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::Tol;
 use mesh::{FacePatch, Mesh};
 use topo::Body;
 
@@ -30,13 +31,6 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
-    Ray {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        dir: Vec3::new(dir[0], dir[1], dir[2]),
-    }
 }
 
 /// A unit cube `[0,1]³` shifted by `dx` along x, as one extrude node.
@@ -268,19 +262,19 @@ fn unusable_nodes_surface_typed_errors() {
     let t = |node| [PickTarget::new(&ev, node, 0, &pick)];
     assert_eq!(
         pick_face(&ev, &t(bad), &r).expect_err("failed node is an error"),
-        HitTestError::NodeFailed { node: bad }
+        HitTestError::Standing(NodeStanding::Failed { node: bad })
     );
     assert_eq!(
         pick_face(&ev, &t(poisoned), &r).expect_err("poisoned node is an error"),
-        HitTestError::NodePoisoned {
+        HitTestError::Standing(NodeStanding::Poisoned {
             node: poisoned,
             through: bad
-        }
+        })
     );
     let foreign = RecipeNodeId(9999);
     assert_eq!(
         pick_face(&ev, &t(foreign), &r).expect_err("foreign node is an error"),
-        HitTestError::NodeNotEvaluated { node: foreign }
+        HitTestError::Standing(NodeStanding::NotInDocument { node: foreign })
     );
     // A good target FIRST does not mask a bad one later in the slice.
     let both = [
@@ -289,7 +283,7 @@ fn unusable_nodes_surface_typed_errors() {
     ];
     assert_eq!(
         pick_face(&ev, &both, &r).expect_err("bad target still surfaces"),
-        HitTestError::NodeFailed { node: bad }
+        HitTestError::Standing(NodeStanding::Failed { node: bad })
     );
 }
 
@@ -464,12 +458,12 @@ fn node_pick_door_is_prepaired_and_typed() {
     assert_eq!(
         editor_core::NodePick::build(&ev, bad, 0, DELTA, Tol::witness())
             .expect_err("a failed node has no body to pair"),
-        NodePickError::Standing(HitTestError::NodeFailed { node: bad })
+        NodePickError::Standing(NodeStanding::Failed { node: bad })
     );
     let foreign = RecipeNodeId(9999);
     assert_eq!(
         editor_core::NodePick::build(&ev, foreign, 0, DELTA, Tol::witness())
             .expect_err("a foreign id has no result"),
-        NodePickError::Standing(HitTestError::NodeNotEvaluated { node: foreign })
+        NodePickError::Standing(NodeStanding::NotInDocument { node: foreign })
     );
 }

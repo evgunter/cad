@@ -208,7 +208,10 @@ impl FaceGeometry {
             // The plane is computed only on this arm: `Declined` is
             // for fixtures that decline geometry, and a profile whose
             // Newell plane does not certify is theirs to build.
-            Self::Certified => FaceSurface::New(plane(corners, tol)),
+            Self::Certified => FaceSurface::New {
+                surface: plane(corners, tol),
+                sense: true,
+            },
             Self::Declined => FaceSurface::Inherit,
         }
     }
@@ -231,6 +234,13 @@ pub struct PrismOps {
     pub sides: Vec<MefCreated>,
 }
 
+/// The `map` [`prism_ops`] takes for a prism in its own frame: the
+/// coordinates themselves, lifted exactly into the caller's scalar
+/// through `map`, the linear types' componentwise door.
+pub fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
+    Point3::new(x, y, z).map(T::from_f64)
+}
+
 /// **The one Euler sequence every box and prism in this file is built
 /// by**: a right prism over the simple polygon `profile` (x, y corners,
 /// no repeats, reflex corners welcome) spanning `z`, into `body`, with
@@ -251,8 +261,8 @@ pub struct PrismOps {
 /// The three axes the callers differ on are all parameters here, and
 /// that is the whole of the difference between them:
 ///
-/// - **`map`** is where the tilted operands live. `Point3::new` at
-///   `T::from_f64` gives the untransformed prism; anything else — a
+/// - **`map`** is where the tilted operands live. [`identity_map`]
+///   gives the untransformed prism; anything else — a
 ///   scale, an affine, a shear — is the same body pushed through it.
 ///   The 2x box and the unit cube are one call apart.
 /// - **`faces`** is [`FaceGeometry`]: real Newell planes, or face
@@ -304,7 +314,7 @@ pub fn prism_ops<T: geom_core::Decide>(
     let bot: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.0)).collect();
     let top: Vec<Point3<T>> = profile.iter().map(|&(x, y)| map(x, y, z.1)).collect();
 
-    let seed = body.mvfs(bot[0]).unwrap();
+    let seed = body.mvfs(bot[0], true).unwrap();
     // Bottom rim chain v0 → v1 → … → v_{n-1}.
     let mut chain = Vec::new();
     chain.push(
@@ -406,8 +416,14 @@ pub fn prism_ops<T: geom_core::Decide>(
     // placeholder every other face inherited, so the whole prism sits on
     // one surface key.
     if faces == FaceGeometry::Certified {
-        body.set_face_surface(seed.face, FaceSurface::New(plane(&top, tol)))
-            .unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: plane(&top, tol),
+                sense: true,
+            },
+        )
+        .unwrap();
     }
 
     PrismOps {
@@ -455,7 +471,7 @@ fn unit_cube<T: geom_core::Decide>(faces: FaceGeometry, tol: Tol) -> CubeOps<T> 
         &mut body,
         &UNIT_SQUARE,
         (0.0, 1.0),
-        |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        identity_map,
         faces,
         tol,
     );
@@ -566,7 +582,7 @@ pub fn prism_z<T: geom_core::Decide>(
         &mut body,
         profile,
         (z0, z1),
-        |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        identity_map,
         FaceGeometry::Certified,
         tol,
     );
@@ -955,8 +971,14 @@ pub fn plane_every_face<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
                 *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
             })
             .collect();
-        body.set_face_surface(face, FaceSurface::New(plane(&corners, tol)))
-            .unwrap();
+        body.set_face_surface(
+            face,
+            FaceSurface::New {
+                surface: plane(&corners, tol),
+                sense: true,
+            },
+        )
+        .unwrap();
     }
 }
 
@@ -975,7 +997,7 @@ pub fn plane_every_face<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
 /// The holes must lie inside the top face and clear of one another;
 /// nothing checks either.
 pub fn holed_block<T: geom_core::Decide>(w: f64, hole_centres: &[f64], tol: Tol) -> Body<T> {
-    let pt = |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    let pt = identity_map::<T>;
     let mut body = Body::<T>::new();
     let ops = prism_ops(
         &mut body,
@@ -1165,7 +1187,7 @@ pub enum CylKey {
 /// no validity promise on its own: the plane is an orphan surface
 /// until the rim edge naming it exists, and the `mev` that mints that
 /// edge is the op whose postcondition covers it.
-pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
     key: CylKey,
@@ -1180,10 +1202,16 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
         frame.at(u1, v1),
         frame.at(u0, v1),
     );
-    let seed = body.mvfs(p00).unwrap();
+    let seed = body.mvfs(p00, true).unwrap();
     let cyl = match key {
         CylKey::OnSeed => body
-            .set_face_surface(seed.face, FaceSurface::New(frame.surface()))
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: frame.surface(),
+                    sense: true,
+                },
+            )
             .unwrap(),
         CylKey::Bare => body.add_surface(frame.surface()),
         CylKey::Shared(cyl) => cyl,
@@ -1269,7 +1297,10 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
                 he2: e_b.he_plus,
             },
             EdgeCurveSpec::line_between(p01, p00),
-            FaceSurface::Shared(cyl),
+            FaceSurface::Shared {
+                key: cyl,
+                sense: true,
+            },
             tol,
         )
         .unwrap()
@@ -1323,7 +1354,7 @@ pub(crate) fn unit_cyl_sheet(
 /// key placement and runs the pcurve pass over the result. The wall
 /// face's sense is left where `mef` put it — [`unit_cyl_sheet`] is the
 /// spelling that writes one.
-pub fn cyl_wall_sheet<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
     source: Option<u64>,

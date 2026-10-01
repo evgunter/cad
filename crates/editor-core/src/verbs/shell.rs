@@ -50,11 +50,12 @@
 //! anywhere, so a new arm in any of the four kernel enums is a compile
 //! error here and never a silently dropped number. Each numeric field
 //! declares WHICH END of a bracket is its honest witness
-//! ([`BracketEnd`], the argument at the field), and each lane says
-//! what an end means for its scalar ([`Lane::end`]): at `f64` the fold
-//! is the identity, at the interval scalar the declared end, at a
+//! ([`BracketEnd`], the argument at the field), and the scalar's own
+//! bracket answers it ([`geom_core::Bounds`]): at a point scalar both
+//! ends are the value, at the interval scalar the declared end, at a
 //! wrapped scalar the base's. Nothing here decides on the number — it
-//! is displayed and tagged — so no lane needs a bracket bound.
+//! is displayed and tagged, the reporting side of the `Bounds` scope
+//! rule.
 
 use geom_core::Real;
 use std::sync::Arc;
@@ -62,7 +63,6 @@ use topo::{Body, FaceKey, ReplaceFaceError, ShellError, ShellNaming};
 use verbs::{ScalarParam, Verb, VerbRecord};
 
 use super::SlotJoin;
-use crate::lane::{BracketEnd, Lane};
 use crate::names::{self, NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId};
 
@@ -145,17 +145,30 @@ pub(crate) fn shell<T: geom_core::Real>() -> ShellVerb<T> {
     }
 }
 
+/// Which end of a bracket a folded refusal number reports, declared
+/// per field by the fold below.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BracketEnd {
+    /// The bracket's infimum: the number at its smallest.
+    Infimum,
+    /// The bracket's supremum: the number at its largest.
+    Supremum,
+}
+
 /// **The `f64` witness of a shell refusal at any scalar**: the total
-/// fold below, every field read at the end it declares through that
-/// scalar's own [`Lane::end`].
+/// fold below, every field read at the end it declares off the
+/// scalar's own bracket.
 ///
 /// A free function and not a per-scalar method, because there is
 /// nothing per-scalar left to say: the arms are the kernel's and the
-/// same at every lane, and the end reading is already declared once,
-/// at [`Lane`]. A scalar that never forms the shell call still folds —
-/// it simply never holds a `ShellError` of its own to fold.
-pub(crate) fn fold_shell_error_at<T: Lane>(error: ShellError<T>) -> ShellError<f64> {
-    fold_shell_error(error, T::end)
+/// same at every scalar, and the end reading is [`geom_core::Bounds`].
+/// A scalar that never forms the shell call still folds — it simply
+/// never holds a `ShellError` of its own to fold.
+pub(crate) fn fold_shell_error_at<T: geom_core::Bounds>(error: ShellError<T>) -> ShellError<f64> {
+    fold_shell_error(error, |x, end| match end {
+        BracketEnd::Infimum => x.lo(),
+        BracketEnd::Supremum => x.hi(),
+    })
 }
 
 /// **The total fold of a shell refusal to `f64`** (module docs), with
@@ -192,7 +205,6 @@ pub(crate) fn fold_shell_error<T: Real>(
             gap: end(gap, Infimum),
             needed: end(needed, Supremum),
         },
-        E::ChartSpansSolids { face, other } => E::ChartSpansSolids { face, other },
         E::ChartSenseMixed { face, other } => E::ChartSenseMixed { face, other },
         E::Face { face, error } => E::Face {
             face,
@@ -228,6 +240,7 @@ fn fold_replace_face_error<T: Real>(
     use BracketEnd::{Infimum, Supremum};
     use ReplaceFaceError as R;
     match error {
+        R::Band { error } => R::Band { error },
         R::StaleFace { face } => R::StaleFace { face },
         R::Corrupt => R::Corrupt,
         R::Offset { face, error } => R::Offset {
@@ -235,7 +248,7 @@ fn fold_replace_face_error<T: Real>(
             error: fold_offset_error(error, end),
         },
         R::Fit { face, error } => R::Fit { face, error },
-        R::ApproxLaneUnsupported { face } => R::ApproxLaneUnsupported { face },
+        R::ApproxLaneUnsupported { face, scalar } => R::ApproxLaneUnsupported { face, scalar },
         R::SharedSurfaceKey { face, other } => R::SharedSurfaceKey { face, other },
         R::EmptyGroup => R::EmptyGroup,
         R::GroupChartsDiffer { face, other } => R::GroupChartsDiffer { face, other },
@@ -279,6 +292,17 @@ fn fold_replace_face_error<T: Real>(
             edge,
             kind,
             other_kind,
+        },
+        R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
+        } => R::NeighborPoseUnroutable {
+            edge,
+            kind,
+            other_kind,
+            why,
         },
         R::FittedBoundaryUnsupported { edge, what } => R::FittedBoundaryUnsupported { edge, what },
         R::CarrierLaneUnsupported { edge, what } => R::CarrierLaneUnsupported { edge, what },

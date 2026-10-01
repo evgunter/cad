@@ -6,15 +6,12 @@
 use core::f64::consts::PI;
 
 use crate::common::approx::band;
+use crate::common::bulge;
 use geom::Surface;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 const T: f64 = 1.0 / 128.0;
 
@@ -25,7 +22,7 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -38,10 +35,10 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
 fn frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r0, 0.0), 0.0),
-            (p2(r1, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r0, 0.0), 0.0),
+            (Point2::new(r1, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -170,7 +167,7 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
         let faces = cone_faces(&body);
         for signed in [-T, T] {
             let mut work = body.clone();
-            match topo::replace_faces_offset(&mut work, &faces, signed, band(), tol) {
+            match topo::replace_faces_offset(&mut work, &faces, signed, tol) {
                 Ok(()) => panic!(
                     "[r2] per-chart {what} d={signed}: BUILT — the caps' gate stopped standing \
                      in front of the cone chart, which is the measurement this row carries"
@@ -210,10 +207,10 @@ fn r2_a_conical_wedge_meridian_edge() {
     for (what, turn) in [("a quarter turn", PI / 2.0), ("a 1/12 turn", PI / 6.0)] {
         let body = revolved(
             bulge_loop(vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(r0, 0.0), 0.0),
-                (p2(r1, h), 0.0),
-                (p2(0.0, h), 0.0),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(r0, 0.0), 0.0),
+                (Point2::new(r1, h), 0.0),
+                (Point2::new(0.0, h), 0.0),
             ]),
             Revolution::Partial(turn),
         );
@@ -259,10 +256,10 @@ fn r2_wedge_at_degenerate_turns() {
     ] {
         let body = revolved(
             bulge_loop(vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(r, 0.0), 0.0),
-                (p2(r, h), 0.0),
-                (p2(0.0, h), 0.0),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(r, 0.0), 0.0),
+                (Point2::new(r, h), 0.0),
+                (Point2::new(0.0, h), 0.0),
             ]),
             Revolution::Partial(turn),
         );
@@ -304,16 +301,15 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         4.0 / 64.0,
         5.0 / 64.0,
     );
-    let c = p2(0.0, y_c);
-    let (u, v) = (p2(r_foot, y_foot) - c, p2(r_neck, y_mouth) - c);
-    let sweep = u.perp_dot(v).atan2(u.dot(v));
+    let c = Point2::new(0.0, y_c);
+    let (foot, mouth) = (Point2::new(r_foot, y_foot), Point2::new(r_neck, y_mouth));
     let pot = revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r_foot, 0.0), 0.0),
-            (p2(r_foot, y_foot), (sweep / 4.0).tan()),
-            (p2(r_neck, y_mouth), 0.0),
-            (p2(0.0, y_mouth), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r_foot, 0.0), 0.0),
+            (foot, bulge(foot, mouth, c)),
+            (mouth, 0.0),
+            (Point2::new(0.0, y_mouth), 0.0),
         ]),
         Revolution::Full,
     );
@@ -374,11 +370,11 @@ fn r2_stepped_vase_lift_branch() {
     let t = 1.0 / 128.0;
     let body = revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(6.0 / 64.0, 0.0), 0.0),
-            (p2(5.0 / 64.0, 4.0 / 64.0), 0.0),
-            (p2(3.0 / 64.0, 8.0 / 64.0), 0.0),
-            (p2(0.0, 8.0 / 64.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(6.0 / 64.0, 0.0), 0.0),
+            (Point2::new(5.0 / 64.0, 4.0 / 64.0), 0.0),
+            (Point2::new(3.0 / 64.0, 8.0 / 64.0), 0.0),
+            (Point2::new(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     );
@@ -416,10 +412,10 @@ fn r2_which_branch_each_fixture_takes() {
     let square = |turn| {
         revolved(
             bulge_loop(vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(r, 0.0), 0.0),
-                (p2(r, h), 0.0),
-                (p2(0.0, h), 0.0),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(r, 0.0), 0.0),
+                (Point2::new(r, h), 0.0),
+                (Point2::new(0.0, h), 0.0),
             ]),
             turn,
         )

@@ -6,8 +6,7 @@
 //! crate's own vocabulary and of the tour's two torus vessels, plus
 //! the full-period tori the unit is about. The same file compiled at
 //! the merge base and at the head is diffed line by line; it asserts
-//! nothing beyond "the fixture builds", the diff is the verdict. Kept
-//! free of every symbol the unit adds, so it compiles on both trees.
+//! nothing beyond "the fixture builds"; the diff is the verdict.
 //!
 //! Run with `--no-capture`, grep `[dump]`, diff across trees.
 
@@ -20,34 +19,14 @@ use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
-use topo::{Body, FaceKey, VertexKey};
+use topo::Body;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
+use crate::common::bulge;
+use crate::common::charts::hollow_moves;
+use crate::common::torus_walls::{klein_elbow, torus_barrel, torus_belly};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
-}
-
-fn faces_at(body: &Body<f64>, v: VertexKey) -> Vec<FaceKey> {
-    let Some(em) = body.get_vertex(v).unwrap().emanating else {
-        return Vec::new();
-    };
-    let mut out: Vec<FaceKey> = body
-        .vertex_orbit(em)
-        .unwrap()
-        .into_iter()
-        .map(|he| face_of_he(body, he))
-        .collect();
-    out.sort();
-    out.dedup();
-    out
 }
 
 fn dump(label: &str, body: &Body<f64>) {
@@ -70,7 +49,10 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     for (k, e) in body.edges() {
-        let (fa, fb) = (face_of_he(body, e.he_plus), face_of_he(body, e.he_minus));
+        let (fa, fb) = (
+            body.face_of_half_edge(e.he_plus).unwrap(),
+            body.face_of_half_edge(e.he_minus).unwrap(),
+        );
         let start = body.get_half_edge(e.he_plus).unwrap().start;
         let end = body.half_edge_end(e.he_plus).unwrap();
         let c = body
@@ -85,7 +67,8 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     for (k, v) in body.vertices() {
-        let faces = faces_at(body, k);
+        let mut faces = body.faces_of_vertex(k).unwrap();
+        faces.sort();
         let mut surfaces: Vec<_> = faces
             .iter()
             .map(|f| body.get_face(*f).unwrap().surface)
@@ -108,7 +91,7 @@ fn dump(label: &str, body: &Body<f64>) {
         "[dump] {label}: tier3={:?}",
         topo::validate_geometric(body, tol())
     );
-    super::shell9_rows::print_rows(label, body);
+    crate::common::pcurve_rows::print_rows(label, body);
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
@@ -122,27 +105,6 @@ fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
             None
         }
     }
-}
-
-/// Every chart moved inward by `t` through the simultaneous door.
-fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut charts: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
 }
 
 fn direct(label: &str, body: &Body<f64>, t: f64) {
@@ -171,7 +133,7 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
     revolved_about(
         lp,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -180,51 +142,17 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
 
 fn polyline(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
     revolved(
-        bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect()),
+        bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect()),
         turn,
-    )
-}
-
-/// The bulge (`tan(θ/4)`) of the arc from `a` to `b` about `c`.
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
-}
-
-// ---- torax_axial's fixtures ----
-
-fn torus_barrel() -> Body<f64> {
-    let c = p2(6.0 / 64.0, 1.0 / 16.0);
-    let (lo, hi) = (p2(3.0 / 64.0, 0.0), p2(3.0 / 64.0, 8.0 / 64.0));
-    revolved(
-        bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (lo, bulge(lo, hi, c)),
-            (hi, 0.0),
-            (p2(0.0, 8.0 / 64.0), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
-
-fn torus_belly() -> Body<f64> {
-    let c = p2(7.0 / 64.0, 5.0 / 64.0);
-    let (lo, hi) = (p2(4.0 / 64.0, 1.0 / 64.0), p2(3.0 / 64.0, 8.0 / 64.0));
-    revolved(
-        bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(4.0 / 64.0, 0.0), 0.0),
-            (lo, bulge(lo, hi, c)),
-            (hi, 0.0),
-            (p2(0.0, 8.0 / 64.0), 0.0),
-        ]),
-        Revolution::Full,
     )
 }
 
 fn lune(r: f64, turn: f64) -> Body<f64> {
     revolved(
-        bulge_loop(vec![(p2(0.0, -r), 0.0), (p2(0.0, r), -1.0)]),
+        bulge_loop(vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), -1.0),
+        ]),
         Revolution::Partial(turn),
     )
 }
@@ -232,57 +160,48 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
 // ---- sf2b_axial's fixtures ----
 
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
-    let c = p2(0.0, h / 2.0);
+    let c = Point2::new(0.0, h / 2.0);
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-            (p2(r, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (
+                Point2::new(r, 0.0),
+                bulge(Point2::new(r, 0.0), Point2::new(r, h), c),
+            ),
+            (Point2::new(r, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
 }
 
-// ---- verbs_shell's klein elbow ----
+// ---- the klein elbow's cross-sections ----
 
 fn circle_loop(r: f64) -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])
-}
-
-fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), loops)
-        .validate(tol())
-        .expect("the elbow's cross-section validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(1.20, 0.0),
-            dir: Vec2::new(0.0, -1.0),
-        },
-        Revolution::Partial(-FRAC_PI_2),
-        tol(),
-    )
-    .expect("the elbow revolves")
-    .body
+    bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ])
 }
 
 // ---- the tour's torus vessels, their meridian spelled with a bulge ----
 
+/// NOT `common::torus_walls::vessel_quarter`: the full revolve,
+/// its band spelled as a bulge about either tour centre.
 fn torus_vessel(centre_rho: f64) -> Body<f64> {
     let (r_foot, r_band, r_neck) = (5.0 / 64.0, 9.0 / 64.0, 7.0 / 64.0);
     let (y_foot, y_shoulder, y_mouth, h_tube) = (4.0 / 64.0, 12.0 / 64.0, 24.0 / 64.0, 8.0 / 64.0);
-    let (a, b) = (p2(r_band, y_foot), p2(r_band, y_shoulder));
+    let (a, b) = (Point2::new(r_band, y_foot), Point2::new(r_band, y_shoulder));
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r_foot, 0.0), 0.0),
-            (p2(r_foot, y_foot), 0.0),
-            (a, bulge(a, b, p2(centre_rho, h_tube))),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r_foot, 0.0), 0.0),
+            (Point2::new(r_foot, y_foot), 0.0),
+            (a, bulge(a, b, Point2::new(centre_rho, h_tube))),
             (b, 0.0),
-            (p2(r_neck, y_shoulder), 0.0),
-            (p2(r_neck, y_mouth), 0.0),
-            (p2(0.0, y_mouth), 0.0),
+            (Point2::new(r_neck, y_shoulder), 0.0),
+            (Point2::new(r_neck, y_mouth), 0.0),
+            (Point2::new(0.0, y_mouth), 0.0),
         ]),
         Revolution::Full,
     )
@@ -324,7 +243,7 @@ fn split_seam(body: &mut Body<f64>, on_axis: bool) {
     let seam = body
         .edges()
         .find(|(e, data)| {
-            let key = |he| body.get_face(face_of_he(body, he)).unwrap().surface;
+            let key = |he| body.get_face(body.face_of_half_edge(he).unwrap()).unwrap().surface;
             let same = key(data.he_plus) == key(data.he_minus);
             let c = body
                 .get_curve_geom(body.get_edge(*e).unwrap().curve)
@@ -411,8 +330,8 @@ fn shell7_dump_corpus() {
     shelled("tube torus hollow", &hollow, 0.05);
     for v in [0.0, PI / 2.0] {
         let (s, c) = v.sin_cos();
-        let a = p2(2.0 + 0.5 * c, 0.5 * s);
-        let b = p2(2.0 - 0.5 * c, -0.5 * s);
+        let a = Point2::new(2.0 + 0.5 * c, 0.5 * s);
+        let b = Point2::new(2.0 - 0.5 * c, -0.5 * s);
         let body = revolved(bulge_loop(vec![(a, 1.0), (b, 1.0)]), Revolution::Full);
         shelled(&format!("revolved torus, v = {v}"), &body, 0.05);
     }
@@ -470,9 +389,9 @@ fn shell7_dump_corpus() {
     let (sn, cs) = v.sin_cos();
     let ball = revolved(
         bulge_loop(vec![
-            (p2(0.0, -1.0), ((FRAC_PI_2 + v) / 4.0).tan()),
-            (p2(cs, sn), ((FRAC_PI_2 - v) / 4.0).tan()),
-            (p2(0.0, 1.0), 0.0),
+            (Point2::new(0.0, -1.0), ((FRAC_PI_2 + v) / 4.0).tan()),
+            (Point2::new(cs, sn), ((FRAC_PI_2 - v) / 4.0).tan()),
+            (Point2::new(0.0, 1.0), 0.0),
         ]),
         Revolution::Full,
     );

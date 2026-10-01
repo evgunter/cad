@@ -16,15 +16,14 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, Pcurve, validate_geometric};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The corpus shape (i) profile: a radius-0.5 disc as two half-circle
 /// arcs — extrudes to a cylinder whose two wall faces share one
 /// cylinder surface.
 fn disc() -> ValidatedProfile<f64> {
-    let lp = bulge_loop(vec![(p2(-0.5, 0.0), 1.0), (p2(0.5, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 1.0),
+        (Point2::new(0.5, 0.0), 1.0),
+    ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap()
@@ -36,16 +35,16 @@ fn disc() -> ValidatedProfile<f64> {
 /// one face, on one surface.
 fn revolved_tube() -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.4, 0.0), 0.0),
-        (p2(0.8, 0.0), 0.0),
-        (p2(0.8, 0.6), 0.0),
-        (p2(0.4, 0.6), 0.0),
+        (Point2::new(0.4, 0.0), 0.0),
+        (Point2::new(0.8, 0.0), 0.0),
+        (Point2::new(0.8, 0.6), 0.0),
+        (Point2::new(0.4, 0.6), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     revolve(&profile, axis, Revolution::Full, Tol::witness())
@@ -221,10 +220,10 @@ fn a_seam_edge_carries_two_different_pcurves_on_one_surface() {
 #[test]
 fn planar_bodies_carry_zero_stored_pcurves() {
     let square = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
-        (p2(1.0, 1.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![square])
         .validate(Tol::witness())
@@ -423,10 +422,11 @@ fn caches_replay_bit_identically() {
 fn caches_certify_on_the_interval_lane() {
     use geom_core::{Interval, Real};
 
-    let ip2 = |x: f64, y: f64| Point2::new(Interval::from_f64(x), Interval::from_f64(y));
+    use crate::common::interval;
+
     let lp = bulge_loop(vec![
-        (ip2(-0.5, 0.0), Interval::from_f64(1.0)),
-        (ip2(0.5, 0.0), Interval::from_f64(1.0)),
+        (interval::p2(-0.5, 0.0), Interval::from_f64(1.0)),
+        (interval::p2(0.5, 0.0), Interval::from_f64(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -440,16 +440,8 @@ fn caches_certify_on_the_interval_lane() {
     .body;
     let phi = 0.3f64;
     let plane = SplitPlane {
-        origin: Point3::new(
-            Interval::from_f64(0.0),
-            Interval::from_f64(0.0),
-            Interval::from_f64(0.5),
-        ),
-        normal: Vec3::new(
-            Interval::from_f64(phi.sin()),
-            Interval::from_f64(0.0),
-            Interval::from_f64(phi.cos()),
-        ),
+        origin: interval::p3(0.0, 0.0, 0.5),
+        normal: interval::v3(phi.sin(), 0.0, phi.cos()),
     };
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let mut seen = 0usize;

@@ -42,15 +42,19 @@
 use crate::fixture;
 
 use crate::wire::doctored;
+use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocRef, DocumentId,
     EditError, EntityKind, Expr, FaceName, Frame, InterfaceCrossing, InterfaceRecord, MateFrame,
     MatePrimitive, MeasureExpr, Node, ParamName, PersistError, ProfileDoc, ProfileProgram,
     RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load, save,
 };
-use fixture::resolver::{PART_BODY, PartStore};
+use editor_core::{LoggedEdit, ParamNameReason, parse_expr};
+use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
+use std::collections::BTreeMap;
+use test_utils::fuzz;
 
 // ---- The assertion's bound ----
 
@@ -93,10 +97,10 @@ fn assertion(measure: RecipeNodeId, bound: Expr) -> Node<ProfileProgram> {
 #[test]
 fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
     let (doc, measure) = with_measure();
-    // The sketch frame (node 0) is live and precedes any assertion, so
-    // the only thing wrong with the document is that it is not a
-    // measure.
-    let frame_node = RecipeNodeId(0);
+    // The sketch frame (the first node) is live and precedes any
+    // assertion, so the only thing wrong with the document is that it
+    // is not a measure.
+    let frame_node = doc.order()[0];
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -223,7 +227,7 @@ fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
 /// **`n` instances of a part document that exists**: the reference is
 /// minted by inserting a real part into a [`PartStore`], so its content
 /// pin is that part's digest and the faces `in_part` names are faces
-/// the part actually has.
+/// the part actually has. The part's body comes back beside them.
 ///
 /// That is what distinguishes it from the same-shaped fixture beside
 /// `persist::check`'s in-crate rows, which mints a `DocRef` by hand
@@ -232,9 +236,12 @@ fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
 /// two cannot be one function — an integration suite cannot reach a
 /// `#[cfg(test)]` item in the library, and the library cannot reach
 /// `tests/fixture` — so they are two, named for the difference.
-fn instances_of_a_stored_part(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, _, ids) = instances_and_ref_of_a_stored_part(label, n);
-    (doc, ids)
+fn instances_of_a_stored_part(
+    label: &str,
+    n: usize,
+) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
+    let (doc, _, ids, body) = instances_and_ref_of_a_stored_part(label, n);
+    (doc, ids, body)
 }
 
 /// The same fixture, keeping the reference it minted the instances
@@ -243,9 +250,9 @@ fn instances_of_a_stored_part(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeN
 fn instances_and_ref_of_a_stored_part(
     label: &str,
     n: usize,
-) -> (ProfileDoc, DocRef, Vec<RecipeNodeId>) {
+) -> (ProfileDoc, DocRef, Vec<RecipeNodeId>, RecipeNodeId) {
     let mut store = PartStore::default();
-    let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
+    let (doc_ref, body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..n {
@@ -253,10 +260,10 @@ fn instances_and_ref_of_a_stored_part(
         doc = next;
         ids.push(id);
     }
-    (doc, doc_ref, ids)
+    (doc, doc_ref, ids, body)
 }
 
-fn part(label: &str) -> ProfileDoc {
+fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -265,40 +272,36 @@ fn part(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
         },
-    );
-    doc
+    )
 }
 
-fn in_part(instance: RecipeNodeId) -> StableName {
+/// The part-local face every head here wears under its instance — the
+/// start cap of the part's `body`, as `in_part(.., body, CapEnd::Start)`
+/// spells it — so a crossing built here names the same face on both
+/// sides of the seam.
+fn part_face(body: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: part_face().into(),
-        }],
-    }
-}
-
-/// The part-local face `in_part` wraps: one spelling, so a crossing
-/// built here names the same face on both sides of the seam.
-fn part_face() -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: PART_BODY,
+        node: body,
         path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
     }
 }
 
-fn mate(a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Node<ProfileProgram> {
+fn mate(
+    body: RecipeNodeId,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    origin: [f64; 3],
+) -> Node<ProfileProgram> {
     Node::Mate {
-        a: crate::fixture::head(in_part(a)),
-        b: crate::fixture::head(in_part(b)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame {
@@ -329,14 +332,14 @@ fn mate(a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Node<ProfileProgr
 /// pinned in-crate beside the validator.
 #[test]
 fn a_non_finite_alignment_is_refused_at_the_edit_door() {
-    let (doc, ids) = instances_of_a_stored_part("onepred-align", 2);
+    let (doc, ids, body) = instances_of_a_stored_part("onepred-align", 2);
     // Finite, the same mate is accepted — so the refusal below is the
     // coordinate's and not the fixture's.
-    let (doc, _) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
+    let (doc, _) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: mate(ids[0], ids[1], [f64::NAN, 0.0, 0.0]),
+            node: mate(body, ids[0], ids[1], [f64::NAN, 0.0, 0.0]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -352,8 +355,8 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
 /// loaded once — the control the rows below corrupt, and the round
 /// trip in its own right.
 fn saved_mate(label: &str) -> (String, RecipeNodeId) {
-    let (doc, ids) = instances_of_a_stored_part(label, 2);
-    let (doc, id) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
+    let (doc, ids, body) = instances_of_a_stored_part(label, 2);
+    let (doc, id) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
     (text, id)
@@ -446,12 +449,12 @@ fn face(name: StableName) -> FaceName {
 /// by `fix_pattern_mate_crossing`, and what this seat needs is a
 /// crossing on the WIRE, which the door is public for.
 fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
-    let (doc, doc_ref, ids) = instances_and_ref_of_a_stored_part(label, 2);
+    let (doc, doc_ref, ids, body) = instances_and_ref_of_a_stored_part(label, 2);
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             class: ContactClass::Rest,
-            outer: face(in_part(ids[0])),
-            inner: face(part_face()),
+            outer: face(in_part(ids[0], body, CapEnd::Start)),
+            inner: face(part_face(body)),
         }],
     };
     let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record));
@@ -596,7 +599,7 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
 /// door `PlacementSite`.
 #[test]
 fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
-    let (doc, ids) = instances_of_a_stored_part("onepred-site", 1);
+    let (doc, ids, _) = instances_of_a_stored_part("onepred-site", 1);
     // A live NON-instance node, so the refusal is the placement rule's
     // and not a dangling id's.
     let (doc, other) = on_frame(
@@ -635,7 +638,7 @@ fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
 /// with a coordinate no predicate can read.
 #[test]
 fn an_improper_placement_is_refused_at_both_doors() {
-    let (doc, ids) = instances_of_a_stored_part("onepred-improper", 1);
+    let (doc, ids, _) = instances_of_a_stored_part("onepred-improper", 1);
     let mirror = Frame {
         columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
@@ -661,11 +664,59 @@ fn an_improper_placement_is_refused_at_both_doors() {
     let text = saved_placement(&doc, ids[0], Frame::translation([1.0, 0.0, 0.0]));
     let corrupt = mirror_first_column(&text, ids[0]);
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementImproper { node, determinant })) => {
+        Err(PersistError::Snapshot(SnapshotError::PlacementImproper {
+            node, determinant, ..
+        })) => {
             assert_eq!(node, ids[0]);
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
         other => panic!("an improper frame must refuse typed at load, got {other:?}"),
+    }
+}
+
+/// **A proper frame that is not rigid — both doors.** A scaled
+/// placement frame is refused where it is written, by the predicate
+/// the evaluation moves a body by, rather than admitted and refused
+/// later as `NotRigid` on the instance and on every member mated to
+/// it.
+#[test]
+fn a_non_rigid_placement_is_refused_at_both_doors() {
+    let (doc, ids, _) = instances_of_a_stored_part("onepred-non-rigid", 1);
+    let mut stretched = Frame::IDENTITY;
+    stretched.columns[0] = [2.0, 0.0, 0.0];
+    assert!(stretched.determinant() > 0.0, "the fixture is proper");
+    match apply(
+        &doc,
+        &DocEdit::SetPlacement {
+            node: ids[0],
+            frame: stretched,
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Err(error @ EditError::NonRigidPlacement { node, at, .. }) => {
+            assert_eq!((node, at), (ids[0], editor_core::FrameSite::Registry));
+            let text = error.to_string();
+            assert!(
+                text.contains("not definitely rigid") && text.contains("Recourse:"),
+                "says what is wrong and what to do: {text}"
+            );
+        }
+        other => panic!("a scaled placement must refuse typed, got {other:?}"),
+    }
+
+    // The load door's half: a proper frame on the wire, stretched.
+    let text = saved_placement(&doc, ids[0], Frame::translation([1.0, 0.0, 0.0]));
+    let corrupt = doctored(&text, |wire| {
+        let entry = &mut wire["snapshot"]["placements"][ids[0].0.to_string()]["columns"][0][0];
+        assert_eq!(*entry, serde_json::json!(1.0), "aimed at the first axis");
+        *entry = serde_json::json!(2.0);
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::PlacementNonRigid { node, at, .. })) => {
+            assert_eq!((node, at), (ids[0], editor_core::FrameSite::Registry));
+        }
+        other => panic!("a scaled frame must refuse typed at load, got {other:?}"),
     }
 }
 
@@ -680,10 +731,10 @@ fn an_improper_placement_is_refused_at_both_doors() {
 /// and normalises.
 #[test]
 fn a_placement_off_the_gauge_is_keyed_on_it_rather_than_refused() {
-    let (doc, ids) = instances_of_a_stored_part("onepred-gauge", 2);
+    let (doc, ids, body) = instances_of_a_stored_part("onepred-gauge", 2);
     // Mate the two instances: one cluster, whose gauge is its
     // document-order-first member.
-    let (doc, _) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
+    let (doc, _) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
     let frame = Frame::translation([2.0, 0.0, 0.0]);
     // The placement is authored on the LATER instance, which is not the
     // gauge.
@@ -797,11 +848,11 @@ fn rekey_witness(text: &str, from: RecipeNodeId, to: RecipeNodeId) -> String {
 /// `WitnessOnNonSketch` and the load door `SnapshotError::WitnessSite`.
 #[test]
 fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
-    // `with_measure` lays down a frame (0), a profile (1), an extrude
-    // (2) and a measure (3): the profile is the only sketch-bearing
+    // `with_measure` lays down a frame, a profile, an extrude and a
+    // measure, in that order: the profile is the only sketch-bearing
     // node in it, and the extrude is a live node that is not one.
     let (doc, _) = with_measure();
-    let (sketch, non_sketch) = (RecipeNodeId(1), RecipeNodeId(2));
+    let (sketch, non_sketch) = (doc.order()[1], doc.order()[2]);
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -833,9 +884,9 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
 #[test]
 fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let (doc, _) = with_measure();
-    let (sketch, gone) = (RecipeNodeId(1), RecipeNodeId(2));
-    // Deleted rather than invented, so the id stays BELOW the mint
-    // counter and the load door's id walk passes it — the refusal read
+    let (sketch, gone) = (doc.order()[1], doc.order()[2]);
+    // Deleted rather than invented, so the id stays one the document
+    // has minted and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `IdBeyondCounter`.
     let doc = apply(
         &doc,
@@ -931,7 +982,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
     use editor_core::{Distribution, DistributionField, DocParamField, persist::NonFiniteSite};
 
     let (doc, _) = with_measure();
-    let name = ParamName::new("wall");
+    let name = ParamName::from_static("wall");
     let annotated = |sigma: f64| {
         let mut value = DocParam::continuous(Dimension::Length, 1.0);
         if let DocParam::Continuous { distribution, .. } = &mut value {
@@ -1006,7 +1057,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 #[test]
 fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words() {
     let (doc, _) = with_measure();
-    let name = ParamName::new("n");
+    let name = ParamName::from_static("n");
     match apply(
         &doc,
         &DocEdit::SetDocParam {
@@ -1032,7 +1083,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        let dim = &mut wire["snapshot"]["params"][&name.0]["Continuous"]["dim"];
+        let dim = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"]["dim"];
         assert_eq!(
             *dim,
             serde_json::json!("Length"),
@@ -1048,4 +1099,350 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
         }) => assert_eq!(n, name),
         other => panic!("a count-dimensioned continuous param must refuse at load, got {other:?}"),
     }
+}
+
+// ---- The parameter name ----
+//
+// The rule one rung up again: a parameter name is admissible exactly
+// when the expression parser reads it back as a reference to that
+// parameter, and `ParamName` holds that by construction. The edit door
+// therefore has no name check to drift — an inadmissible name cannot
+// be spelled into a `DocEdit` — and the load door refuses at the
+// token, through the same constructor. The rows pair the constructor's
+// answer against the load door's for every shape the rule refuses, and
+// pin the constructor's rule to the parser's own reading.
+
+/// The texts the lexer does not read as one identifier, each with the
+/// finding `ParamName::new` answers for it: blank, whitespace, a
+/// leading digit, an embedded operator, a call's bracket, a character
+/// outside the alphabet, and padding.
+fn inadmissible_names() -> Vec<(&'static str, ParamNameReason)> {
+    let s = str::to_string;
+    vec![
+        ("", ParamNameReason::Blank),
+        ("   ", ParamNameReason::Blank),
+        (
+            "1 2",
+            ParamNameReason::NotAnIdentifier {
+                pos: 0,
+                found: s("1"),
+            },
+        ),
+        (
+            "2width",
+            ParamNameReason::NotAnIdentifier {
+                pos: 0,
+                found: s("2"),
+            },
+        ),
+        (
+            "a+b",
+            ParamNameReason::NotOneToken {
+                pos: 1,
+                found: s("+"),
+            },
+        ),
+        (
+            "hole r",
+            ParamNameReason::NotOneToken {
+                pos: 5,
+                found: s("r"),
+            },
+        ),
+        (
+            "sin(",
+            ParamNameReason::NotOneToken {
+                pos: 3,
+                found: s("("),
+            },
+        ),
+        (
+            "width#",
+            ParamNameReason::OutsideAlphabet { pos: 5, ch: '#' },
+        ),
+        (" width ", ParamNameReason::Padded),
+    ]
+}
+
+/// A document declaring one legal parameter, `width`, and its saved
+/// text — the load-door rows re-key that declaration to a refused
+/// spelling.
+fn saved_with_width() -> (ProfileDoc, String) {
+    let doc = ProfileDoc::empty(DocumentId::derive("param-name-door"), Tol::witness());
+    let applied = apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::from_static("width"),
+            value: DocParam::continuous(Dimension::Length, 1.0),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a legal name declares");
+    let text = save(&applied.doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    (applied.doc, text)
+}
+
+/// Re-keys the snapshot's `width` declaration under `spelling`.
+fn rekey_width(text: &str, spelling: &str) -> String {
+    doctored(text, |wire| {
+        let params = wire["snapshot"]["params"]
+            .as_object_mut()
+            .expect("the param table is an object");
+        let decl = params.remove("width").expect("the fixture declares width");
+        params.insert(spelling.to_string(), decl);
+    })
+}
+
+#[test]
+fn a_name_the_parser_cannot_read_back_is_refused_at_the_constructor() {
+    for (text, reason) in inadmissible_names() {
+        let fault = ParamName::new(text).expect_err(text);
+        assert_eq!(fault.offered, text, "the fault carries the text verbatim");
+        assert_eq!(fault.reason, reason, "{text:?}");
+        let shown = fault.to_string();
+        assert!(
+            shown.starts_with(&format!("parameter name {text:?} ")),
+            "the sentence quotes the bytes offered, as the parse door does: {shown}"
+        );
+    }
+}
+
+#[test]
+fn a_name_the_parser_cannot_read_back_is_refused_at_the_load_door() {
+    let (_, text) = saved_with_width();
+    for (spelling, reason) in inadmissible_names() {
+        let fault = ParamName::new(spelling).expect_err(spelling);
+        assert_eq!(fault.reason, reason);
+        let corrupt = rekey_width(&text, spelling);
+        match load(&corrupt, Tol::witness()) {
+            // At the token, as an off-table unit symbol refuses: this
+            // build's types rejected the key, and the detail is the
+            // constructor's own sentence.
+            Err(PersistError::Unreadable { detail, .. }) => assert!(
+                detail.contains(&fault.to_string()),
+                "{spelling:?}: the load door's detail is the constructor's sentence, got {detail}"
+            ),
+            other => panic!("{spelling:?} must refuse at the token, got {other:?}"),
+        }
+    }
+}
+
+/// The edit LOG carries names too, and the same constructor reads
+/// them: a logged declaration under a refused spelling is refused
+/// before replay is asked.
+#[test]
+fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
+    let (doc, _) = saved_with_width();
+    let log = vec![LoggedEdit::bare(DocEdit::SetDocParam {
+        name: ParamName::from_static("depth"),
+        value: DocParam::continuous(Dimension::Length, 2.0),
+    })];
+    let text = save(&doc, &log, Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    let fault = ParamName::new("1 2").expect_err("a spaced number is not a name");
+    let corrupt = doctored(&text, |wire| {
+        let name = &mut wire["edits"][0]["edit"]["SetDocParam"]["name"];
+        assert_eq!(
+            *name,
+            serde_json::json!("depth"),
+            "aimed at the logged name"
+        );
+        *name = serde_json::json!("1 2");
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Unreadable { detail, .. }) => assert!(
+            detail.contains(&fault.to_string()),
+            "the log's refusal is the same sentence: {detail}"
+        ),
+        other => panic!("a logged name must refuse at the token, got {other:?}"),
+    }
+}
+
+/// The constructor admits exactly what the parser reads back, both
+/// ways. The oracle is the parser asked with nothing declared: the
+/// whole text is one unresolved reference to exactly that text. An
+/// admitted text is also asked the second reading — declared, it
+/// parses to `Param(name)` — so an admitted name is one an expression
+/// can refer to.
+fn agrees(text: &str, replay: &str) {
+    let shown = if text.chars().count() > 40 {
+        let head: String = text.chars().take(40).collect();
+        format!("{head:?}… ({} bytes)", text.len())
+    } else {
+        format!("{text:?}")
+    };
+    let read_back = matches!(
+        parse_expr(text, &BTreeMap::new()),
+        Err(editor_core::ParseError::UnknownParam { ref name, .. }) if name == text
+    );
+    match ParamName::new(text) {
+        Ok(name) => {
+            assert!(read_back, "{shown} is admitted but not read back{replay}");
+            let table = BTreeMap::from([(name.clone(), Dimension::Scalar)]);
+            assert!(
+                parse_expr(text, &table) == Ok(Expr::param(name, Dimension::Scalar)),
+                "{shown} is admitted, but declared it does not read back as itself{replay}"
+            );
+        }
+        Err(fault) => {
+            assert!(
+                !read_back,
+                "{shown} is read back but refused: {fault}{replay}"
+            );
+            assert!(
+                fault.offered == text,
+                "{shown}: the fault carries the text verbatim"
+            );
+        }
+    }
+}
+
+/// **The rule is the parser's**, over a table of edge spellings. A
+/// function word and a unit symbol are admitted because the grammar
+/// has no reserved words (`sin` is a call only when `(` follows it) and
+/// no constants.
+#[test]
+fn a_name_is_admissible_exactly_when_the_parser_reads_it_back() {
+    for text in ["width", "hole_r", "_", "x1", "sin", "mm", "pi", "δ"] {
+        assert!(ParamName::new(text).is_ok(), "{text:?} is admitted");
+    }
+    let long = "a".repeat(100_000);
+    let long_bad = format!("{}-", "a".repeat(10_000));
+    let table = [
+        "",
+        " ",
+        "\t",
+        "\n",
+        "   ",
+        "\u{a0}",
+        "\u{2003}",
+        "\u{200b}",
+        "\u{feff}",
+        "1",
+        "1a",
+        "2width",
+        "1e3",
+        "1e",
+        "0x",
+        "_",
+        "__",
+        "_1",
+        "a_",
+        "_a_b_",
+        "δ",
+        "Δx",
+        "ñ",
+        "日本",
+        "ß",
+        "Ⅷ",
+        "x²",
+        "x٣",
+        "٣x",
+        "a\u{301}",
+        "\u{301}a",
+        "é",
+        "e\u{0345}",
+        "sin",
+        "cos",
+        "atan2",
+        "scalar",
+        "pi",
+        "mm",
+        "rad",
+        "deg",
+        "e",
+        "E",
+        "inf",
+        "nan",
+        "NaN",
+        "Infinity",
+        &long,
+        &long_bad,
+        "a\0",
+        "\0",
+        "a\0b",
+        "width\n",
+        "\nwidth",
+        "width\r\n",
+        " width",
+        "width ",
+        "a b",
+        "a+b",
+        "a-b",
+        "a.b",
+        "a,b",
+        "a(",
+        "a)",
+        "(a)",
+        "-a",
+        "a#",
+        "a:b",
+        "query:certified-range:1:distance",
+        "query_certified_range_1",
+        "a·b",
+        "·",
+        "sin(x)",
+        "pi rad",
+        "a\u{2028}",
+    ];
+    for text in table {
+        agrees(text, "");
+    }
+    for (text, _) in inadmissible_names() {
+        agrees(text, "");
+    }
+}
+
+/// The same equivalence as a counterexample search over an alphabet
+/// chosen to sit on the lexer's edges: identifier characters, digits,
+/// every operator, whitespace of three kinds, characters outside the
+/// alphabet, a combining mark, and non-ASCII letters and digits.
+#[test]
+fn a_name_is_admissible_exactly_when_the_parser_reads_it_back_over_edge_characters() {
+    const ALPHABET: &[char] = &[
+        'a', 'Z', 'e', 'E', '_', '0', '9', ' ', '\t', '\n', '\u{a0}', '+', '-', '*', '/', '(', ')',
+        ',', '.', '#', ':', '·', 'δ', '\u{301}', '\0', 'é', '²', '٣',
+    ];
+    let mut rng = fuzz::start("param name vs parser read-back (edge characters)");
+    for _ in 0..fuzz::scaled(4096) {
+        let len = rng.below(9);
+        let text: String = (0..len)
+            .map(|_| ALPHABET[rng.below(ALPHABET.len())])
+            .collect();
+        agrees(&text, &format!(" — {}", fuzz::replay()));
+    }
+}
+
+/// The same equivalence over any Unicode scalar value, half the draws
+/// from ASCII so short texts mix the two.
+#[test]
+fn a_name_is_admissible_exactly_when_the_parser_reads_it_back_over_any_scalar() {
+    let mut rng = fuzz::start("param name vs parser read-back (any scalar)");
+    for _ in 0..fuzz::scaled(4096) {
+        let len = rng.below(7);
+        let text: String = (0..len)
+            .map(|_| {
+                loop {
+                    let bound = if rng.below(2) == 0 { 0x80 } else { 0x11_0000 };
+                    if let Some(c) = u32::try_from(rng.below(bound))
+                        .ok()
+                        .and_then(char::from_u32)
+                    {
+                        break c;
+                    }
+                }
+            })
+            .collect();
+        agrees(&text, &format!(" — {}", fuzz::replay()));
+    }
+}
+
+/// The `from_static` door is the panicking one, and it panics with the
+/// same sentence the fallible door answers.
+#[test]
+#[should_panic(expected = "parameter name \"1 2\" opens with \"1\" at byte 0")]
+fn an_inadmissible_static_name_panics_with_the_faults_sentence() {
+    let _ = ParamName::from_static("1 2");
 }

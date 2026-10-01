@@ -289,7 +289,7 @@ fn assert_prism_shaped<T: Decide>(
             .expect("every face of a prism is planar")
             .vec();
         assert_eq!(
-            got.dot(want).sign_within(band),
+            got.dot(want).sign_within(band).map(|d| d.sign),
             Ok(geom_core::Sign::Positive),
             "face {fk:?}'s outward normal must agree with the side its \
              corners put the material on — got {got:?}, outward is {want:?}"
@@ -524,6 +524,9 @@ fn every_door_builds_the_prism_its_inputs_name() {
 #[test]
 fn every_generic_door_builds_the_prism_its_inputs_name_at_an_interval_scalar() {
     use geom_core::Interval;
+    // Deliberately NOT `common::identity_map`, though it is this map:
+    // `prism_z` places its corners through that door, so an expectation
+    // read from it would agree with the builder whatever the door did.
     let ident = |x: f64, y: f64, z: f64| {
         Point3::new(
             Interval::from_f64(x),

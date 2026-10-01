@@ -9,10 +9,6 @@ use editor_core::{LoopProgram, ProgramStep, ProgramTarget};
 use geom_core::{Point2, Tol};
 use profile::{Open, Start};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The chain R1 built to reach the vocabulary gap now LIFTS: both
 /// `continue_to` arms — the interior point target and the closer —
 /// arrive in the document program as `ProgramStep::ContinueTo`.
@@ -21,12 +17,12 @@ fn r1_lifting_door_lifts_continue_to() {
     use std::f64::consts::FRAC_PI_2;
     let t = Tol::witness();
     let closed = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(2.0, 0.0), t)
+        .continue_to(Point2::new(2.0, 0.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
@@ -69,7 +65,7 @@ fn r1_lifting_door_lifts_the_closer_too() {
     use std::f64::consts::FRAC_PI_2;
     let t = Tol::witness();
     let closed = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)

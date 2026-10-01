@@ -46,11 +46,6 @@ test_utils::roster! {
         "the PAYLOAD's own sentence when a `min_clearance` measure is read at `f64`: it \
          must name the verb, the scalar and the door that CAN answer, because the \
          binding that formats it for a Python caller is not in this crate",
-    a_tolerance_study_end_to_end_through_the_public_doors:
-        "the whole consumer walk in one row — box, drive, stackup, histogram, budget, \
-         MC, cache. THE SUITE'S CRITICAL PATH: its duration, the leg it carries and \
-         its share of that leg have one home, and it is \
-         `work/tcost/one-test-is-the-whole-ci-critical-path.md`",
 }
 
 use crate::fixture;
@@ -70,7 +65,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -86,8 +81,8 @@ fn numeric_lane() -> DriveConfig {
     }
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 /// The ε-scaled half-width every parametric row here uses — M10-5's
@@ -118,7 +113,7 @@ fn eval_over<T: editor_core::EvalScalar>(
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
 }
 
-fn one_axis(n: &str, h: f64) -> ParamBox {
+fn one_axis(n: &'static str, h: f64) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(name(n), BoxAxis::Varying { lo: -h, hi: h });
     ParamBox::from_axes(axes)
@@ -148,7 +143,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
             }),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -161,20 +156,18 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         profile,
         distance: len(2.0),
     });
-    let placed = r.insert(Node::Transform {
-        input: solid,
-        translation: [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    });
+    let placed = r.insert(Node::transform(
+        solid,
+        editor_core::Step::Rigid {
+            translation: [
+                Expr::param(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     // The two facing walls of the unit square: their distance is 1.0.
     let measure = r.insert(
         Node::measure(
@@ -196,7 +189,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         measure,
         // The bound IS the measured value, so no enclosure separates
         // them: E10's third state at every leaf.
-        bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+        bound: len(1.0),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, assertion)
@@ -283,7 +276,7 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
 /// between the two WALLS is `d − 2r`, written into the geometry.
 fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r_ = Recorder::new();
-    let plane = r_.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r_.insert(fixture::xy_frame());
     let mut pin = |cx: f64| {
         let profile = r_.insert(Node::Profile(ProfileProgram {
             plane,
@@ -380,7 +373,7 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
 /// (`y = 0.7`) against the neck's lower wall (`y = 0.8`).
 fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let c_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -430,7 +423,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(bound, Dimension::Length).expect("finite"),
+        bound: len(bound),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure, assertion)
@@ -720,233 +713,4 @@ fn the_typed_absence_names_its_verb_scalar_and_door() {
     // And the family name is still shared, which is what made the old
     // sentence possible: the fix is the door's arm, not a rename.
     assert_eq!(payload.kind_name(), "measure");
-}
-
-// ------------------------------------------------------------------
-// 6. The end-to-end consumer walk: my own distributed, measured
-//    document, driven and reported through the public doors.
-// ------------------------------------------------------------------
-
-/// A GUIDE CHANNEL and its tongue — two rails facing each other across
-/// a running clearance, geometry the unit's own suites do not use.
-///
-/// * `place` (Uniform ±h): where the tongue sits along the clearance.
-/// * `skew` (Normal σ = h/3): where it sits ACROSS it — a distributed
-///   contributor the clearance does not depend on, so the stackup's
-///   per-parameter table has a real zero row to print.
-///
-/// Two measures over the same face pair, on purpose: `distance` (the
-/// closed form, which has a nominal and sensitivities) and
-/// `min_clearance` (the new primitive, which has neither at `f64`),
-/// with an assertion over each.
-struct Guide {
-    doc: ProfileDoc,
-    by_distance: RecipeNodeId,
-    by_clearance: RecipeNodeId,
-    assertion: RecipeNodeId,
-}
-
-fn guide(bound: f64) -> Guide {
-    let h = half();
-    let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: name("place"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 3.0,
-            display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: Some(Distribution::Uniform { lo: -h, hi: h }),
-        },
-    });
-    r.push(DocEdit::SetDocParam {
-        name: name("skew"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 0.0,
-            display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: Some(Distribution::Normal { sigma: h / 3.0 }),
-        },
-    });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-    let square = |r: &mut Recorder| {
-        r.insert(Node::Profile(ProfileProgram {
-            plane,
-            loops: vec![
-                LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
-                    .expect("finite corners"),
-            ],
-            ids: Vec::new(),
-        }))
-    };
-    let rail_profile = square(&mut r);
-    let rail = r.insert(Node::Extrude {
-        profile: rail_profile,
-        distance: len(1.0),
-    });
-    let tongue_profile = square(&mut r);
-    let tongue = r.insert(Node::Extrude {
-        profile: tongue_profile,
-        distance: len(1.0),
-    });
-    let placed = r.insert(Node::Transform {
-        input: tongue,
-        translation: [
-            Expr::param(name("place"), Dimension::Length),
-            Expr::param(name("skew"), Dimension::Length),
-            len(0.0),
-        ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    });
-    let pair = vec![
-        SitedRef::new(rail, fixture::fname(rail, fixture::wall(&r.doc, rail, 1))),
-        SitedRef::new(
-            placed,
-            fixture::fname(tongue, fixture::wall(&r.doc, tongue, 3)),
-        ),
-    ];
-    let refs = || pair.clone();
-    let by_distance = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            refs(),
-        )
-        .expect("both indices in range"),
-    );
-    let by_clearance = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            refs(),
-        )
-        .expect("both indices in range"),
-    );
-    let assertion = r.insert(Node::Assertion {
-        measure: by_distance,
-        bound: Expr::literal(bound, Dimension::Length).expect("finite"),
-        dir: AssertionDir::AtLeast,
-    });
-    r.insert(Node::Assertion {
-        measure: by_clearance,
-        bound: Expr::literal(bound, Dimension::Length).expect("finite"),
-        dir: AssertionDir::AtLeast,
-    });
-    Guide {
-        doc: r.doc,
-        by_distance,
-        by_clearance,
-        assertion,
-    }
-}
-
-/// **The whole consumer walk, in one row**: box, drive, stackup,
-/// histogram, budget, MC, cache — each rendered as a consumer would
-/// read it, with the friction printed rather than smoothed.
-#[test]
-fn a_tolerance_study_end_to_end_through_the_public_doors() {
-    let g = guide(2.0 - 1.0e-11);
-    let analyzed = analyzed_box(&g.doc, &AnalysisPolicy::default());
-    let verdict =
-        drive(&g.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
-    eprintln!("--- drive ---\n{}", verdict.render(&analyzed));
-    assert!(
-        !verdict.certified().is_empty(),
-        "the ε-scaled box certifies"
-    );
-
-    // The stackup over the CLOSED-FORM measure: a real report.
-    let report = editor_core::stackup::stackup(
-        &g.doc,
-        g.by_distance,
-        &analyzed,
-        &verdict,
-        None,
-        true,
-        Tol::witness(),
-    )
-    .expect("a stackup over a closed-form measure");
-    eprintln!("--- stackup (distance) ---\n{}", report.render(&analyzed));
-
-    // …and over the NEW primitive. The walk found this REFUSING —
-    // whole — because E5's nominal is an f64 number and
-    // `min_clearance` has none. That inverted E9: the nominal and the
-    // per-param table are advisory, the certified worst case is the
-    // gate, and a degraded advisory column is supposed to forfeit
-    // while the gate stands. It does now.
-    let clearance_report = editor_core::stackup::stackup(
-        &g.doc,
-        g.by_clearance,
-        &analyzed,
-        &verdict,
-        None,
-        true,
-        Tol::witness(),
-    )
-    .expect("the gating column is computable from the certified leaves");
-    eprintln!(
-        "--- stackup (min_clearance) ---\n{}",
-        clearance_report.render(&analyzed)
-    );
-    assert!(
-        clearance_report.worst_case.leaves > 0,
-        "the certified worst case is built and it gates"
-    );
-    assert!(
-        clearance_report.nominal.is_err(),
-        "…and the advisory nominal forfeits by name rather than taking the report with it"
-    );
-
-    // The histogram, over both measures.
-    for (label, node) in [
-        ("distance", g.by_distance),
-        ("min_clearance", g.by_clearance),
-    ] {
-        let h =
-            editor_core::report::leaf_histogram(&g.doc, &analyzed, &verdict, node, Tol::witness());
-        eprintln!("--- histogram ({label}) ---\n{}", h.render());
-        assert_eq!(
-            h.rows.len(),
-            verdict.certified().len(),
-            "{label}: every certified leaf places its mass"
-        );
-    }
-
-    // The budget, priced (no band anywhere in this document).
-    let budget = editor_core::report::MassBudget::of(verdict.accounting(), &analyzed);
-    eprintln!("--- budget ---\n{}", budget.render());
-    assert_eq!(budget.basis.word(), "priced");
-
-    // The advisory lane.
-    let mc = monte_carlo(&g.doc, &analyzed, &McConfig::default(), Tol::witness())
-        .expect("the nominal builds");
-    eprintln!("--- mc ---\n{}", mc.render());
-    assert!(mc.render().contains("ADVISORY"));
-
-    // And the assertion the document records, read back over a leaf.
-    let leaf = verdict.certified()[0].box_.clone();
-    let ev: editor_core::Evaluation<geom_core::Interval> = eval_over(&g.doc, Some(leaf));
-    let Some(NodeResult::Ok(v)) = ev.result(g.assertion) else {
-        panic!("the assertion evaluated over a certified leaf");
-    };
-    eprintln!("--- assertion over leaf 0 ---\n{:?}", v.payload);
-
-    // The cache seam, used the documented way.
-    let mut cache = editor_core::report::ReportCache::new();
-    let drive_cfg = numeric_lane();
-    let key = report_key(
-        "stackup",
-        verdict.content_key().0,
-        verdict.root(),
-        Tol::witness().eps(),
-        10.0,
-        &Dials {
-            drive: &drive_cfg,
-            mc: None,
-        },
-    );
-    cache.put(key, "stackup", report.serialize());
-    assert_eq!(cache.get(key, "stackup"), Some(report.serialize().as_str()));
 }

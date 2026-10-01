@@ -410,7 +410,11 @@ impl core::fmt::Display for ChartRegionError {
                  chart image encloses area — collapsed or collinear runs are the \
                  usual cause — or re-mint its pcurves"
             ),
-            Self::Escalated(diag) => write!(f, "chart-region: escalated: {diag}"),
+            Self::Escalated(diag) => write!(
+                f,
+                "chart-region: a decision about how the two faces' regions overlap is too \
+                 close to call: {diag}"
+            ),
             Self::RayExhausted => write!(
                 f,
                 "chart-region: every schedule ray grazed — ill-conditioned \
@@ -469,7 +473,7 @@ impl std::error::Error for ChartRegionError {}
 /// satisfy, so the predicate is uninstantiable at one however it is
 /// reached — including from outside the crate, where no census is
 /// running. That matches the other lane doors (`topo::QuadLane::certified`,
-/// the fitted-pcurve lane's), all of which carry
+/// `geom_brep::FittedLane::certified`), all of which carry
 /// [`geom_core::CertifiedEnclosure`]. See the M9-2 entry in
 /// `geom-core/src/real.rs`'s `Bounds` scope rule.
 ///
@@ -572,14 +576,10 @@ impl<T: Decide> RegionLane<T> {
 /// **The door's WIRING** — the rows that say which free functions
 /// [`RegionLane::certified`] holds, rather than what they answered.
 ///
-/// A row that compares outputs cannot see a door re-pointed at a
-/// predicate that agrees on the fixture in front of it; these rows
-/// compare the stored function pointers instead, so a re-point is a
-/// failure no matter what it computes. Function-pointer identity is
-/// what `std::ptr::fn_addr_eq` compares and is not a language guarantee
-/// (identical bodies may be merged), which costs nothing here: a false
-/// PASS would need the re-pointed routine to be instruction-identical
-/// to the door it replaced. `certified_enclosure_impl_census` counts
+/// Why a wiring row compares pointers rather than outputs:
+/// `certified_enclosure_impl_census`'s module doc.
+///
+/// `certified_enclosure_impl_census` counts
 /// the scalars instantiated here against the `CertifiedEnclosure`
 /// impls in the tree, both directions, and counts the tree's door
 /// values against its roster of helpers.
@@ -649,7 +649,7 @@ mod wiring_rows {
 
 /// The diagnostic for a DEFINITE margin whose outcome is nevertheless
 /// uncertifiable (the conservative-deduction escalations): the margin
-/// was validly posed and classified — `MarginDiag::Invalid` would
+/// was validly posed and classified — `MarginKind::Invalid` would
 /// claim otherwise — so the diag echoes the classified value itself
 /// (its conservative bracket end), named to its row.
 fn definite_diag<T: Bounds>(
@@ -658,9 +658,10 @@ fn definite_diag<T: Bounds>(
     margin: Margin<T>,
 ) -> Indeterminate {
     Indeterminate {
-        margin: geom_core::MarginDiag::Value(margin.value().lo()),
+        margin: geom_core::MarginDiag::value(margin.value().lo()),
         band,
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -715,7 +716,7 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ) -> Result<ChartOverlap, ChartRegionError> {
     // 1. Chart identity (fixed gate order, D9: identity → inventory →
     //    arms → seam → machinery).
-    let surface = same_chart(body_a, face_a, body_b, face_b)?;
+    let surface = declared_chart(body_a, face_a, body_b, face_b)?;
     overlap_on(
         body_a,
         face_a,
@@ -733,9 +734,10 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ///
 /// Three authorities answer the same question, in fixed order:
 ///
-/// - [`same_chart`] — the descriptions are structurally ONE chart
-///   (shared key / same `GeomSource`), so the trims are read in it
-///   directly. Strictly stronger, so it is asked first.
+/// - [`declared_chart`] — the recipe declared the descriptions ONE
+///   chart (shared key / same `GeomSource`, read bit-identical), so the
+///   trims are read in it directly. Strictly stronger, so it is asked
+///   first.
 /// - the **shared world carrier**, PLANAR pairs
 ///   ([`world_carrier`]): a representative frame, legitimate exactly
 ///   to the extent of that function's frame-invariance lemma, and only
@@ -747,7 +749,7 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 ///   relation onto the other's, gated by that arm's own carrier
 ///   agreement at the pair's own extent.
 ///
-/// A pair with none of the three keeps [`same_chart`]'s typed
+/// A pair with none of the three keeps [`declared_chart`]'s typed
 /// divergence, per kind:
 ///
 /// - **sphere** — residue: the enclosure needs the fold on BOTH chart
@@ -790,7 +792,7 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     door_one: crate::contact::ContactVerdict,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
-    let divergence = match same_chart(body_a, face_a, body_b, face_b) {
+    let divergence = match declared_chart(body_a, face_a, body_b, face_b) {
         Ok(surface) => {
             return overlap_on(
                 body_a,
@@ -1137,9 +1139,10 @@ fn carrier_agreement<T: Decide + Bounds>(
         Ok(Sign::Zero) => Ok(()),
         Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
         Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("chart_region_carrier_tilt"),
+            terminal_sliver: false,
         })),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
@@ -1458,9 +1461,10 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             Ok(Sign::Zero) => Ok(()),
             Ok(Sign::Positive) => Err(ChartRegionError::CarrierTilt),
             Ok(Sign::Negative) => Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band: gate_band,
                 predicate: Some(name),
+                terminal_sliver: false,
             })),
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
@@ -1491,9 +1495,10 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         // dot of near-parallel units is near ±1): poisoned input.
         Ok(Sign::Zero) => {
             return Err(ChartRegionError::Escalated(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("chart_region_cyl_axis_sense"),
+                terminal_sliver: false,
             }));
         }
         Err(diag) => return Err(ChartRegionError::Escalated(diag)),
@@ -2273,16 +2278,20 @@ fn candidate_points<T: Decide>(poly: &[Point2<T>]) -> Vec<Point2<T>> {
     out
 }
 
-/// The structural chart-identity gate (module docs): shared
-/// `SurfaceKey` on one body, or the same [`crate::GeomSource`] across
-/// bodies (N6: bit-identical descriptions ⇒ the identical chart).
-/// Anything weaker escalates typed.
-fn same_chart<T: Decide + Bounds>(
+/// **The chart the recipe declared the two faces share** (module
+/// docs' chart-identity gate): the recipe declared the two surfaces
+/// one ([`crate::source::surface_declaration`] — the gluing question,
+/// not [`Body::same_chart`]'s identity), and where that declaration is
+/// a shared [`crate::GeomSource`], the two descriptions read
+/// bit-identical through [`surface_bits_equal`]. Anything weaker
+/// escalates typed.
+fn declared_chart<T: Decide + Bounds>(
     body_a: &Body<T>,
     face_a: FaceKey,
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
+    use crate::source::SurfaceDeclaration as D;
     let key_a = body_a
         .get_face(face_a)
         .ok_or(ChartRegionError::Corrupt)?
@@ -2291,50 +2300,33 @@ fn same_chart<T: Decide + Bounds>(
         .get_face(face_b)
         .ok_or(ChartRegionError::Corrupt)?
         .surface;
-    // Arena keys are meaningful only within one arena: the key rung
-    // exists only for the one-body site.
-    let same_body = core::ptr::eq(body_a, body_b);
-    if same_body && key_a == key_b {
-        return body_a
+    let divergence = |detail| Err(ChartRegionError::ChartDivergence { detail });
+    match crate::source::surface_declaration(body_a, key_a, body_b, key_b) {
+        D::SameKey => body_a
             .get_surface(key_a)
             .cloned()
-            .ok_or(ChartRegionError::Corrupt);
-    }
-    match (body_a.surface_source(key_a), body_b.surface_source(key_b)) {
-        // Full `GeomSource` equality, orientation included: N6's
-        // theorem is about the WHOLE recipe identity — a same-base
-        // reverted pair describes the mirrored chart and diverges.
-        //
-        // The theorem's conclusion is VERIFIED, not assumed (union
-        // fix U1): `set_surface_source` is a pub door, so "same
-        // source" is a claim any caller can attach — and PR-2's
-        // import-side declaration channel is where a wrong attachment
-        // first becomes plausible. Bit-identical descriptions are
-        // re-checked through the module's own exact-bracket
-        // comparator; a same-source pair whose descriptions differ by
-        // one bit refuses typed instead of certifying overlap in an
+            .ok_or(ChartRegionError::Corrupt),
+        // Two bodies' stamps were never compared (`crate::source`'s
+        // module docs): a same-source pair that does not read
+        // bit-identical refuses typed rather than certify overlap in an
         // arbitrarily chosen chart.
-        (Some(sa), Some(sb)) if sa == sb => {
+        D::SameSource => {
             let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
             let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
             if surface_bits_equal(s_a, s_b) {
                 Ok(s_a.clone())
             } else {
-                Err(ChartRegionError::ChartDivergence {
-                    detail: "same GeomSource with non-bit-identical descriptions — \
-                             the same-source theorem violated (forged or corrupted source attachment)",
-                })
+                divergence(
+                    "same GeomSource with non-bit-identical descriptions — \
+                     the same-source theorem violated (forged or corrupted source attachment)",
+                )
             }
         }
-        (Some(sa), Some(sb)) if sa.same_base(sb) => Err(ChartRegionError::ChartDivergence {
-            detail: "same source base with flipped orientation — the charts mirror",
-        }),
-        (Some(_), Some(_)) => Err(ChartRegionError::ChartDivergence {
-            detail: "distinct GeomSources — equal-but-independent descriptions do not glue",
-        }),
-        _ => Err(ChartRegionError::ChartDivergence {
-            detail: "no shared SurfaceKey and no GeomSource on both faces",
-        }),
+        D::Mirrored => divergence("same source base with flipped orientation — the charts mirror"),
+        D::DistinctSources => {
+            divergence("distinct GeomSources — equal-but-independent descriptions do not glue")
+        }
+        D::Unsourced => divergence("no shared SurfaceKey and no GeomSource on both faces"),
     }
 }
 
@@ -2346,106 +2338,22 @@ fn exact_pair<T: Bounds>(a: T, b: T) -> bool {
     a.lo() == a.hi() && b.lo() == b.hi() && a.lo() == b.lo() && a.lo().is_finite()
 }
 
-/// Bit-identity of two surface DESCRIPTIONS, read structurally (union
-/// fix U1; the rung-2 verification). Analytic kinds compare every
-/// scalar field; `Nurbs` payloads verify only through pointer
-/// identity today (one shared description object) — an independent
-/// cross-body NURBS pair conservatively fails and takes the typed
-/// divergence, which costs nothing the arm gate would not refuse
-/// anyway; net-level verification extends with the census/inf-bounds
-/// work. Different kinds are never identical.
-fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface<T>) -> bool {
-    let v3 = |p: geom_core::Vec3<T>, q: geom_core::Vec3<T>| {
-        exact_pair(p.x, q.x) && exact_pair(p.y, q.y) && exact_pair(p.z, q.z)
-    };
-    let p3 = |p: geom_core::Point3<T>, q: geom_core::Point3<T>| {
-        exact_pair(p.x, q.x) && exact_pair(p.y, q.y) && exact_pair(p.z, q.z)
-    };
-    match (a, b) {
-        (
-            Surface::Plane {
-                origin: o1,
-                normal: n1,
-                u_ref: u1,
-            },
-            Surface::Plane {
-                origin: o2,
-                normal: n2,
-                u_ref: u2,
-            },
-        ) => p3(*o1, *o2) && v3(*n1, *n2) && v3(*u1, *u2),
-        (
-            Surface::Cylinder {
-                origin: o1,
-                axis: a1,
-                radius: r1,
-                u_ref: u1,
-            },
-            Surface::Cylinder {
-                origin: o2,
-                axis: a2,
-                radius: r2,
-                u_ref: u2,
-            },
-        ) => p3(*o1, *o2) && v3(*a1, *a2) && exact_pair(*r1, *r2) && v3(*u1, *u2),
-        (
-            Surface::Cone {
-                apex: p1,
-                axis: a1,
-                half_angle: h1,
-                u_ref: u1,
-            },
-            Surface::Cone {
-                apex: p2,
-                axis: a2,
-                half_angle: h2,
-                u_ref: u2,
-            },
-        ) => p3(*p1, *p2) && v3(*a1, *a2) && exact_pair(*h1, *h2) && v3(*u1, *u2),
-        (
-            Surface::Sphere {
-                center: c1,
-                radius: r1,
-                axis: a1,
-                u_ref: u1,
-            },
-            Surface::Sphere {
-                center: c2,
-                radius: r2,
-                axis: a2,
-                u_ref: u2,
-            },
-        ) => p3(*c1, *c2) && exact_pair(*r1, *r2) && v3(*a1, *a2) && v3(*u1, *u2),
-        (
-            Surface::Torus {
-                center: c1,
-                axis: a1,
-                major_radius: j1,
-                minor_radius: m1,
-                u_ref: u1,
-            },
-            Surface::Torus {
-                center: c2,
-                axis: a2,
-                major_radius: j2,
-                minor_radius: m2,
-                u_ref: u2,
-            },
-        ) => {
-            p3(*c1, *c2)
-                && v3(*a1, *a2)
-                && exact_pair(*j1, *j2)
-                && exact_pair(*m1, *m2)
-                && v3(*u1, *u2)
-        }
-        (Surface::Nurbs(x), Surface::Nurbs(y)) => std::sync::Arc::ptr_eq(x, y),
-        // Shared-payload identity, exactly as the `Nurbs` arm: two
-        // faces carrying the same `Arc` carry the same chart. Distinct
-        // payloads answer `false` even when structurally equal —
-        // conservative in the direction this predicate needs.
-        (Surface::Approx(x), Surface::Approx(y)) => std::sync::Arc::ptr_eq(x, y),
-        // Mismatched kinds are never the same chart.
-        _ => false,
+/// Bit-identity of two surface DESCRIPTIONS, read structurally: the
+/// analytic kinds through [`geom::Surface::paired_with`]'s one walk of
+/// their data, every scalar through [`exact_pair`]. Spline payloads
+/// verify only through pointer identity (one shared description
+/// object) — an independent cross-body pair conservatively fails and
+/// takes the typed divergence, which costs nothing the arm gate would
+/// not refuse anyway. Different kinds are never identical.
+pub(crate) fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface<T>) -> bool {
+    use geom::SurfacePairing as P;
+    match a.paired_with(b) {
+        P::KindsDiffer => false,
+        P::Analytic(data) => data
+            .pairs()
+            .all(|(_, x, y)| x.scalars().zip(y.scalars()).all(|(p, q)| exact_pair(p, q))),
+        P::Nurbs(x, y) => std::sync::Arc::ptr_eq(x, y),
+        P::Approx(x, y) => std::sync::Arc::ptr_eq(x, y),
     }
 }
 
@@ -2511,6 +2419,14 @@ fn pcurve_entry<T: Decide + Bounds>(
         // fitted arm, and separate because the inventory names the
         // class it refuses.
         Pcurve::General(_) => Err("General curve-in-UV image is not a straight segment"),
+        // A spiric's chart image is a genuine curve on both of the
+        // charts it lives on — `p0 + pm·f(t) + pa·sin t` on the cap,
+        // and the `atan2(f, d)` azimuth on the wall — so it is in no
+        // clause of the straight-segment inventory. The planar trim
+        // limb owes a curved-boundary polygon before a spiric-bounded
+        // cap can enter it, which is the props/tessellation frontier,
+        // not a missing arm here.
+        Pcurve::Spiric { .. } => Err("Spiric image is not a straight segment"),
     }
 }
 
@@ -2960,23 +2876,23 @@ enum PolyContainment {
 /// `f64` structure, so there is no quantity for an arm predicate to
 /// decide — the re-derivation's honest conclusion is three rows, not
 /// four.
-pub(crate) const SCHEDULE_2D: [[f64; 2]; 16] = [
-    [1.0, 0.0],
-    [0.0, 1.0],
-    [0.5, 1.0],
-    [1.0, 0.5],
-    [-0.5, 1.0],
-    [1.0, -0.5],
-    [0.25, 1.0],
-    [1.0, 0.25],
-    [0.75, -1.0],
-    [1.0, 0.75],
-    [-1.0, 0.375],
-    [0.375, 1.0],
-    [0.9375, 0.3125],
-    [0.3125, -0.9375],
-    [-0.75, 1.0],
-    [1.0, -0.75],
+pub(crate) const SCHEDULE_2D: [Vec2<f64>; 16] = [
+    Vec2::new(1.0, 0.0),
+    Vec2::new(0.0, 1.0),
+    Vec2::new(0.5, 1.0),
+    Vec2::new(1.0, 0.5),
+    Vec2::new(-0.5, 1.0),
+    Vec2::new(1.0, -0.5),
+    Vec2::new(0.25, 1.0),
+    Vec2::new(1.0, 0.25),
+    Vec2::new(0.75, -1.0),
+    Vec2::new(1.0, 0.75),
+    Vec2::new(-1.0, 0.375),
+    Vec2::new(0.375, 1.0),
+    Vec2::new(0.9375, 0.3125),
+    Vec2::new(0.3125, -0.9375),
+    Vec2::new(-0.75, 1.0),
+    Vec2::new(1.0, -0.75),
 ];
 
 /// This consumer's K rows for the shared walk ([`crate::ray_parity`]),
@@ -3027,7 +2943,7 @@ fn point_in_polygon<T: Decide>(
 
     // Ray parity with the fixed schedule.
     for r in &SCHEDULE_2D {
-        let d = Vec2::new(T::from_f64(r[0]), T::from_f64(r[1])).normalize();
+        let d = r.map(T::from_f64).normalize();
         let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
         if let Some(inside) =
             ray_parity::ray_verdict(poly, q, d, side_axis, &ROWS, band).map_err(escalate)?
@@ -3560,7 +3476,7 @@ fn overlap_of_regions<T: Decide + Bounds>(
     match decide("chart_region_area", area_margin, band) {
         Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),
         // A definite Zero/Negative here is NOT an invalid question
-        // (union fix U5: `MarginDiag::Invalid` means never-posed —
+        // (union fix U5: `MarginKind::Invalid` means never-posed —
         // NaN/poison — which this is not): the margin was posed and
         // answered; the conservative ring deduction just leaves no
         // certifiable direction. Echo the classified margin itself.
@@ -3647,9 +3563,10 @@ mod tests {
             "declare",
         ];
         let diag = Indeterminate {
-            margin: geom_core::MarginDiag::Value(5e-9),
+            margin: geom_core::MarginDiag::value(5e-9),
             band: band(),
             predicate: Some("chart_region_area"),
+            terminal_sliver: false,
         };
         // Every arm, constructed. The list is exhaustive by
         // inspection and the compiler cannot check that for a Vec, so
@@ -3700,10 +3617,6 @@ mod tests {
         }
     }
 
-    pub(super) fn pt(x: f64, y: f64) -> Point2<f64> {
-        Point2::new(x, y)
-    }
-
     /// Exact coordinate equality (Point2 carries no PartialEq).
     fn assert_pt(p: Point2<f64>, x: f64, y: f64) {
         assert!(
@@ -3716,7 +3629,12 @@ mod tests {
 
     /// CCW axis-aligned rectangle polygon.
     pub(super) fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
-        vec![pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)]
+        vec![
+            Point2::new(x0, y0),
+            Point2::new(x1, y0),
+            Point2::new(x1, y1),
+            Point2::new(x0, y1),
+        ]
     }
 
     /// A `ScaledFace` from raw polygons (already metred), rings by
@@ -3765,11 +3683,11 @@ mod tests {
         // breaks azimuth invariance) — structure, not span, decides.
         let tau = core::f64::consts::TAU;
         let notched = vec![
-            pt(0.0, 0.0),
-            pt(tau, 0.0),
-            pt(tau, 1.0),
-            pt(tau * 0.5, 0.4),
-            pt(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(tau, 0.0),
+            Point2::new(tau, 1.0),
+            Point2::new(tau * 0.5, 0.4),
+            Point2::new(0.0, 1.0),
         ];
         assert_eq!(wrap_band(&notched, r, band()).unwrap(), None);
         // A near-full span INSIDE the band escalates typed — neither
@@ -3833,14 +3751,14 @@ mod tests {
     #[test]
     fn iso_line_and_iso_arc_entry_points_are_exact() {
         let line = geom_brep::Pcurve::IsoLine {
-            p0: pt(0.25, 0.0),
+            p0: Point2::new(0.25, 0.0),
             pl: Vec2::new(0.5, 1.0),
         };
         assert_pt(pcurve_entry(&line, 0.0, 2.0, true).unwrap(), 0.25, 0.0);
         assert_pt(pcurve_entry(&line, 0.0, 2.0, false).unwrap(), 1.25, 2.0);
 
         let arc = geom_brep::Pcurve::IsoArc {
-            p0: pt(0.0, 1.0),
+            p0: Point2::new(0.0, 1.0),
             pd: Vec2::new(1.0, 0.0),
             t0: 0.0,
             angle: core::f64::consts::FRAC_PI_2,
@@ -3855,7 +3773,7 @@ mod tests {
     #[test]
     fn zero_trig_harmonic_passes_and_sinusoid_refuses() {
         let linear = geom_brep::Pcurve::Harmonic {
-            p0: pt(0.0, 0.5),
+            p0: Point2::new(0.0, 0.5),
             pa: Vec2::zero(),
             pb: Vec2::zero(),
             pl: Vec2::new(1.0, 0.0),
@@ -3864,7 +3782,7 @@ mod tests {
 
         // The tilted-cut class: an alive sin channel refuses typed.
         let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: pt(0.0, 0.5),
+            p0: Point2::new(0.0, 0.5),
             pa: Vec2::zero(),
             pb: Vec2::new(0.0, 0.3),
             pl: Vec2::new(1.0, 0.0),
@@ -3877,7 +3795,7 @@ mod tests {
         // The C6 statement with teeth: 1e-300 is NOT a structural
         // zero, and no scalar zero-test on T may decide otherwise.
         let nearly = geom_brep::Pcurve::Harmonic {
-            p0: pt(0.0, 0.5),
+            p0: Point2::new(0.0, 0.5),
             pa: Vec2::new(0.0, 1e-300),
             pb: Vec2::zero(),
             pl: Vec2::new(1.0, 0.0),
@@ -3893,19 +3811,19 @@ mod tests {
     fn point_in_polygon_square_verdicts() {
         let sq = rect(0.0, 0.0, 1.0, 1.0);
         assert_eq!(
-            point_in_polygon(&sq, pt(0.5, 0.5), band()).unwrap(),
+            point_in_polygon(&sq, Point2::new(0.5, 0.5), band()).unwrap(),
             PolyContainment::In
         );
         assert_eq!(
-            point_in_polygon(&sq, pt(1.5, 0.5), band()).unwrap(),
+            point_in_polygon(&sq, Point2::new(1.5, 0.5), band()).unwrap(),
             PolyContainment::Out
         );
         assert_eq!(
-            point_in_polygon(&sq, pt(1.0, 0.5), band()).unwrap(),
+            point_in_polygon(&sq, Point2::new(1.0, 0.5), band()).unwrap(),
             PolyContainment::OnBoundary
         );
         assert_eq!(
-            point_in_polygon(&sq, pt(1.0, 1.0), band()).unwrap(),
+            point_in_polygon(&sq, Point2::new(1.0, 1.0), band()).unwrap(),
             PolyContainment::OnBoundary
         );
     }
@@ -3915,21 +3833,21 @@ mod tests {
         // A CCW "U": the notch interior is OUT despite the bounding
         // box saying otherwise.
         let u = vec![
-            pt(0.0, 0.0),
-            pt(3.0, 0.0),
-            pt(3.0, 2.0),
-            pt(2.0, 2.0),
-            pt(2.0, 0.5),
-            pt(1.0, 0.5),
-            pt(1.0, 2.0),
-            pt(0.0, 2.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(3.0, 0.0),
+            Point2::new(3.0, 2.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(2.0, 0.5),
+            Point2::new(1.0, 0.5),
+            Point2::new(1.0, 2.0),
+            Point2::new(0.0, 2.0),
         ];
         assert_eq!(
-            point_in_polygon(&u, pt(1.5, 1.0), band()).unwrap(),
+            point_in_polygon(&u, Point2::new(1.5, 1.0), band()).unwrap(),
             PolyContainment::Out
         );
         assert_eq!(
-            point_in_polygon(&u, pt(0.5, 1.0), band()).unwrap(),
+            point_in_polygon(&u, Point2::new(0.5, 1.0), band()).unwrap(),
             PolyContainment::In
         );
     }
@@ -3955,14 +3873,14 @@ mod tests {
     fn a_bar_through_a_u_clips_to_two_pieces() {
         // The U from above ∩ a horizontal bar across both prongs.
         let u = vec![
-            pt(0.0, 0.0),
-            pt(3.0, 0.0),
-            pt(3.0, 2.0),
-            pt(2.0, 2.0),
-            pt(2.0, 0.5),
-            pt(1.0, 0.5),
-            pt(1.0, 2.0),
-            pt(0.0, 2.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(3.0, 0.0),
+            Point2::new(3.0, 2.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(2.0, 0.5),
+            Point2::new(1.0, 0.5),
+            Point2::new(1.0, 2.0),
+            Point2::new(0.0, 2.0),
         ];
         let bar = rect(-0.5, 1.0, 3.5, 1.5);
         let crossings = proper_crossings(&u, &bar, band()).unwrap();
@@ -4033,7 +3951,12 @@ mod tests {
     fn identical_regions_certify_through_the_structural_fast_path() {
         // Bit-identical cycles under rotation: the rung-2 product.
         let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
-        let rotated = vec![pt(1.0, 0.0), pt(1.0, 1.0), pt(0.0, 1.0), pt(0.0, 0.0)];
+        let rotated = vec![
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+        ];
         let b = face_of(rotated, &[]);
         assert_eq!(
             overlap_of_regions(&a, &b, false, band()).unwrap(),
@@ -4046,7 +3969,12 @@ mod tests {
         // A small hole leaves the positive claim standing…
         let holed = face_of(
             rect(0.0, 0.0, 3.0, 3.0),
-            &[vec![pt(1.2, 1.2), pt(1.2, 1.4), pt(1.4, 1.4), pt(1.4, 1.2)]],
+            &[vec![
+                Point2::new(1.2, 1.2),
+                Point2::new(1.2, 1.4),
+                Point2::new(1.4, 1.4),
+                Point2::new(1.4, 1.2),
+            ]],
         );
         let probe = face_of(rect(0.5, 0.5, 2.5, 2.5), &[]);
         assert_eq!(
@@ -4058,7 +3986,12 @@ mod tests {
         // subtraction can only refuse, never bless falsely).
         let big_hole = face_of(
             rect(0.0, 0.0, 3.0, 3.0),
-            &[vec![pt(0.5, 0.5), pt(0.5, 2.5), pt(2.5, 2.5), pt(2.5, 0.5)]],
+            &[vec![
+                Point2::new(0.5, 0.5),
+                Point2::new(0.5, 2.5),
+                Point2::new(2.5, 2.5),
+                Point2::new(2.5, 0.5),
+            ]],
         );
         let inner = face_of(rect(1.0, 1.0, 2.0, 2.0), &[]);
         match overlap_of_regions(&big_hole, &inner, false, band()) {
@@ -4130,14 +4063,14 @@ mod tests {
         let top = |u: f64| 1.0 + 0.5 * u.sin();
         let inscribed = face_of(
             vec![
-                pt(0.0, 0.0),
-                pt(core::f64::consts::PI, 0.0),
-                pt(core::f64::consts::PI, 1.0),
-                pt(2.4, top(2.4)),
-                pt(1.8, top(1.8)),
-                pt(1.2, top(1.2)),
-                pt(0.6, top(0.6)),
-                pt(0.0, 1.0),
+                Point2::new(0.0, 0.0),
+                Point2::new(core::f64::consts::PI, 0.0),
+                Point2::new(core::f64::consts::PI, 1.0),
+                Point2::new(2.4, top(2.4)),
+                Point2::new(1.8, top(1.8)),
+                Point2::new(1.2, top(1.2)),
+                Point2::new(0.6, top(0.6)),
+                Point2::new(0.0, 1.0),
             ],
             &[],
         );
@@ -4150,7 +4083,7 @@ mod tests {
         // the variant gate (`pcurve_entry`), which is exactly the
         // exclusion the module docs name.
         let sinusoid = geom_brep::Pcurve::Harmonic {
-            p0: pt(0.0, 1.0),
+            p0: Point2::new(0.0, 1.0),
             pa: Vec2::zero(),
             pb: Vec2::new(0.0, 0.5),
             pl: Vec2::new(1.0, 0.0),
@@ -4214,7 +4147,7 @@ mod tests {
     ) -> FaceKey {
         let c = |x: f64, y: f64| Point3::new(x, y, 0.0);
         let (a, b, cc, d) = (c(x0, y0), c(x1, y0), c(x1, y1), c(x0, y1));
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let e_ab = body
             .mev_line(
                 MevSite::Lone {
@@ -4265,15 +4198,39 @@ mod tests {
         // One body, two coplanar rectangle faces on ONE SurfaceKey —
         // the at-rest site. The plane chart is derive-on-demand (C4).
         let mut body = Body::<f64>::new();
-        let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+        let f1 = sheet(
+            &mut body,
+            0.0,
+            0.0,
+            2.0,
+            2.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let key = body.get_face(f1).unwrap().surface;
-        let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::Shared(key));
+        let f2 = sheet(
+            &mut body,
+            1.0,
+            1.0,
+            3.0,
+            3.0,
+            FaceSurface::Shared { key, sense: true },
+        );
         assert_eq!(
             chart_region_overlap(&body, f1, &body, f2, band()).unwrap(),
             ChartOverlap::PositiveArea
         );
         // Disjoint regions answer EMPTY — stale at the consumer.
-        let f3 = sheet(&mut body, 5.0, 5.0, 6.0, 6.0, FaceSurface::Shared(key));
+        let f3 = sheet(
+            &mut body,
+            5.0,
+            5.0,
+            6.0,
+            6.0,
+            FaceSurface::Shared { key, sense: true },
+        );
         assert_eq!(
             chart_region_overlap(&body, f1, &body, f3, band()).unwrap(),
             ChartOverlap::Empty
@@ -4294,7 +4251,10 @@ mod tests {
             0.0,
             2.0,
             2.0,
-            FaceSurface::New(xy_plane()),
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
         );
         let ka = body_a.get_face(fa).unwrap().surface;
         let mut body_b = Body::<f64>::new();
@@ -4304,7 +4264,10 @@ mod tests {
             1.0,
             3.0,
             3.0,
-            FaceSurface::New(xy_plane()),
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
         );
         let kb = body_b.get_face(fb).unwrap().surface;
 
@@ -4514,7 +4477,7 @@ mod tests {
                     (Vec2::zero(), Vec2::new(0.0, tiny)),
                 ] {
                     let h = geom_brep::Pcurve::Harmonic {
-                        p0: pt(0.0, 0.0),
+                        p0: Point2::new(0.0, 0.0),
                         pa,
                         pb,
                         pl: Vec2::new(1.0, 0.0),
@@ -4532,7 +4495,7 @@ mod tests {
             // -0.0 == 0.0 in value: the trig term is the exact zero
             // function, so admitting it is sound (structure, not bits).
             let h = geom_brep::Pcurve::Harmonic {
-                p0: pt(0.25, 0.5),
+                p0: Point2::new(0.25, 0.5),
                 pa: Vec2::new(-0.0, 0.0),
                 pb: Vec2::new(0.0, -0.0),
                 pl: Vec2::new(1.0, 2.0),
@@ -4545,8 +4508,28 @@ mod tests {
         #[test]
         fn r1_value_equal_but_distinct_keys_on_one_body_escalate() {
             let mut body = Body::<f64>::new();
-            let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
-            let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::New(xy_plane()));
+            let f1 = sheet(
+                &mut body,
+                0.0,
+                0.0,
+                2.0,
+                2.0,
+                FaceSurface::New {
+                    surface: xy_plane(),
+                    sense: true,
+                },
+            );
+            let f2 = sheet(
+                &mut body,
+                1.0,
+                1.0,
+                3.0,
+                3.0,
+                FaceSurface::New {
+                    surface: xy_plane(),
+                    sense: true,
+                },
+            );
             match chart_region_overlap(&body, f1, &body, f2, band()) {
                 Err(ChartRegionError::ChartDivergence { .. }) => {}
                 other => panic!("value-equal distinct keys must escalate, got {other:?}"),
@@ -4563,7 +4546,17 @@ mod tests {
             // exact-bracket comparator, so the forged pair now refuses
             // typed — the rung-2 premise is checked, never assumed.
             let mut a = Body::<f64>::new();
-            let fa = sheet(&mut a, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+            let fa = sheet(
+                &mut a,
+                0.0,
+                0.0,
+                2.0,
+                2.0,
+                FaceSurface::New {
+                    surface: xy_plane(),
+                    sense: true,
+                },
+            );
             let ka = a.get_face(fa).unwrap().surface;
             let mut b = Body::<f64>::new();
             let fb = sheet(
@@ -4572,7 +4565,10 @@ mod tests {
                 1.0,
                 3.0,
                 3.0,
-                FaceSurface::New(xy_plane_rotated()),
+                FaceSurface::New {
+                    surface: xy_plane_rotated(),
+                    sense: true,
+                },
             );
             let kb = b.get_face(fb).unwrap().surface;
             a.set_surface_source(ka, GeomSource::minted(3, 0)).unwrap();
@@ -4621,10 +4617,10 @@ mod tests {
             let holed = face_of(
                 rect(0.0, 0.0, 2.0, 2.0),
                 &[vec![
-                    pt(0.0, 0.0),
-                    pt(0.0, 2.0 - d),
-                    pt(2.0 - d, 2.0 - d),
-                    pt(2.0 - d, 0.0),
+                    Point2::new(0.0, 0.0),
+                    Point2::new(0.0, 2.0 - d),
+                    Point2::new(2.0 - d, 2.0 - d),
+                    Point2::new(2.0 - d, 0.0),
                 ]],
             );
             let probe = face_of(rect(0.0, 0.0, 2.0, 2.0), &[]);
@@ -4694,7 +4690,12 @@ mod tests {
         #[test]
         fn r1_a_rotated_square_clips_to_the_octagon() {
             let a = rect(-1.0, -1.0, 1.0, 1.0);
-            let b = vec![pt(1.5, 0.0), pt(0.0, 1.5), pt(-1.5, 0.0), pt(0.0, -1.5)];
+            let b = vec![
+                Point2::new(1.5, 0.0),
+                Point2::new(0.0, 1.5),
+                Point2::new(-1.5, 0.0),
+                Point2::new(0.0, -1.5),
+            ];
             let crossings = proper_crossings(&a, &b, band()).unwrap();
             assert_eq!(crossings.len(), 8);
             let pieces = intersection_pieces(&a, &b, &crossings, band()).unwrap();
@@ -4712,10 +4713,10 @@ mod tests {
             let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
             let spike = face_of(
                 vec![
-                    pt(x - w, -1.0),
-                    pt(x + w, -1.0),
-                    pt(x + w, 0.5),
-                    pt(x - w, 0.5),
+                    Point2::new(x - w, -1.0),
+                    Point2::new(x + w, -1.0),
+                    Point2::new(x + w, 0.5),
+                    Point2::new(x - w, 0.5),
                 ],
                 &[],
             );
@@ -4728,7 +4729,14 @@ mod tests {
         #[test]
         fn r1_a_vertex_touch_on_an_edge_interior_refuses_typed() {
             let a = face_of(rect(0.0, 0.0, 2.0, 1.0), &[]);
-            let t = face_of(vec![pt(0.5, -1.0), pt(1.5, -1.0), pt(1.0, 0.0)], &[]);
+            let t = face_of(
+                vec![
+                    Point2::new(0.5, -1.0),
+                    Point2::new(1.5, -1.0),
+                    Point2::new(1.0, 0.0),
+                ],
+                &[],
+            );
             match overlap_of_regions(&a, &t, false, band()) {
                 Err(ChartRegionError::TouchingBoundary) => {}
                 other => panic!("apex-on-edge touch must refuse typed, got {other:?}"),
@@ -4752,11 +4760,11 @@ mod tests {
             // parallel row is over_lever(0, 0) = NaN → MarginDiag::
             // Invalid → Escalated. Fail-loud, never a silent verdict.
             let dup = vec![
-                pt(0.0, 0.0),
-                pt(1.0, 0.0),
-                pt(1.0, 0.0),
-                pt(1.0, 1.0),
-                pt(0.0, 1.0),
+                Point2::new(0.0, 0.0),
+                Point2::new(1.0, 0.0),
+                Point2::new(1.0, 0.0),
+                Point2::new(1.0, 1.0),
+                Point2::new(0.0, 1.0),
             ];
             let a = face_of(dup, &[]);
             let b = face_of(rect(0.5, 0.5, 1.5, 1.5), &[]);
@@ -4772,7 +4780,12 @@ mod tests {
         fn r1_replay_is_bit_deterministic() {
             let a = face_of(rect(-1.0, -1.0, 1.0, 1.0), &[]);
             let b = face_of(
-                vec![pt(1.5, 0.0), pt(0.0, 1.5), pt(-1.5, 0.0), pt(0.0, -1.5)],
+                vec![
+                    Point2::new(1.5, 0.0),
+                    Point2::new(0.0, 1.5),
+                    Point2::new(-1.5, 0.0),
+                    Point2::new(0.0, -1.5),
+                ],
                 &[],
             );
             let first = overlap_of_regions(&a, &b, false, band()).unwrap();
@@ -5100,9 +5113,29 @@ mod inf_arms {
         // its refusals name, so the cheapest well-formed sheet serves:
         // the CHART under test is `s`, passed alongside.
         let mut ba = Body::<f64>::new();
-        let fa = sheet(&mut ba, 0.0, 0.0, 1.0, 1.0, FaceSurface::New(xy_plane()));
+        let fa = sheet(
+            &mut ba,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let mut bb = Body::<f64>::new();
-        let fb = sheet(&mut bb, 0.0, 0.0, 1.0, 1.0, FaceSurface::New(xy_plane()));
+        let fb = sheet(
+            &mut bb,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let s = sphere(2.0);
         // u spans π/2 (1.5708); v stays inside |v| ≤ 0.3.
         let uv_a = uv(rect(1.40, -0.30, 1.60, -0.10), vec![]);
@@ -5272,7 +5305,7 @@ mod r2_mate8_probes {
     //! Blinded-review probes (lane R2, PR #1472): adversarial edge
     //! cases for `decomposition_witness`'s completeness argument and
     //! its budget guard. Probe-branch only; not part of the unit.
-    use super::tests::{pt, rect, uv};
+    use super::tests::{rect, uv};
     use super::*;
 
     /// Strict even-odd containment of `(x, y)` in `poly`, with a
@@ -5387,12 +5420,12 @@ mod r2_mate8_probes {
     fn r2p4_repeated_abscissae_find_a_witness() {
         let a = uv(
             vec![
-                pt(0.0, 0.0),
-                pt(2.0, 0.0),
-                pt(2.0, 1.0),
-                pt(3.0, 2.0),
-                pt(2.0, 3.0),
-                pt(0.0, 3.0),
+                Point2::new(0.0, 0.0),
+                Point2::new(2.0, 0.0),
+                Point2::new(2.0, 1.0),
+                Point2::new(3.0, 2.0),
+                Point2::new(2.0, 3.0),
+                Point2::new(0.0, 3.0),
             ],
             vec![],
         );
@@ -5417,7 +5450,7 @@ mod r2_mate8_probes {
             (0..n)
                 .map(|i| {
                     let t = core::f64::consts::TAU * (i as f64) / (n as f64);
-                    pt(cx + 2.0 * t.cos(), 2.0 * t.sin())
+                    Point2::new(cx + 2.0 * t.cos(), 2.0 * t.sin())
                 })
                 .collect()
         };
@@ -5458,7 +5491,7 @@ mod r2_mate8_probes {
             (0..n)
                 .map(|i| {
                     let t = core::f64::consts::TAU * (i as f64) / (n as f64);
-                    pt(cx + 2.0 * t.cos(), 2.0 * t.sin())
+                    Point2::new(cx + 2.0 * t.cos(), 2.0 * t.sin())
                 })
                 .collect()
         };
@@ -5506,20 +5539,20 @@ mod r2_mate8_probes {
         // A comb, walked as a simple polygon: up the spine, out along
         // each tooth's underside, back along its top.
         let teeth = 28usize;
-        let mut comb = vec![pt(0.0, 0.0)];
+        let mut comb = vec![Point2::new(0.0, 0.0)];
         for i in 0..teeth {
             let y = 2.0 * (i as f64);
-            comb.push(pt(1.0, y));
-            comb.push(pt(1.0, y + 1.0));
-            comb.push(pt(0.1, y + 1.0));
-            comb.push(pt(0.1, y + 2.0));
+            comb.push(Point2::new(1.0, y));
+            comb.push(Point2::new(1.0, y + 1.0));
+            comb.push(Point2::new(0.1, y + 1.0));
+            comb.push(Point2::new(0.1, y + 2.0));
         }
-        comb.push(pt(0.0, 2.0 * (teeth as f64)));
+        comb.push(Point2::new(0.0, 2.0 * (teeth as f64)));
         let crosser = vec![
-            pt(-0.2, -1.0),
-            pt(-0.18, -1.0),
-            pt(1.22, 2.0 * (teeth as f64) + 1.0),
-            pt(1.2, 2.0 * (teeth as f64) + 1.0),
+            Point2::new(-0.2, -1.0),
+            Point2::new(-0.18, -1.0),
+            Point2::new(1.22, 2.0 * (teeth as f64) + 1.0),
+            Point2::new(1.2, 2.0 * (teeth as f64) + 1.0),
         ];
         let segments = comb.len() + crosser.len();
         assert!(

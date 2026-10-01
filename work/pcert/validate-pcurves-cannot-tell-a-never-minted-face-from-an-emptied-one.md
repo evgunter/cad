@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-14
 refs: [validate-pcurves-never-recertifies-a-face-it-finds-incomplete, S331, loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart]
 priority: P0
-cost: D
+cost: M
+design: true
 ---
 
 Found by both reviewers of PR 2549
@@ -104,3 +105,62 @@ the sheet's OTHER curved panel keeps its four rows across every swap
 above (the rows assert it), so a premise reading "once any face of a
 body stores a row, a rowless face on a minting chart is a finding"
 would name the emptied face in each.
+
+**A sixth door that empties, and one row that moved**
+(`half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`,
+branch `topo/mint-rows-at-the-mint-site`). `mev`, `mef` and `mekr` now
+re-mint, before they mutate, every face with complete rows that their
+new half-edges join (`pcurves::site_rows`). Where that face, as the
+surgery leaves it, has no closed-form row set that certifies (a
+secant chord across a cylinder, a strut leaving the chart) the
+operator leaves it storing NOTHING rather than refusing, because it
+runs mid-surgery on states a later door finishes describing; this pass
+then reads that face as never minted. Measured on
+`sweep`'s `review_m2_pr7::diagonal_chord_split_refuses_typed_not_silent`:
+tier 3 read the chord's two halves as `MissingCache` on the merge base
+and reads nothing at the head, while `mint_pcurves` over the same body
+refuses (the row pins both). The `mef` line of the run-door table above
+moved too: onto `New(other cylinder)` the OLD face's minted half now
+carries its row, so the pass reads `[]` there.
+
+**The moving doors now re-mint a complete destination**
+(`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`,
+PR 3531). The band twins `kfmrh_minting`, `ring_move_minting`,
+`mfkrh_minting` and `kef_minting`, and `mef`'s new face, run the site
+mint over the face they move a loop or run onto, where the moved rows
+do not stand there and that face was complete
+(`Body::plan_moved_rows`); the keys-only `kfmrh`, `ring_move`, `mfkrh`
+and `kef` refuse there (`SiteRowRefusal::KeysOnly`) rather than leave
+it half-minted. The rows in the tables above whose
+destination stored no row of its own are unchanged: such a face is
+left as found, and still reads as never minted. What moved:
+
+- The loud rows went complete, not silent. `kef` into a MINTED face
+  on another chart, `(3, 3)` and three `MissingCache` above, reads
+  `(6, 0)` and `[]`, with the rows `mint_pcurves_of` derives
+  (`kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart`);
+  so do `kfmrh` and `ring_move` of a rowless or re-charted loop onto a
+  minted curved face.
+- **A new silent case, and where it goes.** Where the moved loop does
+  not walk in the destination's chart as the door leaves it, the site
+  mint empties the destination rather than leave it half-minted, and
+  this pass then reads it as never minted. Measured on sweep's `ci`
+  profile (the PR's review instrumented every band door's plan and
+  every whole-body mint, not committed, and the fix pass re-ran it
+  after moving the merge door onto the twins): the band doors empty a
+  face 317 times, nearly all in the blend surgery's `kef_minted`
+  mid-carve and 6 in `curved_mergedoor`'s rows (the walk refuses at
+  certification, `MapResidual`, or at the closed-form derivation). Of
+  those 317, the producer's closing `mint_pcurves` re-mints 147; 169
+  faces are killed later in the same carve or zip, all within carves
+  that complete; and 1 reaches its caller emptied —
+  `verbs_sphsph_chart::a_ringed_sphere_face_refuses_at_both_doors`,
+  whose ringed sphere face `kfmrh_minting` leaves storing no row. On
+  the merge base each of those left the face half-minted, which this
+  pass reported per rowless half.
+- **An emptied face reads as never minted to every reader, and no
+  move carries rows onto one.** The site mints that later read an
+  emptied face read it as unminted and leave it as found, and no door
+  in that run moved a loop whose rows stand onto an emptied face (0
+  such moves), so no emptied face came back half-minted.
+- A spline destination keeps the drop and stays half-minted, loud.

@@ -138,49 +138,52 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
     }
 }
 
-/// The C6 capability cost, pinned honest: a coaxial NESTED pair (one
-/// wholly inside the other) now refuses at the wall-pair extent gate.
-/// Before PR-A the containment fallback answered it correctly by luck;
-/// the refusal must be the gate's own typed door, not a wrong answer.
+/// **A coaxial NESTED pair answers** (the retired wall-pair gate
+/// refused it on reach). Two coaxial walls of different radii are
+/// parallel: their carriers share no point, and every other pair is a
+/// wall against a cap plane, whose section is essential on a wall that
+/// describes. So the section pass clears the pair and the containment
+/// fallback's answer is certified: the union is the outer cylinder,
+/// the intersection the inner one.
 #[test]
-fn the_nested_coaxial_pair_refuses_at_the_wall_pair_gate() {
+fn the_nested_coaxial_pair_answers_the_nested_closed_forms() {
     let tol = Tol::witness();
     let inner = cyl(0.0, 0.0, 1.0, 1.0, 3.0);
     let outer = cyl(0.0, 0.0, 2.0, 0.0, 4.0);
+    let volume = |r: Result<topo::BooleanResult<f64>, BooleanError>| {
+        let r = r.unwrap_or_else(|e| panic!("the nested pair: {e:?}"));
+        let b = &r.body().expect("non-empty").body;
+        topo::mass_properties(b, tol).unwrap().volume
+    };
     for (a, b) in [(&inner, &outer), (&outer, &inner)] {
-        let err = topo::union(a, b, tol).expect_err("the nested pair refuses under D10");
-        let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-            panic!("expected the wall-pair extent gate, got {err:?}");
-        };
-        assert!(what.contains("two cylinder walls"), "{what}");
+        let v = volume(topo::union(a, b, tol));
+        assert!(
+            (v - 16.0 * PI).abs() < 1e-9,
+            "the union is the outer wall's: {v}"
+        );
+        let v = volume(topo::intersect(a, b, tol));
+        assert!(
+            (v - 2.0 * PI).abs() < 1e-9,
+            "the intersection is the inner's: {v}"
+        );
     }
+    let v = volume(topo::subtract(&outer, &inner, tol));
+    assert!((v - 14.0 * PI).abs() < 1e-9, "outer ∖ inner: {v}");
 }
 
-/// The gate's conservatism inherits the AABB of the CARRIER slab: two
-/// parallel cylinders diagonally offset — axes 2.69 apart, a 0.69 m
-/// true gap, robustly disjoint — refuse because their axis-aligned
-/// boxes still overlap at a corner. The sharp edge of the stated
-/// capability cost: an honest refusal, never a wrong answer, but a
-/// refusal on a pose the old fallback answered correctly. If the gate
-/// ever narrows to trimmed-wall reach, this row flips to the correct
-/// two-shell answer and should be updated, loudly.
+/// **Two parallel cylinders diagonally offset answer as two disjoint
+/// units** — axes 2.69 apart, a 0.69 m true gap — where the retired
+/// wall-pair gate refused them because their axis-aligned boxes overlap
+/// at a corner. Parallel walls meet in rulings or not at all (W1).
 #[test]
-fn a_diagonally_offset_disjoint_pair_now_refuses_at_the_gate() {
+fn a_diagonally_offset_disjoint_pair_answers_two_units() {
     let tol = Tol::witness();
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let b = cyl(1.9, 1.9, 1.0, 0.0, 2.0);
-    match topo::union(&a, &b, tol) {
-        Err(BooleanError::FallbackExtentUnsupported { what, .. }) => {
-            assert!(what.contains("two cylinder walls"), "{what}");
-        }
-        Err(e) => panic!("expected the extent gate, got {e:?}"),
-        Ok(topo::BooleanResult::Body(body)) => {
-            let v = topo::mass_properties(&body.body, tol).unwrap().volume;
-            assert!((v - 4.0 * PI).abs() < 1e-9, "two disjoint units: {v}");
-            panic!("the box gate no longer fires on the diagonal pose: update this row");
-        }
-        Ok(other) => panic!("unexpected {other:?}"),
-    }
+    let r = topo::union(&a, &b, tol).unwrap_or_else(|e| panic!("the diagonal pair: {e:?}"));
+    let body = &r.body().expect("non-empty").body;
+    let v = topo::mass_properties(body, tol).unwrap().volume;
+    assert!((v - 4.0 * PI).abs() < 1e-9, "two disjoint units: {v}");
 }
 
 /// D3's carrier gate probed at MANY radii: radially-off points must be
@@ -308,13 +311,13 @@ fn revolve_minted_walls_meet_the_same_gate() {
     }
 }
 
-/// The containment door handed a FULL-TURN wall (revolve-minted, seam
-/// in the boundary): the doc promises `None` is "the honest remainder
-/// throughout — a chart form the trim cannot express" — a full-period
-/// azimuth window is such a form. Measured here: the door must never
-/// return a WRONG In/Out; None or a loud error are both recorded.
+/// The containment door handed a revolve-minted wall: an on-wall point
+/// at mid-height, far from the seams, is `In` exactly one wall face and
+/// `Out` of the other. An axis-touching revolve mints the wall as two
+/// half-turn faces; a genuine full-turn wall is
+/// `full_turn_wall::a_washers_full_turn_walls_are_height_bands`.
 #[test]
-fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
+fn a_revolved_walls_two_half_turns_place_an_on_wall_point_in_one() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let body = revolved_cyl(1.0, 2.0);
@@ -328,31 +331,23 @@ fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
         })
         .map(|(k, _)| k)
         .collect();
-    assert!(!walls.is_empty(), "a revolved rectangle has wall faces");
-    // On the carrier, mid-height, azimuth far from the seam: interior
-    // of the full-turn wall.
     let q = Point3::new(2.0_f64.cos(), 1.0, -(2.0_f64.sin()));
-    let mut outcomes = Vec::new();
-    for &f in &walls {
-        let got = topo::curved_face_containment(&body, f, q, band);
-        eprintln!("full-turn wall {f:?}: {got:?}");
-        match got {
-            Ok(Some(topo::FaceContainment::Out)) => {
-                // Only acceptable if q is genuinely off this face —
-                // with a single full wall this would be a WRONG verdict.
-                outcomes.push("Out");
-            }
-            Ok(Some(topo::FaceContainment::In)) => outcomes.push("In"),
-            Ok(Some(_)) => outcomes.push("OnBoundary"),
-            Ok(None) => outcomes.push("None"),
-            Err(_) => outcomes.push("Err"),
-        }
-    }
-    // The door must not claim Out on every wall face when the point is
-    // on the solid's wall: that would be the wrong-verdict shape.
-    assert!(
-        !(outcomes.iter().all(|o| *o == "Out")),
-        "an on-wall interior point reported Out of every wall face: {outcomes:?}"
+    let got: Vec<_> = walls
+        .iter()
+        .map(|&f| topo::curved_face_containment(&body, f, q, band).unwrap())
+        .collect();
+    let held = got
+        .iter()
+        .filter(|v| **v == Some(topo::FaceContainment::In))
+        .count();
+    let out = got
+        .iter()
+        .filter(|v| **v == Some(topo::FaceContainment::Out))
+        .count();
+    assert_eq!(
+        (held, out),
+        (1, walls.len() - 1),
+        "one wall face holds the on-wall point, the rest exclude it: {got:?}"
     );
 }
 
@@ -482,8 +477,8 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
 
 /// The D5 trap stays closed through the PUBLIC boolean door: the
 /// probe's no-edge-event pair must never surface `GermFrameUnsupported`
-/// TODAY (no cyl×cyl germs are minted yet) — the wall-pair gate owns
-/// the refusal. If this row ever flips to `GermFrameUnsupported`, D4
+/// TODAY (no cyl×cyl germs are minted yet) — the fallback's section
+/// pass owns the refusal (the pair's one saddle loop, R-loop). If this row ever flips to `GermFrameUnsupported`, D4
 /// widened the reduction without wiring the frame arm: exactly the
 /// regression the trap exists to catch loudly rather than silently.
 #[test]

@@ -159,8 +159,8 @@ impl From<DanglingRef> for crate::euler::EulerOpError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReadbackError {
     /// A key does not resolve in this body — a stale key, or a key
-    /// from another body's lineage (foreign keys are not caught; see
-    /// the [`Body`] docs).
+    /// from another body's lineage that happens not to land on a live
+    /// slot (see [stale vs. foreign keys](crate::body#key-validity-stale-vs-foreign)).
     Dangling {
         /// Which lookup came back empty.
         what: DanglingRef,
@@ -183,10 +183,8 @@ pub enum ReadbackError {
 // the PROBLEM in read-back's own vocabulary — which lookup came back
 // empty, and what that emptiness means about the model. The two
 // `Dangling` lanes are kept apart in the prose because they are
-// different facts: a topological key that does not resolve is a stale
-// or foreign handle, while a geometry key reached FROM a live entity
-// that does not resolve is a dangling reference inside the body. The
-// keys render through [`EntityId`]/[`GeomRef`]'s own `Display`, this
+// different facts about the model, which `DanglingRef`'s docs state.
+// The keys render through [`EntityId`]/[`GeomRef`]'s own `Display`, this
 // crate's noun functions, so a read-back refusal reads exactly like
 // the euler-layer stale-key refusal its arms map across to.
 impl core::fmt::Display for ReadbackError {
@@ -298,7 +296,7 @@ fn carrier_surface<T: Real>(
 /// use topo::{Body, FaceSurface, Surface};
 ///
 /// let mut body = Body::<f64>::new();
-/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs has no preconditions");
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
 ///
 /// // A seed face carries the "no description yet" placeholder, which
 /// // fixes no frame — and the door says so rather than inventing one.
@@ -310,11 +308,14 @@ fn carrier_surface<T: Real>(
 /// // Attach a real plane, and the door hands back what was attached.
 /// body.set_face_surface(
 ///     seed.face,
-///     FaceSurface::New(Surface::Plane {
-///         origin: Point3::new(0.0, 0.0, 1.0),
-///         normal: Vec3::new(0.0, 0.0, 1.0),
-///         u_ref: Vec3::new(1.0, 0.0, 0.0),
-///     }),
+///     FaceSurface::New {
+///         surface: Surface::Plane {
+///             origin: Point3::new(0.0, 0.0, 1.0),
+///             normal: Vec3::new(0.0, 0.0, 1.0),
+///             u_ref: Vec3::new(1.0, 0.0, 0.0),
+///         },
+///         sense: true,
+///     },
 /// )
 /// .expect("a live face takes a surface");
 ///
@@ -402,14 +403,17 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 /// use topo::{Body, FaceSurface, Surface};
 ///
 /// let mut body = Body::<f64>::new();
-/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs has no preconditions");
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
 /// body.set_face_surface(
 ///     seed.face,
-///     FaceSurface::New(Surface::Plane {
-///         origin: Point3::new(0.0, 0.0, 0.0),
-///         normal: Vec3::new(0.0, 0.0, 1.0),
-///         u_ref: Vec3::new(1.0, 0.0, 0.0),
-///     }),
+///     FaceSurface::New {
+///         surface: Surface::Plane {
+///             origin: Point3::new(0.0, 0.0, 0.0),
+///             normal: Vec3::new(0.0, 0.0, 1.0),
+///             u_ref: Vec3::new(1.0, 0.0, 0.0),
+///         },
+///         sense: true,
+///     },
 /// )
 /// .expect("a live face takes a surface");
 ///
@@ -440,7 +444,7 @@ pub fn face_carrier_kind<T: Real>(
 /// use topo::readback::vertex_point;
 ///
 /// let mut body = Body::<f64>::new();
-/// let seed = body.mvfs(Point3::new(1.0, 2.0, 3.0)).expect("mvfs has no preconditions");
+/// let seed = body.mvfs(Point3::new(1.0, 2.0, 3.0), true).expect("mvfs has no preconditions");
 ///
 /// assert_eq!(vertex_point(&body, seed.vertex).expect("a live vertex").y, 2.0);
 /// ```
@@ -536,7 +540,7 @@ pub fn edge_carrier_ref<T: Real>(
 /// use topo::{Body, MevSite};
 ///
 /// let mut body = Body::<f64>::new();
-/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs has no preconditions");
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
 /// let seg = body
 ///     .mev_line(
 ///         MevSite::Lone { r#loop: seed.r#loop },
@@ -685,7 +689,7 @@ impl EulerCounts {
     /// use topo::readback::euler_counts;
     ///
     /// let mut body = Body::<f64>::new();
-    /// body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs has no preconditions");
+    /// body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
     ///
     /// // One vertex, one face, one shell: v − e + f − r = 2 = 2(1 − 0).
     /// let counts = euler_counts(&body);
@@ -694,7 +698,7 @@ impl EulerCounts {
     ///
     /// // A second seed is a second shell, and the identity's `s` counts
     /// // shells: both seeds together are still genus 0.
-    /// body.mvfs(Point3::new(1.0, 0.0, 0.0)).expect("mvfs has no preconditions");
+    /// body.mvfs(Point3::new(1.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
     /// let counts = euler_counts(&body);
     /// assert_eq!(counts.s, 2);
     /// assert_eq!(counts.genus(), Ok(0));
@@ -757,7 +761,7 @@ impl std::error::Error for EulerParityError {}
 /// use topo::readback::euler_counts;
 ///
 /// let mut body = Body::<f64>::new();
-/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs has no preconditions");
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs has no preconditions");
 /// let counts = euler_counts(&body);
 /// assert_eq!(counts.v, 1);
 /// assert_eq!(counts.s, 1);
@@ -839,7 +843,7 @@ mod tests {
         let tol = Tol::witness();
         let p = |x: f64| Point3::new(x, 0.0, 0.0);
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -880,7 +884,7 @@ mod tests {
         );
         assert_eq!(euler_counts(&body).genus(), Ok(0));
 
-        body.mfkrh_plug(kill.ring).unwrap();
+        body.mfkrh_plug(kill.ring, true).unwrap();
         assert_eq!(validate(&body), Ok(()));
         let before = euler_counts(&body);
         assert_eq!(

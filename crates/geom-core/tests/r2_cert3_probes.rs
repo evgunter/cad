@@ -63,11 +63,7 @@ fn r2_zero_angle_independence_swept_hard() {
         for h in [0.0f64, 1.0e-15, 1.0e-9, 1.0e-3, 1.0, 1.0e6] {
             let wi = |c: f64| Interval::from_bounds(c - h, c + h);
             let anchor = Point3::new(wi(1.0), wi(2.0), wi(-3.0));
-            let axis = Vec3::new(
-                Interval::from_f64(ax[0]),
-                Interval::from_f64(ax[1]),
-                Interval::from_f64(ax[2]),
-            );
+            let axis = Vec3::new(ax[0], ax[1], ax[2]).map(Interval::from_f64);
             let r = Affine3::rotation_about_axis(anchor, axis, Interval::zero());
             let tw = w(r.translation.x)
                 .max(w(r.translation.y))
@@ -119,10 +115,10 @@ fn r2_small_angle_scaling_extended() {
     }
 }
 
-/// CLAIM 8: the poison contract, including at angle zero, and on the
-/// new operator directly.
+/// CLAIM 8: the degenerate-axis contract at `Interval` — every entry
+/// refused — including at angle zero, and on the new operator directly.
 #[test]
-fn r2_poison_contract_at_zero_angle() {
+fn r2_degenerate_axis_refuses_at_zero_angle() {
     for angle in [0.0f64, 1.0e-30, 1.0, core::f64::consts::TAU] {
         for axis in [
             Vec3::<Interval>::zero(),
@@ -135,11 +131,11 @@ fn r2_poison_contract_at_zero_angle() {
             let m = Mat3::identity_minus_rotation_about(axis, Interval::from_f64(angle));
             for v in [m.c0, m.c1, m.c2] {
                 for e in [v.x, v.y, v.z] {
-                    let poisoned = !e.is_certified() || e.lo().is_nan() || e.hi().is_nan();
+                    let refused = !e.is_certified() || e.lo().is_nan() || e.hi().is_nan();
                     assert!(
-                        poisoned,
+                        refused,
                         "angle {angle:e}: operator entry [{:e}, {:e}] is a \
-                         CERTIFIED finite enclosure on a poisoned axis",
+                         CERTIFIED finite enclosure on a degenerate axis",
                         e.lo(),
                         e.hi()
                     );
@@ -164,7 +160,7 @@ fn r2_poison_contract_at_zero_angle() {
             assert!(
                 !t.is_certified() || t.lo().is_nan() || t.hi().is_nan(),
                 "angle {angle:e}: translation [{:e}, {:e}] is a CERTIFIED \
-                 finite enclosure on a poisoned axis",
+                 finite enclosure on a degenerate axis",
                 t.lo(),
                 t.hi()
             );

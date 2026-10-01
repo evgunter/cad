@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # loop-boundary-discards.sh — every place a `LoopBoundary` value is
 # thrown away is in the register below, at a pinned count, audited or
-# not. ONE home; ci.yml's "LoopBoundary deferral register" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# not. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE INVARIANT. A `continue` carrying a paragraph of justification and
 # a `continue` carrying none are the same six characters. The paragraph
@@ -105,8 +104,12 @@
 #     a closure is not an item and the reader has no name for it. That
 #     is what `<fragment>` is for.
 #   * `macro_rules!` BODIES AND `include!`d TEXT, which `lib.sh`'s
-#     reader does not expand. `#[cfg(test)]` items are skipped, so a
-#     discard reachable only from a test module is not counted.
+#     reader does not expand. `#[cfg(test)]` items INSIDE a scanned
+#     file are skipped, so a discard in an inline test module is not
+#     counted. A whole FILE mounted only under `#[cfg(test)]`
+#     (`review_d18.rs`) is still scanned, because the gate reads every
+#     crate source rather than `gate_production_sources`' narrowed list,
+#     and a discard there is registered like any other.
 #   * `Self::(Cycle|Empty) { … }` IS MATCHED, for an `impl LoopBoundary`
 #     that writes its own variants that way. The cost is the one
 #     OVER-count here: another enum with a struct variant named `Cycle`
@@ -141,8 +144,8 @@ REGISTER=(
   "crates/sweep/src/blend/build.rs|face_cycle||1|unaudited"
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
   "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
-  "crates/topo/src/boolean/contain.rs|iso_bounded_wall||1|unaudited"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
+  "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
   "crates/topo/src/boolean/finish.rs|classify_shell||1|unaudited"
   "crates/topo/src/boolean/join.rs|face_vertex_points||1|unaudited"
   "crates/topo/src/boolean/join.rs|resolve_roles_geometric||2|unaudited"
@@ -161,7 +164,7 @@ REGISTER=(
   "crates/topo/src/boolean/solid_contain.rs|cylinder_chart_trim||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|torus_chart_windows||1|unaudited"
-  "crates/topo/src/boolean/surface_group.rs|surface_group||1|unaudited"
+  "crates/topo/src/boolean/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own chart trim (cylinder_chart_trim, cone_slant_window, sphere_chart_trim, torus_chart_windows), and that walk is where a non-cycle is answered"
   "crates/topo/src/boolean/vtxfac.rs|classify_vertex_on_face||1|unaudited"
   "crates/topo/src/boolean/zip.rs|zip_seam||1|unaudited"
   # The census's one loop walk: an unwalkable loop is handed back as
@@ -171,18 +174,24 @@ REGISTER=(
   "crates/topo/src/census.rs|face_cycles|else { return|1|audited: the walk decides nothing — it returns the loop it could not walk, and each of its five callers says what that means"
   "crates/topo/src/chart_region.rs|face_boundary_points||1|unaudited"
   "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
-  "crates/topo/src/chord_join.rs|face_azimuth_window||1|unaudited"
+  "crates/topo/src/chord_join.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
   "crates/topo/src/coherence.rs|traversals||1|unaudited"
   "crates/topo/src/euler.rs|find_half_edge||1|unaudited"
-  "crates/topo/src/euler.rs|mef_chord||1|unaudited"
   "crates/topo/src/euler.rs|mef_lone||1|unaudited"
-  "crates/topo/src/euler.rs|mev_line||1|unaudited"
   "crates/topo/src/euler.rs|mev_lone_plan||1|unaudited"
   "crates/topo/src/euler_kill.rs|kvfs||1|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_both_empty||2|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_ring||1|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_target||1|unaudited"
-  "crates/topo/src/loop_winding.rs|planar_loop_winding||1|unaudited"
+  "crates/topo/src/loop_winding.rs|planar_loop_winding_decided||1|audited: the discarded variant is answered by name, not passed over: the arm returns LoopWinding::Empty, which the merge's role pass reads as not positive and planar_loop_winding reads as no winding"
+  # The pruning's bridge target: the survivor's outline is read for a
+  # half-edge to join a lone-vertex ring to, and an EMPTY outline is not
+  # skipped but refused typed (LoopNotCycle naming that loop).
+  # The survivor choice reads each member's rings for the faces they
+  # border; a lone-vertex ring borders none, so passing it over answers
+  # the question it asks.
+  "crates/topo/src/merge_faces.rs|outermost_survivor||1|audited: the discarded variant is a lone-vertex ring, which has no half-edge and so borders no face; the question the walk asks (which member sits in this ring) has the answer none for it"
+  "crates/topo/src/merge_faces.rs|merge_group||1|audited: the discarded variant is refused, not passed over — an empty outline has no half-edge to bridge from, and the arm returns LoopNotCycle naming the outline"
   "crates/topo/src/movefac.rs|movefac||1|unaudited"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
@@ -195,6 +204,7 @@ REGISTER=(
   "crates/topo/src/props.rs|loop_edges||1|unaudited"
   "crates/topo/src/replace_face.rs|boundary_edges_into||1|unaudited"
   "crates/topo/src/revert.rs|revert||1|audited: the discarded variant is a lone vertex — no half-edge, no cycle, so no anchor for the reversal to move; the same map leaves that vertex's emanating anchor untouched (it is None on an empty loop, the validated invariant), so the loop travels unchanged, as the module docs say every loop's membership does"
+  "crates/topo/src/review_d18.rs|far_loop||1|audited: the discarded variant is a lone vertex — no half-edge to plant a namer on, and none a kill walks, so the far loop the witness tears must be a cycle"
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"
   "crates/topo/src/seqgen.rs|mef_chords_candidates||1|unaudited"
@@ -213,9 +223,11 @@ REGISTER=(
   "crates/topo/src/shell.rs|rename_loop_surface||1|unaudited"
   "crates/topo/src/shell.rs|ring_rows||1|unaudited"
   "crates/topo/src/shell.rs|split_cycle||1|unaudited"
+  "crates/topo/src/splitting/containment.rs|carrier_loop||1|audited: the discard is answered as CorruptLoop, and point_in_face, the one caller, answers an Empty outer loop (no region) and steps over an Empty ring (no area) before asking"
   "crates/topo/src/splitting/containment.rs|loop_points||1|unaudited"
   "crates/topo/src/splitting/finish.rs|classify_shell||1|unaudited"
   "crates/topo/src/splitting/finish.rs|describe_section_boundary||1|unaudited"
+  "crates/topo/src/splitting/finish.rs|section_plane_restatements||1|audited: an Empty loop holds no edge, so it has no description to restate; describe_section_boundary, which re-describes the same loops right after, steps over it the same way"
   "crates/topo/src/splitting/join.rs|certify_section_area||1|unaudited"
   "crates/topo/src/splitting/join.rs|loop_starts||1|unaudited"
   "crates/topo/src/validate.rs|loop_cycle_of||1|unaudited"

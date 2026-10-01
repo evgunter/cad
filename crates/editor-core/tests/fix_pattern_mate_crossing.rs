@@ -44,8 +44,8 @@ use fixture::resolver::in_part;
 use fixture::{in_copy, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
-/// The unit cube `[0,1]³`, as a whole part document.
-fn block(label: &str) -> ProfileDoc {
+/// The unit cube `[0,1]³`, as a whole part document, and its body.
+fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -54,20 +54,20 @@ fn block(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
         },
-    );
-    doc
+    )
 }
 
-fn block_ref(label: &str) -> DocRef {
-    let doc = block(label);
+/// [`block`] as a reference, and its body.
+fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
+    let (doc, body) = block(label);
     let pin = content_pin(&doc, Tol::witness()).unwrap();
-    DocRef { id: doc.id(), pin }
+    (DocRef { id: doc.id(), pin }, body)
 }
 
 /// The reach a cut of the four-legs document levers through: a store
@@ -75,8 +75,8 @@ fn block_ref(label: &str) -> DocRef {
 /// remainder's gauge and mints its frame from the solved pose.
 fn legs_reach() -> EvalOptions {
     let mut store = fixture::resolver::PartStore::new();
-    store.insert(block("fix-xs-leg"), Tol::witness());
-    store.insert(block("fix-xs-top"), Tol::witness());
+    store.insert(block("fix-xs-leg").0, Tol::witness());
+    store.insert(block("fix-xs-top").0, Tol::witness());
     fixture::resolver::with_resolver(store)
 }
 
@@ -116,7 +116,8 @@ const COPY: u32 = 2;
 
 /// Four legs, one top: `leg`, a linear `pattern` of it (count 4), a
 /// `top`, and a seat mate from pattern copy [`COPY`] onto the top.
-/// Returns `(doc, leg, pattern, top, mate)`.
+/// Returns `(doc, leg, pattern, top, mate, leg_body)`, the last the
+/// leg part's body.
 ///
 /// A bare datum sits AHEAD of the cluster and is never cut, so the part
 /// document's id space is offset from the host's — which is what makes
@@ -129,13 +130,12 @@ fn four_legs(
     RecipeNodeId,
     RecipeNodeId,
     RecipeNodeId,
+    RecipeNodeId,
 ) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, _kept) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
-    let (doc, leg) = insert(doc, Node::instantiate_part(block_ref("fix-xs-leg")));
+    let (doc, _kept) = insert(doc, fixture::xy_frame());
+    let (leg_ref, leg_body) = block_ref("fix-xs-leg");
+    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -144,17 +144,18 @@ fn four_legs(
             kind: linear(2.0),
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(block_ref("fix-xs-top")));
+    let (top_ref, top_body) = block_ref("fix-xs-top");
+    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(pattern, COPY, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
+                in_copy(pattern, COPY, in_part(leg, leg_body, CapEnd::End)),
+                in_part(top, top_body, CapEnd::Start),
             ),
         },
     );
-    (doc, leg, pattern, top, mate.unwrap())
+    (doc, leg, pattern, top, mate.unwrap(), leg_body)
 }
 
 fn cut(ids: impl IntoIterator<Item = RecipeNodeId>) -> BTreeSet<RecipeNodeId> {
@@ -177,7 +178,7 @@ fn crossings(
 /// unreachability with plain edges rather than beside it.
 #[test]
 fn a_pattern_headed_mate_is_an_edge_and_welds_the_pattern_input_instance() {
-    let (doc, leg, _pattern, top, mate) = four_legs("fix-xs-edge");
+    let (doc, leg, _pattern, top, mate, _) = four_legs("fix-xs-edge");
     assert_eq!(
         editor_core::reading_edges(&doc),
         vec![(mate, leg), (mate, top)],
@@ -197,7 +198,7 @@ fn a_pattern_headed_mate_is_an_edge_and_welds_the_pattern_input_instance() {
 /// is empty. No accepted cut severs a pattern-headed mate edge.
 #[test]
 fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
-    let (doc, leg, pattern, top, mate) = four_legs("fix-xs-torn");
+    let (doc, leg, pattern, top, mate, _) = four_legs("fix-xs-torn");
     let o = legs_reach();
 
     // The gauge is the cluster's document-order-first instance and the
@@ -289,7 +290,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
 /// moves verbatim and copy `i` denotes the same copy on both sides.
 #[test]
 fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
-    let (doc, leg, pattern, top, mate) = four_legs("fix-xs-remap");
+    let (doc, leg, pattern, top, mate, leg_body) = four_legs("fix-xs-remap");
     let o = legs_reach();
     let out = split(
         &doc,
@@ -312,7 +313,11 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     };
     assert_eq!(
         *a,
-        crate::fixture::head(in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End))),
+        crate::fixture::head(in_copy(
+            new_pattern,
+            COPY,
+            in_part(new_leg, leg_body, CapEnd::End)
+        )),
         "ids remap through the recorded map; the copy index does not"
     );
     let RoleSeg::Instance { i, .. } = a.name.path[0] else {
@@ -344,7 +349,8 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
 #[test]
 fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-nested"), Tol::witness());
-    let (doc, leg) = insert(doc, Node::instantiate_part(block_ref("fix-xs-n-leg")));
+    let (leg_ref, leg_body) = block_ref("fix-xs-n-leg");
+    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
@@ -361,18 +367,20 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
             kind: linear(5.0),
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(block_ref("fix-xs-n-top")));
+    let (top_ref, top_body) = block_ref("fix-xs-n-top");
+    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     // The insert door refuses a head that resolves to no member, so
     // the mate is authored the way such a head arises after insert
     // (`insert_mate_with_stranded_head`).
     let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         seat(
-            in_copy(outer, 1, in_part(leg, CapEnd::End)),
-            in_part(top, CapEnd::Start),
+            in_copy(outer, 1, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
         ),
         editor_core::MateSide::A,
         top,
+        top_body,
     );
 
     // Not an edge: no reading edge at the nested head, and the two
@@ -417,16 +425,19 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 #[test]
 fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-stranded"), Tol::witness());
-    let (doc, _datum) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, _datum) = insert(doc, fixture::xy_frame());
     // A live instance that consumes nothing: it neither places nor
     // projects `leg`, so no walk from it reaches `leg`.
-    let (doc, stranger) = insert(doc, Node::instantiate_part(block_ref("fix-xs-st-other")));
-    let (doc, leg) = insert(doc, Node::instantiate_part(block_ref("fix-xs-st-leg")));
-    let (doc, top) = insert(doc, Node::instantiate_part(block_ref("fix-xs-st-top")));
-    let mut node = seat(in_part(leg, CapEnd::End), in_part(top, CapEnd::Start));
+    let (stranger_ref, _) = block_ref("fix-xs-st-other");
+    let (doc, stranger) = insert(doc, Node::instantiate_part(stranger_ref));
+    let (leg_ref, leg_body) = block_ref("fix-xs-st-leg");
+    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (top_ref, top_body) = block_ref("fix-xs-st-top");
+    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let mut node = seat(
+        in_part(leg, leg_body, CapEnd::End),
+        in_part(top, top_body, CapEnd::Start),
+    );
     let Node::Mate { a, .. } = &mut node else {
         panic!("a seat is a mate");
     };

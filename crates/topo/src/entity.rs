@@ -269,21 +269,15 @@ pub struct Face {
     /// vector negated under the bit by hand can be, and
     /// `face_normal`'s tree-wide row is what stands against that.
     ///
-    /// **Writers (M5 S11).** An Euler operator mints `sense: true` on a
-    /// face it puts on a NEW surface (the material side is not op-level
-    /// knowledge — `mef` sees two chords, not the profile); a face that
-    /// inherits its parent's surface inherits that parent's sense with
-    /// it. Constructors attach the honest bit
-    /// through [`crate::Body::set_face_sense`] wherever the chart
-    /// normal points into material, decided from the profile's stored
-    /// winding/turn structure, never numerically: extrude's concave
-    /// arc walls, and a revolve's inward walls (bore cylinder, inward
-    /// cone, under-side plane annulus, concave sphere/torus band). The
-    /// remaining writer-to-be is curved [`crate::Body::revert`] (the
-    /// follow-on unit), which flips every face of a body at once.
-    /// Consumers are audited and threaded as of S10; the test-only
-    /// door [`crate::Body::flipped_face_sense_for_tests`] exercises
-    /// the *incoherent* single-face flip.
+    /// **Writers.** `mvfs` writes its caller's bit, and `mef`, `mfkrh`
+    /// and [`crate::Body::set_face_surface`] write the bit their
+    /// [`crate::FaceSurface`] spec resolves to
+    /// (`Body::resolve_face_surface`), so every construction that
+    /// charts a face states or derives its bit through those doors. [`crate::Body::revert`] flips every
+    /// face of a body at once, and [`crate::Body::set_face_sense`]
+    /// writes the bit on a chart that stands still. The test-only door
+    /// [`crate::Body::flipped_face_sense_for_tests`] exercises the
+    /// *incoherent* single-face flip.
     ///
     /// STEP alignment: this is exactly `advanced_face.same_sense`
     /// (ISO 10303-42 `face_surface`), which PR 13's exporter consumes
@@ -412,6 +406,40 @@ pub struct Edge {
     pub he_minus: HalfEdgeKey,
     /// The curve this edge is a piece of (D2: edges reference curves).
     pub curve: CurveKey,
+}
+
+/// Which half of its edge a half-edge is, and the other half
+/// ([`Edge::claim`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Claim {
+    /// The half is `he_plus`, so it runs with the edge's intrinsic
+    /// direction and its carrier's parameter.
+    pub(crate) plus: bool,
+    /// The edge's other half.
+    pub(crate) mate: HalfEdgeKey,
+}
+
+impl Edge {
+    /// **`he`'s place on this edge** — the one reading of the edge ↔
+    /// half-edge pairing, for the mate and for the direction alike.
+    /// `None` when neither slot holds `he` (a corrupt bijection): a
+    /// half the edge does not claim is neither its plus half nor its
+    /// minus half, and no caller may read it as one.
+    pub(crate) fn claim(&self, he: HalfEdgeKey) -> Option<Claim> {
+        if self.he_plus == he {
+            Some(Claim {
+                plus: true,
+                mate: self.he_minus,
+            })
+        } else if self.he_minus == he {
+            Some(Claim {
+                plus: false,
+                mate: self.he_plus,
+            })
+        } else {
+            None
+        }
+    }
 }
 
 /// A vertex: a point of the model where edges end (or a lone vertex of

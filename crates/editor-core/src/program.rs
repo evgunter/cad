@@ -41,7 +41,7 @@ use serde::{Deserialize, Serialize};
 use crate::doc::ParamName;
 use crate::eval::{CanonicalSegment, LoopAnchor, ProfileNaming};
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, UnitSym, eval};
-use crate::node::{RecipeNodeId, SlotId, StepArg, StepId};
+use crate::node::{RecipeNodeId, SlotId, StepArg, StepId, find_row, row_readers};
 use geom_core::Tol;
 
 /// **One declaration, two projections** — a document vocabulary's enum,
@@ -211,7 +211,7 @@ pub enum ProgramTarget {
 /// be discharged in `from_recorded`'s error arm.
 ///
 /// Fields are public data (the node-slot pattern: dimensions are
-/// checked at the edit door via [`ProfileProgram::slots`] +
+/// checked at the edit door via [`ProfilePayload::rows`] +
 /// [`StepArg::dimension`], and at the persistence doors' shared
 /// validator — never trusted from a parsed file).
 ///
@@ -468,8 +468,8 @@ pub struct ProfileProgram {
     /// what a profile piece's name spells (`names/README.md`, "N1, the
     /// profile pieces").
     ///
-    /// The document's edit doors mint them from its monotone step
-    /// counter — `InsertNode` every one, `SetProgram` each step it does
+    /// The document's edit doors mint them from its mint chain
+    /// ([`crate::StepMint`]) — `InsertNode` every one, `SetProgram` each step it does
     /// not keep — so a program on its way IN carries none (`InsertNode`
     /// refuses one that does), and a program at rest carries exactly
     /// one per step, unique across the document, which the load door
@@ -498,28 +498,27 @@ type Replayed = (
 /// payloads — the defaults are the slot-free, check-free behavior the
 /// retired opaque payload had).
 pub trait ProfilePayload {
-    /// Every program expression slot, deterministic (loop, step, arg)
-    /// order.
-    fn slots(&self) -> Vec<SlotId> {
+    /// **The program's slot table**: every expression it holds, keyed
+    /// by its `(loop, step, arg)` address, in that deterministic order.
+    /// `Node::Profile` reads its slots, and answers
+    /// `SlotId::Profile { loop_, step, arg }`, from these rows alone. A
+    /// payload's rows carry no other kind of address, so a profile node
+    /// cannot answer another node kind's slot.
+    fn rows(&self) -> Vec<((u32, u32, StepArg), &Expr)> {
         Vec::new()
     }
-    /// The expression a profile slot addresses, `None` off the program.
-    fn expr(&self, _slot: SlotId) -> Option<&Expr> {
-        None
-    }
-    /// Mutable twin of [`ProfilePayload::expr`].
-    fn expr_mut(&mut self, _slot: SlotId) -> Option<&mut Expr> {
-        None
+    /// The rows of [`ProfilePayload::rows`], exclusive: the same rows,
+    /// in the same order.
+    fn rows_mut(&mut self) -> Vec<((u32, u32, StepArg), &mut Expr)> {
+        Vec::new()
     }
     /// Whether any expression of this program reads the document
-    /// parameter `name` — over [`ProfilePayload::slots`], so every
+    /// parameter `name` — over [`ProfilePayload::rows`], so every
     /// payload answers it the one way.
     fn references(&self, name: &ParamName) -> bool {
         let mut refs = Vec::new();
-        for slot in self.slots() {
-            if let Some(e) = self.expr(slot) {
-                e.param_refs(&mut refs);
-            }
+        for (_, e) in self.rows() {
+            e.param_refs(&mut refs);
         }
         refs.iter().any(|(n, _)| n == name)
     }
@@ -554,15 +553,20 @@ pub trait ProfilePayload {
     {
         None
     }
-    /// **Mints an id for every authored step** from the document's step
-    /// counter, advancing it: the insert door's half of N1's minting. A
+    /// **Mints an id for every authored step** of this payload, entering
+    /// the document as `node`, from the document's mint
+    /// ([`crate::StepMint`]): the insert door's half of N1's minting. A
     /// payload with no program mints nothing.
     ///
     /// # Errors
     ///
     /// [`StepIdFault::Preminted`] where the program already carries
-    /// ids.
-    fn mint_step_ids(&mut self, _counter: &mut u64) -> Result<(), StepIdFault> {
+    /// ids; the mint's own refusals.
+    fn mint_step_ids(
+        &mut self,
+        _node: crate::RecipeNodeId,
+        _mint: &mut crate::StepMint,
+    ) -> Result<(), StepIdFault> {
         Ok(())
     }
     /// **The document node this payload is drawn ON**, if it names one
@@ -1053,125 +1057,227 @@ pub(crate) fn program_index(i: usize) -> u32 {
     narrowed
 }
 
-/// The argument roles a target contributes ([] for `Start`).
+/// **An arc spec's role for one of its arguments**: `incoming` on a
+/// step's first (or only) spec, its `arrival` twin on a fused step's
+/// second spec.
 ///
-/// Exhaustive on the target vocabulary rather than a test for one
-/// form: a target form that carries expressions and enumerates no role
-/// is an expression no slot addresses, which the bijection census sees
-/// only where the corpus reaches it.
-fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    match t {
-        ProgramTarget::Point(_) => out.extend(target_roles(false)),
-        ProgramTarget::Start | ProgramTarget::StartArriving => {}
-    }
-}
-
-/// A point target's two coordinate roles: the `Target*` pair, or the
-/// `Target2*` twins a fused step's second spec carries. The one
-/// assignment the enumeration ([`target_slots`], [`target2_slots`]),
-/// the addressing ([`target_coord`], under both accessor macros) and
-/// the resolution ([`res_target`]) all read, so a refusal reports at
-/// the slot the census enumerates and that slot addresses the
-/// coordinate that refused.
-fn target_roles(second: bool) -> [StepArg; 2] {
-    if second {
-        [StepArg::Target2X, StepArg::Target2Y]
-    } else {
-        [StepArg::TargetX, StepArg::TargetY]
-    }
-}
-
-/// Which coordinate of a point target `arg` addresses, when it is one
-/// of [`target_roles`]' pair for `second`.
-fn target_coord(arg: StepArg, second: bool) -> Option<usize> {
-    target_roles(second).iter().position(|role| *role == arg)
-}
-
-/// The argument roles of one arc spec; `second` selects the arrival
-/// (spec₂) role twins.
-///
-/// EVERY role has a twin, including the three whose modes are not
+/// EVERY spec role has a twin, including the three whose modes are not
 /// arrival modes (§2c: `family::ArrivalSpec` is implemented for
 /// `Radius`, `Via` and `Center` alone, so no recording surface can put
-/// a `Bulge`, `Sweep` or `ArcLen` in second position). Enumeration is
-/// total over the data type, and a hand-built step may carry one:
+/// a `Bulge`, `Sweep` or `ArcLen` in second position). The role table
+/// is total over the data type, and a hand-built step may carry one:
 /// without its own twin such a spec's argument would share the
 /// incoming spec's role, which addresses the incoming argument twice
 /// and the arrival's not at all.
-fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
-    use ProgramArcData as S;
-    use StepArg as A;
-    match (spec, second) {
-        (S::Radius { .. }, false) => out.push(A::CarrierRadius),
-        (S::Radius { .. }, true) => out.push(A::CarrierRadius2),
-        (S::Bulge { target, .. }, false) => {
-            target_slots(target, out);
-            out.push(A::Bulge);
-        }
-        (S::Bulge { target, .. }, true) => {
-            target2_slots(target, out);
-            out.push(A::Bulge2);
-        }
-        (S::Via { target, .. }, false) => {
-            out.extend([A::ViaX, A::ViaY]);
-            target_slots(target, out);
-        }
-        (S::Via { target, .. }, true) => {
-            out.extend([A::Via2X, A::Via2Y]);
-            target2_slots(target, out);
-        }
-        (S::Center { target, .. }, false) => {
-            out.extend([A::CenterX, A::CenterY]);
-            target_slots(target, out);
-        }
-        (S::Center { target, .. }, true) => {
-            out.extend([A::Center2X, A::Center2Y]);
-            target2_slots(target, out);
-        }
-        (S::Sweep { .. }, false) => out.extend([A::CarrierRadius, A::SweepVal]),
-        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal2]),
-        (S::ArcLen { .. }, false) => out.extend([A::CarrierRadius, A::ArcLenVal]),
-        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal2]),
-    }
+fn twin(second: bool, incoming: StepArg, arrival: StepArg) -> StepArg {
+    if second { arrival } else { incoming }
 }
 
-/// The spec₂ twin of [`target_slots`], exhaustive for the same reason.
-fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    match t {
-        ProgramTarget::Point(_) => out.extend(target_roles(true)),
-        ProgramTarget::Start | ProgramTarget::StartArriving => {}
-    }
+/// The role of an arc spec's carrier radius — `CarrierRadius`, or its
+/// arrival twin. Named apart because two readers need the pairing: the
+/// role table's `Radius`, `Sweep` and `ArcLen` rows, and
+/// [`radius_arg_of`], which maps `profile`'s radius vocabulary onto it.
+fn carrier_radius_role(second: bool) -> StepArg {
+    twin(second, StepArg::CarrierRadius, StepArg::CarrierRadius2)
 }
 
-/// The argument roles of one chain step, enumeration order = the
-/// step's own field order (deterministic; pinned by tests).
-fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
-    use ProgramStep as P;
-    use StepArg as A;
-    match step {
-        P::At(_) | P::FarEndTo(_) => out.extend([A::PointX, A::PointY]),
-        P::Angle(_) => out.push(A::AngleVal),
-        P::Toward { .. } => out.extend([A::DirX, A::DirY]),
-        P::Tangent | P::Cusp | P::CloseTo => {}
-        P::Turn(_) => out.push(A::TurnVal),
-        P::Line(_) => out.push(A::Length),
-        P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_slots(t, out),
-        P::ArcTo(spec) => spec_slots(spec, false, out),
-        P::Fillet(_) => out.push(A::Radius),
-        P::FilletArc { spec, .. } => {
-            out.push(A::Radius);
-            spec_slots(spec, true, out);
+/// The role of a fillet's own radius, on every fillet-bearing step —
+/// read by the role table and by [`radius_arg_of`].
+const FILLET_RADIUS_ROLE: StepArg = StepArg::Radius;
+
+/// The role-table rows a target contributes: a point target's two
+/// coordinates, none for `Start`.
+///
+/// Exhaustive on the target vocabulary rather than a test for one
+/// form: a target form that carries expressions and pairs no role is
+/// an expression no slot addresses, and resolution fails loudly on it
+/// ([`role_of`]).
+macro_rules! target_roles {
+    ($target:expr, $second:expr, $out:expr) => {{
+        let second: bool = $second;
+        match $target {
+            ProgramTarget::Point([x, y]) => {
+                $out.push((twin(second, StepArg::TargetX, StepArg::Target2X), x));
+                $out.push((twin(second, StepArg::TargetY, StepArg::Target2Y), y));
+            }
+            ProgramTarget::Start | ProgramTarget::StartArriving => {}
         }
-        P::ArcFillet { spec, .. } => {
-            spec_slots(spec, false, out);
-            out.push(A::Radius);
+    }};
+}
+
+/// The role-table rows of one arc spec; `second` selects the arrival
+/// twins ([`twin`]).
+macro_rules! spec_roles {
+    ($spec:expr, $second:expr, $out:expr) => {{
+        use ProgramArcData as S;
+        use StepArg as A;
+        let second: bool = $second;
+        match $spec {
+            S::Radius { r, .. } => $out.push((carrier_radius_role(second), r)),
+            S::Bulge { target, b } => {
+                target_roles!(target, second, $out);
+                $out.push((twin(second, A::Bulge, A::Bulge2), b));
+            }
+            S::Via { q: [x, y], target } => {
+                $out.push((twin(second, A::ViaX, A::Via2X), x));
+                $out.push((twin(second, A::ViaY, A::Via2Y), y));
+                target_roles!(target, second, $out);
+            }
+            S::Center {
+                c: [x, y], target, ..
+            } => {
+                $out.push((twin(second, A::CenterX, A::Center2X), x));
+                $out.push((twin(second, A::CenterY, A::Center2Y), y));
+                target_roles!(target, second, $out);
+            }
+            S::Sweep { r, angle, .. } => {
+                $out.push((carrier_radius_role(second), r));
+                $out.push((twin(second, A::SweepVal, A::SweepVal2), angle));
+            }
+            S::ArcLen { r, len, .. } => {
+                $out.push((carrier_radius_role(second), r));
+                $out.push((twin(second, A::ArcLenVal, A::ArcLenVal2), len));
+            }
         }
-        P::ArcFilletArc { spec, spec2, .. } => {
-            spec_slots(spec, false, out);
-            out.push(A::Radius);
-            spec_slots(spec2, true, out);
+    }};
+}
+
+/// The role-table rows of one chain step, in the step's own field
+/// order.
+macro_rules! step_roles {
+    ($step:expr, $out:expr) => {{
+        use ProgramStep as P;
+        use StepArg as A;
+        match $step {
+            P::At([x, y]) | P::FarEndTo([x, y]) => {
+                $out.push((A::PointX, x));
+                $out.push((A::PointY, y));
+            }
+            P::Angle(e) => $out.push((A::AngleVal, e)),
+            P::Toward { dx, dy } => {
+                $out.push((A::DirX, dx));
+                $out.push((A::DirY, dy));
+            }
+            P::Tangent | P::Cusp | P::CloseTo => {}
+            P::Turn(e) => $out.push((A::TurnVal, e)),
+            P::Line(e) => $out.push((A::Length, e)),
+            P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_roles!(t, false, $out),
+            P::ArcTo(spec) => spec_roles!(spec, false, $out),
+            P::Fillet(radius) => $out.push((FILLET_RADIUS_ROLE, radius)),
+            P::FilletArc { radius, spec } => {
+                $out.push((FILLET_RADIUS_ROLE, radius));
+                spec_roles!(spec, true, $out);
+            }
+            P::ArcFillet { spec, radius } => {
+                spec_roles!(spec, false, $out);
+                $out.push((FILLET_RADIUS_ROLE, radius));
+            }
+            P::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            } => {
+                spec_roles!(spec, false, $out);
+                $out.push((FILLET_RADIUS_ROLE, radius));
+                spec_roles!(spec2, true, $out);
+            }
         }
-    }
+    }};
+}
+
+/// **THE role table of a loop program: which [`StepArg`] each
+/// expression of each authored step carries, keyed `(step, role)`, in
+/// enumeration order** — step order, then each step's own field order,
+/// deterministic and pinned by tests.
+///
+/// The one declaration the three consumers of a role read:
+/// - the enumeration ([`LoopProgram::step_args`], [`LoopProgram::step_radii`])
+///   reads the roles in order;
+/// - the addressing ([`ProfilePayload::rows`], and the recorded
+///   program's notation) finds the row whose `(step, role)` is asked
+///   for ([`find_row`]);
+/// - the resolution ([`res_chain_step`], and [`LoopProgram::resolve`]'s
+///   carrier arms) tags a refusal with the role this table pairs with
+///   the very expression that refused ([`role_of`]).
+///
+/// So a refusal reports at a slot the census enumerates, and that slot
+/// addresses the expression that refused, by construction. A macro
+/// rather than a function because it is borrow-generic
+/// ([`row_readers`]). A carrier form authors one step, numbered 0.
+/// The table holds no other value's table, so it has no use for the
+/// reader's name.
+macro_rules! loop_roles {
+    ($loop:expr, $_reader:ident, $out:expr) => {{
+        use StepArg as A;
+        let carrier = match $loop {
+            LoopProgram::Chain(steps) => {
+                for (i, s) in steps.into_iter().enumerate() {
+                    chain_step_rows!(s, program_index(i), $out);
+                }
+                None
+            }
+            LoopProgram::Circle { centre, radius } => Some((centre, radius, None)),
+            LoopProgram::CircleSplit {
+                centre,
+                radius,
+                phase,
+                ..
+            } => Some((centre, radius, Some(phase))),
+        };
+        if let Some(([x, y], radius, phase)) = carrier {
+            $out.push(((0, A::CenterX), x));
+            $out.push(((0, A::CenterY), y));
+            $out.push(((0, A::Radius), radius));
+            if let Some(phase) = phase {
+                $out.push(((0, A::Phase), phase));
+            }
+        }
+    }};
+}
+
+/// One chain step's rows of [`loop_roles`]: [`step_roles`] keyed by
+/// the step's authored index.
+macro_rules! chain_step_rows {
+    ($s:expr, $step:expr, $out:expr) => {{
+        let step: u32 = $step;
+        let mut roles = Vec::new();
+        step_roles!($s, roles);
+        $out.extend(roles.into_iter().map(|(arg, e)| ((step, arg), e)));
+    }};
+}
+
+/// Authored step `step`'s rows of [`loop_roles`], shared — the rows
+/// [`res_chain_step`] resolves a chain step through, built without the
+/// rest of its loop.
+fn step_rows(s: &ProgramStep, step: u32) -> Vec<((u32, StepArg), &Expr)> {
+    let mut out = Vec::new();
+    chain_step_rows!(s, step, out);
+    out
+}
+
+/// **The `(step, role)` the table pairs with `e`**, found by identity
+/// among `roles` — rows built from the same reference the resolver is
+/// reading `e` out of ([`res_chain_step`] and [`LoopProgram::resolve`]'s
+/// carrier arms, through [`leaf`], each build both from one binding).
+///
+/// Resolution needs the role of a NAMED field — it constructs the
+/// kernel step field by field — and the row list pairs roles with
+/// expressions, not with field names. The expression's own address is
+/// the one link between the two that neither side has to restate;
+/// reading rows by position instead would make the construction's
+/// field order a second spelling of the table's.
+///
+/// # Panics
+///
+/// When no row holds `e` — the table omits an expression the resolver
+/// reads, so that expression has no slot a refusal could name. That is
+/// a gap in [`loop_roles`], not a caller's input, and every resolution
+/// of a step of that shape reaches it.
+fn role_of(roles: &[((u32, StepArg), &Expr)], e: &Expr) -> (u32, StepArg) {
+    let Some((role, _)) = roles.iter().find(|(_, x)| std::ptr::eq(*x, e)) else {
+        unreachable!("the role table pairs no role with an expression the resolver reads")
+    };
+    *role
 }
 
 /// **The document-layer argument role a profile-side radius role
@@ -1179,119 +1285,15 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
 ///
 /// `profile` records WHICH of a step's radius arguments drew an arc in
 /// its own vocabulary — it has no name for a document slot — and this
-/// is the one place the two are paired. The pairing mirrors
-/// [`spec_slots`]'s: the incoming spec's radius is the step's
-/// `CarrierRadius`, the arrival spec's twin is `CarrierRadius2`, and a
-/// fillet's own is `Radius`.
+/// maps it onto the role table's own radius roles
+/// ([`carrier_radius_role`], [`FILLET_RADIUS_ROLE`]), so the pairing is
+/// not restated here.
 fn radius_arg_of(role: profile::RadiusRole) -> StepArg {
     match role {
-        profile::RadiusRole::Fillet => StepArg::Radius,
-        profile::RadiusRole::Carrier => StepArg::CarrierRadius,
-        profile::RadiusRole::Carrier2 => StepArg::CarrierRadius2,
+        profile::RadiusRole::Fillet => FILLET_RADIUS_ROLE,
+        profile::RadiusRole::Carrier => carrier_radius_role(false),
+        profile::RadiusRole::Carrier2 => carrier_radius_role(true),
     }
-}
-
-/// Shared shape of the spec accessors — one table, two borrows.
-/// `second` mirrors [`spec_slots`]'s role-twin selection.
-macro_rules! spec_arg_access {
-    ($spec:expr, $arg:expr, $second:expr, $($ref_kw:tt)*) => {{
-        use ProgramArcData as S;
-        use StepArg as A;
-        match ($spec, $arg, $second) {
-            (S::Radius { r, .. }, A::CarrierRadius, false)
-            | (S::Radius { r, .. }, A::CarrierRadius2, true)
-            | (S::Sweep { r, .. }, A::CarrierRadius, false)
-            | (S::Sweep { r, .. }, A::CarrierRadius2, true)
-            | (S::ArcLen { r, .. }, A::CarrierRadius, false)
-            | (S::ArcLen { r, .. }, A::CarrierRadius2, true) => Some(r),
-            (S::Bulge { b, .. }, A::Bulge, false)
-            | (S::Bulge { b, .. }, A::Bulge2, true) => Some(b),
-            (S::Sweep { angle, .. }, A::SweepVal, false)
-            | (S::Sweep { angle, .. }, A::SweepVal2, true) => Some(angle),
-            (S::ArcLen { len, .. }, A::ArcLenVal, false)
-            | (S::ArcLen { len, .. }, A::ArcLenVal2, true) => Some(len),
-            (S::Via { q, .. }, A::ViaX, false) | (S::Via { q, .. }, A::Via2X, true) => {
-                Some($($ref_kw)* q[0])
-            }
-            (S::Via { q, .. }, A::ViaY, false) | (S::Via { q, .. }, A::Via2Y, true) => {
-                Some($($ref_kw)* q[1])
-            }
-            (S::Center { c, .. }, A::CenterX, false)
-            | (S::Center { c, .. }, A::Center2X, true) => Some($($ref_kw)* c[0]),
-            (S::Center { c, .. }, A::CenterY, false)
-            | (S::Center { c, .. }, A::Center2Y, true) => Some($($ref_kw)* c[1]),
-            (
-                S::Bulge { target: ProgramTarget::Point(p), .. }
-                | S::Via { target: ProgramTarget::Point(p), .. }
-                | S::Center { target: ProgramTarget::Point(p), .. },
-                a,
-                second,
-            ) => match target_coord(a, second) {
-                Some(k) => Some($($ref_kw)* p[k]),
-                None => None,
-            },
-            _ => None,
-        }
-    }};
-}
-
-fn spec_expr(spec: &ProgramArcData, arg: StepArg, second: bool) -> Option<&Expr> {
-    spec_arg_access!(spec, arg, second, &)
-}
-
-fn spec_expr_mut(spec: &mut ProgramArcData, arg: StepArg, second: bool) -> Option<&mut Expr> {
-    spec_arg_access!(spec, arg, second, &mut)
-}
-
-/// Shared shape of [`step_expr`]/[`step_expr_mut`] — one table, two
-/// borrows, via a macro so the (step, arg) pairing is written once.
-macro_rules! step_arg_access {
-    ($step:expr, $arg:expr, $spec_fn:ident, $($ref_kw:tt)*) => {{
-        use ProgramStep as P;
-        use StepArg as A;
-        match ($step, $arg) {
-            (P::At(p), A::PointX) | (P::FarEndTo(p), A::PointX) => Some($($ref_kw)* p[0]),
-            (P::At(p), A::PointY) | (P::FarEndTo(p), A::PointY) => Some($($ref_kw)* p[1]),
-            (P::Angle(e), A::AngleVal) => Some(e),
-            (P::Toward { dx, .. }, A::DirX) => Some(dx),
-            (P::Toward { dy, .. }, A::DirY) => Some(dy),
-            (P::Turn(e), A::TurnVal) => Some(e),
-            (P::Line(e), A::Length) => Some(e),
-            (
-                P::LineTo(ProgramTarget::Point(p))
-                | P::ContinueTo(ProgramTarget::Point(p))
-                | P::TangentArcTo(ProgramTarget::Point(p)),
-                a,
-            ) => match target_coord(a, false) {
-                Some(k) => Some($($ref_kw)* p[k]),
-                None => None,
-            },
-            (P::ArcTo(spec), a) => $spec_fn(spec, a, false),
-            (P::Fillet(e), A::Radius)
-            | (P::FilletArc { radius: e, .. }, A::Radius)
-            | (P::ArcFillet { radius: e, .. }, A::Radius)
-            | (P::ArcFilletArc { radius: e, .. }, A::Radius) => Some(e),
-            (P::FilletArc { spec, .. }, a) => $spec_fn(spec, a, true),
-            (P::ArcFillet { spec, .. }, a) => $spec_fn(spec, a, false),
-            (P::ArcFilletArc { spec, spec2, .. }, a) => {
-                match $spec_fn(spec, a, false) {
-                    Some(e) => Some(e),
-                    None => $spec_fn(spec2, a, true),
-                }
-            }
-            _ => None,
-        }
-    }};
-}
-
-/// The expression a (step, arg) pair addresses.
-fn step_expr(step: &ProgramStep, arg: StepArg) -> Option<&Expr> {
-    step_arg_access!(step, arg, spec_expr, &)
-}
-
-/// Mutable twin of [`step_expr`].
-fn step_expr_mut(step: &mut ProgramStep, arg: StepArg) -> Option<&mut Expr> {
-    step_arg_access!(step, arg, spec_expr_mut, &mut)
 }
 
 impl LoopProgram {
@@ -1371,24 +1373,11 @@ impl LoopProgram {
     /// has therefore always reached the key.
     #[must_use]
     pub fn step_radii(&self) -> Vec<(u32, &Expr)> {
-        match self {
-            LoopProgram::Chain(steps) => {
-                let mut out = Vec::new();
-                for (i, step) in steps.iter().enumerate() {
-                    let mut args = Vec::new();
-                    step_slots(step, &mut args);
-                    for arg in args.into_iter().filter(|a| a.is_radius()) {
-                        if let Some(expr) = step_expr(step, arg) {
-                            out.push((program_index(i), expr));
-                        }
-                    }
-                }
-                out
-            }
-            LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
-                vec![(0, radius)]
-            }
-        }
+        self.rows()
+            .into_iter()
+            .filter(|((_, arg), _)| arg.is_radius())
+            .map(|((step, _), expr)| (step, expr))
+            .collect()
     }
 
     /// This loop's argument roles per step, deterministic order — every
@@ -1400,86 +1389,17 @@ impl LoopProgram {
     /// program rather than re-deriving the answer from the verb table.
     #[must_use]
     pub fn step_args(&self) -> Vec<(u32, StepArg)> {
-        let mut out = Vec::new();
-        match self {
-            LoopProgram::Chain(steps) => {
-                for (i, step) in steps.iter().enumerate() {
-                    let mut args = Vec::new();
-                    step_slots(step, &mut args);
-                    out.extend(args.into_iter().map(|a| (program_index(i), a)));
-                }
-            }
-            LoopProgram::Circle { .. } => {
-                out.extend([
-                    (0, StepArg::CenterX),
-                    (0, StepArg::CenterY),
-                    (0, StepArg::Radius),
-                ]);
-            }
-            LoopProgram::CircleSplit { .. } => {
-                out.extend([
-                    (0, StepArg::CenterX),
-                    (0, StepArg::CenterY),
-                    (0, StepArg::Radius),
-                    (0, StepArg::Phase),
-                ]);
-            }
-        }
-        out
+        self.rows()
+            .into_iter()
+            .map(|(address, _)| address)
+            .collect()
     }
 
-    /// The expression at (step, arg), `None` off the loop.
-    fn expr(&self, step: u32, arg: StepArg) -> Option<&Expr> {
-        use StepArg as A;
-        match self {
-            LoopProgram::Chain(steps) => step_expr(steps.get(step as usize)?, arg),
-            LoopProgram::Circle { centre, radius } if step == 0 => match arg {
-                A::CenterX => Some(&centre[0]),
-                A::CenterY => Some(&centre[1]),
-                A::Radius => Some(radius),
-                _ => None,
-            },
-            LoopProgram::CircleSplit {
-                centre,
-                radius,
-                phase,
-                ..
-            } if step == 0 => match arg {
-                A::CenterX => Some(&centre[0]),
-                A::CenterY => Some(&centre[1]),
-                A::Radius => Some(radius),
-                A::Phase => Some(phase),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
+    row_readers!(loop_roles -> (u32, StepArg));
 
-    /// Mutable twin of [`LoopProgram::expr`].
-    fn expr_mut(&mut self, step: u32, arg: StepArg) -> Option<&mut Expr> {
-        use StepArg as A;
-        match self {
-            LoopProgram::Chain(steps) => step_expr_mut(steps.get_mut(step as usize)?, arg),
-            LoopProgram::Circle { centre, radius } if step == 0 => match arg {
-                A::CenterX => Some(&mut centre[0]),
-                A::CenterY => Some(&mut centre[1]),
-                A::Radius => Some(radius),
-                _ => None,
-            },
-            LoopProgram::CircleSplit {
-                centre,
-                radius,
-                phase,
-                ..
-            } if step == 0 => match arg {
-                A::CenterX => Some(&mut centre[0]),
-                A::CenterY => Some(&mut centre[1]),
-                A::Radius => Some(radius),
-                A::Phase => Some(phase),
-                _ => None,
-            },
-            _ => None,
-        }
+    /// Every expression the loop holds, exclusive.
+    pub(crate) fn exprs_mut(&mut self) -> Vec<&mut Expr> {
+        self.rows_mut().into_iter().map(|(_, expr)| expr).collect()
     }
 }
 
@@ -1493,54 +1413,80 @@ impl LoopProgram {
 // than replaying freely at `T`.
 // ------------------------------------------------------------------
 
-/// Resolves one expression at the resolution scalar, tagging failures
-/// with the slot.
-fn res<T: Decide>(
-    e: &Expr,
+/// **The resolver's leaf**: evaluates one expression of a loop
+/// at the resolution scalar, tagging a refusal with the slot
+/// the role table pairs with that expression in `roles`.
+///
+/// Every resolver below reaches the evaluator through this and names
+/// no role of its own, so the role a refusal reports is the role the
+/// enumeration lists and the addressing answers for. The role is
+/// looked up before the evaluation rather than on refusal, so an
+/// expression the table omits fails loudly on every resolution of its
+/// step shape, not only on one that refuses there.
+///
+/// Called only by [`res_chain_step`] and [`LoopProgram::resolve`]'s
+/// carrier arms, which build `roles` from the same binding they then
+/// resolve — the invariant [`role_of`]'s identity lookup rests on.
+fn leaf<'r, T: Decide>(
+    roles: Vec<((u32, StepArg), &'r Expr)>,
+    env: &'r ParamEnv<T>,
+    loop_: u32,
+) -> impl Fn(&Expr) -> Result<T, (SlotId, EvalError)> + 'r {
+    move |e| {
+        let (step, arg) = role_of(&roles, e);
+        eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
+    }
+}
+
+/// Resolves chain step `s`, authored step `step` of loop `loop_`,
+/// through a leaf built from `s`'s OWN rows — the one entry to
+/// [`res_step`], so the rows and the expressions they are looked up
+/// against are one borrow.
+fn res_chain_step<T: Decide>(
+    s: &ProgramStep,
     env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
-    arg: StepArg,
-) -> Result<T, (SlotId, EvalError)> {
-    eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
+) -> Result<Step<T>, (SlotId, EvalError)> {
+    res_step(s, &leaf(step_rows(s, step), env, loop_))
 }
 
-/// Resolves a target's expressions, addressing its coordinates at
-/// [`target_roles`]' pair for `second` — the `Target2*` twins on a
-/// fused step's second spec. Every other role this module resolves is
-/// still spelled three times: in the resolvers ([`res_step`],
-/// [`res_spec`]), in the enumeration ([`spec_slots`], [`step_slots`])
-/// and in the accessor macros behind [`step_expr`].
-/// `every_enumerated_slot_is_where_its_refusal_reports`
-/// (`tests/switch_program_vocabulary.rs`) is what holds them together.
+/// Resolves a point's two coordinates through `res`.
+fn res_point<T: Decide, R>(p: &[Expr; 2], res: &R) -> Result<Point2<T>, (SlotId, EvalError)>
+where
+    R: Fn(&Expr) -> Result<T, (SlotId, EvalError)>,
+{
+    let [x, y] = p;
+    Ok(Point2::new(res(x)?, res(y)?))
+}
+
+/// Resolves a target's expressions through `res`, which addresses a
+/// point target's coordinates at the roles [`loop_roles`] gives them —
+/// the `Target2*` twins on a fused step's second spec.
 ///
 /// This is the target vocabulary's ONE construct hop: every target a
 /// document program carries — a straight leg's, a continuation's, a
 /// tangent arc's, and the endpoint inside every endpoint-bearing arc
 /// mode — resolves here, so the form set is matched in exactly one
-/// place below the document type's own declaration. The direction the
-/// compiler cannot check is the one this function runs in: it MATCHES
-/// [`ProgramTarget`] and CONSTRUCTS a [`profile::Target`], so a form
-/// the kernel vocabulary gains is invisible here. The census keyed on
-/// `profile::TargetKind::ALL`
+/// place below the document type's own declaration and the role
+/// table's. The direction the compiler cannot check is the one this
+/// function runs in: it MATCHES [`ProgramTarget`] and CONSTRUCTS a
+/// [`profile::Target`], so a form the kernel vocabulary gains is
+/// invisible here. The census keyed on `profile::TargetKind::ALL`
 /// (`tests/switch_program_vocabulary.rs`) is what sees it, and it
 /// checks the other half of the same arm too: that each form resolves
 /// to ITS OWN form rather than being laundered into a neighbour's.
-fn res_target<T: Decide>(
+fn res_target<T: Decide, R>(
     t: &ProgramTarget,
-    env: &ParamEnv<T>,
-    loop_: u32,
-    step: u32,
-    second: bool,
-) -> Result<profile::Target<T>, (SlotId, EvalError)> {
-    let [ax, ay] = target_roles(second);
+    res: &R,
+) -> Result<profile::Target<T>, (SlotId, EvalError)>
+where
+    R: Fn(&Expr) -> Result<T, (SlotId, EvalError)>,
+{
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
         ProgramTarget::StartArriving => profile::Target::StartArriving,
-        ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
-            res(&p[0], env, loop_, step, ax)?,
-            res(&p[1], env, loop_, step, ay)?,
-        )),
+        ProgramTarget::Point(p) => profile::Target::Point(res_point(p, res)?),
     })
 }
 
@@ -1550,61 +1496,51 @@ fn res_target<T: Decide>(
 /// [`ProgramStep`] and CONSTRUCTS a [`Step`], so a verb `profile`'s
 /// table gains is invisible here. The census in
 /// `tests/switch_program_vocabulary.rs` is what sees it.
-fn res_step<T: Decide>(
-    s: &ProgramStep,
-    env: &ParamEnv<T>,
-    loop_: u32,
-    i: u32,
-) -> Result<Step<T>, (SlotId, EvalError)> {
-    use StepArg as A;
-    let pt = |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<T>, _> {
-        Ok(Point2::new(
-            res(&p[0], env, loop_, i, ax)?,
-            res(&p[1], env, loop_, i, ay)?,
-        ))
-    };
+fn res_step<T: Decide, R>(s: &ProgramStep, res: &R) -> Result<Step<T>, (SlotId, EvalError)>
+where
+    R: Fn(&Expr) -> Result<T, (SlotId, EvalError)>,
+{
     Ok(match s {
-        ProgramStep::At(p) => Step::At(pt(p, A::PointX, A::PointY)?),
-        ProgramStep::Angle(e) => Step::Angle(res(e, env, loop_, i, A::AngleVal)?),
+        ProgramStep::At(p) => Step::At(res_point(p, res)?),
+        ProgramStep::Angle(e) => Step::Angle(res(e)?),
         ProgramStep::Toward { dx, dy } => Step::Toward {
-            dx: res(dx, env, loop_, i, A::DirX)?,
-            dy: res(dy, env, loop_, i, A::DirY)?,
+            dx: res(dx)?,
+            dy: res(dy)?,
         },
         ProgramStep::Tangent => Step::Tangent,
         ProgramStep::Cusp => Step::Cusp,
-        ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
-        ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
-        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i, false)?),
-        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i, false)?),
-        ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
-        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i, false)?),
-        ProgramStep::Fillet(e) => Step::Fillet {
-            radius: res(e, env, loop_, i, A::Radius)?,
-        },
+        ProgramStep::Turn(e) => Step::Turn(res(e)?),
+        ProgramStep::Line(e) => Step::Line(res(e)?),
+        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, res)?),
+        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, res)?),
+        ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, res)?),
+        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, res)?),
+        ProgramStep::Fillet(e) => Step::Fillet { radius: res(e)? },
         ProgramStep::FilletArc { radius, spec } => Step::FilletArc {
-            radius: res(radius, env, loop_, i, A::Radius)?,
-            spec: res_spec(spec, env, loop_, i, true)?,
+            radius: res(radius)?,
+            spec: res_spec(spec, res)?,
         },
         ProgramStep::ArcFillet { spec, radius } => Step::ArcFillet {
-            spec: res_spec(spec, env, loop_, i, false)?,
-            radius: res(radius, env, loop_, i, A::Radius)?,
+            spec: res_spec(spec, res)?,
+            radius: res(radius)?,
         },
         ProgramStep::ArcFilletArc {
             spec,
             radius,
             spec2,
         } => Step::ArcFilletArc {
-            spec: res_spec(spec, env, loop_, i, false)?,
-            radius: res(radius, env, loop_, i, A::Radius)?,
-            spec2: res_spec(spec2, env, loop_, i, true)?,
+            spec: res_spec(spec, res)?,
+            radius: res(radius)?,
+            spec2: res_spec(spec2, res)?,
         },
-        ProgramStep::FarEndTo(p) => Step::FarEndTo(pt(p, A::PointX, A::PointY)?),
+        ProgramStep::FarEndTo(p) => Step::FarEndTo(res_point(p, res)?),
         ProgramStep::CloseTo => Step::CloseTo,
     })
 }
 
-/// Resolves an arc spec to its scalar-valued mirror (`second` selects
-/// the spec₂ role twins, exactly as [`spec_slots`] enumerates them).
+/// Resolves an arc spec to its scalar-valued mirror. Which of a fused
+/// step's specs this is — and so whether its arguments carry the
+/// arrival twins — is the role table's to know, not this function's.
 ///
 /// This is the hop the compiler cannot check in the direction that
 /// matters: it matches the document vocabulary and CONSTRUCTS the
@@ -1614,53 +1550,40 @@ fn res_step<T: Decide>(
 /// checks both directions of the same arm: that every kernel mode is
 /// reachable from a document spec, and that each one resolves to ITS
 /// OWN mode rather than being laundered into a neighbour's.
-fn res_spec<T: Decide>(
+fn res_spec<T: Decide, R>(
     spec: &ProgramArcData,
-    env: &ParamEnv<T>,
-    loop_: u32,
-    i: u32,
-    second: bool,
-) -> Result<profile::ArcData<T>, (SlotId, EvalError)> {
-    use StepArg as A;
-    let pick = |a: StepArg, b: StepArg| if second { b } else { a };
-    let pt2 = |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<T>, (SlotId, EvalError)> {
-        Ok(Point2::new(
-            res(&p[0], env, loop_, i, ax)?,
-            res(&p[1], env, loop_, i, ay)?,
-        ))
-    };
-    let tgt = |t: &ProgramTarget| res_target(t, env, loop_, i, second);
+    res: &R,
+) -> Result<profile::ArcData<T>, (SlotId, EvalError)>
+where
+    R: Fn(&Expr) -> Result<T, (SlotId, EvalError)>,
+{
     Ok(match spec {
         ProgramArcData::Radius { r, side } => profile::ArcData::Radius {
-            r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
+            r: res(r)?,
             side: *side,
         },
         ProgramArcData::Bulge { target, b } => profile::ArcData::Bulge {
-            target: tgt(target)?,
-            b: res(b, env, loop_, i, pick(A::Bulge, A::Bulge2))?,
+            target: res_target(target, res)?,
+            b: res(b)?,
         },
         ProgramArcData::Via { q, target } => profile::ArcData::Via {
-            q: pt2(q, pick(A::ViaX, A::Via2X), pick(A::ViaY, A::Via2Y))?,
-            target: tgt(target)?,
+            q: res_point(q, res)?,
+            target: res_target(target, res)?,
         },
         ProgramArcData::Center { c, winding, target } => profile::ArcData::Center {
-            c: pt2(
-                c,
-                pick(A::CenterX, A::Center2X),
-                pick(A::CenterY, A::Center2Y),
-            )?,
+            c: res_point(c, res)?,
             winding: *winding,
-            target: tgt(target)?,
+            target: res_target(target, res)?,
         },
         ProgramArcData::Sweep { r, side, angle } => profile::ArcData::Sweep {
-            r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
+            r: res(r)?,
             side: *side,
-            angle: res(angle, env, loop_, i, pick(A::SweepVal, A::SweepVal2))?,
+            angle: res(angle)?,
         },
         ProgramArcData::ArcLen { r, side, len } => profile::ArcData::ArcLen {
-            r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
+            r: res(r)?,
             side: *side,
-            len: res(len, env, loop_, i, pick(A::ArcLenVal, A::ArcLenVal2))?,
+            len: res(len)?,
         },
     })
 }
@@ -1678,34 +1601,35 @@ impl LoopProgram {
         env: &ParamEnv<T>,
         loop_: u32,
     ) -> Result<Vec<Step<T>>, (SlotId, EvalError)> {
-        use StepArg as A;
         match self {
             LoopProgram::Chain(steps) => steps
                 .iter()
                 .enumerate()
-                .map(|(i, s)| res_step(s, env, loop_, program_index(i)))
+                .map(|(i, s)| res_chain_step(s, env, loop_, program_index(i)))
                 .collect(),
-            LoopProgram::Circle { centre, radius } => Ok(vec![Step::Circle {
-                centre: Point2::new(
-                    res(&centre[0], env, loop_, 0, A::CenterX)?,
-                    res(&centre[1], env, loop_, 0, A::CenterY)?,
-                ),
-                radius: res(radius, env, loop_, 0, A::Radius)?,
-            }]),
+            // A carrier form: its rows and its fields are both read
+            // from `self`.
+            LoopProgram::Circle { centre, radius } => {
+                let res = leaf(self.rows(), env, loop_);
+                Ok(vec![Step::Circle {
+                    centre: res_point(centre, &res)?,
+                    radius: res(radius)?,
+                }])
+            }
             LoopProgram::CircleSplit {
                 centre,
                 radius,
                 n,
                 phase,
-            } => Ok(vec![Step::CircleSplit {
-                centre: Point2::new(
-                    res(&centre[0], env, loop_, 0, A::CenterX)?,
-                    res(&centre[1], env, loop_, 0, A::CenterY)?,
-                ),
-                radius: res(radius, env, loop_, 0, A::Radius)?,
-                n: *n as usize,
-                phase: res(phase, env, loop_, 0, A::Phase)?,
-            }]),
+            } => {
+                let res = leaf(self.rows(), env, loop_);
+                Ok(vec![Step::CircleSplit {
+                    centre: res_point(centre, &res)?,
+                    radius: res(radius)?,
+                    n: *n as usize,
+                    phase: res(phase)?,
+                }])
+            }
         }
     }
 }
@@ -2020,10 +1944,7 @@ impl ProfileProgram {
         for emission in &checked.records.replay.radii {
             let step = program_index(emission.step);
             let arg = radius_arg_of(emission.role);
-            let expr = checked
-                .records
-                .program
-                .expr(step, arg)
+            let expr = find_row(checked.records.program.rows(), (step, arg))
                 .ok_or(StepSegmentsError::RadiusNotAnArgument { step, arg })?;
             if emission.segment >= checked.records.segments {
                 return Err(StepSegmentsError::EmissionOffTheLoop {
@@ -2403,34 +2324,23 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
     }
 }
 
-impl ProfilePayload for ProfileProgram {
-    fn slots(&self) -> Vec<SlotId> {
-        let mut out = Vec::new();
-        for (li, lp) in self.loops.iter().enumerate() {
-            for (step, arg) in lp.step_args() {
-                out.push(SlotId::Profile {
-                    loop_: program_index(li),
-                    step,
-                    arg,
-                });
+/// **The slot table of a profile program**: each loop's role table
+/// ([`loop_roles`]), read through the same borrow and keyed by the
+/// loop's index, in program order.
+macro_rules! program_rows {
+    ($program:expr, $rows:ident, $out:expr) => {{
+        let ProfileProgram { loops, .. } = $program;
+        for (li, lp) in loops.into_iter().enumerate() {
+            let loop_ = program_index(li);
+            for ((step, arg), e) in lp.$rows() {
+                $out.push(((loop_, step, arg), e));
             }
         }
-        out
-    }
+    }};
+}
 
-    fn expr(&self, slot: SlotId) -> Option<&Expr> {
-        let SlotId::Profile { loop_, step, arg } = slot else {
-            return None;
-        };
-        self.loops.get(loop_ as usize)?.expr(step, arg)
-    }
-
-    fn expr_mut(&mut self, slot: SlotId) -> Option<&mut Expr> {
-        let SlotId::Profile { loop_, step, arg } = slot else {
-            return None;
-        };
-        self.loops.get_mut(loop_ as usize)?.expr_mut(step, arg)
-    }
+impl ProfilePayload for ProfileProgram {
+    row_readers!(program_rows -> (u32, u32, StepArg));
 
     fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         ProfileProgram::check(self, env, tol)
@@ -2451,23 +2361,27 @@ impl ProfilePayload for ProfileProgram {
             ids,
         })
     }
-    fn mint_step_ids(&mut self, counter: &mut u64) -> Result<(), StepIdFault> {
+    fn mint_step_ids(
+        &mut self,
+        node: crate::RecipeNodeId,
+        mint: &mut crate::StepMint,
+    ) -> Result<(), StepIdFault> {
         if self.carries_step_ids() {
             return Err(StepIdFault::Preminted);
         }
-        self.ids = self
+        let every_new: Vec<Vec<Option<StepId>>> = self
             .loops
             .iter()
-            .map(|lp| {
-                (0..lp.authored_steps())
-                    .map(|_| {
-                        let id = StepId(*counter);
-                        *counter += 1;
-                        id
-                    })
-                    .collect()
-            })
+            .map(|lp| vec![None; lp.authored_steps()])
             .collect();
+        self.ids = mint.mint(
+            &crate::step_mint::MintingEdit::InsertNode {
+                node,
+                plane: self.plane,
+                loops: &self.loops,
+            },
+            &every_new,
+        )?;
         Ok(())
     }
 }
@@ -2507,13 +2421,16 @@ pub enum StepIdFault {
         /// The id.
         step: StepId,
     },
-    /// An id at or beyond the document's step counter — one the
-    /// document never minted.
-    BeyondCounter {
+    /// An id the document's mint log does not hold — one the document
+    /// never minted.
+    NotMinted {
         /// The id.
         step: StepId,
-        /// The counter.
-        next_step: u64,
+    },
+    /// A mint drew an id the document's mint log already holds.
+    Collides {
+        /// The id.
+        step: StepId,
     },
 }
 
@@ -2545,10 +2462,14 @@ impl core::fmt::Display for StepIdFault {
                 step.0
             ),
             Self::Repeated { step } => write!(f, "step id {} stands for two steps", step.0),
-            Self::BeyondCounter { step, next_step } => write!(
+            Self::NotMinted { step } => write!(
                 f,
-                "step id {} is at or beyond the document's step counter {next_step}, so the \
-                 document never minted it",
+                "step id {} is not in the document's mint log, so the document never minted it",
+                step.0
+            ),
+            Self::Collides { step } => write!(
+                f,
+                "the mint drew step id {}, which the document's mint log already holds",
                 step.0
             ),
         }
@@ -3090,7 +3011,7 @@ impl LoopProgram {
     /// `25 mm` and `0.025 m` hold the same bits and differ only in what
     /// they say they were written in.
     ///
-    /// Each entry is applied through this type's own `expr_mut`, the
+    /// Each entry is applied through this type's own role table, the
     /// addressing `SlotId::Profile` reads, so an argument whose author
     /// wrote a unit is minted with it and every other argument is the
     /// literal [`LoopProgram::from_recorded`] mints. An EMPTY notation
@@ -3109,7 +3030,7 @@ impl LoopProgram {
     ) -> Result<Self, RecordedProgramError> {
         let mut program = Self::from_recorded(steps)?;
         for (&(step, arg), sym) in &notation.units {
-            let Some(slot) = program.expr_mut(step, arg) else {
+            let Some(slot) = find_row(program.rows_mut(), (step, arg)) else {
                 return Err(RecordedProgramError::NotationOffProgram { step, arg });
             };
             // D2 addendum row 4. A recorded program is literal by

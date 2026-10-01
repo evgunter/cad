@@ -92,9 +92,13 @@ fn masqueraded(
         !masq.is_placeholder(),
         "the masquerade reads described since PR 1558"
     );
-    body.set_face_surface(
+    // Lifts both refusals: the masquerade wall is the consumer's input, edges as they were.
+    body.set_face_surface_stranding_for_tests(
         wall,
-        FaceSurface::New(Surface::Nurbs(Arc::new(masq.clone()))),
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(masq.clone())),
+            sense: true,
+        },
     )
     .unwrap();
     (body, wall, masq)
@@ -252,7 +256,7 @@ fn n2r2_class11_class4_mint_pcurves() {
 #[test]
 fn n2r2_class10_replace_face_offset() {
     let (mut body, wall, _) = masqueraded(poison_x);
-    let r = topo::replace_face_offset(&mut body, wall, 0.1, band(), tol());
+    let r = topo::replace_face_offset(&mut body, wall, 0.1, tol());
     eprintln!("[class 10 x-poison] replace_face_offset -> {r:?}");
 }
 

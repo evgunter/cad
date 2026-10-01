@@ -60,7 +60,7 @@ D107 hands the work to is TOPO's call, not this row's.
 
 ## Related
 
-`work/tcost/nightly-demotions-c1-c3-were-bought-with-billed-minutes`
+`nightly-demotions-c1-c3-were-bought-with-billed-minutes` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)
 (closed at PR 2434) carries the re-cost and the wall-clock readings.
 
 ## Closed 2026-09-14

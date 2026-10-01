@@ -88,8 +88,15 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     let g = geometry();
     let wall = g.walls[0][1].as_ref().clone();
     let face = built.side_faces[0][1];
-    body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(wall.into())))
-        .expect("the arena takes a real NURBS surface");
+    // Lifts both refusals: tier 3's verdict on a genuine NURBS wall is the row.
+    body.set_face_surface_stranding_for_tests(
+        face,
+        FaceSurface::New {
+            surface: Surface::Nurbs(wall.into()),
+            sense: true,
+        },
+    )
+    .expect("the arena takes a real NURBS surface");
 
     let errors = validate_geometric(&body, Tol::witness())
         .expect_err("tier 3 must refuse the mismatched geometry");

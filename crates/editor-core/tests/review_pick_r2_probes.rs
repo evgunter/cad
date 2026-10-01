@@ -15,7 +15,8 @@
 
 use bvh::Ray;
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
-use geom_core::{Point2, Point3, Tol, Vec3};
+use editor_core::test_support::{AXES, aimed, det_and_conditioning};
+use geom_core::{Point2, Point3, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use test_utils::fuzz;
@@ -42,16 +43,6 @@ fn triangles(mesh: &mesh::Mesh) -> Vec<[Point3<f64>; 3]> {
         }
     }
     out
-}
-
-/// Möller–Trumbore's determinant, uncertified, and its conditioning
-/// `|det| / (|e1|·|e2|·|d|)` — the sine of the ray/plane angle up to
-/// a constant.
-fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
-    let e1: Vec3<f64> = tri[1] - tri[0];
-    let e2: Vec3<f64> = tri[2] - tri[0];
-    let det = e1.dot(ray.dir.cross(e2));
-    (det, det.abs() / (e1.norm() * e2.norm() * ray.dir.norm()))
 }
 
 /// `pick_face`'s certified tie over every triangle:
@@ -97,25 +88,14 @@ fn no_genuine_determinant_is_refused_on_a_cylinders_vertex_grazes() {
                 .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
                     (lo.min(p.z), hi.max(p.z))
                 });
-            let dirs = [
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(-1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-                Vec3::new(0.0, -1.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-                Vec3::new(0.0, 0.0, -1.0),
-            ];
             for v in &mesh.positions {
                 if v.z != lo_z && v.z != hi_z {
                     continue;
                 }
-                for dir in dirs {
+                for dir in AXES {
                     for &reach in &[1.48, 3.0, 2.5] {
                         rays += 1;
-                        let ray = Ray {
-                            origin: *v - dir * reach,
-                            dir,
-                        };
+                        let ray = aimed(*v, dir, reach);
                         for tri in &tris {
                             let (det, cond) = det_and_conditioning(&ray, tri);
                             let certified = crossing(&ray, tri).is_some();

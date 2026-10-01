@@ -18,7 +18,7 @@
 //!    a two-seed pass with a SHARED subgraph, and asserts separation
 //!    exactly on the seeded cone and merging off it.
 //! 3. **A counterexample search for a value-only key collision**
-//!    (shape 1 of `memories/test-suite-cost.md`: a fresh seed per run
+//!    (shape 1 of implementer-discipline §8: a fresh seed per run
 //!    from `test_utils::fuzz`, logged unconditionally, replayed by
 //!    `CAD_FUZZ_SEED`, counts on `CAD_FUZZ_EFFORT`): can two `Dual64`s
 //!    with different (value, tangent) pairs feed one key, and in
@@ -61,6 +61,7 @@ test_utils::gated_to![
     "crates/profile/src/",
     "crates/editor-core/tests/corpus/",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::corpus;
@@ -75,7 +76,7 @@ use editor_core::{
     SlotId, ValuePayload, product_recorded,
 };
 use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
-use fixture::{len, scl};
+use fixture::{len, scl, xy_frame};
 use geom_core::{Bounds, Decide, Dual64, Tol};
 use topo::Body;
 
@@ -495,14 +496,7 @@ fn r1_no_value_only_key_collision_search() {
 /// the parameter node the e2e bumps.
 fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let mut r = Recorder::new();
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let plate = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![
@@ -514,14 +508,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
         profile: plate,
         distance: len(0.25),
     });
-    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_1 = r.insert(xy_frame());
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()],
@@ -626,10 +613,9 @@ fn r1_e2e_consumer_drive_at_dual64() {
                 );
                 // The friction DL3 is about, made visible on a body the
                 // service just handed back. What a dual can take is the
-                // STRUCTURAL half of the validator; the composed door
-                // carries the certified half's bound and cannot be
-                // called here at all, so the friction is now the
-                // narrower verdict rather than a refusal. What DL3
+                // validator's `_structural` twin, holding no certified
+                // lane; the composed door carries the certified half's
+                // bound and cannot be called here at all. What DL3
                 // removes is still the evaluation service's CALL.
                 match topo::validate_geometric_structural(&p.body, tol) {
                     Ok(()) => println!(
@@ -669,12 +655,12 @@ fn r1_e2e_consumer_drive_at_dual64() {
     }
 
     // The friction DL3 is about, made visible. The door a dual can take
-    // is the validator's STRUCTURAL half; the composed entry carries the
-    // +V invariant's certified bound and cannot be called here at all,
-    // so the friction is a narrower verdict rather than a refusal — and
-    // narrower in both directions, since the structural half reports no
-    // orientation verdict either. What DL3 removes is still the
-    // evaluation service's CALL, not the door.
+    // is the validator's `_structural` twin; the composed entry carries
+    // the +V invariant's certified bound and cannot be called here at
+    // all, so the friction is the twin's narrower reach — check 7 through
+    // the closed form, which refuses typed where the certified quadrature
+    // would have answered. What DL3 removes is still the evaluation
+    // service's CALL, not the door.
     let ev_d = eval::<Dual64>(&study);
     if let Some(editor_core::NodeResult::Ok(v)) = ev_d.result(tool) {
         let _ = v; // the datum node itself carries no body
@@ -763,13 +749,15 @@ fn r1_is_dl3s_measured_problem_reproducible() {
             continue;
         };
         gathered += 1;
-        // The dual column is the STRUCTURAL half — the composed door is
-        // not callable at a dual — and the f64 column stays the composed
-        // one, so the two columns differ by the +V volume invariant as
-        // well as by the scalar. DL3's measurement is about which
-        // refusals a dual product collects, and every refusal class the
-        // finding names (`ApproxLaneUnsupported`, `CensusUnsupported`)
-        // is raised in the structural half.
+        // The dual column is the `_structural` twin — the composed door
+        // is not callable at a dual — and the f64 column stays the
+        // composed one, so the two columns differ by the lanes held
+        // (check 7 through the closed form rather than the certified
+        // quadrature) as well as by the scalar. DL3's measurement is
+        // about which refusals a dual product collects, and every refusal
+        // class the finding names (`ApproxLaneUnsupported`,
+        // `CensusUnsupported`, the closed form's `VolumeUncomputable`) is
+        // raised at the twin.
         let d = topo::validate_geometric_structural(&pd.body, tol);
         let f = product_recorded(&doc.doc, &ev_f, tol)
             .ok()

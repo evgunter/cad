@@ -50,20 +50,16 @@ use profile::{
     test_support::bulge_loop,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A loop that is NOT the identity-shaped fixture: two fillet arcs
 /// with nonzero bulges of both signs, two declared joints, a stray
 /// declaration order that is not sorted, and read back reversed so the
 /// walk meets a different index order than it was authored in.
 fn awkward() -> ProfileLoop<f64> {
     let raw: ProfileLoop<f64> = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.41421356237309503),
-        (p2(3.0, 0.25), -0.13165249758739583),
-        (p2(2.5, 2.0), 0.0),
-        (p2(0.125, 1.75), 0.0),
+        (Point2::new(0.0, 0.0), 0.41421356237309503),
+        (Point2::new(3.0, 0.25), -0.13165249758739583),
+        (Point2::new(2.5, 2.0), 0.0),
+        (Point2::new(0.125, 1.75), 0.0),
     ])
     .with_tangent_joints(vec![2, 0]);
     raw.reversed()
@@ -141,9 +137,12 @@ fn r2_embed_is_both_retired_walks_bit_for_bit_at_f64() {
 /// while still passing that row.
 #[test]
 fn r2_embed_carries_the_declaration_list_unnormalised() {
-    let odd: ProfileLoop<f64> =
-        <ProfileLoop<f64> as RawLoop<f64>>::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0)])
-            .with_tangent_joints(vec![2, 0, 2, 9]);
+    let odd: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+    ])
+    .with_tangent_joints(vec![2, 0, 2, 9]);
     let crossed: ProfileLoop<f64> = odd.map_scalar(<f64 as Real>::from_f64);
     assert_eq!(crossed.tangent_joints(), [2, 0, 2, 9]);
 }
@@ -308,10 +307,10 @@ fn r2_the_new_value_row_has_a_ceiling_of_its_own() {
 /// side, with the closing joint declared or not.
 fn rung(off: f64, declared: bool) -> ProfileLoop<f64> {
     let lp: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(1.0, 1.0),
-        p2(0.5 + off, 0.5),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.5 + off, 0.5),
     ]);
     if declared {
         lp.with_tangent_joints(vec![3])
@@ -423,7 +422,12 @@ fn r2_the_widened_lift_never_lifts_a_loop_whose_table_moved() {
 #[test]
 fn r2_the_lattice_square_is_the_retired_polygon_sugars_table() {
     let tol = Tol::witness();
-    let pts = [p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)];
+    let pts = [
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ];
     let authored: ProfileLoop<f64> = Open
         .at(pts[0])
         .line_to(pts[1], tol)

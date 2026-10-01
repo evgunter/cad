@@ -184,24 +184,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert_eq!(session.history().len(), 1, "a fresh root, no edits yet");
 
     // ── The plinth: a square pad, then all twelve edges chamfered ───
-    let plane = common::xy_frame_in(&mut session);
-    let plinth_profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: PLINTH_SIDE,
-                height: PLINTH_SIDE,
-            })],
-        },
-    );
-    let plinth = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile: plinth_profile,
-            distance: len(PLINTH_H),
-        },
-    );
+    let plinth = common::xy_box_in(&mut session, [PLINTH_SIDE, PLINTH_SIDE, PLINTH_H]);
     let v_pad = body_volume(&mut session, plinth, tol);
     assert!(
         near(v_pad, PLINTH_SIDE * PLINTH_SIDE * PLINTH_H),
@@ -252,6 +235,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         op: BooleanOp::Union,
         a: softened,
         b: softened,
+        declare: Vec::new(),
     });
     let rendered = mispick
         .refusal
@@ -271,6 +255,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Union,
             a: softened,
             b: base,
+            declare: Vec::new(),
         },
     );
     let v_u1 = body_volume(&mut session, u1, tol);
@@ -297,6 +282,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Union,
             a: u1,
             b: shaft,
+            declare: Vec::new(),
         },
     );
     let v_u2 = body_volume(&mut session, u2, tol);
@@ -312,29 +298,14 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // docs carry the ruling), so its slots stay in the crossing-slots
     // class.
     let plane = frame_at(&mut session, [0.0, 0.0, DRUM_Z]);
-    let drum_profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: DRUM_S,
-                height: DRUM_S,
-            })],
-        },
-    );
-    let drum = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile: drum_profile,
-            distance: len(DRUM_H),
-        },
-    );
+    let (_, drum) = common::box_in(&mut session, plane, [DRUM_S, DRUM_S, DRUM_H]);
     let u3 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
             a: u2,
             b: drum,
+            declare: Vec::new(),
         },
     );
     let v_u3 = body_volume(&mut session, u3, tol);
@@ -350,29 +321,14 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     //    quarter-turned about the axis (one cutter body, consumed by
     //    both the subtract and the transform — the DAG's sharing) ────
     let plane = frame_at(&mut session, [0.0, 0.0, CUT_Z]);
-    let cutter_profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: CUT_W,
-                height: CUT_T,
-            })],
-        },
-    );
-    let cutter = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile: cutter_profile,
-            distance: len(CUT_H),
-        },
-    );
+    let (_, cutter) = common::box_in(&mut session, plane, [CUT_W, CUT_T, CUT_H]);
     let cut1 = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Subtract,
             a: u3,
             b: cutter,
+            declare: Vec::new(),
         },
     );
     let v_cut1 = body_volume(&mut session, cut1, tol);
@@ -395,6 +351,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Subtract,
             a: cut1,
             b: cutter2,
+            declare: Vec::new(),
         },
     );
     let v_carved = body_volume(&mut session, carved, tol);
@@ -430,23 +387,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         [MERLON_OFF, MERLON_OFF, DRUM_Z + DRUM_H - MERLON_SINK],
     );
-    let block_profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: MERLON_S,
-                height: MERLON_S,
-            })],
-        },
-    );
-    let block = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile: block_profile,
-            distance: len(MERLON_H),
-        },
-    );
+    let (block_profile, block) =
+        common::box_in(&mut session, plane, [MERLON_S, MERLON_S, MERLON_H]);
     let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
@@ -476,6 +418,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         op: BooleanOp::Union,
         a: carved,
         b: pattern,
+        declare: Vec::new(),
     });
     assert!(
         matches!(
@@ -523,6 +466,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Union,
             a: carved,
             b: merlons,
+            declare: Vec::new(),
         },
     );
     // Each merlon meets the crown in its sunk slab and nowhere else,

@@ -18,13 +18,17 @@ use profile::RawLoop;
 
 use geom::Surface;
 use geom_brep::EdgeDescription;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::ProfileLoop;
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
 
 fn triangle() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ])
 }
 
 #[test]

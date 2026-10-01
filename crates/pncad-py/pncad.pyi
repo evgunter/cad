@@ -176,6 +176,7 @@ class EditError(PncadError):
     value: Optional[float]
     offered: Optional[float | int]
     determinant: Optional[float]
+    index: Optional[int]
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
     pin: Optional[ContentPin]
@@ -187,9 +188,10 @@ class EvaluationError(PncadError):
     `reason` is `unknown_node`, `wrong_kind`, `empty_boolean`,
     `node_failed`, or `poisoned`. `kind` (which door refused),
     `inner_kind` (the arm of the kernel refusal that door holds),
-    `through` (the nearest failed ancestor) and `finding` (the
-    refusal-menu payload) are always present, `None` where the reason
-    has none (attributes never go missing).
+    `through` (the nearest failed ancestor), `finding` (the
+    refusal-menu payload) and `document` (the part the node is in) are
+    always present, `None` where the reason has none (attributes never
+    go missing).
 
     TWO WORDS BECAUSE THERE ARE TWO ENUMS, and each is projected where
     it lives. `kind` is the carrier's discriminant — `revolve`,
@@ -219,6 +221,22 @@ class EvaluationError(PncadError):
     `Evaluation.find_flush_candidates` answers with, ready for
     `Node.declare` / `Doc.declare`. The menu has exactly two arms:
     declare that finding, or move the geometry.
+
+    A refusal that CARRIES another node's refusal — `part_root_failed`,
+    a part whose product root failed, `part_root_poisoned`, a part
+    whose product root never ran because a node upstream of it failed,
+    and `mate_placer_refused`, a mate whose poisoned placer could not
+    derive its pose — names the node that failed and points at it, and
+    never quotes it. The carried refusal is `__cause__`: an
+    `EvaluationError` raised for that node as its own evaluation raises
+    it, whose `node` is in the id space of its `document`: the part's
+    `DocRef` for a part's node, or `None` for a node of the evaluated
+    document itself. A part inside a part is a
+    chain of causes, one per document, ending at the node that refused.
+    A chain links at most 256 causes, so every interpreter can print
+    it: past that depth the last cause is raised for the node that
+    refused, and its message holds every level it stands for, one line
+    each, deepest first.
     """
 
     reason: str
@@ -227,6 +245,7 @@ class EvaluationError(PncadError):
     inner_kind: Optional[str]
     through: Optional[NodeId]
     finding: Optional[FlushFinding]
+    document: Optional[DocRef]
 
 class ValidationFinding:
     """ONE failure a validator found, as words a caller branches on.
@@ -597,12 +616,13 @@ class SelectRefusal(PncadError):
     own typed refusal, crossing under its own name.
 
     `reason` is `in_band`, `tied_disagrees`, `unreadable`,
-    `not_a_datum`, `not_a_length`, `pair_in_band`, `bad_value`, or
-    `band`. The other attributes are the refusing arm's payload,
-    always present and `None` where inapplicable: `name` (the
-    candidate's opaque name text), `predicate` (the funnel site),
-    `matched`/`candidates` (a tied name's disagreement counts),
-    `datum` (the non-datum reference), `found` (what it evaluated to),
+    `not_a_datum`, `datum_has_no_value`, `node_has_no_value`,
+    `not_a_length`, `pair_in_band`, `bad_value`, or `band`. The other attributes are
+    the refusing arm's payload, always present and `None` where
+    inapplicable: `name` (the candidate's opaque name text),
+    `predicate` (the funnel site), `matched`/`candidates` (a tied
+    name's disagreement counts), `datum` (the non-datum reference, or
+    the datum with no value), `found` (what it evaluated to),
     `dim` (a non-length comparand's dimension tag)."""
 
     reason: str
@@ -770,6 +790,11 @@ class HitTestError(PncadError):
     not produce cannot belong to it, so the pick refuses up front
     rather than inverting against a table that is not there.
 
+    `NodePick.patch_names` and `NodePick.boundary_names` raise this
+    class too when they refuse the whole call — the pairing below, or
+    one of those three — under the same words and fields; their
+    message says a name lookup refused, because no hit test ran.
+
     `evaluation_of_another_document` is the pairing refusal, the same
     word `Doc.product`, the checks and the name-level edit door already
     answer with: the index and the evaluation handed to it are of two
@@ -820,8 +845,8 @@ class NodePickError(PncadError):
     under an edit, which is why the two are not one arm.
 
     Two arms FORWARD rather than wrap. The standing ladder arrives
-    under `HitTestError`'s own tags, because it IS that refusal; a
-    tessellation refusal arrives under the tessellator's own tag and
+    under the tags `HitTestError` answers with, because it is the same
+    standing; a tessellation refusal arrives under the tessellator's own tag and
     prose. A forwarded arm does not bring the inner refusal's extra
     ATTRIBUTES: a tessellation refusal's `value`, `bound`, `requested`
     and `note` stay on `TessellateError`, where `Body.tessellate`
@@ -920,8 +945,9 @@ class FrameError(PncadError):
     classifier saw an enclosure rather than a value, `zero` and
     `escalate` the band it was classified against, and `predicate`
     the decision's name where the kernel attached one. A poisoned
-    margin carries the band and no number. This is diagnostic data:
-    the escalation contract is that no sound branch exists here, so
+    margin carries the band and no number. This is diagnostic data,
+    for error text only and not a decision input: the escalation
+    contract is that no sound branch exists here, so
     the recourse is the message's own three levers — declare the
     coincidence, move the geometry, or lower the tolerance.
 
@@ -1126,6 +1152,29 @@ class AnalysisPolicyError(PncadError):
     variant: str
     mass: float
 
+class StepHandleError(PncadError):
+    """An authored step handle that does not bind in the profile it was
+    read against.
+
+    `variant` is the stable tag; `loop_` and `index` are the address
+    and `role` the role asked for, each `None` where the arm has none.
+
+    `handle_off_program`: the stated loop has no step with the
+    handle's index and shape — a handle is valid for the program it
+    was authored for, a value edit keeps it valid, and across
+    `set_program` a step is held by its `StepId`. `role_not_drawn`:
+    the step's verb never draws that role.
+
+    `unminted` and `step_ids` are the Rust door's refusals for a
+    program outside a document, or one whose ids are malformed; `Doc`
+    never raises them, because a profile it holds carries one minted id
+    per step."""
+
+    variant: str
+    loop_: Optional[int]
+    index: Optional[int]
+    role: Optional[Role]
+
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
@@ -1322,6 +1371,10 @@ class ClosedLoop:
     def vertex_count(self) -> int: ...
     @property
     def step_count(self) -> int: ...
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the loop's last step — the closing verb's, or
+        the one step of a `circle` or `circle_split`."""
 
 _T = TypeVar("_T")
 
@@ -1424,6 +1477,10 @@ class PathOpen:
     `Start` reachable because the entry is behind us. An ARC arrival is
     authored in the fillet verb itself, never here."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def at(self, p: tuple[Length, Length]) -> PathPoint: ...
     def angle(self, theta: Angle) -> PathAngle: ...
     def toward(self, dx: float, dy: float) -> PathAngle: ...
@@ -1432,12 +1489,20 @@ class PathOpen:
 class PathAngle:
     """Direction bound, position pending."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def at(self, p: tuple[Length, Length]) -> PathDirected: ...
     def to(self, anchor: tuple[Length, Length]) -> PathDirectedPoint: ...
 
 class PathRadiusArrival:
     """A `Radius` arrival awaiting both binders, in either order."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def at(self, p: tuple[Length, Length]) -> PathRadiusArrivalAt: ...
     def angle(self, theta: Angle) -> PathRadiusArrivalDir: ...
     def toward(self, dx: float, dy: float) -> PathRadiusArrivalDir: ...
@@ -1445,23 +1510,39 @@ class PathRadiusArrival:
 class PathRadiusArrivalAt:
     """A `Radius` arrival with its anchor bound, director pending."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> PathDirectedPoint: ...
     def toward(self, dx: float, dy: float) -> PathDirectedPoint: ...
 
 class PathRadiusArrivalDir:
     """A `Radius` arrival with its director bound, anchor pending."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def at(self, p: tuple[Length, Length]) -> PathDirectedPoint: ...
 
 class PathViaArrival:
     """A `Via` arrival: the anchor rides the spec, one director left."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> PathDirectedPoint: ...
     def toward(self, dx: float, dy: float) -> PathDirectedPoint: ...
 
 class PathViaArrivalStart:
     """A `Via` arrival that CLOSES: one director left, at the entry."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> ClosedLoop: ...
     def toward(self, dx: float, dy: float) -> ClosedLoop: ...
 
@@ -1469,6 +1550,10 @@ class PathPoint:
     """A plain point: position bound, no incoming carrier. There is
     nothing to inherit here, so `tangent` and `turn` are absent."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> PathDirected: ...
     def toward(self, dx: float, dy: float) -> PathDirected: ...
     @overload
@@ -1505,6 +1590,10 @@ class PathDirectedPoint:
     """A leg end: position bound, and the leg's incoming end tangent
     available as read-only intrinsic data."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def angle(self, theta: Angle) -> PathDirected: ...
     def toward(self, dx: float, dy: float) -> PathDirected: ...
     def tangent(self) -> PathDirected: ...
@@ -1557,6 +1646,10 @@ class PathDirected:
     """Both bits bound — the only state legs and `fillet` consume.
     The outgoing angle slot is full, so no second director exists."""
 
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
     def line(self, len: Length) -> PathDirectedPoint: ...
     def fillet(self, radius: Length) -> PathOpen: ...
     @overload
@@ -1607,6 +1700,91 @@ def circle_split(
     n: int,
     phase: Angle,
 ) -> ClosedLoop: ...
+
+# --- authored steps and pieces ----------------------------------------
+# A chain state's `.step` is the address of the step its verb recorded;
+# a profile binds it to the id that placement minted (`Doc.step`) and
+# spells a piece from one of its roles (`Doc.piece`).
+
+class StepId:
+    """A minted profile step id: what a piece's name spells. NOT a
+    position."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Role:
+    """Which of its step's pieces a piece is."""
+
+    Leg: Final[Role]
+    RunIn: Final[Role]
+    Arc: Final[Role]
+    RunOut: Final[Role]
+    @staticmethod
+    def piece(k: int) -> Role:
+        """Piece `k` of a carrier form (`circle`, `circle_split`)."""
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Piece:
+    """A profile piece: the step that drew it, by its minted id, and its
+    role in that step's list. `str()` is the kernel's text for it."""
+
+    def __init__(self, step: StepId, role: Role) -> None: ...
+    @property
+    def step(self) -> StepId: ...
+    @property
+    def role(self) -> Role: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class AuthoredStep:
+    """The address of an authored step: its index in its loop and the
+    loop's shape up to it, values erased.
+
+    Its role accessors are its verb's role list, generated from the
+    kernel's one list: `.leg` on a leg; `.run_in`, `.arc` and `.run_out`
+    on a fillet or a fused verb; `.piece(k)` on a carrier form, `k`
+    checked against its count; none on a binder. An accessor the step's
+    verb does not draw raises `AttributeError`.
+
+    A handle binds wherever the stated loop's program has its prefix:
+    a wrong loop of the same shape, or a handle from an earlier program
+    whose prefix the new one still has, binds without error. Equal
+    handles are equal, so they are one key in a `set_program` keep
+    dict."""
+
+    @property
+    def index(self) -> int: ...
+    @property
+    def verb(self) -> str: ...
+    @property
+    def leg(self) -> StepRole: ...
+    @property
+    def run_in(self) -> StepRole: ...
+    @property
+    def arc(self) -> StepRole: ...
+    @property
+    def run_out(self) -> StepRole: ...
+    def piece(self, k: int) -> StepRole: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class CarrierPieces:
+    """`h.piece` on a carrier form's handle: `h.piece(k)` is its piece
+    `k`, and a `k` at or past the form's count raises
+    `StepHandleError` `role_not_drawn`."""
+
+    def __call__(self, k: int) -> StepRole: ...
+
+class StepRole:
+    """One role of an authored step, as a handle's accessor answers it:
+    what `Doc.piece` binds to a `Piece`."""
+
+    @property
+    def step(self) -> AuthoredStep: ...
+    @property
+    def role(self) -> Role: ...
 
 # --- document ---------------------------------------------------------
 
@@ -1766,6 +1944,61 @@ class Frame:
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
 
+class Placement:
+    """Where `Node.transform_by` puts its input: a chain of steps, each
+    a rigid step of expressions or a literal frame.
+
+    The chain composes as a product: `a.compose(b)` is `a ∘ b`, in
+    `Frame.compose`'s order, so `b` acts on the body first, in the frame
+    `a` builds. A rigid step's components are slot expressions a
+    parameter can drive; a literal frame is held to the placement bar
+    (finite, proper and rigid) at the edit door.
+    """
+
+    @staticmethod
+    def rigid(
+        *,
+        translation: tuple[Expr, Expr, Expr],
+        axis: tuple[Expr, Expr, Expr],
+        angle: Expr,
+    ) -> Placement:
+        """One rigid step: rotate by `angle` about the axis through the
+        origin with direction `axis`, then translate — `Node.transform`'s
+        convention. Keyword-only. The components' dimensions are checked
+        where the step lands (`Node.transform_by`), whose refusal names
+        that step's slot."""
+
+    @staticmethod
+    def literal(frame: Frame) -> Placement:
+        """One literal step: exactly `frame`, bit for bit."""
+
+    @staticmethod
+    def point_at(
+        eye: tuple[Length, Length, Length],
+        target: tuple[Length, Length, Length],
+        roll_reference: tuple[float, float, float],
+    ) -> Placement:
+        """One literal step: `Frame.point_at`'s frame. Refuses as that
+        constructor does (FrameError)."""
+
+    @staticmethod
+    def path_start_frame(
+        origin: tuple[Length, Length, Length],
+        tangent: tuple[float, float, float],
+    ) -> Placement:
+        """One literal step: `Frame.path_start_frame`'s frame. Refuses
+        as that constructor does (FrameError)."""
+
+    def compose(self, inner: Placement) -> Placement:
+        """The composition `self ∘ inner`: `inner` acts on the body
+        first, in the frame `self` builds."""
+
+    def __len__(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+
+    # Equality is BIT-exact over every step, `Frame.__eq__`'s rule. No
+    # `__hash__`, as `Frame` has none.
+
 class PatternKind:
     """A pattern's replication rule: how a prototype's placements are
     generated.
@@ -1910,6 +2143,12 @@ class MeasureExpr:
     `Doc.apply` after it. The refusal is LiteralError, carrying the
     mismatch's own tag as `kind`.
 
+    A measurement nests at most 128 levels, the bound it shares with
+    `Expr`, a value leaf counting as the expression it holds; a
+    constructor that would nest deeper refuses (`kind`
+    `"nested_too_deep"`), so a flat chain of more than 128 terms
+    refuses.
+
     No `__hash__`, for `Expr`'s reason: equality is an IEEE comparison
     of the literals inside, so `0.0` and `-0.0` are equal trees whose
     bit patterns are not.
@@ -1933,7 +2172,9 @@ class MeasureExpr:
     def sub(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
     @staticmethod
     def neg(a: MeasureExpr) -> MeasureExpr:
-        """Negation — any dimension, and total."""
+        """Negation — any dimension. Refuses (LiteralError, `kind`
+        `"nested_too_deep"`) only a tree that would nest deeper than an
+        expression may, as every constructor here does."""
 
     @staticmethod
     def mul(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
@@ -2068,8 +2309,8 @@ class Node:
         rim is its FIRST designated face, so name first the face that
         should carry the rim's identity. A repeat keeps its first
         occurrence; an EMPTY list is the SEALED hollow, which is legal.
-        Every face on a chart is named together (a full revolve's cap
-        is two half-faces). An unresolvable name, a name that is not a
+        Every face of one solid on a chart is named together (a full
+        revolve's cap is two half-faces). An unresolvable name, a name that is not a
         face, a non-positive or unaffordable wall, or a curved
         designated face refuses typed at `evaluate`. `thickness` mints
         a literal in the node's `shell_thickness` slot, moved by
@@ -2189,6 +2430,13 @@ class Node:
         translation passes any non-degenerate axis and a zero angle;
         a zero-length axis refuses rather than meaning "no rotation".
         """
+
+    @staticmethod
+    def transform_by(input: NodeId, placement: Placement) -> Node:
+        """A placement of an upstream body by a `Placement` chain.
+        `Node.transform` is this with one rigid step. Every rigid step's
+        components are checked against the slot they land in (EditError
+        `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
     def boolean(
@@ -2438,6 +2686,12 @@ class Expr:
     parameters it references, which is what tells you when a value you
     displayed has gone stale.
 
+    An expression nests at most 128 levels along its longest chain
+    from the root to a leaf; a constructor that would nest deeper
+    refuses (`kind` `"nested_too_deep"`). The operators associate to
+    the left, so a flat chain of more than 128 terms refuses, and the
+    same terms grouped (`(a + b) + (c + d)`) nest less.
+
     Unhashable on purpose. Equality is the kernel's `PartialEq`, an
     IEEE comparison of the literals inside, so `0.0` and `-0.0` are
     equal expressions whose bit patterns are not — and no hash
@@ -2500,8 +2754,15 @@ class Expr:
     def __eq__(self, other: object) -> bool: ...
 
 class ParamName:
-    """A document-level parameter name (guide §3.2). NOT an arena
-    key: the same plain name the recipe's expressions reference."""
+    """A document-level parameter name (guide §3.2): one identifier,
+    the same name the recipe's expressions reference. NOT an arena
+    key.
+
+    A name must be one an expression can read back as this parameter,
+    and that IS refused here: text that is blank, padded with
+    whitespace, or not exactly one identifier raises `EditError` with
+    `variant == "param_name_not_an_identifier"` at this call rather
+    than reaching a document."""
 
     def __init__(self, name: str) -> None: ...
     @property
@@ -3073,14 +3334,14 @@ class DocEdit:
     def set_program(
         node: NodeId,
         outline: ClosedLoop,
-        ids: list[list[Optional[int]]],
+        keep: list[dict[AuthoredStep, StepId]],
     ) -> DocEdit: ...
     @overload
     @staticmethod
     def set_program(
         node: NodeId,
         outline: list[ClosedLoop],
-        ids: list[list[Optional[int]]],
+        keep: list[dict[AuthoredStep, StepId]],
     ) -> DocEdit:
         """Replace a live profile's PROGRAM whole — its loops, their
         verbs, order and count, arc modes and targets — validated
@@ -3088,11 +3349,16 @@ class DocEdit:
 
         `outline` is the description `Node.profile` takes — one closed
         loop, or `[outer, hole, hole]` — read through the same door.
-        `ids` is one list per new loop in that order, one entry per
-        authored step: the minted id of the OLD step it keeps
-        (`Doc.step_ids` reads them), or `None` for a new step, which
-        the door mints. The editor that reshaped the program knows
-        which leg it inserted; the door is told, never guesses.
+        `keep` is one dict per new loop in that order, mapping the
+        handle of a step of that loop's NEW program (the `.step` its
+        verb returned) to the `StepId` of the old step it keeps
+        (`Doc.step` reads them). A step no entry names is new and the
+        door mints it; a loop that keeps nothing is `{}`. The editor that
+        reshaped the program knows which leg it inserted; the door is
+        told, never guesses. A handle that is not a step of its loop's
+        new program raises `StepHandleError` `handle_off_program`, and
+        an old id kept twice refuses `step_ids_refused` with
+        `inner_variant` `repeated`.
 
         A name on a profile piece spells its step's id, so a name on a
         kept step keeps denoting its piece and is not touched. A step
@@ -3103,7 +3369,10 @@ class DocEdit:
         `Doc.last_maintenance` until `rebind` repairs it.
 
         Refuses `step_ids_refused` before the program is replayed
-        (`inner_variant`: `shape`, `not_this_profiles`, `repeated`),
+        (`inner_variant`: `loop_count`, `shape`, `not_this_profiles`,
+        `repeated`, or `collides` for a new id the document's mint log
+        already holds; `not_minted`, an id the log lacks, is the load
+        door's word for the same family),
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_doc_param` and its
         siblings over every argument, `profile_program_refused` for a
@@ -3224,25 +3493,46 @@ class Doc:
         insert (a stranded head, a re-pointed `Part`, a loaded
         snapshot), are the solve's at evaluation."""
 
-    def step_ids(self, profile: NodeId) -> list[list[int]]:
+    def step_ids(self, profile: NodeId) -> list[list[StepId]]:
         """The minted id of every step of the profile at `profile`, one
-        list per loop in program order — what `DocEdit.set_program`
-        keeps a step by. Raises `ValueError` for a node that is not a
-        profile."""
+        list per loop in program order — the positional reading, for a
+        caller that holds no handle. Raises `ValueError` for a node
+        that is not a profile."""
 
-    def pieces(self, profile: NodeId) -> list[list[str]]:
+    def step(self, profile: NodeId, loop: int, h: AuthoredStep) -> StepId:
+        """The id the profile at `profile` minted for the step `h`
+        addresses in its loop `loop`, which the author states. `h` is
+        the `.step` of the chain state (or closed loop) the step's verb
+        returned.
+
+        Raises `StepHandleError` `handle_off_program` where the loop's
+        program has no step at that index with that shape up to it — a
+        handle is valid for the program it was authored for, and a
+        value edit keeps it valid — and `ValueError` for a node that is
+        not a profile. The check is the prefix alone: a wrong loop of
+        the same shape, or a stale handle whose prefix still matches,
+        binds without error."""
+
+    def piece(self, profile: NodeId, loop: int, role: StepRole) -> Piece:
+        """The piece `role` of an authored step of the profile at
+        `profile`, in its loop `loop`: `role` is a handle's accessor
+        (`h.leg`, `h.run_out`, `h.piece(k)`). A role the step's verb
+        draws is a piece whether or not the current values draw it; a
+        name on one they do not resolves `Vanished` until they do.
+
+        Raises what `step` raises."""
+
+    def pieces(self, profile: NodeId) -> list[list[Piece]]:
         """The piece every canonical segment of the profile at
         `profile` is, one list per canonical loop (0 the outer loop,
         then the holes in description order), one piece per canonical
         segment in the loop's canonical traversal from its authored
         start — under the document's current parameter values.
 
-        A piece is opaque text, as a name is: the step that drew the
-        segment, by its minted id, and its role in that step's list.
-        It is what `band`, `band_pi`, `band_rim` and `meridian_vertex`
-        take, and it stays the name of that piece whatever later moves
-        the segment. The vertex a piece STARTS at is spelled by the
-        same text.
+        The positional reading, for a caller that holds no handle;
+        `piece` spells one from the handle its authoring call
+        returned. A piece stays the name of that piece whatever later
+        moves the segment.
 
         Raises `ValueError` for a node that is not a profile, or whose
         program does not replay and validate under the current
@@ -3384,6 +3674,13 @@ class Doc:
         is not. Note the `2.0`: a bare integer is an exact `count`,
         and dividing a length by one needs an explicit promotion, so
         the decimal is what makes the divisor dimensionless.
+
+        An expression nests at most 128 levels along its longest chain
+        from the root to a leaf, and a text nested deeper refuses
+        `variant == "dimension"`, `kind == "nested_too_deep"`. The
+        operators associate to the left, so a flat chain of more than
+        128 terms (`"a + b + ..."`) refuses; the same terms grouped
+        (`"(a + b) + (c + d)"`) nest less. Brackets alone nest nothing.
 
         Raises ParseError, carrying `variant` and the byte offset
         `pos`."""
@@ -3885,28 +4182,28 @@ class GeomPred:
 # either side of the boundary. The text stays opaque — a caller
 # composes by naming a ROLE, never by assembling the serialization.
 
-def band(node: NodeId, piece: str) -> str:
+def band(node: NodeId, piece: Piece) -> str:
     """The `[0, pi)` band face swept from the profile piece `piece` on
     the revolve at `node`.
 
-    `piece` is a piece's text, from `Doc.pieces`: the step that drew a
+    `piece` is a `Piece`, from `Doc.piece`: the step that drew a
     segment, by its minted id, and its role in that step's list — so
     the name stays the name of that piece whatever later moves the
     segment. The kind is fixed at the role's own — a face — which is
     the field a hand-written name gets wrong silently until emission
     refuses it."""
 
-def band_pi(node: NodeId, piece: str) -> str:
+def band_pi(node: NodeId, piece: Piece) -> str:
     """The `[pi, 2pi)` band face swept from the profile piece `piece` —
     `band`'s twin, where a full revolve emits a segment as two faces.
     A face, as `band` is."""
 
-def band_rim(node: NodeId, piece: str) -> str:
+def band_rim(node: NodeId, piece: Piece) -> str:
     """The latitude rim at the vertex the profile piece `piece` starts
     at — the edge between the band of the piece ending there and the
     piece's own. An edge."""
 
-def meridian_vertex(end: MeridianEnd, node: NodeId, piece: str) -> str:
+def meridian_vertex(end: MeridianEnd, node: NodeId, piece: Piece) -> str:
     """The meridian vertex at `end`: the copy of the vertex the profile
     piece `piece` starts at, on a wedge cap plane (`MeridianEnd.Start`,
     `MeridianEnd.End`) on a partial revolve, or the surviving meridian
@@ -3969,8 +4266,9 @@ class Body:
         eps. Tier 3 admits such a body and the measurement raises
         `ValidationError` with `reason == "mass_properties_failed"`,
         exactly as `mass_properties()` does — carrying, there and
-        only there, the sign-level bracket the gate did certify as
-        `volume_lo`, `volume_hi` and `surface_area`."""
+        only there, the narrowest bracket the gate's certificate or
+        its continuation held, as `volume_lo`, `volume_hi` and
+        `surface_area`."""
     def validate_pseudomanifold(self) -> None:
         """Tier 3′, the ladder's fourth rung: tier 3's whole local
         battery PLUS the global coincidence census tier 3 defers,
@@ -4831,10 +5129,11 @@ class Evaluation:
         outputs, as of THIS evaluation — the detect arm of the
         detect/declare protocol, run by the C4 verifier itself (a
         finding cannot disagree with the boolean's verify-at-use).
-        Findings are DEFINITE and canonically ordered; empty when
-        either node has no value. Raises `SelectRefusal`, typed
-        (`pair_in_band`, `tied_disagrees`, `unreadable`, `band`) —
-        an ambiguous pair is never silently included or dropped."""
+        Findings are DEFINITE and canonically ordered. Raises
+        `SelectRefusal`, typed (`node_has_no_value` when either node
+        has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
+        `band`) — an ambiguous pair is never silently included or
+        dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every
@@ -5199,7 +5498,14 @@ class MateFault:
     `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`
     and `predicate` are spelled here exactly as `FrameError` spells
     them, because an escalation a mate reports and one a frame
-    constructor reports are the same value."""
+    constructor reports are the same value.
+
+    `cause` is the refusal the fault CARRIES, typed: on
+    `mate_placer_refused` where the placer is poisoned and cannot state
+    it, the `EvaluationError` the placer's own evaluation raises, which
+    `str(fault)` points at and never quotes. `None` where the placer
+    fails in its own right, whose own failure states it. A raised
+    `MateError` carries the same as its `__cause__`."""
 
     @property
     def variant(self) -> str: ...
@@ -5213,6 +5519,8 @@ class MateFault:
     def placer(self) -> Optional[NodeId]: ...
     @property
     def error(self) -> Optional[str]: ...
+    @property
+    def cause(self) -> Optional[EvaluationError]: ...
     @property
     def instance(self) -> Optional[NodeId]: ...
     @property
@@ -5265,18 +5573,20 @@ class MateFault:
     @property
     def margin(self) -> Optional[Length]:
         """The in-band margin the classifier saw, when it saw a
-        value. Reading it is not branching on it: what the escalation
-        contract forbids is recovering the margin to make the sign
-        decision the classifier refused."""
+        value. For error text only, not a decision input: what the
+        escalation contract forbids is recovering the margin to make
+        the sign decision the classifier refused."""
 
     @property
     def margin_low(self) -> Optional[Length]:
         """The classified enclosure's lower bound, where the
-        classifier saw an enclosure rather than a value."""
+        classifier saw an enclosure rather than a value. For error
+        text only, not a decision input."""
 
     @property
     def margin_high(self) -> Optional[Length]:
-        """Its upper bound."""
+        """Its upper bound. For error text only, not a decision
+        input."""
 
     @property
     def zero(self) -> Optional[float]:
@@ -5756,7 +6066,7 @@ class SplitOutcome:
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Cut node -> its id in the part document."""
     @property
-    def step_map(self) -> list[tuple[int, int]]:
+    def step_map(self) -> dict[StepId, StepId]:
         """Cut profile step id -> the id the part minted for it."""
 
 def split(
@@ -5797,7 +6107,7 @@ class InlineOutcome:
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Part node -> its id in the spliced document."""
     @property
-    def step_map(self) -> list[tuple[int, int]]:
+    def step_map(self) -> dict[StepId, StepId]:
         """Part profile step id -> the id the host minted for it."""
 
 def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
@@ -5976,8 +6286,9 @@ class CheckEvidence:
     `unsupported` (`reason`, `inner_variant`) — a shell's orientation
     read could not be decided at this tolerance, or a face is outside
     the flux inventory, so the count is UNKNOWABLE and says so rather
-    than guessing; `inner_variant` is which of the shell door's four
-    refusals it was (`band`, `props`, `escalated`, `zero_volume`).
+    than guessing; `inner_variant` is which of the shell door's five
+    refusals it was (`band`, `props`, `escalated`, `zero_volume`,
+    `straddles`).
     `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,

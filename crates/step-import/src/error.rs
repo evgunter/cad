@@ -6,13 +6,16 @@
 
 use core::fmt;
 
+use geom_brep::recourse::Reading;
+
 /// One rung of the D7 edge-adoption ladder, as data: which intensional
 /// interpretation was attempted, and the kernel gate's typed refusal.
 #[derive(Debug)]
 pub struct AdoptionAttempt {
     /// The interpretation attempted.
     pub candidate: AdoptionCandidate,
-    /// The certification/attachment gate's refusal, verbatim.
+    /// The certification/attachment gate's refusal, rendered at the
+    /// adoption reading (`geom_brep::recourse::Reading::Adopt`).
     pub refusal: topo::EulerOpError,
 }
 
@@ -227,26 +230,16 @@ pub enum StepImportError {
         residual: f64,
     },
     /// A described NURBS wall's own boundary column would not re-wrap
-    /// as a curve while an edge was being adopted against it:
-    /// **a weight on that column is not a positive finite number**,
-    /// which no surface that passed `geom::NurbsSurface::new` can
-    /// hold. Unreachable from any body this reader assembles, and
-    /// surfaced rather than swallowed (D4 ¶2, and
-    /// [`geom_brep::boundary_iso_u`]'s own `# Errors` contract): the
-    /// payload names the offending weight and its position, and a
-    /// discarded one would leave a kernel-bug report saying only that
-    /// a kernel bug happened.
-    ///
-    /// **A weight violation is the only payload this arm can carry**,
-    /// which is narrower than [`geom_core::spline::SplineError`]'s
-    /// vocabulary and is a fact about the doors rather than about this
-    /// reader. Extraction slices `control` and `weights` to the same
-    /// length and re-wraps them over the surface's own `knots_v` (or
-    /// `knots_u`), so `WeightCountMismatch` cannot arise at all; and a
-    /// net whose length disagrees with those knots panics in the slice
-    /// before any refusal is built, so `ControlCountMismatch` cannot
-    /// reach here either. Both were measured against a
-    /// validation-bypassed surface.
+    /// as a curve while an edge was being adopted against it: the
+    /// stored surface's control net disagrees with the knot vector it
+    /// is indexed by, or a weight on the extracted column is not a
+    /// positive finite number — neither of which a surface that passed
+    /// `geom::NurbsSurface::new` can do. Unreachable from any body
+    /// this reader assembles, and surfaced rather than swallowed (D4
+    /// ¶2, and [`geom_brep::boundary_iso_u`]'s own `# Errors`
+    /// contract): the payload says WHICH structural invariant the wall
+    /// broke, and a discarded one would leave a kernel-bug report
+    /// saying only that a kernel bug happened.
     ///
     /// It is **not** a "this edge is not that shape" answer. The
     /// recognizers state their negatives some other way — a wall that
@@ -258,9 +251,9 @@ pub enum StepImportError {
         /// The `EDGE_CURVE` entity instance being adopted.
         id: u64,
         /// The extraction door's refusal, carried rather than
-        /// discarded: which weight of the extracted column is not a
-        /// positive finite number. Its `index` counts along that
-        /// COLUMN, not through the wall's net.
+        /// discarded: which count or weight the wall's stored net
+        /// broke. A count is the whole net's; a weight's `index`
+        /// counts along the extracted COLUMN, not through the net.
         source: geom_core::spline::SplineError,
     },
     /// D7's typed ambiguity at ε_in (stage-1 surface recognition,
@@ -339,10 +332,13 @@ pub enum StepImportError {
     TierInvalid {
         /// The `MANIFOLD_SOLID_BREP` id of the solid asked about on its
         /// own, or `None` when the verdict is about the whole assembled
-        /// body (which for a one-solid file is the same body — see
-        /// [`crate::import_step`]).
+        /// body. A one-instance file is only ever asked as the whole
+        /// body ([`topo::per_part_gate_owed`]), so its refusals carry
+        /// `None`.
         solid: Option<u64>,
-        /// The tier-1/2/3 verdicts, verbatim.
+        /// The verdicts, verbatim: tiers 1–3 for a solid asked on its
+        /// own, tiers 1–3′ (the declared-contact census) for the
+        /// assembled body.
         errors: Vec<topo::ValidationError>,
     },
 }
@@ -417,9 +413,11 @@ impl fmt::Display for StepImportError {
             Self::Topology { id, what } => {
                 write!(f, "step import: entity #{id}: {what}")
             }
-            Self::Assembly { id, source } => {
-                write!(f, "step import: assembling entity #{id}: {source}")
-            }
+            Self::Assembly { id, source } => write!(
+                f,
+                "step import: assembling entity #{id}: {}",
+                source.render(Reading::Adopt)
+            ),
             Self::Adoption { id, attempts } => {
                 write!(
                     f,
@@ -429,7 +427,12 @@ impl fmt::Display for StepImportError {
                     if i > 0 {
                         write!(f, "; ")?;
                     }
-                    write!(f, "{}: {}", attempt.candidate, attempt.refusal)?;
+                    write!(
+                        f,
+                        "{}: {}",
+                        attempt.candidate,
+                        attempt.refusal.render(Reading::Adopt)
+                    )?;
                 }
                 Ok(())
             }
@@ -444,8 +447,9 @@ impl fmt::Display for StepImportError {
             ),
             Self::WallColumnStructure { id, source } => write!(
                 f,
-                "step import: edge #{id}: an adjacent NURBS wall's own boundary column \
-                 will not re-wrap as a curve — {source}. No validated surface can be in \
+                "step import: edge #{id}: an adjacent NURBS wall's control net, or the \
+                 boundary column read from it, is not valid spline structure — {source}. \
+                 No validated surface can be in \
                  that state, so the file is refused rather than adopted against a wall \
                  whose stored structure is corrupt"
             ),

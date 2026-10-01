@@ -107,12 +107,12 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
         (
             "an edge",
             EntityKind::Edge,
-            "the shell open-face name minted by node 2 denotes an edge, not a face",
+            "the shell open-face name minted by node {n} denotes an edge, not a face",
         ),
         (
             "a vertex",
             EntityKind::Vertex,
-            "the shell open-face name minted by node 2 denotes a vertex, not a face",
+            "the shell open-face name minted by node {n} denotes a vertex, not a face",
         ),
     ] {
         let (doc, body, _, edge, vertex) = solid();
@@ -127,7 +127,11 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
             matches!(got, NodeErrorKind::ShellOpenKind { .. }),
             "{what}: the shell's own refusal, not another road's: {got:?}"
         );
-        assert_eq!(got.to_string(), want, "{what}");
+        assert_eq!(
+            got.to_string(),
+            want.replace("{n}", &body.0.to_string()),
+            "{what}"
+        );
     }
 }
 
@@ -140,12 +144,12 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
         (
             "fillet",
             Node::fillet as fn(RecipeNodeId, editor_core::Expr, Vec<StableName>) -> _,
-            "the fillet selection name minted by node 2 denotes a face, not an edge",
+            "the fillet selection name minted by node {n} denotes a face, not an edge",
         ),
         (
             "chamfer",
             Node::chamfer as fn(RecipeNodeId, editor_core::Expr, Vec<StableName>) -> _,
-            "the chamfer selection name minted by node 2 denotes a face, not an edge",
+            "the chamfer selection name minted by node {n} denotes a face, not an edge",
         ),
     ] {
         let (doc, body, face, _, _) = solid();
@@ -155,7 +159,11 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
             matches!(got, NodeErrorKind::BlendSelectionKind { .. }),
             "{what}: the blend's own refusal: {got:?}"
         );
-        assert_eq!(got.to_string(), want, "{what}");
+        assert_eq!(
+            got.to_string(),
+            want.replace("{n}", &body.0.to_string()),
+            "{what}"
+        );
     }
 }
 
@@ -164,11 +172,11 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
 /// that answered one refusal for both would lose.
 #[test]
 fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
-    let (doc, _, _, edge, _) = solid();
+    let (doc, body, _, edge, _) = solid();
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: RecipeNodeId(2),
+            at: body,
             face: edge,
             spin: ang(0.0),
         }),
@@ -180,7 +188,10 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
     );
     assert_eq!(
         got.to_string(),
-        "the derived frame's name minted by node 2 denotes an edge, not a face"
+        format!(
+            "the derived frame's name minted by node {} denotes an edge, not a face",
+            body.0
+        )
     );
 }
 
@@ -277,9 +288,9 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
 ///   before either name is resolved, because a pair the vocabulary
 ///   has no step for is unsupported however many entities answer to
 ///   either name, so no key exists yet to read the word off. The name
-///   table makes the two sources agree (`insert_ref` and
-///   `insert_tied_ref` are its only writers and both refuse a row
-///   whose name's kind is not its key's); the one place they could
+///   table makes the two sources agree (every `NameTable` door that
+///   seats a row refuses one whose name's kind is not its key's); the
+///   one place they could
 ///   differ is a broken table, which that door answers off the KEYS
 ///   under a `debug_assert!`. What this row still cannot see is the
 ///   site at all.

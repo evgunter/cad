@@ -12,7 +12,7 @@
 //! abutting partitions — so that "the columns add up" is a claim about
 //! the measure rather than about subtraction.
 //!
-//! Sweep shape (`memories/test-suite-cost.md`): the two randomized
+//! Sweep shape (implementer-discipline §8): the two randomized
 //! rows are COUNTEREXAMPLE SEARCH — varying seed via `test_utils::fuzz`,
 //! counts on the shared effort dial, replay string in every assertion
 //! message. The rest are witnesses that can be written down, so they
@@ -30,6 +30,7 @@ test_utils::gated_to![
     "crates/editor-core/src/measure.rs",
     "crates/geom-core/src/tolerance.rs",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::fixture;
@@ -43,11 +44,11 @@ use editor_core::{
 use geom_core::Tol;
 use test_utils::fuzz;
 
-fn p(name: &str) -> ParamName {
-    ParamName::new(name)
+fn p(name: &'static str) -> ParamName {
+    ParamName::from_static(name)
 }
 
-fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
+fn doc_with(params: &[(&'static str, DocParam)]) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-1-r2-probes"), Tol::witness());
     for (name, value) in params {
         doc = apply(
@@ -475,7 +476,7 @@ fn a_hand_written_nominal_outside_support_refuses_at_load() {
     assert_ne!(corrupt, text, "the corruption must land");
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Distribution { name, fault }) => {
-            assert_eq!(name.0, "b");
+            assert_eq!(name.as_str(), "b");
             assert_eq!(
                 fault,
                 editor_core::DistributionFault::NominalOutsideSupport { lo: 0.2, hi: 0.3 }

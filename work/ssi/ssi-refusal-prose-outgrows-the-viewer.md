@@ -5,6 +5,8 @@ title: geom-brep: SsiError::FitSampleBudget is over 50 words (Ev's concision req
 status: open
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+cost: E
+priority: P4
 ---
 
 
@@ -38,3 +40,17 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## The same arm advises raising ε (ENCL sweep, 2026-09-28)
+
+`SsiError::FitSampleBudget` ends "raise the tolerance, or wait for the
+compaction work ...". D4 ¶1 (i) (Ev, `[ev]` PR 3352) keeps loosening ε
+only at a kernel approximation limit that names no other recourse. There
+it is a last resort and says the refusal may indicate a kernel bug worth
+reporting. A spent fit-sample budget is that kind of limit ("wait for the
+compaction work" is not a lever the user holds), so the rewrite this row
+asks for should end the arm as the loosening clause followed by
+`geom_core::KERNEL_LIMIT_LAST_RESORT`, with the payload's value if it
+gives one. The ENCL kernel-limit lane found it with a second sweep pass
+for loosening spelled without the word "loosen", and left it here as
+SSI's ground.

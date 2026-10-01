@@ -1,13 +1,15 @@
-//! **What a union's flush and retirement rules may never publish.**
+//! **What a union's flush and parent rules may never publish.**
 //!
-//! The published table names a flush stretch, a member's corner and a
-//! seam's sides from the finished body (`emit_union::Flush`,
-//! `emit_union::retire_into_merges`). These rows hold those rules to
-//! the body they read:
+//! The published table names a flush stretch, a member's corner, its
+//! faces and a seam's sides from the finished body (`emit_union::Flush`,
+//! `emit_union::name_by_parents`). These rows hold those rules to the
+//! body they read:
 //! - a vertex named for a member vertex sits at it and borders a face of
 //!   that member it lies on, so a coincident vertex of another shell
 //!   never takes its name;
-//! - a seam edge's sides are the faces it lies between, as published;
+//! - a face is its parent, or its parent and one `Borders`, and a member
+//!   face a merge lists is published by no face of its own;
+//! - a seam edge's sides are the parents of the faces it lies between;
 //! - a document whose finished body depends on member order (a vertex a
 //!   declared merge left behind) still publishes, with no two rows
 //!   sharing a name.
@@ -19,7 +21,7 @@ use crate::corpus::body_of;
 use crate::docm7_union_declare::{failure, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::{Case, cases, runs};
-use crate::fixture::{insert, table};
+use crate::fixture::{face_vertices, insert, table};
 
 use editor_core::{
     EntityKey, EntityKind, Entry, Evaluation, Node, NodeErrorKind, RecipeNodeId, RoleSeg,
@@ -36,21 +38,6 @@ fn member_faces(name: &StableName, out: &mut BTreeSet<(RecipeNodeId, StableName)
         Some(RoleSeg::Merged(set)) => set.iter().for_each(|c| member_faces(c, out)),
         _ => {}
     }
-}
-
-/// The faces around vertex `v` of `body`.
-fn faces_at(body: &topo::Body<f64>, v: topo::VertexKey) -> BTreeSet<topo::FaceKey> {
-    body.half_edges()
-        .filter(|(_, he)| he.start == v)
-        .flat_map(|(h, he)| {
-            let mate = body.mate(h).unwrap();
-            [
-                he.parent_loop,
-                body.get_half_edge(mate).unwrap().parent_loop,
-            ]
-        })
-        .map(|l| body.get_loop(l).unwrap().face)
-        .collect()
 }
 
 /// The two faces edge `e` of `body` lies between.
@@ -95,7 +82,7 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
             "{at}: {name:?} is not at its member vertex"
         );
         let mut cited = BTreeSet::new();
-        for f in faces_at(body, v) {
+        for f in body.faces_of_vertex(v).unwrap() {
             if let Some(fname) = t.name_of(&editor_core::EntityRef {
                 body: 0,
                 key: EntityKey::Face(f),
@@ -103,7 +90,7 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
                 member_faces(fname, &mut cited);
             }
         }
-        let borders = faces_at(mbody, w).into_iter().any(|g| {
+        let borders = mbody.faces_of_vertex(w).unwrap().into_iter().any(|g| {
             mtable
                 .name_of(&editor_core::EntityRef {
                     body: 0,
@@ -120,32 +107,18 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
     checked
 }
 
-/// Whether seam side `side` is face `face` as published: the face, the
-/// face with some of its trailing `Fragment`s dropped (the piece of it a
-/// fold step met), or a constituent of the merge the face is a piece of,
-/// or an earlier merge of some of those constituents.
-fn side_is(side: &StableName, face: &StableName) -> bool {
+/// A published face's parent: its name without its trailing `Fragment`s.
+pub(crate) fn parent_of(face: &StableName) -> StableName {
     let mut f = face.clone();
-    loop {
-        if *side == f {
-            return true;
-        }
-        if f.path.len() == 1 {
-            break;
-        }
+    while f.path.len() > 1 && matches!(f.path.last(), Some(RoleSeg::Fragment(_))) {
         f.path.pop();
     }
-    let [RoleSeg::Merged(set)] = f.path.as_slice() else {
-        return false;
-    };
-    match side.path.as_slice() {
-        [RoleSeg::Merged(sub)] => sub.iter().all(|c| set.contains(c)),
-        _ => set.contains(side),
-    }
+    f
 }
 
-/// **Every published seam edge lies between the faces its sides
-/// name.** Returns how many seam edges were checked.
+/// **Every published seam edge's sides are exactly the parents of the
+/// two faces it lies between** (N3), in name order. Returns how many
+/// seam edges were checked.
 fn seam_sides_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize {
     let body = body_of(ev, union);
     let t = table(ev, union);
@@ -168,15 +141,85 @@ fn seam_sides_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize
                 .unwrap_or_else(|| panic!("{at}: a face beside {name:?} is unnamed"))
             })
             .collect();
-        for side in [a, b] {
-            assert!(
-                faces.iter().any(|f| side_is(side, f)),
-                "{at}: {name:?} cites {side:?}, which is none of the faces it lies between: {faces:?}"
-            );
-        }
+        let mut parents: Vec<StableName> = faces.iter().map(parent_of).collect();
+        parents.sort();
+        assert_eq!(
+            vec![(**a).clone(), (**b).clone()],
+            parents,
+            "{at}: {name:?}'s sides are not the parents of the faces it lies between: {faces:?}"
+        );
         checked += 1;
     }
     checked
+}
+
+/// The member faces a parent name lists: its one member face, or each
+/// of a flat `Merged` set's, and `None` for any other shape.
+fn parent_members(parent: &StableName) -> Option<BTreeSet<StableName>> {
+    let one = |n: &StableName| matches!(n.path.as_slice(), [RoleSeg::FromMember { of, .. }] if of.kind == EntityKind::Face);
+    match parent.path.as_slice() {
+        [RoleSeg::FromMember { .. }] if one(parent) => Some(BTreeSet::from([parent.clone()])),
+        [RoleSeg::Merged(set)] if set.len() >= 2 && set.iter().all(one) => {
+            Some(set.iter().cloned().collect())
+        }
+        _ => None,
+    }
+}
+
+/// **Every published face is its parent, or its parent and one
+/// `Borders`** (N2, N3):
+/// - a face's name is a member face, a flat `Merged` of member faces, or
+///   one of those followed by exactly one `Fragment(Borders)`;
+/// - a parent is published bare only when it is held as one face, and
+///   as fragments only when held as several;
+/// - no member face is listed by two parents, so a constituent a merge
+///   lists is never published by a face of its own;
+/// - a `Borders` wall is the parent of a published face.
+///
+/// Returns how many faces were checked.
+fn faces_are_parents(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize {
+    let t = table(ev, union);
+    let faces: Vec<StableName> = t
+        .iter()
+        .filter(|(name, _)| name.kind == EntityKind::Face)
+        .map(|(name, _)| name.clone())
+        .collect();
+    let parents: BTreeSet<StableName> = faces.iter().map(parent_of).collect();
+    let mut listed: std::collections::BTreeMap<StableName, StableName> = Default::default();
+    for p in &parents {
+        let members = parent_members(p)
+            .unwrap_or_else(|| panic!("{at}: {p:?} is not a member face or a flat merge of them"));
+        for m in members {
+            if let Some(other) = listed.insert(m.clone(), p.clone()) {
+                panic!("{at}: {m:?} is listed by two parents, {other:?} and {p:?}");
+            }
+        }
+    }
+    for face in &faces {
+        let parent = parent_of(face);
+        let tail = &face.path[parent.path.len()..];
+        let pieces = faces.iter().filter(|f| parent_of(f) == parent).count();
+        match tail {
+            [] => assert_eq!(
+                pieces, 1,
+                "{at}: {face:?} is bare but held as {pieces} faces"
+            ),
+            [RoleSeg::Fragment(editor_core::Qualifier::Borders(v))] => {
+                assert!(
+                    pieces > 1,
+                    "{at}: {face:?} is a fragment of a parent held whole"
+                );
+                for partner in v {
+                    assert!(
+                        parents.contains(partner),
+                        "{at}: {face:?} cites {partner:?}, which is no published face's parent"
+                    );
+                }
+            }
+            _ => panic!("{at}: {face:?} is not its parent and one Borders"),
+        }
+    }
+    faces.len()
 }
 
 const A: Bx = ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
@@ -193,24 +236,181 @@ fn near_slab() -> Case {
     Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2], vec![(0, 1)])
 }
 
-/// **The corpus, its fixtures and the ZIP document publish no false
-/// seam side and no member vertex another shell holds.**
-#[test]
-fn a_union_cites_only_what_the_finished_body_holds() {
-    let (mut seams, mut vertices) = (0, 0);
-    for case in cases().into_iter().chain([near_slab()]) {
-        runs(&case, |at, ev, _, unions| {
+/// The unions that refuse in some member orders, as `(case, union,
+/// orders refusing, each refusal variant with its count of orders)`: the permanent row's
+/// `KNOWN_MIXED` (`emit_union_rim_piece_ranks`) and the cases every order
+/// of which refuses. The rows below check what the others publish, and
+/// fail on any refusal not pinned here, so a new one cannot pass by
+/// being skipped.
+const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
+    ("abg", "U", 2, "DeclareResolve:2"),
+    ("abgg2", "U", 16, "DeclareResolve:16"),
+    ("abgids", "U", 2, "DeclareResolve:2"),
+    ("abglow", "U", 2, "DeclareResolve:2"),
+    ("cross", "U", 24, "UndeclaredContact:24"),
+    ("fam000", "U", 2, "DeclareResolve:2"),
+    ("fam001", "U", 2, "DeclareResolve:2"),
+    ("fam002", "U", 2, "DeclareResolve:2"),
+    ("fam012", "U", 2, "DeclareResolve:2"),
+    ("fam022", "U", 2, "DeclareResolve:2"),
+    ("fam100", "U", 4, "DeclareResolve:4"),
+    ("fam101", "U", 4, "DeclareResolve:4"),
+    ("fam102", "U", 4, "DeclareResolve:4"),
+    ("fam112", "U", 4, "DeclareResolve:4"),
+    ("fam122", "U", 4, "DeclareResolve:4"),
+    ("fam200", "U", 2, "DeclareResolve:2"),
+    ("fam201", "U", 2, "DeclareResolve:2"),
+    ("fam202", "U", 2, "DeclareResolve:2"),
+    ("fam212", "U", 2, "DeclareResolve:2"),
+    ("fam222", "U", 2, "DeclareResolve:2"),
+    ("near", "U", 2, "DeclareResolve:2"),
+    ("r1flush", "U", 18, "DeclareResolve:18"),
+    ("r1three", "U", 24, "UndeclaredContact:24"),
+    ("r2endsg", "U", 12, "DeclareResolve:12"),
+    ("r4tri", "U", 2, "Boolean:2"),
+    ("r4trig", "U", 14, "Boolean:2/DeclareResolve:12"),
+    ("row", "U", 24, "UndeclaredContact:24"),
+    ("rowids", "U", 24, "UndeclaredContact:24"),
+];
+
+/// Every refusal `case`'s runs meet, pinned against [`KNOWN_REFUSING`]
+/// for the whole run; `each` sees the unions that publish.
+fn published(
+    cases: &[Case],
+    mut each: impl FnMut(&Case, &str, &Evaluation<f64>, &[RecipeNodeId], &str, RecipeNodeId),
+) {
+    let mut refused: std::collections::BTreeMap<
+        (String, String),
+        (usize, std::collections::BTreeMap<String, usize>),
+    > = Default::default();
+    for case in cases {
+        runs(case, |at, ev, ids, unions| {
             for &(tag, union) in unions {
-                if failure(ev, union).is_none() {
-                    let at = format!("{} {tag} {at}", case.label);
-                    seams += seam_sides_hold(ev, union, &at);
-                    vertices += member_vertices_hold(ev, union, &at);
+                match failure(ev, union) {
+                    None => each(case, at, ev, ids, tag, union),
+                    Some(e) => {
+                        let shown = format!("{e:?}");
+                        let kind = shown.split([' ', '(', '{']).next().unwrap_or("").to_owned();
+                        let slot = refused
+                            .entry((case.label.clone(), tag.to_owned()))
+                            .or_default();
+                        slot.0 += 1;
+                        *slot.1.entry(kind).or_default() += 1;
+                    }
                 }
             }
         });
     }
+    let found: Vec<String> = refused
+        .into_iter()
+        .map(|((label, tag), (n, kinds))| {
+            format!(
+                "{label} {tag}: {n} {}",
+                kinds
+                    .into_iter()
+                    .map(|(k, c)| format!("{k}:{c}"))
+                    .collect::<Vec<_>>()
+                    .join("/")
+            )
+        })
+        .collect();
+    let labels: BTreeSet<&str> = cases.iter().map(|c| c.label.as_str()).collect();
+    let known: Vec<String> = KNOWN_REFUSING
+        .iter()
+        .filter(|(label, ..)| labels.contains(label))
+        .map(|(label, tag, n, kinds)| format!("{label} {tag}: {n} {kinds}"))
+        .collect();
+    assert_eq!(found, known, "the orders that refuse changed");
+}
+
+/// **The corpus, its fixtures and the ZIP document publish no seam side
+/// but the parents of the faces beside it, no face but a parent or a
+/// fragment of one, and no member vertex another shell holds.**
+#[test]
+fn a_union_cites_only_what_the_finished_body_holds() {
+    let (mut seams, mut faces, mut vertices) = (0, 0, 0);
+    let all: Vec<Case> = cases().into_iter().chain([near_slab()]).collect();
+    published(&all, |case, at, ev, _, tag, union| {
+        let at = format!("{} {tag} {at}", case.label);
+        seams += seam_sides_hold(ev, union, &at);
+        faces += faces_are_parents(ev, union, &at);
+        vertices += member_vertices_hold(ev, union, &at);
+    });
     assert!(seams > 1000, "only {seams} seam edges checked");
+    assert!(faces > 1000, "only {faces} faces checked");
     assert!(vertices > 1000, "only {vertices} member vertices checked");
+}
+
+/// The union-space name of member `m`'s face whose vertices all lie on
+/// y = 0.
+fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> StableName {
+    let (body, t) = (body_of(ev, m), table(ev, m));
+    let on = t.iter().find_map(|(name, entry)| {
+        let Entry::Unique(e) = entry else { return None };
+        let EntityKey::Face(f) = e.key else {
+            return None;
+        };
+        face_vertices(body, f)
+            .into_iter()
+            .all(|v| point(body, v).y.abs() < 1e-9)
+            .then(|| name.clone())
+    });
+    StableName {
+        kind: EntityKind::Face,
+        node: union,
+        path: vec![RoleSeg::FromMember {
+            member: m,
+            of: editor_core::NameRef::new(on.expect("a face at y = 0")),
+        }],
+    }
+}
+
+/// **A face cut and merged in one step publishes no piece under a
+/// constituent's name** (N3). `fam012`: `a` = x 0..1 and `b` = x
+/// 0.5..1.5, declared flush, and a slab `g` at x 0.3..0.4 through `a`'s
+/// y = 0 wall. In `[b, g, a]` one step cuts `a`'s wall and merges its
+/// right piece with `b`'s; in `[a, b, g]` the wall merges first and `g`
+/// cuts the merge. Either way the wall is two faces, both fragments of
+/// the one merge, under the same two names, and `a`'s wall is published
+/// by no face.
+#[test]
+fn a_face_cut_and_merged_in_one_step_publishes_no_constituent() {
+    let case = cases()
+        .into_iter()
+        .find(|c| c.label == "fam012")
+        .expect("fam012");
+    let mut spelled: std::collections::BTreeMap<String, BTreeSet<StableName>> = Default::default();
+    published(&[case], |_, at, ev, ids, _, union| {
+        let (wa, wb) = (wall_at_y0(ev, union, ids[0]), wall_at_y0(ev, union, ids[1]));
+        let mut set = vec![wa.clone(), wb];
+        set.sort();
+        let merge = StableName {
+            kind: EntityKind::Face,
+            node: union,
+            path: vec![RoleSeg::Merged(set)],
+        };
+        let t = table(ev, union);
+        assert!(t.lookup(&wa).is_none(), "{at}: {wa:?} is published");
+        let pieces: BTreeSet<StableName> = t
+            .iter()
+            .filter(|(name, _)| name.kind == EntityKind::Face && parent_of(name) == merge)
+            .map(|(name, _)| name.clone())
+            .collect();
+        assert_eq!(
+            pieces.len(),
+            2,
+            "{at}: pieces of the merged wall {pieces:?}"
+        );
+        assert!(pieces.iter().all(|p| p.path.len() == 2), "{at}: {pieces:?}");
+        spelled.insert(at.to_string(), pieces);
+    });
+    assert!(
+        spelled.contains_key("[1, 2, 0]"),
+        "the one-step order [b, g, a] fuses"
+    );
+    let mut all = spelled.values();
+    let first = all.next().expect("a fused order");
+    assert!(all.all(|s| s == first), "{spelled:?}");
 }
 
 /// **A body that depends on member order still publishes.** In the ZIP

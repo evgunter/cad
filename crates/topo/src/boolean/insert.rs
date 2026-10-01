@@ -219,7 +219,7 @@ fn mint_directed<T: Decide>(
         match crate::validate::decide("bool_strut_order", m, band) {
             Ok(Sign::Positive) => true,
             Ok(_) => false,
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
+            Err(diag) => return Err(BooleanError::coincidence(diag)),
         }
     } else {
         false
@@ -296,7 +296,7 @@ fn record_germ_dir<T: Decide>(
     let d = match super::rest::tangent_locus(&s_a, &s_b, band) {
         Ok(super::rest::TangentLocus::Line { dir, .. }) => dir.normalize(),
         Err(super::rest::TangentLocusError::Escalated(diag)) => {
-            return Err(BooleanError::Escalated { diag });
+            return Err(BooleanError::coincidence(diag));
         }
         // Both remaining arms mean the same thing to this door: the
         // declaration promised a locus the closed-form lane does not
@@ -338,6 +338,9 @@ fn germ_dir<T: Decide>(
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     let int = sa.normal.vec().cross(sb.normal.vec());
+    // The same margin `pair_search` read as definite before it sent this
+    // pair down the crossing path: a pair whose parallelism is Zero or in
+    // band there is coplanar or refused, never a crossing record.
     let arm = sa.arm.min(sb.arm);
     match crate::validate::decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
         Ok(Sign::Positive) => {}
@@ -346,7 +349,7 @@ fn germ_dir<T: Decide>(
                 what: "surviving crossing record on coplanar sector faces",
             });
         }
-        Err(diag) => return Err(BooleanError::Escalated { diag }),
+        Err(diag) => return Err(BooleanError::coincidence(diag)),
     }
     let d = int.normalize();
     let plus = within(sa, d, false, band)? && within(sb, d, false, band)?;
@@ -398,7 +401,7 @@ fn run_fan<T: Decide>(
     if from != to {
         let mut k = (from + 1) % n;
         loop {
-            if sectors[k].end_edge {
+            if sectors[k].end_edge() {
                 hes.push(sectors[k].he);
             }
             if k == to {
@@ -673,8 +676,8 @@ mod tests {
                     he,
                     start,
                     end,
-                    start_edge: true,
-                    end_edge: true,
+                    start_reach: crate::boolean::sectors::Reach::Extent(1.0),
+                    end_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     face: crate::entity::FaceKey::default(),
                     normal,
                     arm: 1.0,

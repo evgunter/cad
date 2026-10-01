@@ -34,10 +34,6 @@ fn eps() -> f64 {
     Tol::witness().get().eps
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
@@ -47,7 +43,10 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 /// A two-vertex circle (two semicircular arcs), counterclockwise as
 /// written.
 fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)])
+    bulge_loop(vec![
+        (Point2::new(cx - r, cy), 1.0),
+        (Point2::new(cx + r, cy), 1.0),
+    ])
 }
 
 fn assert_all_tiers(body: &Body<f64>) {
@@ -214,12 +213,12 @@ fn cyclic_eq(a: &[Point3<f64>], b: &[Point3<f64>]) -> bool {
 /// The 6-vertex all-line L (counterclockwise; canonical start (0,0)).
 fn l_loop() -> ProfileLoop<f64> {
     ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
     ])
 }
 
@@ -302,7 +301,12 @@ fn survives_digon_outer_both_directions() {
 /// likewise), and the volume oracle.
 #[test]
 fn survives_two_arc_hole_hand_traced_cycles() {
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let vp = validated(vec![outer, circle_loop(0.5, 0.5, 0.1)]);
     let outer_canon: Vec<Point2<f64>> = vp.loops()[0].vertices().to_vec();
     let hole_canon: Vec<Point2<f64>> = vp.loops()[1].vertices().to_vec();
@@ -366,7 +370,12 @@ fn survives_two_arc_hole_hand_traced_cycles() {
 /// canonical-start interaction of the hole-planting state.
 #[test]
 fn survives_hole_near_outer_canonical_start() {
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     // Hole start vertex (its authored −x point) at (0.006, 0.011): bridge chord ~0.0125 m,
     // clearance to the outer edges 0.006 m — all definite at every CI ε.
     let hole = circle_loop(0.011, 0.011, 0.005);
@@ -388,7 +397,12 @@ fn survives_hole_near_outer_canonical_start() {
 /// definitely clear of) each other.
 #[test]
 fn survives_multiple_holes_genus_h() {
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(3.0, 0.0), p2(3.0, 1.0), p2(0.0, 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(3.0, 0.0),
+        Point2::new(3.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     // Two holes 0.05 apart edge-to-edge (definite at every CI ε).
     let holes2 = vec![circle_loop(1.0, 0.5, 0.2), circle_loop(1.45, 0.5, 0.2)];
     let t = extrude(
@@ -432,7 +446,12 @@ fn survives_multiple_holes_genus_h() {
 #[test]
 fn survives_sliver_gap_holes_die_typed() {
     let gap = 3.0 * eps();
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let holes = vec![circle_loop(0.3, 0.5, 0.1), circle_loop(0.5 + gap, 0.5, 0.1)];
     let res = Profile::new(
         SketchPlane::xy(),
@@ -462,11 +481,11 @@ fn survives_reversal_maps_and_orientation() {
     // Only (2,0) leaves on an arc; the two joints bracketing it are
     // the declared tangencies.
     let mut lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(2.0, 0.0), b),
-        (p2(2.5, 0.5), 0.0),
-        (p2(2.5, 1.5), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), b),
+        (Point2::new(2.5, 0.5), 0.0),
+        (Point2::new(2.5, 1.5), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     lp = lp.with_tangent_joints(vec![1, 2]);
     let vp = validated(vec![lp]);
@@ -545,10 +564,10 @@ fn survives_reversal_maps_and_orientation() {
 fn survives_sliver_join_reports_canonical_index_both_directions() {
     let theta = 3000.0 * eps();
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(1.0, 0.0),
-        p2(1.0 + theta.cos(), theta.sin()),
-        p2(0.0, 1.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0 + theta.cos(), theta.sin()),
+        Point2::new(0.0, 1.0),
     ]);
     let vp = validated(vec![lp]);
     // Canonical start is (0,0) (the authored one), CCW as written: the shallow
@@ -587,10 +606,10 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     let w = 1.0e-3;
     let corner_profile = |theta: f64| {
         ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(1.0, 0.0),
-            p2(1.0 + theta.cos(), theta.sin()),
-            p2(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0 + theta.cos(), theta.sin()),
+            Point2::new(0.0, 1.0),
         ])
     };
     // margin = sin θ · w. Choose θ so margins land at 0.5ε, 3ε, 30ε.
@@ -725,11 +744,11 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
 #[test]
 fn survives_collinear_lines_share_the_plane_key() {
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(1.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(0.0, 2.0),
     ]);
     let t = extrude(
         &validated(vec![lp]),
@@ -771,10 +790,10 @@ fn survives_notched_circle_wrap_join_shares_the_key() {
     // → arc(quarter) → close. Carrier: unit circle at the origin.
     // Canonical start (−1,0) is the join of LAST arc and FIRST arc.
     let lp = bulge_loop(vec![
-        (p2(-1.0, 0.0), q),
-        (p2(0.0, -1.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
-        (p2(0.0, 1.0), q),
+        (Point2::new(-1.0, 0.0), q),
+        (Point2::new(0.0, -1.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(0.0, 1.0), q),
     ]);
     let vp = validated(vec![lp]);
     assert_eq!(vp.loops()[0].vertices()[0].x, -1.0);
@@ -826,10 +845,10 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
     // → arc 120°→180° (closing). Segments: [arc, line, arc, arc]; the
     // same-carrier run {2, 3, 0} crosses the canonical start (−1,0).
     let lp = bulge_loop(vec![
-        (p2(-1.0, 0.0), quarter),
-        (p2(0.0, -1.0), 0.0),
-        (p2(c60, s60), sixth),
-        (p2(-c60, s60), sixth),
+        (Point2::new(-1.0, 0.0), quarter),
+        (Point2::new(0.0, -1.0), 0.0),
+        (Point2::new(c60, s60), sixth),
+        (Point2::new(-c60, s60), sixth),
     ]);
     let vp = validated(vec![lp]);
     assert_eq!(vp.loops()[0].vertices()[0].x, -1.0);
@@ -874,7 +893,12 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
 fn survives_near_cosurface_dies_typed_at_the_profile_gate() {
     // (a) Lines: next chord's far endpoint 3ε off the prev carrier.
     let d = 3.0 * eps();
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(2.0, d), p2(1.0, 2.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, d),
+        Point2::new(1.0, 2.0),
+    ]);
     let profile_result = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness());
     match profile_result {
         Err(_) => {} // typed at the profile gate — honest
@@ -904,11 +928,11 @@ fn survives_near_cosurface_dies_typed_at_the_profile_gate() {
     // lines well away from the band.
     let b1 = (PI / 8.0).tan(); // quarter arcs
     let lp = bulge_loop(vec![
-        (p2(-r1, r1), b1),
-        (p2(0.0, 0.0), b1),
-        (p2(r2, r2), 0.0),
-        (p2(r2, 1.2), 0.0),
-        (p2(-r1, 1.2), 0.0),
+        (Point2::new(-r1, r1), b1),
+        (Point2::new(0.0, 0.0), b1),
+        (Point2::new(r2, r2), 0.0),
+        (Point2::new(r2, 1.2), 0.0),
+        (Point2::new(-r1, 1.2), 0.0),
     ]);
     let profile_result = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness());
     match profile_result {
@@ -984,10 +1008,10 @@ fn survives_mixed_turn_arcs_cap_certifies() {
     // Square with a convex arc bottom and a CONCAVE arc top (bulge
     // −b: clockwise turn, bowing into the region).
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), b),
-        (p2(2.0, 0.0), 0.0),
-        (p2(2.0, 1.5), -b),
-        (p2(0.0, 1.5), 0.0),
+        (Point2::new(0.0, 0.0), b),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.5), -b),
+        (Point2::new(0.0, 1.5), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
@@ -1063,10 +1087,10 @@ fn survives_far_offset_profiles_honest() {
     // Lines only: exact dyadic data at 1e8 — must succeed at every ε.
     let off = 1.0e8;
     let lp = ProfileLoop::polygon([
-        p2(off, off),
-        p2(off + 2.0, off),
-        p2(off + 2.0, off + 1.0),
-        p2(off, off + 1.0),
+        Point2::new(off, off),
+        Point2::new(off + 2.0, off),
+        Point2::new(off + 2.0, off + 1.0),
+        Point2::new(off, off + 1.0),
     ]);
     let t = extrude(
         &validated(vec![lp]),
@@ -1115,11 +1139,11 @@ fn survives_sub_eps_oblique_vector_used_as_given() {
     // Intersection, discarding the vec payload), so the stored vector is
     // observable.
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(1.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(0.0, 2.0),
     ]);
     let t = extrude(&validated(vec![lp]), Extrusion::Vector(v), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -1219,22 +1243,32 @@ fn survives_rebuild_byte_identity_zoo() {
     let shapes: Vec<(ProfileLoop<f64>, Vec<ProfileLoop<f64>>, f64)> = vec![
         (l_loop(), vec![], -1.5),
         (
-            ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]),
+            ProfileLoop::polygon([
+                Point2::new(0.0, 0.0),
+                Point2::new(1.0, 0.0),
+                Point2::new(1.0, 1.0),
+                Point2::new(0.0, 1.0),
+            ]),
             vec![circle_loop(0.5, 0.5, 0.1)],
             -1.0,
         ),
         (
-            ProfileLoop::polygon([p2(0.0, 0.0), p2(3.0, 0.0), p2(3.0, 1.0), p2(0.0, 1.0)]),
+            ProfileLoop::polygon([
+                Point2::new(0.0, 0.0),
+                Point2::new(3.0, 0.0),
+                Point2::new(3.0, 1.0),
+                Point2::new(0.0, 1.0),
+            ]),
             vec![circle_loop(1.0, 0.5, 0.2), circle_loop(2.0, 0.5, 0.2)],
             0.25,
         ),
         (circle_loop(0.0, 0.0, 0.5), vec![], -2.0),
         (
             bulge_loop(vec![
-                (p2(-1.0, 0.0), b),
-                (p2(0.0, -1.0), 0.0),
-                (p2(1.0, 0.0), 0.0),
-                (p2(0.0, 1.0), b),
+                (Point2::new(-1.0, 0.0), b),
+                (Point2::new(0.0, -1.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(0.0, 1.0), b),
             ]),
             vec![],
             0.5,

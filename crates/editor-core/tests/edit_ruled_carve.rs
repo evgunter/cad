@@ -75,7 +75,8 @@ use editor_core::{
 // live in `fixture` — one home for what this suite and
 // `edit_ladder_rim` both read an evaluation with.
 use fixture::{
-    count, edge_of, ends, face_of, face_vertices, len, minted, point, scl, table, tol, vertex_of,
+    count, edge_of, ends, face_of, face_vertices, len, len2, minted, point, scl, table, tol,
+    vertex_of,
 };
 use geom_core::Point3;
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, rod_chord_at};
@@ -180,10 +181,13 @@ fn carve(
             distance: len(height),
         },
     );
-    let selection = creases
+    // A selection is stored in name order, which for one rod's edges
+    // is their steps' minted-id order.
+    let mut selection = creases
         .iter()
         .map(|&(v, _)| lateral_edge(&doc, rod, v))
         .collect::<Vec<_>>();
+    selection.sort();
     let (doc, fillet) = fixture::insert(
         doc,
         Node::Fillet {
@@ -254,17 +258,16 @@ fn d_rod() -> Ruled {
 fn sunk_rod() -> Ruled {
     let c = rod_chord_at(ROD_FLAT);
     let xv = c.half;
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let lp = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(-1.0, -1.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, -1.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(xv, 0.0))),
+        ProgramStep::At(len2([-1.0, -1.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, -1.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([xv, 0.0]))),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(pt(-xv, 0.0)),
+            target: ProgramTarget::Point(len2([-xv, 0.0])),
             b: scl(c.section_bulge),
         }),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(-1.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([-1.0, 0.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     carve(

@@ -56,9 +56,11 @@ use crate::py::doc::{NodeId, name_text};
 use crate::py::mesh::Mesh;
 use crate::py::quantity::Length;
 use crate::py::select::entity_kind;
-use crate::py::typed_err;
 use crate::py::value::{Evaluation, lengths};
-use crate::tags::{hit_test_error_tag, mesh_pick_error_tag, node_pick_error_tag};
+use crate::py::{standing_fields, typed_err};
+use crate::tags::{
+    hit_test_error_tag, mesh_pick_error_tag, name_lookup_error_tag, node_pick_error_tag,
+};
 use pncad::select as s;
 
 /// A direction as the bare triple it is — dimensionless.
@@ -108,11 +110,9 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 5] {
     };
 
     match err {
-        s::HitTestError::NodeNotEvaluated { node: n } | s::HitTestError::NodeFailed { node: n } => {
-            [node(*n), none(), none(), none(), none()]
-        }
-        s::HitTestError::NodePoisoned { node: n, through } => {
-            [node(*n), node(*through), none(), none(), none()]
+        s::HitTestError::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            [which, through, none(), none(), none()]
         }
         // The pairing arm names two DOCUMENTS, which this
         // node/through/kind/body quadruple cannot carry; the message
@@ -126,7 +126,7 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 5] {
         s::HitTestError::Ambiguous { hits } => {
             [none(), none(), none(), none(), obj(tied(py, hits))]
         }
-        s::HitTestError::Unnamed { node: n, entity } => [
+        s::HitTestError::Unnamed(s::UnnamedEntity { node: n, entity }) => [
             node(*n),
             none(),
             kind(entity.key.kind()),
@@ -176,22 +176,66 @@ fn hit_test_err(py: Python<'_>, err: &s::HitTestError) -> PyErr {
     )
 }
 
+/// Raise `HitTestError` for the name doors' refusal of the whole call.
+///
+/// Python has one exception class for both the hit test and the name
+/// doors, so the refusal crosses as that class, under the same words
+/// and fields a hit test's pairing or standing refusal carries
+/// ([`name_lookup_error_tag`]); the message is the name lookup's own,
+/// which names no hit test because none ran.
+fn name_lookup_err(py: Python<'_>, err: &s::NameLookupError) -> PyErr {
+    let none = || py.None();
+    let (which, through) = match err {
+        // The pairing names two DOCUMENTS; the message states both.
+        s::NameLookupError::EvaluationOfAnotherDocument(_) => (none(), none()),
+        s::NameLookupError::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            (which, through)
+        }
+    };
+    typed_err(
+        py,
+        ErrorClass::HitTest,
+        err.to_string(),
+        &[
+            (
+                "variant",
+                PyString::new(py, name_lookup_error_tag(err))
+                    .unbind()
+                    .into_any(),
+            ),
+            ("node", which),
+            ("through", through),
+            ("kind", none()),
+            ("body", none()),
+            ("hits", none()),
+        ],
+    )
+}
+
 /// The `HitTestError` EXCEPTION VALUE rather than a raise — what a
 /// per-slot answer carries in the slot that has no name.
 ///
 /// [`NodePick::patch_names`] is total per patch: one naming-emission
 /// bug must not cost a consumer the names of every other patch it is
 /// drawing, so the refusal rides IN the slot. A Python exception is a
-/// value, which is what makes that shape spellable here at all.
-fn hit_test_value(py: Python<'_>, err: &s::HitTestError) -> Py<PyAny> {
-    hit_test_err(py, err).value(py).clone().into_any().unbind()
+/// value, which is what makes that shape spellable here at all. The
+/// kernel's slot holds [`s::UnnamedEntity`], the lookup's own refusal;
+/// it crosses as the `unnamed` arm of this class, the one Python
+/// spelling the surface has for it.
+fn hit_test_value(py: Python<'_>, unnamed: s::UnnamedEntity) -> Py<PyAny> {
+    hit_test_err(py, &s::HitTestError::from(unnamed))
+        .value(py)
+        .clone()
+        .into_any()
+        .unbind()
 }
 
 /// Raise `NodePickError` carrying the refusal's stable tag and payload.
 ///
 /// Two arms FORWARD their payload's own tag and prose rather than
 /// wrapping them (`crate::tags::node_pick_error_tag`): the standing
-/// ladder is literally a `HitTestError`, and a tessellation refusal is
+/// crosses under the ladder's own words, and a tessellation refusal is
 /// the tessellator's. What they do NOT forward is the inner refusal's
 /// own extra ATTRIBUTES — a tessellation refusal's numbers stay on
 /// `TessellateError`, which is where a caller who tessellates directly
@@ -223,7 +267,10 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
     // Exhaustive on purpose: an arm added kernel-side is a compile
     // error here, not a silently unprojected payload.
     let [which, through, kind, body, hits] = match err {
-        s::NodePickError::Standing(inner) => hit_test_fields(py, inner),
+        s::NodePickError::Standing(standing) => {
+            let [which, through] = standing_fields(py, *standing);
+            [which, through, none(), none(), none()]
+        }
         s::NodePickError::NotABody { node: n } => [node(*n), none(), none(), none(), none()],
         s::NodePickError::NoSuchBody { node: n, body } => {
             [node(*n), none(), none(), int(*body), none()]
@@ -565,7 +612,7 @@ impl NodePick {
     fn patch_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .patch_names(&evaluation.inner)
-            .map_err(|err| hit_test_err(py, &err))?
+            .map_err(|err| name_lookup_err(py, &err))?
             .iter()
             .map(|slot| slot_name(py, slot))
             .collect()
@@ -585,7 +632,7 @@ impl NodePick {
     fn boundary_names(&self, py: Python<'_>, evaluation: &Evaluation) -> PyResult<Vec<Py<PyAny>>> {
         self.inner
             .boundary_names(&evaluation.inner)
-            .map_err(|err| hit_test_err(py, &err))?
+            .map_err(|err| name_lookup_err(py, &err))?
             .iter()
             .map(|slot| slot_name(py, slot))
             .collect()
@@ -615,11 +662,11 @@ impl NodePick {
 /// hit-test refusal as a VALUE.
 fn slot_name(
     py: Python<'_>,
-    slot: &Result<pncad::prelude::StableName, s::HitTestError>,
+    slot: &Result<pncad::prelude::StableName, s::UnnamedEntity>,
 ) -> PyResult<Py<PyAny>> {
     match slot {
         Ok(name) => Ok(PyString::new(py, &name_text(py, name)?).unbind().into_any()),
-        Err(err) => Ok(hit_test_value(py, err)),
+        Err(unnamed) => Ok(hit_test_value(py, *unnamed)),
     }
 }
 

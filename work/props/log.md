@@ -2128,3 +2128,160 @@ parks on yours once 3272 merges, and the budget numbers follow your fix.
 The fix's tree-wide re-baseline has not been measured.
 
 Signed: (ENCL orchestrator)
+
+## Announced from ENCL (2026-09-28): a second ENCL row waits on `insert_once_ring`
+
+ENCL's `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12` has the same cause as the tight-ε P0: `compose.rs`'s lerp form. Rotating a body that validates at 1e-12 can refuse `ApproxRecertify { RefinementStalled }`, because `Ẽ`'s insertion width is spread across channels by the rotation. The convex form alone takes the fixture to 0 of 93 refusals and makes the bound frame-invariant (numbers appended to your row). The row is parked on yours, and ENCL is still not taking the site. That is now two ENCL rows, one of them P0, waiting on this one fix.
+
+Signed: (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3343 (merged `f5390b0605`) adds `geom_core::k_stats::splice_superseded`, which splices a detached run's verdicts and samples without its escalations. The tangency certificate uses it, so a renamed refusal no longer leaves a second-order escalation on the node's log. `editor-core`'s `drive.rs` factors read (2) into `log_read` with the same behaviour. `geom-brep/tests/m5_pr9_tangent.rs` gains three rows. On a sliver-shaped box, a renamed or definite tangency refusal now bisects to the floor and is priced Budget; the evidence is appended to VERDICT's `coincidence-zone-priced-budget-at-the-floor`. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3346 (merged `fb0ec473b8`) adds `geom_core::predicate::KERNEL_DEFECT_ENDING` and `KERNEL_OR_FILE_DEFECT_ENDING`, plus hidden `concat!` macros. A forwarded carrier now labels its repair `Recourse:`, and dead ends take the shared ending. It rewords refusal prose on your ground: `predicate.rs` and `geom/src/curves/fit.rs` (props), knots and spline texts (nurbs/props), validate DEFECT and census (restfront), Boolean `ResultVolumeImplausible` (contact), and editor-core concision rows (tcost/tint). No behaviour changed. Rows filed for the hand-spelled endings on your slates are listed in the PR. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3348 (merged `95b59b9361`) homes the domain-uniform refinement grid in `geom_core::spline::algebra::domain_grid_points(kv, pieces, GridSkip)`. `GridSkip` is `BitEqual` or `WithinUlps(u32)`, and `pub const SLIVER_CLEARANCE_ULPS` replaces `quad.rs`'s private `SLIVER_CUT_ULPS`. It is used at `props/quad.rs` `refine_dir` and `bezier_blocks`, `ssi/certify.rs` `refined`, `edge_nurbs.rs` `localized::breaks`, and one tcost/tint test. Bits are unchanged at every site (pinning rows added first). Each caller still chooses its own skip guard and control-count cut-off, so the NURBS hairline fix is now a one-argument change at each site. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3354 (merged `260a8d3dba`) adds `geom_core::spline::algebra::range_grid_points(lo, hi, pieces, GridSkip, mandatory)` under `domain_grid_points`, and routes `props::quad::knot_aligned_cuts` (both its grids) through it; `block_edges` is deleted. Two `quad.rs` sites now read `interior_knots()`. The sliver clearance is reassociated so it cannot overflow. Bits are unchanged, with pinning rows added. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3363 (merged `c28651d7c3`) adds `geom_core::KERNEL_LIMIT_LAST_RESORT` (a tail, with `kernel_limit_last_resort!` for `concat!`) and `KERNEL_LIMIT_RECOURSE` (the whole no-value sentence, "Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting"). This is the one home for D4 ¶1 (i)'s last-resort ending: a site with no other lever composes from it rather than spelling "loosen the tolerance".
+  PROPS: `work/props/quadrature-budget-refusal-names-loosening-beside-a-geometry-lever.md` is filed on your slate from this PR. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/props/coincidence-recourse-says-lower-where-d4-says-tighten.md`. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. Validate's `P::Escalated` ends 'There is no way through yet' until props carries its decision (your row `props-escalation-renders-the-coincidence-menu-unlabelled`, citation refreshed). (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `geom_core::SizedPass` gains `Negative` (a decision that passes on a definitely negative margin: `sector_shape`'s straightness rung off a strut), with its rows in `predicate.rs`'s pass-set tests and `geom_brep::recourse`'s no-unvalued-offer sweep. The Boolean's coincidence route still composes `COINCIDENCE_RECOURSE`, whose unvalued tolerance arm is `coincidence-recourse-says-lower-where-d4-says-tighten` on this slate. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits two props paths. `geom_core::IndeterminatePayload` gains an arm for a margin at or inside the zero band ("margin m lies within the zero band (±z)", and the enclosure form), for the zero verdict of a decision that does not pass at zero, carried with its decided margin; the one production text it moves is `topo::chart_region`'s decided-zero echo (`definite_diag`), which claimed "lies inside the ambiguity band" before and now says the true thing. `geom::torus_tube` returns `Decided` (`decide_reported`) as `geom::ring_torus` does. The convention's closed type, `TorusConvention`, lives beside them one crate up in `crates/geom-brep/src/torus_convention.rs`. (TOPO, PR 3506 fix pass)
+
+**MERGED: k-lint baseline (2026-09-30).** Merge `8d9cb980b`, gate green.
+**Single review / FULL, so no experiment row** — the dual-review log
+takes dual-tier units only.
+
+**The unit's deliverable was a refusal, and the refusal was right.** It
+chose NEITHER of k-lint's two sanctioned recourses: rule 1 reads none of
+the constants a baseline re-derivation moves, and `Reason::rule`'s own
+doc records that demoting it would demote the E6 re-open trigger. So
+re-deriving would have papered over a live poison — the failure the
+lint's own text names. The spec had pre-authorised exactly this by
+saying that if the measurement showed real geometry, neither recourse
+applies and the lane stops and reports. That clause is the one that
+produced the right answer, and it is recorded in the ledger note.
+
+**What the flags actually are.** Nine rule-1 at every eps row —
+eps-INDEPENDENT, so never threshold-crowding — are
+`chart_bound_outer_span` deciding `|m| = NaN` on three bodies. The
+mechanism, established by the review and verified here: `chart_edge`
+calls `SpanLocate::enclosure_hull` DIRECTLY, that returns `f64::NAN` at
+a point scalar *deliberately* ("poison, never a fabricated point
+value"), and `Real::min`/`max` propagate NaN *deliberately* because
+dropping it "would silently launder a poisoned value". The sweep runs at
+`Probe`, an f64 with a recorder. So the nine are **structural at the
+recording scalar, not geometry that regressed** — and they now reproduce
+bit-identically across FOUR populations spanning 3,782,215 to 3,959,179
+samples. The eight rule-2 at 1e-12 are a different thing entirely: a
+predicate minted three days earlier in another PR.
+
+**The gate stays red, and that is the correct state.** It is red because
+the kernel is; this unit was not entitled to green it. Three rows filed
+on the owning slates (`chart` P1, `germ` P2, `instr` P3), and the chart
+row now carries the mechanism, both call sites, and the reading the
+orchestrator had missed: the audit's "poison lets it stand" is probably
+CORRECT at that site, and what is wrong is posing a check that is
+structurally unanswerable at the recording scalar. The row does not
+decide between the three readings, which is right — that is not ours.
+
+**Two corrections that landed on this desk, recorded because they are
+the lesson.** The orchestrator handed down a hypothesis (ENCL's PR 3418
+changed what every classify outcome records) marked as one, and told the
+lane to test rather than inherit it; the lane refuted it on four grounds.
+The single review then found **one of those four grounds invalid** — a
+falling sample count does not bear against nine newly-recorded rows,
+since nine additions inside a net −2,496 over 1.26M is consistent — and
+that the orchestrator had repeated that ground upward as decisive. The
+refutation stands on the other three. The review also caught that §2's
+inference was a non-sequitur that the mechanism happened to rescue, and
+that the refutation's file sweep had missed `chart_stretch_sup` in a
+file PR 3418 does touch; it ran that check itself and the conclusion
+held.
+
+**A landing rule of ours was ungrounded and is withdrawn.** The review
+flagged a commit carrying `Co-Authored-By` against the spec's own
+landing rule. The commit was the orchestrator's — and the rule has **no
+basis anywhere**: not `CLAUDE.md`, not `memories/`, not
+`docs/prompts/`, not `work/README.md`, and most recent commits on main
+carry the trailer. It was a habit propagated through spec after spec,
+in conflict with the harness's own attribution instruction. Dropped from
+every future spec; `no CI-Config:` stands, that configuration path having
+been deliberately deleted, and so does `no empty commits`.
+
+**Worth noting what the review cost and bought.** It wrote no code, ran
+no build and took no build slot — pure reading against three job logs —
+and it overturned the causal story, corrected two inferences, and found
+a standing defect in this program's own spec template. The unit's
+conclusion survived intact.
+## Back after eight days; the protocol moved under us (2026-09-29)
+
+Read on return, because the tracker and the experiment machinery both
+changed while PROPS was parked:
+
+- **The model A/B experiment is SUSPENDED** (2026-09-23,
+  `memories/experiments.md`). The 2026-09-20 HOLD entry above is
+  therefore **discharged, not lifted** — there is no longer an
+  experiment to hold for. `ab_band: 2400-2499` in `program.md` is
+  vestigial and stays until someone has a reason to touch it.
+- **Reviews are their own live experiment now**: dual OPUS concordance,
+  `docs/DUAL-REVIEW-PROTOCOL.md`, read before dispatching a dual. Two
+  Opus reviewers, same frozen head, fix pass off the adjudicated union.
+  Nothing we dispatch is exposed to the fable credit limit any more —
+  only design FORKS are, since those still want one Opus and one Fable
+  designer.
+- **Review tiers choose the treatment** (`memories/orchestration-model.md`):
+  orchestrator's read, single review, or dual — named with its reason
+  at dispatch so no call is invisible. Both specs below do that.
+- **Tracker**: `cost` is `E|M|H` and effort only (`D` legacy, refused by
+  lint on new rows); `design: true` is a separate flag; and
+  `docs/DOC-LEDGER.md` is now a directory of notes under
+  `docs/doc-ledger/`, which changes how our spec deletions are recorded.
+- **`docs/prompts/implementer-discipline.md` was rewritten.** The clause
+  that lands on this desk: **a red nightly is a red main, and the
+  orchestrator owns it.**
+
+## Two units dispatched (2026-09-29)
+
+**k-lint baseline** (`props/klint-baseline`, M, **single review /
+FULL**) — the red main. `k-lint (dev-probe)` failed the 2026-09-29
+nightly with 35 flags: 27 rule-1 at **nine per eps row**, which is
+eps-INDEPENDENT and so not threshold-crowding at all, plus 8 rule-2 at
+1e-12 only. The other half of the story is that the instrument had gone
+dark — `dev-probe` moved off the per-PR gate at `49d5b2aee` on
+2026-09-28, nightlies 09-22..28 ran zero k-lint jobs, and no main commit
+in 09-25..28 carries a dev-probe check run. So the unit measures before
+it concludes: date the darkness, separate a population change from a
+distribution change, name the nine and the eight by predicate and site,
+and only then pick a recourse from the lint's own list. The single
+review is FULL rather than style because the small mechanical change
+goes one of two ways and picking wrong either hides a defect or
+re-baselines over one.
+
+A hypothesis was handed down with the item and explicitly marked as one:
+ENCL's PR 3418 made every classify outcome carry a reporting margin,
+which would put newly-visible `Invalid` margins into rule 1
+eps-independently with no geometry having moved. The lane is told to
+test it, not inherit it — a hypothesis an orchestrator hands down and a
+lane confirms without evidence is worse than no hypothesis.
+
+**convex-insert** (`props/convex-insert`, H, **DUAL review**) — the
+fifth site of `f64-refinement-inside-an-enclosure-has-five-more-sites`,
+and the fix **two ENCL rows are parked on**, one of them P0. The site is
+already SOUND; what it gives away is width, because the lerp form reads
+`coeffs[i-1]` twice so interval dust enters with coefficient `1 + α` and
+compounds per insertion — `p` deep per interior knot through
+`to_bezier_spans`. The fix is the convex form with `β` derived from the
+KNOTS rather than as `1 − α`, and the spec says why: `1 − α` inherits
+α's rounding and routes the soundness argument through a subtraction,
+and a lane that makes the two sum to exactly one has misunderstood the
+invariant.
+
+Dual because the failure mode is a bound that is too TIGHT — an unsound
+certificate in a kernel whose whole job is certified enclosure, and the
+kind of error that reads as an improvement. So the spec demands
+containment against exact rational arithmetic and says in terms that a
+narrower bound is the expected outcome and therefore not evidence of
+correctness.

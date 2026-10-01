@@ -53,10 +53,8 @@ struct Cube {
 /// Builds the unit cube, asserting tier-1 validity after EVERY operator
 /// (explicitly — not relying on the operators' debug postconditions).
 fn build_cube(body: &mut Body<f64>) -> Cube {
-    let pt = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
-
     // (a) Seed: lone vertex A in the face that will become the top.
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     assert_eq!(validate(body), Ok(()));
 
     // (b) The bottom chain A→B→C→D: one segment, then two struts, each
@@ -67,7 +65,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            pt(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
             Tol::witness(),
         )
         .unwrap();
@@ -78,7 +76,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
                 he1: e_ab.he_minus,
                 he2: e_ab.he_minus,
             },
-            pt(1.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
             Tol::witness(),
         )
         .unwrap();
@@ -89,7 +87,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
                 he1: e_bc.he_minus,
                 he2: e_bc.he_minus,
             },
-            pt(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
             Tol::witness(),
         )
         .unwrap();
@@ -129,7 +127,7 @@ fn build_cube(body: &mut Body<f64>) -> Cube {
         let created = body
             .mev_line(
                 MevSite::Fan { he1: at, he2: at },
-                pt(x, y, 1.0),
+                Point3::new(x, y, 1.0),
                 Tol::witness(),
             )
             .unwrap();

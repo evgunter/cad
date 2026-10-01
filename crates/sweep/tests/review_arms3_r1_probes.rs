@@ -397,17 +397,11 @@ fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
     // Find a valence-4 vertex and check its structure is the genuine
     // kind: four edges, four DISTINCT support pairs, none co-surface.
     let mut found = None;
-    for (vk, vt) in body.vertices() {
-        let Some(he) = vt.emanating else { continue };
-        let Some(orbit) = body.vertex_orbit(he) else {
+    for (vk, _) in body.vertices() {
+        let Some(mut edges) = body.edges_of_vertex(vk) else {
             continue;
         };
-        let mut edges: Vec<EdgeKey> = orbit
-            .iter()
-            .map(|h| body.get_half_edge(*h).unwrap().edge)
-            .collect();
         edges.sort_unstable();
-        edges.dedup();
         if edges.len() == 4 {
             found = Some((vk, edges));
             break;
@@ -436,6 +430,8 @@ fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
 
 /// A barrel whose wall is a TORUS (an off-axis profile arc revolved),
 /// capped by plane annuli. Its rims are torus×plane — no arm.
+/// NOT `common::torus_walls::torus_barrel`: an annular barrel of another
+/// size, this suite's own.
 fn torus_barrel() -> Body<f64> {
     let c = Point2::new(0.9 - 0.0325f64.sqrt(), 0.3);
     let lo = Point2::new(0.9, 0.0);

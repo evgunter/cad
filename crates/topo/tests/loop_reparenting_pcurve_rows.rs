@@ -5,9 +5,11 @@
 //! half-edge. `kfmrh`, `mfkrh` and `ring_move` move a whole LOOP from
 //! one face to another, which changes which chart every row on that
 //! loop is about while changing no key. Each row below is one door in
-//! one direction, and the claim under all of them is one sentence: a
-//! moved loop keeps its rows exactly where the two faces are on one
-//! surface key, and keeps none where they are not.
+//! one direction, and the claim under all of them is two sentences: a
+//! moved loop keeps its rows where the two faces are on one chart, and
+//! keeps none where they are not; and a destination that was complete
+//! is complete after the door, the moved loop walked in its own chart
+//! (the site mint), except on a spline chart, which keeps the drop.
 //!
 //! **The subject is the class, not the three loop doors alone.** After
 //! them come the two doors that move a RUN of half-edges between two
@@ -16,7 +18,13 @@
 //! place: no loop moves and no key changes, and every row the face
 //! stores is a curve stated in the chart the face LEFT. Each is rowed
 //! on this same fixture, and each takes the same answer — carried
-//! across one chart, dropped across two.
+//! across one chart, dropped across two, and re-minted where the
+//! destination was complete (the surface setter re-charts the face
+//! whole, so it drops and does not re-mint). The last three headings row
+//! the one tie between two keys the doors read (a shared payload
+//! `Arc`), the `sense` a minted or re-charted face takes on the same
+//! chart answer (D1), and the stamp door whose assertion keeps a
+//! recipe stamp to one description.
 //!
 //! The fixture is a minted cylinder-wall sheet split at mid-height into
 //! two curved faces, with the sheet's other side put on a PLANE: three
@@ -32,7 +40,7 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::pcurves::validate_pcurves;
-use topo::{Body, CurveGeom, FaceKey, FaceSurface, LoopKey, MefSite, MevSite, PcurveMintError};
+use topo::{Body, FaceKey, FaceSurface, LoopKey, MefSite, MevSite, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -47,6 +55,8 @@ const U1: f64 = 1.4;
 const V0: f64 = -0.5;
 const VM: f64 = 0.0;
 const V1: f64 = 0.7;
+/// The ruling `mef`'s rows split the lower panel along.
+const UM: f64 = 0.8;
 
 fn axis() -> Vec3<f64> {
     Vec3::unit_z()
@@ -76,9 +86,8 @@ fn other_cylinder() -> Surface<f64> {
     }
 }
 
-/// One recipe source. Two keys carrying the same one are two spellings
-/// of one description (N6), which is how a body records that a second
-/// key is the same chart.
+/// One recipe source. Stamped on two keys it declares them one
+/// surface — the merge door's question — and ties no row to either.
 fn one_recipe() -> topo::GeomSource {
     topo::GeomSource::minted(7, 0)
 }
@@ -146,9 +155,15 @@ fn sheet() -> Sheet {
         at(U0, VM),
     );
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     let cyl = body
-        .set_face_surface(seed.face, FaceSurface::New(cylinder()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     let e_ab = body
         .mev(
@@ -215,7 +230,10 @@ fn sheet() -> Sheet {
                 he2: e_ab.he_plus,
             },
             EdgeCurveSpec::line_between(f, a),
-            FaceSurface::New(plane),
+            FaceSurface::New {
+                surface: plane,
+                sense: true,
+            },
             tol(),
         )
         .unwrap();
@@ -229,7 +247,10 @@ fn sheet() -> Sheet {
                 he2: closing.he_plus,
             },
             rim_back(VM, cyl),
-            FaceSurface::Shared(cyl),
+            FaceSurface::Shared {
+                key: cyl,
+                sense: true,
+            },
             tol(),
         )
         .unwrap()
@@ -282,14 +303,6 @@ fn ring_of(body: &Body<f64>, face: FaceKey) -> LoopKey {
     let rings = &body.get_face(face).unwrap().rings;
     assert_eq!(rings.len(), 1, "expected exactly one ring");
     rings[0]
-}
-
-/// How many findings report a half-edge carrying no row.
-fn missing(findings: &[PcurveMintError]) -> usize {
-    findings
-        .iter()
-        .filter(|f| matches!(f, PcurveMintError::MissingCache { .. }))
-        .count()
 }
 
 /// The two curved panels carry a complete row set and the pcurve pass
@@ -356,16 +369,18 @@ fn kfmrh_onto_a_chart_that_mints_nothing_drops_the_demoted_loops_rows() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-/// The other direction is loud and stays loud: the demoted loop brought
-/// no row, so nothing is dropped, and the curved face it joined is
-/// half-minted until a caller re-mints.
+/// The other direction: the demoted loop brings no row onto a minted
+/// curved face, and the door re-mints that face with the loop walked in
+/// the face's own chart. Its six halves lie on the cylinder (two rim
+/// arcs and four meridian lines), so the face is complete, with the
+/// rows the minting pass derives for it.
 #[test]
-fn kfmrh_onto_a_curved_face_leaves_it_incomplete_and_tier_three_says_so() {
+fn kfmrh_onto_a_minted_curved_face_mints_the_demoted_loop_in_its_chart() {
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.plane).unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (4, 6));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (6, 6));
+    s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (10, 0));
+    assert_rows_are_the_pass(&s.body, s.low);
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
 /// One surface key on both faces is the case where nothing a row says
@@ -392,18 +407,172 @@ fn ring_move_onto_a_chart_that_mints_nothing_drops_the_rings_rows() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-/// A rowless ring moved onto a minted curved face has nothing to drop
-/// and leaves that face incomplete, which tier 3 reports per half-edge.
+/// `face` alone onto a fresh key holding `surface`, stating `sense`,
+/// through the describing door with the stored description of every
+/// edge the move strands restated on it. Returns the new key.
+fn on_a_key_of_its_own(
+    body: &mut Body<f64>,
+    face: FaceKey,
+    surface: Surface<f64>,
+    sense: bool,
+) -> Result<topo::SurfaceKey, topo::EulerOpError> {
+    let charts = vec![topo::Rechart::new(surface, face, sense)];
+    let specs = body.carried_redescriptions(&charts)?;
+    let keys = body.set_face_surfaces_describing(charts, &specs, tol())?;
+    Ok(keys[0])
+}
+
+/// A ring whose rows do not stand on the minted curved face it moves
+/// onto is walked in that face's chart, whichever way they fail to
+/// stand: stated in another chart (the upper panel re-charted onto
+/// [`rotated_cylinder`] and minted there), or missing (the ring's rows
+/// detached, the two panels on one key). Either way the upper panel is
+/// complete, with the rows the minting pass derives for it, and the
+/// lower panel keeps its own four.
 #[test]
-fn ring_move_onto_a_curved_face_leaves_it_incomplete() {
+fn ring_move_onto_a_minted_curved_face_mints_the_ring_in_its_chart() {
+    for rowless in [false, true] {
+        let mut s = sheet();
+        if !rowless {
+            on_a_key_of_its_own(&mut s.body, s.up, rotated_cylinder(), true).unwrap();
+            topo::mint_pcurves_of(&mut s.body, &[s.up], tol()).unwrap();
+        }
+        s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
+        let ring = ring_of(&s.body, s.low);
+        if rowless {
+            for he in loop_halves(&s.body, ring) {
+                s.body.detach_pcurve(he);
+            }
+        }
+        assert_eq!(rows_of(&s.body, s.up), (4, 0), "rowless: {rowless}");
+        s.body.ring_move_minting(ring, s.up, tol()).unwrap();
+        assert_eq!(rows_of(&s.body, s.up), (10, 0), "rowless: {rowless}");
+        assert_eq!(rows_of(&s.body, s.low), (4, 0), "rowless: {rowless}");
+        assert_rows_are_the_pass(&s.body, s.up);
+        assert_eq!(
+            validate_pcurves(&s.body, band()),
+            vec![],
+            "rowless: {rowless}"
+        );
+    }
+}
+
+/// **The keys-only doors refuse a re-mint they owe, and touch
+/// nothing.** Each door below moves a loop or run onto a complete
+/// curved face where the moved rows do not stand — rowless, or stated
+/// in another chart — so the face would leave half-minted, and a
+/// keys-only door holds no band to re-mint it. Each refuses
+/// `PcurveMint { KeysOnly }` naming that face, before it mutates: the
+/// body, arenas and pcurve map alike, is as it was. Its `_minting`
+/// twin makes the same move whole (the completion rows above and
+/// below).
+#[test]
+fn the_keys_only_doors_refuse_a_re_mint_they_owe_and_touch_nothing() {
+    let refuses = |body: &mut Body<f64>,
+                   face: FaceKey,
+                   door: &str,
+                   op: &dyn Fn(&mut Body<f64>) -> topo::EulerOpError| {
+        let before = format!("{body:?}");
+        assert_eq!(
+            op(body),
+            topo::EulerOpError::PcurveMint {
+                face,
+                refusal: topo::pcurves::SiteRowRefusal::KeysOnly,
+            },
+            "{door}"
+        );
+        assert_eq!(format!("{body:?}"), before, "{door}: the body is untouched");
+    };
+
+    // `kfmrh`: the plane's rowless loop onto the minted lower panel.
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.plane).unwrap();
+    let (low, plane) = (s.low, s.plane);
+    refuses(&mut s.body, low, "kfmrh", &|b| {
+        b.kfmrh(low, plane).unwrap_err()
+    });
+
+    // `ring_move`: a rowless ring onto the minted upper panel.
+    let mut s = sheet();
+    s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.up).unwrap();
-    assert_eq!(rows_of(&s.body, s.up), (4, 6));
-    assert_eq!(rows_of(&s.body, s.low), (4, 0));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (6, 6));
+    for he in loop_halves(&s.body, ring) {
+        s.body.detach_pcurve(he);
+    }
+    let up = s.up;
+    refuses(&mut s.body, up, "ring_move", &|b| {
+        b.ring_move(ring, up).unwrap_err()
+    });
+
+    // `mfkrh`: a minted ring promoted onto a second key — another chart
+    // — out of a complete face.
+    let mut s = sheet();
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    let low = s.low;
+    refuses(&mut s.body, low, "mfkrh", &|b| {
+        b.mfkrh(
+            ring,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
+        .unwrap_err()
+    });
+
+    // `kef`: the lower panel killed into the upper across their shared
+    // rim, one remnant row detached.
+    let mut s = sheet();
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let gap = s.body.get_half_edge(he).unwrap().next;
+    s.body.detach_pcurve(gap);
+    let up = s.up;
+    refuses(&mut s.body, up, "kef", &|b| b.kef(he).unwrap_err());
+}
+
+/// **The keys-only door refuses exactly where its twin writes.** A
+/// null edge in `kef`'s remnant holds the surviving loop open, so the
+/// site mint cannot walk it and its `_minting` twin writes nothing —
+/// on one chart, where the remnant's rows carry, and across two, where
+/// they drop. So `kef` owes nothing and proceeds, and the two doors
+/// leave one body. A keys-only refusal that read the loop's rewiring
+/// without asking whether a null edge holds it open would refuse here.
+///
+/// Adopted from the review of the loop-reparenting doors' re-mint (its
+/// `reviewer_c1x_null_edge_in_moved_run` probe).
+#[test]
+fn a_remnant_held_open_by_a_null_edge_is_owed_nothing_by_either_kef() {
+    for recharted in [false, true] {
+        let mut s = sheet();
+        let up = s.up;
+        if recharted {
+            on_a_key_of_its_own(&mut s.body, up, rotated_cylinder(), true).unwrap();
+            topo::mint_pcurves_of(&mut s.body, &[up], tol()).unwrap();
+        }
+        let he = he_at(&s.body, s.low, at(U1, VM));
+        let h0 = *cycle_of(&s.body, s.low).iter().find(|&&h| h != he).unwrap();
+        s.body
+            .mev_null(
+                MevSite::Fan { he1: h0, he2: h0 },
+                topo::NewVertexSide::Above,
+            )
+            .unwrap();
+        let (up_rows, _) = rows_of(&s.body, up);
+        assert!(
+            up_rows > 0,
+            "recharted {recharted}: the survivor stores rows"
+        );
+        let (body, _) = both_doors(
+            &format!("kef, recharted {recharted}"),
+            &s.body,
+            |b| b.kef(he).map(|_| ()),
+            |b| b.kef_minting(he, tol()).map(|_| ()),
+        );
+        assert!(
+            rows_of(&body, up).1 > 0,
+            "recharted {recharted}: the survivor keeps the gaps its null edge holds open"
+        );
+    }
 }
 
 /// A ring moved back onto its own face moves nothing and keeps every
@@ -422,25 +591,31 @@ fn ring_move_to_its_own_face_keeps_every_row() {
 /// nothing a row says changed, so nothing is dropped. The second
 /// cylinder face is promoted out of the sheet's planar side onto the
 /// cylinder's own key, which is how this fixture holds two live curved
-/// faces beside a ring. The face that receives the ring is left
-/// incomplete, but by its OWN promoted loop, which the minting pass
-/// never ran on — the carried rows are all four of the rows tier 3
-/// finds present.
+/// faces beside a ring. That promoted loop was walked in the cylinder
+/// chart when `kfmrh` demoted it into the minted upper panel, so the
+/// face it bounds is complete, and so is the face the ring joins.
 #[test]
 fn ring_move_between_faces_on_one_surface_carries_every_row() {
     let mut s = sheet();
     s.body.kfmrh(s.up, s.low).unwrap();
-    s.body.kfmrh(s.up, s.plane).unwrap();
+    s.body.kfmrh_minting(s.up, s.plane, tol()).unwrap();
     let rings = s.body.get_face(s.up).unwrap().rings.clone();
     assert_eq!(rings.len(), 2, "the rows ring, then the rowless one");
     let sibling = s.body.mfkrh(rings[1], FaceSurface::Inherit).unwrap().face;
     assert_eq!(rows_of(&s.body, s.up), (8, 0));
-    assert_eq!(rows_of(&s.body, sibling), (0, 6));
+    assert_eq!(rows_of(&s.body, sibling), (6, 0));
+    let before = rows_deep(&s.body, s.up);
     s.body.ring_move(rings[0], sibling).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
-    assert_eq!(rows_of(&s.body, sibling), (4, 6));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (6, 6));
+    assert_eq!(rows_of(&s.body, sibling), (10, 0));
+    let after = rows_deep(&s.body, sibling);
+    for row in before
+        .iter()
+        .filter(|row| !rows_deep(&s.body, s.up).contains(row))
+    {
+        assert!(after.contains(row), "the ring's row did not carry: {row}");
+    }
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
 /// `mfkrh` is the third loop re-parenting, and its default sugar always
@@ -452,7 +627,7 @@ fn mfkrh_plug_drops_the_promoted_rings_rows() {
     let mut s = sheet();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    let made = s.body.mfkrh_plug(ring).unwrap();
+    let made = s.body.mfkrh_plug(ring, true).unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -494,7 +669,17 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
         radius: 2.0,
         u_ref: u_ref(),
     };
-    let made = s.body.mfkrh(ring, FaceSurface::New(other)).unwrap();
+    let made = s
+        .body
+        .mfkrh_minting(
+            ring,
+            FaceSurface::New {
+                surface: other,
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
@@ -520,6 +705,143 @@ fn rows_deep(body: &Body<f64>, face: FaceKey) -> Vec<String> {
         }
     }
     out
+}
+
+/// `face`'s rows are the rows [`topo::mint_pcurves_of`] derives for it
+/// on the body as it stands, interval, image and certificate alike —
+/// what a door that re-mints a face promises.
+fn assert_rows_are_the_pass(body: &Body<f64>, face: FaceKey) {
+    let mut minted = body.clone();
+    topo::mint_pcurves_of(&mut minted, &[face], tol()).unwrap();
+    assert_eq!(
+        rows_deep(body, face),
+        rows_deep(&minted, face),
+        "the door's rows are not the rows the minting pass derives"
+    );
+}
+
+/// The half-edges of `r#loop`.
+fn loop_halves(body: &Body<f64>, r#loop: LoopKey) -> Vec<topo::HalfEdgeKey> {
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(r#loop).unwrap().boundary else {
+        panic!("the fixture's loops are cycles")
+    };
+    body.loop_cycle(first).unwrap()
+}
+
+/// Runs a keys-only door and its `_minting` twin on two clones of
+/// `body`, asserts they return the same answer and leave the same body,
+/// arenas and pcurve map alike, and hands back the keys-only door's.
+fn both_doors<R: core::fmt::Debug>(
+    door: &str,
+    body: &Body<f64>,
+    keys_only: impl FnOnce(&mut Body<f64>) -> R,
+    twin: impl FnOnce(&mut Body<f64>) -> R,
+) -> (Body<f64>, R) {
+    let (mut a, mut b) = (body.clone(), body.clone());
+    let (ra, rb) = (keys_only(&mut a), twin(&mut b));
+    assert_eq!(
+        format!("{ra:?}"),
+        format!("{rb:?}"),
+        "{door}: the two doors answer alike"
+    );
+    assert_eq!(
+        format!("{a:?}"),
+        format!("{b:?}"),
+        "{door}: the two doors leave one body"
+    );
+    (a, ra)
+}
+
+/// Swaps the row of `halves[0]` for `halves[1]`'s, so a door that
+/// re-derived the loop would restore it; returns the planted row.
+fn plant_swap(body: &mut Body<f64>, halves: &[topo::HalfEdgeKey]) -> String {
+    let neighbour = body.pcurve(halves[1]).unwrap().clone();
+    body.attach_pcurve(halves[0], neighbour.clone());
+    format!("{neighbour:?}")
+}
+
+/// **Where the moved rows stand, the door moves them and derives
+/// nothing.** Across one key with every moved half carrying a row, the
+/// rows travel as found: one moved row is swapped for its neighbour's
+/// before the move, so a door that re-derived the loop would restore
+/// it, and the carried map still holds the swap. Each door that moves a
+/// loop or run is run keys-only and as its `_minting` twin, which carry
+/// alike: nothing is owed, so the two are one door.
+#[test]
+fn a_move_whose_rows_stand_carries_them_as_found() {
+    let carried = |door: &str, body: &Body<f64>, he: topo::HalfEdgeKey, planted: &str| {
+        assert_eq!(
+            format!("{:?}", body.pcurve(he).unwrap()),
+            planted,
+            "{door}: the door re-derived a row that stood"
+        );
+    };
+
+    // `kfmrh`: the lower panel's loop demoted into the upper panel.
+    let mut s = sheet();
+    let halves = cycle_of(&s.body, s.low);
+    let planted = plant_swap(&mut s.body, &halves);
+    let (up, low) = (s.up, s.low);
+    let (body, _) = both_doors(
+        "kfmrh",
+        &s.body,
+        |b| b.kfmrh(up, low).map(|_| ()),
+        |b| b.kfmrh_minting(up, low, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, up), (8, 0), "kfmrh");
+    carried("kfmrh", &body, halves[0], &planted);
+
+    // `kef`: the lower panel killed into the upper across their shared
+    // rim, its remnant spliced into the upper panel's loop.
+    let mut s = sheet();
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let remnant: Vec<_> = s.body.loop_cycle(he).unwrap().into_iter().skip(1).collect();
+    let planted = plant_swap(&mut s.body, &remnant);
+    let up = s.up;
+    let (body, _) = both_doors(
+        "kef",
+        &s.body,
+        |b| b.kef(he).map(|_| ()),
+        |b| b.kef_minting(he, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, up), (6, 0), "kef");
+    carried("kef", &body, remnant[0], &planted);
+
+    // `ring_move`: the demoted ring moved on to a sibling face on the
+    // cylinder's key (as `ring_move_between_faces_on_one_surface_…`).
+    let mut s = sheet();
+    s.body.kfmrh(s.up, s.low).unwrap();
+    s.body.kfmrh_minting(s.up, s.plane, tol()).unwrap();
+    let rings = s.body.get_face(s.up).unwrap().rings.clone();
+    let sibling = s.body.mfkrh(rings[1], FaceSurface::Inherit).unwrap().face;
+    let ring_halves = loop_halves(&s.body, rings[0]);
+    let planted = plant_swap(&mut s.body, &ring_halves);
+    let (body, _) = both_doors(
+        "ring_move",
+        &s.body,
+        |b| b.ring_move(rings[0], sibling),
+        |b| b.ring_move_minting(rings[0], sibling, tol()),
+    );
+    assert_eq!(rows_of(&body, sibling), (10, 0), "ring_move");
+    carried("ring_move", &body, ring_halves[0], &planted);
+
+    // `mfkrh`: the demoted ring promoted onto the chart it is on.
+    let mut s = sheet();
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    let ring_halves = loop_halves(&s.body, ring);
+    let planted = plant_swap(&mut s.body, &ring_halves);
+    let (body, made) = both_doors(
+        "mfkrh",
+        &s.body,
+        |b| b.mfkrh(ring, FaceSurface::Inherit).map(|made| made.face),
+        |b| {
+            b.mfkrh_minting(ring, FaceSurface::Inherit, tol())
+                .map(|made| made.face)
+        },
+    );
+    assert_eq!(rows_of(&body, made.unwrap()), (4, 0), "mfkrh");
+    carried("mfkrh", &body, ring_halves[0], &planted);
 }
 
 /// A carry across one surface key moves nothing: the rows on the far
@@ -570,10 +892,11 @@ fn a_carried_row_is_the_row_the_minting_pass_derives() {
 }
 
 /// And the other side of the trade: what a drop gives up is a re-mint
-/// and nothing else. Each move below dropped every row it moved; the
-/// pass makes the body whole, on the destination's own chart — none
-/// on a planar face, which is that pass's posture, and the full set on
-/// a curved one.
+/// and nothing else. The first two moves below dropped every row they
+/// moved, and the pass makes the body whole on the destination's own
+/// chart — none on a planar face, which is that pass's posture. The
+/// third left its curved destination whole already, and the pass
+/// derives the same set.
 #[test]
 fn the_minting_pass_restores_what_each_move_left_the_caller() {
     // `kfmrh` onto the plane: there is nothing to restore, and the
@@ -595,14 +918,16 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 
-    // `ring_move` onto a curved face left it incomplete; the pass
-    // mints the ring's rows on the chart it is now on.
+    // `ring_move` onto a minted curved face leaves it complete; the
+    // pass mints the same rows on the chart it is on.
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.plane).unwrap();
+    s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
     let ring = ring_of(&s.body, s.low);
     s.body.ring_move(ring, s.up).unwrap();
+    let moved = rows_deep(&s.body, s.up);
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (10, 0));
+    assert_eq!(rows_deep(&s.body, s.up), moved);
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
@@ -610,45 +935,65 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
 // Two keys, one surface: which of them is a chart CHANGE.
 // ---------------------------------------------------------------
 
-/// **A second key the body records as the same description carries
-/// every row** (`kfmrh`). Splitting the sheet's two curved panels onto
-/// two keys changes no row's meaning — both keys hold the cylinder —
-/// and the rows still certify. So when the loop moves between them the
-/// door carries them: what decides is the CHART, not the key, and the
-/// body says the two keys are one chart by carrying one
-/// [`topo::GeomSource`] on both (the merge door's second hard rung).
+/// **Two keys holding one surface, with or without one recipe stamped
+/// on both, read as two charts** (`kfmrh`). The door asks whether the
+/// two keys hold one DESCRIPTION, and answers from identity alone — one
+/// key, or one shared payload `Arc`; a `GeomSource` stamp declares what
+/// the recipe intended and proves nothing about the values. So the
+/// moved loop's rows go, and the door walks the loop again in the
+/// destination's chart: what that costs is a walk, never a wrong row.
 #[test]
-fn kfmrh_onto_a_second_key_the_body_records_as_one_surface_carries_every_row() {
-    let mut s = sheet();
-    let cyl = s.body.get_face(s.low).unwrap().surface;
-    let second = s
-        .body
-        .set_face_surface(s.up, FaceSurface::New(cylinder()))
-        .unwrap();
-    assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
-    s.body.set_surface_source(cyl, one_recipe()).unwrap();
-    s.body.set_surface_source(second, one_recipe()).unwrap();
-    // The swap re-charted `up` before either key carried a source, so
-    // the setter read it as a chart change and dropped the face's rows;
-    // the pass is what puts them back, on the key the face is now on.
-    topo::mint_pcurves(&mut s.body, tol()).unwrap();
-    assert_eq!(rows_of(&s.body, s.up), (4, 0));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+fn two_keys_holding_one_surface_read_as_two_charts_whatever_recipe_they_carry() {
+    for stamped in [false, true] {
+        let mut s = sheet();
+        let cyl = s.body.get_face(s.low).unwrap().surface;
+        let second = on_a_key_of_its_own(&mut s.body, s.up, cylinder(), true).unwrap();
+        assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
+        if stamped {
+            s.body.set_surface_source(cyl, one_recipe()).unwrap();
+            s.body.set_surface_source(second, one_recipe()).unwrap();
+        }
+        // The setter reads the same two keys the same way and drops
+        // `up`'s rows; re-minting builds the body this row is about —
+        // one carrying rows on two keys that hold one surface.
+        topo::mint_pcurves(&mut s.body, tol()).unwrap();
+        assert_eq!(rows_of(&s.body, s.up), (4, 0), "stamped: {stamped}");
+        assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 
-    s.body.kfmrh(s.low, s.up).unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (8, 0));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+        let up_rows = rows_deep(&s.body, s.up);
+        s.body.kfmrh_minting(s.low, s.up, tol()).unwrap();
+        assert_eq!(rows_of(&s.body, s.low), (8, 0), "stamped: {stamped}");
+        assert_rows_are_the_pass(&s.body, s.low);
+        assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+        // Re-walked, not carried: the moved rows are the pass's on
+        // `low`'s key, and the keys were read as two charts.
+        let low_rows = rows_deep(&s.body, s.low);
+        assert!(
+            up_rows.iter().all(|row| low_rows.contains(row)),
+            "one surface on two keys derives the same rows (stamped: {stamped})"
+        );
+    }
 }
 
-/// The same through `mfkrh`: a ring promoted onto a second key that
-/// the body records as the same description keeps its rows.
+/// **`mfkrh`'s promoted face is minted in its own chart.** A ring
+/// promoted onto a second key that carries the old key's recipe loses
+/// its rows, which are about the old key, and the door walks the ring
+/// on the key the new face is on — its face promoted out of a complete
+/// one, so complete itself, with the rows the pass derives.
 #[test]
-fn mfkrh_onto_a_second_key_the_body_records_as_one_surface_carries_every_row() {
+fn mfkrh_onto_a_second_key_sharing_a_recipe_mints_the_promoted_face_in_its_chart() {
     let mut s = sheet();
     let cyl = s.body.get_face(s.low).unwrap().surface;
+    // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
     let second = s
         .body
-        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .set_face_surface_stranding_for_tests(
+            s.plane,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_ne!(second, cyl);
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
@@ -656,45 +1001,20 @@ fn mfkrh_onto_a_second_key_the_body_records_as_one_surface_carries_every_row() {
 
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    let made = s.body.mfkrh(ring, FaceSurface::Shared(second)).unwrap();
+    let made = s
+        .body
+        .mfkrh_minting(
+            ring,
+            FaceSurface::Shared {
+                key: second,
+                sense: true,
+            },
+            tol(),
+        )
+        .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (4, 0));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
-}
-
-/// **What the door cannot see, measured rather than asserted.** Two
-/// keys holding an equal surface with NO record tying them read as two
-/// charts, and the moved loop's rows go. The body was complete and
-/// correct before the move and is merely unminted after it — a
-/// re-mint, never a wrong row — which is the conservative direction of
-/// an identity channel that can be absent but never wrong. Deciding
-/// those two keys equal means reading the surfaces' scalars
-/// structurally, which needs a bound these doors do not carry:
-/// `work/origin/two-provenance-free-keys-holding-one-surface-read-as-two-charts`.
-#[test]
-fn two_keys_holding_one_surface_with_no_provenance_read_as_two_charts() {
-    let mut s = sheet();
-    let cyl = s.body.get_face(s.low).unwrap().surface;
-    let second = s
-        .body
-        .set_face_surface(s.up, FaceSurface::New(cylinder()))
-        .unwrap();
-    assert_ne!(second, cyl);
-    assert!(s.body.surface_source(cyl).is_none());
-    // The setter reads the same two keys the same way and drops `up`'s
-    // rows; re-minting is what builds the body this row is about — one
-    // carrying rows on two provenance-free keys.
-    topo::mint_pcurves(&mut s.body, tol()).unwrap();
-    assert_eq!(rows_of(&s.body, s.up), (4, 0));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
-
-    s.body.kfmrh(s.low, s.up).unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (4, 4));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (4, 4));
-
-    topo::mint_pcurves(&mut s.body, tol()).unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (8, 0));
+    assert_rows_are_the_pass(&s.body, made.face);
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
@@ -711,8 +1031,15 @@ fn two_keys_holding_one_surface_with_no_provenance_read_as_two_charts() {
 #[test]
 fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
+    // Lifts RechartUnvouched: the back on a rowless curved chart of its own is the row's premise.
     s.body
-        .set_face_surface(s.plane, FaceSurface::New(other_cylinder()))
+        .set_face_surface_stranding_for_tests(
+            s.plane,
+            FaceSurface::New {
+                surface: other_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 6));
 
@@ -726,8 +1053,15 @@ fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
 #[test]
 fn ring_move_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
+    // Lifts RechartUnvouched: the back on a rowless curved chart of its own is the row's premise.
     s.body
-        .set_face_surface(s.plane, FaceSurface::New(other_cylinder()))
+        .set_face_surface_stranding_for_tests(
+            s.plane,
+            FaceSurface::New {
+                surface: other_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
@@ -813,128 +1147,373 @@ fn he_at(body: &Body<f64>, face: FaceKey, p: Point3<f64>) -> topo::HalfEdgeKey {
     hit[0]
 }
 
-/// Splits the lower panel with a chord from `c` to `a`: the run
-/// `[a→b, b→c]` — two rim-and-meridian rows — moves into the new
-/// face's loop with the minted `c→a`, and the old face keeps `c→f`,
-/// `f→a` and the minted `a→c`.
-fn split_low(s: &mut Sheet, surface: FaceSurface<f64>) -> topo::MefCreated {
+/// Splits both rims of the lower panel at the ruling `UM` —
+/// `split_edge` carries their rows — and returns the `mef` site that
+/// closes that ruling: `he1` leaves the bottom split vertex `m1`
+/// (`m1→b`), `he2` the top one `m2` (`m2→f`), and the chord `m1→m2`
+/// is the ruling itself, a line ON the cylinder.
+fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurveSpec<f64>) {
     let (a, c) = (at(U0, V0), at(U1, VM));
-    let he1 = he_at(&s.body, s.low, a);
-    let he2 = he_at(&s.body, s.low, c);
+    let bottom = s.body.get_half_edge(he_at(&s.body, s.low, a)).unwrap().edge;
+    let mid = s.body.get_half_edge(he_at(&s.body, s.low, c)).unwrap().edge;
+    // `a→b` runs forward in `u`; the mid rim `c→f` is `rim_back`, whose
+    // parameter runs from `U1` down.
+    let m1 = s.body.split_edge(bottom, UM, tol()).unwrap();
+    let m2 = s.body.split_edge(mid, U1 - UM, tol()).unwrap();
+    let point = |v: topo::VertexKey| {
+        *s.body
+            .get_point(s.body.get_vertex(v).unwrap().point)
+            .unwrap()
+    };
+    let chord = EdgeCurveSpec::line_between(point(m1.vertex), point(m2.vertex));
+    (m1.he_plus, m2.he_plus, chord)
+}
+
+/// Splits the lower panel along the ruling at `UM` ([`ruling_site`]):
+/// the run `[m1→b, b→c, c→m2]` — three rim-and-meridian rows — moves
+/// into the new face's loop with the minted `m2→m1`, and the old face
+/// keeps `m2→f`, `f→a`, `a→m1` and the minted `m1→m2`.
+fn split_low(s: &mut Sheet, surface: FaceSurface<f64>) -> topo::MefCreated {
+    let (he1, he2, chord) = ruling_site(s);
     s.body
-        .mef(
-            MefSite::Chords { he1, he2 },
-            EdgeCurveSpec::line_between(a, c),
-            surface,
-            tol(),
-        )
+        .mef(MefSite::Chords { he1, he2 }, chord, surface, tol())
         .unwrap()
 }
 
+/// The rows of `face` other than those of `made`'s two new halves —
+/// the rows a `mef` found rather than minted.
+fn found_rows(body: &Body<f64>, face: FaceKey, made: &topo::MefCreated) -> Vec<String> {
+    let minted = [
+        format!("{:?} ", made.he_plus),
+        format!("{:?} ", made.he_minus),
+    ];
+    rows_deep(body, face)
+        .into_iter()
+        .filter(|row| !minted.iter().any(|m| row.starts_with(m.as_str())))
+        .collect()
+}
+
 /// **`mef` onto a chart that mints nothing drops the moved run's
-/// rows.** The red-first row: before the door disposed of them, the
-/// two cylinder rows on `[a→b, b→c]` rode onto the new PLANAR face and
-/// the pass, which skips a planar face, said nothing about them — the
-/// one finding was the OLD face's minted half, and it still is. What
-/// the head changes is that the planar face holds no row about a
-/// chart it is not on.
+/// rows.** Before the door disposed of them, the three cylinder rows
+/// on the run rode onto the new PLANAR face, and the pass, which skips
+/// a planar face, said nothing about them. The planar face holds no
+/// row about a chart it is not on; the old face, still on the
+/// cylinder, gets the row of the half this door mints into it, so the
+/// pass has nothing to say about either.
 #[test]
 fn mef_onto_a_chart_that_mints_nothing_drops_the_moved_runs_rows() {
     let mut s = sheet();
-    let made = split_low(&mut s, FaceSurface::New(flat()));
-    assert_eq!(rows_of(&s.body, made.face), (0, 3));
-    assert_eq!(rows_of(&s.body, s.low), (2, 1));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!(
-        findings,
-        vec![PcurveMintError::MissingCache {
-            half_edge: made.he_plus
-        }],
-        "the one finding is the old face's minted half, which this door leaves rowless"
+    let made = split_low(
+        &mut s,
+        FaceSurface::New {
+            surface: flat(),
+            sense: true,
+        },
     );
-    // The sheet's other curved panel is untouched.
-    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(rows_of(&s.body, made.face), (0, 4));
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert!(s.body.pcurve(made.he_plus).is_some());
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    // The sheet's other curved panel lost nothing: its mid rim was
+    // split beside the lower panel's, and carried its rows.
+    assert_eq!(rows_of(&s.body, s.up), (5, 0));
 }
 
 /// **The loud-to-silent trade, through this door.** Onto a rowless
-/// CURVED chart the two moved rows used to leave the new face
-/// half-minted — its own minted half rowless beside them — and the
-/// pass reported that half; dropped, the new face stores no row at
-/// all and reads as one the pass has not minted, about which it says
-/// nothing (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
-/// What the trade buys is the same as at the loop doors: the body no
-/// longer holds two curves stated in a chart the face is not on.
+/// CURVED chart the moved rows used to leave the new face half-minted —
+/// its own minted half rowless beside them — and the pass reported
+/// that half; dropped, the new face stores no row at all and reads as
+/// one the pass has not minted, about which it says nothing
+/// (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
+/// Its minted half stays rowless with them: an unminted face is the
+/// minting pass's. What the trade buys is the same as at the loop
+/// doors: the body no longer holds curves stated in a chart the face
+/// is not on.
 #[test]
 fn mef_onto_a_rowless_curved_chart_drops_the_runs_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
-    let made = split_low(&mut s, FaceSurface::New(other_cylinder()));
-    assert_eq!(rows_of(&s.body, made.face), (0, 3));
-    assert_eq!(rows_of(&s.body, s.low), (2, 1));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!(
-        findings,
-        vec![PcurveMintError::MissingCache {
-            half_edge: made.he_plus
-        }]
+    let made = split_low(
+        &mut s,
+        FaceSurface::New {
+            surface: other_cylinder(),
+            sense: true,
+        },
     );
+    assert_eq!(rows_of(&s.body, made.face), (0, 4));
+    assert!(s.body.pcurve(made.he_minus).is_none());
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
 /// **The controls: the same chart carries the run's rows byte for
 /// byte.** `Inherit` and a `Shared` naming the old key are the same
-/// chart by construction, so the two rows that move are the two rows
-/// that were there — interval, image and certificate — and the two
-/// that stay are the other two. **The carry is the `rows_deep`
-/// equality**; the `(2, 2)` reading beside it pins something else —
-/// the two findings are the minted halves, `he_plus` on the old face
-/// and `he_minus` on the new, which this door leaves rowless — and
-/// that count moves the day the operator mints its own halves' rows
-/// (`work/topo/half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`),
-/// without the carry having moved at all.
+/// chart by construction, so the three rows that move are the three
+/// rows that were there — interval, image and certificate — and the
+/// three that stay are the other three. **The carry is the
+/// `found_rows` equality.** Beside it, each face carries one row more:
+/// the minted half's, `he_plus` on the old face and `he_minus` on the
+/// new, which the operator mints at the site — so the pass reads both
+/// faces complete, where it used to report those two halves missing.
 #[test]
 fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
     let base = sheet();
-    let before = rows_deep(&base.body, base.low);
-    assert_eq!(before.len(), 4);
     let cyl = base.body.get_face(base.low).unwrap().surface;
 
-    for surface in [FaceSurface::Inherit, FaceSurface::Shared(cyl)] {
+    for (label, surface) in [
+        ("Inherit", FaceSurface::Inherit),
+        (
+            "Shared(own key)",
+            FaceSurface::Shared {
+                key: cyl,
+                sense: true,
+            },
+        ),
+    ] {
         let mut s = sheet();
-        let made = split_low(&mut s, surface);
-        let moved = rows_deep(&s.body, made.face);
-        let kept = rows_deep(&s.body, s.low);
-        assert_eq!((moved.len(), kept.len()), (2, 2));
+        let (he1, he2, chord) = ruling_site(&mut s);
+        let before = rows_deep(&s.body, s.low);
+        assert_eq!(before.len(), 6);
+        let made = s
+            .body
+            .mef(MefSite::Chords { he1, he2 }, chord, surface, tol())
+            .unwrap();
+        let moved = found_rows(&s.body, made.face, &made);
+        let kept = found_rows(&s.body, s.low, &made);
+        assert_eq!((moved.len(), kept.len()), (3, 3));
         let mut after: Vec<String> = moved.into_iter().chain(kept).collect();
         after.sort();
         let mut expected = before.clone();
         expected.sort();
         assert_eq!(after, expected, "a same-chart mef lost or restated a row");
-        let findings = validate_pcurves(&s.body, band());
-        assert_eq!((missing(&findings), findings.len()), (2, 2));
+        assert_eq!(
+            validate_pcurves(&s.body, band()),
+            vec![],
+            "the minted halves' rows, onto {label}"
+        );
+        assert_eq!(rows_of(&s.body, made.face), (4, 0));
+        assert_eq!(rows_of(&s.body, s.low), (4, 0));
     }
 }
 
-/// A second key the body records as one description is one chart, so
-/// a `Shared` naming it carries the run's rows too — decided by the
-/// chart, not the key.
+/// **A second key holding the same cylinder, with or without the old
+/// key's recipe stamped on both, is not the same chart to this door**:
+/// a `Shared` naming it drops the run's rows, which are about the old
+/// key. The operator walks the new face's loop — its new half and the
+/// run — in the chart of the key it names instead, as it would for any
+/// face carved out of a complete one: every row is derived there and
+/// none is carried, so no row claims a chart identity the body does not
+/// hold. Both pieces are complete, with the rows the pass derives.
 #[test]
-fn mef_onto_a_second_key_the_body_records_as_one_surface_carries_the_runs_rows() {
-    let mut s = sheet();
-    let cyl = s.body.get_face(s.low).unwrap().surface;
-    let before = rows_deep(&s.body, s.low);
-    let second = s
-        .body
-        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
-        .unwrap();
-    assert_ne!(second, cyl);
-    s.body.set_surface_source(cyl, one_recipe()).unwrap();
-    s.body.set_surface_source(second, one_recipe()).unwrap();
+fn mef_onto_a_second_key_holding_one_surface_mints_the_new_face_in_its_chart() {
+    for stamped in [false, true] {
+        let mut s = sheet();
+        let cyl = s.body.get_face(s.low).unwrap().surface;
+        // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
+        let second = s
+            .body
+            .set_face_surface_stranding_for_tests(
+                s.plane,
+                FaceSurface::New {
+                    surface: cylinder(),
+                    sense: true,
+                },
+            )
+            .unwrap();
+        assert_ne!(second, cyl);
+        if stamped {
+            s.body.set_surface_source(cyl, one_recipe()).unwrap();
+            s.body.set_surface_source(second, one_recipe()).unwrap();
+        }
 
-    let made = split_low(&mut s, FaceSurface::Shared(second));
-    let moved = rows_deep(&s.body, made.face);
-    assert_eq!(moved.len(), 2);
-    for row in &moved {
-        assert!(before.contains(row), "restated across one chart: {row}");
+        let made = split_low(
+            &mut s,
+            FaceSurface::Shared {
+                key: second,
+                sense: true,
+            },
+        );
+        assert_eq!(rows_of(&s.body, made.face), (4, 0), "stamped: {stamped}");
+        assert_eq!(rows_of(&s.body, s.low), (4, 0), "stamped: {stamped}");
+        assert_rows_are_the_pass(&s.body, made.face);
+        assert_eq!(
+            validate_pcurves(&s.body, band()),
+            vec![],
+            "stamped: {stamped}"
+        );
     }
+}
+
+/// **A chord off the chart leaves both pieces unminted, and the pass
+/// refuses the result.** A straight chord from `a` to `c` cuts through
+/// the cylinder rather than lying on it, so neither piece of the lower
+/// panel has a closed-form row set that certifies: the chord's image
+/// meets its loop on no branch of the chart. The operator does not
+/// refuse — it is called mid-surgery on states a later door finishes
+/// describing — and it does not return a panel half-minted either: both
+/// pieces store nothing. The loud reading is the pass's, run over the
+/// result.
+#[test]
+fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
+    let mut s = sheet();
+    let (a, c) = (at(U0, V0), at(U1, VM));
+    let he1 = he_at(&s.body, s.low, a);
+    let he2 = he_at(&s.body, s.low, c);
+    let made = s
+        .body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            EdgeCurveSpec::line_between(a, c),
+            FaceSurface::Inherit,
+            tol(),
+        )
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 3));
+    assert_eq!(rows_of(&s.body, made.face), (0, 3));
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    assert!(
+        topo::mint_pcurves(&mut s.body, tol()).is_err(),
+        "the pass refuses a panel whose chord leaves its chart"
+    );
+}
+
+/// Stamps the sheet's cylinder with `one_recipe()` and grafts in a
+/// PLANE carrying the same stamp; returns the plane's key. The stamp
+/// door's assertion refuses that pair, so it arrives the way the graft
+/// brings it — each stamp true in its own body.
+fn forge(s: &mut Sheet) -> topo::SurfaceKey {
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    s.body.set_surface_source(cyl, one_recipe()).unwrap();
+    let mut other = Body::<f64>::new();
+    let seed = other.mvfs(Point3::origin(), true).unwrap();
+    let flat_key = other
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: flat(),
+                sense: true,
+            },
+        )
+        .unwrap();
+    other.set_surface_source(flat_key, one_recipe()).unwrap();
+    topo::graft_disjoint(&mut s.body, &other, tol()).unwrap();
+    let forged = s
+        .body
+        .surfaces()
+        .map(|(k, _)| k)
+        .find(|&k| k != cyl && s.body.surface_source(k) == Some(&one_recipe()))
+        .expect("the graft carried the plane's stamp");
+    assert!(matches!(
+        s.body.get_surface(forged),
+        Some(Surface::Plane { .. })
+    ));
+    forged
+}
+
+/// **A forged recipe stamp moves no row.** The sheet's cylinder and a
+/// PLANE carry one `GeomSource` ([`forge`]), and `mef` with
+/// `Shared(plane)` sends the run onto the planar face. Its three cylinder
+/// rows do not come with it: a row carried there would be one no reader
+/// is ever warned about, since the pass skips a planar face.
+#[test]
+fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_onto_the_plane() {
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    let made = split_low(
+        &mut s,
+        FaceSurface::Shared {
+            key: forged,
+            sense: true,
+        },
+    );
+    assert_eq!(
+        rows_of(&s.body, made.face),
+        (0, 4),
+        "a cylinder row landed on the planar face"
+    );
+}
+
+/// The same forged pair at the other five doors: each moves the
+/// cylinder panel's rows onto the planar key and carries none of them.
+#[test]
+fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door() {
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    // Lifts both refusals: the forged key joining the cylinder to a plane is the row's premise.
+    s.body
+        .set_face_surface_stranding_for_tests(
+            s.low,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 4), "set_face_surface");
+
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    // Lifts RechartUnvouched: the forged key joining the cylinder to a plane is the row's premise.
+    s.body
+        .set_face_surface_stranding_for_tests(
+            s.plane,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
+        .unwrap();
+    s.body.kfmrh(s.plane, s.low).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 10), "kfmrh");
+
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    // Lifts RechartUnvouched: the forged key joining the cylinder to a plane is the row's premise.
+    s.body
+        .set_face_surface_stranding_for_tests(
+            s.plane,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
+        .unwrap();
+    s.body.ring_move(ring, s.plane).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 10), "ring_move");
+
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    let made = s
+        .body
+        .mfkrh(
+            ring,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
+        .unwrap();
+    assert_eq!(rows_of(&s.body, made.face), (0, 4), "mfkrh");
+
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    // Lifts RechartUnvouched: the forged key joining the cylinder to a plane is the row's premise.
+    s.body
+        .set_face_surface_stranding_for_tests(
+            s.plane,
+            FaceSurface::Shared {
+                key: forged,
+                sense: true,
+            },
+        )
+        .unwrap();
+    let he = he_at(&s.body, s.low, at(U0, V0));
+    s.body.kef(he).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 8), "kef");
 }
 
 /// **`kef` into a face on a chart that mints nothing drops the
@@ -967,8 +1546,15 @@ fn kef_into_a_face_on_a_chart_that_mints_nothing_drops_the_remnants_rows() {
 #[test]
 fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
+    // Lifts RechartUnvouched: the back on a rowless curved chart of its own is the row's premise.
     s.body
-        .set_face_surface(s.plane, FaceSurface::New(other_cylinder()))
+        .set_face_surface_stranding_for_tests(
+            s.plane,
+            FaceSurface::New {
+                surface: other_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     let he = he_at(&s.body, s.low, at(U0, V0));
     s.body.kef(he).unwrap();
@@ -1004,32 +1590,33 @@ fn kef_between_faces_on_one_chart_carries_the_remnants_rows_byte_for_byte() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-/// And onto a second key the body records as the same description:
-/// the remnant's rows are carried. **The carry is the `rows_deep`
-/// count** — the three rows that arrive are three that left. The
-/// `(5, 5)` reading beside it is the surviving face's own five
-/// halves, which this fixture re-charted without minting; it pins the
-/// fixture's state, not the door's.
+/// And into a face on a second key carrying the dying face's recipe:
+/// the remnant's rows drop, and the pass mints the whole face.
 #[test]
-fn kef_into_a_second_key_the_body_records_as_one_surface_carries_the_remnants_rows() {
+fn kef_into_a_second_key_sharing_a_recipe_drops_the_remnants_rows_until_the_pass() {
     let mut s = sheet();
     let cyl = s.body.get_face(s.low).unwrap().surface;
+    // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
     let second = s
         .body
-        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .set_face_surface_stranding_for_tests(
+            s.plane,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
     s.body.set_surface_source(second, one_recipe()).unwrap();
-    let before = rows_deep(&s.body, s.low);
 
     let he = he_at(&s.body, s.low, at(U0, V0));
     s.body.kef(he).unwrap();
-    assert_eq!(rows_of(&s.body, s.plane), (3, 5));
-    let after = rows_deep(&s.body, s.plane);
-    let carried = before.iter().filter(|row| after.contains(row)).count();
-    assert_eq!(carried, 3, "the remnant's three rows arrive verbatim");
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (5, 5));
+    assert_eq!(rows_of(&s.body, s.plane), (0, 8));
+
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (8, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
 /// The sheet's cylinder charted with a rotated `u_ref`: the same point
@@ -1045,75 +1632,31 @@ fn rotated_cylinder() -> Surface<f64> {
     }
 }
 
-/// **`kef` drops the remnant's rows and no others.** The surviving
+/// **`kef` walks its remnant in the survivor's chart.** The surviving
 /// face is MINTED on a different chart (the sheet's cylinder,
-/// re-charted), so the remnant's three rows go — and the surviving
-/// loop's own three, stated in its own chart already, stay byte for
-/// byte, with the pass naming exactly the three rowless arrivals. A
-/// `kef` that disposed of the destination LOOP's rows (the loop doors'
-/// walk) would read `(0, 6)` and be silent; no other row here reaches
-/// a minted survivor on another chart.
+/// re-charted), so the remnant's three rows, stated in the dying
+/// face's chart, go; the surviving loop — its own members from its new
+/// anchor, then the remnant — is walked in the survivor's chart, and
+/// the survivor is complete with the rows the pass derives, its own
+/// three among them unchanged. A `kef` that walked the loop from the
+/// wrong anchor, or left the remnant out, would not be the pass's.
 #[test]
-fn kef_into_a_minted_face_on_another_chart_keeps_the_survivors_own_rows() {
+fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
     let mut s = sheet();
-    s.body
-        .set_face_surface(s.up, FaceSurface::New(rotated_cylinder()))
-        .unwrap();
+    on_a_key_of_its_own(&mut s.body, s.up, rotated_cylinder(), true).unwrap();
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
     let up_before = rows_deep(&s.body, s.up);
 
     let he = he_at(&s.body, s.low, at(U1, VM));
-    let killed = s.body.kef(he).unwrap();
+    let killed = s.body.kef_minting(he, tol()).unwrap();
     assert_eq!(killed.killed_face, s.low);
-    assert_eq!(rows_of(&s.body, s.up), (3, 3));
-    for row in rows_deep(&s.body, s.up) {
-        assert!(
-            up_before.contains(&row),
-            "kef restated a surviving row: {row}"
-        );
-    }
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (3, 3));
-}
-
-/// **The chart is decided where both keys resolve.** The dying face is
-/// the ONLY holder of its key — the sheet's back, put on a second key
-/// tied to the panel's by one recipe and minted — so this kill reaps
-/// that key. The remnant still carries by provenance: a decision read
-/// after the orphan sweep would find the dying key gone, read two
-/// charts, and drop five rows that were right.
-#[test]
-fn kef_carries_the_remnant_by_provenance_when_it_reaps_the_dying_key() {
-    let mut s = sheet();
-    let cyl = s.body.get_face(s.low).unwrap().surface;
-    let second = s
-        .body
-        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
-        .unwrap();
-    s.body.set_surface_source(cyl, one_recipe()).unwrap();
-    s.body.set_surface_source(second, one_recipe()).unwrap();
-    topo::mint_pcurves(&mut s.body, tol()).unwrap();
-    assert_eq!(rows_of(&s.body, s.plane), (6, 0));
-    let back_before = rows_deep(&s.body, s.plane);
-
-    // The back's half of the edge `a-b` starts at `b`.
-    let he = he_at(&s.body, s.plane, at(U1, V0));
-    let killed = s.body.kef(he).unwrap();
-    assert_eq!(killed.killed_face, s.plane);
-    assert_eq!(
-        killed.killed_surface,
-        Some(second),
-        "the dying key had one holder, and this kill reaps it"
-    );
-    assert_eq!(rows_of(&s.body, s.low), (8, 0));
-    let low_after = rows_deep(&s.body, s.low);
-    let carried = back_before
-        .iter()
-        .filter(|row| low_after.contains(row))
-        .count();
-    assert_eq!(carried, 5, "every surviving back row arrives verbatim");
+    assert_eq!(rows_of(&s.body, s.up), (6, 0));
+    assert_rows_are_the_pass(&s.body, s.up);
+    let after = rows_deep(&s.body, s.up);
+    let kept = up_before.iter().filter(|row| after.contains(row)).count();
+    assert_eq!(kept, 3, "the survivor's own three rows stand: {after:#?}");
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
@@ -1145,8 +1688,15 @@ fn kef_carries_the_remnant_by_provenance_when_it_reaps_the_dying_key() {
 #[test]
 fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
     let mut s = sheet();
+    // Lifts both refusals: a minted cylinder face onto a plane its boundary misses is the row.
     s.body
-        .set_face_surface(s.low, FaceSurface::New(flat()))
+        .set_face_surface_stranding_for_tests(
+            s.low,
+            FaceSurface::New {
+                surface: flat(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.low), (0, 4));
     // Unchanged by the drop, and stated here as the silence it is.
@@ -1177,8 +1727,15 @@ fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
 #[test]
 fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them() {
     let mut s = sheet();
+    // Lifts both refusals: a face on a cylinder its boundary misses is the row.
     s.body
-        .set_face_surface(s.low, FaceSurface::New(other_cylinder()))
+        .set_face_surface_stranding_for_tests(
+            s.low,
+            FaceSurface::New {
+                surface: other_cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.low), (0, 4));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1209,8 +1766,15 @@ fn a_swap_drops_the_rows_of_every_loop_of_the_face() {
     assert_eq!(rows_of(&s.body, s.low), (8, 0));
     assert_eq!(s.body.get_face(s.low).unwrap().rings.len(), 1);
 
+    // Lifts both refusals: a face with a ring, onto a plane, is the row.
     s.body
-        .set_face_surface(s.low, FaceSurface::New(flat()))
+        .set_face_surface_stranding_for_tests(
+            s.low,
+            FaceSurface::New {
+                surface: flat(),
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.low), (0, 8));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1241,57 +1805,58 @@ fn a_swap_onto_the_faces_own_key_keeps_every_row_byte_for_byte() {
     let mut k = sheet();
     let cyl = k.body.get_face(k.low).unwrap().surface;
     k.body
-        .set_face_surface(k.low, FaceSurface::Shared(cyl))
+        .set_face_surface(
+            k.low,
+            FaceSurface::Shared {
+                key: cyl,
+                sense: true,
+            },
+        )
         .unwrap();
     assert_eq!(rows_deep(&k.body, k.low), before);
     assert_eq!(validate_pcurves(&k.body, band()), vec![]);
 }
 
-/// **The other control: a second key the body records as one
-/// description.** What decides is the CHART, not the key — the same
-/// rung the loop doors take — so a face swapped onto a fresh key
-/// carrying its old key's `GeomSource` keeps every row it had.
-#[test]
-fn a_swap_onto_a_second_key_the_body_records_as_one_surface_keeps_every_row() {
-    let mut s = sheet();
-    let cyl = s.body.get_face(s.low).unwrap().surface;
-    let before = rows_deep(&s.body, s.low);
-    // A second key for the same cylinder, minted on the rowless planar
-    // face so that nothing is dropped establishing it, and tied to the
-    // first by one recipe.
-    let second = s
-        .body
-        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
-        .unwrap();
-    assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
-    s.body.set_surface_source(cyl, one_recipe()).unwrap();
-    s.body.set_surface_source(second, one_recipe()).unwrap();
-
-    s.body
-        .set_face_surface(s.low, FaceSurface::Shared(second))
-        .unwrap();
-    assert_eq!(rows_deep(&s.body, s.low), before);
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
-}
-
 /// **What the setter cannot see, measured rather than asserted**, the
-/// same bound as the loop doors': two keys holding an equal surface
-/// with no record tying them read as two charts and the rows go. A
-/// re-mint, never a wrong row
-/// (`work/topo/two-provenance-free-keys-holding-one-surface-read-as-two-charts`).
+/// same bound as the loop doors': a swap onto a second key holding an
+/// equal surface reads as a chart change whether or not one recipe is
+/// stamped on both, and the rows go. A re-mint, never a wrong row
+/// (`work/origin/two-provenance-free-keys-holding-one-surface-read-as-two-charts`).
 #[test]
-fn a_swap_onto_an_equal_surface_with_no_provenance_reads_as_a_chart_change() {
-    let mut s = sheet();
-    let cyl = s.body.get_face(s.low).unwrap().surface;
-    assert!(s.body.surface_source(cyl).is_none());
-    s.body
-        .set_face_surface(s.low, FaceSurface::New(cylinder()))
-        .unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (0, 4));
+fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
+    for stamped in [false, true] {
+        let mut s = sheet();
+        let cyl = s.body.get_face(s.low).unwrap().surface;
+        // A second key for the same cylinder, minted on the rowless
+        // planar face so that nothing is dropped establishing it.
+        // Lifts RechartUnvouched: the row needs a second key on the cylinder; the back wears it only to hold it.
+        let second = s
+            .body
+            .set_face_surface_stranding_for_tests(
+                s.plane,
+                FaceSurface::New {
+                    surface: cylinder(),
+                    sense: true,
+                },
+            )
+            .unwrap();
+        assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
+        if stamped {
+            s.body.set_surface_source(cyl, one_recipe()).unwrap();
+            s.body.set_surface_source(second, one_recipe()).unwrap();
+        }
 
-    topo::mint_pcurves(&mut s.body, tol()).unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (4, 0));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+        let charts = vec![topo::Rechart::shared(second, s.low, true)];
+        let specs = s.body.carried_redescriptions(&charts).unwrap();
+        s.body
+            .set_face_surfaces_describing(charts, &specs, tol())
+            .unwrap();
+        assert_eq!(rows_of(&s.body, s.low), (0, 4), "stamped: {stamped}");
+
+        topo::mint_pcurves(&mut s.body, tol()).unwrap();
+        assert_eq!(rows_of(&s.body, s.low), (4, 0), "stamped: {stamped}");
+        assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    }
 }
 
 /// **The sibling setter is not the same case.** `set_edge_curve` moves
@@ -1339,76 +1904,6 @@ fn outer_cycle(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
     body.loop_cycle(first).unwrap()
 }
 
-/// **The chart compare reads two keys, and the setter's own orphan
-/// sweep can take one of them away.** A swap onto a second key the
-/// body records as one description leaves the first key referenced by
-/// nothing — `set_face_surface` removes it — so a setter that asked
-/// `Body::same_chart` after that sweep would be asking about a key that
-/// resolves to nothing, get `false`, and silently drop the rows of a
-/// face whose chart never moved.
-///
-/// The controls above cannot see that: they keep the old key alive
-/// through the sheet's other panel and its edge descriptions. This row
-/// hands every rim arc to the second key first, so the last swap really
-/// does orphan the first, and then asserts the carry.
-#[test]
-fn a_same_chart_swap_that_orphans_the_old_key_keeps_every_row() {
-    let mut s = sheet();
-    let cyl = s.body.get_face(s.low).unwrap().surface;
-    // A second key for the same cylinder, minted on the rowless planar
-    // face, and tied to the first by one recipe.
-    let second = s
-        .body
-        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
-        .unwrap();
-    assert_ne!(second, cyl);
-    s.body.set_surface_source(cyl, one_recipe()).unwrap();
-    s.body.set_surface_source(second, one_recipe()).unwrap();
-    s.body
-        .set_face_surface(s.up, FaceSurface::Shared(second))
-        .unwrap();
-    assert_eq!(rows_of(&s.body, s.up), (4, 0), "one chart by `GeomSource`");
-
-    // Re-state every rim arc as an image in `second`, so that after the
-    // last swap nothing references `cyl` at all.
-    let arcs: Vec<topo::EdgeKey> = s
-        .body
-        .edges()
-        .filter(|(_, e)| {
-            matches!(
-                s.body.get_curve_geom(e.curve),
-                Some(CurveGeom::Certified(c)) if matches!(c.carrier(), Curve3::Circle { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .collect();
-    for edge in arcs {
-        let curve = s.body.get_edge(edge).unwrap().curve;
-        let Some(CurveGeom::Certified(c)) = s.body.get_curve_geom(curve) else {
-            panic!("the fixture's rim arcs are certified")
-        };
-        let mut spec = c.restated_spec();
-        spec.description = EdgeDescriptionSpec::chart(second);
-        s.body.set_edge_curve(edge, spec, tol()).unwrap();
-    }
-    assert!(s.body.get_surface(cyl).is_some(), "still the low panel's");
-
-    let before = rows_deep(&s.body, s.low);
-    s.body
-        .set_face_surface(s.low, FaceSurface::Shared(second))
-        .unwrap();
-    assert!(
-        s.body.get_surface(cyl).is_none(),
-        "the old key was orphaned by this swap and swept"
-    );
-    assert_eq!(
-        rows_deep(&s.body, s.low),
-        before,
-        "one chart: every row stands, though the key it was compared against is gone"
-    );
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
-}
-
 /// **The sibling setter's loudness is the pcurve pass's, and the pass
 /// is silent on a half-minted face.** `validate_pcurves` runs its
 /// re-certification only where a face's row set is COMPLETE
@@ -1420,7 +1915,8 @@ fn a_same_chart_swap_that_orphans_the_old_key_keeps_every_row() {
 /// is accepted unmeasured.
 ///
 /// That is a property of the pass rather than of the door, and it is
-/// why `set_edge_curve` stays `Neither` with the blind spot named
+/// why `set_edge_curve` keeps the rows it finds with the blind spot
+/// named — re-minting only where a null edge gets its first carrier —
 /// rather than dropping rows to convert it into a `MissingCache`:
 /// every content staleness in the tree meets the same silence, and the
 /// row that closes it closes them all.
@@ -1481,4 +1977,1111 @@ fn a_carrier_swap_on_a_half_minted_face_is_refused_only_by_the_complete_side() {
         s.body.pcurve(he).is_some(),
         "the staled row is still there — unmeasured, not removed"
     );
+}
+
+// ---------------------------------------------------------------
+// The one tie across two keys: a shared payload `Arc`.
+// ---------------------------------------------------------------
+//
+// Every face is put on a NURBS patch, which drops every row, and the
+// minted rows are then re-attached verbatim through
+// `Body::attach_pcurve`. Those rows are not coherent with the patch,
+// so these rows assert what each door DECIDED — carried or dropped —
+// and never ask the pcurve pass. Each runs twice: with one payload
+// `Arc` on every key, and with a deep copy per key, which holds an
+// equal patch with no identity tie and must drop.
+
+/// A flat bilinear patch.
+fn patch() -> std::sync::Arc<geom::NurbsSurface<f64>> {
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 1.0, 0.0),
+    ];
+    std::sync::Arc::new(geom::NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).unwrap())
+}
+
+struct ArcSheet {
+    s: Sheet,
+    /// `low`'s, `up`'s and `plane`'s keys: one payload `Arc` on three
+    /// keys (`tied`), or three deep copies.
+    keys: [topo::SurfaceKey; 3],
+}
+
+/// The sheet with all three faces on [`patch`] — tied or deep-copied —
+/// and the two curved panels' eight minted rows attached back.
+fn arc_sheet(tied: bool) -> ArcSheet {
+    let mut s = sheet();
+    let saved: Vec<_> = s.body.pcurves().map(|(h, c)| (h, c.clone())).collect();
+    assert_eq!(saved.len(), 8);
+    let p = patch();
+    let mut keys = Vec::new();
+    for face in [s.low, s.up, s.plane] {
+        let payload = if tied {
+            p.clone()
+        } else {
+            std::sync::Arc::new((*p).clone())
+        };
+        keys.push(
+            // Lifts both refusals: every face on the patch, tied or deep-copied, is the fixture; its rows go back after.
+            s.body
+                .set_face_surface_stranding_for_tests(
+                    face,
+                    FaceSurface::New {
+                        surface: Surface::Nurbs(payload),
+                        sense: true,
+                    },
+                )
+                .unwrap(),
+        );
+    }
+    let arc = |k| match s.body.get_surface(k) {
+        Some(Surface::Nurbs(x)) => x.clone(),
+        _ => panic!("every face was put on the patch"),
+    };
+    assert_eq!(
+        std::sync::Arc::ptr_eq(&arc(keys[0]), &arc(keys[1])),
+        tied,
+        "the door keeps the caller's payload Arc"
+    );
+    assert_eq!(rows_total(&s.body), 0, "the swaps dropped every row");
+    for (h, c) in saved {
+        s.body.attach_pcurve(h, c);
+    }
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    ArcSheet {
+        s,
+        keys: [keys[0], keys[1], keys[2]],
+    }
+}
+
+/// **The swap decides before it reaps.** Moving `low` onto `up`'s key
+/// orphans `low`'s own key, which the swap removes; a decision taken
+/// after that removal reads a dead key and drops the rows whatever
+/// the two keys held. Across one payload the keys-only door takes the
+/// swap. Across two equal payloads with no identity tie it cannot
+/// vouch that `low`'s boundary lies on the other, and refuses; the
+/// test-only door takes the same writes.
+#[test]
+fn a_swap_orphaning_the_old_key_carries_every_row_across_one_payload() {
+    for tied in [true, false] {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        let onto_up = FaceSurface::Shared {
+            key: keys[1],
+            sense: true,
+        };
+        if tied {
+            s.body.set_face_surface(s.low, onto_up).unwrap();
+        } else {
+            assert!(
+                matches!(
+                    s.body.clone().set_face_surface(s.low, onto_up.clone()),
+                    Err(topo::EulerOpError::RechartUnvouched { face, .. }) if face == s.low
+                ),
+                "two payloads with no tie are two charts to the keys-only door"
+            );
+            // Lifts RechartUnvouched: the row reads the writes across two untied payloads.
+            s.body
+                .set_face_surface_stranding_for_tests(s.low, onto_up)
+                .unwrap();
+        }
+        assert!(
+            s.body.get_surface(keys[0]).is_none(),
+            "the old key was reaped"
+        );
+        let want = if tied { (4, 0) } else { (0, 4) };
+        assert_eq!(rows_of(&s.body, s.low), want, "tied: {tied}");
+    }
+}
+
+/// **`kef` decides before it reaps.** Killing the rim between the two
+/// panels from `low`'s side kills `low` and orphans its key; the
+/// remnant's three rows are carried onto `up` only if the decision
+/// was taken while that key still resolved.
+#[test]
+fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
+    for tied in [true, false] {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        let he = he_at(&s.body, s.low, at(U1, VM));
+        let killed = s.body.kef(he).unwrap();
+        assert_eq!(killed.killed_face, s.low);
+        assert!(
+            s.body.get_surface(keys[0]).is_none(),
+            "the dying key was reaped"
+        );
+        let want = if tied { (6, 0) } else { (3, 3) };
+        assert_eq!(rows_of(&s.body, s.up), want, "tied: {tied}");
+    }
+}
+
+#[test]
+fn kfmrh_carries_every_row_across_one_payload() {
+    for tied in [true, false] {
+        let ArcSheet { mut s, .. } = arc_sheet(tied);
+        s.body.kfmrh(s.low, s.up).unwrap();
+        let want = if tied { (8, 0) } else { (4, 4) };
+        assert_eq!(rows_of(&s.body, s.low), want, "tied: {tied}");
+    }
+}
+
+/// **A spline destination keeps the drop.** On the deep-copied patch
+/// sheet every face is complete on a SPLINE chart of its own, where a
+/// moved loop's rows could be derived only through the fitted lane,
+/// which the doors do not hold. The door neither refuses nor mints: it
+/// drops the moved rows, as on any other chart change, and leaves the
+/// destination's own rows exactly as they were — `kfmrh`'s demoted
+/// loop, `kef`'s remnant and `ring_move`'s ring alike, keys-only and
+/// as the `_minting` twin, which drop alike.
+#[test]
+fn a_spline_destination_keeps_the_drop() {
+    let ArcSheet { s, .. } = arc_sheet(false);
+    let low_before = rows_deep(&s.body, s.low);
+    let (up, low, plane) = (s.up, s.low, s.plane);
+    let (body, _) = both_doors(
+        "kfmrh",
+        &s.body,
+        |b| b.kfmrh(low, up).map(|_| ()),
+        |b| b.kfmrh_minting(low, up, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, low), (4, 4), "kfmrh");
+    assert_eq!(rows_deep(&body, low), low_before, "kfmrh");
+
+    let ArcSheet { s, .. } = arc_sheet(false);
+    let up_before = rows_deep(&s.body, s.up);
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let (body, _) = both_doors(
+        "kef",
+        &s.body,
+        |b| b.kef(he).map(|_| ()),
+        |b| b.kef_minting(he, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, up), (3, 3), "kef");
+    let up_after = rows_deep(&body, up);
+    assert!(
+        up_after.iter().all(|row| up_before.contains(row)),
+        "kef: the survivor keeps its own rows and gains none"
+    );
+
+    // The plane face's rowless loop demotes into `low`, then moves on
+    // as a ring onto `up`: two complete spline destinations in turn.
+    let ArcSheet { s, .. } = arc_sheet(false);
+    let (low_before, up_before) = (rows_deep(&s.body, s.low), rows_deep(&s.body, s.up));
+    let (body, _) = both_doors(
+        "kfmrh of a rowless loop",
+        &s.body,
+        |b| b.kfmrh(low, plane).map(|_| ()),
+        |b| b.kfmrh_minting(low, plane, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, low), (4, 6), "kfmrh of a rowless loop");
+    assert_eq!(rows_deep(&body, low), low_before, "kfmrh of a rowless loop");
+    let ring = ring_of(&body, low);
+    let (body, _) = both_doors(
+        "ring_move",
+        &body,
+        |b| b.ring_move(ring, up),
+        |b| b.ring_move_minting(ring, up, tol()),
+    );
+    assert_eq!(rows_of(&body, up), (4, 6), "ring_move");
+    assert_eq!(rows_deep(&body, up), up_before, "ring_move");
+}
+
+/// `up` is first moved onto `low`'s key, so the demotion into `low`
+/// is one key and carries whatever `up` kept; the ring then moves (or
+/// is promoted) onto the plane face's key, which is the question.
+///
+/// The ring's row count is pinned, not read off the body: on the tied
+/// fixture `up` keeps its four rows across the move onto `low`'s key,
+/// and a count read after that move would take whatever the setter
+/// left and pass either door's half whatever it did.
+#[test]
+fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
+    const RING_ROWS: usize = 4;
+    let mut failures = Vec::new();
+    for tied in [true, false] {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        s.body
+            .set_face_surfaces_describing(
+                vec![topo::Rechart::shared(keys[0], s.up, true)],
+                &[],
+                tol(),
+            )
+            .unwrap();
+        s.body.kfmrh(s.low, s.up).unwrap();
+        let ring = ring_of(&s.body, s.low);
+        s.body.ring_move(ring, s.plane).unwrap();
+        let want = if tied {
+            (RING_ROWS, 6 + 4 - RING_ROWS)
+        } else {
+            (0, 10)
+        };
+        let got = rows_of(&s.body, s.plane);
+        if got != want {
+            failures.push(format!("ring_move tied {tied}: want {want:?}, got {got:?}"));
+        }
+
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        s.body
+            .set_face_surfaces_describing(
+                vec![topo::Rechart::shared(keys[0], s.up, true)],
+                &[],
+                tol(),
+            )
+            .unwrap();
+        s.body.kfmrh(s.low, s.up).unwrap();
+        let ring = ring_of(&s.body, s.low);
+        let made = s
+            .body
+            .mfkrh(
+                ring,
+                FaceSurface::Shared {
+                    key: keys[2],
+                    sense: false,
+                },
+            )
+            .unwrap();
+        let want = if tied {
+            (RING_ROWS, 4 - RING_ROWS)
+        } else {
+            (0, 4)
+        };
+        let got = rows_of(&s.body, made.face);
+        if got != want {
+            failures.push(format!("mfkrh tied {tied}: want {want:?}, got {got:?}"));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// `mef` on the patch sheet. Its lower panel's rows are complete, and a
+/// face with complete rows on a SPLINE chart is the Euler operators'
+/// fitted frontier: the op refuses typed and moves nothing. So the
+/// carry is read on the panel half-minted — `f→a`'s row detached, a
+/// face the operator leaves as found — where the run `[a→b, b→c]`
+/// moves by the payload alone.
+#[test]
+fn mef_carries_the_runs_rows_across_one_payload() {
+    for tied in [true, false] {
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        let (a, c) = (at(U0, V0), at(U1, VM));
+        let (he1, he2) = (he_at(&s.body, s.low, a), he_at(&s.body, s.low, c));
+        let chord = || EdgeCurveSpec::line_between(a, c);
+        let before = rows_deep(&s.body, s.low);
+        let refused = s
+            .body
+            .mef(
+                MefSite::Chords { he1, he2 },
+                chord(),
+                FaceSurface::Shared {
+                    key: keys[2],
+                    sense: true,
+                },
+                tol(),
+            )
+            .unwrap_err();
+        assert_eq!(
+            refused,
+            topo::EulerOpError::PcurveMint {
+                face: s.low,
+                refusal: topo::SiteRowRefusal::SplineChart,
+            },
+            "tied: {tied}"
+        );
+        assert_eq!(rows_deep(&s.body, s.low), before, "tied: {tied}");
+
+        let fa = he_at(&s.body, s.low, at(U0, VM));
+        assert!(s.body.detach_pcurve(fa).is_some());
+        let made = s
+            .body
+            .mef(
+                MefSite::Chords { he1, he2 },
+                chord(),
+                FaceSurface::Shared {
+                    key: keys[2],
+                    sense: true,
+                },
+                tol(),
+            )
+            .unwrap();
+        let want = if tied { (2, 1) } else { (0, 3) };
+        assert_eq!(rows_of(&s.body, made.face), want, "tied: {tied}");
+    }
+}
+
+// ---------------------------------------------------------------
+// A minted or re-charted face's `sense` (D1): derived on the parent's
+// chart, stated on any other, and a contradicting stated bit refused.
+// ---------------------------------------------------------------
+
+fn sense_of(body: &Body<f64>, face: FaceKey) -> bool {
+    body.get_face(face).unwrap().sense
+}
+
+/// The payload `Arc` a patch-charted key holds.
+fn payload_of(body: &Body<f64>, key: topo::SurfaceKey) -> std::sync::Arc<geom::NurbsSurface<f64>> {
+    match body.get_surface(key) {
+        Some(Surface::Nurbs(x)) => x.clone(),
+        _ => panic!("the key is on a patch"),
+    }
+}
+
+/// A spec a `sense` row hands a door, relative to the parent's own key
+/// and a second key that holds the parent's payload `Arc` on a tied
+/// fixture and a deep copy of it on an untied one.
+#[derive(Clone, Copy, Debug)]
+enum Spec {
+    Inherit,
+    /// `Shared` on the parent's own key, stating the bit.
+    OwnKey(bool),
+    /// `Shared` on the second key, stating the bit.
+    SecondKey(bool),
+    /// `New` holding the parent's own payload `Arc`, stating the bit.
+    OwnPayload(bool),
+    /// `New` on a patch of its own, stating the bit.
+    AnotherPatch(bool),
+}
+
+impl Spec {
+    fn build(
+        self,
+        body: &Body<f64>,
+        own: topo::SurfaceKey,
+        second: topo::SurfaceKey,
+    ) -> FaceSurface<f64> {
+        match self {
+            Spec::Inherit => FaceSurface::Inherit,
+            Spec::OwnKey(sense) => FaceSurface::Shared { key: own, sense },
+            Spec::SecondKey(sense) => FaceSurface::Shared { key: second, sense },
+            Spec::OwnPayload(sense) => FaceSurface::New {
+                surface: Surface::Nurbs(payload_of(body, own)),
+                sense,
+            },
+            Spec::AnotherPatch(sense) => FaceSurface::New {
+                surface: Surface::Nurbs(patch()),
+                sense,
+            },
+        }
+    }
+}
+
+/// What a door did with a spec: the face's bit and whether the spec
+/// landed on the parent's chart (read off the rows it carried), or the
+/// refusal.
+type Want = Result<(bool, bool), ()>;
+
+/// The rows for a door that keeps the parent's side — `mef` and
+/// `set_face_surface` — on a parent whose bit is `false`: whether the
+/// fixture is tied, the spec, and what the door must do. On the
+/// parent's chart the bit is derived (`false`) and the other one is
+/// refused; anywhere else the stated bit is written.
+fn with_parent_rows() -> [(bool, Spec, Want); 13] {
+    use Spec::*;
+    [
+        (true, Inherit, Ok((false, true))),
+        (true, OwnKey(false), Ok((false, true))),
+        (true, OwnKey(true), Err(())),
+        (true, SecondKey(false), Ok((false, true))),
+        (true, SecondKey(true), Err(())),
+        (true, OwnPayload(false), Ok((false, true))),
+        (true, OwnPayload(true), Err(())),
+        (false, SecondKey(false), Ok((false, false))),
+        (false, SecondKey(true), Ok((true, false))),
+        (false, OwnKey(false), Ok((false, true))),
+        (false, OwnKey(true), Err(())),
+        (true, AnotherPatch(false), Ok((false, false))),
+        (true, AnotherPatch(true), Ok((true, false))),
+    ]
+}
+
+/// The refusal a row wants: typed, naming the parent and both bits,
+/// with the body deep-untouched.
+fn refused_untouched(
+    name: &str,
+    got: Result<(), topo::EulerOpError>,
+    parent: FaceKey,
+    stated: bool,
+    before: &str,
+    body: &Body<f64>,
+    failures: &mut Vec<String>,
+) {
+    let want = topo::EulerOpError::SenseContradictsChart {
+        face: parent,
+        stated,
+        derived: !stated,
+    };
+    if got != Err(want.clone()) {
+        failures.push(format!("{name}: want {want:?}, got {got:?}"));
+    }
+    if format!("{body:?}") != before {
+        failures.push(format!("{name}: the refusal touched the body"));
+    }
+}
+
+/// The bit a spec states, if it states one.
+fn stated(spec: Spec) -> bool {
+    match spec {
+        Spec::Inherit => unreachable!("a refusal row states a bit"),
+        Spec::OwnKey(b) | Spec::SecondKey(b) | Spec::OwnPayload(b) | Spec::AnotherPatch(b) => b,
+    }
+}
+
+/// **`mef` (`Chords`).** The lower panel is reversed and split,
+/// half-minted as above, with each spec. The run's rows are carried
+/// exactly where the spec is on the parent's chart, which is where the
+/// bit is the parent's.
+#[test]
+fn mef_derives_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewhere() {
+    let mut failures = Vec::new();
+    for (tied, spec, want) in with_parent_rows() {
+        let name = format!("mef {spec:?} tied {tied}");
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        s.body.set_face_sense(s.low, false).unwrap();
+        let (a, c) = (at(U0, V0), at(U1, VM));
+        let (he1, he2) = (he_at(&s.body, s.low, a), he_at(&s.body, s.low, c));
+        assert!(
+            s.body
+                .detach_pcurve(he_at(&s.body, s.low, at(U0, VM)))
+                .is_some()
+        );
+        let before = format!("{:?}", s.body);
+        let got = s.body.mef(
+            MefSite::Chords { he1, he2 },
+            EdgeCurveSpec::line_between(a, c),
+            spec.build(&s.body, keys[0], keys[2]),
+            tol(),
+        );
+        match (got, want) {
+            (Ok(made), Ok((sense, carried))) => {
+                let got = (
+                    sense_of(&s.body, made.face),
+                    rows_of(&s.body, made.face) == (2, 1),
+                );
+                if got != (sense, carried) {
+                    failures.push(format!("{name}: want {:?}, got {got:?}", (sense, carried)));
+                }
+                if sense_of(&s.body, s.low) {
+                    failures.push(format!("{name}: the parent lost its bit"));
+                }
+            }
+            (got, Err(())) => refused_untouched(
+                &name,
+                got.map(|_| ()),
+                s.low,
+                stated(spec),
+                &before,
+                &s.body,
+                &mut failures,
+            ),
+            (Err(e), Ok(_)) => failures.push(format!("{name}: refused {e:?}")),
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// **`set_face_surface`.** The reversed lower panel re-charted in place
+/// with each spec: on its own chart it keeps its bit (and its rows),
+/// and anywhere else the stated bit is written (and the rows dropped).
+/// Off its own chart the keys-only door refuses first, since no edge
+/// of the panel names the key it moves onto, so the row reads the
+/// door's writes through the test-only door, which is the same door
+/// without that refusal.
+#[test]
+fn set_face_surface_keeps_the_bit_on_the_faces_chart_and_writes_the_stated_one_elsewhere() {
+    let mut failures = Vec::new();
+    for (tied, spec, want) in with_parent_rows() {
+        let name = format!("set_face_surface {spec:?} tied {tied}");
+        let ArcSheet { mut s, keys } = arc_sheet(tied);
+        s.body.set_face_sense(s.low, false).unwrap();
+        let before = format!("{:?}", s.body);
+        // Lifts RechartUnvouched: the row reads the door's writes off the panel's own chart.
+        let got = s
+            .body
+            .set_face_surface_stranding_for_tests(s.low, spec.build(&s.body, keys[0], keys[2]));
+        match (got, want) {
+            (Ok(_), Ok((sense, carried))) => {
+                let got = (sense_of(&s.body, s.low), rows_of(&s.body, s.low) == (4, 0));
+                if got != (sense, carried) {
+                    failures.push(format!("{name}: want {:?}, got {got:?}", (sense, carried)));
+                }
+            }
+            (got, Err(())) => refused_untouched(
+                &name,
+                got.map(|_| ()),
+                s.low,
+                stated(spec),
+                &before,
+                &s.body,
+                &mut failures,
+            ),
+            (Err(e), Ok(_)) => failures.push(format!("{name}: refused {e:?}")),
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// **`mef` (`Lone`).** Two `mvfs` seeds on the patch — the first
+/// reversed, the second holding its payload `Arc` or a deep copy — and
+/// the first seed's lone vertex split into a self-loop face with each
+/// spec. A seed has no rows to carry, so the carried column is read by
+/// the two rows above and not here.
+#[test]
+fn mef_lone_derives_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewhere() {
+    let mut failures = Vec::new();
+    for (tied, spec, want) in with_parent_rows() {
+        let name = format!("mef Lone {spec:?} tied {tied}");
+        let p = patch();
+        let mut body = Body::<f64>::new();
+        let origin = Point3::new(0.2, 0.3, 0.0);
+        let seed = body.mvfs(origin, true).unwrap();
+        let other = body.mvfs(Point3::new(0.7, 0.6, 0.0), true).unwrap();
+        let own = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Nurbs(p.clone()),
+                    sense: false,
+                },
+            )
+            .unwrap();
+        let second_payload = if tied {
+            p
+        } else {
+            std::sync::Arc::new((*p).clone())
+        };
+        let second = body
+            .set_face_surface(
+                other.face,
+                FaceSurface::New {
+                    surface: Surface::Nurbs(second_payload),
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let before = format!("{body:?}");
+        let got = body.mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            EdgeCurveSpec::self_loop_circle_at(origin),
+            spec.build(&body, own, second),
+            tol(),
+        );
+        match (got, want) {
+            (Ok(made), Ok((sense, _))) => {
+                if sense_of(&body, made.face) != sense {
+                    failures.push(format!("{name}: want {sense}"));
+                }
+                if sense_of(&body, seed.face) {
+                    failures.push(format!("{name}: the parent lost its bit"));
+                }
+            }
+            (got, Err(())) => refused_untouched(
+                &name,
+                got.map(|_| ()),
+                seed.face,
+                stated(spec),
+                &before,
+                &body,
+                &mut failures,
+            ),
+            (Err(e), Ok(_)) => failures.push(format!("{name}: refused {e:?}")),
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// A genuine hole: the bored block, described, valid at tier 3.
+fn bored_block(centres: &[f64]) -> Body<f64> {
+    let mut body = topo::test_support::holed_block::<f64>(3.0, centres, Tol::witness());
+    topo::test_support::describe_as_intersections(&mut body, Tol::witness());
+    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()));
+    body
+}
+
+/// Every ring of `body`, with its face and that face's bit.
+fn rings(body: &Body<f64>) -> Vec<(FaceKey, LoopKey, bool)> {
+    body.faces()
+        .flat_map(|(k, f)| f.rings.iter().map(move |&r| (k, r, f.sense)))
+        .collect()
+}
+
+/// The bored block with each cap re-charted onto its own plane with
+/// the normal negated, stating `false`: the same solid, with every
+/// cap's bit `false`. The caps' rim edges are re-described against the
+/// new keys, so the body stays tier-3 valid. (Adopted from the second
+/// review of PR 3467.)
+fn caps_on_flipped_planes(mut body: Body<f64>) -> Body<f64> {
+    let caps: Vec<FaceKey> = rings(&body).into_iter().map(|(f, _, _)| f).collect();
+    for cap in caps {
+        let key = body.get_face(cap).unwrap().surface;
+        let Some(Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        }) = body.get_surface(key).cloned()
+        else {
+            panic!("a planar cap");
+        };
+        on_a_key_of_its_own(
+            &mut body,
+            cap,
+            Surface::Plane {
+                origin,
+                normal: -normal,
+                u_ref,
+            },
+            false,
+        )
+        .unwrap();
+    }
+    topo::test_support::describe_as_intersections(&mut body, Tol::witness());
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "the re-charted caps bound the same solid"
+    );
+    body
+}
+
+/// **`mfkrh` promotes a hole to a face facing against its parent.**
+/// Each cap's bore ring on the bored block was wound clockwise about
+/// the cap's outward normal, so on the cap's chart the promoted face
+/// takes the cap's bit negated, and the body stays tier-3 valid. The
+/// cap's own bit stated there is refused; on another chart the stated
+/// bit is written. Run on the block as built (caps `true`) and with
+/// its caps on their flipped planes (caps `false`), so the negation is
+/// read from both bits.
+#[test]
+fn mfkrh_negates_the_parents_bit_on_its_chart_and_writes_the_stated_one_elsewhere() {
+    let mut failures = Vec::new();
+    for (caps, base) in [
+        (true, bored_block(&[1.5])),
+        (false, caps_on_flipped_planes(bored_block(&[1.5]))),
+    ] {
+        let found = rings(&base);
+        assert_eq!(found.len(), 2, "one bore ring in each cap");
+        assert!(
+            found.iter().all(|&(_, _, p)| p == caps),
+            "every cap carries {caps}"
+        );
+        mfkrh_rows(&base, found, &mut failures);
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// The `mfkrh` rows on one bored block: each ring in `found` promoted
+/// from a clone of `base` with each spec.
+fn mfkrh_rows(base: &Body<f64>, found: Vec<(FaceKey, LoopKey, bool)>, failures: &mut Vec<String>) {
+    for (parent, ring, p) in found {
+        let own = base.get_face(parent).unwrap().surface;
+        let foreign = |sense| FaceSurface::New {
+            surface: base.get_surface(own).unwrap().clone(),
+            sense,
+        };
+        let rows: [(&str, FaceSurface<f64>, Result<bool, bool>); 5] = [
+            ("Inherit", FaceSurface::Inherit, Ok(!p)),
+            (
+                "Shared(own key) stating the derived bit",
+                FaceSurface::Shared {
+                    key: own,
+                    sense: !p,
+                },
+                Ok(!p),
+            ),
+            (
+                "Shared(own key) stating the parent's bit",
+                FaceSurface::Shared { key: own, sense: p },
+                Err(p),
+            ),
+            (
+                "New(an equal plane) stating false",
+                foreign(false),
+                Ok(false),
+            ),
+            ("New(an equal plane) stating true", foreign(true), Ok(true)),
+        ];
+        for (name, spec, want) in rows {
+            let name = format!("mfkrh {name} on {parent:?} (sense {p})");
+            let on_chart = !matches!(spec, FaceSurface::New { .. });
+            let mut b = base.clone();
+            let before = format!("{b:?}");
+            match (b.mfkrh(ring, spec), want) {
+                (Ok(made), Ok(sense)) => {
+                    if sense_of(&b, made.face) != sense {
+                        failures.push(format!("{name}: want {sense}"));
+                    }
+                    if on_chart && topo::validate_geometric(&b, Tol::witness()).is_err() {
+                        failures.push(format!(
+                            "{name}: {:?}",
+                            topo::validate_geometric(&b, Tol::witness())
+                        ));
+                    }
+                }
+                (got, Err(stated)) => refused_untouched(
+                    &name,
+                    got.map(|_| ()),
+                    parent,
+                    stated,
+                    &before,
+                    &b,
+                    failures,
+                ),
+                (Err(e), Ok(_)) => failures.push(format!("{name}: refused {e:?}")),
+            }
+        }
+    }
+}
+
+/// **`mfkrh` reads a shared payload as the parent's chart.** The bored
+/// block with two holes, its top cap re-charted onto a flat patch that
+/// faces the cap's way. The first hole is promoted with `New` holding
+/// the cap's payload, which mints a second key on it; the second hole
+/// is then promoted with `Shared` naming that second key. Both are on
+/// the cap's chart, so both take the cap's bit negated, and the cap's
+/// own bit stated on the second key is refused.
+///
+/// Check 6, which reads `sense` against a loop's winding, reads planar
+/// faces only, and the cap's rim edges cannot be re-described against
+/// a patch (a plane–patch `Intersection` does not certify). So the
+/// derived bits are read by check 6 on the cap's plane instead, where
+/// they mean the same thing.
+#[test]
+fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
+    let mut body = bored_block(&[0.75, 2.25]);
+    let caps: Vec<FaceKey> = rings(&body)
+        .into_iter()
+        .map(|(f, _, _)| f)
+        .filter(|&f| {
+            let key = body.get_face(f).unwrap().surface;
+            matches!(body.get_surface(key), Some(Surface::Plane { normal, .. }) if normal.z > 0.5)
+        })
+        .collect();
+    let top = caps[0];
+    assert!(caps.iter().all(|&f| f == top), "one top cap");
+    assert!(sense_of(&body, top), "the top cap faces its plane's way");
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, 2.0),
+        Point3::new(0.0, 2.0, 2.0),
+        Point3::new(3.0, 0.0, 2.0),
+        Point3::new(3.0, 2.0, 2.0),
+    ];
+    let cap_patch =
+        std::sync::Arc::new(geom::NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).unwrap());
+    let jet = cap_patch.ders(0.5, 0.5);
+    assert!(
+        jet.du.cross(jet.dv).z > 0.0,
+        "the patch faces the plane's way"
+    );
+    let plane_key = body.get_face(top).unwrap().surface;
+    // Lifts both refusals: the cap re-charted onto its own flat patch is the row's premise.
+    let own = body
+        .set_face_surface_stranding_for_tests(
+            top,
+            FaceSurface::New {
+                surface: Surface::Nurbs(cap_patch.clone()),
+                sense: true,
+            },
+        )
+        .unwrap();
+    let holes = body.get_face(top).unwrap().rings.clone();
+    assert_eq!(holes.len(), 2);
+
+    let first = body
+        .mfkrh(
+            holes[0],
+            FaceSurface::New {
+                surface: Surface::Nurbs(cap_patch),
+                sense: false,
+            },
+        )
+        .unwrap();
+    assert_ne!(first.surface, own, "a second key");
+    assert!(
+        !sense_of(&body, first.face),
+        "New(the cap's payload): the cap's bit negated"
+    );
+
+    let mut failures = Vec::new();
+    let before = format!("{body:?}");
+    let refused = body.mfkrh(
+        holes[1],
+        FaceSurface::Shared {
+            key: first.surface,
+            sense: true,
+        },
+    );
+    refused_untouched(
+        "mfkrh Shared(second key, one payload) stating the cap's bit",
+        refused.map(|_| ()),
+        top,
+        true,
+        &before,
+        &body,
+        &mut failures,
+    );
+    let second = body
+        .mfkrh(
+            holes[1],
+            FaceSurface::Shared {
+                key: first.surface,
+                sense: false,
+            },
+        )
+        .unwrap();
+    if sense_of(&body, second.face) {
+        failures.push("mfkrh Shared(second key, one payload): want false".to_owned());
+    }
+
+    // Check 6 on the derived bits: each promoted face is put on the
+    // cap's plane key (off its chart, so the bit is written as stated)
+    // stating the bit derived on the patch, which means the same there
+    // since the patch faces the plane's way. Check 6 must find nothing
+    // on the face; the other bit is the control, and must draw
+    // `LoopRoleInverted`. (Adopted from the first review of PR 3467.)
+    assert!(
+        body.get_surface(plane_key).is_some(),
+        "the rims keep the cap's plane key live"
+    );
+    for f in [first.face, second.face] {
+        let bit = sense_of(&body, f);
+        for (stated, want_inverted) in [(bit, false), (!bit, true)] {
+            let mut b = body.clone();
+            b.set_face_surface(
+                f,
+                FaceSurface::Shared {
+                    key: plane_key,
+                    sense: stated,
+                },
+            )
+            .unwrap();
+            let on_f: Vec<String> = match topo::validate_geometric(&b, Tol::witness()) {
+                Ok(()) => Vec::new(),
+                Err(errors) => errors
+                    .iter()
+                    .map(|e| format!("{e:?}"))
+                    .filter(|e| e.contains(&format!("{f:?}")))
+                    .collect(),
+            };
+            let inverted = on_f.iter().any(|e| e.starts_with("LoopRoleInverted"));
+            let ok = if want_inverted {
+                inverted
+            } else {
+                on_f.is_empty()
+            };
+            if !ok {
+                failures.push(format!(
+                    "{f:?} on the plane stating {stated} (derived {bit}): {on_f:?}"
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+// ---------------------------------------------------------------
+// The stamp door's assertion: one recipe, one description (N6).
+// ---------------------------------------------------------------
+
+/// Stamps `one_recipe()` on two fresh keys holding `a` and `b`.
+fn stamp_both<T: geom_core::Decide>(a: Surface<T>, b: Surface<T>, seed: Point3<T>) {
+    let mut body = Body::<T>::new();
+    let fa = body.mvfs(seed, true).unwrap().face;
+    let fb = body.mvfs(seed, true).unwrap().face;
+    let ka = body
+        .set_face_surface(
+            fa,
+            FaceSurface::New {
+                surface: a,
+                sense: true,
+            },
+        )
+        .unwrap();
+    let kb = body
+        .set_face_surface(
+            fb,
+            FaceSurface::New {
+                surface: b,
+                sense: true,
+            },
+        )
+        .unwrap();
+    assert_ne!(ka, kb);
+    body.set_surface_source(ka, one_recipe()).unwrap();
+    body.set_surface_source(kb, one_recipe()).unwrap();
+}
+
+/// Whether stamping one recipe on `a` and `b` trips the stamp door's
+/// assertion; any other panic propagates.
+fn stamp_panics<T: geom_core::Decide>(a: Surface<T>, b: Surface<T>, seed: Point3<T>) -> bool {
+    refused_by_the_stamp_door(|| stamp_both(a, b, seed))
+}
+
+/// Runs `stamp`, answering whether the N6 assertion refused it; any
+/// other panic is re-raised, so a fixture failure cannot read as a
+/// refusal.
+fn refused_by_the_stamp_door(stamp: impl FnOnce()) -> bool {
+    let Err(payload) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(stamp)) else {
+        return false;
+    };
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or_default();
+    if !message.contains("one recipe evaluates to one description") {
+        std::panic::resume_unwind(payload);
+    }
+    true
+}
+
+/// [`patch`] generic over the scalar, lifted by `dz`, with its second
+/// weight `w`.
+fn patch_at<T: geom_core::Real>(lift: impl Fn(f64) -> T, dz: f64, w: f64) -> Surface<T> {
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+        .into_iter()
+        .map(|(x, y)| Point3::new(lift(x), lift(y), lift(dz)))
+        .collect();
+    Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(k.clone(), k, control, vec![1.0, w, 1.0, 1.0]).unwrap(),
+    ))
+}
+
+fn cone(half_angle: f64) -> Surface<f64> {
+    Surface::Cone {
+        apex: Point3::origin(),
+        axis: axis(),
+        half_angle,
+        u_ref: u_ref(),
+    }
+}
+
+fn sphere(radius: f64) -> Surface<f64> {
+    Surface::Sphere {
+        center: Point3::origin(),
+        radius,
+        axis: axis(),
+        u_ref: u_ref(),
+    }
+}
+
+fn torus(minor_radius: f64) -> Surface<f64> {
+    Surface::Torus {
+        center: Point3::origin(),
+        axis: axis(),
+        major_radius: 3.0,
+        minor_radius,
+        u_ref: u_ref(),
+    }
+}
+
+fn plane_at_x(x: f64) -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(x, 0.0, 0.0),
+        normal: axis(),
+        u_ref: u_ref(),
+    }
+}
+
+/// **Every kind, both ways**: one description under one recipe on two
+/// keys is accepted, and two that differ in any one part — a scalar of
+/// each kind, a NURBS net or weight, the kind itself, a zero's sign —
+/// are refused.
+#[cfg(debug_assertions)]
+#[test]
+fn the_stamp_door_refuses_one_recipe_over_two_descriptions_on_every_kind() {
+    let id = |x: f64| x;
+    let o = Point3::origin();
+    let shared = Surface::Nurbs(patch());
+    let equal = [
+        ("plane", flat(), flat()),
+        ("cylinder", cylinder(), cylinder()),
+        ("cone", cone(0.3), cone(0.3)),
+        ("sphere", sphere(1.0), sphere(1.0)),
+        ("torus", torus(1.0), torus(1.0)),
+        ("nurbs", patch_at(id, 0.0, 1.0), patch_at(id, 0.0, 1.0)),
+        ("one payload", shared.clone(), shared),
+    ];
+    for (what, a, b) in equal {
+        assert!(!stamp_panics(a, b, o), "{what}: an equal pair was refused");
+    }
+    let differing = [
+        ("plane", plane_at_x(0.0), plane_at_x(1e-12)),
+        ("cylinder", cylinder(), other_cylinder()),
+        ("cone", cone(0.3), cone(0.31)),
+        ("sphere", sphere(1.0), sphere(1.5)),
+        ("torus", torus(1.0), torus(1.5)),
+        ("nurbs net", patch_at(id, 0.0, 1.0), patch_at(id, 0.5, 1.0)),
+        (
+            "nurbs weight",
+            patch_at(id, 0.0, 1.0),
+            patch_at(id, 0.0, 2.0),
+        ),
+        ("kind", flat(), cylinder()),
+        ("signed zero", plane_at_x(0.0), plane_at_x(-0.0)),
+    ];
+    for (what, a, b) in differing {
+        assert!(
+            stamp_panics(a, b, o),
+            "{what}: a differing pair was accepted"
+        );
+    }
+}
+
+/// **At `Dual`, what needs no bit channel is still decided.** A dual
+/// scalar has no bit channel, so two same-kind analytic surfaces that
+/// differ only in a dual scalar offer no evidence and pass; but a kind
+/// mismatch, and a NURBS pair whose `f64` weights differ, are refused.
+#[cfg(debug_assertions)]
+#[test]
+fn the_stamp_door_decides_at_dual_what_needs_no_bit_channel() {
+    use geom_core::Dual64 as D;
+    let c = D::constant;
+    let o = Point3::new(c(0.0), c(0.0), c(0.0));
+    let v = |x: f64, y: f64, z: f64| Vec3::new(c(x), c(y), c(z));
+    let plane = Surface::Plane {
+        origin: o,
+        normal: v(0.0, 0.0, 1.0),
+        u_ref: v(1.0, 0.0, 0.0),
+    };
+    let cyl = |r: f64| Surface::Cylinder {
+        origin: o,
+        axis: v(0.0, 0.0, 1.0),
+        radius: c(r),
+        u_ref: v(1.0, 0.0, 0.0),
+    };
+    assert!(
+        !stamp_panics(cyl(1.0), cyl(2.0), o),
+        "a dual radius is no evidence"
+    );
+    assert!(
+        !stamp_panics(patch_at(c, 0.0, 1.0), patch_at(c, 0.5, 1.0), o),
+        "a dual control net is no evidence"
+    );
+    assert!(stamp_panics(plane, cyl(1.0), o), "kind mismatch at Dual");
+    assert!(
+        stamp_panics(patch_at(c, 0.0, 1.0), patch_at(c, 0.0, 2.0), o),
+        "f64 weights at Dual"
+    );
+}
+
+/// **Every holder is read.** A graft brings in a key carrying the
+/// recipe over a PLANE beside the sheet's stamped cylinder; stamping a
+/// third key holding the cylinder again agrees with the first holder
+/// in arena order and disagrees with the second, and is refused.
+#[cfg(debug_assertions)]
+#[test]
+fn the_stamp_door_reads_every_holder_not_the_first() {
+    let mut s = sheet();
+    let forged = forge(&mut s);
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let third = on_a_key_of_its_own(&mut s.body, s.up, cylinder(), true).unwrap();
+    assert!(third != cyl && third != forged);
+    let refused = refused_by_the_stamp_door(|| {
+        s.body.set_surface_source(third, one_recipe()).unwrap();
+    });
+    assert!(refused, "the forged holder went unread");
 }

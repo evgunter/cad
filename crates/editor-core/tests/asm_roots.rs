@@ -511,12 +511,12 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
 }
 
 /// The recipe nodes that minted a solid's face carriers — the
-/// provenance a disjoint graft transplants verbatim, and therefore the
-/// honest read of "which root contributed this solid".
+/// `GeomSource` rows a disjoint graft carries verbatim, and therefore
+/// the honest read of "which root contributed this solid".
 fn minting_nodes(body: &topo::Body<f64>, solid: topo::SolidKey) -> Vec<u64> {
     let mut out = std::collections::BTreeSet::new();
-    if let Some(s) = body.get_solid(solid) {
-        for &shell in &s.shells {
+    if let Some(shells) = body.shells_of_solid(solid) {
+        for &shell in shells {
             let Some(sh) = body.get_shell(shell) else {
                 continue;
             };
@@ -566,25 +566,30 @@ fn row6c_replay_rebuilds_the_root_list() {
     let id = editor_core::DocumentId::derive("asm-roots-6c");
     let mut doc: Doc<ProfileProgram> = Doc::empty(id, Tol::witness());
     // Both blocks are sketched on the same plane, so ONE frame node
-    // serves both; being the first insert, it is also the id the
-    // profile/extrude counting below is measured from.
-    let mut nodes = vec![xy_frame()];
-    let plane = RecipeNodeId(0);
-    for cx in [0.0, 5.0] {
-        let profile = RecipeNodeId(nodes.len() as u64);
-        nodes.push(Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)])));
-        nodes.push(Node::Extrude {
-            profile,
-            distance: len(1.0),
-        });
-    }
-    for node in nodes {
+    // serves both. Each insert's id is read back from the door it went
+    // through, and the log records exactly the edits applied.
+    let mut insert = |doc: &mut Doc<ProfileProgram>, node| {
         let edit = DocEdit::InsertNode { node };
-        doc = doc
+        let applied = doc
             .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
-            .expect("insert")
-            .doc;
+            .expect("insert");
+        *doc = applied.doc;
         log.push(edit);
+        applied.record.minted.expect("an insert mints")
+    };
+    let plane = insert(&mut doc, xy_frame());
+    for cx in [0.0, 5.0] {
+        let profile = insert(
+            &mut doc,
+            Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)])),
+        );
+        insert(
+            &mut doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
     }
     let swap = DocEdit::SetRoots {
         roots: doc.roots().iter().rev().copied().collect(),

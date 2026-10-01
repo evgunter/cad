@@ -709,14 +709,19 @@ fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
         // The disc face carries the tilted circle's own plane, so the
         // pair the description names IS the edge's adjacent pair.
         let disc = flat_disc(&planted);
+        let sense = planted.get_face(disc).unwrap().sense;
+        // Lifts both refusals: the tilted disc plane is the planted non-iso boundary.
         let plane_key = planted
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 disc,
-                topo::FaceSurface::New(geom::Surface::Plane {
-                    origin: c,
-                    normal: m,
-                    u_ref: u,
-                }),
+                topo::FaceSurface::New {
+                    surface: geom::Surface::Plane {
+                        origin: c,
+                        normal: m,
+                        u_ref: u,
+                    },
+                    sense,
+                },
             )
             .unwrap();
         planted
@@ -761,54 +766,56 @@ fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
     }
 }
 
-/// **The §7 full-period-azimuth row**, and the one place the two
-/// containment doors deliberately disagree. A sphere face that attains
-/// EVERY azimuth has no azimuth window to be excluded by: the ray lane
-/// serves it (the latitude window still describes it exactly), while
-/// the face door keeps its typed frontier and answers `None`.
+/// **The §7 full-period-azimuth row.** A sphere face that ALONE wraps
+/// the azimuth has no window to be excluded by, and both containment
+/// doors serve it: the latitude window still describes it exactly.
 ///
-/// Planted by `kef` on one of a full ball's two seam meridians, which
-/// merges the two half-bands into a single face whose boundary walk
-/// carries a whole turn. The differential IS the row: the same body,
-/// the same face, `None` at one door and a definite verdict at the
-/// other, which is only possible if the trim returned a rectangle whose
-/// azimuth half is `None` — `face_geo` would have refused
-/// `PartialSphereFace` for any other reason the trim declines.
+/// The face is the zone of the unit bead with a bore of `1/2`
+/// (`common::bead`): one face with a self-mated seam, bounded by the two
+/// rims it shares with the bore — a body every tier blesses.
 #[test]
-fn a_full_period_azimuth_window_is_served_by_the_ray_lane_and_refused_by_the_face_door() {
+fn a_full_period_azimuth_window_is_served_by_both_doors() {
     let (b, t) = (band(), Tol::witness());
-    let mut planted = rimmed_ball(1.0, Revolution::Full);
-    let seam = seam_meridian(&planted, sphere_faces(&planted)[0]).0;
-    let he = planted.get_edge(seam).unwrap().he_plus;
-    planted
-        .kef(he)
-        .expect("the two half-bands merge into one face");
-    let faces = sphere_faces(&planted);
+    let zone_ring = crate::common::bead::bead(SketchPlane::xy(), 1.0, 0.5, Revolution::Full);
+    assert_eq!(topo::validate_geometric(&zone_ring, t), Ok(()));
+    let faces = sphere_faces(&zone_ring);
     assert_eq!(faces.len(), 1, "one sphere face spanning the whole period");
-    let (f, ch) = (faces[0], chart(&planted, faces[0]));
-    assert_eq!(
-        topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
-        None,
-        "the face door keeps its typed frontier at a full period"
-    );
-    assert_eq!(
-        point_in_solid(&planted, at(ch, 0.4, 2.0, 0.5), b, t).unwrap(),
-        SolidContainment::In,
-        "the ray lane serves it — every azimuth is in the face"
-    );
-    assert_eq!(
-        point_in_solid(&planted, at(ch, 0.4, 2.0, 1.5), b, t).unwrap(),
-        SolidContainment::Out
-    );
+    let (f, ch) = (faces[0], chart(&zone_ring, faces[0]));
+    // The zone holds the polar angles (π/6, 5π/6), at every azimuth.
+    for az in [0.4, 2.0, 4.5] {
+        assert_eq!(
+            topo::curved_face_containment(&zone_ring, f, at(ch, az, 2.0, 1.0), b).unwrap(),
+            Some(FaceContainment::In),
+            "the face door serves a full period at azimuth {az}"
+        );
+        assert_eq!(
+            topo::curved_face_containment(&zone_ring, f, at(ch, az, 0.3, 1.0), b).unwrap(),
+            Some(FaceContainment::Out),
+            "the cap the bore removed, at azimuth {az}"
+        );
+        assert_eq!(
+            point_in_solid(&zone_ring, at(ch, az, 2.0, 0.9), b, t).unwrap(),
+            SolidContainment::In,
+            "the ray lane serves it at azimuth {az}"
+        );
+        assert_eq!(
+            point_in_solid(&zone_ring, at(ch, az, 2.0, 1.5), b, t).unwrap(),
+            SolidContainment::Out
+        );
+    }
 }
 
 /// **The §7 ringed-sphere-face row.** A face with a ring is outside the
 /// class at both doors and for the same reason at both: the rectangle
 /// its outer boundary pins says nothing about the hole.
 ///
-/// Planted by `kfmrh`, which re-homes the flat disc's loop as a RING of
-/// the sphere face — the one public door that puts a ring on a curved
-/// face at all.
+/// Planted by `kfmrh`'s band door, which re-homes the flat disc's loop
+/// as a RING of the sphere face — `kfmrh` is the one public operator
+/// that puts a ring on a curved face at all. The sphere face arrives
+/// minted, so the keys-only door would refuse to leave it half-minted;
+/// the band door re-mints it with the ring walked in the sphere's
+/// chart, finds no row set that certifies, and leaves the face storing
+/// no row: unminted, never half-minted.
 #[test]
 fn a_ringed_sphere_face_refuses_at_both_doors() {
     let (b, t) = (band(), Tol::witness());
@@ -816,10 +823,36 @@ fn a_ringed_sphere_face_refuses_at_both_doors() {
     let f = sphere_faces(&planted)[0];
     let ch = chart(&planted, f);
     let disc = flat_disc(&planted);
+    let rows = |body: &Body<f64>| -> (usize, usize) {
+        let fd = body.get_face(f).unwrap();
+        let halves: Vec<_> = core::iter::once(fd.outer)
+            .chain(fd.rings.iter().copied())
+            .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+                topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
+                topo::LoopBoundary::Empty { .. } => None,
+            })
+            .flatten()
+            .collect();
+        let stored = halves
+            .iter()
+            .filter(|&&he| body.pcurve(he).is_some())
+            .count();
+        (stored, halves.len() - stored)
+    };
+    let (stored, missing) = rows(&planted);
+    assert!(
+        stored > 0 && missing == 0,
+        "the sphere face arrives complete: {stored}, {missing}"
+    );
     planted
-        .kfmrh(f, disc)
+        .kfmrh_minting(f, disc, t)
         .expect("the disc's loop re-homes as a ring");
     assert_eq!(planted.get_face(f).unwrap().rings.len(), 1);
+    assert_eq!(
+        rows(&planted).0,
+        0,
+        "the band door leaves the ringed face storing no row"
+    );
     assert_eq!(
         topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
         None

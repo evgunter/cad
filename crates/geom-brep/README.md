@@ -30,7 +30,7 @@ escalated typed refusal, never a raw comparison.
 | C6 f64 structure vs generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`; marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
-| C9 certification arithmetic | `crates/geom-core/src/interval.rs` (the certification doors), `spline/hull.rs`, `spline/compose/{tensor,patch}.rs` |
+| C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
 | C10 BVH | `crates/bvh` |
 | C11 NURBS substrate | `crates/geom/src/{curves,surfaces}/nurbs.rs`, `curves/fit.rs`, `*/projection.rs`; lofts in `crates/sweep/src/{loft,skin}.rs` |
 | C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad.rs`; `crates/geom-core/src/linalg/{svd,lsq}.rs` |
@@ -144,7 +144,8 @@ half-edges on one surface with two chart images (`u = α` and
 stored. `PcurveCache::certify` is the only constructor. The certified
 statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement at the shared
 schedule, plus a between-samples envelope whose own statement the
-certificate names (`EnvelopeStatement`): closed-form over the whole span
+certificate names (`EnvelopeStatement`, whose variants carry their own
+derivations): closed-form over the whole span
 for `Pcurve::Harmonic` (both sides in `span{1, cos t, sin t, t}`, so a
 corruption hiding between samples is unrepresentable), hull-bounded for
 fitted images on NURBS charts, and only the carrier's incidence with the
@@ -156,7 +157,9 @@ validity is part of the certificate: one branch pinned at the start (a
 is chosen once by the loop walk in `topo::pcurves` and certified by loop
 continuity) and trim containment against the caller's `ChartWindow`
 (`TrimEscape`). Planar faces store nothing; `chart_pcurve` derives on
-demand. The lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Fitted`, `General`
+demand. The lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
+plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
+closed from the carrier's own parameter), `Fitted`, `General`
 (the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
@@ -253,19 +256,29 @@ implemented.
 **C9 — Enclosures run on the in-repo interval backend.** Every enclosure
 certification needs is transcendental-free (implicit residuals are
 polynomial, de Boor is ring arithmetic, hull bounds are convexity facts),
-so certification arithmetic is `±`, `×`, `÷` and integer powers over
+so certification arithmetic is IEEE-754's correctly rounded operations —
+`±`, `×`, `÷`, integer powers and `√` — and no transcendental, over
 `geom_core::Interval` — the evaluation scalar itself, a newtype over
 `interval-transcendentals`' `DInterval`, outward-rounded where the
 operation is inexact, always compiled, MIT-clean. Its refusal is the
 backend's decoration (`dec < Def`), read as `!is_certified()`: a bracket
 that may not certify carries ordinary endpoints, so a consumer asks the
-refusal by name, and the certification doors (`Interval::hull`,
-`clamped_to`, `contains`, `width`, `mag`) refuse it whatever its
-endpoints say. A lane scalar crosses into certification arithmetic
-through `Interval::from_certified`, which carries the certified door's
-verdict as a `Def`/`Trv` cap on the decoration. No copyleft dependency
-exists in any build configuration. Certification code reads brackets
-through `Bounds` and asks admission through `CertifiedEnclosure`.
+refusal by name, and the certification doors refuse it whatever its
+endpoints say. The doors are the `Certification` trait's
+(`geom_core::interval::certification`), sealed to `Interval` and
+imported by name: a file that imports them has no `Real` in its
+production code, so a value typed `Interval` there reaches neither
+evaluation's weaker `is_poison` nor a transcendental, and
+`scripts/gates/certification-doors.sh` holds that over its list of
+importers. Generic code over a lane scalar in the same file (`Bounds`,
+`CertifiedBounds` and `Decide` are `Real` subtraits) evaluates on that
+lane, at `T = Interval` too, and crosses into certification arithmetic
+only through `Interval::from_certified` — inherent, since the crossing
+is written where a lane scalar is held — which carries the certified
+door's verdict as a `Def`/`Trv` cap on the decoration. No copyleft
+dependency exists in any build configuration. Certification code reads
+brackets through `Bounds` and asks admission through
+`CertifiedEnclosure`.
 
 **C10 — One deterministic AABB tree, conservative-superset contract.**
 `crates/bvh`: arena-order build, median split on the longest centroid
@@ -338,7 +351,8 @@ consumer's, discharged at `topo::offset_nappe::face_nappe` for every
 door that needs it). Refusals are named predicates over the *realized*
 stored float,
 decided before any mint: `offset_radius_floor` (margin `radius + d`;
-`OffsetError::RadiusFloor`) and `offset_torus_ring` (margin
+`OffsetError::RadiusFloor`) and `ring_torus_convention` (`geom::ring_torus`,
+the convention's one home, on the realized minor: margin
 `major − (minor + d)`; `TorusRing`). The cone has no door predicate
 because nothing stored degenerates; whether a face's `v`-window crosses
 the shifted apex is the consumer's question (`offset_apex_window` in
@@ -354,11 +368,14 @@ introduces a square root), so the kernel fits one and carries the
 intent beside the fit (`geom/src/surfaces/approx.rs`):
 `SurfaceDescription::Offset { base: Arc<NurbsSurface>, d }` is the
 intensional layer and its only inhabitant (the canal blend is the next,
-not built); `SurfaceSpec { description, fit, window, tolerance }` is the
+not built); `SurfaceSpec { description, fit, window }` is the
 uncertified input; `ApproxSurface::certify(spec, certifier)` is the sole
 door and its fields are private, so an uncertified approximating surface
 is unrepresentable. The certifier is injected because the derivation
-lives one crate up (`offset_fit.rs`) and is `f64`-only. The base is an
+lives one crate up (`offset_fit.rs`) and is `f64`-only. The certifier
+carries its own target, and every production certifier's is the run's
+`Tol`, so the surface stores no tolerance and every re-derivation
+classifies at the ε of the run that performs it (D4 ¶1). The base is an
 owned `Arc`, not an arena key (layering, and `Surface` values travel
 without an arena), and it is NURBS by type: analytic bases mint exactly
 under O1 and never reach this door. Storage is the seventh variant
@@ -383,11 +400,13 @@ a degenerate one). The fit (`offset_fit.rs`) is the NURBS Book's A9.4
 grid interpolation at the base's own parameters, then a
 certify-and-insert loop that refines the cells carrying the sup until
 every cell certifies or the loop refuses naming what stopped it —
-`BudgetExhausted` (the round budget) or `SampleCapReached` (the
-per-direction sample cap), each carrying the achieved bound;
-`RefinementStalled` when the strongest step gains nothing, on the last
-round as on any other; `BoundNotFinite`, carrying the last finite bound
-any grid reached or none, when the last grid's bound is not finite;
+`BudgetExhausted` (the round budget, saying whether the last round
+improved or did not improve) or `SampleCapReached` (the per-direction
+sample cap); `RefinementStalled` when the strongest step gains nothing,
+on the last round as on any other; each carries the last grid's bound
+and the smallest any round reached (`BestBound`, whose doc states when a
+request at it certifies); `BoundNotFinite`, carrying that smallest
+finite bound or none, when the last grid's bound is not finite;
 A9.10's downward knot-removal compression is not built.
 `OffsetCertificate` has two limbs: `on_locus_max`, a sampled residual
 that steers, and `hull_sup`, the certified bound via

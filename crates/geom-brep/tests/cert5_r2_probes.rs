@@ -469,12 +469,6 @@ fn many_offgrid_knots_per_axis_stay_sound() {
 /// the row above and the one that would expose a cut list that
 /// double-counts or drops a zero-width cell.
 ///
-/// `sweep::cert5_offgrid_knot_rational::dyadic_knots_were_free_and_stay_free`
-/// is not this row's owner, which is why it is here: that row does
-/// assert containment on a dyadic-knot body through the body door, but
-/// its blade carries TWO interior v knots (5 stations at degree 2), so
-/// it never reaches the coincident-cut regime this one is about.
-///
 /// Same cost note as the row above: kernel-bound at a refusing band,
 /// TCOST-K1's subject, and a TCOST-1 gate candidate naming
 /// `crates/geom-brep/src/props/quad.rs`.
