@@ -186,6 +186,7 @@ use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
 use crate::frame::Tone;
 use crate::parts::PartFiles;
 use crate::props::{computed_text, in_written, render_number};
+use crate::session::VersionOffer;
 
 /// **One level of a failure's traceback**, as the tree draws it: the
 /// document the level's node is in, as a label of its own, and the
@@ -353,6 +354,12 @@ pub struct TreeRow {
     /// row that is `Ok`; `None` on every other row, whose status says
     /// why there is none.
     pub measured: Option<Measured>,
+    /// **The accept a [`RowStatus::Failed`] instance row offers**, when
+    /// its failure is a pin that no longer holds
+    /// ([`crate::frame::version_offer`]); `None` on every other row, and
+    /// on every row while a newer document's run is outstanding
+    /// (`DocSession::tree_rows`).
+    pub version_offer: Option<VersionOffer>,
 }
 
 impl TreeRow {
@@ -670,10 +677,20 @@ pub fn rows(
         let depth = depth_of(&node.inputs(), &depths);
         depths.insert(id, depth);
         let status = status_of(id, evaluation, files);
-        let (repair_at, measured) = match status {
-            RowStatus::Failed { .. } => (evaluation.and_then(|ev| repair_of(id, ev)), None),
-            RowStatus::Ok => (None, evaluation.and_then(|ev| measured_of(id, node, ev))),
-            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None),
+        let (repair_at, measured, version_offer) = match status {
+            RowStatus::Failed { .. } => (
+                evaluation.and_then(|ev| repair_of(id, ev)),
+                None,
+                evaluation
+                    .and_then(|ev| own_error(id, ev))
+                    .and_then(|error| crate::frame::version_offer(&error.kind, files)),
+            ),
+            RowStatus::Ok => (
+                None,
+                evaluation.and_then(|ev| measured_of(id, node, ev)),
+                None,
+            ),
+            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None, None),
         };
         rows.push(TreeRow {
             id,
@@ -685,6 +702,7 @@ pub fn rows(
             note: node_note(node),
             repair_at,
             measured,
+            version_offer,
         });
     }
     rows

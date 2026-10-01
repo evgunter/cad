@@ -6,7 +6,7 @@
 //! determinant the review rows read the certified one against, the
 //! recipe walks' pass-through classification a row holds against the
 //! evaluator, and the load door's nesting limit a row holds against
-//! what a save writes.
+//! what a save writes, and the recipes more than one suite builds.
 //!
 //! One home for every reader in this crate and the crates that test
 //! against it: the unit-test modules reach it as `crate::test_support`,
@@ -25,7 +25,10 @@ use bvh::Ray;
 use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
-use crate::{Datum, Dimension, Expr, HitTestError, Node, PickHit, ProfileProgram};
+use crate::{
+    Datum, Dimension, DocEdit, Expr, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach,
+};
 
 // --- literals -------------------------------------------------------
 
@@ -86,6 +89,52 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram>
 /// +x along world +x, sketch +y along world +y.
 pub fn xy_frame() -> Node<ProfileProgram> {
     frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+}
+
+// --- recipes ---------------------------------------------------------
+
+/// **A cylinder split through a rim arc twice**: `circle(0, 0, 0.5)`
+/// extruded 1.0, split by the plane through `(0, 0.2, 0)` with normal
+/// `(0, 1, -1)`. The plane crosses the start rim arc twice and leaves
+/// the wall and the start cap one piece per side, under `tol`. Returns the document
+/// and the ids of the extrude, the plane datum and the split. No
+/// oracle: the rows that read it state what it must evaluate to.
+///
+/// # Panics
+///
+/// If a door refuses an insert.
+pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) {
+    let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
+        let a = crate::apply(&doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
+            .expect("the clipped cylinder's inserts apply");
+        (a.doc, a.record.minted.expect("an insert mints a node"))
+    };
+    let doc = ProfileDoc::empty_derived("clipped_cylinder", tol);
+    let (doc, plane) = ins(doc, xy_frame());
+    let (doc, profile) = ins(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, ext) = ins(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let (doc, tool) = ins(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.2), len(0.0)],
+            normal: [scl(0.0), scl(1.0), scl(-1.0)],
+        }),
+    );
+    let (doc, split) = ins(doc, Node::Split { target: ext, tool });
+    (doc, [ext, tool, split])
 }
 
 // --- the pick door --------------------------------------------------

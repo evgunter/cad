@@ -1046,23 +1046,30 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         other => panic!("a mismatched bound dim must refuse AssertionBound, got {other:?}"),
     }
 
-    // (b) The assertion's target: point it at the sketch FRAME (node
-    // 0), which is not a measure. The slab is frame 0 + profile 1 +
-    // extrude 2, so the measure is node 3.
-    let target = "\"measure\": 3";
-    assert_eq!(text.matches(target).count(), 1, "{target:?} must be unique");
-    let corrupt = text.replace(target, "\"measure\": 0");
+    // (b) The assertion's target: point it at the sketch FRAME (the
+    // first node), which is not a measure. The slab is frame, profile
+    // and extrude, so the measure is the fourth node.
+    let [frame, _, extrude, measure] = doc.order()[..4] else {
+        panic!("a slab and its measure");
+    };
+    let target = format!("\"measure\": {}", measure.0);
+    assert_eq!(
+        text.matches(&target).count(),
+        1,
+        "{target:?} must be unique"
+    );
+    let corrupt = text.replace(&target, &format!("\"measure\": {}", frame.0));
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionTarget { .. })) => {}
         other => panic!("a non-measure target must refuse AssertionTarget, got {other:?}"),
     }
 
     // (c) A reference whose minting node does not exist. The refs are
-    // minted by the extrude (node 2).
-    let target = "\"node\": 2,";
-    let n = text.matches(target).count();
-    assert!(n >= 1, "the measure's refs name node 2");
-    let corrupt = text.replacen(target, "\"node\": 77,", 1);
+    // minted by the extrude.
+    let target = format!("\"node\": {},", extrude.0);
+    let n = text.matches(&target).count();
+    assert!(n >= 1, "the measure's refs name the extrude");
+    let corrupt = text.replacen(&target, "\"node\": 77,", 1);
     match load(&corrupt, Tol::witness()) {
         // Two typed gates can own this corruption: the id-counter
         // check (77 was never minted) or the dangling-input walk.

@@ -143,8 +143,9 @@ fn intrinsic_seam_at(
         let (a, b) = c.params();
         (c.carrier().clone(), a, b)
     };
+    // Lifts both refusals: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
     let plane = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -187,7 +188,8 @@ fn rechart(body: &mut Body<f64>, old: topo::SurfaceKey, new: Surface<f64>) -> to
         .faces()
         .find(|(_, f)| f.surface == old)
         .expect("the bowed wall has a face");
-    body.set_face_surface(
+    // Lifts both refusals: the bowed wall's replaced chart is the row's subject.
+    body.set_face_surface_stranding_for_tests(
         fk,
         FaceSurface::New {
             surface: new,
@@ -608,8 +610,9 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         .faces()
         .find(|(_, f)| f.surface == bowed)
         .expect("the bowed wall has a face");
+    // Lifts both refusals: the widened chart at Dual64 is the row's subject.
     let key = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             fk,
             FaceSurface::New {
                 surface: widened,

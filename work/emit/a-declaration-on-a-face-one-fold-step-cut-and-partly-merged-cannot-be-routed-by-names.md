@@ -59,3 +59,23 @@ The refusal is pinned by the `KNOWN_MIXED` counts in
 Boolean:2/DeclareResolve:12) and by the "split and partly merged in one
 step" case in `wire.rs`'s
 `a_member_face_consumed_other_than_by_a_merge_refuses_naming_the_composition`.
+
+## The pair boolean and the union read "parent" differently (EMIT, 2026-09-30)
+
+A related difference, noted here because it bears on what a fold step
+publishes and so on what this door reads.
+- The union's end pass (`emit_union::name_by_parents`) links member
+  faces TRANSITIVELY through the merges that list them. Every piece of
+  a linked face is a piece of that one parent, `Merged` of all of them,
+  including a piece that never merged (README N2/N3).
+- The pair boolean (`emit_topo::name_boolean`) keys a merged parent by
+  the EXACT set of operand faces its merges list. Since PR 3547, two
+  merges listing one set name their faces `Merged(set)` + `Borders`,
+  but an unmerged piece of a listed face keeps its operand face's
+  name, `FromA(P)` + `Borders`.
+
+This predates PR 3547, which reused the pair boolean's existing reading
+and did not change it. So a fold step can spell a cut-and-partly-merged
+face in a way the published union does not. The ratified text states
+the transitive reading only for the union. Whether the pair boolean
+should read it too is a design question for whoever takes this row.

@@ -155,8 +155,9 @@ fn intrinsic_seam_at(
         (c.carrier().clone(), a, b)
     };
     // The plane the flat wall IS: `y = -1`, outward normal `-y`.
+    // Lifts both refusals: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
     let plane = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -412,7 +413,8 @@ fn rechart(body: &mut Body<f64>, old: topo::SurfaceKey, new: Surface<f64>) -> to
         .faces()
         .find(|(_, f)| f.surface == old)
         .expect("the bowed wall has a face");
-    body.set_face_surface(
+    // Lifts both refusals: the bowed wall's replaced chart is the row's subject.
+    body.set_face_surface_stranding_for_tests(
         fk,
         FaceSurface::New {
             surface: new,

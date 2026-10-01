@@ -52,7 +52,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::MekrSite;
-use crate::fixtures::deep_snapshot;
+use crate::fixtures::{deep_rows, deep_snapshot};
 use crate::iso::{canonical_form, isomorphic};
 use crate::readback::euler_counts;
 use crate::seqgen;
@@ -126,10 +126,11 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     let tol = Tol::witness();
     // Lone (segment): DEEP identity — the pre-state had emanating None
     // and an Empty loop, which the segment kill restores exactly, and
-    // the balanced pair leaves survivor keys untouched.
+    // the balanced pair leaves survivor keys untouched. Row for row:
+    // the pair consumes the key slots it minted.
     let mut b3 = Body::<f64>::new();
     let seed3 = b3.mvfs(p(0.0), true).unwrap();
-    let deep3 = deep_snapshot(&b3);
+    let deep3 = deep_rows(&b3);
     let created = b3
         .mev_line(
             MevSite::Lone {
@@ -140,7 +141,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
         )
         .unwrap();
     b3.kev(created.he_plus).unwrap();
-    assert_eq!(deep_snapshot(&b3), deep3, "Lone mev∘kev deep identity");
+    assert_eq!(deep_rows(&b3), deep3, "Lone mev∘kev deep identity");
 
     // Fan strut (he1 == he2): canonical identity.
     let (mut body, _seed, [a, _b, _c, _d, _e]) = five_spoke_star(tol);
@@ -267,10 +268,10 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "circular mef∘kef");
 
-    // Lone (self-loop pair at the lone vertex).
+    // Lone (self-loop pair at the lone vertex), row for row.
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0), true).unwrap();
-    let before = deep_snapshot(&body);
+    let before = deep_rows(&body);
     let circ = body
         .mef_chord(
             MefSite::Lone {
@@ -281,7 +282,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
         .unwrap();
     body.kef(circ.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));
-    assert_eq!(deep_snapshot(&body), before, "Lone mef∘kef deep identity");
+    assert_eq!(deep_rows(&body), before, "Lone mef∘kef deep identity");
 
     // Ring-loop split: mef with both chords in a RING loop; the new
     // face's outer is he1's side; kef(he_minus) undoes it.
@@ -1338,7 +1339,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
 #[test]
 fn seqgen_generates_every_op_kind_and_every_site_shape() {
     let tol = Tol::witness();
-    use crate::seqgen::{OpChoice, apply, choose_op};
+    use crate::seqgen::{Door, OpChoice, apply, choose_op, shell_components};
     use std::collections::BTreeSet;
     use test_utils::fuzz;
     let expected: BTreeSet<&'static str> = [
@@ -1359,15 +1360,21 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
         "mekr_empty_target",
         "mekr_both_empty",
         "kfmrh",
+        "kfmrh_minting",
         "kfmrh_fuse",
+        "kfmrh_fuse_minting",
         "mfkrh",
+        "mfkrh_minting",
         "movefac",
+        "movefac_three_or_more",
         "ring_move",
+        "ring_move_minting",
         "split_edge",
         "split_edge_strut",
         "split_edge_self_loop",
         "kev",
         "kef",
+        "kef_minting",
         "kvfs",
     ]
     .into_iter()
@@ -1439,14 +1446,28 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Mekr(MekrSite::EmptyRing { .. }) => "mekr_empty_ring",
                 OpChoice::Mekr(MekrSite::EmptyTarget { .. }) => "mekr_empty_target",
                 OpChoice::Mekr(MekrSite::BothEmpty { .. }) => "mekr_both_empty",
-                OpChoice::Kfmrh(..) => "kfmrh",
-                OpChoice::KfmrhFuse(..) => "kfmrh_fuse",
-                OpChoice::Mfkrh(_) => "mfkrh",
-                OpChoice::Movefac(_) => "movefac",
+                OpChoice::Kfmrh(.., Door::KeysOnly) => "kfmrh",
+                OpChoice::Kfmrh(.., Door::Minting) => "kfmrh_minting",
+                OpChoice::KfmrhFuse(.., Door::KeysOnly) => "kfmrh_fuse",
+                OpChoice::KfmrhFuse(.., Door::Minting) => "kfmrh_fuse_minting",
+                OpChoice::Mfkrh(_, Door::KeysOnly) => "mfkrh",
+                OpChoice::Mfkrh(_, Door::Minting) => "mfkrh_minting",
+                // Split by component count: a shell of three or more
+                // is the site that drives `movefac`'s minting loop
+                // past its first shell.
+                OpChoice::Movefac(shell) => {
+                    if shell_components(&body, shell) > 2 {
+                        "movefac_three_or_more"
+                    } else {
+                        "movefac"
+                    }
+                }
                 OpChoice::Kev(_) => "kev",
-                OpChoice::Kef(_) => "kef",
+                OpChoice::Kef(_, Door::KeysOnly) => "kef",
+                OpChoice::Kef(_, Door::Minting) => "kef_minting",
                 OpChoice::Kvfs(_) => "kvfs",
-                OpChoice::RingMove(..) => "ring_move",
+                OpChoice::RingMove(.., Door::KeysOnly) => "ring_move",
+                OpChoice::RingMove(.., Door::Minting) => "ring_move_minting",
                 // Split by SITE SHAPE, like the other multi-shape ops:
                 // "split_edge fired at least once" is not the claim the
                 // fuzz row exists to support — `split.rs`'s surgery
