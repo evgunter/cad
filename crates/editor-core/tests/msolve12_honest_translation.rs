@@ -288,9 +288,10 @@ fn close(got: Vec3<f64>, want: Vec3<f64>, rel: f64) -> bool {
 
 /// **Where it solves, the pose is the true intersection.** Each shape
 /// the translation stage solves in closed form is checked against a
-/// formula it does not use, at tilts from 0.7 down to the band's edge
-/// (where the planes meet some 1e8 m out, and the agreement
-/// two spellings can offer is the rounding over the sine). The planes'
+/// formula it does not use, at tilts from 0.7 down to the band's edge,
+/// to the agreement two spellings can offer: the rounding over the
+/// sine, which at the edge puts the planes' meeting point some
+/// `1 / sine` metres out. The planes'
 /// line is found through its nearest point to the origin,
 /// `(h₁ n₂ − h₂ n₁) × w / |w|²` with `w = n₁ × n₂`, and the held
 /// representative projected onto it; a plane and a line meet by
@@ -348,8 +349,7 @@ fn c2_the_pose_is_the_independent_intersection() {
         assert!(close(got, on_plane, 1e-12), "pin: {got:?} vs {on_plane:?}");
         checked += 2;
         for s in tilts {
-            let at_edge = s < 1e-6;
-            let rel = if at_edge { 1e-6 } else { 1e-12 };
+            let rel = (64.0 * f64::EPSILON / s).max(1e-12);
             let tilted = unit(n + b1 * (0.6 * s) + b2 * (0.8 * s));
             let lifted = unit(b1 * 0.6 + b2 * 0.8 + n * s);
 
@@ -390,27 +390,25 @@ fn c2_the_pose_is_the_independent_intersection() {
                 checked += 1;
             }
 
-            if !at_edge {
-                let q2 = r1 + n * 0.3 + m * 0.2;
-                let want = r1 + n * 0.3;
-                let got = intersect(
-                    coset(Subgroup::Prismatic { direction: normal }, r1),
-                    coset(Subgroup::Prismatic { direction: tilted }, q2),
-                    band,
-                    lever(arm),
-                )
-                .expect("two coplanar lines meet")
-                .representative
-                .translation;
-                assert!(
-                    close(got, want, rel),
-                    "lines at s={s:e}: {got:?} vs {want:?}"
-                );
-                checked += 1;
-            }
+            let q2 = r1 + n * 0.3 + m * 0.2;
+            let want = r1 + n * 0.3;
+            let got = intersect(
+                coset(Subgroup::Prismatic { direction: normal }, r1),
+                coset(Subgroup::Prismatic { direction: tilted }, q2),
+                band,
+                lever(arm),
+            )
+            .expect("two coplanar lines meet")
+            .representative
+            .translation;
+            assert!(
+                close(got, want, rel),
+                "lines at s={s:e}: {got:?} vs {want:?}"
+            );
+            checked += 1;
         }
     }
-    assert_eq!(checked, 2 * 2 + 6 * 4 + 3, "every shape at every tilt");
+    assert_eq!(checked, 2 * 2 + 7 * 4, "every shape at every tilt");
 }
 
 // ---- The one cause left: a meeting point past the format ----
