@@ -22,9 +22,9 @@
 
 use std::collections::HashMap;
 
-use pncad::authoring::{p2, polygon, v3};
+use pncad::authoring::{p2, polygon, v3, validated};
 use pncad::geom_core::Affine3;
-use pncad::profile::{Profile, SketchPlane, circle_split};
+use pncad::profile::{SketchPlane, circle_split};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanBody, BooleanResult, Curve3};
 
@@ -36,9 +36,7 @@ use pncad::geom_core::Tol;
 fn plate<S: Scalar>(tol: Tol) -> Body<S> {
     let lp =
         polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], tol).expect("plate outline");
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol)
-        .unwrap();
+    let profile = validated(SketchPlane::xy(), vec![lp], tol).unwrap();
     extrude(&profile, Extrusion::Distance(S::from_f64(1.0)), tol)
         .unwrap()
         .body
@@ -57,9 +55,8 @@ fn boss<S: Scalar>(tol: Tol) -> Body<S> {
     // count has to be said out loud; `circle_split` is the door that
     let rim = circle_split(p2(2.0, 2.0), S::from_f64(0.5), 3, S::from_f64(0.0), tol)
         .expect("the three-arc rim authors");
-    let lp = rim.into();
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, 0.4)));
-    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
+    let profile = validated(plane, vec![rim.into()], tol).unwrap();
     extrude(&profile, Extrusion::Distance(S::from_f64(1.2)), tol)
         .unwrap()
         .body

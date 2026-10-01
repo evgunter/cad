@@ -367,6 +367,10 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
+        path: "crates/topo/src/boolean/offer_rows.rs",
+        disposition: Shared, // the Boolean's decision sites, code view
+    },
+    Entry {
         path: "crates/topo/src/boolean/wall_section_rows.rs",
         disposition: Shared, // the window-construction site list, code view
     },

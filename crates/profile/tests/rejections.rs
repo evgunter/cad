@@ -542,3 +542,55 @@ fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
         "the enclosing recourse is missing: {rendered}"
     );
 }
+
+/// A two-segment table: a counterclockwise half turn about the origin of
+/// stored radius `r`, from `(r + off, 0)` to `(−r, 0)`, and the line
+/// back. `off` puts the start `off` off the carrier.
+fn half_turn_table(r: f64, off: f64) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let arc = Arc2 {
+        centre: Point2::new(0.0, 0.0),
+        radius: r,
+        sweep: std::f64::consts::PI,
+    };
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new([
+        (Point2::new(r + off, 0.0), Segment::Arc(arc)),
+        (Point2::new(-r, 0.0), Segment::Line),
+    ]);
+    profile(vec![lp])
+}
+
+/// **A table arc read off its vertex below the scene's resolution is
+/// refused as unreadable, not as inconsistent.** The radius is the
+/// power of two whose ulp is at least 4·K·ε at the running ε, so
+/// `f64` rounding at that magnitude is past the escalation band, and
+/// the start sits one ulp off the carrier: `arc_start_on_carrier`
+/// reads a definite difference, and `arc_carrier_resolution` says the
+/// scene cannot read it. The same one-ulp-scale offset (2·K·ε) at
+/// radius 1 is a real inconsistency, the control.
+#[test]
+fn a_table_arc_off_its_vertex_below_the_scene_resolution_is_unreadable_not_inconsistent() {
+    let band = geom_core::Band::linear(tol()).expect("the suite's band");
+    let floor = 4.0 * band.escalate();
+    let mut r = 1.0_f64;
+    while r * f64::EPSILON < floor {
+        r *= 2.0;
+    }
+    let ulp = r * f64::EPSILON;
+    assert!(ulp >= floor && ulp > band.escalate());
+    match err(&half_turn_table(r, ulp)) {
+        ProfileError::ArcBelowSceneResolution { at, check, .. } => {
+            assert_eq!(at, sref(0, 0));
+            assert_eq!(check, profile::ArcCheck::OnCarrier);
+        }
+        other => panic!("expected the scene-resolution refusal at r = {r:e}, got {other:?}"),
+    }
+    match err(&half_turn_table(1.0, 2.0 * band.escalate())) {
+        ProfileError::InconsistentArc { at, check } => {
+            assert_eq!(at, sref(0, 0));
+            assert_eq!(check, profile::ArcCheck::OnCarrier);
+        }
+        other => panic!("expected a real inconsistency at r = 1, got {other:?}"),
+    }
+}

@@ -130,24 +130,27 @@
 //! the registry answers, so `symbolic_zero` is M10-8's on every
 //! document, to the decision.
 //!
-//! **The unit of scope is the CONSTRUCTOR, not the identity.** The
-//! swept arc carrier's builder registers EVERY same-object identity it
-//! guarantees whose consumer node it can build identically, and it
-//! guarantees two: the RIM identity `‖q_from − c‖ = r` and the SPAN
-//! identity `carrier.eval(param_end) = q_to`, registered componentwise
-//! (`sweep::swept::register_rim_identity` and `register_span_identity`,
-//! each with its proof). The span registrant is E12's reserve's own
-//! example — "a typed 'built as `carrier.eval(t0)`' token" — and it is
-//! same-object because `Curve3::eval`'s `Circle` arm DELEGATES to a
-//! `Real`-bounded door (`Curve3::circle_at`) the constructor calls too,
-//! so the node it states the identity about is the node the certifier
-//! asks about.
+//! **The unit of scope is the CONSTRUCTOR, not the identity.** Each
+//! registrant states the identities ITS construction guarantees about
+//! nodes it builds identically to the consumer's, and the registry's
+//! alias is transitive, so facts stated at two constructions chain. A
+//! profile arc's lowering (`profile::lower_arc`, through
+//! `Arc2::register_endpoints`) states its endpoint facts in the sketch:
+//! the rim at each end is the radius, and the carrier's end is the far
+//! vertex. The sweep that places the arc states only rigidity
+//! (`sweep::swept::register_rigidity`, `register_placed_carrier_end`):
+//! the placed rim is the sketch rim, and the placed carrier at its span
+//! is the sketch carrier's end, placed — the latter same-object because
+//! `Curve3::eval`'s `Circle` arm DELEGATES to a `Real`-bounded door
+//! (`Curve3::circle_at`) the registrant calls too, so the node it
+//! states the identity about is the node the certifier asks about.
 //!
 //! The revolve's latitude carriers (`sweep::revolve::surfaces` and
 //! `::full`) mint the same circle under the same guarantee and state
 //! the RIM identity too — the same rule applied to the second
-//! constructor, not to the second identity. Rim only: neither builder
-//! is handed the far endpoint, so the span identity has nothing to be
+//! constructor, not to the second identity
+//! (`sweep::swept::register_rim_identity`). Rim only: neither builder
+//! is handed the far endpoint, so a far-end identity has nothing to be
 //! stated about (`work/blend/revolve-carriers-state-only-the-rim`).
 //!
 //! **Where the door may be called is an ALLOWLIST**, not a
@@ -232,7 +235,7 @@
 //! **What it reaches on the plate, at the nominal** (theorem / gated /
 //! registered / numeric, `m10_10_pins_interval`): `carrier_on_surface_2`
 //! 108/0/0/72 → 180/0/0/0 and `witness_on_surface_2` 12/0/0/8 →
-//! 20/0/0/0 as THEOREMS; `carrier_matches_mapped_source` 180/0/8/64 →
+//! 20/0/0/0 as THEOREMS; `carrier_matches_mapped_source` 180/0/16/56 →
 //! 180/0/72/0, every sample through the DOOR — rule D makes the trig
 //! meet, and the rim identity `‖q − c‖ = r` the registrant states is
 //! what closes it, so the count is `registered`, honestly. The fourth
@@ -6639,9 +6642,11 @@ mod tests {
         );
     }
 
-    /// The arc carrier's SECOND same-object identity, in miniature —
-    /// the SPAN identity `carrier.eval(θ) = q_to` (M10-9 amendment A1;
-    /// `sweep::swept::register_span_identity`). The far endpoint is
+    /// The arc carrier's far-end identity, in miniature — the carrier at
+    /// its span is the far vertex, `carrier.eval(θ) = q_to` (M10-9
+    /// amendment A1; stated today as a chain of
+    /// `sweep::swept::register_placed_carrier_end` and the lowering's
+    /// `Arc2::register_endpoints`). The far endpoint is
     /// reached by rotating the rim vector through the span, so the
     /// residual carries `cos`/`sin` of the span `4·atan b`, which no
     /// rule relates to the independently built far vertex: it is
