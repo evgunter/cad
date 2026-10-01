@@ -1240,7 +1240,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     };
     assert!(
         offset(&back.doc, restored)
-            .zip(offset(&layout, shelf_i))
+            .zip(offset(layout, shelf_i))
             .is_some_and(|(a, b)| a.bit_eq(&b)),
         "the round trip restores the offset exactly"
     );
