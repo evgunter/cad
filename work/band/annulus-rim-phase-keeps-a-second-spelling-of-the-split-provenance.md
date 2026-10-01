@@ -2,10 +2,13 @@
 id: annulus-rim-phase-keeps-a-second-spelling-of-the-split-provenance
 kind: issue
 title: blend: the annulus rim phase keeps a second spelling of the split's provenance
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: E
+closed: 2026-10-01
+pr: 3670
+branch: band/annulus-split-one-home
 ---
 
 
