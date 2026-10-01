@@ -11,9 +11,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, Label, LoggedEdit, Node,
-    PersistError, ProfileDoc, RecipeNodeId, SnapshotError, content_pin, evaluate, inline, load,
-    save, split,
+    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, Label, LoggedEdit, Maintenance, Node,
+    PersistError, ProfileDoc, RecipeNodeId, RootFault, SnapshotError, content_pin, evaluate,
+    inline, load, save, split,
 };
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, on_frame, square, step};
@@ -394,5 +394,128 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
             tag(left.0)
         )),
         "{twice}"
+    );
+}
+
+/// **A delete's report speaks from the document the door was handed.**
+/// The stranded name's minting node is the one the delete removed, so
+/// only the document before the edit still holds its label: a row
+/// spoken from the document the edit leaves would say `node <tag>`.
+/// The surviving carrier and an orphaned declaration are spoken the
+/// same way, label and all.
+#[test]
+fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
+    let doc = ProfileDoc::empty_derived("node-labels-strand", Tol::witness());
+    let (doc, [_, _, kept]) = block(doc, 0.0);
+    let (doc, [_, _, victim]) = block(doc, 4.0);
+    let named = fixture::fname(victim, fixture::wall(&doc, victim, 0));
+    let (doc, carrier) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::FaceFrame {
+            at: kept,
+            face: named.clone(),
+            spin: fixture::ang(0.0),
+        }),
+    );
+    let doc = set_label(doc, victim, Some("base plate"));
+    let doc = set_label(doc, carrier, Some("mount"));
+
+    let applied = editor_core::apply(
+        &doc,
+        &DocEdit::DeleteNode { id: victim },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a name is not an edge, so the delete lands");
+    let [Maintenance::Strand { node, name }] = applied.maintenance.as_slice() else {
+        panic!("one strand, got {:?}", applied.maintenance);
+    };
+    assert_eq!((node.id(), name.name()), (carrier, &named));
+    assert_eq!(
+        name.minter().label(),
+        Some(&label("base plate")),
+        "the minting node is spoken from the document that still held it"
+    );
+    assert_eq!(
+        applied.maintenance[0].to_string().split(';').next(),
+        Some(
+            format!(
+                "Datum frame (on face) \"mount\" ({}) carries a face name minted by Extrude \
+                 \"base plate\" ({})",
+                tag(carrier.0),
+                tag(victim.0)
+            )
+            .as_str()
+        ),
+    );
+}
+
+/// **A root refusal at the edit door speaks both roots with their
+/// labels**, and its recourse names the one to drop the same way.
+#[test]
+fn a_root_refusal_speaks_the_labelled_roots_and_its_recourse_does_too() {
+    let doc = ProfileDoc::empty_derived("node-labels-roots", Tol::witness());
+    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, profile, Some("sketch"));
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let refused = refusal(
+        &doc,
+        DocEdit::SetRoots {
+            roots: vec![profile, extrude],
+        },
+    );
+    let EditError::Roots(RootFault::Ancestor {
+        ancestor,
+        descendant,
+    }) = &refused
+    else {
+        panic!("an ancestor pair refuses, got {refused:?}");
+    };
+    assert_eq!(
+        (ancestor, descendant),
+        (&doc.spoken(profile), &doc.spoken(extrude))
+    );
+    let (p, e) = (tag(profile.0), tag(extrude.0));
+    let text = refused.to_string();
+    assert!(
+        text.starts_with(&format!(
+            "product root Profile \"sketch\" ({p}) is an ancestor of product root Extrude \
+             \"base plate\" ({e})"
+        )),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!("drop Profile \"sketch\" ({p}) from the root list")),
+        "{text}"
+    );
+}
+
+/// **A name an edit refusal forwards speaks its minting node** as the
+/// document holds it.
+#[test]
+fn a_forwarded_name_speaks_its_labelled_minting_node() {
+    let doc = ProfileDoc::empty_derived("node-labels-name", Tol::witness());
+    let (doc, [_, _, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let unreferenced = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
+    let refused = refusal(
+        &doc,
+        DocEdit::Rebind {
+            from: unreferenced.clone(),
+            to: fixture::fname(extrude, fixture::wall(&doc, extrude, 1)),
+        },
+    );
+    assert_eq!(
+        refused,
+        EditError::RebindNoReferences {
+            name: doc.spoken_name(&unreferenced)
+        }
+    );
+    assert!(
+        refused.to_string().contains(&format!(
+            "face name minted by Extrude \"base plate\" ({})",
+            tag(extrude.0)
+        )),
+        "{refused}"
     );
 }
