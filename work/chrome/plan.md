@@ -263,14 +263,29 @@ record.
 - `a-long-cascades-maintenance-crowds-the-status-line`: options (a)–(d) were asked in chat.
 - `cluster-maintenance-acts-reach-the-outcome-but-not-the-line`: worded or silent.
 
-**Design forks, each needing the designer pass (`docs/prompts/designer.md`) before dispatch:**
-- `kernel-refusals-say-node-where-the-tree-says-feature`
-- `the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`
-- `failed-row-repair-links-for-arms-with-two-candidate-repairs`
-- `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`
-- `a-computed-slots-value-reads-in-metres-and-radians`
-- `a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text`
-- `chrome-weight-is-outside-the-palette` (its first decision is a theme-contract question)
+**Design forks, all weighed and ruled on 2026-10-01** (designer pairs,
+`docs/DESIGN-FORK-LOG.md` rows 24 to 30):
+- `kernel-refusals-say-node-where-the-tree-says-feature`: superseded by
+  PR 3565's node labels (#3605), now parked on `node-labels-are-document-data`
+- `the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`:
+  ruled on #3607, row moved to POLISH
+- `failed-row-repair-links-for-arms-with-two-candidate-repairs`: no
+  links, empty readout (#3609)
+- `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`:
+  silent on a gather refusal, `Result` in `LandedRun` (#3604)
+- `a-computed-slots-value-reads-in-metres-and-radians`: per-person
+  working notation (#3602)
+- `a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text`:
+  edit in the row, capped (#3606), row moved to POLISH
+- `chrome-weight-is-outside-the-palette`: rename to actionable plus a
+  salience check, no new `Theme` fields (#3608)
+
+**What this program takes on, from 2026-10-01** (Ev, in chat): rows
+that change WHAT the chrome shows. A row whose information is already
+reachable, and whose fix only changes HOW it is shown, goes to
+`work/polish/` (P4). The line is fuzzy by Ev's own account: text that
+lands nowhere near what it describes is an information problem and
+stays here. Work already landed under the polish heading is kept.
 
 **The board's in-flight column is a claim, not a fact** — see
 `work/chrome/log.md`, 2026-09-22. A row is marked `dispatched` here only

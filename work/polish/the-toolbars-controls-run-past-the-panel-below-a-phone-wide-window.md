@@ -4,9 +4,8 @@ kind: issue
 title: viewer: below a 400-point window the toolbar's theme picker, and below the message floor its canceled line, are drawn past the panel
 status: open
 opened: 2026-09-29
-priority: P3
+priority: P4
 cost: M
-design: true
 refs: [the-toolbars-status-line-runs-past-the-panel-below-a-floor-wide-window]
 ---
 
