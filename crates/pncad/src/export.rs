@@ -95,7 +95,10 @@ impl core::fmt::Display for ExportError {
             Self::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
             Self::Product(e) => write!(f, "export: {e}"),
             Self::Unplaced { parts } => {
-                write!(f, "export: STEP writes one world, and these parts are unplaced:")?;
+                write!(
+                    f,
+                    "export: STEP writes one world, and these parts are unplaced:"
+                )?;
                 for (node, group, cause) in parts {
                     write!(
                         f,
