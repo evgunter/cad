@@ -5,7 +5,7 @@ title: boolean graft re-certifies through the plain certify door, the second ins
 status: open
 opened: 2026-09-12
 priority: P1
-cost: D
+cost: M
 ---
 
 

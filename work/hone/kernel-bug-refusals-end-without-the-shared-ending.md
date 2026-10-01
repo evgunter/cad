@@ -4,6 +4,8 @@ kind: issue
 title: topo: the split's kernel-bug refusals end in a '(kernel bug)' tag, not the shared kernel-defect ending
 status: open
 opened: 2026-09-28
+cost: E
+priority: P4
 ---
 
 

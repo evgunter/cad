@@ -5,7 +5,7 @@ title: The point halfway along an edge is re-derived at each site that needs one
 status: open
 opened: 2026-09-25
 priority: P1
-cost: D
+cost: M
 ---
 
 
