@@ -80,6 +80,7 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Declare { .. } => "declare",
         Node::InstantiatePart { .. } => "instantiate_part",
         Node::Mate { .. } => "mate",
+        Node::Gauge { .. } => "gauge",
         Node::Measure { .. } => "measure",
         Node::Assertion { .. } => "assertion",
     }

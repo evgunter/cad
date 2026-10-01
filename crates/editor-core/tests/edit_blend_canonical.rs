@@ -84,11 +84,11 @@ fn saved_fillet(segments: &[u32]) -> String {
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(
+            node: Box::new(Node::fillet(
                 solid,
                 fixture::len(0.0625),
                 segments.iter().map(|s| edge(&doc, solid, *s)).collect(),
-            ),
+            )),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -128,7 +128,9 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
     let raw = raw_fillet(&doc, solid, &[2, 0]);
     match apply(
         &doc,
-        &DocEdit::InsertNode { node: raw },
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
@@ -140,7 +142,7 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
     apply(
         &doc,
         &DocEdit::InsertNode {
-            node: raw_fillet(&doc, solid, &[0, 2]),
+            node: Box::new(raw_fillet(&doc, solid, &[0, 2])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -160,7 +162,9 @@ fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
     };
     match apply(
         &doc,
-        &DocEdit::InsertNode { node: raw },
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
@@ -178,7 +182,9 @@ fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
     let raw = raw_fillet(&doc, solid, &[0, 0, 2]);
     match apply(
         &doc,
-        &DocEdit::InsertNode { node: raw },
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
@@ -270,7 +276,9 @@ fn an_empty_selection_is_canonical() {
     assert!(empty.input_fault().is_none());
     let doc = apply(
         &doc,
-        &DocEdit::InsertNode { node: empty },
+        &DocEdit::InsertNode {
+            node: Box::new(empty),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -317,7 +325,7 @@ fn both_doors_forward_one_sentence() {
     let at_edit = match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: raw_fillet(&doc, solid, &[0, 4, 2]),
+            node: Box::new(raw_fillet(&doc, solid, &[0, 4, 2])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -383,7 +391,7 @@ fn the_insert_door_reports_a_non_zero_position() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: raw_fillet(&doc, solid, &[0, 4, 2]),
+            node: Box::new(raw_fillet(&doc, solid, &[0, 4, 2])),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -422,7 +430,7 @@ fn a_rebind_leaves_a_canonical_selection() {
         let applied = apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Node::fillet(
+                node: Box::new(Node::fillet(
                     solid,
                     fixture::len(0.0625),
                     vec![
@@ -430,7 +438,7 @@ fn a_rebind_leaves_a_canonical_selection() {
                         edge(&doc, solid, 2),
                         edge(&doc, solid, 4),
                     ],
-                ),
+                )),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

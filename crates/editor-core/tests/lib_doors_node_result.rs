@@ -53,40 +53,40 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     };
     // Both boxes are sketched on the same plane — that is the whole
     // point of the row — so they name ONE frame between them.
-    let plane = insert(&mut doc, fixture::xy_frame());
-    let outer_profile = insert(&mut doc, square(plane, 2.0));
+    let plane = insert(&mut doc, Box::new(fixture::xy_frame()));
+    let outer_profile = insert(&mut doc, Box::new(square(plane, 2.0)));
     let outer = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: outer_profile,
             distance: len(2.0),
-        },
+        }),
     );
-    let inner_profile = insert(&mut doc, square(plane, 1.0));
+    let inner_profile = insert(&mut doc, Box::new(square(plane, 1.0)));
     let inner = insert(
         &mut doc,
-        Node::Extrude {
+        Box::new(Node::Extrude {
             profile: inner_profile,
             distance: len(1.0),
-        },
+        }),
     );
     let cut = insert(
         &mut doc,
-        Node::Boolean {
+        Box::new(Node::Boolean {
             op: BooleanOp::Subtract,
             a: outer,
             b: inner,
             declare: None,
-        },
+        }),
     );
     let downstream = insert(
         &mut doc,
-        Node::Boolean {
+        Box::new(Node::Boolean {
             op: BooleanOp::Union,
             a: cut,
             b: outer,
             declare: None,
-        },
+        }),
     );
     (doc, cut, downstream)
 }

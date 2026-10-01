@@ -82,8 +82,9 @@ pub struct Blended<T: Real> {
     /// Its (only) shell.
     pub shell: ShellKey,
     /// The blend faces — the fillet's quarter-cylinder patches or
-    /// the chamfer's flat strips, one per original edge, in
-    /// original-edge order.
+    /// the chamfer's flat strips, one per open chain (one per original
+    /// edge, save where a chain joins several links on one support
+    /// pair into one band), in lowest-original-edge order.
     pub blend_faces: Vec<FaceKey>,
     /// The corner faces — the fillet's sphere patches or the
     /// chamfer's planar patches, one per original vertex, in
@@ -432,7 +433,7 @@ mod tests {
     use geom_core::Tol;
 
     use super::super::BlendError;
-    use super::super::admit::{AdmittedOpen, CornerFaces, CornerLinks};
+    use super::super::admit::{AdmittedOpen, CornerFaces, CornerLinks, OpenBand};
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use crate::test_support::{L, all_links, cube};
 
@@ -464,7 +465,11 @@ mod tests {
     fn cross_corner_drill(convexity: Convexity, chains: &[Chain<f64>], body: &topo::Body<f64>) {
         let admitted: Vec<AdmittedOpen<'_, f64>> = chains
             .iter()
-            .map(|c| AdmittedOpen::admit(c).expect("a cube's links are plane–plane"))
+            .map(|c| {
+                OpenBand::admit(body, c)
+                    .expect("a cube's links are plane–plane")
+                    .first()
+            })
             .collect();
         let here = *admitted.first().expect("a cube has requested links");
         let vertex = here.link().start;

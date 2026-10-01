@@ -977,11 +977,13 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(
-                MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-                refs,
-            )
-            .expect("indices in range"),
+            node: Box::new(
+                Node::measure(
+                    MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                    refs,
+                )
+                .expect("indices in range"),
+            ),
         },
     );
     let unsupported = *doc.order().last().expect("inserted");

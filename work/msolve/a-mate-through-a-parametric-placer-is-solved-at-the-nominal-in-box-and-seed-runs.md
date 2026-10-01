@@ -56,3 +56,18 @@ predates the unit.
 reads through a parametric `Transform`, and show the mated part's
 enclosure omitting its pose at a box corner.
 
+
+## Widened (2026-10-01, PR #3676, EDIT P2-core)
+
+A checked offset is decided at the nominal too. `mate/solve.rs`'s
+`check_offsets` composes each member's world pose over the group's
+frame (`group_frame`: the gauge chain and the root's offset) whenever a
+placer stands on either path, and reads that frame at the document's
+own parameters, as every number the solve reads is. A box or seed run
+that binds a parameter of a gauge or a root offset therefore checks the
+member's stated offset at the nominal while the lane composes the
+instance at the box. It is this row's class — one solve answer read in
+a lane that moved what it was decided over — and the refusal this row
+proposes covers it when it also intersects the bound names with the
+names a parametric gauge or root offset reads. With no placer on either
+path the frame cancels and is not read, so the check is lane-exact.
