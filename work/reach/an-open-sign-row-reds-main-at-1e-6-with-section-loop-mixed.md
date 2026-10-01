@@ -30,6 +30,15 @@ and at 1e-12. The failure is at :41 (`build`):
   in its own worktree and target dir:
   `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p sweep -E 'test(/an_open_sign_beyond_the_band/)'`.
 
+- REACH's #3737 fix pass reproduced it identically on
+  `reach/pxn-envelope-red` (which carries main to `978feeb296`), at
+  1e-6 only, and the #3737 reviewer on `9fb3de684`. #3737's own change
+  (the Boehm step's hull meet) does not move it.
+- The refusal is `SectionLoopMixed`, the shape of ZIP's P0
+  `role-resolution-interior-tiers-certify-only-planar-region-faces` (a
+  chord-midpoint probe on a curved edge reads both loops alike). That
+  it is the same defect is inferred, not shown.
+
 ## History
 
 This is the row's third shape at 1e-6:

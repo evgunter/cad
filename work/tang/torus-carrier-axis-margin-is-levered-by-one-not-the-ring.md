@@ -5,7 +5,7 @@ title: carrier_eq's torus axis-parallel margin is levered by one metre, not the 
 status: open
 opened: 2026-09-26
 priority: P1
-cost: D
+cost: M
 ---
 
 ## What
