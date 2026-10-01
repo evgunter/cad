@@ -2,12 +2,13 @@
 id: arc-aware-point-in-loop
 kind: issue
 title: Arc-aware point-in-loop - the polygon walk's remainder on arc-bearing planar faces
-status: open
+status: closed
 opened: 2026-08-27
 github: 1076
 refs: [1068, 1425, 1464]
 priority: P0
 cost: H
+closed: 2026-10-01
 ---
 
 ## From GitHub issue 1076
@@ -261,3 +262,15 @@ as a signed-area or winding sum over a vertex list.
   boolean lands a probe inside the ball is unmeasured. The new row
   carries it, and the naming of `None` is
   `work/cleave/carrier-walk-none-is-answered-four-ways.md`.
+
+## Closed (2026-10-01, TANG)
+
+Every site this row named reads arc-bearing loops on their carriers
+(`splitting::containment::point_in_carrier_loop` and its walk), and no
+production caller hands an arc-bearing loop to the polygon walk (TANG
+re-measure, PR 3748). The `<3`-vertex gate and the disc special case
+are gone. Two residues have their own files:
+`work/cleave/carrier-walk-has-no-crossing-row-for-spiric-or-spline-edges.md`
+(the spiric/spline remainder) and
+`work/tang/loop-shape-keeps-three-classes-nothing-reads.md` (the
+`LoopShape` cleanup).
