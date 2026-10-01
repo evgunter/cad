@@ -197,6 +197,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_wall_outline_reach"
         | "bool_wall_piece_span"
         | "bool_wall_rim_level"
+        | "bool_wrap_rim"
         | "bool_wall_section_tilt"
         | "bool_wall_trim_period"
         | "bool_wall_iso_meridian"

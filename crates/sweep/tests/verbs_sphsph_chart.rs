@@ -765,43 +765,58 @@ fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
     }
 }
 
-/// **The §7 full-period-azimuth row.** A sphere face that attains
-/// EVERY azimuth has no azimuth window to be excluded by, and both
-/// containment doors serve it: the latitude window still describes it
-/// exactly.
+/// **The §7 full-period-azimuth row.** A sphere face that ALONE wraps
+/// the azimuth has no window to be excluded by, and both containment
+/// doors serve it: the latitude window still describes it exactly.
 ///
-/// Planted by `kef` on one of a full ball's two seam meridians, which
-/// merges the two half-bands into a single face whose boundary walk
-/// carries a whole turn. `face_geo` would have refused
-/// `PartialSphereFace` for any reason the trim declines, so a definite
-/// verdict at both doors says the trim returned a rectangle whose
-/// azimuth half is `None`.
+/// The face is a revolve's own: the unit circle's arc through the
+/// equator, from `(1/2, -√3/2)` to `(1/2, √3/2)`, closed by the bore
+/// line `ρ = 1/2` and turned a full revolution about `y`. Its zone is
+/// one face with a self-mated seam, bounded by the two rims it shares
+/// with the bore — a body every tier blesses.
 #[test]
 fn a_full_period_azimuth_window_is_served_by_both_doors() {
     let (b, t) = (band(), Tol::witness());
-    let mut planted = rimmed_ball(1.0, Revolution::Full);
-    let seam = seam_meridian(&planted, sphere_faces(&planted)[0]).0;
-    let he = planted.get_edge(seam).unwrap().he_plus;
-    planted
-        .kef(he)
-        .expect("the two half-bands merge into one face");
-    let faces = sphere_faces(&planted);
+    let h = 0.75_f64.sqrt();
+    let phi = (h / 0.5).atan();
+    let lp = bulge_loop(vec![
+        (geom_core::Point2::new(0.5, -h), (phi / 2.0).tan()),
+        (geom_core::Point2::new(0.5, h), 0.0),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    let axis = RevolveAxis {
+        origin: geom_core::Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    let zone_ring = revolve(&vp, axis, Revolution::Full, t).unwrap().body;
+    assert_eq!(topo::validate_geometric(&zone_ring, t), Ok(()));
+    let faces = sphere_faces(&zone_ring);
     assert_eq!(faces.len(), 1, "one sphere face spanning the whole period");
-    let (f, ch) = (faces[0], chart(&planted, faces[0]));
-    assert_eq!(
-        topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
-        Some(topo::FaceContainment::In),
-        "the face door serves a full period: every azimuth is in the face"
-    );
-    assert_eq!(
-        point_in_solid(&planted, at(ch, 0.4, 2.0, 0.5), b, t).unwrap(),
-        SolidContainment::In,
-        "the ray lane serves it — every azimuth is in the face"
-    );
-    assert_eq!(
-        point_in_solid(&planted, at(ch, 0.4, 2.0, 1.5), b, t).unwrap(),
-        SolidContainment::Out
-    );
+    let (f, ch) = (faces[0], chart(&zone_ring, faces[0]));
+    // The zone holds the polar angles (π/6, 5π/6), at every azimuth.
+    for az in [0.4, 2.0, 4.5] {
+        assert_eq!(
+            topo::curved_face_containment(&zone_ring, f, at(ch, az, 2.0, 1.0), b).unwrap(),
+            Some(FaceContainment::In),
+            "the face door serves a full period at azimuth {az}"
+        );
+        assert_eq!(
+            topo::curved_face_containment(&zone_ring, f, at(ch, az, 0.3, 1.0), b).unwrap(),
+            Some(FaceContainment::Out),
+            "the cap the bore removed, at azimuth {az}"
+        );
+        assert_eq!(
+            point_in_solid(&zone_ring, at(ch, az, 2.0, 0.9), b, t).unwrap(),
+            SolidContainment::In,
+            "the ray lane serves it at azimuth {az}"
+        );
+        assert_eq!(
+            point_in_solid(&zone_ring, at(ch, az, 2.0, 1.5), b, t).unwrap(),
+            SolidContainment::Out
+        );
+    }
 }
 
 /// **The §7 ringed-sphere-face row.** A face with a ring is outside the

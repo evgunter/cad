@@ -527,21 +527,21 @@ const ROWS: BoundaryRows = BoundaryRows {
 /// rectangle then misstates the face in BOTH directions, and this door
 /// answers `None` rather than a verdict it cannot stand behind.
 ///
-/// A window a FULL PERIOD wide has no azimuth test to run (the cosine
-/// comparison is an equivalence only under a period), and is served
-/// when the face is the full-turn BAND
-/// ([`super::solid_contain::full_turn_outline`], the ray lane's own
-/// class): the face alone wraps the azimuth, so membership is the
-/// height window alone.
+/// A face that ALONE wraps the azimuth has no window to trim by, and is
+/// served as the full-turn BAND
+/// ([`super::solid_contain::full_turn_outline`], the route both doors
+/// ask first): membership is the height window alone.
 ///
 /// `None` is therefore the honest remainder throughout — a chart with no
 /// arm (NURBS), a chart form the trim cannot express (a ringed face, a
-/// non-iso boundary, or a full-period window outside the band class),
-/// or a margin on a trim boundary — and the caller keeps its typed
-/// frontier door there. The period case is decided HERE rather than
-/// read out of the solid door's refusal: that door escalates outside
-/// the band, because a ray lane may not silently skip a wall, and this
-/// door's contract is the remainder.
+/// non-iso boundary, a wrapped face outside the band class, or a window
+/// that reads a whole period on a face that does not wrap alone, whose
+/// cosine comparison is an equivalence only under a period), or a
+/// margin on a trim boundary — and the caller keeps its typed frontier
+/// door there. The period case is decided HERE rather than read out of
+/// the solid door's refusal: that door escalates, because a ray lane
+/// may not silently skip a wall, and this door's contract is the
+/// remainder.
 ///
 /// # Errors
 ///
@@ -680,42 +680,41 @@ pub(crate) fn curved_face_placement<T: Decide>(
         }
         Err(e) => return Err(solid_err(e)),
     };
-    // THE cosine-window construction's period guard, third site
-    // (`point_on_wall_in_face` carries the argument).
-    // At a FULL-PERIOD window there is no angular test to run, so the
-    // rectangle class is not asked: the face is served only as the
-    // full-turn band, and anything else is the remainder. The case is
-    // caught BEFORE the rectangle class rather than read out of its
-    // refusal, which escalates because a ray lane must not silently
-    // skip a wall.
-    let full_turn = match decide(
-        "bool_curved_contain_period",
-        Margin::levered(T::tau() - (az.1 - az.0), radius),
-        band,
-    ) {
-        Ok(Sign::Positive) => false,
-        Ok(Sign::Zero | Sign::Negative) => true,
-        Err(diag) => return Err(ContainError::Escalated(diag)),
-    };
-    // The ray lane's class predicates, asked of the same face: this
-    // door serves the rectangle and the band only.
-    let outline = if full_turn {
-        match super::solid_contain::full_turn_outline(body, face, origin, axis, radius, h, band) {
-            Ok(Some(outline)) => outline,
-            Ok(None) | Err(super::solid_contain::PointInSolidError::CorruptFace { .. }) => {
-                return Ok(CurvedPlacement::Trim(None));
-            }
-            Err(e) => return Err(solid_err(e)),
-        }
-    } else {
-        let outline =
-            super::solid_contain::wall_outline(body, face, origin, axis, radius, az, h, band)
+    // The ray lane's class predicates, asked of the same face, the
+    // full-turn route first (`full_turn_outline`, the one home both
+    // doors call): this door serves the band and the rectangle only.
+    let outline =
+        match super::solid_contain::full_turn_outline(body, face, origin, axis, radius, h, band)
+            .map_err(solid_err)?
+        {
+            Some(outline @ super::solid_contain::WallOutline::Band { .. }) => outline,
+            Some(_) => return Ok(CurvedPlacement::Trim(None)),
+            None => {
+                // THE cosine-window construction's period guard, third site
+                // (`point_on_wall_in_face` carries the argument). A face that
+                // does not wrap alone and still reads a whole period has no
+                // angular test to run; it is this door's remainder, caught
+                // here rather than read out of the rectangle class's
+                // escalation.
+                match decide(
+                    "bool_curved_contain_period",
+                    Margin::levered(T::tau() - (az.1 - az.0), radius),
+                    band,
+                ) {
+                    Ok(Sign::Positive) => {}
+                    Ok(Sign::Zero | Sign::Negative) => return Ok(CurvedPlacement::Trim(None)),
+                    Err(diag) => return Err(ContainError::Escalated(diag)),
+                }
+                let outline = super::solid_contain::wall_outline(
+                    body, face, origin, axis, radius, az, h, band,
+                )
                 .map_err(solid_err)?;
-        if !matches!(outline, super::solid_contain::WallOutline::Rectangle { .. }) {
-            return Ok(CurvedPlacement::Trim(None));
-        }
-        outline
-    };
+                if !matches!(outline, super::solid_contain::WallOutline::Rectangle { .. }) {
+                    return Ok(CurvedPlacement::Trim(None));
+                }
+                outline
+            }
+        };
     match super::solid_contain::point_on_wall_in_face(
         face, origin, axis, radius, u_ref, az, &outline, q, band,
     ) {
@@ -820,13 +819,12 @@ struct TorusChart<T: geom_core::Real> {
 /// - A face whose own windows the walk **cannot pin**, or cannot take at
 ///   all, is the honest remainder rather than corruption of the
 ///   caller's query, as in the cylinder arm. `None`.
-/// - A **wrapped** coordinate is NOT a remainder here, as it is not on
-///   the cylinder arm's full-turn band. The torus walk reports a wrap as
-///   no window at all, and on a ring torus that is evidence (the chart
-///   has no singular junction at which the walk could lose an edge), so
-///   there is no cosine comparison to run in that coordinate and no
-///   period for it to be ambiguous over. A face wrapping BOTH is
-///   refused by the walk itself.
+/// - A coordinate the face ALONE wraps
+///   ([`super::solid_contain::wrap_rims`], the structural test every
+///   chart shares) is NOT a remainder, as it is not on the cylinder
+///   arm's full-turn band: there is no window in it to trim by. A window
+///   that reads a whole period on a face that does not wrap alone is
+///   refused, as is a face wrapping BOTH.
 /// - A **graze** on a window edge that the boundary walk did not place
 ///   ON a vertex or an edge is `None`, as everywhere in this door.
 fn torus_face_containment<T: Decide>(

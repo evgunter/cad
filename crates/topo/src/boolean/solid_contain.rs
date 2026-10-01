@@ -115,7 +115,14 @@
 //!   radius; radius, off-axis and semi-axis differences in metres);
 //!   **`bool_wall_piece_span`** decides which way the walk runs a piece
 //!   (its azimuth extent levered by the radius); **`bool_wall_rim_level`**
-//!   tells two rim planes apart (their offset, metres). Per hit,
+//!   tells two rim planes apart (their offset along the axis, metres),
+//!   for a windowed outline's pieces and a full-turn band's rims alike.
+//! - **The full-turn route** ([`wrap_rims`], every curved chart):
+//!   **`bool_wrap_rim`** decides whether an unmated boundary circle is an
+//!   iso-line of the coordinate the face does not wrap — coaxial (the
+//!   sine between the axes levered by the circle's radius; the centre's
+//!   distance off the axis, metres) or, for a torus's minor angle, a
+//!   meridian (the cosine between the axes, levered likewise). Per hit,
 //!   **`bool_wall_trim`** is every window and side margin (the cosine
 //!   window levered by the radius; a hit's perpendicular distance to a
 //!   piece's plane, metres), **`bool_wall_trim_period`** the window's
@@ -1147,10 +1154,6 @@ pub(super) fn wall_outline<T: Decide>(
         Ok(decide(name, m, band).map_err(escalate)? == Sign::Zero)
     };
     let sine = |m: T| Margin::levered(m, radius);
-    let off_axis = |c: Point3<T>| {
-        let e = c - origin;
-        (e - axis * e.dot(axis)).norm()
-    };
     let point_of = |he| -> Result<Point3<T>, PointInSolidError> {
         let v = body.get_half_edge(he).ok_or_else(corrupt)?.start;
         body.get_vertex(v)
@@ -1184,9 +1187,12 @@ pub(super) fn wall_outline<T: Decide>(
                 radius: c_radius,
                 ..
             }) => {
-                if !is_wall_rim(origin, axis, radius, (center, c_axis, c_radius), band)
-                    .map_err(escalate)?
-                {
+                let rim = Rim {
+                    center,
+                    axis: c_axis,
+                    radius: c_radius,
+                };
+                if !is_wall_rim(origin, axis, radius, rim, band).map_err(escalate)? {
                     return unsupported();
                 }
                 (center, c_axis, true)
@@ -1200,7 +1206,10 @@ pub(super) fn wall_outline<T: Decide>(
             }) => {
                 let cos = n.dot(axis);
                 if zero("bool_wall_section_tilt", sine(cos))?
-                    || !zero("bool_wall_section_seat", Margin::of(off_axis(center)))?
+                    || !zero(
+                        "bool_wall_section_seat",
+                        Margin::of(off_axis(origin, axis, center)),
+                    )?
                     || !zero("bool_wall_section_seat", Margin::of(minor - radius))?
                     || !zero(
                         "bool_wall_section_seat",
@@ -1312,11 +1321,19 @@ pub(super) fn wall_outline<T: Decide>(
     if edges.iter().all(|e| match e {
         WallEdge::Piece { rim, .. } => *rim,
         WallEdge::Meridian { .. } => true,
-    }) && rim_levels(&pieces, band).map_err(escalate)? == 2
+    }) && rim_levels(&pieces.iter().map(|p| p.plane).collect::<Vec<_>>(), band)
+        .map_err(escalate)?
+        == 2
     {
         return Ok(WallOutline::Rectangle { h });
     }
     Ok(WallOutline::Chart { pieces, junctions })
+}
+
+/// The distance of `c` from the axis line `(origin, axis)`.
+fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>) -> T {
+    let e = c - origin;
+    (e - axis * e.dot(axis)).norm()
 }
 
 /// Is the circle `(center, c_axis, c_radius)` a RIM of the wall
@@ -1326,15 +1343,13 @@ fn is_wall_rim<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
     radius: T,
-    (center, c_axis, c_radius): (Point3<T>, Vec3<T>, T),
+    rim: Rim<T>,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let e = center - origin;
-    let off_axis = (e - axis * e.dot(axis)).norm();
     for margin in [
-        Margin::levered(c_axis.cross(axis).norm(), radius),
-        Margin::of(c_radius - radius),
-        Margin::of(off_axis),
+        Margin::levered(rim.axis.cross(axis).norm(), radius),
+        Margin::of(rim.radius - radius),
+        Margin::of(off_axis(origin, axis, rim.center)),
     ] {
         if decide("bool_wall_iso_rim", margin, band)? != Sign::Zero {
             return Ok(false);
@@ -1343,18 +1358,20 @@ fn is_wall_rim<T: Decide>(
     Ok(true)
 }
 
-/// **The full-turn class** of a cylinder wall: [`WallOutline::Band`]
-/// when the face ALONE wraps the azimuth ([`face_wraps_alone`]) and
-/// every circle on its boundary is a rim at one of the two ends of its
-/// height range `h`; `None` otherwise.
+/// **The full-turn route of a cylinder wall, in one home**: both doors
+/// ask it FIRST, before any azimuth window is read.
 ///
-/// The region is then exactly the band `h.0 ≤ height ≤ h.1`. Every
-/// non-rim edge is mated to the face itself, so it is interior to the
-/// face's closure and bounds nothing; what bounds the face is its rims,
-/// and a rim is a whole height level. The two extremes of the fold are
-/// the band's two ends, and a rim at any other level would be a third
-/// boundary component the annulus does not have — so it is checked
-/// rather than assumed.
+/// - `None`: the face does not wrap the azimuth alone ([`wrap_rims`]);
+///   the caller reads its window.
+/// - `Some(`[`WallOutline::Band`]`)`: it does, and its rims lie on
+///   exactly two levels. The region is then exactly the band
+///   `h.0 ≤ height ≤ h.1`: every non-rim edge is mated to the face
+///   itself, so it is interior to the face's closure and bounds
+///   nothing, and a boundary that is all rims on two levels is the two
+///   ends of the height fold.
+/// - `Some(`[`WallOutline::Unsupported`]`)`: it wraps, but a rim is not
+///   the wall's own or the rims are not on two levels. A wrapped face
+///   has no window to exclude anything by, so it carries no reach.
 ///
 /// # Errors
 ///
@@ -1369,21 +1386,120 @@ pub(super) fn full_turn_outline<T: Decide>(
     h: (T, T),
     band: Band,
 ) -> Result<Option<WallOutline<T>>, PointInSolidError> {
-    let corrupt = || PointInSolidError::CorruptFace { face };
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    if !face_wraps_alone(body, face)? {
+    let Some(rims) = wrap_rims(body, face, WrapRims::Coaxial { origin, axis }, band)? else {
+        return Ok(None);
+    };
+    let unsupported = Ok(Some(WallOutline::Unsupported { reach: None }));
+    let mut planes = Vec::with_capacity(rims.len());
+    for rim in rims {
+        if !is_wall_rim(origin, axis, radius, rim, band).map_err(escalate)? {
+            return unsupported;
+        }
+        planes.push(WallPlane {
+            point: rim.center,
+            normal: axis,
+        });
+    }
+    if rim_levels(&planes, band).map_err(escalate)? != 2 {
+        return unsupported;
+    }
+    Ok(Some(WallOutline::Band { h }))
+}
+
+/// One boundary circle of a face, as [`wrap_rims`] reports it.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Rim<T: geom_core::Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+}
+
+/// Which boundary circles bound a face in the coordinate it does NOT
+/// wrap, and so may go unmated when it wraps the other one alone.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum WrapRims<T: geom_core::Real> {
+    /// Circles COAXIAL with the carrier's axis `(origin, axis)`: parallel
+    /// planes, centres on the axis. The azimuth's iso-lines' partners —
+    /// the rims of a cylinder, cone, sphere or the parallels of a torus.
+    /// On a sphere a meridian is a circle too, centred on the axis but
+    /// not coaxial, so the test is both halves.
+    Coaxial { origin: Point3<T>, axis: Vec3<T> },
+    /// Circles whose plane CONTAINS the axis direction: a torus's
+    /// meridians, the iso-lines of its major angle.
+    Meridians { axis: Vec3<T> },
+}
+
+impl<T: Decide> WrapRims<T> {
+    fn holds(self, rim: Rim<T>, band: Band) -> Result<bool, Indeterminate> {
+        let margins = match self {
+            Self::Coaxial { origin, axis } => [
+                Some(Margin::levered(rim.axis.cross(axis).norm(), rim.radius)),
+                Some(Margin::of(off_axis(origin, axis, rim.center))),
+            ],
+            Self::Meridians { axis } => {
+                [Some(Margin::levered(rim.axis.dot(axis), rim.radius)), None]
+            }
+        };
+        for margin in margins.into_iter().flatten() {
+            if decide("bool_wrap_rim", margin, band)? != Sign::Zero {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+
+/// **Does `face` ALONE wrap one coordinate of its chart?** The one
+/// notion of "this face's window is a full period", shared by every
+/// curved chart: the cylinder's, cone's and sphere's azimuth, and both
+/// of a torus's angles.
+///
+/// The face wraps alone when it has no ring and every boundary edge is
+/// either mated to the face itself (a seam, interior to the face's
+/// closure) or a circle `rims` admits — an iso-line of the OTHER
+/// coordinate, which bounds the face there and never in the wrapped
+/// one. Such a face attains every value of the wrapped coordinate over
+/// the range its rims bound. An edge mated to any other face bounds it
+/// in the wrapped coordinate, and then the face does not wrap however
+/// wide the window its walk reads: a band merged with half of the band
+/// beside it reads a whole turn and holds only half of it there.
+///
+/// The answer is `Some(rims)`, the boundary circles that admitted it,
+/// or `None`.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for an unwalkable face;
+/// [`PointInSolidError::Escalated`] for an in-band rim margin.
+pub(super) fn wrap_rims<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    rims: WrapRims<T>,
+    band: Band,
+) -> Result<Option<Vec<Rim<T>>>, PointInSolidError> {
+    let corrupt = || PointInSolidError::CorruptFace { face };
+    let f = body.get_face(face).ok_or_else(corrupt)?;
+    if !f.rings.is_empty() {
         return Ok(None);
     }
-    let f = body.get_face(face).ok_or_else(corrupt)?;
     let Some(LoopBoundary::Cycle { first }) = body.get_loop(f.outer).map(|l| l.boundary) else {
-        return Err(corrupt());
+        return Ok(None);
     };
+    let mut found = Vec::new();
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+        let neighbour = body
+            .mate(he)
+            .and_then(|m| body.face_of_half_edge(m))
+            .ok_or_else(corrupt)?;
+        if neighbour == face {
+            continue;
+        }
         let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
         let Some(geom::Curve3::Circle {
             center,
-            axis: c_axis,
-            radius: c_radius,
+            axis,
+            radius,
             ..
         }) = body
             .get_edge(edge)
@@ -1391,68 +1507,38 @@ pub(super) fn full_turn_outline<T: Decide>(
             .and_then(crate::null::CurveGeom::certified)
             .map(|c| c.carrier().clone())
         else {
-            continue;
+            return Ok(None);
         };
-        if !is_wall_rim(origin, axis, radius, (center, c_axis, c_radius), band).map_err(escalate)? {
+        let rim = Rim {
+            center,
+            axis,
+            radius,
+        };
+        if !rims
+            .holds(rim, band)
+            .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+        {
             return Ok(None);
         }
-        let level = (center - origin).dot(axis);
-        let mut at_an_end = false;
-        for end in [h.0, h.1] {
-            if decide("bool_wall_rim_level", Margin::of(level - end), band).map_err(escalate)?
-                == Sign::Zero
-            {
-                at_an_end = true;
-            }
-        }
-        if !at_an_end {
-            return Ok(None);
-        }
+        found.push(rim);
     }
-    Ok(Some(WallOutline::Band { h }))
+    Ok(Some(found))
 }
 
-/// Does `face` ALONE wrap its carrier's azimuth — is every boundary
-/// edge that is not a circle mated to the face itself? Such a face
-/// attains every azimuth of the band its circles bound: the one notion
-/// of "this face's window is a full period" that the cylinder and cone
-/// trims share. It is structure (C6), not a margin, so a window the
-/// walk reports a hair under a period is not mistaken for it.
-///
-/// A circle is exempt because on a cylinder or a cone every circle is a
-/// rim — an iso-line of the coordinate that is NOT the azimuth
-/// ([`RimExemption::Circles`]).
-///
-/// # Errors
-///
-/// [`PointInSolidError::CorruptFace`] for an unwalkable face.
-pub(super) fn face_wraps_alone<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<bool, PointInSolidError> {
-    let alone_scope = ChartGroups::within(body, [face])
-        .map_err(|face| PointInSolidError::CorruptFace { face })?;
-    Ok(
-        surface_group(body, face, &alone_scope, RimExemption::Circles)
-            .map_err(|face| PointInSolidError::CorruptFace { face })?
-            .is_some(),
-    )
-}
-
-/// How many distinct rim planes the pieces lie on (rims only: every
-/// normal is `â`, so planes differ by their offset along it).
-fn rim_levels<T: Decide>(pieces: &[WallPiece<T>], band: Band) -> Result<usize, Indeterminate> {
+/// How many distinct levels the planes lie on. Every normal is `â`, so
+/// two planes are one level exactly when one's point is on the other.
+fn rim_levels<T: Decide>(planes: &[WallPlane<T>], band: Band) -> Result<usize, Indeterminate> {
     let mut levels: Vec<WallPlane<T>> = Vec::new();
-    for piece in pieces {
+    for plane in planes {
         let mut known = false;
         for level in &levels {
-            if decide("bool_wall_rim_level", level.above(piece.plane.point), band)? == Sign::Zero {
+            if decide("bool_wall_rim_level", level.above(plane.point), band)? == Sign::Zero {
                 known = true;
                 break;
             }
         }
         if !known {
-            levels.push(piece.plane);
+            levels.push(*plane);
         }
     }
     Ok(levels.len())
@@ -1575,7 +1661,7 @@ pub(super) fn cone_face_trim<T: Decide>(
 ) -> Result<(Option<(T, T)>, (T, T), bool), PointInSolidError> {
     let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
     let nappe = cone_nappe(face, v, band)?;
-    if face_wraps_alone(body, face)? {
+    if wrap_rims(body, face, WrapRims::Coaxial { origin: apex, axis }, band)?.is_some() {
         return Ok((None, v, nappe));
     }
     Ok((Some(cone_trimmed_window(body, face, v, band)?), v, nappe))
@@ -1899,28 +1985,56 @@ pub(super) fn torus_face_windows<T: Decide>(
     let Some((u, v)) = torus_chart_windows(body, face, band)? else {
         return Err(PointInSolidError::PartialTorusFace { face });
     };
-    // Each window's own period guard, levered by the displacement one
-    // radian of that coordinate buys: the outer distance from the axis
-    // for the major angle, the tube radius for the minor one (D4's θ·r).
-    // Positive is a window the face is trimmed by; Zero is a wrap, which
-    // on this chart is a fact about the face (header); Negative is a
-    // walk that wound past a period, which is no face at all.
-    let window =
-        |name: &'static str, w: (T, T), lever: T| -> Result<Option<(T, T)>, PointInSolidError> {
-            match decide(name, Margin::levered(T::tau() - (w.1 - w.0), lever), band)
-                .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-            {
-                Sign::Positive => Ok(Some(w)),
-                Sign::Zero => Ok(None),
-                Sign::Negative => Err(PointInSolidError::PartialTorusFace { face }),
-            }
-        };
+    // A coordinate is wrapped when the face ALONE wraps it ([`wrap_rims`],
+    // asked first): every boundary edge is a seam mated to the face itself
+    // or an iso-line of the OTHER coordinate — a parallel for the major
+    // angle, a meridian for the minor one. Otherwise the face trims by
+    // that coordinate's window, which must be definitely narrower than a
+    // period, levered by the displacement one radian buys (the outer
+    // distance from the axis for the major angle, the tube radius for the
+    // minor one; D4's θ·r): a window that reads a whole turn on a face
+    // that does not wrap alone has a gap the window cannot see, and one
+    // wider than a period is a walk that wound past it. Both are no face
+    // this reader can answer for.
+    let corrupt = || PointInSolidError::CorruptFace { face };
+    let (center, axis) = match body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .ok_or_else(corrupt)?
+    {
+        &Surface::Torus { center, axis, .. } => (center, axis),
+        _ => return Err(corrupt()),
+    };
+    let window = |name: &'static str,
+                  w: (T, T),
+                  lever: T,
+                  rims: WrapRims<T>|
+     -> Result<Option<(T, T)>, PointInSolidError> {
+        if wrap_rims(body, face, rims, band)?.is_some() {
+            return Ok(None);
+        }
+        match decide(name, Margin::levered(T::tau() - (w.1 - w.0), lever), band)
+            .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+        {
+            Sign::Positive => Ok(Some(w)),
+            Sign::Zero | Sign::Negative => Err(PointInSolidError::PartialTorusFace { face }),
+        }
+    };
     let u = window(
         "bool_torus_trim_major_period",
         u,
         major_radius + minor_radius,
+        WrapRims::Coaxial {
+            origin: center,
+            axis,
+        },
     )?;
-    let v = window("bool_torus_trim_minor_period", v, minor_radius)?;
+    let v = window(
+        "bool_torus_trim_minor_period",
+        v,
+        minor_radius,
+        WrapRims::Meridians { axis },
+    )?;
     // A face that wraps BOTH coordinates covers the whole chart, and a
     // face covering the whole chart has no boundary against anything —
     // no window can be read FROM it, which is why the solid door serves
@@ -2304,7 +2418,8 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 /// - this arm — a cylinder wall's window, both classes;
 /// - [`point_on_chart_wall`] — each piece's sub-window, and each
 ///   junction's ruling through [`chart_dir`];
-/// - [`wall_hit`] — the same window, asked before the class is resolved;
+/// - [`wall_hit`] — the same window, asked after the full-turn route
+///   ([`full_turn_outline`]) and before the class is resolved;
 /// - [`wall_hit_outside_reach`] — the window of a wall the arm cannot
 ///   read, asked for a miss only when [`narrower_than_period`] says it
 ///   can exclude anything;
@@ -2330,9 +2445,8 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 ///   as a class question (a window a period wide is the wrapped class,
 ///   not an escalation);
 /// - [`super::contain::curved_face_placement`] (the same period guard
-///   asked as a chart-form question: a full period routes to
-///   [`full_turn_outline`], and outside that class its answer is `None`
-///   where this one escalates).
+///   asked, after the full-turn route, as a chart-form question: its
+///   answer is `None` where this one escalates).
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 pub(super) fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,
@@ -2350,7 +2464,7 @@ pub(super) fn point_on_wall_in_face<T: Decide>(
     let height = w.dot(axis);
     let radial = w - axis * height;
     match outline {
-        // The band attains every azimuth, so only the rectangle asks one.
+        // The band attains every azimuth, so only the rectangle reads `az`.
         &WallOutline::Rectangle { h } | &WallOutline::Band { h } => {
             let azimuth = match outline {
                 WallOutline::Rectangle { .. } => Some(chart_azimuth_margin(
@@ -2548,9 +2662,8 @@ fn wall_hit_outside_reach<T: Decide>(
 /// here, after the hit has landed in (or in band of) the face's azimuth
 /// window, so a wall no ray reaches never has its class asked, and an
 /// in-band class margin on it never escalates a query it plays no part
-/// in. A window a period wide has no azimuth to land in, so there the
-/// full-turn class is asked first ([`full_turn_outline`]), and a face
-/// outside it escalates on the window as before.
+/// in. A face that wraps the azimuth has no window for a hit to land
+/// in, so the full-turn route ([`full_turn_outline`]) is asked first.
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 fn wall_hit<T: Decide>(
     body: &Body<T>,
@@ -2564,9 +2677,7 @@ fn wall_hit<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<bool>, PointInSolidError> {
-    if !narrower_than_period(face, az.1 - az.0, radius, band)?
-        && let Some(outline) = full_turn_outline(body, face, origin, axis, radius, h, band)?
-    {
+    if let Some(outline) = full_turn_outline(body, face, origin, axis, radius, h, band)? {
         return point_on_wall_in_face(face, origin, axis, radius, u_ref, az, &outline, p, band);
     }
     let w = p - origin;
@@ -3025,24 +3136,39 @@ pub(super) fn sphere_chart_trim<T: Decide>(
         // The honest remainder: a walk this chart cannot express.
         Err(_) => return Ok(None),
     };
-    // A FULL-PERIOD azimuth window is not an ill-conditioned window
-    // here, it is a face that attains every azimuth — a cap, or a
-    // latitude band — and the honest membership answer for it is
-    // "yes, at every azimuth": the LATITUDE window still describes it
-    // exactly, so no azimuth comparison is needed (the cylinder's
-    // full-turn band, [`full_turn_outline`], is the same reading). A
-    // window WIDER than a period is a walk that wrapped more than
-    // once — out of the class.
-    let az = match decide(
-        "bool_sphere_trim_period",
-        Margin::levered(T::tau() - (raw.1 - raw.0), radius),
+    // A face that ALONE wraps the azimuth ([`wrap_rims`], asked first)
+    // attains every azimuth of its latitude range: the LATITUDE window
+    // still describes it exactly, so no azimuth comparison is needed —
+    // the cylinder's full-turn band ([`full_turn_outline`]) is the same
+    // reading on the same structural test. Any other face trims by its
+    // window, which must then be definitely narrower than a period: a
+    // window that reads a whole turn on a face that does not wrap alone
+    // has a gap the window cannot see (a zone merged with half a cap),
+    // and one wider than a period is a walk that wrapped more than once.
+    // Both are out of the class.
+    let az = if wrap_rims(
+        body,
+        face,
+        WrapRims::Coaxial {
+            origin: center,
+            axis,
+        },
         band,
-    )
-    .map_err(escalate)?
+    )?
+    .is_some()
     {
-        Sign::Positive => Some(raw),
-        Sign::Zero => None,
-        Sign::Negative => return Ok(None),
+        None
+    } else {
+        match decide(
+            "bool_sphere_trim_period",
+            Margin::levered(T::tau() - (raw.1 - raw.0), radius),
+            band,
+        )
+        .map_err(escalate)?
+        {
+            Sign::Positive => Some(raw),
+            Sign::Zero | Sign::Negative => return Ok(None),
+        }
     };
     Ok(Some(SphereChartTrim { az, lat_lo, lat_hi }))
 }

@@ -437,7 +437,7 @@ fn adv_union_with_reversed_faces_answers_exactly() {
             let expect = washer_vol + 0.6 * 1.0 * 0.4 - 0.6 * 0.5 * 0.4;
             assert!(
                 (vol(&out.body) - expect).abs() < 1e-9,
-                "touching curved union answered with {} for {expect} - inspect \
+                "curved union answered with {} for {expect} - inspect \
                  sense inheritance",
                 vol(&out.body)
             );
