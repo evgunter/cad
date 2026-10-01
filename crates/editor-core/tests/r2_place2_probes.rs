@@ -979,3 +979,81 @@ fn probe_inline_of_split_verbatim_round_trip() {
         );
     }
 }
+
+/// **`InlineError::MatePlaced`'s recourse, followed**: "give instance
+/// i an offset (SetOffset), then inline". The group's root is its
+/// EARLIEST member carrying an offset, so a later member given one is
+/// still not the root.
+#[test]
+fn probe_mate_placed_recourse_is_honourable() {
+    let p = parts("r2-mp");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r2-mp"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(
+        doc,
+        base,
+        Some(Placement::literal(&Frame::translation([4.0, 0.0, 0.0]))),
+    );
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, _) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(p.store.clone());
+    let err = editor_core::inline(&doc, top, &resolver, Tol::witness()).unwrap_err();
+    eprintln!("first refusal: {err}");
+    assert!(matches!(err, editor_core::InlineError::MatePlaced { .. }));
+    // Follow the recourse with the TRUE offset, so nothing moves.
+    let solved = solve(&doc, &o, Tol::witness()).placement(&doc, top).unwrap();
+    let doc = set_offset(doc, top, Some(Placement::literal(&solved)));
+    match editor_core::inline(&doc, top, &resolver, Tol::witness()) {
+        Err(again) => panic!("DEFECT: the recourse followed, inline refuses again: {again}"),
+        Ok(_) => {}
+    }
+}
+
+/// **A declaring mate across gauges, at rest, swept through the
+/// contact's ambiguity**: the top's stated offset puts it δ above the
+/// base's cap (δ < 0 interpenetrates). Certified only at δ = 0 (and
+/// within ε), never across a real gap or overlap.
+#[test]
+fn probe_cross_gauge_declaration_through_ambiguity() {
+    let p = parts("r2-xg");
+    let o = p.opts();
+    let eps = Tol::witness().eps();
+    let mut report = Vec::new();
+    for delta in [0.0, 0.25 * eps, 0.9 * eps, 2.0 * eps, 10.0 * eps, 1e-6, 1e-3, -1e-6, -1e-3] {
+        let doc = ProfileDoc::empty(DocumentId::derive("r2-xg"), Tol::witness());
+        let (doc, g) = insert(
+            doc,
+            Node::gauge(None, Placement::literal(&Frame::translation([0.0, 0.0, delta]))),
+        );
+        let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+        let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+        let doc = set_gauge(doc, top, Some(g));
+        let seated = Frame {
+            columns: [[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]],
+            translation: [1.0, 1.0, BASE_HEIGHT],
+        };
+        let doc = set_offset(doc, top, Some(Placement::literal(&seated)));
+        let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+        assert_eq!(
+            solve(&doc, &o, Tol::witness()).role(mate),
+            Some(MateRole::Declaring)
+        );
+        let verdict = match editor_core::assemble(&doc, &run(&doc, &o), Tol::witness()) {
+            Ok(a) => format!("certified, minted {}", a.minted.len()),
+            Err(e) => format!("{}", e.to_string().chars().take(140).collect::<String>()),
+        };
+        report.push((delta, verdict));
+    }
+    for r in &report {
+        eprintln!("δ = {:e}: {}", r.0, r.1);
+    }
+    for (delta, verdict) in &report {
+        if delta.abs() > 2.0 * eps {
+            assert!(
+                !verdict.starts_with("certified"),
+                "DEFECT: a declared contact across a real gap/overlap of {delta:e} certified"
+            );
+        }
+    }
+}
