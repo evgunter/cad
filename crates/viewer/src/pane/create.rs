@@ -2629,7 +2629,7 @@ mod declared_union {
 
     /// The union the tool holds, performed: its refusal and the offer
     /// the frame loop reads off it.
-    fn refused_union(session: &mut DocSession, tool: BooleanTool) -> (Refusal, DeclareOffer) {
+    fn refused_union(session: &mut DocSession, tool: &BooleanTool) -> (Refusal, DeclareOffer) {
         let op = tool.op(BooleanOp::Union).expect("both operands are picked");
         let refusal = session.perform(op).refusal.expect("the union refuses");
         let offer = frame::declare_offer(Some(&refusal))
@@ -2643,7 +2643,7 @@ mod declared_union {
     fn panel(
         session: &DocSession,
         offer: DeclareOffer,
-        (op, tool): (BooleanOp, BooleanTool),
+        (op, tool): (BooleanOp, &BooleanTool),
         click: Option<&str>,
     ) -> (String, Option<DeclareOffer>, Vec<SessionOp>) {
         let mut held = Some(offer);
@@ -2652,7 +2652,7 @@ mod declared_union {
             declare_offer_rows(
                 ui,
                 &mut held,
-                (session.generation(), op, tool),
+                (session.generation(), op, tool.clone()),
                 session.doc(),
                 &mut ops,
                 &Theme::DEFAULT,
@@ -2682,7 +2682,7 @@ mod declared_union {
         let steps = session.history().len();
         let tool = holding(&session, block, boss);
 
-        let (refusal, offer) = refused_union(&mut session, tool);
+        let (refusal, offer) = refused_union(&mut session, &tool);
         let plain = Node::Boolean {
             op: BooleanOp::Union,
             a: block,
@@ -2719,7 +2719,7 @@ mod declared_union {
         );
         assert_eq!(finding.class, ContactClass::Rest);
 
-        let op = (BooleanOp::Union, tool);
+        let op = (BooleanOp::Union, &tool);
         let (painted, _, _) = panel(&session, offer.clone(), op, None);
         assert_eq!(
             painted,
@@ -2784,11 +2784,11 @@ mod declared_union {
         let tol = Tol::witness();
         let (mut session, block, boss) = scene(tol);
         let tool = holding(&session, block, boss);
-        let (_, offer) = refused_union(&mut session, tool);
+        let (_, offer) = refused_union(&mut session, &tool);
         let (_, held, ops) = panel(
             &session,
             offer,
-            (BooleanOp::Union, tool),
+            (BooleanOp::Union, &tool),
             Some(DeclareOffer::DECLINE_LABEL),
         );
         assert_eq!(held, None, "the offer is dropped");
@@ -2805,15 +2805,15 @@ mod declared_union {
         let tol = Tol::witness();
         let (mut session, block, boss) = scene(tol);
         let tool = holding(&session, block, boss);
-        let (_, offer) = refused_union(&mut session, tool);
-        let (painted, held, _) = panel(&session, offer.clone(), (BooleanOp::Union, tool), None);
+        let (_, offer) = refused_union(&mut session, &tool);
+        let (painted, held, _) = panel(&session, offer.clone(), (BooleanOp::Union, &tool), None);
         assert!(!painted.is_empty(), "the premise: a live offer is drawn");
         assert!(held.is_some(), "and kept");
 
         let swapped = holding(&session, boss, block);
         for (what, op) in [
-            ("other picks", (BooleanOp::Union, swapped)),
-            ("another operation", (BooleanOp::Subtract, tool)),
+            ("other picks", (BooleanOp::Union, &swapped)),
+            ("another operation", (BooleanOp::Subtract, &tool)),
         ] {
             let (painted, held, _) = panel(&session, offer.clone(), op, None);
             assert_eq!(painted, "", "{what}: nothing is drawn");
@@ -2824,7 +2824,7 @@ mod declared_union {
             datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
         });
         assert!(edited.refusal.is_none(), "{:?}", edited.refusal);
-        let (painted, held, _) = panel(&session, offer, (BooleanOp::Union, tool), None);
+        let (painted, held, _) = panel(&session, offer, (BooleanOp::Union, &tool), None);
         assert_eq!(painted, "", "an edit since: nothing is drawn");
         assert_eq!(held, None, "an edit since: the offer is dropped");
     }

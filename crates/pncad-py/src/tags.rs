@@ -598,6 +598,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PlacementAxis { .. } => "placement_axis",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
+        EditError::LabelUnchanged { .. } => "label_unchanged",
         // A mate's alignment is authored geometry, so the non-finite
         // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
@@ -1232,6 +1233,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::NonRigidPlacement { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
+        EditError::LabelUnchanged { .. } => None,
         EditError::NonFiniteAlignment { .. } => None,
     }
 }
@@ -1830,6 +1832,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DeclareInput { .. } => "declare_input",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
+        SnapshotError::LabelOnMissingNode { .. } => "label_on_missing_node",
         SnapshotError::SlotDimension { .. } => "slot_dimension",
         SnapshotError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
         SnapshotError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",

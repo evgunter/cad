@@ -58,7 +58,7 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
 /// what tells a person WHICH frame ([`crate::tree::frame_pose`]) — the
 /// same words the creation forms' picker reads ([`crate::tree::node_label`]).
 pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egui::Response {
-    let named = tree::named(row.spoken, row.pose.as_deref());
+    let named = tree::named(&row.spoken, row.pose.as_deref());
     let label = if row.root {
         format!("{named} {GLYPH_ROOT}")
     } else {
@@ -187,7 +187,7 @@ pub(crate) fn failure_lines(
             advisory_line(ui, depth, &carried.line, theme);
         }
     }
-    if let Some(to) = row.repair_at {
+    if let Some(to) = &row.repair_at {
         clicked = link_to(ui, row.depth, to).or(clicked);
     }
     clicked
@@ -242,7 +242,7 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::MeasureUnavailable(_),
-            } => clicked = link_to(ui, row.depth, asserted.measure).or(clicked),
+            } => clicked = link_to(ui, row.depth, &asserted.measure).or(clicked),
             AssertionVerdict::Unevaluated {
                 reason:
                     reason @ (UnevaluatedReason::Indeterminate
@@ -272,7 +272,7 @@ fn advisory_line(ui: &mut egui::Ui, depth: usize, text: &str, theme: &Theme) {
 /// [`tree::link_wording`]'s words: `to`'s id when it was clicked. The
 /// wording and the target are one argument, so they cannot name two
 /// different nodes.
-fn link_to(ui: &mut egui::Ui, depth: usize, to: SpokenNode) -> Option<RecipeNodeId> {
+fn link_to(ui: &mut egui::Ui, depth: usize, to: &SpokenNode) -> Option<RecipeNodeId> {
     link_line(ui, depth, &tree::link_wording(to)).then_some(to.id())
 }
 
@@ -619,7 +619,7 @@ mod tests {
     fn a_failed_rows_link_to_the_node_to_repair_selects_it() {
         let placer = RecipeNodeId(test_utils::refusal::tagged(3));
         let row = placer_refused_row(Some(spoken(placer, Some("Datum frame"))));
-        let link = tree::link_wording(spoken(placer, Some("Datum frame")));
+        let link = tree::link_wording(&spoken(placer, Some("Datum frame")));
         assert_eq!(
             link, "see Datum frame 000000000003",
             "the node as the document speaks it"
@@ -658,7 +658,7 @@ mod tests {
     #[test]
     fn a_poisoned_rows_pointer_selects_the_row_it_names() {
         let through = RecipeNodeId(test_utils::refusal::tagged(7));
-        let pointer = tree::downstream_wording(spoken(through, Some("Fillet")));
+        let pointer = tree::downstream_wording(&spoken(through, Some("Fillet")));
         let row = TreeRow {
             status: RowStatus::Poisoned {
                 through,

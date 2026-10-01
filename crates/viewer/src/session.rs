@@ -2781,6 +2781,8 @@ impl DocSession {
                 doc.params().get(name),
                 Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
             ),
+            // The rename field's text, against the label the node has.
+            DocEdit::SetLabel { node, label } => doc.label(*node) == label.as_ref(),
             // Every other edit submits. The structure of the recipe and
             // the shape of the product: a node inserted, deleted,
             // re-parented or re-pointed has no standing value of its

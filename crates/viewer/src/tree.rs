@@ -506,12 +506,12 @@ pub fn node_label(doc: &Doc<ProfileProgram>, id: RecipeNodeId, files: &PartFiles
     let pose = doc
         .node(id)
         .and_then(|node| frame_pose(doc, node).or_else(|| part_file(node, files)));
-    named(doc.spoken(id), pose.as_deref())
+    named(&doc.spoken(id), pose.as_deref())
 }
 
 /// A spoken node and its pose, as [`node_label`] and a tree row both
 /// draw them: `Datum frame 000000000002 — yz at (0, 0, 0) m`.
-pub fn named(spoken: SpokenNode, pose: Option<&str>) -> String {
+pub fn named(spoken: &SpokenNode, pose: Option<&str>) -> String {
     match pose {
         Some(pose) => format!("{spoken} — {pose}"),
         None => spoken.to_string(),
@@ -925,7 +925,7 @@ fn status_of(
             cause_known,
         } => RowStatus::Poisoned {
             through,
-            message: cause_known.then(|| downstream_wording(doc.spoken(through))),
+            message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
         },
         Standing::Failed(error) => RowStatus::Failed {
             message: error.to_string(),
@@ -1057,14 +1057,14 @@ pub fn interrogation_as_drawn(
 ///
 /// The row pointed at is named as the document speaks it
 /// ([`SpokenNode`]): this sentence is chrome, drawn in the tree.
-pub fn downstream_wording(through: SpokenNode) -> String {
+pub fn downstream_wording(through: &SpokenNode) -> String {
     format!("upstream failure at {through} — that row carries the cause")
 }
 
 /// **What a link to a node says**: the node as the document speaks it,
 /// and nothing about why — the why is drawn elsewhere, so this names
 /// only WHERE to go.
-pub fn link_wording(at: SpokenNode) -> String {
+pub fn link_wording(at: &SpokenNode) -> String {
     format!("see {at}")
 }
 
