@@ -227,19 +227,26 @@ pub(crate) struct NurbsFaceBound {
     /// selection's degenerate-direction predicates are decided on the
     /// value rather than on a threshold ([`cell_component`]).
     ///
-    /// **The exact zero is an INTEGRAL-arm fact.** On the rational arm
-    /// a degree-1 direction's `Ã_uu` and `w_uu` are exact zeros but the
-    /// cross terms are not (module docs), and even where the cross
-    /// terms cancel in ℝ — a weight column constant along the
-    /// direction — interval arithmetic chain reports the width its refinement
-    /// contributed rather than zero. So a rational face's `muu` is
-    /// positive dust, the degenerate arms are not taken for it, and
-    /// that is correct: the assembly did not prove a zero.
+    /// **On the rational arm the exact zero needs a constant weight
+    /// NET.** A degree-1 direction's `Ã_uu` and `w_uu` are exact zeros
+    /// but the cross term `S_u·w_u` is not (module docs). Where every
+    /// weight is the same, the refinement holds each one exactly (each
+    /// insertion step is met with the hull of its two sources), `w_u`
+    /// and `w_v` are exact zeros, and so are `muu` and `mvv` — the
+    /// assembly proved it, and the degenerate arms are taken as for the
+    /// integral face it equals. A weight column constant only ALONG the
+    /// direction is not enough: refinement across it leaves its weights
+    /// as intervals, and the difference of two equal intervals is an
+    /// interval about zero, not zero. The quarter cylinder, whose
+    /// weights are constant along `v`, certifies `mvv` at about 2e-13
+    /// (`rational_degree_one_direction_is_not_taken_as_degenerate`).
+    /// Every rational degree-1 direction short of a constant net
+    /// reports positive dust.
     pub muu: f64,
     /// `sup ‖S_uv‖`.
     pub muv: f64,
     /// `sup ‖S_vv‖` (exact `0.0` for the v-direction analogue, on the
-    /// same integral arm).
+    /// same terms as [`Self::muu`]).
     pub mvv: f64,
     /// `sup ‖S_u‖` — the first-fundamental-form sample the split
     /// selection's 3-D aspect cap reads ([`ASPECT_CAP`]): the same
@@ -319,10 +326,13 @@ impl NurbsFaceBound {
     ///
     /// The predicates are `== 0.0` against the assembled enclosures'
     /// exact zeros ([`cell_component`] preserves them, from a ring that
-    /// pads only inexact operations), never a threshold — so the arms
-    /// are an INTEGRAL-arm story: a rational degree-1 direction's sup
-    /// is positive dust ([`Self::muu`]) and takes the generic formula,
-    /// which is what its surviving cross terms deserve. Each degenerate
+    /// pads only inexact operations), never a threshold — so an arm is
+    /// taken only where the assembly proved the zero: an integral
+    /// degree-1 direction, or a rational face with a constant weight
+    /// net, which is the integral face it equals. Any other rational
+    /// degree-1 direction's sup is positive dust ([`Self::muu`]) and
+    /// takes the generic formula, which is what its surviving cross
+    /// terms deserve. Each degenerate
     /// case gets its own arm rather than a limit of the generic formula
     /// (spec D-1; the test pins the arm against the limit):
     ///
@@ -1309,6 +1319,11 @@ pub(crate) mod tests {
         /// `f64::EPSILON`; zero for every comparison whose lesser side
         /// is itself certified.
         sampler_ulps: f64,
+        /// Absolute allowance on each component's LESSER side, in the
+        /// compared quantity's units, parallel to `components`; zero
+        /// unless a row states the scale the sampler's rounding is
+        /// relative to ([`Self::second_partials`]).
+        sampler_floors: Vec<f64>,
     }
 
     /// The sampler's allowance: 64 ulps of the certified figure,
@@ -1350,6 +1365,7 @@ pub(crate) mod tests {
                 greater,
                 components: components.to_vec(),
                 sampler_ulps: 0.0,
+                sampler_floors: vec![0.0; components.len()],
             }
         }
 
@@ -1365,34 +1381,70 @@ pub(crate) mod tests {
         /// The greater side as this comparison reads it: the certified
         /// figure, widened by the SAMPLER's own error where the lesser
         /// side is a sample and by nothing at all otherwise.
-        fn allowed(&self, greater: f64) -> f64 {
-            greater + self.sampler_ulps * f64::EPSILON * greater.abs()
+        fn allowed(&self, component: usize, greater: f64) -> f64 {
+            greater
+                + self.sampler_ulps * f64::EPSILON * greater.abs()
+                + self.sampler_floors[component]
         }
 
         /// The sampled second-partial norms `(uu, uv, vv)` under `b`'s.
+        ///
+        /// The sampler's rounding is relative to the jet it evaluates,
+        /// not to the certified second partial, which is an exact zero
+        /// wherever the assembly proves one — a degree-1 direction
+        /// on the integral arm or one with a constant weight net. So
+        /// besides [`SAMPLER_ULPS`] of the certified figure, a sample
+        /// is allowed [`SAMPLER_ULPS`] of the matching first-derivative
+        /// sup — `mu1` for `uu`, `mv1` for `vv`, the larger for `uv` —
+        /// which is that jet's scale on the unit-width domains these
+        /// rows sample.
+        ///
+        /// **Where the floor is above the certified figure, the
+        /// component asserts only that the sample is under the floor.**
+        /// That is every exact zero, and it is also the near-unit
+        /// rational pattern `[1 + ε, 1, 1, 1]` of
+        /// `the_bilinear_rational_stratum_is_dominated_at_every_weight_decade`,
+        /// whose `muu` and `mvv` certify as dust under the floor
+        /// ([`Self::floor_only`] names such components).
         pub(crate) fn second_partials(sampled: (f64, f64, f64), b: &NurbsFaceBound) -> Self {
-            Self::sampled_under_certified(&[
-                ("uu", sampled.0, b.muu),
-                ("uv", sampled.1, b.muv),
-                ("vv", sampled.2, b.mvv),
-            ])
+            let floor = |scale: f64| SAMPLER_ULPS * f64::EPSILON * scale;
+            Self {
+                sampler_floors: vec![floor(b.mu1), floor(b.mu1.max(b.mv1)), floor(b.mv1)],
+                ..Self::sampled_under_certified(&[
+                    ("uu", sampled.0, b.muu),
+                    ("uv", sampled.1, b.muv),
+                    ("vv", sampled.2, b.mvv),
+                ])
+            }
+        }
+
+        /// The components whose absolute floor is above the certified
+        /// figure: there the comparison asserts only the floor.
+        pub(crate) fn floor_only(&self) -> Vec<&'a str> {
+            self.components
+                .iter()
+                .zip(&self.sampler_floors)
+                .filter(|&(&(_, _, hi), &floor)| floor > hi)
+                .map(|(&(name, _, _), _)| name)
+                .collect()
         }
 
         pub(crate) fn holds(&self) -> bool {
             self.components
                 .iter()
-                .all(|&(_, lo, hi)| lo <= self.allowed(hi))
+                .enumerate()
+                .all(|(i, &(_, lo, hi))| lo <= self.allowed(i, hi))
         }
     }
 
     impl core::fmt::Display for Domination<'_> {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             let (lesser, greater) = (self.lesser, self.greater);
-            for &(name, lo, hi) in &self.components {
+            for (i, &(name, lo, hi)) in self.components.iter().enumerate() {
                 // Compared against the allowance, PRINTED as the
                 // certified figure: a reader needs the number the
                 // certificate carries, and the excess measured from it.
-                if lo > self.allowed(hi) {
+                if lo > self.allowed(i, hi) {
                     write!(
                         f,
                         "`{name}` ESCAPES: {lesser} {lo:.17e} exceeds {greater} {hi:.17e} by {:.17e} ",
@@ -1440,7 +1492,9 @@ pub(crate) mod tests {
     /// `{:.3e}` all three pairs of this fixture print equal; `uv` and
     /// `vv` hold with room at the 12th digit, and `uu` differs only at
     /// the 14th — which is where the allowance leaves off
-    /// ([`SAMPLER_ULPS`] ulps is 1.774e-14 of this `muu`).
+    /// ([`SAMPLER_ULPS`] ulps is 1.774e-14 of this `muu`, and 1.42e-15
+    /// of this face's `mu1`). `mv1` is a hundred times `mu1`, so a `uu`
+    /// floor taken from `mv1` (1.42e-13) would swallow the escape.
     #[test]
     fn a_failed_domination_names_the_component_the_side_and_the_excess() {
         let sampled = (
@@ -1452,11 +1506,12 @@ pub(crate) mod tests {
             muu: 1.248_592_341_233_724_3,
             muv: 6.659_454_728_151_211_5,
             mvv: 4.294_173_537_974_748,
-            mu1: 1.0,
-            mv1: 1.0,
+            mu1: 0.1,
+            mv1: 10.0,
         };
         assert!(
-            sampled.0 > b.muu * (1.0 + SAMPLER_ULPS * f64::EPSILON),
+            sampled.0
+                > b.muu * (1.0 + SAMPLER_ULPS * f64::EPSILON) + SAMPLER_ULPS * f64::EPSILON * b.mu1,
             "the fixture is a real escape in uu, outside the sampler's own allowance"
         );
         let d = Domination::second_partials(sampled, &b);
@@ -2620,40 +2675,28 @@ pub(crate) mod tests {
     /// `planar_bilinear_bounds_collapse` class, rational arm): a flat
     /// bilinear patch with UNIFORM weight `1/2` is bitwise rational but
     /// geometrically the same flat quad (constant weights cancel in
-    /// ℝ), so every true second partial is zero. What the rational
-    /// assembly answers is DUST scaled by the divisor `w_min = 1/2` —
-    /// re-derived, not blind-reused from the integral thresholds:
+    /// ℝ), so every true second partial is zero.
     ///
-    /// - `muu`/`mvv`: the degree-1 `Ã_dd`/`w_dd` terms are exact
-    ///   zeros, so what is left is the `S_d · w_d` cross term. `w_d` of
-    ///   a constant weight column is zero in ℝ, and what the refined
-    ///   net can say about it is the width the INSERTION contributed:
-    ///   the ratios' own outward rounding, scaled by the differencing's
-    ///   `p/Δd` at the 16-fold-refined span width.
-    /// - `muv`: the same insertion width, taken through the MIXED
-    ///   differencing, so it is scaled twice.
+    /// - `muu`/`mvv` are the EXACT zero. The degree-1 `Ã_dd`/`w_dd`
+    ///   terms are exact zeros, and what is left is the `S_d · w_d`
+    ///   cross term. The refinement meets each insertion step with the
+    ///   hull of its two sources, so a constant weight net stays its
+    ///   point and `w_d` is the exact zero too. In ℝ it is zero, so this
+    ///   is an enclosure of the described patch that happens to be
+    ///   exact, not a cancellation that dropped a rounding.
+    /// - `muv` is DUST: the mixed differencing of the homogeneous
+    ///   coordinate net, which is not constant, so its insertion width
+    ///   survives, scaled by the differencing's `p/Δd` twice.
     ///
-    /// **Each is BRACKETED, not capped, and the floor is the half that
+    /// **`muv` is BRACKETED, not capped, and the floor is the half that
     /// makes this row a test.** A ceiling alone admits both worlds: the
     /// `f64` refinement's answer was the deep-subnormal ~5e-166, which
-    /// passes any ceiling written for 1e-13, so a re-pinned ceiling would
-    /// have gone green on the code this unit replaced. The floor says
-    /// what interval arithmetic chain's width on `w ≡ const` actually is, so the
-    /// row reds on an arithmetic that cancels it away — D300's shape,
-    /// and the measurement is this tree's, not copied.
-    ///
-    /// The bands are decades around the measurement, with the distance
-    /// stated rather than called "an order": see the assertion's own
-    /// comment for the measured figures and how far each bound sits from
-    /// them.
-    ///
-    /// What the old 1e-100 recorded was the `f64` refinement reproducing
-    /// an exact cancellation on a constant weight column, in an enclosure
-    /// of the refined-`f64` patch. The refinement is part of the
-    /// enclosure now, so the dust it contributes is reported rather than
-    /// cancelled — and, being an enclosure of a zero, it CONTAINS that
-    /// zero, which the old one did not always do
-    /// (`geom_brep::patch_bound::PatchCell`).
+    /// passes any ceiling written for 1e-11, so a re-pinned ceiling
+    /// would have gone green on that code. The floor says what the
+    /// interval chain's width on the coordinate net actually is, so the
+    /// row reds on an arithmetic that cancels it away. The band is a
+    /// decade-scale bracket around the measurement; see the assertion's
+    /// comment for the figure.
     #[test]
     fn rational_uniform_weight_bilinear_dust() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
@@ -2665,30 +2708,23 @@ pub(crate) mod tests {
         ];
         let s = NurbsSurface::new(kv.clone(), kv, control, vec![0.5; 4]).unwrap();
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
-        // MEASURED on this tree (see the doc above for the derivation):
-        // `muu` and `mvv` at 2.8e-13, `muv` at 9.1e-12. Each is bracketed
-        // by a decade either side of its measurement — the ceiling 3.5x
-        // above and 11x above, the floor 28x below and 91x below — so a
-        // band, not a cap. The FLOOR is what reds on an arithmetic that
-        // cancels the insertion's width away, which is what the `f64`
-        // refinement did (~5e-166, comfortably under any ceiling here).
-        let bands = [
-            ("uu", b.muu, 1e-14, 1e-12),
-            ("uv", b.muv, 1e-13, 1e-10),
-            ("vv", b.mvv, 1e-14, 1e-12),
-        ];
-        let escaped: Vec<String> = bands
-            .iter()
-            .filter(|(_, x, lo, hi)| !(*x > *lo && *x < *hi))
-            .map(|(name, x, lo, hi)| format!("{name} {x:.17e} outside [{lo:e}, {hi:e}]"))
-            .collect();
         assert!(
-            escaped.is_empty(),
-            "the rational dust is not the width interval arithmetic chain contributes on a constant \
-             weight column: {}. A figure BELOW the band is the alarming one — it means \
-             the refinement cancelled exactly again, so the enclosure is of some patch \
-             other than the described one",
-            escaped.join("; ")
+            b.muu == 0.0 && b.mvv == 0.0,
+            "a constant weight net must stay exact through the refinement, so `w_d` and \
+             the pure second partials are the exact zero: muu {:.17e}, mvv {:.17e}",
+            b.muu,
+            b.mvv
+        );
+        // MEASURED on this tree: `muv` at 9.1e-12, bracketed 11x below
+        // the ceiling and 91x above the floor. The FLOOR is what reds on
+        // an arithmetic that cancels the insertion's width away, which
+        // is what the `f64` refinement did (~5e-166).
+        assert!(
+            b.muv > 1e-13 && b.muv < 1e-10,
+            "the mixed dust {:.17e} is outside [1e-13, 1e-10]. A figure BELOW the band is the \
+             alarming one — it means the refinement cancelled the coordinate net's width \
+             exactly, so the enclosure is of some patch other than the described one",
+            b.muv
         );
         let (hu, hv) = b.grid_steps(1e-3);
         assert!(hu > 1e3 && hv > 1e3, "flat stays effectively unconstrained");
@@ -2988,6 +3024,11 @@ pub(crate) mod tests {
     /// when the allowance absorbs it. The row that reds on the defect is
     /// `the_described_bilinear_rationals_true_second_partials_are_under_the_certified_sups`,
     /// which compares exact truths bare.
+    ///
+    /// **Where it asserts only the sampler's floor**: on a component
+    /// whose certified figure sits under the floor
+    /// [`Domination::second_partials`] allows, the near-unit pattern's
+    /// `uu` and `vv` among them. The log names every such component.
     #[test]
     fn the_bilinear_rational_stratum_is_dominated_at_every_weight_decade() {
         // Four control nets whose corner geometry differs: a unit quad,
@@ -3059,6 +3100,7 @@ pub(crate) mod tests {
         let mut worst_ratio = 0.0f64;
         let mut worst_excess_ulps = f64::NEG_INFINITY;
         let mut worst_where = String::new();
+        let mut floor_only = Vec::new();
         let mut patches = 0usize;
         for net in &nets {
             for w in WEIGHTS {
@@ -3075,6 +3117,9 @@ pub(crate) mod tests {
                 let d = Domination::second_partials((wuu, wuv, wvv), &b);
                 if !d.holds() {
                     escaped.push(format!("weights {w:?}: {d}"));
+                }
+                for name in d.floor_only() {
+                    floor_only.push(format!("{name} on {w:?}"));
                 }
                 // The sampled/certified ratio, and how far the sample
                 // sits ABOVE the certified figure in ulps of it. The
@@ -3102,7 +3147,9 @@ pub(crate) mod tests {
         }
         println!(
             "bilinear stratum: {patches} patches, worst sampled/certified {worst_ratio:.17e}, \
-             worst excess {worst_excess_ulps:.3} ulps of the certified figure ({worst_where})"
+             worst excess {worst_excess_ulps:.3} ulps of the certified figure ({worst_where}); \
+             asserting only the sampler floor: {}",
+            floor_only.join(", ")
         );
         assert!(
             escaped.is_empty(),

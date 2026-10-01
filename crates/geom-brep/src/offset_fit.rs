@@ -675,9 +675,7 @@ pub enum OffsetFitError {
     /// the v elevation, when both directions are raised, reads the
     /// weights the u elevation produced, and those are convex
     /// combinations of positive finite weights, so they stay finite and
-    /// can reach zero only by underflow. That needs subnormal weights,
-    /// and a face carrying them refuses earlier, in the meters' rational
-    /// refinement ([`PatchBoundError::RefinedWeightLostPositivity`]).
+    /// can reach zero only by underflow, which needs subnormal weights.
     /// The arm exists because the elevation is fallible by type; a
     /// refusal there is a kernel finding, which is why the message
     /// asks for a report and names the weight rather than rendering
@@ -2677,6 +2675,15 @@ mod tests {
     /// was. The componentwise readings on the new cell moved in the
     /// third digit with it (`1.5798e-8`, `3.2219e-4`, `3.1059e-4` and a
     /// ratio of `18.872` before).
+    ///
+    /// **On the cap grid the sup cell is `(21, 3)`**, again with every
+    /// pinned value unmoved: the insertion step is met with the hull of
+    /// its two sources, and this surface's weights are constant along
+    /// `v`, so each `v` step combines two equal weight enclosures and
+    /// returns that enclosure unchanged. The `v` fold adds the weight
+    /// channel no width (the `u` fold still does, so it is not exact),
+    /// and the cells along `v` at `u = 21` tie to the digits pinned
+    /// here — which one carries the sup is decided below them.
     #[test]
     fn the_sign_witness_floors_norm_e_where_the_components_straddle_zero() {
         let base = quarter_cylinder();
@@ -2750,7 +2757,7 @@ mod tests {
         assert_eq!((cert5.rounds, cert5.cells), (5, 364));
         let comp5 = Composite::build(&base, &fit5, d).unwrap();
         let (su5, sv5, sup5) = sup_cell(&comp5, reg.floor, d, ELow::Witness);
-        assert_eq!((su5, sv5), (21, 6));
+        assert_eq!((su5, sv5), (21, 3));
         let (dist5, tau5, t35, e_lo5, _) = decompose(&comp5, su5, sv5, reg.floor, d, ELow::Witness);
         // The SAME quantity `tests/offset_fit.rs`'s
         // `a_micron_scale_offset_certifies_and_names_its_limit` pins as

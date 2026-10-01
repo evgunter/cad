@@ -109,6 +109,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
             | ValuePayload::Instances(_)
             | ValuePayload::Declarations(_)
             | ValuePayload::Mate(_)
+            | ValuePayload::Gauge
             | ValuePayload::Measure { .. }
             | ValuePayload::MeasureUnavailable { .. }
             | ValuePayload::Assertion(_) => {}

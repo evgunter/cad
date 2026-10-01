@@ -1027,7 +1027,7 @@ fn child_band_refusal_rows() {
     let refused = apply(
         &asm,
         &DocEdit::InsertNode {
-            node: Node::Mate {
+            node: Box::new(Node::Mate {
                 a: face_of(a),
                 b: face_of(b),
                 class: ContactClass::Rest,
@@ -1038,7 +1038,7 @@ fn child_band_refusal_rows() {
                     sense: AxisSense::Opposed,
                     clocking: None,
                 },
-            },
+            }),
         },
         tol,
         &pncad::document::RefusingReach,

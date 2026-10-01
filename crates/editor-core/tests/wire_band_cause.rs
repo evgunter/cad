@@ -164,10 +164,10 @@ fn child_band_row() {
     let refused = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(desc(
+                node: Box::new(Node::Profile(desc(
                     node,
                     vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-                )),
+                ))),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

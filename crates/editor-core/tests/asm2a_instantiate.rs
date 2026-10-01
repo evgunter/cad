@@ -227,9 +227,11 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     let (doc, ids) = assembly("asm2a-r1-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([5.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                5.0, 0.0, 0.0,
+            ]))),
         },
     );
 
@@ -276,9 +278,11 @@ fn row2_one_part_two_instances_one_evaluation() {
     let (doc, ids) = assembly("asm2a-r2-asm", &[doc_ref, doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::translation([9.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                9.0, 0.0, 0.0,
+            ]))),
         },
     );
 
@@ -305,9 +309,11 @@ fn row2_one_part_two_instances_one_evaluation() {
     let (doc, ids) = assembly("asm2a-r2-two", &[a, b]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([20.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                20.0, 0.0, 0.0,
+            ]))),
         },
     );
     assert_eq!(run(&doc, &opts).part_evaluations, 2);
@@ -341,16 +347,20 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // and an op that does nothing decides nothing.
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([0.0, 9.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                0.0, 9.0, 0.0,
+            ]))),
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([9.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                9.0, 0.0, 0.0,
+            ]))),
         },
     );
     let ev = run(&doc, &opts);
@@ -421,9 +431,11 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
     let (doc, ids) = assembly("asm2a-r3-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([5.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                5.0, 0.0, 0.0,
+            ]))),
         },
     );
     let ev = run(&doc, &opts);
@@ -516,14 +528,14 @@ fn row3_instance_qualified_names_round_trip_persistence() {
     assert!(loaded.bit_eq(&doc), "the whole document round-trips");
 }
 
-// ---- Row 4: SetPlacement ----
+// ---- Row 4: SetOffset ----
 
-/// Row 4 — the placement moves the copy without changing its volume;
+/// Row 4 — the offset moves the copy without changing its volume;
 /// the pre-edit document is untouched (undo = keeping the prior value);
 /// an improper frame refuses typed NAMING the R4 prerequisite; a
 /// non-instance target refuses typed.
 #[test]
-fn row4_set_placement_moves_undoes_and_refuses() {
+fn row4_set_offset_moves_undoes_and_refuses() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r4-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
@@ -531,13 +543,19 @@ fn row4_set_placement_moves_undoes_and_refuses() {
 
     let before = run(&doc, &opts);
     let before_body = product(&doc, &before, Tol::witness()).expect("gathers");
-    assert!(doc.placement(ids[0]).is_identity_bits());
+    assert_eq!(
+        fixture::offset_of(&doc, ids[0]),
+        Some(editor_core::Placement::IDENTITY),
+        "an inserted instance sits at the empty offset on the world"
+    );
 
     let (moved, _) = step(
         doc.clone(),
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([7.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                7.0, 0.0, 0.0,
+            ]))),
         },
     );
     let after = run(&moved, &opts);
@@ -553,8 +571,11 @@ fn row4_set_placement_moves_undoes_and_refuses() {
     );
 
     // Undo, as this layer offers it: the prior document is unchanged.
-    assert!(doc.placement(ids[0]).is_identity_bits(), "undo restores");
-    assert!(doc.placements().is_empty());
+    assert_eq!(
+        fixture::offset_of(&doc, ids[0]),
+        Some(editor_core::Placement::IDENTITY),
+        "undo restores"
+    );
 
     // An improper frame (a mirror) refuses, naming R4's prerequisite.
     let mirror = Frame {
@@ -563,9 +584,9 @@ fn row4_set_placement_moves_undoes_and_refuses() {
     };
     match editor_core::apply(
         &doc,
-        &DocEdit::SetPlacement {
-            node: ids[0],
-            frame: mirror,
+        &DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&mirror)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -593,39 +614,18 @@ fn row4_set_placement_moves_undoes_and_refuses() {
     let target = part_doc.order()[0];
     match editor_core::apply(
         &part_doc,
-        &DocEdit::SetPlacement {
-            node: target,
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        &DocEdit::SetOffset {
+            instance: target,
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node.id(), target),
+        Err(EditError::OffsetOnNonInstance { node }) => assert_eq!(node.id(), target),
         other => panic!("a non-instance target must refuse, got {other:?}"),
     }
-}
-
-/// Row 4 (registry hygiene) — deleting an instance takes its placement
-/// with it; the save validator would refuse a stranded row.
-#[test]
-fn row4_deleting_an_instance_clears_its_placement() {
-    let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r4d-part", 0.0, 1.0), Tol::witness());
-    let _ = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r4d-asm", &[doc_ref, doc_ref]);
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([3.0, 0.0, 0.0]),
-        },
-    );
-    assert_eq!(doc.placements().len(), 1);
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[0] });
-    assert!(
-        doc.placements().is_empty(),
-        "the placement dies with its instance"
-    );
 }
 
 // ---- Row 5: the refusals, each its own row ----
@@ -733,7 +733,7 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
 
 // ---- Row 6: pin semantics ----
 
-/// Row 6 — the assembly's own pin moves on `SetPlacement` and on a
+/// Row 6 — the assembly's own pin moves on `SetOffset` and on a
 /// pin-bump of a reference, and an untouched-content re-save leaves it
 /// fixed.
 #[test]
@@ -753,9 +753,11 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
     // A placement moves it.
     let (moved, _) = step(
         doc.clone(),
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
         },
     );
     assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0);
@@ -782,9 +784,11 @@ fn row6_placement_is_part_of_the_content_key() {
 
     let (moved, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([4.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                4.0, 0.0, 0.0,
+            ]))),
         },
     );
     let second = evaluate::<f64>(
@@ -829,24 +833,27 @@ fn row7_instantiate_and_placement_round_trip() {
     let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::rotate_then_translate(
-                [0.0, 0.0, 1.0],
-                0.25,
-                [2.0, 3.0, 0.0],
-                fixture::band(),
-            )
-            .expect("a literal axis has a definite direction"),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(
+                &Frame::rotate_then_translate(
+                    [0.0, 0.0, 1.0],
+                    0.25,
+                    [2.0, 3.0, 0.0],
+                    fixture::band(),
+                )
+                .expect("a literal axis has a definite direction"),
+            )),
         },
     );
 
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
-    assert!(loaded.bit_eq(&doc), "the placement round-trips bit for bit");
-    assert_eq!(loaded.placements().len(), 1);
+    assert!(loaded.bit_eq(&doc), "the offset round-trips bit for bit");
     assert!(
-        loaded.placement(ids[1]).bit_eq(&doc.placement(ids[1])),
+        fixture::offset_of(&loaded, ids[1])
+            .zip(fixture::offset_of(&doc, ids[1]))
+            .is_some_and(|(a, b)| a.bit_eq(&b)),
         "the frame's bits survive"
     );
     assert!(
@@ -859,17 +866,16 @@ fn row7_instantiate_and_placement_round_trip() {
     );
 }
 
-/// Row 7 (validator half) — a file whose placement names a
-/// non-instance, or carries an improper frame, refuses at the save
-/// door: the file can hold no placement state the edit doors could not
-/// have produced.
+/// Row 7 (validator half) — a file whose instance names a live node
+/// that is not a gauge as its gauge refuses at the load door: the file
+/// can hold no gauge state the edit doors could not have produced.
 #[test]
-fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
+fn row7_the_validator_refuses_gauge_states_the_edits_cannot_produce() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7v-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r7v-asm", &[doc_ref]);
-    // A second, NON-instance node, so the corrupted key below names a
-    // live node and the diagnosis is the placement rule rather than an
+    // A second, NON-gauge node, so the corrupted reference below names a
+    // live node and the diagnosis is the gauge rule rather than an
     // id-range fault.
     let (doc, other) = on_frame(
         doc,
@@ -880,25 +886,24 @@ fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
 
-    // Re-key the placement row onto the profile node — a state no edit
+    // Point the instance's gauge at the profile node — a state no edit
     // door can produce.
-    let corrupt = text.replace(
-        &format!("\"placements\": {{\n      \"{}\"", ids[0].0),
-        &format!("\"placements\": {{\n      \"{}\"", other.0),
-    );
+    let corrupt = text.replacen("\"gauge\": null", &format!("\"gauge\": {}", other.0), 1);
     assert_ne!(corrupt, text, "the corruption really landed");
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementSite { node })) => {
-            assert_eq!(node, other);
+        Err(PersistError::Snapshot(SnapshotError::NotAGauge { node, gauge })) => {
+            assert_eq!((node.id(), gauge.id()), (ids[0], other));
         }
-        other => panic!("a stranded placement must refuse, got {other:?}"),
+        other => panic!("a gauge reference to a non-gauge must refuse, got {other:?}"),
     }
 }
 

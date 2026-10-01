@@ -68,24 +68,28 @@ fn round_trip(value: f64) -> ProfileDoc {
     doc = push(
         &doc,
         DocEdit::InsertNode {
-            node: fixture::frame([value, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-        },
-    );
-    doc = push(
-        &doc,
-        DocEdit::InsertNode {
-            node: Node::Profile(desc(
-                doc.order()[0],
-                vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
+            node: Box::new(fixture::frame(
+                [value, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
             )),
         },
     );
     doc = push(
         &doc,
         DocEdit::InsertNode {
-            node: Node::Datum(editor_core::Datum::Point {
+            node: Box::new(Node::Profile(desc(
+                doc.order()[0],
+                vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
+            ))),
+        },
+    );
+    doc = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Datum(editor_core::Datum::Point {
                 position: [len(value), len(0.0), len(-0.0)],
-            }),
+            })),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("save");

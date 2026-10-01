@@ -1,12 +1,7 @@
 //! Placement: the literal [`Frame`], and the [`Placement`] chain a
-//! `Node::Transform` holds (`crates/editor-core/ASSEMBLY.md` A11 (2)) —
-//! rigid steps of expressions and literal frames.
-//!
-//! [`crate::Doc`]'s placement registry holds one [`Frame`] per
-//! placement group, keyed by the group's root instance (A11 (3)).
-//! A missing entry is the IDENTITY frame: a legal, complete state, not
-//! a hole. Zero-anchor and multi-anchor states are unrepresentable
-//! because the registry holds at most one frame per group.
+//! `Node::Transform`, a `Node::Gauge` and an instance's offset hold
+//! (`crates/editor-core/ASSEMBLY.md` A11 (2)) — rigid steps of
+//! expressions and literal frames.
 
 use geom_core::predicate::Band;
 use geom_core::{Affine3, Decide, Mat3, Real, Vec3};
@@ -131,7 +126,7 @@ pub struct Frame {
 // by type, and repeating it there fires `clippy::double_must_use`
 // unless given a message.
 impl Frame {
-    /// The identity placement — what a missing registry entry means.
+    /// The identity frame.
     pub const IDENTITY: Self = Self {
         columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
@@ -176,7 +171,7 @@ impl Frame {
     /// [`NodeErrorKind::NonFiniteDirection`],
     /// [`NodeErrorKind::UnderflowedDirection`],
     /// [`NodeErrorKind::Escalated`]). [`crate::EditError::PlacementAxis`]
-    /// is what carries it through the `SetPlacement` door.
+    /// is what carries it through the `SetOffset` door.
     pub fn rotate_then_translate(
         axis: [f64; 3],
         angle: f64,
@@ -264,16 +259,24 @@ impl Frame {
         }
     }
 
+    /// The frame a motion at `f64` denotes: the identity's own bits
+    /// for the marked identity, the map's coordinates carried
+    /// otherwise ([`Frame::from_affine`]).
+    #[must_use]
+    pub(crate) fn from_motion(motion: Motion<f64>) -> Self {
+        match motion {
+            Motion::Identity => Frame::IDENTITY,
+            Motion::Map(map) => Frame::from_affine(map),
+        }
+    }
+
     /// The composition `self ∘ inner`: the frame that places by
     /// `inner` first, then by `self` — inline's rule (ASM-4 D-3: the
     /// instance's group frame composed onto the part's placements),
     /// by [`Motion::compose`] at `f64`.
     #[must_use]
     pub fn compose(&self, inner: &Frame) -> Frame {
-        match self.motion::<f64>().compose(inner.motion()) {
-            Motion::Identity => Frame::IDENTITY,
-            Motion::Map(map) => Frame::from_affine(map),
-        }
+        Frame::from_motion(self.motion::<f64>().compose(inner.motion()))
     }
 
     /// Whether this frame is the stored identity, BY BITS — D-3's
@@ -289,9 +292,8 @@ impl Frame {
     /// orientation, and is a rigid motion.
     ///
     /// One predicate with one home, asked wherever a document admits a
-    /// frame — the A11 group registry ([`crate::doc::PlacementFault`]),
-    /// a placement rule's listed frames
-    /// ([`crate::node::PlacementRuleFault`]) and a transform's literal
+    /// frame — a placement rule's listed frames
+    /// ([`crate::node::PlacementRuleFault`]) and a placement's literal
     /// steps ([`Placement::frame_fault`]) — so none of them can come to
     /// hold frames to a different standard. Each caller keeps its own
     /// arms, says WHICH frame is at fault in its own vocabulary
@@ -307,7 +309,7 @@ impl Frame {
     /// load door asks it again at the loading tolerance.
     ///
     /// It lives on [`Frame`] because the rule is about a frame and
-    /// nothing else: it reads no document, no node and no registry.
+    /// nothing else: it reads no document and no node.
     #[must_use]
     pub(crate) fn admission_fault(&self, tol: geom_core::Tol) -> Option<FrameFault> {
         if !self.is_finite() {
@@ -346,9 +348,7 @@ impl Frame {
 
 /// What makes a [`Frame`] inadmissible as a placement
 /// ([`Frame::admission_fault`]) — one vocabulary, and one SENTENCE, for
-/// every door that admits a frame. Public because the load door
-/// carries it out on [`crate::PersistError::MaintenanceFrame`], for a
-/// recorded maintenance row held to the same rule.
+/// every door that admits a frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FrameFault {
     /// A coordinate that is not a number: no predicate downstream can
@@ -411,15 +411,13 @@ impl FrameFault {
 /// a door names beside the [`FrameFault`] sentence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameSite {
-    /// The instance's placement frame: the registry row
-    /// `DocEdit::SetPlacement` writes, or one a file holds.
-    Registry,
     /// Listed placement `index` of an explicit placement rule.
     Listed {
         /// Its index in the placement list.
         index: usize,
     },
-    /// Step `index` of a transform's placement chain.
+    /// Step `index` of the placement chain a node holds: a
+    /// transform's, a gauge's, or an instance's offset.
     Step {
         /// Its index in the chain.
         index: usize,
@@ -434,7 +432,6 @@ impl FrameSite {
     #[must_use]
     pub fn subject(self, node: &crate::SpokenNode) -> String {
         match self {
-            Self::Registry => format!("the placement frame for {node}"),
             Self::Listed { index } => format!("placement {index} of {node}"),
             Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
         }
@@ -497,9 +494,9 @@ impl<T: Real> Motion<T> {
 }
 
 /// **A placement: an ordered chain of steps** — what a
-/// [`crate::Node::Transform`] holds (ASSEMBLY-DESIGN A11 (2)). The
-/// registry (`Doc::placements`) and an explicit rule's listed
-/// placements hold literal [`Frame`]s.
+/// [`crate::Node::Transform`] and a [`crate::Node::Gauge`] hold, and an
+/// instance's offset is (ASSEMBLY-DESIGN A11 (2)). An explicit rule's
+/// listed placements hold literal [`Frame`]s.
 ///
 /// The chain composes as a product: `[s0, s1, …, sn]` denotes
 /// `s0 ∘ s1 ∘ … ∘ sn`, the reading A11 (5) writes "gauge frame ∘ offset
@@ -651,9 +648,25 @@ impl Placement {
         env: &ParamEnv<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
+        self.motion_at(env, band).map(Motion::affine)
+    }
+
+    /// [`Placement::eval`] with the bit-exact identity kept marked
+    /// ([`Motion`]): the empty chain and a chain of identity literals
+    /// are [`Motion::Identity`], so a placement that moves nothing
+    /// composes with no arithmetic.
+    ///
+    /// # Errors
+    ///
+    /// [`Placement::eval`]'s.
+    pub(crate) fn motion_at<T: Decide>(
+        &self,
+        env: &ParamEnv<T>,
+        band: Band,
+    ) -> Result<Motion<T>, NodeErrorKind> {
         let vals = crate::eval::slots::eval_rows(self.rows(), env)
             .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-        self.motion(&vals, band)
+        self.chain_motion(&vals, band)
     }
 
     /// **The one construction of a placement's motion**, from its
@@ -671,6 +684,15 @@ impl Placement {
         vals: &SlotValues<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
+        self.chain_motion(vals, band).map(Motion::affine)
+    }
+
+    /// [`Placement::motion`] with the identity kept marked.
+    fn chain_motion<T: Decide>(
+        &self,
+        vals: &SlotValues<T>,
+        band: Band,
+    ) -> Result<Motion<T>, NodeErrorKind> {
         let mut composed = Motion::Identity;
         for (k, step) in self.steps.iter().enumerate() {
             let map = match step {
@@ -693,7 +715,7 @@ impl Placement {
             };
             composed = composed.compose(map);
         }
-        Ok(composed.affine())
+        Ok(composed)
     }
 }
 
@@ -873,11 +895,10 @@ mod tests {
     /// The teeth are the `is_identity_bits` assertions, and the
     /// fixtures under them must perturb the identity in BOTH PARTS —
     /// a translation-only set leaves a linear-part snap green, and a
-    /// linear-part snap is the one that silently changes an answer:
-    /// `mate::solve`'s `reconcile` branches on
-    /// `relative.is_identity_bits()` and its `true` arm DISCARDS the
-    /// solved relative pose, so a root that rotated by a hair would
-    /// read as "did not move".
+    /// linear-part snap is the one that silently changes an answer: a
+    /// solved pose composes through [`Frame::motion`], whose identity
+    /// arm DISCARDS the pose, so an instance that rotated by a hair
+    /// would read as "did not move".
     ///
     /// Each of the four is one representable step from the identity —
     /// a signed zero, a subnormal, an off-diagonal subnormal, and the

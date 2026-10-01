@@ -2,11 +2,12 @@
 id: mint-has-no-route-to-the-fitted-general-circle-arm
 kind: issue
 title: no mint site reaches certify_fitted's Circle-carrier arm, so a general sphere circle's face stays uncached (DESIGN frontier (c))
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P1
 cost: H
 refs: [S331, D36]
+branch: pcert/general-circle-fitted-route
 ---
 
 

@@ -319,3 +319,34 @@ now states mandatory rows; that PR merges on Ev's confirmation of the
 text. Neither designer's first recommendation (both leaned cache).
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — the general-circle route dispatched
+
+`mint-has-no-route-to-the-fitted-general-circle-arm` dispatched on Ev's
+first ruling on PR 3617 (wire the uncovered classes rather than permit
+them uncached), which does not wait on the C4 wording: route
+`SphereGeneralCircle` into `certify_fitted`'s Circle arm and retire that
+class's mint exemption in the same PR. Run in its own cloud session.
+Review tier: single FULL — a new certified route through branch
+pinning, believed by building, not reading.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — PR 3617 merged; the at-rest unit dispatched
+
+Ev confirmed C4 by a 👍 on the orchestrator's "what I'll write, unless
+you object" comment (reactions wake nothing, so it sat unseen until Ev
+pointed it out). PR 3617 merged (`a4ab8d4`) with the fork-log row's
+second half: Ev's decision, matching neither first recommendation.
+
+Dispatched as ONE unit under `S331` (branch `pcert/at-rest-rows-mandatory`):
+`S331`, `validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`,
+`validate-pcurves-never-recertifies-a-face-it-finds-incomplete`,
+`site-rows-leaves-an-off-chart-edge-silent`, and
+`extrude-mints-no-pcurve-rows`, claimed from CARVE by `git mv` because
+mandatory rows make a non-minting producer a tier-3 red: the unit
+cannot land without it. Review tier: DUAL — the change redefines what
+tier 3 accepts for every curved body in the kernel, broad and hard to
+reverse.
+
+Signed (PCERT orchestrator).
