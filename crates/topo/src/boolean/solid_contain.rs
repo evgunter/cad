@@ -4684,13 +4684,12 @@ fn cast_ray<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let [near, far] = match line_sphere_roots(q, d, center, radius, band)
-                    .map_err(escalate)?
-                {
-                    WallRoots::Two(ts) => ts,
-                    WallRoots::Tangent => return Ok(None), // tangent ray: graze
-                    WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
-                };
+                let [near, far] =
+                    match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
+                        WallRoots::Two(ts) => ts,
+                        WallRoots::Tangent => return Ok(None), // tangent ray: graze
+                        WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
+                    };
                 // The near/far outward pair is read off the geometry
                 // (`d·(p − c)/r = ±√disc/r`) and is therefore a CHART
                 // statement: it says the near root enters the BALL and
@@ -4721,13 +4720,12 @@ fn cast_ray<T: Decide>(
                 ref trim,
                 sense,
             } => {
-                let [near, far] = match line_sphere_roots(q, d, center, radius, band)
-                    .map_err(escalate)?
-                {
-                    WallRoots::Two(ts) => ts,
-                    WallRoots::Tangent => return Ok(None), // tangent ray: graze
-                    WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
-                };
+                let [near, far] =
+                    match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
+                        WallRoots::Two(ts) => ts,
+                        WallRoots::Tangent => return Ok(None), // tangent ray: graze
+                        WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
+                    };
                 for (t, outward) in [
                     (near, oriented(Sign::Negative, sense)),
                     (far, oriented(Sign::Positive, sense)),

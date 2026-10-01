@@ -312,8 +312,10 @@ pub(super) fn bool_connect<T: Decide>(
         // planar side against the wall face's own window, so both
         // solids select the SAME geometric arc); plane×sphere (M5
         // S13) rides the same two lanes with the exact C5 Circle and
-        // the sphere chart's azimuth window; any other pair refuses
-        // typed citing its C5 routing (per-arm, C12.1).
+        // the sphere chart's azimuth window; a sphere pair rides the
+        // wall-side lane on both sides against its radical plane; any
+        // other pair refuses typed citing its C5 routing (per-arm,
+        // C12.1).
         let germ = open[m.entry].a[m.entry_slot].0;
         let surf_of = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
             body.get_face(f)
@@ -475,9 +477,7 @@ pub(super) fn bool_connect<T: Decide>(
                         normal: axis,
                     },
                     Ok(_) => {
-                        return Err(desync(
-                            "germ pair's sphere×sphere section is not a circle",
-                        ));
+                        return Err(desync("germ pair's sphere×sphere section is not a circle"));
                     }
                     Err(geom_brep::SectionError::Escalated(diag)) => {
                         return Err(BooleanError::coincidence(diag));
@@ -869,17 +869,10 @@ pub(super) fn pair_section_frame<T: Decide>(
         // different consumer with a different question; putting it here
         // would refuse a frame the facing test can use.
         //
-        // **And no polar gate lives at that consumer either — said out
-        // loud so the absence reads as a decision, not an omission.**
-        // `chord_join::section_case` refuses EVERY curved×curved pair by
-        // KIND, before any germ-pair section is consulted, so a sphere
-        // section never reaches the azimuth-anchored rule at all. That
-        // blanket refusal is strictly stronger than a polar gate (which
-        // would admit the aligned pairs), and it is what makes a gate
-        // here or there dead code today; its text NAMES the sphere pair
-        // and the polar premise so a reader who arrives at it lands on
-        // the right fact. When the ring lane narrows that refusal, the
-        // premise becomes live and the gate is owed then.
+        // The polar premise is live at that consumer: the join hands
+        // each side the pair's radical plane, so the chord reaches
+        // `chord_join::section_case` as a plane×sphere pair and its
+        // polar gate decides there, per operand chart.
         (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
             return match geom_brep::sphere_sphere_section(sa, sb, band) {
                 Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {

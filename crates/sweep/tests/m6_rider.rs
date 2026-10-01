@@ -7,8 +7,8 @@
 //! Three rows, the two-tolerance shape on the NEW arm (definite arms
 //! included): definite miss (the strategies re-agree on disjoint
 //! balls — the divergence `die_pips` documented is retired), definite
-//! meet (the typed frontier stays for genuinely crossing circles),
-//! and an in-band clearance escalating through the funnel by name.
+//! meet (handed to the circle × sphere roots, never cleared), and an
+//! in-band clearance escalating through the funnel by name.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -53,24 +53,35 @@ fn far_disjoint_balls_union_under_both_strategies() {
     assert!((vr - want).abs() <= 1e-9 * want);
 }
 
-/// **Definite meet keeps the typed frontier**: genuinely overlapping
-/// balls — the meridian circles straddle the other sphere, no
-/// one-sided verdict exists, and the curved pierce door stays.
+/// **Definite meet reaches the section, not a guess**: genuinely
+/// overlapping balls — the meridian circles straddle the other sphere,
+/// no one-sided verdict exists, and the circle × sphere roots find the
+/// crossings. The pair's centre line runs along X, across both charts'
+/// polar axis (Y), so the section the join hands each side is tilted
+/// and the arc-side rule's polar gate refuses it, typed
+/// (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
 #[test]
-fn overlapping_balls_keep_the_pierce_frontier() {
+fn overlapping_balls_stop_at_the_polar_gate() {
     let a = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.0), Tol::witness());
     let b = ball_poled_y(1.0, Vec3::new(3.2, 2.0, 0.0), Tol::witness());
     let err = union(&a, &b, SweepStrategy::Realized)
-        .expect_err("a crossing circle has no one-sided verdict");
+        .expect_err("a section tilted against both charts has no arc-side rule");
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "expected the pierce frontier, got {err:?}"
+        matches!(
+            &err,
+            BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. })
+                if what.contains("tilted against the sphere chart's polar axis")
+        ),
+        "expected the polar gate, got {err:?}"
     );
 }
 
 /// **In-band clearance escalates by name** (two-tolerance, the F6
 /// discipline): the gap between the balls sits strictly inside the
-/// band, so neither "miss" nor "meet" may be asserted.
+/// band, so neither "miss" nor "meet" may be asserted. The rider's
+/// enclosure escalates first and hands the pair to the circle × sphere
+/// roots, whose extreme residual — the same exact quantity — escalates
+/// in its turn, so the name on the refusal is the roots'.
 #[test]
 fn in_band_clearance_escalates_through_the_funnel() {
     let tol = Tol::witness().get();
@@ -83,8 +94,8 @@ fn in_band_clearance_escalates_through_the_funnel() {
         BooleanError::Escalated { diag, .. } => {
             assert_eq!(
                 diag.predicate,
-                Some("bool_circle_curved_clearance"),
-                "the escalation names the rider's predicate: {diag:?}"
+                Some("bool_circle_sphere_extreme"),
+                "the escalation names the roots' predicate: {diag:?}"
             );
         }
         other => panic!("expected an escalation, got {other:?}"),
