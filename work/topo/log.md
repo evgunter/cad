@@ -5365,3 +5365,33 @@ leave `euler*.rs`. The first fact to establish is which feature flips
 it. The unit also asks whether a CI row should run topo with
 `--all-features`. That is GUARD's call, so it would be filed there,
 not built here.
+
+## PR 3621 fix pass read; rows closed; kev --all-features dispatched (2026-10-01)
+
+**PR 3621's fix pass** landed `1117fad6e9`, and CI run 36824173629
+went green. My read:
+- the editor-core admissions file is byte-identical to main's, so all
+  11 admissions are back;
+- `TORN_IF_THE_CALL_WAS_RIGHT` is gone;
+- `StaleKey`, `StaleGeometry` and `NotSameEdge` read as they did before
+  the PR;
+- `MergeRebasesCarriers`' lever now reads "kill the edge's other end
+  where it meets no other edge", pinned at both poses, with M9/M10 red.
+
+Filed:
+- HONE's classify stale-key edge (P4);
+- TOPO's `require_kill_anchors` Empty-arm collision (P4).
+
+Both rows are closed on the branch (`09e3bf38de`). The PR merges on
+green.
+
+**Disk.** It fell to 3.8 GB. I cleared finished review scratch and the
+idle walk target (`rm -rf`, no lane was using it, and no deletion
+there was ever denied). It is at 8.0 GB now.
+
+**`kev-describing-row-fails-under-all-features`** is dispatched on the
+fresh walk target, branch `topo/kev-all-features`. The brief is
+`kevfeat-impl-brief.md`. The lane bisects the feature set, decides from
+evidence between a real defect and a row asserting what a feature
+legitimately changes, files the CI gap on GUARD, and sweeps the whole
+`--all-features` suite diff.
