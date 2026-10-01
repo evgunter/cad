@@ -166,10 +166,12 @@ const ENVELOPE_FLOOR: f64 = 2.5e-14;
 const SAMPLE_ROUNDING: f64 = 8.0 * f64::EPSILON;
 
 /// Above this sampled truth the additive form stops being the honest
-/// one and a RATIO ceiling takes over. Ten times [`ENVELOPE_FLOOR`] —
+/// one and a RATIO ceiling takes over. Forty times [`ENVELOPE_FLOOR`] —
 /// an absolute constant, so which rungs make which claim never depends
-/// on the enclosure being measured.
-const RATIO_ARM_FROM: f64 = 10.0 * ENVELOPE_FLOOR;
+/// on the enclosure being measured — and the finest battery ε, so the
+/// ratio arm stands down exactly where the lane refuses the rungs it
+/// would read.
+const RATIO_ARM_FROM: f64 = 40.0 * ENVELOPE_FLOOR;
 
 /// ATTACK 1b: envelope soundness on the ACCEPT side — a certifying
 /// carrier's certified sup must bound its dense-sampled true sup, and
