@@ -104,13 +104,15 @@
 //!   in band.
 
 use geom_core::linalg::svd::Svd;
-use geom_core::{Band, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use crate::dihedral::{decide, decide_positive, decide_reported};
 use crate::recourse::Refused;
 
-use super::SsiError;
+use super::enclose::Box3;
+use super::exhaust::{self, UvRect};
 use super::system::LocalSystem;
+use super::{SsiError, TraceDecision};
 
 /// The **candidate generator's** step tolerance, in meters.
 ///
@@ -145,9 +147,55 @@ impl MarchTol {
     /// [`SsiError::MarchTolMismatch`] — so the marcher's spacing, the
     /// accounting floor and the certificate's floors are one number by
     /// enforcement rather than by intent.
+    ///
+    /// `reach` is the ℝ³ box the traced locus lies in.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::FloorUnresolvable`] naming
+    /// [`FloorKind::Settling`](super::FloorKind::Settling) when the
+    /// coordinates in `reach` cannot resolve the residual Newton
+    /// settles to ([`MarchTol::settling`]).
+    pub(crate) fn from_band(band: Band, reach: Box3) -> Result<Self, SsiError> {
+        Self::mint(band.zero(), reach)
+    }
+
+    /// Whether this is the run band's own tolerance.
     #[must_use]
-    pub(crate) fn from_band(band: Band) -> Self {
-        Self(band.zero())
+    pub(crate) fn is_of(self, band: Band) -> bool {
+        self.0 == band.zero()
+    }
+
+    /// The tolerance, once its settling tolerance is a length the
+    /// coordinates in `reach` resolve, by the floors' own rule.
+    fn mint(meters: f64, reach: Box3) -> Result<Self, SsiError> {
+        let tol = Self(meters);
+        if !(tol.settling() > 0.0) {
+            return Err(SsiError::InvalidMarchTol { value: meters });
+        }
+        exhaust::settles_r3(reach, tol.settling())?;
+        Ok(tol)
+    }
+
+    /// The residual, in metres, Newton refinement settles every state
+    /// to: [`SSI_NEWTON_TOL`] of the tolerance.
+    #[must_use]
+    pub(crate) fn settling(self) -> f64 {
+        SSI_NEWTON_TOL * self.0
+    }
+
+    /// The same tolerance, once its settling tolerance is also a length
+    /// a NURBS operand's chart `root` resolves at `speed`: Newton moves
+    /// the state through those parameters.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::FloorUnresolvable`] naming
+    /// [`FloorKind::Settling`](super::FloorKind::Settling) on the chart
+    /// lane.
+    pub(crate) fn over_chart(self, root: UvRect, speed: SupSpeed<f64>) -> Result<Self, SsiError> {
+        exhaust::settles_chart(root, self.settling(), speed)?;
+        Ok(self)
     }
 
     /// A generator tolerance **deliberately decoupled** from the run
@@ -169,12 +217,13 @@ impl MarchTol {
     /// # Errors
     ///
     /// [`SsiError::InvalidMarchTol`] when `meters` is not finite and
-    /// strictly positive — a typed refusal, never a silent clamp.
-    pub(super) fn decoupled(meters: f64) -> Result<Self, SsiError> {
+    /// strictly positive — a typed refusal, never a silent clamp — and
+    /// [`MarchTol::from_band`]'s refusal over `reach`.
+    pub(super) fn decoupled(meters: f64, reach: Box3) -> Result<Self, SsiError> {
         if !(meters.is_finite() && meters > 0.0) {
             return Err(SsiError::InvalidMarchTol { value: meters });
         }
-        Ok(Self(meters))
+        Self::mint(meters, reach)
     }
 
     /// The tolerance in meters — the `f64` the untrusted lane consumes.
@@ -404,7 +453,7 @@ where
         let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
         let arm = Real::min(sys.lever_arm(&x), ctx.extent);
         decide_positive("ssi_transversality_arm", Margin::of(arm), band)
-            .map_err(SsiError::Escalated)?;
+            .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
         let transversality = Margin::levered(sin_theta, arm);
         if transversality.value() < min_transversality {
             min_transversality = transversality.value();
@@ -423,7 +472,7 @@ where
                     });
                 }
             }
-            Err(diag) => return Err(SsiError::Escalated(diag)),
+            Err(diag) => return Err(TraceDecision::Transversality.escalated(diag)),
         }
 
         // ---- 3. the tangent, oriented along the march ----
@@ -538,7 +587,7 @@ where
                     speed,
                 });
             }
-            Err(diag) => return Err(SsiError::Escalated(diag)),
+            Err(diag) => return Err(TraceDecision::StepProgress.escalated(diag)),
         }
 
         // The step itself, where it is minted: a positive finite speed
@@ -594,7 +643,7 @@ where
                     steps,
                 });
             }
-            Err(diag) => return Err(SsiError::Escalated(diag)),
+            Err(diag) => return Err(TraceDecision::BranchOpenEnd.escalated(diag)),
         }
 
         // ---- the closure pair ----
@@ -642,11 +691,11 @@ where
                                 arc_length: arc,
                             });
                         }
-                        Err(diag) => return Err(SsiError::Escalated(diag)),
+                        Err(diag) => return Err(TraceDecision::ClosureTangent.escalated(diag)),
                     }
                 }
                 Ok(Sign::Negative) => {}
-                Err(diag) => return Err(SsiError::Escalated(diag)),
+                Err(diag) => return Err(TraceDecision::ClosureReturn.escalated(diag)),
             }
         }
 
@@ -670,7 +719,7 @@ pub(crate) fn newton_refine<const M: usize, const N: usize, S>(
 where
     S: LocalSystem<M, N>,
 {
-    let tol = SSI_NEWTON_TOL * step_tol.meters();
+    let tol = step_tol.settling();
     for _ in 0..SSI_NEWTON_ITERS {
         let f = sys.residual(&x);
         let mut worst = 0.0f64;
@@ -921,10 +970,16 @@ where
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        LocalSystem, MarchContext, MarchTol, NormalPair, SsiError, StepFault, StepperMode,
-        TransversalityData, march,
+        Box3, LocalSystem, MarchContext, MarchTol, NormalPair, SSI_NEWTON_TOL, SsiError, StepFault,
+        StepperMode, TraceDecision, TransversalityData, march,
     };
+    use crate::ssi::{FloorFault, FloorKind};
     use geom_core::{Band, Point3, Vec3};
+
+    /// The box `[-r, r]³`.
+    fn reaching(r: f64) -> Box3 {
+        Box3::around(Point3::new(0.0, 0.0, 0.0), r)
+    }
 
     /// A two-plane system in ℝ³ whose locus is the `x` axis, with the
     /// chart speed, the order-2 and order-3 right-hand sides, the `x`
@@ -1042,10 +1097,9 @@ mod tests {
                     .ending(crate::recourse::Reading::Build);
                     assert_eq!(ending.as_deref(), Some(geom_core::KERNEL_DEFECT_ENDING));
                 }
-                Err(SsiError::Escalated(diag)) => panic!(
+                Err(SsiError::Escalated { decision, .. }) => panic!(
                     "WRONG DIAGNOSIS: a march speed of {speed:e} escalated on \
-                     {:?} instead of being refused as the speed it is",
-                    diag.predicate
+                     {decision:?} instead of being refused as the speed it is"
                 ),
                 other => panic!("expected the speed guard for {speed:e}, got {other:?}"),
             }
@@ -1130,7 +1184,7 @@ mod tests {
         MarchContext::<3> {
             domain: [[-1.0, 1.0]; 3],
             extent: 1.0,
-            tol: MarchTol::from_band(band),
+            tol: MarchTol::from_band(band, reaching(1.0)).unwrap(),
             max_steps: 64,
         }
     }
@@ -1156,7 +1210,7 @@ mod tests {
                     ..FixedSpeedR3::at_speed(1.0)
                 },
                 StepperMode::Idealized,
-                "ssi_transversality_arm",
+                TraceDecision::TransversalityArm,
             ),
             (
                 FixedSpeedR3 {
@@ -1164,7 +1218,7 @@ mod tests {
                     ..FixedSpeedR3::at_speed(1.0)
                 },
                 StepperMode::Realized,
-                "ssi_step_progress",
+                TraceDecision::StepProgress,
             ),
             (
                 FixedSpeedR3 {
@@ -1172,7 +1226,7 @@ mod tests {
                     ..FixedSpeedR3::at_speed(1.0)
                 },
                 StepperMode::Realized,
-                "ssi_step_progress",
+                TraceDecision::StepProgress,
             ),
             (
                 FixedSpeedR3 {
@@ -1180,15 +1234,15 @@ mod tests {
                     ..FixedSpeedR3::at_speed(1.0)
                 },
                 StepperMode::Idealized,
-                "ssi_branch_open_end",
+                TraceDecision::BranchOpenEnd,
             ),
         ];
         for (sys, mode, guard) in rows {
             match march(&sys, [0.0, 0.0, 0.0], unit_ctx(band), mode, 1.0, band) {
-                Err(SsiError::Escalated(diag)) => {
-                    assert_eq!(diag.predicate, Some(guard), "the poisoned operand's guard");
+                Err(SsiError::Escalated { decision, .. }) => {
+                    assert_eq!(decision, guard, "the poisoned operand's guard");
                 }
-                other => panic!("expected {guard} to escalate, got {other:?}"),
+                other => panic!("expected {guard:?} to escalate, got {other:?}"),
             }
         }
     }
@@ -1220,8 +1274,13 @@ mod tests {
                 band,
             );
             assert!(
-                !matches!(&r, Err(SsiError::Escalated(d))
-                    if d.predicate == Some("ssi_step_progress")),
+                !matches!(
+                    &r,
+                    Err(SsiError::Escalated {
+                        decision: TraceDecision::StepProgress,
+                        ..
+                    })
+                ),
                 "speed {:e}, rhs2 {:e}: {r:?}",
                 sys.speed,
                 sys.rhs2
@@ -1244,7 +1303,9 @@ mod tests {
             // the run's K·zero, which would read as a quantity the
             // bridge consults.
             let band = Band::new(zero, 2.0 * zero).unwrap();
-            assert_eq!(MarchTol::from_band(band).meters(), band.zero());
+            let tol = MarchTol::from_band(band, reaching(1.0)).unwrap();
+            assert_eq!(tol.meters(), band.zero());
+            assert!(tol.is_of(band));
         }
     }
 
@@ -1254,7 +1315,7 @@ mod tests {
     #[test]
     fn a_decoupled_march_tolerance_refuses_typed_on_a_non_length() {
         for bad in [0.0_f64, -1.0e-9, f64::NAN, f64::INFINITY] {
-            match MarchTol::decoupled(bad) {
+            match MarchTol::decoupled(bad, reaching(1.0)) {
                 Err(SsiError::InvalidMarchTol { value }) => {
                     assert!(value.is_nan() || value == bad, "{value:e} vs {bad:e}");
                     let msg = format!("{}", SsiError::InvalidMarchTol { value });
@@ -1266,6 +1327,40 @@ mod tests {
                 other => panic!("expected a typed refusal for {bad:e}, got {other:?}"),
             }
         }
-        assert_eq!(MarchTol::decoupled(1.0e-9).unwrap().meters(), 1.0e-9);
+        assert_eq!(
+            MarchTol::decoupled(1.0e-9, reaching(1.0)).unwrap().meters(),
+            1.0e-9
+        );
+    }
+
+    /// **A march tolerance whose settling residual the coordinates
+    /// cannot resolve refuses where it is minted**, by the floors' own
+    /// rule, on both doors that mint one. Newton settles every state to
+    /// `SSI_NEWTON_TOL`·ε, which no state at `1e8` m reaches at ε =
+    /// `1e-9`: adjacent floats there are `1.49e-8` m apart. Near the
+    /// origin the same ε mints.
+    #[test]
+    fn a_settling_tolerance_the_coordinates_cannot_resolve_refuses_by_name() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let far = Box3::around(Point3::new(1.0e8, 0.0, 0.0), 1.0);
+        for minted in [
+            MarchTol::from_band(band, far),
+            MarchTol::decoupled(band.zero(), far),
+        ] {
+            let Err(SsiError::FloorUnresolvable(r)) = minted else {
+                panic!("expected the settling door, got {minted:?}");
+            };
+            assert_eq!(r.floor, FloorKind::Settling);
+            assert_eq!(
+                r.meters,
+                SSI_NEWTON_TOL * band.zero(),
+                "the settling residual"
+            );
+            let FloorFault::BelowResolution { resolution, reach } = r.fault else {
+                panic!("{r:?}");
+            };
+            assert!(reach > 1.0e8 && resolution > 1.0e-8, "{r:?}");
+        }
+        assert!(MarchTol::from_band(band, reaching(1.0e3)).is_ok());
     }
 }

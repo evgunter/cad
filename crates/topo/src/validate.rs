@@ -13235,7 +13235,7 @@ mod certify_escalation_rows {
             (
                 escalated(CertCheck::Transversality, in_band),
                 "its faces meet too nearly tangentially to decide at this tolerance. Recourse: \
-                 move the geometry so the faces cross at a clearer angle, or, if this angle is \
+                 move the geometry so the surfaces cross at a clearer angle, or, if this angle is \
                  intended, tighten the tolerance below 5e-10 m",
             ),
             (
@@ -13273,7 +13273,7 @@ mod certify_escalation_rows {
                     verdict: zero(5.0e-10),
                 }),
                 "its faces are tangent where its description says they cross. Recourse: move \
-                 the geometry so the faces cross at a clearer angle, or, if this angle is \
+                 the geometry so the surfaces cross at a clearer angle, or, if this angle is \
                  intended, tighten the tolerance below 5e-11 m",
             ),
             // A degenerate spline face is the face's own fact, and its
@@ -13308,7 +13308,7 @@ mod certify_escalation_rows {
                     verdict: zero(0.0),
                 }),
                 "its faces are tangent where its description says they cross. Recourse: move \
-                 the geometry so the faces cross at a clearer angle",
+                 the geometry so the surfaces cross at a clearer angle",
             ),
             // A definite stored contradiction no move or loosening
             // reaches: an approximation's residual, and the lane's limb.
@@ -13385,7 +13385,7 @@ mod certify_escalation_rows {
                     boxes: 4,
                 })),
                 "its faces are not certainly crossing along it, so they do not fix where it \
-                 runs. Recourse: move the geometry so the faces cross at a clearer angle",
+                 runs. Recourse: move the geometry so the surfaces cross at a clearer angle",
             ),
             (
                 says(CertifyError::PlaneNurbs(P::TubeStraddles {
@@ -13393,7 +13393,7 @@ mod certify_escalation_rows {
                     boxes: 4,
                 })),
                 "its faces are not certainly crossing along it, so they do not fix where it \
-                 runs. Recourse: move the geometry so the faces cross at a clearer angle, or, \
+                 runs. Recourse: move the geometry so the surfaces cross at a clearer angle, or, \
                  if this angle is intended, tighten the tolerance below 3e-11 m",
             ),
             (
@@ -13422,7 +13422,7 @@ mod certify_escalation_rows {
                     },
                 })),
                 "its faces meet too nearly tangentially to decide at this tolerance. Recourse: \
-                 move the geometry so the faces cross at a clearer angle, or, if this angle is \
+                 move the geometry so the surfaces cross at a clearer angle, or, if this angle is \
                  intended, tighten the tolerance below 5e-10 m",
             ),
             (

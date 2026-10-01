@@ -1899,7 +1899,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // An escalation is the ONE refusal that carries a classified
         // margin, and it leaves through its own door with the
         // classifier's diagnostic whole.
-        E::Escalated(cause) | E::CertificateEscalated { cause, .. } => {
+        E::Escalated { cause, .. } | E::CertificateEscalated { cause, .. } => {
             return PcurveCertifyError::FittedEscalated { cause };
         }
         E::CertificateLimb { limb, value } => (

@@ -669,7 +669,7 @@ impl CertCheck {
                 at_zero: None,
             }),
             Self::Transversality => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the faces cross at a clearer angle",
+                lever: "move the geometry so the surfaces cross at a clearer angle",
                 size: "angle",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
@@ -4149,7 +4149,7 @@ mod tests {
             margin: MarginDiag::value(5e-10),
             band,
         });
-        let cross = "Recourse: move the geometry so the faces cross at a clearer angle";
+        let cross = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
         let escalated = |check| CertifyError::Escalated {
@@ -4309,7 +4309,7 @@ mod tests {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let span = "Recourse: move the geometry so this edge is not vanishingly short";
         let winding = "Recourse: move the geometry so this arc stays clearly short of a full turn";
-        let cross = "Recourse: move the geometry so the faces cross at a clearer angle";
+        let cross = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
         let tube = |verdict| CertifyError::PlaneNurbs(P::TubeStraddles { verdict, boxes: 4 });
@@ -4466,7 +4466,7 @@ mod tests {
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
-        let tube = "Recourse: move the geometry so the faces cross at a clearer angle, or, if \
+        let tube = "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if \
                     this angle is intended, tighten the tolerance below 5e-10 m";
         for (refusal, check, want) in [
             (
@@ -4578,11 +4578,11 @@ mod tests {
             ),
             (
                 undecided(CertCheck::Transversality, straddle),
-                "Recourse: move the geometry so the faces cross at a clearer angle",
+                "Recourse: move the geometry so the surfaces cross at a clearer angle",
             ),
             (
                 undecided(CertCheck::Transversality, MarginDiag::INVALID),
-                "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable \
+                "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable \
                  or collapsed margin may indicate a kernel bug worth reporting",
             ),
             (

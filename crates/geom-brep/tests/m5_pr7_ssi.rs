@@ -100,7 +100,8 @@ use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
     self, ChartAxis, ChartSpeedRefusal, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES,
-    SSI_SEED_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale,
+    SSI_SEED_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiTube,
+    TraceDecision, TubeScale,
 };
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
@@ -1070,7 +1071,12 @@ fn nurbs_wall() -> NurbsSurface<f64> {
 /// acceptance wall is the one the step rule's own documented
 /// assumption (slowly-varying curvature) actually covers.
 fn certifiable_wall() -> NurbsSurface<f64> {
-    wall_from_cols([(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)])
+    wall_from_cols(certifiable_cols())
+}
+
+/// [`certifiable_wall`]'s columns.
+fn certifiable_cols() -> [(f64, f64); 4] {
+    [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)]
 }
 
 /// A plane slicing the wall at mid height, tilted so the cut is not a
@@ -2908,7 +2914,13 @@ fn a_tiny_net_the_plane_meets_refuses_by_the_kind_its_size_earns() {
         };
         let r = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band());
         let ok = if s <= 1.0e-100 {
-            matches!(&r, Err(SsiError::Escalated(d)) if d.predicate == Some("ssi_transversality"))
+            matches!(
+                &r,
+                Err(SsiError::Escalated {
+                    decision: TraceDecision::Transversality,
+                    ..
+                })
+            )
         } else if 3.0 * s >= 2.0 * band().escalate() {
             matches!(
                 &r,
@@ -2921,7 +2933,7 @@ fn a_tiny_net_the_plane_meets_refuses_by_the_kind_its_size_earns() {
         } else {
             matches!(
                 &r,
-                Err(SsiError::StepCollapsed { .. } | SsiError::Escalated(_))
+                Err(SsiError::StepCollapsed { .. } | SsiError::Escalated { .. })
             )
         };
         assert!(ok, "spread {s:e} at ε {:e}: {r:?}", band().zero());
@@ -3117,6 +3129,122 @@ fn a_floor_no_bisection_reaches_refuses_by_name_on_both_lanes() {
     let shown = err.render(Reading::Build);
     assert!(
         shown.contains("Recourse: move the geometry nearer the origin"),
+        "{shown}"
+    );
+}
+
+/// **A march tolerance no coordinate there resolves refuses by name, on
+/// both lanes, before any march.** Newton settles every marched state
+/// to `SSI_NEWTON_TOL`·ε; at `1e8` m adjacent floats are `1.49e-8` m
+/// apart, wider than that at every ε of the battery. With accounting
+/// floors the domain does resolve (`1e-7` m on ℝ³; the wall's own
+/// chart on ℝ⁴), the floor doors pass, and the march refused
+/// `StepRefinementFailed` ("lost the branch") on both, where the cause
+/// is the scale.
+///
+/// The wall's chart is the other place Newton must resolve the
+/// residual: a wall near the origin scaled to `ε·2.5e14` m moves about
+/// `ε·1e15` m per chart unit, so the accounting floor of ε is about
+/// `1e-15` chart units, which `[0, 1]` resolves, and the settling
+/// residual about `1e-17`, which it does not.
+#[test]
+fn a_march_tolerance_no_coordinate_there_resolves_refuses_by_name() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::ssi::SSI_NEWTON_TOL;
+    use geom_brep::{ExhaustLane, FloorFault, FloorKind};
+
+    let x = 1.0e8;
+    let at = Point3::new(x, 0.0, 0.0);
+    let far = Surface::Sphere {
+        center: at,
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cylinder = match threaded_cylinder() {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin: Point3::new(origin.x + x, origin.y, origin.z),
+            axis,
+            radius,
+            u_ref,
+        },
+        other => panic!("{other:?}"),
+    };
+    let domain = SsiDomain {
+        center: at,
+        floor_scale: SsiDomain::floor_scale_for(1.0e-7, band()),
+        ..slab()
+    };
+    let r3 = ssi::cylinder_sphere_ssi(&cylinder, &far, domain, band());
+
+    let wall = wall_from_cols(certifiable_cols().map(|(u, v)| (u + x, v)));
+    let plane = match cutting_plane() {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => Surface::Plane {
+            origin: Point3::new(origin.x + x, origin.y, origin.z),
+            normal,
+            u_ref,
+        },
+        other => panic!("{other:?}"),
+    };
+    let chart = ssi::plane_nurbs_ssi(&plane, &wall, wall_domain(), band());
+
+    for (lane, r) in [("ℝ³", r3), ("ℝ⁴", chart)] {
+        let Err(ref err @ SsiError::FloorUnresolvable(f)) = r else {
+            panic!("{lane} at 1e8 m: expected the settling door, got {r:?}");
+        };
+        assert_eq!(f.floor, FloorKind::Settling, "{lane}: {f:?}");
+        assert!(matches!(f.lane, ExhaustLane::R3), "{lane}: {f:?}");
+        assert_eq!(f.meters, SSI_NEWTON_TOL * band().zero(), "{lane}");
+        let FloorFault::BelowResolution { resolution, reach } = f.fault else {
+            panic!("{lane}: {f:?}");
+        };
+        assert!(
+            reach >= x && resolution > f.meters && resolution < 2.0e-8,
+            "{lane}: {f:?}"
+        );
+        let shown = err.render(Reading::Build);
+        assert!(
+            shown.contains(&format!(
+                "march's settling tolerance {:e} m, which the domain cannot resolve",
+                f.meters
+            )) && shown.contains("Recourse: move the geometry nearer the origin"),
+            "{lane}: {shown}"
+        );
+    }
+
+    let m = band().zero() * 2.5e14;
+    let wide = wall_from_cols(certifiable_cols().map(|(u, v)| (u * m, v * m)));
+    let r = ssi::plane_nurbs_ssi(&cutting_plane(), &wide, wall_domain(), band());
+    let Err(ref err @ SsiError::FloorUnresolvable(f)) = r else {
+        panic!("the {m:e} m wall: expected the settling door, got {r:?}");
+    };
+    assert_eq!(f.floor, FloorKind::Settling, "{f:?}");
+    let ExhaustLane::Chart { speed } = f.lane else {
+        panic!("the chart's settling refused on the ℝ³ lane: {f:?}");
+    };
+    assert_eq!(f.meters, SSI_NEWTON_TOL * band().zero());
+    assert_eq!(
+        f.fault,
+        FloorFault::BelowResolution {
+            resolution: 1.0 - 1.0f64.next_down(),
+            reach: 1.0
+        }
+    );
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains(&format!(
+            "at a certified chart speed of {:e} m per chart unit",
+            speed.get()
+        )) && shown.contains("Recourse: bring the spline face within the model's size range"),
         "{shown}"
     );
 }
