@@ -67,3 +67,15 @@ wall 1) is past the crossing layer and refuses
 cap against the arch's tube wall. The weld plane contains the arch
 torus's axis, so this is the easy meridian-plane configuration above,
 at the join's frame dispatch rather than at `route`.
+
+## Moved to GERM at CURVED's close (2026-10-01)
+
+Both section arms and the spiric carrier are delivered; the elbow's
+seams re-author on the moved corners and its rim window reads forward
+(PR 3626), so the sealed klein elbow hollows to check 7's props door.
+What this row still carries: (1) the lily's stem glue at
+`pair_section_frame`'s plane×torus germ frame, GERM's live consumer
+above; (2) the Klein demo's wall-pair re-authoring (rows 3/4/8), which
+waits on the props lane for a spiric-bounded face
+(`work/props/spiric-bounded-face-area-is-unimplemented.md`) and on
+SHELL's opened-arm lift (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).

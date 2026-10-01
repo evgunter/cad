@@ -486,3 +486,15 @@ exit's headline); one single FULL review of the combined head after.
 CI is red only on `reach_volume_backstop` at 1e-6/1e-12 — REACH's suite
 from #3611, which its own tolerance step never ran; REACH filed it
 (64a3eee23). This PR merges after REACH's fix lands.
+
+## Residue re-homed ahead of the walk (2026-10-01)
+
+`spiric-step-spline-bound-is-second-order` to EXPORT (its arm is in
+`step-export/src/writer.rs`); `c5-plane-torus-cone-cylinder-arms` to
+GERM (its live consumer is the lily's plane×torus germ frame; the Klein
+demo half waits on two filed doors); new on PROPS:
+`spiric-bounded-face-area-is-unimplemented`, the props door the sealed
+elbow and the vessel now stop at. Bookkeeping riding along: VGEOM's
+program status `active` → `ready` (Ev, in-chat). PR 3626 (the seams and
+the rim window) is reviewed MERGEABLE and green but for REACH's
+backstop rows, whose fix is REACH's PR 3636; it merges after that.
