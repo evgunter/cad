@@ -2,8 +2,9 @@
 id: refusal-values-speak-the-node-with-its-label
 kind: unit
 title: Refusal values speak the node as the document holds it: kind, label and tag, built at the raise site
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-01
 priority: P1
 cost: H
 parent: node-labels-are-document-data
