@@ -246,6 +246,14 @@ pub enum NodeErrorClass {
     MateSelf,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unleverable`].
     MateUnleverable,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::OffsetDisagrees`].
+    MateOffsetDisagrees,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::OffsetUnchecked`].
+    MateOffsetUnchecked,
+    /// [`NodeErrorKind::Unplaced`].
+    Unplaced,
+    /// [`NodeErrorKind::PlacementRefused`].
+    PlacementRefused,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
     /// [`NodeErrorKind::MeasureRefResolve`].
@@ -370,6 +378,8 @@ impl NodeErrorKind {
                 PartFault::NotEntered => C::PartNotEntered,
             },
             Self::Mate(fault) => C::of_mate(fault),
+            Self::Unplaced { .. } => C::Unplaced,
+            Self::PlacementRefused { .. } => C::PlacementRefused,
             Self::CrossingUnverified { .. } => C::CrossingUnverified,
             Self::MeasureRefResolve { .. } => C::MeasureRefResolve,
             Self::MeasureRefUnreadable { .. } => C::MeasureRefUnreadable,
@@ -428,6 +438,8 @@ impl NodeErrorClass {
             MateFault::PartSelectsAnotherCopy { .. } => Self::MatePartSelectsAnotherCopy,
             MateFault::SelfMate { .. } => Self::MateSelf,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
+            MateFault::OffsetDisagrees { .. } => Self::MateOffsetDisagrees,
+            MateFault::OffsetUnchecked { .. } => Self::MateOffsetUnchecked,
         }
     }
 
@@ -583,6 +595,10 @@ mod tests {
         MatePartSelectsAnotherCopy,
         MateSelf,
         MateUnleverable,
+        MateOffsetDisagrees,
+        MateOffsetUnchecked,
+        Unplaced,
+        PlacementRefused,
         CrossingUnverified,
         MeasureRefResolve,
         MeasureRefUnreadable,
@@ -1015,6 +1031,33 @@ mod tests {
                     part: doc_ref(),
                 },
             }),
+            C::MateOffsetDisagrees => mate(crate::MateFault::OffsetDisagrees {
+                instance: n(6),
+                root: n(5),
+                predicate: "mate_member_translation_zero",
+                clash: crate::Clash::Length { metres: 0.5 },
+            }),
+            C::MateOffsetUnchecked => mate(crate::MateFault::OffsetUnchecked {
+                instance: n(6),
+                cause: Box::new(crate::OffsetCheck::Placement {
+                    node: n(5),
+                    error: K::MissingSlot {
+                        slot: crate::SlotId::Count,
+                    }
+                    .into(),
+                }),
+            }),
+            C::Unplaced => K::Unplaced {
+                group: n(6),
+                cause: crate::Unplaced::NoOffset,
+            },
+            C::PlacementRefused => K::PlacementRefused {
+                node: n(5),
+                error: K::MissingSlot {
+                    slot: crate::SlotId::Count,
+                }
+                .into(),
+            },
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),
                 outer: Box::new(crate::FaceName::new(name()).expect("a face name")),

@@ -3,25 +3,21 @@
 //! `apply` returns a NEW document value; the input is untouched.
 //! Undo/redo is keeping prior values — no edit destroys history at
 //! this layer (spec D2). `apply` is pure over the document AND the
-//! reach it is handed ([`crate::mate::MateReach`]): an edit that
-//! moves a cluster's gauge mints that cluster's frame from a solve of
-//! the prior document, whose lever is the mated parts' own extent, so
-//! the result is a function of the document and of the parts' pinned
-//! content — never of a store's mood. Every other edit never asks the
-//! reach. What the maintenance decided rides the edit
-//! ([`Applied::maintenance`], logged as [`LoggedEdit`]), and replay
-//! re-applies those rows instead of solving: replay is pure over the
-//! log alone (spec D7).
+//! reach it is handed ([`crate::mate::MateReach`]), which it asks for
+//! one decision only: the clocking rider of a mate being inserted,
+//! levered over the mated parts' own extent. No edit records a frame
+//! (A11 (2)), so replay is the edits alone, applied with no reach
+//! ([`apply_replayed`]): pure over the log (spec D7), and never a
+//! solve.
 
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
 use crate::doc::{
     DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, NameCarrier, ParamName,
-    ParamRefFault, PlacementFault, WitnessSiteFault,
+    GaugeRefFault, ParamRefFault, WitnessSiteFault,
 };
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
-use crate::mate::solve::Maintain;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
 use crate::node::{
@@ -37,10 +33,10 @@ use geom_core::Tol;
 /// a document value, every arm plain data, applied by the pure
 /// [`apply`] (spec D2), which answers a new document and leaves its
 /// input untouched. The set has three shapes. Structural edits over
-/// nodes, their slots and the document's roots and placements
+/// nodes, their slots, the document's roots and where instances sit
 /// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetProgram`,
 /// `SetParam`, `SetStructuralParam`, `SetExpression`, `SetRoots`,
-/// `SetPlacement`, `UpdateReference`). The document-parameter family: one
+/// `SetOffset`, `SetGauge`, `UpdateReference`). The document-parameter family: one
 /// create-or-replace door (`SetDocParam`) and the carry-forward doors,
 /// each moving ONE field of a standing declaration and keeping the
 /// rest (`SetDocParamValue`, `SetDocParamUnit`,
@@ -427,16 +423,23 @@ pub enum DocEdit<P> {
         /// The new root list, in product order.
         roots: Vec<RecipeNodeId>,
     },
-    /// Place an instance's cluster (A11; ASM-2A D-2). The target is
-    /// the instantiate node whose singleton cluster moves; the frame
-    /// replaces whatever was recorded (the identity, if nothing was).
-    /// Recorded and undoable like any other edit — undo restores the
-    /// prior registry state, including its ABSENCE.
-    SetPlacement {
-        /// The instantiate node whose cluster this frame places.
+    /// Set an instance's offset in its gauge (A11 (2)), or clear it
+    /// with `None`. On its group's root the offset places the group;
+    /// on any other member it is a statement the solve checks.
+    SetOffset {
+        /// The instantiate node.
+        instance: RecipeNodeId,
+        /// Its new offset, `None` for none.
+        offset: Option<crate::placement::Placement>,
+    },
+    /// Set the gauge a node sits on (A11 (2)): an instance's gauge or
+    /// a gauge's parent, `None` for the world. The gauge must be live
+    /// and must not sit on `node` through its own chain.
+    SetGauge {
+        /// The instance or gauge.
         node: RecipeNodeId,
-        /// The cluster's new frame.
-        frame: crate::placement::Frame,
+        /// The gauge it now sits on, `None` for the world.
+        gauge: Option<RecipeNodeId>,
     },
     /// Move ONE instance's pin to a new version of the same document
     /// (A13's per-reference primitive; ASM-UPD D-1). The id does not
@@ -471,22 +474,6 @@ pub enum DocEdit<P> {
 }
 
 impl<P> DocEdit<P> {
-    /// **Whether this edit can move the MATE GRAPH** — the reading
-    /// edges A11's groups are made of: the instance set, the mate
-    /// set, or a mate's heads.
-    ///
-    /// [`apply`] re-keys the placement registry
-    /// ([`crate::mate::solve::reconcile`]) after exactly the edits that
-    /// answer `true`, and that is what makes a non-gauge placement row
-    /// unrepresentable through the edit doors — the asymmetry
-    /// [`crate::doc::placement_fault`] records, and the one the load
-    /// door's `PlacementNotGauge` exists for.
-    ///
-    /// **Exhaustive, with no wildcard arm**, because that invariant is
-    /// what a new edit arm can silently break: an arm added without an
-    /// answer here stops the crate compiling, rather than defaulting to
-    /// "moves nothing" and making a refusal the load door owns
-    /// reachable from an edit door.
     /// **Whether this edit writes a mate's alignment datum** — the
     /// numbers, the primitive, the sense and the rider the solve's
     /// per-mate admission decides on. Exactly one edit does: the
@@ -495,8 +482,7 @@ impl<P> DocEdit<P> {
     /// its operand), never the datum, and what it strands is N5's —
     /// the solve's at evaluation.
     ///
-    /// Exhaustive with no wildcard arm, for the reason
-    /// [`Self::moves_the_mate_graph`] gives: an arm added without an
+    /// **Exhaustive, with no wildcard arm**: an arm added without an
     /// answer here stops the crate compiling rather than writing a
     /// datum past the admission.
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
@@ -510,49 +496,8 @@ impl<P> DocEdit<P> {
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
             | Self::Rebind { .. }
-            | Self::SetPlacement { .. }
-            | Self::SetParam { .. }
-            | Self::SetStructuralParam { .. }
-            | Self::SetExpression { .. }
-            | Self::SetDocParam { .. }
-            | Self::SetDocParamValue { .. }
-            | Self::SetDocParamUnit { .. }
-            | Self::SetDocParamDistribution { .. }
-            | Self::ReWitness { .. }
-            | Self::ReWitnessBulk { .. }
-            | Self::SetAppearance { .. }
-            | Self::ClearAppearance { .. }
-            | Self::SetTolerance { .. }
-            | Self::SetAppearanceMeta { .. }
-            | Self::ClearAppearanceMeta { .. }
-            | Self::SetRoots { .. }
-            | Self::UpdateReference { .. } => false,
-        }
-    }
-
-    pub(crate) fn moves_the_mate_graph(&self) -> bool {
-        match self {
-            // The instance set and the mate set are both node sets, so
-            // the two edits over nodes move the graph.
-            Self::InsertNode { .. } | Self::DeleteNode { .. } => true,
-            // A list input is a reading edge, and a group is made of
-            // reading edges.
-            Self::SetMembers { .. } => true,
-            // A rebound mate head moves a reading edge onto another
-            // node, which is the graph's shape changing without its
-            // node set changing.
-            Self::Rebind { .. } => true,
-            // A reshaped program rebinds every name on its kept steps
-            // in place, a mate's head among them — the same motion as
-            // `Rebind`, over every name at once.
-            Self::SetProgram { .. } => true,
-            // Everything else writes a value, a slot, a payload or a
-            // presentation record, and leaves the reading edges where
-            // they are. `SetPlacement` is the pointed one: it WRITES
-            // the registry the reconciliation re-keys, and the edit
-            // door keys it on the root itself, so it has no graph
-            // motion to reconcile.
-            Self::SetPlacement { .. }
+            | Self::SetOffset { .. }
+            | Self::SetGauge { .. }
             | Self::SetParam { .. }
             | Self::SetStructuralParam { .. }
             | Self::SetExpression { .. }
@@ -817,44 +762,6 @@ pub enum EditError {
         expected: Dimension,
         /// The offered expression's dimension.
         found: Dimension,
-    },
-    /// The A11 cluster-record maintenance needed a solved frame — a
-    /// cluster whose gauge moved — and the prior document's solve
-    /// reached NO VERDICT at that gauge: its parts could not be
-    /// levered or do not resolve, the band could not be formed, a
-    /// case split escalated, or a placer's pose could not be derived.
-    /// A pose may exist and nothing knows it, so the edit is refused
-    /// rather than recording a frame nothing decided. (A cluster the
-    /// solve DECIDED has no pose — contradictory, under-determined, a
-    /// dangling head — is not this: deleting the offending mate is
-    /// the recourse those refusals name, and the orphan keeps the
-    /// cluster's frame.)
-    MaintenanceRefused {
-        /// The gauge the maintenance was solving for.
-        gauge: RecipeNodeId,
-        /// The solve's fault at the gauge — a cluster's refusal
-        /// reaches every member the solve could not pose. `None` when
-        /// the solve placed nothing at the gauge and recorded no fault
-        /// on it: a state the solve's own invariants exclude, which
-        /// this arm REPORTS (fail-loud, without a panic — the door has
-        /// a typed refusal and a caller to hand it to, so it is not an
-        /// `unreachable!`) rather than reading as the identity or
-        /// borrowing another cluster's fault.
-        fault: Option<Box<crate::mate::MateFault>>,
-    },
-    /// Replay of a logged edit that recorded no maintenance rows,
-    /// where the edit performs cluster maintenance. Replay performs
-    /// exactly an entry's rows ([`LoggedEdit`]) and never solves: a row
-    /// that needs a frame has nothing to mint it from, and a row it
-    /// could derive from the documents alone (a `Join`, a `Drop`) is
-    /// refused rather than re-derived, so the entry and its replay
-    /// never disagree. `persist::save` verifies its log
-    /// through this same replay, so no file it wrote refuses here.
-    MaintenanceUnrecorded {
-        /// The gauge the unrecorded act moves: the absorbed cluster's
-        /// for a join, the new gauge for a split or rewrite, the dropped
-        /// one for a drop.
-        gauge: RecipeNodeId,
     },
     /// `SetParam` aimed at a STRUCTURAL slot — structural edits go
     /// through the distinct `SetStructuralParam` arm (spec D3).
@@ -1277,12 +1184,42 @@ pub enum EditError {
     /// but checked after EVERY apply, so no door can produce an
     /// invariant-violating document.
     Roots(RootFault),
-    /// A placement aimed at a node that does not instantiate a part
-    /// (A11: a placement frame places a GROUP of instances, and
+    /// An offset aimed at a node that does not instantiate a part
+    /// (A11 (2): an offset places an instance in its gauge, and
     /// nothing else has one).
-    PlacementOnNonInstance {
+    OffsetOnNonInstance {
         /// The offending target.
         node: RecipeNodeId,
+    },
+    /// A gauge aimed at a node that neither instantiates a part nor is
+    /// a gauge (A11 (2): those are the two things that sit on one).
+    GaugeOnNonPlaced {
+        /// The offending target.
+        node: RecipeNodeId,
+    },
+    /// A gauge reference that names no live node: a deleted gauge, or
+    /// an id this document never minted. A deleted gauge's references
+    /// are kept, dangling, but no edit writes a new one.
+    GaugeNotLive {
+        /// The instance or gauge the reference is written on.
+        node: RecipeNodeId,
+        /// The id it names.
+        gauge: RecipeNodeId,
+    },
+    /// A gauge reference that names a live node that is not a gauge.
+    NotAGauge {
+        /// The instance or gauge the reference is written on.
+        node: RecipeNodeId,
+        /// The node it names.
+        gauge: RecipeNodeId,
+    },
+    /// A gauge reference that would make a gauge sit on itself
+    /// through its own chain.
+    GaugeCycle {
+        /// The gauge the reference is written on.
+        node: RecipeNodeId,
+        /// The gauge it names, which sits on `node`.
+        gauge: RecipeNodeId,
     },
     /// A placement-rule node whose rule and count slot would give two
     /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN): an
@@ -1385,8 +1322,8 @@ pub enum EditError {
         fault: Box<crate::mate::MateFault>,
     },
     /// A pin update aimed at a node that does not instantiate a part
-    /// (A13; ASM-UPD D-1 — the [`EditError::PlacementOnNonInstance`]
-    /// precedent: only a cross-document reference HAS a version).
+    /// (A13; ASM-UPD D-1: only a cross-document reference HAS a
+    /// version).
     UpdateOnNonInstance {
         /// The offending target.
         node: RecipeNodeId,
@@ -1459,7 +1396,7 @@ impl From<crate::ident::Mispaired> for EditError {
 // rather than "slot Origin(X)".
 /// The AXIS's refusal, in the authoring vocabulary — what makes
 /// `Frame::rotate_then_translate(..)?` compose with
-/// `apply(.., DocEdit::SetPlacement { .. })?` in one function.
+/// `apply(.., DocEdit::SetOffset { .. })?` in one function.
 ///
 /// It converts from [`crate::AxisRefusal`] and from nothing else. A
 /// blanket `From<NodeErrorKind>` would make every node refusal in the
@@ -1612,7 +1549,7 @@ impl EditError {
     /// recourse of its own (`SplitError::PartEdit`, `InlineError::Edit`
     /// and the other doors that replay or derive edits). An arm that
     /// forwards another layer's sentence (`ProfileProgramRefused`,
-    /// `MateRefused`, `MaintenanceRefused`) forwards it whole here too:
+    /// `MateRefused`) forwards it whole here too:
     /// the forwarded layer owns that text.
     pub fn problem(&self) -> impl core::fmt::Display + '_ {
         Problem(self)
@@ -2216,12 +2153,55 @@ impl EditError {
                     ),
                 }
             }
-            Self::PlacementOnNonInstance { node } => write!(
-                f,
-                "node {} does not instantiate a part, so it has no placement group to \
-                 place",
-                node.0
-            ),
+            Self::OffsetOnNonInstance { node } => {
+                write!(
+                    f,
+                    "node {} does not instantiate a part, so it has no offset to set",
+                    node.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("aim the offset at a node that instantiates a part"),
+                )
+            }
+            Self::GaugeOnNonPlaced { node } => {
+                write!(
+                    f,
+                    "node {} neither instantiates a part nor is a gauge, so it sits on no gauge",
+                    node.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("aim the gauge edit at an instance or a gauge"),
+                )
+            }
+            Self::GaugeNotLive { node, gauge } => {
+                write!(
+                    f,
+                    "node {}'s gauge reference names node {}, which is not live",
+                    node.0, gauge.0
+                )?;
+                tail.recourse(f, format_args!("name a live gauge, or the world"))
+            }
+            Self::NotAGauge { node, gauge } => {
+                write!(
+                    f,
+                    "node {}'s gauge reference names node {}, which is not a gauge",
+                    node.0, gauge.0
+                )?;
+                tail.recourse(f, format_args!("name a gauge, or the world"))
+            }
+            Self::GaugeCycle { node, gauge } => {
+                write!(
+                    f,
+                    "gauge {} cannot sit on gauge {}, which sits on it",
+                    node.0, gauge.0
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("name a gauge that does not sit on node {}", node.0),
+                )
+            }
             // The two rule-shaped arms FORWARD the fault set's one
             // prose vocabulary (`PlacementRuleFault`'s `Display`); the
             // two frame-shaped arms below keep their own prose because
@@ -2253,6 +2233,10 @@ impl EditError {
                 write!(
                     f,
                     "the placement frame's rotation axis is unusable: {error}"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("give the rotation axis a direction of nonzero length"),
                 )
             }
             Self::NonFinitePlacement { node, at } => {
@@ -2296,25 +2280,6 @@ impl EditError {
                     format_args!("offer a version other than the one it pins"),
                 )
             }
-            Self::MaintenanceRefused { gauge, fault } => {
-                write!(
-                    f,
-                    "the cluster-record maintenance could not place gauge {}: the prior \
-                     document's solve ",
-                    gauge.0
-                )?;
-                match fault {
-                    Some(fault) => write!(f, "refused: {fault}"),
-                    None => write!(f, "recorded no pose for it and no fault"),
-                }
-            }
-            Self::MaintenanceUnrecorded { gauge } => write!(
-                f,
-                "the logged edit carries no maintenance rows but moves gauge {}; a log entry \
-                 records every cluster row `apply` returned for its edit, and replay neither \
-                 solves nor re-derives them",
-                gauge.0
-            ),
         }
     }
 }
@@ -2369,12 +2334,20 @@ pub struct EditRecord {
 /// happened rather than at the next evaluation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Maintenance {
-    /// **The A11 cluster-record maintenance** (ASM-R2a D-3): the
-    /// joins, splits, gauge rewrites and drops the mate graph's
-    /// motion forced on the placement registry. An absorbed cluster's
-    /// frame is CONSUMED into the record, where a caller can read
-    /// what was consumed.
-    Cluster(crate::mate::ClusterMaintenance),
+    /// **The mate door's offset clear** (A11 (2)): inserting a placing
+    /// mate that joins two groups places `b`'s group on `a`'s, so the
+    /// root of `b`'s group, when `a`'s group carries an offset, gives
+    /// up its own — the merged group keeps one root, and a freshly
+    /// inserted part never carries a stray checked offset. Structural
+    /// and deterministic from the edit, so replay reproduces it with
+    /// no solve, and the offset it cleared rides here for the caller
+    /// to read.
+    OffsetCleared {
+        /// The root of `b`'s group before the mate joined it.
+        instance: RecipeNodeId,
+        /// The offset it carried.
+        offset: crate::placement::Placement,
+    },
     /// **A payload name this edit stranded** (DM7): `node` survives
     /// and carries `name`, whose referent the edit removed — the node
     /// that minted it ([`DocEdit::DeleteNode`]), or the profile step
@@ -2485,12 +2458,14 @@ pub enum Maintenance {
 }
 
 impl core::fmt::Display for Maintenance {
-    /// The cluster arm DELEGATES: a registry act's sentence belongs to
-    /// the type that knows what the act is, so each enum renders its
-    /// own arms and the F6 census guards each list where it lives.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Cluster(act) => write!(f, "{act}"),
+            Self::OffsetCleared { instance, .. } => write!(
+                f,
+                "the mate placed instance {}'s group on the group it joined, so its offset was \
+                 cleared",
+                instance.0
+            ),
             // The sentence names what was removed as the name's
             // REFERENT — the minting node under a delete, the profile
             // segment under a reshaping — because the row does not say
@@ -2784,11 +2759,10 @@ pub struct Applied<P> {
     pub doc: Doc<P>,
     /// What the edit did.
     pub record: EditRecord,
-    /// **What the edit did that the caller did not ask for**: the A11
-    /// cluster-record maintenance it forced, the references it
-    /// stranded (DM7) — the payload names, then the appearance keys —
-    /// and the declarations it left with no consumer. See
-    /// [`Maintenance`].
+    /// **What the edit did that the caller did not ask for**: the
+    /// references it stranded (DM7) — the payload names, then the
+    /// appearance keys — the declarations it left with no consumer,
+    /// and the offset the mate door cleared. See [`Maintenance`].
     ///
     /// **The order is a CONTRACT, not an accident of the
     /// implementation, and a consumer may rely on it**: every
@@ -2800,12 +2774,12 @@ pub struct Applied<P> {
     /// kind holds two; in the deleted node's input order should a kind
     /// ever hold two, and
     /// `dm7_delete_strands::no_delete_can_report_two_orphans_today`
-    /// reds the day that changes); then the A11 cluster acts, which
-    /// reconcile the registry against the document the strands were
-    /// read out of. The strands and the orphans are read at the door,
-    /// out of the document the edit had just produced. A delete
-    /// reports strands and orphans; a `SetProgram` reports strands and
-    /// never an orphan; no other edit reports either.
+    /// reds the day that changes). The strands and the orphans are
+    /// read at the door, out of the document the edit had just
+    /// produced. A delete reports strands and orphans; a `SetProgram`
+    /// reports strands and never an orphan; the insert of a placing
+    /// mate reports at most one [`Maintenance::OffsetCleared`] and
+    /// nothing else; no other edit reports anything.
     ///
     /// The paragraph above is the contract — it is stated here in
     /// full because a consumer outside this crate cannot read
@@ -2819,50 +2793,19 @@ pub struct Applied<P> {
     /// Each boundary is held by the row whose fixture actually
     /// produces the pair of kinds it separates:
     /// `dm7_delete_strands::an_appearance_strand_follows_the_payload_strands_of_the_same_delete`
-    /// for payload strand before appearance strand,
-    /// `dm7_delete_strands::a_mates_head_strands_and_its_read_site_does_not`
-    /// for payload strand before cluster act, and
-    /// `dm7_delete_strands::an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
-    /// for appearance strand before cluster act — the last one paints,
-    /// which the mate row does not, so it is the only row a walk that
-    /// appended the store's rows after `reconcile` goes red on.
-    /// The orphan boundary is
+    /// for payload strand before appearance strand. The orphan
+    /// boundary is
     /// `dm7_delete_strands::an_orphaned_declare_follows_the_strands_of_the_same_delete`,
     /// whose one delete both strands a name a surviving node carries
     /// and takes a declaration's last consumer.
     /// What a consumer may NOT do is read position 0 as a kind: a
     /// delete that strands no payload name puts an appearance strand
-    /// or a cluster act there, so an arm is found by matching, never
-    /// by index.
+    /// or an orphan there, so an arm is found by matching, never by
+    /// index.
     ///
-    /// The cluster acts are a function of the edit AND the reach it
-    /// was applied through — a row that needs a solved frame mints it
-    /// from the mated parts' extent — which is why the log carries
-    /// them ([`LoggedEdit`], through [`Applied::cluster_rows`]) and
-    /// replay re-applies them rather than deriving them again.
+    /// Every row is a function of the document and the edit alone, so
+    /// replaying the edit reproduces it.
     pub maintenance: Vec<Maintenance>,
-}
-
-impl<P> Applied<P> {
-    /// **The cluster acts this edit performed** — the
-    /// [`Maintenance::Cluster`] rows of [`Self::maintenance`], in
-    /// order: what the log records for the edit ([`LoggedEdit`]) and
-    /// replay re-applies without a solve. A strand is not here: it is
-    /// a fact the next evaluation reports from the document itself.
-    pub fn cluster_rows(&self) -> Vec<crate::mate::ClusterMaintenance> {
-        self.maintenance
-            .iter()
-            .filter_map(|m| match m {
-                Maintenance::Cluster(act) => Some(act.clone()),
-                // A strand and an orphaned Declare are facts the next
-                // evaluation reports from the document; only a cluster
-                // act is state replay has to re-apply.
-                Maintenance::Strand { .. }
-                | Maintenance::StrandedAppearance { .. }
-                | Maintenance::OrphanedDeclare { .. } => None,
-            })
-            .collect()
-    }
 }
 
 /// **An action's maintenance, net of what the action itself made
@@ -2893,9 +2836,9 @@ impl<P> Applied<P> {
 /// - A [`Maintenance::OrphanedDeclare`] survives when the declaration
 ///   is live at the end AND nothing consumes it: a later edit that
 ///   deleted it, or gave it a consumer, took the report back.
-/// - A [`Maintenance::Cluster`] act always survives: it is registry
-///   state replay re-applies ([`LoggedEdit`]), not a claim about the
-///   end document.
+/// - A [`Maintenance::OffsetCleared`] survives when the instance is
+///   live at the end and still carries no offset: a later edit that
+///   deleted it, or gave it an offset again, took the report back.
 ///
 /// Surviving rows keep the order the edits reported them in, each
 /// edit's rows in [`Applied::maintenance`]'s own order.
@@ -2936,7 +2879,10 @@ impl MaintenanceNet {
                 Maintenance::OrphanedDeclare { declare } => {
                     end.node(*declare).is_some() && !consumed(*declare)
                 }
-                Maintenance::Cluster(_) => true,
+                Maintenance::OffsetCleared { instance, .. } => matches!(
+                    end.node(*instance),
+                    Some(Node::InstantiatePart { offset: None, .. })
+                ),
             })
             .collect()
     }
@@ -3350,7 +3296,7 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
 /// reach (spec D2): the input is untouched, and the output is a
 /// function of `doc`, `edit` and what `reach` answers; on acceptance
 /// a new value comes back with the [`EditRecord`] and the maintenance
-/// rows ([`Applied::maintenance`]). All validation is here — refs
+/// reports ([`Applied::maintenance`]). All validation is here — refs
 /// resolve, no cycles, dimension checks re-run on touched expressions
 /// (spec D6), and a mate being inserted passes the solve's own
 /// per-mate admission, its clocking rider decided over the mated
@@ -3361,111 +3307,37 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<Applied<P>, EditError> {
-    apply_maintaining(doc, edit, tol, Maintain::Solve(reach))
+    apply_with(doc, edit, tol, Some(reach))
 }
 
-/// **A logged edit and the maintenance it performed** — one entry of
-/// a document's edit log, on the wire and in a history.
-///
-/// `maintenance` is the cluster half of what [`apply`] returned for
-/// the edit ([`Applied::cluster_rows`]): the A11 cluster-record rows
-/// the mate graph's motion forced on the placement registry, frames
-/// included. Replay ([`apply_logged`], [`Doc::replay`],
-/// `persist::load`) re-applies these rows and never solves, so the log
-/// carries what was decided (D9) and replay stays a function of the log
-/// alone. Replay performs EXACTLY an entry's rows: a non-empty list is
-/// re-applied verbatim, and an empty one whose edit would perform any
-/// refuses ([`EditError::MaintenanceUnrecorded`]) rather than having
-/// them re-derived — so the log has one answer to "what did this edit
-/// do", and the entry is it.
-///
-/// On the wire an entry is `{ "edit": …, "maintenance": […] }`, both
-/// fields present, `maintenance` empty for an edit that performed
-/// none, and nothing is tried and then abandoned while reading one: an
-/// empty list and an absent field are not two spellings of one fact.
-/// (serde's derived visitor also reads the positional array
-/// `[<edit>, [<row>…]]`, the same hatch `persist`'s module docs
-/// disclose for the file body; it is a second spelling of the one
-/// shape, branched on by its first token, not a fallback.)
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct LoggedEdit<P> {
-    /// The edit.
-    pub edit: DocEdit<P>,
-    /// The maintenance rows `apply` returned for it.
-    pub maintenance: Vec<crate::mate::ClusterMaintenance>,
-}
-
-impl<P> LoggedEdit<P> {
-    /// An entry with no rows: a claim that the edit performs no
-    /// cluster maintenance, which replay holds it to
-    /// ([`EditError::MaintenanceUnrecorded`]). An edit that inserts or
-    /// removes a mate, or deletes a mated instance, needs its rows
-    /// (`LoggedEdit { edit, maintenance: applied.cluster_rows() }`).
-    pub fn bare(edit: DocEdit<P>) -> Self {
-        Self {
-            edit,
-            maintenance: Vec::new(),
-        }
-    }
-
-    /// Every edit as a [`Self::bare`] entry.
-    pub fn bare_all(edits: &[DocEdit<P>]) -> Vec<Self>
-    where
-        P: Clone,
-    {
-        edits.iter().cloned().map(Self::bare).collect()
-    }
-}
-
-impl<P> From<DocEdit<P>> for LoggedEdit<P> {
-    fn from(edit: DocEdit<P>) -> Self {
-        Self::bare(edit)
-    }
-}
-
-/// **Replay one logged edit**: the edit through every door [`apply`]
-/// has, then the RECORDED maintenance rows applied to the registry —
-/// no solve, no reach, no store. An entry with no rows claims the edit
-/// performs no cluster maintenance, and refuses
-/// [`EditError::MaintenanceUnrecorded`] if it performs any.
+/// **Replay one edit**: the edit through every door [`apply`] has,
+/// with no reach — no solve, no store. No edit records a frame and no
+/// maintenance needs one (A11 (2)), so the edits ARE the log, and the
+/// one decision `apply` levers through a reach — the clocking rider of
+/// an inserted mate — is declined here, as
+/// [`crate::mate::solve::admit_mate`] states.
 ///
 /// # Errors
 ///
-/// [`apply`]'s, plus `MaintenanceUnrecorded`.
-pub fn apply_logged<P: Clone + crate::ProfilePayload>(
-    doc: &Doc<P>,
-    entry: &LoggedEdit<P>,
-    tol: Tol,
-) -> Result<Applied<P>, EditError> {
-    // An entry with no rows claims the edit performs no cluster
-    // maintenance. `Never` holds it to that — any row the replay would
-    // perform refuses — where an empty `Recorded` would replay the edit
-    // as if it had none, silently. So the branch is here, once.
-    let how = if entry.maintenance.is_empty() {
-        Maintain::Never
-    } else {
-        Maintain::Recorded(&entry.maintenance)
-    };
-    apply_maintaining(doc, &entry.edit, tol, how)
-}
-
-/// [`apply`] with the maintenance's source chosen by the door
-/// ([`Maintain`]): solved through a reach, refused where a frame
-/// would be needed, or the recorded rows re-applied.
-#[allow(clippy::too_many_lines)] // one arm per DocEdit variant, each short
-fn apply_maintaining<P: Clone + crate::ProfilePayload>(
+/// [`apply`]'s.
+pub fn apply_replayed<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
     tol: Tol,
-    how: Maintain<'_>,
+) -> Result<Applied<P>, EditError> {
+    apply_with(doc, edit, tol, None)
+}
+
+/// [`apply`] with the reach the door holds: the live door's, or none
+/// on replay ([`apply_replayed`]).
+#[allow(clippy::too_many_lines)] // one arm per DocEdit variant, each short
+fn apply_with<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    edit: &DocEdit<P>,
+    tol: Tol,
+    reach: Option<&dyn MateReach>,
 ) -> Result<Applied<P>, EditError> {
     let mut new = doc.clone();
-    // A11's cluster records follow the mate graph automatically, after
-    // exactly the edits that can move it — read off the edit itself
-    // ([`DocEdit::moves_the_mate_graph`]), so a new arm answers the
-    // question or does not compile.
-    let reconcile = edit.moves_the_mate_graph();
     // The report read at the door that made it: DM7's strands and the
     // declarations a delete orphaned, or the strands a reshaped
     // program made. `DeleteNode` fills it, the only edit that removes
@@ -3512,6 +3384,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             let id = RecipeNodeId(new.next_id);
             check_node_inputs(id, node)?;
             check_declare_input(&new, id, node)?;
+            // A gauge reference is a reading edge, as a mate's operand
+            // is: a never-live or wrong-kind one is a typo, refused here.
+            check_gauge_ref(&new, id, node.gauge_ref())?;
             // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
             // the one place a node is asked whether its alignment datum
             // is decidable, which the load door's walk asks too.
@@ -3558,8 +3433,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             debug_assert!(edit.writes_a_mates_datum() == matches!(node, Node::Mate { .. }));
             if matches!(node, Node::Mate { .. }) {
                 let env = new.param_env::<f64>();
-                crate::mate::solve::admit_mate(&new, id, &node, &env, how.reach(), tol)
+                crate::mate::solve::admit_mate(&new, id, &node, &env, reach, tol)
                     .map_err(|fault| EditError::MateRefused { node: id, fault })?;
+                reported.extend(clear_joined_offset(doc, &mut new, &node));
             }
             EditRecord {
                 minted: Some(id),
@@ -3608,10 +3484,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
             new.witnesses.remove(id);
-            // Same for its cluster's placement: the registry's keys
-            // name live instantiate nodes, an invariant the save
-            // validator re-checks.
-            new.placements.remove(id);
+            // A gauge's references are kept, dangling (A11 (2)): the
+            // group it unplaced names it as the cause, and a
+            // `SetGauge` re-places it.
             // next_id is NOT decremented: ids are never reused (D3).
             EditRecord {
                 minted: None,
@@ -4036,33 +3911,40 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                 structural: true,
             }
         }
-        DocEdit::SetPlacement { node, frame } => {
-            // A11's admission rule for a registry row, asked of the one
-            // predicate the load door's walk asks
-            // (`crate::doc::placement_fault`); this is the edit door's
-            // name for its answer.
-            if let Some(fault) = crate::doc::placement_fault(&new, *node, frame, tol) {
-                return Err(match fault {
-                    PlacementFault::NotAnInstance => {
-                        EditError::PlacementOnNonInstance { node: *node }
-                    }
-                    PlacementFault::Frame(fault) => {
-                        EditError::placement_frame(*node, FrameSite::Registry, fault)
-                    }
-                });
+        DocEdit::SetOffset { instance, offset } => {
+            let Some(target) = new.nodes.get_mut(instance) else {
+                return Err(EditError::UnknownNode { id: *instance });
+            };
+            let Node::InstantiatePart { offset: held, .. } = target else {
+                return Err(EditError::OffsetOnNonInstance { node: *instance });
+            };
+            held.clone_from(offset);
+            // The offset's rigid steps are the instance's slots, held
+            // to the insert door's own checks: dimensions and parameter
+            // references. Its literal steps meet the frame rule in the
+            // backstop below, with every other placement's.
+            let probe = new.nodes[instance].clone();
+            check_node_slots(&new, *instance, &probe)?;
+            // Structural: where an instance sits is recipe shape, and it
+            // moves the document's content pin.
+            EditRecord {
+                minted: None,
+                structural: true,
             }
-            // A11: the record keys on the group, never the
-            // instance. A singleton group's root IS the instance,
-            // so a mate-less document's registry is unchanged. This is
-            // also why no edit door asks the load door's GAUGE rule:
-            // the key is normalised here rather than refused, and the
-            // cluster maintenance re-keys the registry whenever the
-            // mate graph moves.
-            let root = crate::mate::root_of(&new, *node);
-            new.placements.insert(root, *frame);
-            // Structural: a placement decides where the instance's
-            // material lands, so it is recipe shape, not a continuous
-            // slot value — and it moves the document's content pin.
+        }
+        DocEdit::SetGauge { node, gauge } => {
+            match new.nodes.get(node) {
+                None => return Err(EditError::UnknownNode { id: *node }),
+                Some(Node::InstantiatePart { .. } | Node::Gauge { .. }) => {}
+                Some(_) => return Err(EditError::GaugeOnNonPlaced { node: *node }),
+            }
+            check_gauge_ref(&new, *node, *gauge)?;
+            match new.nodes.get_mut(node) {
+                Some(Node::InstantiatePart { gauge: held, .. } | Node::Gauge { parent: held, .. }) => {
+                    *held = *gauge;
+                }
+                _ => unreachable!("node {} was checked an instance or a gauge above", node.0),
+            }
             EditRecord {
                 minted: None,
                 structural: true,
@@ -4103,7 +3985,8 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
     // lists at least one placement, and its frames meet the SAME bar
-    // `SetPlacement` holds a cluster frame to (`Frame::admission_fault`).
+    // every placement's literal steps are held to
+    // (`Frame::admission_fault`).
     // Checked over the whole document rather than per arm because a
     // structural slot edit can reach a bad state from a node that was
     // consistent before.
@@ -4138,8 +4021,8 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                 });
             }
         }
-        // A transform's literal steps meet the same bar, by the same
-        // predicate.
+        // A placement's literal steps — a transform's, a gauge's, an
+        // instance's offset — meet the same bar, by the same predicate.
         if let Some((index, fault)) = n.placement_frame_fault(tol) {
             return Err(EditError::placement_frame(
                 node,
@@ -4148,18 +4031,81 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             ));
         }
     }
-    let mut maintenance = reported;
-    if reconcile {
-        maintenance.extend(
-            crate::mate::solve::maintain(doc, &mut new, tol, how)?
-                .into_iter()
-                .map(Maintenance::Cluster),
-        );
-    }
     Ok(Applied {
         doc: new,
         record,
-        maintenance,
+        maintenance: reported,
+    })
+}
+
+/// **A gauge reference, at the edit doors**: `gauge`, written on
+/// `node`, names a live gauge whose chain does not reach `node`
+/// ([`crate::doc::gauge_ref_fault`]).
+fn check_gauge_ref<P>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    gauge: Option<RecipeNodeId>,
+) -> Result<(), EditError> {
+    let Some(target) = gauge else {
+        return Ok(());
+    };
+    match crate::doc::gauge_ref_fault(doc, node, gauge) {
+        None => Ok(()),
+        Some(GaugeRefFault::Deleted | GaugeRefFault::NeverMinted) => Err(EditError::GaugeNotLive {
+            node,
+            gauge: target,
+        }),
+        Some(GaugeRefFault::NotAGauge) => Err(EditError::NotAGauge {
+            node,
+            gauge: target,
+        }),
+        Some(GaugeRefFault::Cycle) => Err(EditError::GaugeCycle {
+            node,
+            gauge: target,
+        }),
+    }
+}
+
+/// **The mate door** (A11 (2)): a PLACING mate that joins two groups
+/// places `b`'s group on `a`'s, so when `a`'s group carries an offset,
+/// the root of `b`'s group gives up its own — the merged group keeps
+/// one root. `before` is the document without the mate, which is
+/// where the two groups are read; `after` holds it. Structural: walks
+/// and offsets only, so replay reproduces it with no solve.
+fn clear_joined_offset<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    after: &mut Doc<P>,
+    mate: &Node<P>,
+) -> Option<Maintenance> {
+    let Node::Mate { a, b, .. } = mate else {
+        return None;
+    };
+    let ia = crate::mate::member_of(after, a)?.instance;
+    let ib = crate::mate::member_of(after, b)?.instance;
+    if !crate::mate::places(after, ia, ib) {
+        return None;
+    }
+    let groups = crate::mate::groups(before);
+    let group_of = |i| groups.iter().find(|g| g.contains(&i));
+    let (ga, gb) = (group_of(ia)?, group_of(ib)?);
+    if ga == gb {
+        return None;
+    }
+    let offset = |id: &RecipeNodeId| match before.node(*id) {
+        Some(Node::InstantiatePart {
+            offset: Some(offset),
+            ..
+        }) => Some(offset.clone()),
+        _ => None,
+    };
+    ga.iter().find_map(offset)?;
+    let (root, cleared) = gb.iter().find_map(|id| Some((*id, offset(id)?)))?;
+    if let Some(Node::InstantiatePart { offset, .. }) = after.nodes.get_mut(&root) {
+        *offset = None;
+    }
+    Some(Maintenance::OffsetCleared {
+        instance: root,
+        offset: cleared,
     })
 }
 
@@ -4254,18 +4200,16 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// Replay a logged edit list from the EMPTY document under the
     /// given identity (spec D7): the result reproduces the edits'
     /// document BIT-IDENTICALLY (floats are stored exactly; ids
-    /// re-mint deterministically; the recorded cluster rows are
-    /// re-applied, never re-solved — [`apply_logged`] — so no store is
-    /// in hand and none is needed). The document id is supplied, not
+    /// re-mint deterministically; nothing is solved —
+    /// [`apply_replayed`] — so no store is in hand and none is needed). The document id is supplied, not
     /// replayed: identity is authored data the log never carries
     /// (ASM-1 D-1).
     ///
     /// The answer is the document, not the maintenance its edits
     /// performed: [`Applied::maintenance`] is a fact about ONE
     /// application, reported to the caller who made it, and what it
-    /// did is already in the document it produced — a registry act
-    /// rewrote the registry (from the rows the log carries, which is
-    /// what lets it be re-applied without a solve), and a stranded
+    /// did is already in the document it produced — a cleared offset
+    /// is cleared, and a stranded
     /// name (DM7) resolves to nothing until rebound, which the next
     /// evaluation reports typed (N5). The replayed document is the
     /// state, the same boundary the load door draws
@@ -4275,17 +4219,11 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     ///
     /// # Errors
     ///
-    /// [`apply_logged`]'s: an entry with no rows whose edit performs
-    /// cluster maintenance refuses [`EditError::MaintenanceUnrecorded`]
-    /// — the log claims no maintenance the edit in fact performed.
-    pub fn replay(
-        id: crate::DocumentId,
-        log: &[LoggedEdit<P>],
-        tol: Tol,
-    ) -> Result<Doc<P>, EditError> {
+    /// [`apply_replayed`]'s.
+    pub fn replay(id: crate::DocumentId, log: &[DocEdit<P>], tol: Tol) -> Result<Doc<P>, EditError> {
         let mut doc = Doc::empty(id, tol);
-        for entry in log {
-            doc = apply_logged(&doc, entry, tol)?.doc;
+        for edit in log {
+            doc = apply_replayed(&doc, edit, tol)?.doc;
         }
         Ok(doc)
     }
@@ -4298,65 +4236,6 @@ mod tests {
     use super::DocEdit;
     use crate::program::ProfileProgram;
     use crate::test_support::len;
-
-    /// **The mate-graph question is answered by the edit, not by the
-    /// arm that happens to remember.**
-    ///
-    /// `apply` re-keys the A11 registry after exactly the edits
-    /// [`DocEdit::moves_the_mate_graph`] answers `true` for, and that
-    /// re-keying is what makes `SnapshotError::PlacementNotGauge`
-    /// unreachable through the edit doors. This row names the four
-    /// that move it — the instance set, the mate set, a list input and
-    /// a rebound head — and names `SetPlacement` on the other side,
-    /// because that is the edit whose row the reconciliation re-keys
-    /// and the one a reader is most likely to expect here.
-    ///
-    /// A new arm cannot silently join the `false` side: the match has
-    /// no wildcard, so it stops compiling until it is classified. What
-    /// this row adds is that the four are classified CORRECTLY, which
-    /// the compiler cannot say.
-    #[test]
-    fn exactly_the_graph_moving_edits_ask_for_reconciliation() {
-        let id = crate::node::RecipeNodeId(1);
-        let moves: [DocEdit<ProfileProgram>; 4] = [
-            DocEdit::InsertNode {
-                node: crate::node::Node::Datum(crate::node::Datum::Point {
-                    position: [len(0.0), len(0.0), len(0.0)],
-                }),
-            },
-            DocEdit::DeleteNode { id },
-            DocEdit::SetMembers {
-                node: id,
-                members: vec![],
-            },
-            DocEdit::Rebind {
-                from: crate::names::StableName {
-                    kind: crate::names::EntityKind::Face,
-                    node: id,
-                    path: vec![],
-                },
-                to: crate::names::StableName {
-                    kind: crate::names::EntityKind::Face,
-                    node: id,
-                    path: vec![],
-                },
-            },
-        ];
-        for edit in &moves {
-            assert!(
-                edit.moves_the_mate_graph(),
-                "{edit:?} changes the instance set, the mate set or a mate's head"
-            );
-        }
-        let keyed_on_the_gauge: DocEdit<ProfileProgram> = DocEdit::SetPlacement {
-            node: id,
-            frame: crate::placement::Frame::IDENTITY,
-        };
-        assert!(
-            !keyed_on_the_gauge.moves_the_mate_graph(),
-            "SetPlacement writes the registry the reconciliation re-keys; it moves no reading edge"
-        );
-    }
 
     /// **The datum question is answered by the edit too**: the insert
     /// of a mate writes a mate's alignment datum and nothing else does

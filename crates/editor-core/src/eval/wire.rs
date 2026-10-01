@@ -166,6 +166,12 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     /// D-5): every instance's pose relative to its group root, and
     /// every mate's role.
     pub poses: &'a crate::mate::SolvedPoses,
+    /// The nodes whose inputs lie in two spaces, each naming the
+    /// unplaced group it would compare (`mate::solve::spaces_of`).
+    pub across: &'a std::collections::BTreeMap<
+        RecipeNodeId,
+        (RecipeNodeId, crate::mate::Unplaced),
+    >,
     /// Where profile geometry comes from, and over which environment.
     pub lane: LaneEnv<'a, T>,
 }
@@ -336,9 +342,21 @@ where
         Node::InstantiatePart {
             doc_ref, interface, ..
         } => {
-            let placement = env.poses.placement(doc, id).map_err(NodeErrorKind::Mate)?;
-            wire_instantiate_part(id, doc_ref, interface, placement, env, tol)
+            if let Some(fault) = env.poses.fault(id) {
+                return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
+            }
+            let frame = instance_frame(doc, id, env.poses, env.lane.params, tol)?
+                .unwrap_or(crate::placement::Motion::Identity);
+            let pose = env.poses.pose(id).unwrap_or(crate::mate::solve::Pose {
+                left: None,
+                right: crate::placement::Frame::IDENTITY,
+            });
+            let map = pose.compose_around(frame).non_identity();
+            wire_instantiate_part(id, doc_ref, interface, map, env, tol)
         }
+        // A gauge DENOTES NO BODY (A11 (2)): its slots evaluated above,
+        // and the instances on it read where it sits.
+        Node::Gauge { .. } => Ok(OpOut::plain(ValuePayload::Gauge, names::empty())),
         // A mate DENOTES NO BODY (A12): it evaluates to its role in
         // the solve. A refusing mate fails here rather than at the
         // instance it would have placed, so the message names the mate.
@@ -356,6 +374,43 @@ where
     }
 }
 
+/// **The frame an instance's group sits in, in this lane** (A11 (5)):
+/// its gauge chain composed with its group root's offset, evaluated at
+/// `env`; the identity in an unplaced group's own space. `None` for a
+/// node that is not a posed instance — the solve's own fault is the
+/// op's to raise.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::PlacementRefused`] carrying the refusal of the
+/// gauge or root offset that did not evaluate.
+pub(crate) fn instance_frame<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    id: RecipeNodeId,
+    poses: &crate::mate::SolvedPoses,
+    env: &crate::expr::ParamEnv<T>,
+    tol: Tol,
+) -> Result<Option<crate::placement::Motion<T>>, NodeErrorKind> {
+    if poses.fault(id).is_some() {
+        return Ok(None);
+    }
+    let (Some(space), Some(root)) = (poses.space(id), poses.root(id)) else {
+        return Ok(None);
+    };
+    if let crate::mate::Space::Own { .. } = space {
+        return Ok(Some(crate::placement::Motion::Identity));
+    }
+    let band = geom_core::predicate::Band::linear(tol).map_err(|error| {
+        NodeErrorKind::Mate(Box::new(crate::mate::MateFault::Band { error }))
+    })?;
+    crate::mate::solve::group_frame(doc, root, env, band)
+        .map(Some)
+        .map_err(|(node, error)| NodeErrorKind::PlacementRefused {
+            node,
+            error: error.into(),
+        })
+}
+
 /// ASM-2A D-3: materialize an instance through the shipped doors.
 ///
 /// Resolve (memoized per reference), take the referenced document's A10
@@ -367,7 +422,7 @@ fn wire_instantiate_part<T>(
     id: RecipeNodeId,
     doc_ref: &crate::ident::DocRef,
     interface: &crate::node::InterfaceRecord,
-    placement: crate::placement::Frame,
+    map: Option<geom_core::Affine3<T>>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -408,10 +463,9 @@ where
         }
     }
     // The identity fast-path is the composition rule's
-    // (`placement::Motion`): admitted only for a BIT-exact identity
-    // frame, since any other value could round, and `transform_rigid`
-    // is what decides whether it stayed rigid.
-    let map = placement.motion::<T>().non_identity();
+    // (`placement::Motion`): taken only for a BIT-exact identity, since
+    // any other value could round, and `transform_rigid` is what
+    // decides whether it stayed rigid.
     let placed = place(&part.body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive

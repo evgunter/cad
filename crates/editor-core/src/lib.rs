@@ -119,8 +119,8 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, Maintenance,
-    MaintenanceNet, apply, apply_logged, cascade_delete_order,
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance,
+    MaintenanceNet, apply, apply_replayed, cascade_delete_order,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
@@ -141,10 +141,11 @@ pub use expr::{
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use mate::{
-    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission,
-    ClusterMaintenance, Coset, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach,
-    MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, PlacerRow, ReachRefusal, RefusingReach,
-    SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, groups, member_of, reading_edges,
+    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Coset,
+    Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member,
+    NO_AT_REST_RECORD_RECOURSE, OFFSET_RECOURSE, OffsetCheck, PlacerRow, PoseRefusal, ReachRefusal,
+    RefusingReach, SolvedPoses, Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced,
+    class_admission, gauge_chain, groups, member_of, places, reading_edges,
     relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{

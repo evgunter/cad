@@ -122,6 +122,12 @@ pub struct Evaluation<T: Decide> {
     /// How many nodes were reused from the prior evaluation by
     /// content-key match.
     pub reused: usize,
+    /// **Every node whose value lives in an unplaced group's own
+    /// space** (A9, A11 (2)): the group, named by its root, and why
+    /// nothing places it. A node absent here lives in the world, or
+    /// denotes no geometry. [`crate::product::product`] gathers the
+    /// world alone, and the at-rest gate checks each space by itself.
+    pub unplaced: BTreeMap<RecipeNodeId, (RecipeNodeId, crate::mate::Unplaced)>,
     /// How many REFERENCED documents this evaluation actually
     /// evaluated across the document seam (ASM-2A D-3's sharing
     /// evidence). N instances of one part contribute 1; a memo-hit
@@ -560,6 +566,11 @@ pub enum ValuePayload<T: Decide> {
     /// it exactly as it skips a `Declare` — which is what "an ordinary
     /// non-body root" means in code.
     Mate(crate::mate::MateRole),
+    /// A [`crate::node::Node::Gauge`]: it DENOTES NO BODY (A11 (2)). Its
+    /// placement's slots evaluate as every node's do, so a slot that
+    /// does not refuses at the gauge; where it sits is read by the
+    /// instances on it, each in its own lane.
+    Gauge,
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
     /// body-denoting — the product gather skips it exactly as it skips
@@ -635,6 +646,9 @@ macro_rules! family_word {
     (mate) => {
         "mate"
     };
+    (gauge) => {
+        "gauge"
+    };
     (measure) => {
         "measure"
     };
@@ -657,6 +671,7 @@ pub(crate) mod family {
     pub(crate) const INSTANCES: &str = family_word!(instances);
     pub(crate) const DECLARATIONS: &str = family_word!(declarations);
     pub(crate) const MATE: &str = family_word!(mate);
+    pub(crate) const GAUGE: &str = family_word!(gauge);
     pub(crate) const MEASURE: &str = family_word!(measure);
     pub(crate) const ASSERTION: &str = family_word!(assertion);
 }
@@ -753,6 +768,7 @@ impl<T: Decide> ValuePayload<T> {
             Self::Instances(_) => family::INSTANCES,
             Self::Declarations(_) => family::DECLARATIONS,
             Self::Mate(_) => family::MATE,
+            Self::Gauge => family::GAUGE,
             Self::Measure { .. } => family::MEASURE,
             // The SAME family name as a measure that has a value: the
             // node kind is what a typed operand mismatch is about, and
@@ -853,6 +869,7 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         Node::Pattern { .. } => (family::INSTANCES, true),
         Node::Declare { .. } => (family::DECLARATIONS, false),
         Node::Mate { .. } => (family::MATE, false),
+        Node::Gauge { .. } => (family::GAUGE, false),
         Node::Measure { .. } => (family::MEASURE, false),
         Node::Assertion { .. } => (family::ASSERTION, false),
         Node::Extrude { .. }
@@ -1828,6 +1845,28 @@ pub enum NodeErrorKind {
     /// pose. The fault names its own subject — the pair, the residual
     /// subgroup, the failed predicate and its measured clash.
     Mate(Box<crate::mate::MateFault>),
+    /// **Geometry from an unplaced group's own space, beside geometry
+    /// from another space** (A9, A11 (2)): a node whose inputs lie in
+    /// two spaces — a boolean, a union, a measure, a pattern about a
+    /// world axis — would compare an unplaced group with something
+    /// outside it, and nothing outside the group is compared with it.
+    /// Also an instance whose gauge chain names a deleted gauge, read
+    /// where a world frame is needed.
+    Unplaced {
+        /// The unplaced group, named by its root.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: crate::mate::Unplaced,
+    },
+    /// **A placement on an instance's frame did not evaluate**: a gauge
+    /// on its chain, or its group root's offset. The instance has no
+    /// pose in this lane; the refusal is that node's own, carried.
+    PlacementRefused {
+        /// The gauge, or the root instance whose offset refused.
+        node: RecipeNodeId,
+        /// Its refusal, unaltered.
+        error: NodeRefusal,
+    },
     /// A crossing declaration on this instance no longer resolves
     /// against the pinned part (ASM-R2b D-4/D-5; A4's "does it
     /// actually fit", A13 clause 4). The seam asserted a contact at a
@@ -2125,6 +2164,20 @@ impl core::fmt::Display for NodeErrorKind {
                 write!(f, "the profile's pieces have no names: {fault}")
             }
             Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
+            Self::Unplaced { group, cause } => write!(
+                f,
+                "this reads the group rooted at node {}, which is unplaced because {cause}, so \
+                 it lives in its own space and nothing outside it is compared with it. {}",
+                group.0,
+                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
+            ),
+            // The refusal itself is drawn on its own line (`carried`).
+            Self::PlacementRefused { node, .. } => write!(
+                f,
+                "the placement at node {p}, on this instance's frame, does not evaluate — \
+                 repair node {p}",
+                p = node.0
+            ),
             Self::CrossingUnverified {
                 instance,
                 outer,
@@ -2495,6 +2548,7 @@ impl NodeErrorKind {
         match self {
             Self::Part { fault, .. } => fault.carried(),
             Self::Mate(fault) => fault.carried(),
+            Self::PlacementRefused { node, error } => Some((*node, error)),
             _ => None,
         }
     }
@@ -3307,10 +3361,14 @@ where
     // instantiate node then hits the cache.
     let reach = CacheReach { parts: &parts, tol };
     let poses = crate::mate::solve_with_env(doc, &nominal_env, &reach, tol);
+    // Which space each node lives in, read off the solve once, as the
+    // solve is: a per-node reading would be a second answer.
+    let spaces = crate::mate::solve::spaces_of(doc, &poses);
     let op_env = wire::OpEnv {
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
         poses: &poses,
+        across: &spaces.across,
         lane: wire::LaneEnv {
             lift: opts.profile_lift,
             params: &env,
@@ -3406,6 +3464,7 @@ where
         outcome,
         recomputed,
         reused,
+        unplaced: spaces.own,
         part_evaluations: parts.evaluations(),
         appearance: resolved_appearance,
     }
@@ -3513,6 +3572,7 @@ where
         outcome: EvalOutcome::Completed,
         recomputed: 0,
         reused: 0,
+        unplaced: BTreeMap::new(),
         part_evaluations: 0,
         appearance: resolved_appearance,
     }
@@ -3651,6 +3711,18 @@ where
         Ok(v) => v,
         Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
     };
+    // A node whose inputs lie in two spaces compares an unplaced group
+    // with something outside it (A9), and refuses before it reads them.
+    if let Some(&(group, cause)) = op_env.across.get(&id) {
+        return fail(bracket, NodeErrorKind::Unplaced { group, cause });
+    }
+    // An instance's group frame, in this lane: read before the key,
+    // which it feeds, and again by the op (the profile program's
+    // precedent below says why twice is right).
+    let group_frame = match wire::instance_frame(doc, id, op_env.poses, env, tol) {
+        Ok(frame) => frame,
+        Err(kind) => return fail(bracket, kind),
+    };
 
     // Profile-program resolution (LIB-SWITCH §4b): program Exprs
     // resolve at f64 because they feed C6 structure selection, which
@@ -3770,7 +3842,7 @@ where
         lane_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
-        SolveAnswer::of(op_env.poses, doc, id),
+        SolveAnswer::of(op_env.poses, id, group_frame),
         tol,
     );
     let naming_key = naming_key(content_key, &upstream_naming);
@@ -4280,11 +4352,16 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
 /// `Err` and the memo serves only `NodeResult::Ok` priors, so two
 /// different faults on one mate can never be confused through reuse.
 #[derive(Debug, Clone, Copy)]
-struct SolveAnswer {
-    /// The instance's solved world placement, `None` when the node is
-    /// not a placed instance — which includes an instance whose
-    /// group refused.
-    placement: Option<crate::placement::Frame>,
+struct SolveAnswer<T: geom_core::Real> {
+    /// The instance's pose around its group's frame, `None` when the
+    /// node is not an instance the solve posed — which includes an
+    /// instance whose group refused.
+    pose: Option<crate::mate::solve::Pose>,
+    /// The group's frame in this lane: its gauge chain composed with
+    /// its root's offset, the identity in an unplaced group's own
+    /// space. `None` beside a `None` pose, and for a frame that did not
+    /// evaluate, which refuses the node before its key is read.
+    frame: Option<crate::placement::Motion<T>>,
     /// The role the solve assigned. `None` covers BOTH "not a live
     /// mate" and a live mate the solve never reached — a `Band`
     /// refusal faults every mate in the document without writing a
@@ -4294,32 +4371,59 @@ struct SolveAnswer {
     faulted: bool,
 }
 
-impl SolveAnswer {
-    /// What `poses` answers for `id`.
-    fn of<P>(poses: &crate::mate::SolvedPoses, doc: &crate::doc::Doc<P>, id: RecipeNodeId) -> Self {
+impl<T: geom_core::Real + ContentBits> SolveAnswer<T> {
+    /// What `poses` answers for `id`, with the group's frame the node
+    /// evaluated in this lane.
+    fn of(
+        poses: &crate::mate::SolvedPoses,
+        id: RecipeNodeId,
+        frame: Option<crate::placement::Motion<T>>,
+    ) -> Self {
         Self {
-            placement: poses.placement(doc, id).ok(),
+            pose: poses.pose(id).filter(|_| poses.fault(id).is_none()),
+            frame,
             role: poses.role(id),
             faulted: poses.fault(id).is_some(),
         }
     }
 
     /// The placement's tags: one for "no pose" so a refusing group
-    /// keys distinctly from any pose, else the frame's bits.
+    /// keys distinctly from any pose, else the pose's two factors by
+    /// bits and the group's frame by its lane's exact representation.
     fn feed_placement(self, h: &mut KeyHasher) {
-        match self.placement {
-            Some(frame) => {
+        let frame_bits = |h: &mut KeyHasher, frame: &crate::placement::Frame| {
+            for x in frame
+                .columns
+                .iter()
+                .flatten()
+                .chain(frame.translation.iter())
+            {
+                h.write_f64_bits(*x);
+            }
+        };
+        let (Some(pose), Some(frame)) = (self.pose, self.frame) else {
+            h.write_tag(tag::presence::ABSENT);
+            return;
+        };
+        h.write_tag(tag::presence::PRESENT);
+        match pose.left {
+            Some(left) => {
                 h.write_tag(tag::presence::PRESENT);
-                for x in frame
-                    .columns
-                    .iter()
-                    .flatten()
-                    .chain(frame.translation.iter())
-                {
-                    h.write_f64_bits(*x);
-                }
+                frame_bits(h, &left);
             }
             None => h.write_tag(tag::presence::ABSENT),
+        }
+        frame_bits(h, &pose.right);
+        match frame {
+            crate::placement::Motion::Identity => h.write_tag(tag::presence::ABSENT),
+            crate::placement::Motion::Map(map) => {
+                h.write_tag(tag::presence::PRESENT);
+                for c in [map.linear.c0, map.linear.c1, map.linear.c2, map.translation] {
+                    for x in [c.x, c.y, c.z] {
+                        x.feed(h);
+                    }
+                }
+            }
         }
     }
 
@@ -4338,6 +4442,31 @@ impl SolveAnswer {
         } else {
             tag::fault::CLEAR
         });
+    }
+}
+
+/// **A placement's STEP STRUCTURE and its literal frames** — recipe
+/// payload outside the slots: the slot values are fed by position, so
+/// a chain's kinds and order must feed too, or `[rigid, literal]` and
+/// `[literal, rigid]` over the same numbers would share a key. Frames
+/// by bits, as an explicit rule's are.
+fn feed_placement_shape(h: &mut KeyHasher, placement: &crate::placement::Placement) {
+    h.write_u64(placement.steps.len() as u64);
+    for step in &placement.steps {
+        match step {
+            crate::placement::Step::Rigid { .. } => h.write_tag(0),
+            crate::placement::Step::Literal(frame) => {
+                h.write_tag(1);
+                for x in frame
+                    .columns
+                    .iter()
+                    .flatten()
+                    .chain(frame.translation.iter())
+                {
+                    h.write_f64_bits(*x);
+                }
+            }
+        }
     }
 }
 
@@ -4369,7 +4498,7 @@ fn content_key<T>(
     lane_program: Option<&[Vec<profile::Step<T>>]>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
-    solve_answer: SolveAnswer,
+    solve_answer: SolveAnswer<T>,
     tol: Tol,
 ) -> ContentKey
 where
@@ -4497,6 +4626,9 @@ where
         // existing node kind reaches — so the format version does not
         // bump for it.
         Node::Shell { .. } => document_verb_tag(verbs::VerbKind::Shell),
+        // A fresh word: a gauge denotes no body, and its key is its
+        // slots and its chain's shape.
+        Node::Gauge { .. } => 35,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -4672,17 +4804,21 @@ where
         }
         // ASM-2A D-1/D-2: WHICH document (id + pin — the pin IS the
         // referenced content, so nothing about the part needs hashing
-        // here) and WHERE its group sits. The placement is document
-        // data, not node data, which is exactly why it must feed the
-        // key: a `SetPlacement` moves this node's value and nothing
-        // else about the node changes. The INTERFACE RECORD feeds the
+        // here) and WHERE it sits. Where it sits is read off other
+        // nodes — its gauge chain, its group's root, the mates — which
+        // is exactly why it must feed the key: a `SetOffset` on the
+        // root, or a parameter driving a gauge, moves this node's value
+        // and nothing else about the node changes. The INTERFACE RECORD feeds the
         // key too (ASM-R2b D-4 discharging ASM-4's hook obligation):
         // it is inhabited now, it is on-wire data, and evaluation
         // re-verifies the crossings it holds — so a crossing edit
         // must move this node's value rather than hit the memo on the
         // pre-edit answer.
         Node::InstantiatePart {
-            doc_ref, interface, ..
+            doc_ref,
+            interface,
+            offset,
+            ..
         } => {
             h.write_u64((doc_ref.id.0 >> 64) as u64);
             h.write_u64(doc_ref.id.0 as u64);
@@ -4691,12 +4827,23 @@ where
                 byte8[..chunk.len()].copy_from_slice(chunk);
                 h.write_u64(u64::from_be_bytes(byte8));
             }
-            // The SOLVED placement (ASM-R2a D-5): a mate edit that
-            // moves this instance's pose moves its key, and a group
-            // that refuses to solve keys DISTINCTLY from any pose —
-            // otherwise a repaired document could hit the memo on a
-            // stale success.
+            // The SOLVED pose and the group's frame in this lane (A11
+            // (5)): a mate edit or a gauge's parameter that moves this
+            // instance moves its key, and a group that refuses to solve
+            // keys DISTINCTLY from any pose — otherwise a repaired
+            // document could hit the memo on a stale success.
             solve_answer.feed_placement(&mut h);
+            // The instance's own offset, by the rule a transform's
+            // placement keys by: on a root it is inside the frame fed
+            // above, on another member it is the statement the solve
+            // checks.
+            match offset {
+                Some(offset) => {
+                    h.write_tag(tag::presence::PRESENT);
+                    feed_placement_shape(&mut h, offset);
+                }
+                None => h.write_tag(tag::presence::ABSENT),
+            }
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {
                 let crate::node::InterfaceCrossing::Mate {
@@ -4890,30 +5037,9 @@ where
         | Node::Sweep { .. }
         | Node::Split { .. }
         | Node::Boolean { .. } => {}
-        // A placement's STEP STRUCTURE and its literal frames are
-        // recipe payload outside the slots: the slot values below are
-        // fed by position, so a chain's kinds and order must feed here
-        // or `[rigid, literal]` and `[literal, rigid]` over the same
-        // numbers would share a key. Frames by bits, as an explicit
-        // rule's are.
-        Node::Transform { placement, .. } => {
-            h.write_u64(placement.steps.len() as u64);
-            for step in &placement.steps {
-                match step {
-                    crate::placement::Step::Rigid { .. } => h.write_tag(0),
-                    crate::placement::Step::Literal(frame) => {
-                        h.write_tag(1);
-                        for x in frame
-                            .columns
-                            .iter()
-                            .flatten()
-                            .chain(frame.translation.iter())
-                        {
-                            h.write_f64_bits(*x);
-                        }
-                    }
-                }
-            }
+        // The chain's shape (`feed_placement_shape` says why).
+        Node::Transform { placement, .. } | Node::Gauge { placement, .. } => {
+            feed_placement_shape(&mut h, placement);
         }
         // The member list is edges, so the upstream keys carry it — in
         // list order, and prefixed by their total length, so neither a

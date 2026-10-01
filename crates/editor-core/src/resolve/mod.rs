@@ -2160,7 +2160,8 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::SetRoots { .. }
-        | DocEdit::SetPlacement { .. }
+        | DocEdit::SetOffset { .. }
+        | DocEdit::SetGauge { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {
