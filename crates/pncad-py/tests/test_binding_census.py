@@ -2655,6 +2655,15 @@ NOT_BOUND = {
     # tier 3 refuses it at rest.
     "EdgeDescription": INTERIOR,
     "Extruded": INTERIOR,
+    # `Extruded::walls` / `Revolved::bands` elements — one swept wall
+    # per run of profile pieces. Behind the same door as their carriers:
+    # Python speaks the document layer and reads a wall by its NAME.
+    "SideWall": INTERIOR,
+    "BandWall": INTERIOR,
+    # The run a swept wall's role segment holds. Python never builds a
+    # name from parts: a run wall's name is the opaque text `select`
+    # answers, and the one-piece run is what `band(node, piece)` spells.
+    "PieceRun": SHAPE,
     # The pick index's memo across pictures (PERF-5): a cache handle
     # the viewer's index worker owns, threaded through
     # `NodePick::build_with`. Python reaches the pick vocabulary through

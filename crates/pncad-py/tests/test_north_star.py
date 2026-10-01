@@ -3218,9 +3218,11 @@ class TestTeapot(unittest.TestCase):
         handle_join, spout_join = joins
 
         # handle union vessel: PAST the operand gate, because the
-        # handle's torus is on the union's kind roster — and dead at
-        # the maximal-faces precondition, on the VESSEL, whose full
-        # revolve mints its planar walls split in two.
+        # handle's torus is on the union's kind roster, and PAST the
+        # maximal-faces precondition, since a full revolve sweeps the
+        # vessel's planar walls whole — and dead at the curved pierce,
+        # where a handle edge meets the curved vessel with no decided
+        # material side.
         self.assertFalse(ev.succeeded(handle_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(handle_join)
@@ -3229,7 +3231,7 @@ class TestTeapot(unittest.TestCase):
         text = str(refusal)
         self.assertRegex(
             text,
-            r"the first operand has two neighbouring faces that lie on one surface",
+            r"where an edge pierces a curved face, the Boolean cannot be sure which side",
         )
 
         # spout union vessel: PAST the pair rung, because a loft's
@@ -3405,13 +3407,13 @@ class TestTorusvessel(unittest.TestCase):
         self.assertLess(
             abs((props_s.surface_area - (a_out + a_cav)) / (a_out + a_cav)), 1e-12
         )
-        # The operand's 14 faces twice: the cavity is that same
-        # boundary offset inward, inserted whole through the shared
-        # void door.
-        self.assertEqual(len(ev.all_faces(operand)), 14)
-        self.assertEqual(len(ev.all_faces(sealed)), 28)
-        self.assertEqual(len(ev.all_vertices(sealed)), 28)
-        self.assertEqual(len(ev.all_edges(sealed)), 52)
+        # The operand's 10 faces twice (its planar walls swept whole, its
+        # curved ones in half-walls): the cavity is that same boundary
+        # offset inward, inserted whole through the shared void door.
+        self.assertEqual(len(ev.all_faces(operand)), 10)
+        self.assertEqual(len(ev.all_faces(sealed)), 20)
+        self.assertEqual(len(ev.all_vertices(sealed)), 24)
+        self.assertEqual(len(ev.all_edges(sealed)), 36)
 
 
 class TestTwopeg(unittest.TestCase):
