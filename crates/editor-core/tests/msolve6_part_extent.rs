@@ -880,7 +880,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
     let editor_core::EditError::MaintenanceRefused { gauge, fault } = &err else {
         panic!("expected MaintenanceRefused, got {err:?}");
     };
-    assert_eq!(*gauge, lost);
+    assert_eq!(gauge.id(), lost);
     assert!(
         matches!(
             fault.as_deref(),
@@ -1194,7 +1194,7 @@ fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
             Tol::witness(),
             &editor_core::RefusingReach
         ),
-        Err(EditError::ImproperPlacement { node, determinant, .. }) if node == b && determinant == -1.0
+        Err(EditError::ImproperPlacement { node, determinant, .. }) if node.id() == b && determinant == -1.0
     ));
 }
 
@@ -1257,7 +1257,7 @@ fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_
             editor_core::PersistError::EditReplay {
                 index: i,
                 error: editor_core::EditError::MaintenanceUnrecorded { gauge }
-            } if *i == join && *gauge == b
+            } if *i == join && gauge.id() == b
         ),
         "{err:?}"
     );
@@ -1273,7 +1273,7 @@ fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_
             editor_core::PersistError::EditReplay {
                 index: i,
                 error: editor_core::EditError::MaintenanceUnrecorded { gauge }
-            } if *i == index && *gauge == b
+            } if *i == index && gauge.id() == b
         ),
         "{err:?}"
     );
@@ -1800,7 +1800,7 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     assert!(matches!(
         &err,
         EditError::MaintenanceRefused { gauge, fault: Some(f) }
-            if *gauge == c && matches!(**f, MateFault::Indeterminate { .. })
+            if gauge.id() == c && matches!(**f, MateFault::Indeterminate { .. })
     ));
     let err = doc
         .apply(
@@ -1812,7 +1812,7 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     assert!(matches!(
         &err,
         EditError::MaintenanceRefused { gauge, fault: Some(f) }
-            if *gauge == c && matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
+            if gauge.id() == c && matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
                 refusal.as_ref(),
                 LeverRefusal::Reach {
                     refusal: ReachRefusal::PartUnresolved { fault: PartFault::NoResolver },

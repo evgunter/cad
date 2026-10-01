@@ -1150,12 +1150,12 @@ mod tests {
     fn sector(start: [f64; 3], end: [f64; 3], normal: [f64; 3]) -> BoolSector<f64> {
         BoolSector {
             he: HalfEdgeKey::default(),
-            start: Vec3::new(start[0], start[1], start[2]),
-            end: Vec3::new(end[0], end[1], end[2]),
+            start: Vec3::from_array(start),
+            end: Vec3::from_array(end),
             start_reach: Reach::Extent(1.0),
             end_reach: Reach::Extent(1.0),
             face: FaceKey::default(),
-            normal: OutwardNormal::from_chart(Vec3::new(normal[0], normal[1], normal[2]), true),
+            normal: OutwardNormal::from_chart(Vec3::from_array(normal), true),
             arm: 1.0,
         }
     }
@@ -1481,10 +1481,10 @@ mod tests {
         let o = Point3::new(0.0, 0.0, 0.0);
         let chord = |v: [f64; 3]| Reach::Chord {
             base: o,
-            far: Point3::new(v[0], v[1], v[2]),
+            far: Point3::from_array(v),
         };
         let (a, b) = ([10.0, 1.0, -dip], [0.2e-3, 1e-3, 0.0]);
-        let (va, vb) = (Vec3::new(a[0], a[1], a[2]), Vec3::new(b[0], b[1], b[2]));
+        let (va, vb) = (Vec3::from_array(a), Vec3::from_array(b));
         let tilted = BoolSector {
             start: vb.normalize(),
             end: va.normalize(),

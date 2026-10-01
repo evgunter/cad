@@ -164,10 +164,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
         let Some(Surface::Plane { origin, normal, .. }) = chamfered.get_surface(f.surface) else {
             panic!("a chamfered cube carries planes only");
         };
-        let nonzero = [normal.x, normal.y, normal.z]
-            .iter()
-            .filter(|v| v.abs() > 1e-9)
-            .count();
+        let nonzero = normal.to_array().iter().filter(|v| v.abs() > 1e-9).count();
         let dist = match nonzero {
             1 => t, // a shrunk cube face
             2 => s, // a strip

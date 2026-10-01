@@ -2522,7 +2522,7 @@ mod offset_fit_door_rows {
         let bits = |n: &geom::NurbsSurface<f64>| -> Vec<u64> {
             n.control()
                 .iter()
-                .flat_map(|p| [p.x, p.y, p.z])
+                .flat_map(|p| p.to_array())
                 .chain(n.weights().iter().copied())
                 .chain(n.knots_u().knots().iter().copied())
                 .chain(n.knots_v().knots().iter().copied())

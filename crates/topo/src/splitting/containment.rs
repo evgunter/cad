@@ -832,6 +832,17 @@ const ARC_LOOP_TRIM: ArcTrimRows = ArcTrimRows {
 /// `Positive` inside, `Negative` past an end, `Zero` at an end or in
 /// the trim's band.
 ///
+/// **A DECIDED membership, and so not
+/// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
+/// the one place that says why, for this trim and for the chart
+/// windows' cosine construction (`boolean::solid_contain`'s
+/// `chart_azimuth_margin`) alike. That door answers "may hold" wherever
+/// exclusion is unproved, which is the sound answer for a caller
+/// selecting between two bounds that each hold either way. A decided
+/// membership has no such free answer: an uncertain one escalates, and
+/// its band is a length — measured along the carrier here, levered by
+/// the radius there — never a bare angle.
+///
 /// # Errors
 ///
 /// An in-band end distance with neither end definitely `Zero`, or an

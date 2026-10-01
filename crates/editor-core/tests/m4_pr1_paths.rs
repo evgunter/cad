@@ -186,7 +186,12 @@ fn dangling_ref_rejected() {
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::UnresolvedInput { input: ghost });
+    assert_eq!(
+        err,
+        EditError::UnresolvedInput {
+            input: editor_core::SpokenNode::absent(ghost)
+        }
+    );
 }
 
 #[test]
@@ -207,7 +212,12 @@ fn self_reference_cannot_forge_the_next_id() {
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::UnresolvedInput { input: guessed });
+    assert_eq!(
+        err,
+        EditError::UnresolvedInput {
+            input: editor_core::SpokenNode::absent(guessed)
+        }
+    );
 }
 
 #[test]
@@ -223,8 +233,8 @@ fn delete_of_referenced_node_rejected() {
     assert_eq!(
         err,
         EditError::DeleteWouldDangle {
-            id: profile,
-            referenced_by: extrude
+            id: doc.spoken(profile),
+            referenced_by: doc.spoken(extrude)
         }
     );
 }
@@ -290,5 +300,12 @@ fn set_expression_path_off_tree_rejected() {
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::PathOffTree { path: bad });
+    assert_eq!(
+        err,
+        EditError::PathOffTree {
+            node: doc.spoken(extrude),
+            slot: bad.slot,
+            path: bad.path
+        }
+    );
 }

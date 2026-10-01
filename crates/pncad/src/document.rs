@@ -101,13 +101,13 @@ pub use editor_core::cascade_delete_order;
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, InputFault, MeasureNodeFault, Node, PartSelect, PatternKind,
-    PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, Datum, InputFault, ListFault, MeasureNodeFault, Node, PartSelect,
+    PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, and
 // the full-width id a machine channel prints.
-pub use editor_core::{FullId, SpokenNode, node_kind_noun};
+pub use editor_core::{FullId, SpokenName, SpokenNode, node_kind_noun};
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
 // kernel stores and speaks, never identity.
@@ -156,8 +156,8 @@ pub use editor_core::{
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
 // `ExprPath` is here by the payload rule: it is the ADDRESS
-// `EditError::PathOffTree` names, so without it a consumer can match
-// the refusal and cannot say which expression the address ran off.
+// `DocEdit::SetExpression` takes, so without it a consumer cannot spell
+// which expression the edit replaces.
 pub use editor_core::{
     Dimension, DimensionError, Expr, ExprPath, ParamEnv, ParseError, parse_expr, unparse,
 };

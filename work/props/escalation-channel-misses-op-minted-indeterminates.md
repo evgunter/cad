@@ -7,7 +7,7 @@ closed: 2026-09-20
 pr: 2928
 branch: props/escalation-channel
 opened: 2026-09-05
-refs: [k-stats-escalation-channel-and-redo, mate-lane-escalations-reach-no-nodes-log, topo-mints-indeterminates-outside-the-funnel, should-classify-replays-error-enum-arms-be-deleted, the-gating-corpus-reaches-no-collapsed-arm-gate, sector-shape-mints-indeterminates-through-an-invalid-helper, 1969]
+refs: [k-stats-escalation-channel-and-redo, mate-lane-escalations-reach-no-nodes-log, topo-mints-indeterminates-outside-the-funnel, should-classify-replays-error-enum-arms-be-deleted, the-gating-corpus-reaches-no-collapsed-arm-gate, 3686, 1969]
 ---
 
 ## What

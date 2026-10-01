@@ -237,7 +237,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let rendered = format!(
         "{}",
         SnapshotError::PayloadUnknownDocParam {
-            node: RecipeNodeId(7),
+            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
             name: ParamName::from_static("depth"),
         }
     );
@@ -256,7 +256,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
         "{}",
         EditError::PayloadUnknownDocParam {
             name: ParamName::from_static("depth"),
-            node: RecipeNodeId(7),
+            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
         }
     );
     assert!(

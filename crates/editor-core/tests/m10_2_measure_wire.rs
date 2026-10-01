@@ -241,7 +241,7 @@ fn a_measure_indexing_past_its_refs_refuses_at_the_load_door() {
     assert_ne!(corrupt, text, "the corruption must actually land");
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::MeasureRefs { node, fault })) => {
-            assert_eq!(node, measure(&doc));
+            assert_eq!(node.id(), measure(&doc));
             assert!(
                 matches!(
                     fault,

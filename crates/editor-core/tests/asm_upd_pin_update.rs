@@ -242,11 +242,11 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::PinUnchanged { node, pin }) => {
-            assert_eq!(node, ids[0]);
+            assert_eq!(node, doc.spoken(ids[0]));
             assert_eq!(pin, v1);
             let msg = EditError::PinUnchanged { node, pin }.to_string();
             assert!(
-                msg.contains(&format!("node {}", test_utils::refusal::tag(node.0))),
+                msg.contains(&format!("{} already pins", doc.spoken(ids[0]))),
                 "{msg}"
             );
             assert!(msg.contains(&pin.hex()), "{msg}");
@@ -264,10 +264,10 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::UpdateOnNonInstance { node }) => {
-            assert_eq!(node, profile);
+            assert_eq!(node, doc.spoken(profile));
             let msg = EditError::UpdateOnNonInstance { node }.to_string();
             assert!(
-                msg.contains(&format!("node {}", test_utils::refusal::tag(node.0))),
+                msg.contains(&format!("{} does not instantiate", doc.spoken(profile))),
                 "{msg}"
             );
         }
@@ -285,10 +285,13 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownNode { id }) => {
-            assert_eq!(id, ghost);
+            assert_eq!(id, editor_core::SpokenNode::absent(ghost));
             let msg = EditError::UnknownNode { id }.to_string();
             assert!(
-                msg.contains(&format!("node {}", test_utils::refusal::tag(id.0))),
+                msg.contains(&format!(
+                    "node {} is not live",
+                    test_utils::refusal::tag(ghost.0)
+                )),
                 "{msg}"
             );
         }

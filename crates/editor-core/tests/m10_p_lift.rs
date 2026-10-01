@@ -428,7 +428,7 @@ fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
                 && let ValuePayload::Body(b) = &v.payload
             {
                 for (_, p) in b.points() {
-                    for c in [p.x, p.y, p.z] {
+                    for c in p.to_array() {
                         out.push((c.lo().to_bits(), c.hi().to_bits()));
                     }
                 }

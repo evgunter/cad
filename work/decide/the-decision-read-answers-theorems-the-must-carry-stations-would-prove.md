@@ -5,7 +5,7 @@ title: The decision read answers 32 of the pad's and 16 of the bracket's decisio
 status: open
 opened: 2026-10-01
 priority: P2
-refs: [rule-g-trades-sixteen-of-the-links-carrier-on-surface-2, interval-orthonormal-basis-sign-hull]
+refs: [rule-g-trades-sixteen-of-the-links-carrier-on-surface-2, 2468]
 ---
 
 ## What was measured (LINALG's merge of `main` into `props/sign-hull`, 2026-10-01)

@@ -181,7 +181,16 @@ validity is part of the certificate: one branch pinned at the start (a
 is chosen once by the loop walk in `topo::pcurves` and certified by loop
 continuity) and trim containment against the caller's `ChartWindow`
 (`TrimEscape`). Planar faces store nothing; `chart_pcurve` derives on
-demand. The lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
+demand. On every other chart the row is mandatory at rest: every
+half-edge of the face stores its certified row, and tier 3 reports a
+missing row as a finding, saying why it is missing by re-deriving the
+face (never minted, or the derivation refuses), and re-certifies every
+stored row, a half-minted face's included. A topology door may drop
+rows mid-surgery; every public producer ends with a full mint, so
+validity is judged on what the producer returns. Every class of carrier
+a chart can hold has a route into a certified row, and a face no route
+covers refuses at the producer rather than reaching rest uncached. The
+lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
 closed from the carrier's own parameter), `ConeSection` (a tilted
 plane×cone ellipse on its cone: the slant harmonic, the azimuth the

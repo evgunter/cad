@@ -34,3 +34,15 @@ A certified interior point for the curved kinds that
 `curved_face_containment` already places. For example, a chart-space
 candidate inside the face's trim, evaluated on the surface and accepted
 only when that door answers `In`.
+
+## Both callers (CLEAVE `cleave/ladders`)
+
+Section-loop role resolution (`boolean/join.rs`
+`resolve_roles_geometric`) now reads the same ladder (`complex_side`)
+over each loop's region faces. A curved region face is passed over
+there too. A loop whose regions are all curved, with every vertex and
+edge midpoint on the other boundary, reads undecided, and the other
+loop decides. If neither loop decides, the join refuses with
+`JoinDesync` ("neither section loop's regions hold a decisive
+witness"). No row reaches that refusal.
+

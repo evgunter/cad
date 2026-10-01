@@ -151,8 +151,9 @@ impl core::fmt::Display for InterrogateError {
             ),
             Self::NoBodies { payload } => write!(
                 f,
-                "this node's value is a {payload} and carries no bodies at all, so \
-                 there is no geometry to read"
+                "this node's value is {} {payload} value and carries no bodies at all, \
+                 so there is no geometry to read",
+                crate::sentence::article(payload)
             ),
             Self::NoSuchBody { index } => write!(
                 f,

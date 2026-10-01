@@ -2,11 +2,13 @@
 id: ssi-march-newton-tolerance-has-no-resolvability-door
 kind: issue
 title: ssi/march: the march's Newton tolerance is ε-derived with no resolvability door, so a slab far from the origin fails as StepRefinementFailed rather than by its scale
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
 branch: ssi/march-endings
+closed: 2026-10-01
+pr: 3707
 ---
 
 
@@ -40,3 +42,7 @@ Fix shape: the march's tolerance gets the floor door's precondition at
 the door that mints `MarchTol` (or the SSI doors check it against the
 slab before marching), refusing by the slab's reach and the spacing
 there.
+
+## Closed (2026-10-01, PR 3707)
+
+Not by a door on the tolerance: the march settles to what its coordinates resolve, `max(SSI_NEWTON_TOL·ε, c·gap(reach))`, with `c` measured per lane, and the reach cut to where the states can lie (the operands' boxes ∩ the domain). It refuses `SettlingUnresolvable` (naming the geometry or the domain) only when that target exceeds `SSI_SETTLE_MAX`·ε. A first door, which refused models that certified at base, was blocked by review and replaced. Measured base vs head: "lost the branch" is gone from every sweep, and nothing that certified at base regresses.

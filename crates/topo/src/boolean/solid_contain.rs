@@ -2765,6 +2765,10 @@ pub(super) fn chart_dir<T: Decide>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> Vec3<
 /// radian at the point being tested, which is what the margin has to
 /// mean.
 ///
+/// A decided membership, not [`geom::periodic_window_may_hold`]'s
+/// question; why is stated once, at
+/// [`crate::splitting::containment::arc_trim`].
+///
 /// # Errors
 ///
 /// [`PointInSolidError::Escalated`] — an in-band period guard, or a
