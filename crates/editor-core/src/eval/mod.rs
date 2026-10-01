@@ -2604,8 +2604,9 @@ impl<'a> Iterator for CarriedChain<'a> {
 impl NodeError {
     /// **The failure as the frame that owns the node's document speaks
     /// it**: the node as `doc` holds it now ([`Doc::spoken`]), then its
-    /// kind's prose. The error itself is memoized, so it holds the id
-    /// and never a label a rename could leave stale.
+    /// kind's prose. The error lives in the [`Evaluation`], which a
+    /// frame holds across edits (and a label edit recomputes nothing),
+    /// so it holds the id and never a label a rename could leave stale.
     #[must_use]
     pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
         failed_line(&doc.spoken(self.node), &self.kind)
