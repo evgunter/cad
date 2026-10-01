@@ -2,12 +2,14 @@
 id: kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove
 kind: issue
 title: kef, kvfs and mekr remove a loop a null-face record names and return Ok, leaving a tier-1-invalid body from a valid one
-status: open
+status: closed
+branch: topo/null-face-record-dies-with-its-loops
+pr: 3618
 opened: 2026-09-30
 priority: P2
 cost: M
-design: true
 refs: [kills-remove-half-edges-another-record-names, mekr-and-kvfs-remove-an-empty-loop-or-lone-vertex-another-record-names, kef-kvfs-and-mekr-remove-a-face-shell-solid-or-edge-another-record-names]
+closed: 2026-10-01
 ---
 
 ## What
