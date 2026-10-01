@@ -315,7 +315,7 @@ fn edge_convexity<T: Decide>(
         Ok(EntersMaterial::Enters) => Ok(Convexity::Convex),
         Ok(EntersMaterial::Exits) => Ok(Convexity::Reflex),
         Ok(EntersMaterial::Tangent) => Ok(Convexity::Smooth),
-        Err(diag) => Err(SplitReduceError::SliverSector {
+        Err(geom_brep::LeverEscalation { diag, .. }) => Err(SplitReduceError::SliverSector {
             vertex,
             face: mate_face,
             diag,
@@ -539,7 +539,10 @@ mod tests {
         let point = |v: VertexKey| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let at = |x: f64| {
             body.vertices()
-                .find(|&(k, _)| point(k) == geom_core::Point3::new(x, 0.0, 0.0))
+                .find(|&(k, _)| {
+                    let p = point(k);
+                    (p.x, p.y, p.z) == (x, 0.0, 0.0)
+                })
                 .unwrap()
                 .0
         };

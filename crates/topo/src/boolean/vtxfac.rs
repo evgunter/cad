@@ -39,9 +39,10 @@
 //!
 //! **On-edges** (an edge through the pierce vertex lying IN the face's
 //! plane): resolved by the flanking classes — `(In,·,In) → In`,
-//! `(Out,·,Out) → Out`, mixed → `In`. This deliberately DIVERGES from
-//! the split lane's F4 table (`BOB → ABOVE`): the split must mint
-//! copies to keep the two pieces' fans representable, but a boolean
+//! `(Out,·,Out) → Out`, mixed → `In`. The split lane's F4 table agrees
+//! for a convex edge and deliberately DIVERGES for a reflex one
+//! (`BOB → ABOVE`): the split must mint copies to keep the two pieces'
+//! fans representable, but a boolean
 //! tangential contact is a *legal 3′ touching* (edge-on-face, both
 //! flanking faces the same side) already carried by the declared
 //! contact records — TOG Table II rows 5/9 (`(In,In)`/`(Out,Out)` ⇒

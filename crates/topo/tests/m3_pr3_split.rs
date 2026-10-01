@@ -347,7 +347,8 @@ fn notched_block_end_to_end() {
 }
 
 /// One-sided pure tangency: a wedge touching the plane along its apex
-/// edge only, from above and from below, in both plane orientations.
+/// edge only, from above, from below and leaning, in both plane
+/// orientations.
 /// The apex is a convex edge whose material is all on one side, so the
 /// whole wedge lands there, the other side is `Empty`, the apex stays
 /// an ordinary edge, and the section has no polygon.
@@ -355,9 +356,12 @@ fn notched_block_end_to_end() {
 fn one_sided_tangency_classifies_with_its_material() {
     let from_above = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)];
     let from_below = [(3.0, -2.0), (9.0, -2.0), (6.0, 1.0)];
+    // Its flanking faces' outward normals point one up and one down.
+    let leaning = [(6.0, 1.0), (8.0, 4.0), (7.0, 4.0)];
     for (label, profile, material_above) in [
         ("from above", &from_above, true),
         ("from below", &from_below, false),
+        ("leaning, from above", &leaning, true),
     ] {
         let fx = prism::<f64>(profile, 1.0, Tol::witness());
         let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;

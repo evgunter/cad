@@ -174,34 +174,23 @@ fn r1b_orientation_equivariance_pins_bob_from_aoa() {
     }
 }
 
-/// R2 — the tangency residue, executed: a triangular prism touching the
-/// plane from above along its apex edge only (no below material
-/// anywhere). Documents EXACTLY what PR 3 receives: one wrapped ABOVE
-/// run per apex vertex ⇒ one non-dangling null edge; the old vertex is
-/// left holding only the bare tangent edge plus the null half — the
-/// degenerate Below piece the adjudication record promises PR 3 must
-/// detect and refuse. NOTE the `dangling` flag is FALSE here: PR 3 has
-/// no PR 2-level flag for this residue, only the reconstructable fact
-/// that the below side of these ON vertices holds no real material.
+/// R2 — the one-sided tangency, executed: a triangular prism touching
+/// the plane from above along its apex edge only (no below material
+/// anywhere). The apex is a convex edge with both neighbours Above, so
+/// rule (b) sends it Above with them: every entry at an apex vertex is
+/// Above, there is no run to separate, and the reduction mints no null
+/// edge. The old vertices keep their whole orbits.
 #[test]
-fn r2_one_sided_tangency_residue_documented() {
+fn r2_one_sided_tangency_mints_nothing() {
     let profile = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)]; // CCW, apex down
     let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let red = split_reduce(&fx.body, &plane_y(1.0, 1.0), Tol::witness()).unwrap();
     assert_eq!(red.on_vertices.len(), 2); // apex bottom + top
-    assert_eq!(red.null_edges.len(), 2); // one per apex vertex
-    assert!(red.null_edges.iter().all(|r| !r.dangling));
+    assert!(red.null_edges.is_empty());
     for z in [0.0, 1.0] {
         let apex = vertex_at(&fx.body, 6.0, 1.0, z);
         let anchor = red.body.get_vertex(apex).unwrap().emanating.unwrap();
-        let orbit = red.body.vertex_orbit(anchor).unwrap();
-        // Old vertex keeps: the tangent (apex) edge + the null half.
-        assert_eq!(orbit.len(), 2, "below residue = bare edge + null");
-        let ends: Vec<_> = orbit
-            .iter()
-            .map(|&he| red.sides[red.body.half_edge_end(he).unwrap()])
-            .collect();
-        assert!(ends.iter().all(|&s| s == PlaneSide::On));
+        assert_eq!(red.body.vertex_orbit(anchor).unwrap().len(), 3, "z = {z}");
     }
 }
 

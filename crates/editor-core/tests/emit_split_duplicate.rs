@@ -62,8 +62,8 @@ fn near(got: Option<f64>, want: f64) -> bool {
     got.is_some_and(|v| (v - want).abs() <= 1e-12 * want)
 }
 
-/// The slab's part above the plane is 0.1 × 3; the rest of the union,
-/// 2.05 − 0.3, is below.
+/// `g` spans z = 0.5..3. Its part above the plane is 0.1 × 4.375; the
+/// rest of the union, 2.2 − 0.4375, is below.
 #[test]
 fn a_tangent_split_of_a_fused_declared_union_cuts_only_the_slab() {
     let doc = ProfileDoc::empty_derived("emit_split_duplicate", Tol::witness());
@@ -74,8 +74,8 @@ fn a_tangent_split_of_a_fused_declared_union_cuts_only_the_slab() {
         let (d, u, _) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let (d, s) = split_of(d, u);
         let (above, below) = halves(label, &run(&d), u, s);
-        assert!(near(above, 0.3), "{label}: above {above:?}");
-        assert!(near(below, 1.75), "{label}: below {below:?}");
+        assert!(near(above, 0.4375), "{label}: above {above:?}");
+        assert!(near(below, 1.7625), "{label}: below {below:?}");
     }
 }
 
@@ -101,6 +101,6 @@ fn the_tangent_contact_standing_alone_lands_below_whole() {
     let (d, u, _) = declared_union(doc, &[a, g0], Vec::<(SitedRef, SitedRef)>::new());
     let (d, s) = split_of(d, u);
     let (above, below) = halves("[a, g0]", &run(&d), u, s);
-    assert!(near(above, 0.3), "[a, g0]: above {above:?}");
-    assert!(near(below, 1.25), "[a, g0]: below {below:?}");
+    assert!(near(above, 0.4375), "[a, g0]: above {above:?}");
+    assert!(near(below, 1.2625), "[a, g0]: below {below:?}");
 }
