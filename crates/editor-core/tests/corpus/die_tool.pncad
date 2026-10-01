@@ -579,7 +579,6 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
     "roots": [
       8
     ],
-    "placements": {},
     "params": {},
     "epsilon": 1e-9,
     "witnesses": {},

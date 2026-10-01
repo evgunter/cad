@@ -597,7 +597,7 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
             }
             other => panic!("load refused with {other:?}, not EditReplay"),
         }
-        match save(&doc, &[direct.into()], Tol::witness()).expect_err("save refuses") {
+        match save(&doc, &[direct], Tol::witness()).expect_err("save refuses") {
             PersistError::EditReplay { error, .. } => assert_eq!(error, want, "save's refusal"),
             other => panic!("save refused with {other:?}"),
         }

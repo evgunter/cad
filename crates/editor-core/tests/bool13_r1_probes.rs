@@ -413,7 +413,7 @@ const OLDER_SHAPED: &str = concat!(
     "\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":",
     "{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[6747313831402317760,4546703346243476841,4990306042536128628,16639099113663446862,10985843265047041854]]}},\"2\":",
     "{\"Extrude\":{\"profile\":1,\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",",
-    "\"unit\":\"m\"}}}}},\"order\":[0,1,2],\"roots\":[2],\"placements\":{},\"params\":{},\"ep",
+    "\"unit\":\"m\"}}}}},\"order\":[0,1,2],\"roots\":[2],\"params\":{},\"ep",
     "silon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );

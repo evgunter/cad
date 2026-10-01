@@ -100,19 +100,22 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
 /// coincidence's representative is the bare translation `(0, 0, 1)`
 /// and every rotation in the answer comes from `F` alone.
 ///
-/// By hand, with `d = (2·spacing, 0, 0) = (4, 0, 0)` the copy's derived
-/// offset and `R` the +90° z-rotation:
+/// The copy's derived offset `O₂ = translate(d)`, `d = (2·spacing, 0,
+/// 0) = (4, 0, 0)`, acts in document coordinates, OUTSIDE the group's
+/// frame, so the top sits at `O₂ ∘ F ∘ translate(0, 0, 1)`: the solve
+/// keeps `O₂` as the pose's left factor and the evaluation composes `F`
+/// between. By hand, with `R` the +90° z-rotation:
 ///
 /// ```text
-/// F⁻¹ ∘ O₂ ∘ F (x) = R⁻¹((R x + t) + d − t) = x + R⁻¹d
-/// R⁻¹d = R_z(−90°)·(4, 0, 0) = (0, −4, 0)
-/// rel_top = translate(0, −4, 0) ∘ translate(0, 0, 1) = translate(0, −4, 1)
+/// own space:  O₂ ∘ translate(0, 0, 1) = translate(4, 0, 1)
+/// world:      O₂ ∘ F ∘ translate(0, 0, 1) (0) = (4, 0, 0) + (5, 7, 11) + R·(0, 0, 1)
+///                                              = (9, 7, 12)
 /// ```
 ///
-/// If the conjugation were dropped — `left = O_c⁻¹ ∘ O_p` bare — the
-/// answer would be `translate(4, 0, 1)` instead. On the committed
-/// suite's fixtures `F = I`, so those two are the SAME frame and no
-/// committed row can tell them apart.
+/// If `F` were composed on the wrong side of `O₂` — `F ∘ O₂ ∘
+/// translate(0, 0, 1)` — the world origin would be `(5, 11, 12)`
+/// instead. On the committed suite's fixtures `F = I`, so those two are
+/// the SAME frame and no committed row can tell them apart.
 #[test]
 fn r1_conjugation_through_a_non_identity_group_frame() {
     let spacing = 2.0;
@@ -173,28 +176,19 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
 
     let got = poses.relative(top).expect("the top has a pose");
 
-    // Hand-derived above; the bare-middle answer is the falsifier.
+    // Hand-derived above: the pose in the group's own space.
     let expected = Frame {
-        columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        translation: [0.0, -4.0, 1.0],
-    };
-    let unconjugated = Frame {
         columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [4.0, 0.0, 1.0],
     };
     assert!(
-        !near(expected, unconjugated, 1e-9),
-        "the probe is only meaningful if the two candidate answers differ"
-    );
-    assert!(
         near(got, expected, 1e-12),
-        "the derived offset must conjugate through the group frame:\n\
-         got          {got:?}\n expected     {expected:?}\n \
-         (unconjugated would be {unconjugated:?})"
+        "the derived offset stays outside the group frame:\n\
+         got          {got:?}\n expected     {expected:?}"
     );
 
-    // And the world placement: F ∘ rel_top = (9, 7, 12), which is also
-    // O₂ ∘ F ∘ translate(0,0,1) computed the other way round.
+    // And the world placement: O₂ ∘ F ∘ translate(0,0,1) = (9, 7, 12);
+    // F ∘ O₂ ∘ translate(0,0,1) would be (5, 11, 12).
     let world = poses.placement(&doc, top).expect("the top places");
     assert!(
         (world.translation[0] - 9.0).abs() < 1e-12

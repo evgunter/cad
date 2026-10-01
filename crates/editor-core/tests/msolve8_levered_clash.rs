@@ -58,7 +58,11 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// `n` instances of one part, the options that resolve them, the
-/// reference the reach is asked through, and the part's body.
+/// reference the reach is asked through, and the part's body. Only the
+/// first carries an offset — the rest sit where their mates put them —
+/// so the first roots every group the rows' mates make, whichever way
+/// round a mate is authored, and an inverted authored order inverts
+/// the pair the fold reads and nothing else.
 struct Rig {
     doc: ProfileDoc,
     ids: Vec<RecipeNodeId>,
@@ -72,9 +76,19 @@ fn rig(label: &str, n: usize) -> Rig {
     let (doc_ref, body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..n {
+    for i in 0..n {
         let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
         doc = next;
+        if i > 0 {
+            doc = crate::fixture::step(
+                doc,
+                editor_core::DocEdit::SetOffset {
+                    instance: id,
+                    offset: None,
+                },
+            )
+            .0;
+        }
         ids.push(id);
     }
     Rig {
@@ -1219,6 +1233,20 @@ fn c4_poses_of_another_document_reaches_no_row() {
             ),
         ),
     );
+    // The rig offsets only the first instance; the second group's
+    // root and the lone fifth instance take one back, so every
+    // instance places against its own document.
+    let mut doc = doc;
+    for &id in &[ids[2], ids[4]] {
+        doc = crate::fixture::step(
+            doc,
+            editor_core::DocEdit::SetOffset {
+                instance: id,
+                offset: Some(editor_core::Placement::IDENTITY),
+            },
+        )
+        .0;
+    }
     let tol = Tol::witness();
     let poses = solve(&doc, &r.o, tol);
     for &id in doc.order() {

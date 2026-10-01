@@ -338,7 +338,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
         },
         expr: len(2.0),
     };
-    let text = save(&doc, &[legal.into()], tol).expect("a replayable log is written");
+    let text = save(&doc, &[legal], tol).expect("a replayable log is written");
 
     // Now the hand edit: the logged replacement becomes an Angle.
     let (header, body_text) = text.split_once('\n').expect("a header line");
@@ -349,7 +349,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
     // INSERT it, and the tamper would then refuse for the stray key
     // rather than reach the dimension checker.
     *edits[0]
-        .pointer_mut("/edit/SetExpression/expr")
+        .pointer_mut("/SetExpression/expr")
         .expect("the logged edit's expression slot") =
         serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
     let tampered = format!(

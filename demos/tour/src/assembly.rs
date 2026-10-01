@@ -6,7 +6,7 @@
 //!
 //! Written the way a user writes an assembly, through the public
 //! doors: `Workspace` to hold the documents, `InstantiatePart` +
-//! `SetPlacement` to reference and place them, `Node::Pattern` to
+//! `SetOffset` to reference and place them, `Node::Pattern` to
 //! replicate one, `Node::Mate` to seat one part on another,
 //! `assemble` for the at-rest gate, `split`/`inline` to refactor,
 //! `update_to_store` to accept a new version of a part, and `save` /
@@ -77,9 +77,9 @@ use pncad::document::{
     CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
     EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
     MatePrimitive, MateReach, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach,
-    PartResolver, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace,
-    UNDER_RECOURSE, apply, assemble, content_pin, evaluate, inline, load, mixed_pins, parse_expr,
-    product_named, save, solve_document, split,
+    PartResolver, PatternKind, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach,
+    SitedFace, UNDER_RECOURSE, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
+    parse_expr, product_named, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -422,20 +422,22 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-layout"), tol);
     let scope = BTreeMap::new();
     let post_i = insert(&mut doc, Node::instantiate_part(post), tol);
-    // Explicit frame (A3): the post is laid on its side — a rotation
-    // that a translation-only registry could not express, which is
-    // why the frame stores a general linear part.
+    // An explicit offset (A11 (2)): the post is laid on its side — a
+    // rotation, which is why a literal step stores a general linear
+    // part.
     edit(
         &mut doc,
-        &DocEdit::SetPlacement {
-            node: post_i,
-            frame: Frame::rotate_then_translate(
-                [0.0, 1.0, 0.0],
-                -PI / 2.0,
-                [FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0],
-                Band::linear(tol).expect("the demo's tolerance forms a band"),
-            )
-            .expect("the post lies down about +y"),
+        &DocEdit::SetOffset {
+            instance: post_i,
+            offset: Some(Placement::literal(
+                &Frame::rotate_then_translate(
+                    [0.0, 1.0, 0.0],
+                    -PI / 2.0,
+                    [FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0],
+                    Band::linear(tol).expect("the demo's tolerance forms a band"),
+                )
+                .expect("the post lies down about +y"),
+            )),
         },
         tol,
         &RefusingReach,
@@ -455,9 +457,13 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
     let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
     edit(
         &mut doc,
-        &DocEdit::SetPlacement {
-            node: shelf_i,
-            frame: Frame::translation([FLAT_PACK_GAP, 0.9, 0.0]),
+        &DocEdit::SetOffset {
+            instance: shelf_i,
+            offset: Some(Placement::literal(&Frame::translation([
+                FLAT_PACK_GAP,
+                0.9,
+                0.0,
+            ]))),
         },
         tol,
         &RefusingReach,
@@ -466,8 +472,8 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
 }
 
 /// The stand: a post at each end of the shelf, the shelf SEATED on
-/// them by mates. Only the root post carries an authored frame —
-/// A11 puts placement on the group, and the mates place the rest.
+/// them by mates. Only the root post carries an offset — the mates
+/// place the rest of its group (A11 (2)).
 struct Stand {
     doc: ProfileDoc,
     post_a: RecipeNodeId,
@@ -489,9 +495,13 @@ fn stand_doc(
     let post_a = insert(&mut doc, Node::instantiate_part(post), tol);
     edit(
         &mut doc,
-        &DocEdit::SetPlacement {
-            node: post_a,
-            frame: Frame::translation([0.0, (SHELF_DEPTH - POST_SECTION) / 2.0, 0.0]),
+        &DocEdit::SetOffset {
+            instance: post_a,
+            offset: Some(Placement::literal(&Frame::translation([
+                0.0,
+                (SHELF_DEPTH - POST_SECTION) / 2.0,
+                0.0,
+            ]))),
         },
         tol,
         &RefusingReach,
@@ -720,8 +730,8 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
     );
 
     // Where the mates put the far post: SOLVED, composed outward from
-    // the root along the mate tree, never stored. The registry holds
-    // one frame for the whole group, and it is the root's.
+    // the root along the mate tree, never stored. The group's one
+    // offset is the root's.
     let solved = poses
         .placement(&stand.doc, stand.post_b)
         .expect("the far post is placed");
@@ -750,8 +760,11 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
         "aligned frame-coincidence mates compose to no net rotation"
     );
     assert!(
-        !stand.doc.placements().contains_key(&stand.post_b),
-        "a mated instance carries no frame of its own (A11 rule 2)"
+        matches!(
+            stand.doc.node(stand.post_b),
+            Some(Node::InstantiatePart { offset: None, .. })
+        ),
+        "a mated instance carries no offset of its own: the mate cleared it (A11 (2))"
     );
 
     let (gathered, _) = product_of(&stand.doc, &ev, tol);
@@ -1214,15 +1227,19 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         back_names.iter().count(),
         "and the inline neither loses nor invents a name either"
     );
-    // The group frame the split hoisted onto the instance is put
-    // back on the restored node, bit for bit — placement is document
-    // data, and a round trip that dropped it would still pass every
-    // name check above while moving the part.
+    // The offset the split hoisted onto the instance is put back on
+    // the restored node, bit for bit — where an instance sits is
+    // document data, and a round trip that dropped it would still pass
+    // every name check above while moving the part.
+    let offset = |doc: &ProfileDoc, id| match doc.node(id) {
+        Some(Node::InstantiatePart { offset, .. }) => offset.clone(),
+        _ => None,
+    };
     assert!(
-        back.doc
-            .placement(restored)
-            .bit_eq(&layout.placement(shelf_i)),
-        "the round trip restores the group frame exactly"
+        offset(&back.doc, restored)
+            .zip(offset(&layout, shelf_i))
+            .is_some_and(|(a, b)| a.bit_eq(&b)),
+        "the round trip restores the offset exactly"
     );
     println!(
         "   inline: {} node(s) spliced back, {} recorded edit(s); all {} product names \

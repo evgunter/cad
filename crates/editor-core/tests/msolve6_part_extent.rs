@@ -967,7 +967,15 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
         let applied = doc
             .apply(&DocEdit::DeleteNode { id }, tol, &counting)
             .expect("a delete is never refused for the placement it removes");
-        assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
+        assert!(
+            applied.maintenance.iter().all(|row| matches!(
+                row,
+                editor_core::Maintenance::Strand { .. }
+                    | editor_core::Maintenance::StrandedAppearance { .. }
+            )),
+            "a delete reports what it stranded and records no frame: {:?}",
+            applied.maintenance
+        );
     }
     assert_eq!(counting.0.get(), admission, "nothing but the rider asked");
 }

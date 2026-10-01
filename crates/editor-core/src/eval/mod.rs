@@ -4628,7 +4628,7 @@ where
         Node::Shell { .. } => document_verb_tag(verbs::VerbKind::Shell),
         // A fresh word: a gauge denotes no body, and its key is its
         // slots and its chain's shape.
-        Node::Gauge { .. } => 35,
+        Node::Gauge { .. } => 36,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);

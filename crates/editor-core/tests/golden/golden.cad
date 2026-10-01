@@ -1261,7 +1261,6 @@ id: 7ddec231df0049f879136a2f7624647d
       12,
       15
     ],
-    "placements": {},
     "params": {
       "clearance": {
         "Continuous": {
@@ -1342,20 +1341,17 @@ id: 7ddec231df0049f879136a2f7624647d
   },
   "edits": [
     {
-      "edit": {
-        "SetParam": {
-          "node": 2,
-          "slot": "Distance",
-          "expr": {
-            "Literal": {
-              "value": 0.5,
-              "dim": "Length",
-              "unit": "mm"
-            }
+      "SetParam": {
+        "node": 2,
+        "slot": "Distance",
+        "expr": {
+          "Literal": {
+            "value": 0.5,
+            "dim": "Length",
+            "unit": "mm"
           }
         }
-      },
-      "maintenance": []
+      }
     }
   ]
 }

@@ -1043,7 +1043,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
             name: name.clone(),
             value,
         };
-        match save(&doc, &[edit.into()], Tol::witness()) {
+        match save(&doc, &[edit], Tol::witness()) {
             Err(PersistError::NonFinite {
                 site: NonFiniteSite::Edit { index: 0, inner },
             }) => match *inner {
@@ -1265,7 +1265,7 @@ fn a_logged_declaration_under_a_refused_name_is_refused_at_the_load_door() {
     load(&text, Tol::witness()).expect("the fixture loads");
     let fault = ParamName::new("1 2").expect_err("a spaced number is not a name");
     let corrupt = doctored(&text, |wire| {
-        let name = &mut wire["edits"][0]["edit"]["SetDocParam"]["name"];
+        let name = &mut wire["edits"][0]["SetDocParam"]["name"];
         assert_eq!(
             *name,
             serde_json::json!("depth"),

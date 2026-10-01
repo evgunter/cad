@@ -25,7 +25,8 @@
 //! typed refusal naming its kind, not a silent first-element pick.
 
 use editor_core::{
-    BooleanValue, Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, ValuePayload,
+    BooleanValue, Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Unplaced,
+    ValuePayload,
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
@@ -60,6 +61,14 @@ pub enum ExportError {
     /// body-denoting root, a failed root, or a kernel refusal while
     /// gathering.
     Product(ProductError),
+    /// **Unplaced parts** (A11 (2)): STEP writes one world, and these
+    /// live in an unplaced group's own space — each with its group,
+    /// by its root, and why nothing places it.
+    Unplaced {
+        /// Every unplaced part the export would have to write, in node
+        /// order: the node, its group's root, and the cause.
+        parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)>,
+    },
 }
 
 // A node reaches prose as its bare id. The message is for a human,
@@ -85,6 +94,21 @@ impl core::fmt::Display for ExportError {
             }
             Self::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
             Self::Product(e) => write!(f, "export: {e}"),
+            Self::Unplaced { parts } => {
+                write!(f, "export: STEP writes one world, and these parts are unplaced:")?;
+                for (node, group, cause) in parts {
+                    write!(
+                        f,
+                        " node {} (its group, rooted at node {}, is unplaced because {cause});",
+                        node.0, group.0
+                    )?;
+                }
+                write!(
+                    f,
+                    " {}",
+                    editor_core::Recourse(editor_core::UNPLACED_RECOURSE)
+                )
+            }
         }
     }
 }
@@ -100,13 +124,20 @@ impl core::error::Error for ExportError {}
 /// # Errors
 ///
 /// Every arm of [`ExportError`]: the evaluation-side refusals above,
-/// or [`ExportError::Step`] carrying the writer's own refusal.
+/// [`ExportError::Unplaced`] for a node that lives in an unplaced
+/// group's own space, or [`ExportError::Step`] carrying the writer's
+/// own refusal.
 pub fn step_for_node(
     evaluation: &Evaluation<f64>,
     node: RecipeNodeId,
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
+    if let Some(&(group, cause)) = evaluation.unplaced.get(&node) {
+        return Err(ExportError::Unplaced {
+            parts: vec![(node, group, cause)],
+        });
+    }
     let value = evaluation.usable(node).map_err(ExportError::Standing)?;
     let body = match &value.payload {
         ValuePayload::Body(body) => body,
@@ -138,6 +169,8 @@ pub fn step_for_node(
 ///
 /// # Errors
 ///
+/// [`ExportError::Unplaced`] naming every unplaced part, which the
+/// product leaves out and STEP's one world cannot hold;
 /// [`ExportError::Product`] carrying the gather's own typed refusal
 /// (no body-denoting root, a failed root, a kernel graft or validity
 /// refusal), or [`ExportError::Step`] carrying the writer's.
@@ -147,6 +180,20 @@ pub fn export_document_step(
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
+    let parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)> = evaluation
+        .unplaced
+        .iter()
+        .filter(|(node, _)| {
+            matches!(
+                doc.node(**node),
+                Some(editor_core::Node::InstantiatePart { .. })
+            )
+        })
+        .map(|(&node, &(group, cause))| (node, group, cause))
+        .collect();
+    if !parts.is_empty() {
+        return Err(ExportError::Unplaced { parts });
+    }
     let body = editor_core::product(doc, evaluation, tol).map_err(ExportError::Product)?;
     step_string(&body, options, tol).map_err(ExportError::Step)
 }

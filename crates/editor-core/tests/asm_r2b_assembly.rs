@@ -35,7 +35,7 @@ use editor_core::{
     RoleSeg, StableName, assemble, content_pin, inline, product_recorded, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, relations, run, solve, step, step_with};
+use fixture::{insert, len, on_frame, relations, run, solve, step};
 use geom_core::Tol;
 use std::sync::Arc;
 
@@ -484,16 +484,14 @@ fn row2_b_a_declaring_mate_mints_identically() {
 /// F1 executes across the document seam exactly as it does within it.
 #[test]
 fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
-    // The same touching geometry, with the mate DELETED after it
-    // solved the pose — the placement survives as document data, so
-    // the instances still touch and nothing declares it.
+    // The same touching geometry, with the mate DELETED after the
+    // pose it solved was stated as the member's offset — the offset is
+    // document data, so the instances still touch and nothing declares
+    // it.
     let (doc, ids, mate, store, _) = stacked("asm-r2b-row3a", 1.0);
-    // Deleting the mate splits the group and mints the orphan's
-    // frame from the solved pose: the store's reach, not the fixture's
-    // refusing one.
     let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = step_with(doc, DocEdit::DeleteNode { id: mate }, &reach);
+    let doc = crate::fixture::offsets_where_solved(doc, &o);
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
     let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
@@ -1774,12 +1772,12 @@ fn a_flush_seat_certifies_at_the_gate() {
 #[test]
 fn the_same_flush_seat_undeclared_is_the_hard_error() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
-    // Deleting the mate splits the group and mints the orphan's
-    // frame from the solved pose: the store's reach, not the fixture's
-    // refusing one.
+    // The seat the mate solved, stated as the member's offset, and the
+    // mate then deleted: the instances still touch, and nothing
+    // declares it.
     let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = step_with(doc, DocEdit::DeleteNode { id: mate }, &reach);
+    let doc = crate::fixture::offsets_where_solved(doc, &o);
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
     let ev = run(&doc, &o);
     let errors = findings(&assemble(&doc, &ev, Tol::witness()));
     assert!(

@@ -85,9 +85,9 @@
 // what those doors refuse with, and the shape types are what an
 // `AuthoredStep` is made of.
 pub use editor_core::{
-    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
-    StepIdFault, apply, apply_logged,
+    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
+    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId, StepIdFault, apply,
+    apply_replayed, regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -371,10 +371,11 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, PlacerRow,
-    ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, groups, mate_reach,
-    member_of, reading_edges, relative_freedom_components, root_of, solve_document,
+    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, Lever, MateFault, MateFrame,
+    MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
+    PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
+    UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, mate_reach, member_of,
+    places, reading_edges, relative_freedom_components, root_of, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through

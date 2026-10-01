@@ -86,6 +86,38 @@ pub fn solve(doc: &editor_core::ProfileDoc, o: &EvalOptions, tol: Tol) -> Solved
     solve_document(doc, &reach, tol)
 }
 
+/// **Every mate-placed instance given, as its offset, the world pose
+/// its mates solve it at** — the edits a user makes to keep a part where
+/// it is shown before deleting what places it (A11 (2)). Each offset
+/// agrees with the solve, so it is a checked statement that holds.
+pub fn offsets_where_solved(doc: ProfileDoc, o: &EvalOptions) -> ProfileDoc {
+    let poses = solve(&doc, o, Tol::witness());
+    let mut doc = doc;
+    let placed: Vec<(RecipeNodeId, editor_core::Frame)> = doc
+        .order()
+        .iter()
+        .copied()
+        .filter(|&id| {
+            matches!(
+                doc.node(id),
+                Some(Node::InstantiatePart { offset: None, .. })
+            )
+        })
+        .filter_map(|id| Some((id, poses.placement(&doc, id).ok()?)))
+        .collect();
+    for (instance, frame) in placed {
+        doc = step(
+            doc,
+            DocEdit::SetOffset {
+                instance,
+                offset: Some(editor_core::Placement::literal(&frame)),
+            },
+        )
+        .0;
+    }
+    doc
+}
+
 /// **The at-rest gate's verdict**, as a mate row wants to read it:
 /// whether the assembly mints, with the minted records dropped.
 ///

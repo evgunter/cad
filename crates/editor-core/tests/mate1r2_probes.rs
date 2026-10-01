@@ -177,14 +177,6 @@ impl Rigid {
             t: [ot[0] + self.t[0], ot[1] + self.t[1], ot[2] + self.t[2]],
         }
     }
-    fn inverse(self) -> Rigid {
-        let rt = transpose(self.r);
-        let t = mv(rt, self.t);
-        Rigid {
-            r: rt,
-            t: [-t[0], -t[1], -t[2]],
-        }
-    }
     /// As the editor's column-major `Frame`.
     fn as_frame(self) -> Frame {
         Frame {
@@ -219,10 +211,12 @@ fn group_frame() -> Frame {
 
 /// PROBE (claim 1): a CIRCULAR pattern about an OBLIQUE axis (direction
 /// (1,1,1), origin (1,0,0), step 2π/5), with the group's recorded
-/// frame a rotation+translation. Expected relative pose composed by
-/// hand in this file: `F⁻¹ ∘ O₁ ∘ F ∘ A` with `O₁` this file's own
-/// Rodrigues and `A` the seat translation. The solver's output is
-/// never read into the expectation.
+/// frame a rotation+translation. Expected world pose composed by hand
+/// in this file: `O₁ ∘ F ∘ A` with `O₁` this file's own Rodrigues and
+/// `A` the seat translation — the copy's offset acts in document
+/// coordinates, outside the group's frame — and the pose in the
+/// group's own space `O₁ ∘ A`. The solver's output is never read into
+/// the expectation.
 #[test]
 fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
     let mut store = PartStore::default();
@@ -283,11 +277,17 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
     let f = Rigid::from_frame(group_frame());
     let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
     let a = Rigid::translation([0.0, 0.0, 1.0]);
-    let expected = f.inverse().compose(o1).compose(f).compose(a).as_frame();
-    let got = poses.relative(top).expect("the top has a pose");
+    let expected = o1.compose(f).compose(a).as_frame();
+    let got = poses.placement(&doc, top).expect("the top places");
     assert!(
         near(got, expected, 1e-12),
-        "conjugation through the recorded frame, hand-derived:\n got      {got:?}\n expected {expected:?}"
+        "the copy's offset composes outside the group frame, hand-derived:\n got      {got:?}\n expected {expected:?}"
+    );
+    let own = o1.compose(a).as_frame();
+    let got = poses.relative(top).expect("the top has a pose");
+    assert!(
+        near(got, own, 1e-12),
+        "and the pose in the group's own space leaves it out:\n got      {got:?}\n expected {own:?}"
     );
     let _ = store;
 }
@@ -456,8 +456,9 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
 
 // ---- P3: the patterned member as the tree CHILD ----
 
-/// PROBE (claims 1+8): the top is document-FIRST, so it is the root
-/// and the patterned member is the tree CHILD — the `O_c⁻¹` arm alone.
+/// PROBE (claims 1+8): the top carries the group's offset, so it is the
+/// root and the patterned member is the tree CHILD — the `O_c⁻¹` arm
+/// alone.
 /// Hand-derived: rep = B∘A⁻¹ = T([0,0,−1]) (the mate reads a = copy,
 /// b = top, and the child member's frame must land on the parent's),
 /// rel(leg) = O_c⁻¹ ∘ rep = T([−2, 0, −1]).
@@ -480,6 +481,14 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
             },
         },
     );
+    // The leg sits where its mate puts it: no offset of its own.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance: leg,
+            offset: None,
+        },
+    );
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -496,7 +505,7 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "{:?}", poses.fault(mate));
-    assert_eq!(poses.root(leg), Some(top), "the top is document-first");
+    assert_eq!(poses.root(leg), Some(top), "the top carries the offset");
 
     let expected = Frame {
         columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
