@@ -2,9 +2,11 @@
 id: movefac-hops-to-a-mates-face-without-proving-the-face-lists-its-loop
 kind: issue
 title: movefac's mate hop reads the mate loop's face without proving that face lists the loop, and drops a hop into a labelled component
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P3
+branch: topo/movefac-hop-proves-ownership
+pr: 3669
 ---
 
 
