@@ -844,8 +844,10 @@ const SPHERE_AGAINST_PLANE: SizedDecision = SizedDecision {
 
 /// Two spheres of the two solids ([`SphereQuestion::Apart`],
 /// [`SphereQuestion::Nested`]): only a pair clearly apart or clearly
-/// nested passes, the scan having no join for two curved faces that
-/// meet.
+/// nested passes. The scan runs only where no edge crosses a face, so
+/// two spheres that meet there share nothing the join's sphere-pair arm
+/// can run a chord along, and the scan cannot certify the shells'
+/// relation.
 pub(crate) const SPHERES: SizedDecision = SizedDecision {
     lever: "move the spheres so they clearly stand apart, or so one lies clearly inside the other",
     size: "clearance",

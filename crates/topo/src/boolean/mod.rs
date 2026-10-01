@@ -1295,12 +1295,14 @@ pub enum BooleanError {
         what: &'static str,
     },
     /// **Two spheres of the two solids meet** — neither clearly apart
-    /// nor one strictly inside the other — at the curved-extent scan.
-    /// The sphere × sphere section is the exact closed-form circle, but
-    /// the join has no arm for a curved × curved germ pair, and a
-    /// crossing found here would pierce a curved face first. It is the
-    /// decided refusal of [`SphereQuestion::Nested`], and ends as that
-    /// question's escalation does ([`refusal_routes::SPHERES`]).
+    /// nor one strictly inside the other — at the curved-extent scan,
+    /// which runs only where the crossing layer found no edge crossing a
+    /// face. Whatever the two spheres share lies off every edge, so the
+    /// join's sphere-pair arm (the radical plane, `join::bool_connect`)
+    /// had no chord to run, and the scan, which reads the surfaces,
+    /// cannot certify either shell's side of the other's boundary. It is
+    /// the decided refusal of [`SphereQuestion::Nested`], and ends as
+    /// that question's escalation does ([`refusal_routes::SPHERES`]).
     SpheresMeet {
         /// The operand whose sphere face the scan stopped at.
         operand: Operand,
@@ -2019,8 +2021,8 @@ impl core::fmt::Display for BooleanError {
             // No operand is named, as the scan's other refusals name none.
             Self::SpheresMeet { verdict, .. } => write!(
                 f,
-                "the two solids' spheres {}, and the Boolean cannot yet join two curved faces \
-                 that meet. {}",
+                "the two solids' spheres {}, and where they meet lies off every edge of both \
+                 solids, so the Boolean finds no crossing to join them along. {}",
                 match verdict {
                     geom_brep::recourse::Refused::Zero(_) => {
                         "touch within the tolerance, the smaller inside the larger"

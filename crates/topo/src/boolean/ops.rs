@@ -2492,14 +2492,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 let big = radius.max(r2);
                                 let small = radius.min(r2);
                                 // Neither separated nor strictly nested:
-                                // the two boundaries meet. The
-                                // sphere×sphere section is the exact
-                                // closed-form Circle and the germ frame
-                                // names it, but the JOIN has no arm for a
-                                // curved×curved germ pair (its arc-side
-                                // rule needs a chart the pair does not
-                                // have), and a crossing found here would
-                                // pierce a curved face first.
+                                // the two boundaries meet while the
+                                // crossing layer found no edge crossing a
+                                // face. Whatever the two spheres share
+                                // lies off every edge, the join's
+                                // sphere-pair arm had no chord to run,
+                                // and this scan, which reads the
+                                // SURFACES, cannot certify the shell
+                                // disjoint from the other boundary.
                                 let nested = crate::validate::decide_reported(
                                     "bool_sphere_sphere_nested",
                                     Margin::of(big - (d + small)),
