@@ -2851,7 +2851,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let tables: Vec<&NameTable> = operands.iter().map(|(_, t)| t.as_ref()).collect();
-    judge_pairwise_contact(
+    let links = judge_pairwise_contact(
         id,
         members,
         &tables,
@@ -2859,10 +2859,20 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         declared,
         doc,
         |p, q, decls| {
-            (verb.build)(BooleanOp::Union, decls)
+            let out = (verb.build)(BooleanOp::Union, decls)
                 .run_pair(&operands[p].0, &operands[q].0, boolean_sweep, tol)
-                .map(|_| ())
-                .map_err(|err| union_refusal(id, members, tables[p], tables[q], err))
+                .map_err(|err| union_refusal(id, members, tables[p], tables[q], err))?;
+            let verbs::PairOut::Out(out) = out else {
+                return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_PAIR_EMPTY,
+                }));
+            };
+            match out.record {
+                verbs::VerbRecord::Boolean { naming, .. } => Ok(naming),
+                _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: verb.foreign_record,
+                })),
+            }
         },
     )?;
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
@@ -2956,7 +2966,7 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         })
         .collect();
     let (table, published_groups) =
-        names::name_union(id, &acc_body, &acc_table, &member_views, &fold, tol)
+        names::name_union(id, &acc_body, &acc_table, &member_views, &fold, &links, tol)
             .map_err(NodeErrorKind::Naming)?;
     let mut body = (*acc_body).clone();
     // ONCE, over the finished body: the stamp numbers from zero, so a
@@ -3005,8 +3015,12 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// are visited in ascending node-id order, the lesser id as operand A.
 ///
 /// `judge(p, q, decls)` runs the pair verb on members `p` (operand A)
-/// and `q` (operand B); this function decides which pairs are judged
-/// and with what, and nothing about geometry.
+/// and `q` (operand B) and hands back its record; this function decides
+/// which pairs are judged and with what, and nothing about geometry.
+///
+/// Returns the member faces the judgements consumed
+/// ([`names::UnionLinks`]): the one place a union's faces are linked
+/// (N2), so the links are member order's no more than the verdict is.
 fn judge_pairwise_contact(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -3014,8 +3028,12 @@ fn judge_pairwise_contact(
     hulls: &[bvh::Aabb],
     declared: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
-    mut judge: impl FnMut(usize, usize, BooleanDeclarations) -> Result<(), NodeErrorKind>,
-) -> Result<(), NodeErrorKind> {
+    mut judge: impl FnMut(
+        usize,
+        usize,
+        BooleanDeclarations,
+    ) -> Result<topo::BooleanNaming, NodeErrorKind>,
+) -> Result<names::UnionLinks, NodeErrorKind> {
     // The declared pairs between two DIFFERENT members, lesser node id
     // first. `route_declarations` already sited these pairs through the
     // same door, so a refusal here is a bug.
@@ -3050,6 +3068,7 @@ fn judge_pairwise_contact(
             .or_default()
             .push(((op(i), n1), (op(j), n2), *class));
     }
+    let mut links = names::UnionLinks::default();
     let mut by_id: Vec<usize> = (0..members.len()).collect();
     by_id.sort_by_key(|&i| members[i]);
     for (k, &p) in by_id.iter().enumerate() {
@@ -3063,10 +3082,12 @@ fn judge_pairwise_contact(
             } else {
                 resolve_declarations(&pairs, doc, tables[p], tables[q])?
             };
-            judge(p, q, decls)?;
+            links
+                .judged(members[p], members[q], &judge(p, q, decls)?)
+                .map_err(NodeErrorKind::Naming)?;
         }
     }
-    Ok(())
+    Ok(links)
 }
 
 /// A declared pair's site did not site in the pairwise judgement,
@@ -3450,6 +3471,11 @@ const MEMBER_FACE_IN_TWO_MERGES: &str =
 /// produce: the first composition to consume a face retires its name.
 const MEMBER_FACE_CONSUMED_TWO_WAYS: &str =
     "a union's accumulation holds rows descending from one member face by two compositions";
+
+/// A union's pairwise judgement returned the typed empty from two real
+/// bodies.
+const UNION_PAIR_EMPTY: &str =
+    "a union's pairwise judgement returned empty from two non-empty members";
 
 /// A union fold step returned the typed empty from two real bodies.
 const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-empty operands";

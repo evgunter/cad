@@ -332,6 +332,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // ---- Output stages (shared with every seamed boolean). ----
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts;
+    let covered = red.covered;
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
         .merge_coplanar_faces_declared(&declared_pairs, tol)
@@ -373,6 +374,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_b: b_fragments,
         reduction_contacts,
         discards,
+        covered,
     };
     Ok(Some(BooleanResult::Body(BooleanBody {
         body,

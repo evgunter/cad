@@ -727,6 +727,11 @@ pub struct BooleanReduction<T: Real> {
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
     pub pierce_rings: Vec<PierceRingRecord>,
+    /// `(A face, B face)`, in clone keys, sorted and deduplicated: each
+    /// pair of coincident faces whose Eq. 15.3 lump keeps one copy of
+    /// a region they share and drops the other, so the result holds
+    /// either face's region through the other (`BooleanNaming::covered`).
+    pub covered: Vec<(FaceKey, FaceKey)>,
 }
 
 impl<T: Real> BooleanReduction<T> {
@@ -2562,6 +2567,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     let mut null_edges = Vec::new();
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
+    let mut covered = Vec::new();
 
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
@@ -2578,6 +2584,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
+        covered.extend(out.covered);
     }
     for &c in &contacts.b_on_a {
         let out = vtxfac::classify_vertex_on_face(
@@ -2593,6 +2600,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_edges.extend(out.edges);
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
+        covered.extend(out.covered);
     }
 
     // Vertex-vertex classification.
@@ -2609,6 +2617,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
             op,
             &declared,
             band,
+            &mut covered,
         )?;
         recl::recl_edges(
             &mut records,
@@ -2637,6 +2646,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
         null_edges,
         null_pairs,
         pierce_rings,
+        covered: covered
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect(),
     })
 }
 

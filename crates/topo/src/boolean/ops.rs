@@ -252,6 +252,17 @@ pub struct BooleanNaming {
     /// bordered (`boolean::discard`, which says which paths record
     /// rows and why the others have none to record).
     pub discards: Vec<super::DiscardRow>,
+    /// Each pair `(A face, B face)` of coincident faces where the result
+    /// holds either face's region through the other: their materials lie
+    /// on one side, so the classification keeps one operand's copy of the
+    /// region they share and drops the other's (Eq. 15.3). The pair is
+    /// one fact whichever copy is kept. Clone keys, as
+    /// [`super::DiscardRow::face`]: chase `face_fragments_a`/`face_fragments_b`
+    /// for the operand faces. Read off the classification, so every path
+    /// that classifies records it — the section path, the containment
+    /// fallback and the declared-REST union — sorted and deduplicated;
+    /// a path that never classifies (disjoint boxes) has none.
+    pub covered: Vec<(FaceKey, FaceKey)>,
 }
 
 impl BooleanNaming {
@@ -521,6 +532,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
+    let covered = red.covered.clone();
     let fin = setopfinish(op, red, &connected.completed, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
@@ -588,6 +600,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_b: connected.b_fragments,
         reduction_contacts,
         discards: fin.discards,
+        covered,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
@@ -2813,6 +2826,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 op,
                 body,
                 &red.contacts,
+                &red.covered,
                 decls,
                 BooleanResultKind::OperandA,
                 band,
@@ -2825,6 +2839,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 op,
                 body,
                 &red.contacts,
+                &red.covered,
                 decls,
                 BooleanResultKind::OperandB,
                 band,
@@ -2908,6 +2923,7 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                 merge_groups: merge_rows(&merged),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
+                covered: red.covered.clone(),
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -2927,6 +2943,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     body: Body<T>,
     contacts: &ContactRecords,
+    covered: &[(FaceKey, FaceKey)],
     decls: &BooleanDeclarations,
     kind: BooleanResultKind,
     band: Band,
@@ -2937,9 +2954,10 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
         body = body.revert().map_err(BooleanError::Revert)?;
     }
-    // Cross-operand declared pairs are inapplicable here (one operand
-    // is absent from the result); the surviving operand's CARRIED
-    // records still apply.
+    // No cross-operand pair merges here: one operand is absent from the
+    // result. A declared pair that held the absent operand's region
+    // through the kept one is `covered`; the surviving operand's
+    // CARRIED records still apply.
     let merged = body
         .merge_coplanar_faces(tol)
         .map_err(BooleanError::Merge)?;
@@ -2960,6 +2978,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
             merge_groups: merge_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
+            covered: covered.to_vec(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -2969,6 +2988,7 @@ fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
             merge_groups: merge_rows(&merged),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
+            covered: covered.to_vec(),
             ..BooleanNaming::default()
         },
     };
