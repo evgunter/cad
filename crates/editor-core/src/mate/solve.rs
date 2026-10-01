@@ -37,12 +37,10 @@ use geom_core::predicate::Band;
 use super::coset::{Coset, FoldStop, Measured, Subgroup};
 use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
-use super::{
-    Alignment, AxisSense, Clash, Lever, MateFault, MatePrimitive, MateSide, OffsetCheck,
-};
+use super::{Alignment, AxisSense, Clash, Lever, MateFault, MatePrimitive, MateSide, OffsetCheck};
 use crate::doc::Doc;
-use crate::expr::ParamEnv;
 use crate::eval::NodeRefusal;
+use crate::expr::ParamEnv;
 use crate::node::{Node, RecipeNodeId};
 use crate::placement::Frame;
 
@@ -94,7 +92,11 @@ impl core::fmt::Display for Unplaced {
         match self {
             Self::NoOffset => f.write_str("no instance in it carries an offset"),
             Self::DeadGauge { gauge } => {
-                write!(f, "its gauge chain names node {}, which was deleted", gauge.0)
+                write!(
+                    f,
+                    "its gauge chain names node {}, which was deleted",
+                    gauge.0
+                )
             }
         }
     }
@@ -102,8 +104,7 @@ impl core::fmt::Display for Unplaced {
 
 /// The one recourse an unplaced group's refusal names: the three
 /// things that place a group (A11 (2)).
-pub const UNPLACED_RECOURSE: &str =
-    "place it: give one of its instances an offset (SetOffset), set its gauge to a live one \
+pub const UNPLACED_RECOURSE: &str = "place it: give one of its instances an offset (SetOffset), set its gauge to a live one \
      (SetGauge), or mate it to a placed instance on its gauge";
 
 /// **An instance's solved pose, decomposed** around its group's frame:
@@ -318,12 +319,11 @@ impl SolvedPoses {
                 cause,
             });
         }
-        let band = Band::linear(self.tol).map_err(|error| {
-            PoseRefusal::Mate(Box::new(MateFault::Band { error }))
-        })?;
+        let band = Band::linear(self.tol)
+            .map_err(|error| PoseRefusal::Mate(Box::new(MateFault::Band { error })))?;
         let env = doc.param_env::<f64>();
-        let frame = group_frame(doc, root, &env, band)
-            .map_err(|(node, error)| PoseRefusal::Placement {
+        let frame =
+            group_frame(doc, root, &env, band).map_err(|(node, error)| PoseRefusal::Placement {
                 node,
                 error: error.into(),
             })?;
@@ -684,10 +684,7 @@ fn read_mates<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, ReadMate)> {
 
 /// The instance pairs [`read_mates`] welds — its resolving PLACING
 /// mates, projected onto the vertices A11's groups see.
-fn welds<P>(
-    doc: &Doc<P>,
-    read: &[(RecipeNodeId, ReadMate)],
-) -> Vec<(RecipeNodeId, RecipeNodeId)> {
+fn welds<P>(doc: &Doc<P>, read: &[(RecipeNodeId, ReadMate)]) -> Vec<(RecipeNodeId, RecipeNodeId)> {
     read.iter()
         .filter_map(|(_, r)| r.as_ref().ok())
         .map(|(wa, wb)| (wa.member.instance, wb.member.instance))
@@ -1565,8 +1562,7 @@ fn solve_group<P: crate::ProfilePayload>(
     // Each pose as its two factors around the group's frame
     // ([`Pose`]): the placer offsets outside, the representatives
     // inside.
-    let mut poses: BTreeMap<RecipeNodeId, (Option<Affine3<f64>>, Affine3<f64>)> =
-        BTreeMap::new();
+    let mut poses: BTreeMap<RecipeNodeId, (Option<Affine3<f64>>, Affine3<f64>)> = BTreeMap::new();
     poses.insert(root, (None, Affine3::identity()));
     let mut pose: BTreeMap<RecipeNodeId, Pose> = BTreeMap::new();
     pose.insert(
@@ -1693,7 +1689,9 @@ fn check_offsets<P: crate::ProfilePayload>(
                 .eval(env, band)
                 .map_err(|e| placement(instance, instance, e))?;
             let root_offset = match offset_of(root) {
-                Some(o) => o.eval(env, band).map_err(|e| placement(instance, root, e))?,
+                Some(o) => o
+                    .eval(env, band)
+                    .map_err(|e| placement(instance, root, e))?,
                 None => Affine3::identity(),
             };
             let left = match pose.left {
@@ -1715,8 +1713,8 @@ fn check_offsets<P: crate::ProfilePayload>(
                         .map_err(|r| super::LeverRefusal::of(r, instance, doc_ref))
                 })
                 .map_err(|refusal| unchecked(instance, OffsetCheck::Unleverable(refusal)))?;
-            super::coset::trivial_member(stated.inverse() * solved, band, arm).map_err(
-                |stop| match stop {
+            super::coset::trivial_member(stated.inverse() * solved, band, arm).map_err(|stop| {
+                match stop {
                     FoldStop::Clash { predicate, clash } => MateFault::OffsetDisagrees {
                         instance,
                         root,
@@ -1726,8 +1724,8 @@ fn check_offsets<P: crate::ProfilePayload>(
                     FoldStop::Indeterminate(diag) => {
                         unchecked(instance, OffsetCheck::Indeterminate(diag))
                     }
-                },
-            )
+                }
+            })
         };
         if let Err(fault) = check() {
             out.push((instance, fault));

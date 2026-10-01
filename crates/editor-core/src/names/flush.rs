@@ -435,8 +435,8 @@ pub fn declare_node<P>(findings: &[FlushFinding]) -> Result<Node<P>, DeclareErro
 
 /// Declares ONE inspected finding: inserts a [`Node::Declare`] with
 /// its pair and returns the accepted insert whole — the edited
-/// document, its record and the cluster maintenance the insert
-/// performed, as one [`Applied`] — plus the Declare node's id, for the
+/// document, its record and the maintenance the insert reported, as
+/// one [`Applied`] — plus the Declare node's id, for the
 /// caller to wire into the consuming Boolean's `declare` input. Sugar
 /// over shipped vocabulary — nothing here detects (GS-Q3's no-fusion
 /// boundary: findings reach this door as VALUES the caller already

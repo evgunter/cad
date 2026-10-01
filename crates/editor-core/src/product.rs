@@ -702,7 +702,8 @@ pub fn gathers_on_this_thread() -> u64 {
 }
 
 /// The document's product: every body-denoting root's solids gathered,
-/// in root-list order, into one [`Body`] (module docs).
+/// in root-list order, into one [`Body`] (module docs). A root that
+/// lives in an unplaced group's own space is not part of it (A9).
 ///
 /// The result is a pure function of (`doc.roots()`, `evaluation`) — no
 /// ambient state, so two evaluations of a root-neutral edit yield the
@@ -865,6 +866,26 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
+    product_in(doc, evaluation, tol, None)
+}
+
+/// **The gather of one space** (A9, A11 (2)): the world's when `space`
+/// is `None` — the document's product — and otherwise the own space of
+/// the unplaced group `space` names, which the at-rest gate checks by
+/// itself ([`crate::assemble`]). A root gathers into the space its
+/// value lives in ([`Evaluation::unplaced`]), and only the mates whose
+/// two members both live in this space are minted: nothing outside an
+/// unplaced group is compared with it.
+///
+/// # Errors
+///
+/// [`product_recorded`]'s.
+pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    tol: Tol,
+    space: Option<RecipeNodeId>,
+) -> Result<Product<T>, ProductError> {
     #[cfg(debug_assertions)]
     GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
     // The pairing door (DI3), before the first root is read: this
@@ -888,6 +909,9 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     let mut sources: Vec<Source<T>> = Vec::new();
     let mut any_body_denoting = false;
     for &node in doc.roots() {
+        if evaluation.unplaced.get(&node).map(|(group, _)| *group) != space {
+            continue;
+        }
         let value = evaluation.usable(node).map_err(ProductError::Root)?;
         let Some(bodies) = sources_of(value) else {
             continue;
@@ -999,7 +1023,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // the FINISHED name table, and the aggregate's own at-rest verdict
     // is about geometry, so a product that is not a body at all
     // refuses before any mate is read.
-    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts);
+    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts, space);
     Ok(Product {
         document: doc.id(),
         body: aggregate,

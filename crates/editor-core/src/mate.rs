@@ -337,8 +337,8 @@ impl Alignment {
     }
 
     /// Whether every authored coordinate is finite — the edit door's
-    /// admission test, the placement registry's rule applied one level
-    /// out (a non-finite alignment could never decide anything).
+    /// admission test (a non-finite alignment could never decide
+    /// anything).
     pub fn is_finite(&self) -> bool {
         let finite = |v: &[f64; 3]| v.iter().all(|x| x.is_finite());
         let frame = |f: &MateFrame| finite(&f.origin) && finite(&f.axis) && finite(&f.reference);
@@ -1038,11 +1038,7 @@ impl core::fmt::Display for OffsetCheck {
 
 /// The measurement a refusal quotes, as the tail of its sentence:
 /// what was measured where `there` would have had to hold.
-fn write_clash(
-    f: &mut core::fmt::Formatter<'_>,
-    clash: Clash,
-    there: &str,
-) -> core::fmt::Result {
+fn write_clash(f: &mut core::fmt::Formatter<'_>, clash: Clash, there: &str) -> core::fmt::Result {
     match clash {
         Clash::Structural => write!(
             f,
@@ -1293,7 +1289,11 @@ impl core::fmt::Display for MateFault {
                      instance {}: predicate `{predicate}` ",
                     instance.0, root.0
                 )?;
-                write_clash(f, *clash, "the offset and the solve would have had to agree")?;
+                write_clash(
+                    f,
+                    *clash,
+                    "the offset and the solve would have had to agree",
+                )?;
                 write!(f, " — {OFFSET_RECOURSE}")
             }
             Self::OffsetUnchecked { instance, cause } => write!(

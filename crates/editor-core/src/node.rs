@@ -3876,9 +3876,9 @@ impl<P> Node<P> {
         if frames.is_empty() {
             return Some(PlacementRuleFault::NoPlacements);
         }
-        // A11/A6 parity: a placement frame is held to exactly what
-        // `SetPlacement` holds a cluster frame to, because it is held
-        // to it by the same predicate — `Frame::admission_fault`, whose
+        // A6 parity: a listed frame is held to exactly what a
+        // placement's literal step is held to, because it is held to
+        // it by the same predicate — `Frame::admission_fault`, whose
         // home is the frame. This arm says only WHICH frame in the list
         // answered. Checked HERE so the refusal lands at the edit door
         // with the best diagnostics, not at the kernel's rigidity

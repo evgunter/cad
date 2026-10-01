@@ -168,10 +168,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     pub poses: &'a crate::mate::SolvedPoses,
     /// The nodes whose inputs lie in two spaces, each naming the
     /// unplaced group it would compare (`mate::solve::spaces_of`).
-    pub across: &'a std::collections::BTreeMap<
-        RecipeNodeId,
-        (RecipeNodeId, crate::mate::Unplaced),
-    >,
+    pub across: &'a std::collections::BTreeMap<RecipeNodeId, (RecipeNodeId, crate::mate::Unplaced)>,
     /// Where profile geometry comes from, and over which environment.
     pub lane: LaneEnv<'a, T>,
 }
@@ -400,9 +397,8 @@ pub(crate) fn instance_frame<T: Decide>(
     if let crate::mate::Space::Own { .. } = space {
         return Ok(Some(crate::placement::Motion::Identity));
     }
-    let band = geom_core::predicate::Band::linear(tol).map_err(|error| {
-        NodeErrorKind::Mate(Box::new(crate::mate::MateFault::Band { error }))
-    })?;
+    let band = geom_core::predicate::Band::linear(tol)
+        .map_err(|error| NodeErrorKind::Mate(Box::new(crate::mate::MateFault::Band { error })))?;
     crate::mate::solve::group_frame(doc, root, env, band)
         .map(Some)
         .map_err(|(node, error)| NodeErrorKind::PlacementRefused {

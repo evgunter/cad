@@ -171,7 +171,7 @@ impl Frame {
     /// [`NodeErrorKind::NonFiniteDirection`],
     /// [`NodeErrorKind::UnderflowedDirection`],
     /// [`NodeErrorKind::Escalated`]). [`crate::EditError::PlacementAxis`]
-    /// is what carries it through the `SetPlacement` door.
+    /// is what carries it through the `SetOffset` door.
     pub fn rotate_then_translate(
         axis: [f64; 3],
         angle: f64,
@@ -369,9 +369,7 @@ impl Frame {
 
 /// What makes a [`Frame`] inadmissible as a placement
 /// ([`Frame::admission_fault`]) — one vocabulary, and one SENTENCE, for
-/// every door that admits a frame. Public because the load door
-/// carries it out on [`crate::PersistError::MaintenanceFrame`], for a
-/// recorded maintenance row held to the same rule.
+/// every door that admits a frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FrameFault {
     /// A coordinate that is not a number: no predicate downstream can
@@ -918,11 +916,10 @@ mod tests {
     /// The teeth are the `is_identity_bits` assertions, and the
     /// fixtures under them must perturb the identity in BOTH PARTS —
     /// a translation-only set leaves a linear-part snap green, and a
-    /// linear-part snap is the one that silently changes an answer:
-    /// `mate::solve`'s `reconcile` branches on
-    /// `relative.is_identity_bits()` and its `true` arm DISCARDS the
-    /// solved relative pose, so a root that rotated by a hair would
-    /// read as "did not move".
+    /// linear-part snap is the one that silently changes an answer: a
+    /// solved pose composes through [`Frame::motion`], whose identity
+    /// arm DISCARDS the pose, so an instance that rotated by a hair
+    /// would read as "did not move".
     ///
     /// Each of the four is one representable step from the identity —
     /// a signed zero, a subnormal, an off-diagonal subnormal, and the

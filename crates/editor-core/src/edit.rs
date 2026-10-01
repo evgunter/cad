@@ -13,8 +13,8 @@
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::{Distribution, DistributionFault};
 use crate::doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, NameCarrier, ParamName,
-    GaugeRefFault, ParamRefFault, WitnessSiteFault,
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, GaugeRefFault,
+    NameCarrier, ParamName, ParamRefFault, WitnessSiteFault,
 };
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
@@ -1289,9 +1289,9 @@ pub enum EditError {
         /// The direction door's refusal, unaltered.
         error: crate::eval::NodeRefusal,
     },
-    /// A mate's alignment datum carries a non-finite coordinate. The
-    /// placement registry's own rule, one level out: an authored frame
-    /// nothing can decide about never enters the document.
+    /// A mate's alignment datum carries a non-finite coordinate: an
+    /// authored frame nothing can decide about never enters the
+    /// document.
     NonFiniteAlignment {
         /// The mate being inserted.
         node: RecipeNodeId,
@@ -3248,6 +3248,46 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
     Ok(())
 }
 
+/// **"Copy x's gauge to y, then mate"** (A11 (2)): the edits that put
+/// every member of the group the mate's `b` side reads onto the gauge
+/// its `a` side's instance sits on, then insert the mate — which then
+/// places, and joins the two groups ([`DocEdit::InsertNode`]'s mate
+/// door clears `b`'s group root's offset). One compound edit: the
+/// caller applies the list in order, and atomicity is applying all of
+/// it, as for [`cascade_delete_order`].
+///
+/// The answer is the bare insert when the two sides already share a
+/// gauge, when a side resolves to no member — the insert door then
+/// refuses the mate in its own words — and for a node that is not a
+/// mate, which has no gauge to copy. Nothing is applied here.
+pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    mate: Node<P>,
+) -> Vec<DocEdit<P>> {
+    let mut edits = Vec::new();
+    if let Node::Mate { a, b, .. } = &mate
+        && let (Some(ma), Some(mb)) = (
+            crate::mate::member_of(doc, a),
+            crate::mate::member_of(doc, b),
+        )
+    {
+        let gauge = doc.node(ma.instance).and_then(Node::gauge_ref);
+        let groups = crate::mate::groups(doc);
+        if let Some(group) = groups.iter().find(|g| g.contains(&mb.instance)) {
+            for &member in group {
+                if doc.node(member).and_then(Node::gauge_ref) != gauge {
+                    edits.push(DocEdit::SetGauge {
+                        node: member,
+                        gauge,
+                    });
+                }
+            }
+        }
+    }
+    edits.push(DocEdit::InsertNode { node: mate });
+    edits
+}
+
 /// The nodes a cascading delete of `id` must remove, ordered so that
 /// [`DocEdit::DeleteNode`] accepts every one of them in turn:
 /// consumers first, `id` last.
@@ -3940,7 +3980,9 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
             }
             check_gauge_ref(&new, *node, *gauge)?;
             match new.nodes.get_mut(node) {
-                Some(Node::InstantiatePart { gauge: held, .. } | Node::Gauge { parent: held, .. }) => {
+                Some(
+                    Node::InstantiatePart { gauge: held, .. } | Node::Gauge { parent: held, .. },
+                ) => {
                     *held = *gauge;
                 }
                 _ => unreachable!("node {} was checked an instance or a gauge above", node.0),
@@ -4220,7 +4262,11 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// # Errors
     ///
     /// [`apply_replayed`]'s.
-    pub fn replay(id: crate::DocumentId, log: &[DocEdit<P>], tol: Tol) -> Result<Doc<P>, EditError> {
+    pub fn replay(
+        id: crate::DocumentId,
+        log: &[DocEdit<P>],
+        tol: Tol,
+    ) -> Result<Doc<P>, EditError> {
         let mut doc = Doc::empty(id, tol);
         for edit in log {
             doc = apply_replayed(&doc, edit, tol)?.doc;

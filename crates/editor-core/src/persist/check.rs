@@ -1604,7 +1604,6 @@ mod tests {
         /// against [`WALKS_IN_CALL_ORDER`] in both directions.
         const WALK: Walk = [
             NonFinite,
-            MaintenanceFrame,
             Distribution,
             DisplayUnit,
             SlotDimension,
@@ -1623,11 +1622,7 @@ mod tests {
     /// or this does not compile.
     const fn raises_snapshot_error(walk: Walk) -> bool {
         match walk {
-            Walk::NonFinite
-            | Walk::MaintenanceFrame
-            | Walk::Distribution
-            | Walk::DisplayUnit
-            | Walk::Program => false,
+            Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
             Walk::SlotDimension | Walk::SlotParamRef | Walk::PayloadParamRef | Walk::Snapshot => {
                 true
             }

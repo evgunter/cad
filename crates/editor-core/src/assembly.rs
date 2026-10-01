@@ -830,7 +830,20 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
 ) -> Result<Assembly<T>, AssemblyError> {
     let product =
         product_recorded(doc, evaluation, tol).map_err(|e| AssemblyError::Product(Box::new(e)))?;
-    assemble_gathered(product, tol)
+    let assembly = assemble_gathered(product, tol)?;
+    // Each unplaced group checks as usual inside its own space, and
+    // against nothing outside it (A11 (2)).
+    let groups: std::collections::BTreeSet<RecipeNodeId> = evaluation
+        .unplaced
+        .values()
+        .map(|(group, _)| *group)
+        .collect();
+    for group in groups {
+        let product = crate::product::product_in(doc, evaluation, tol, Some(group))
+            .map_err(|e| AssemblyError::Product(Box::new(e)))?;
+        assemble_gathered(product, tol)?;
+    }
+    Ok(assembly)
 }
 
 /// **The A5 gate over a product the caller already gathered** — the
@@ -964,13 +977,33 @@ pub(crate) fn mint<P, T: Decide>(
     evaluation: &Evaluation<T>,
     names: &NameTable,
     contacts: &mut ContactRecords,
+    space: Option<RecipeNodeId>,
 ) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
     let mut unminted = Vec::new();
+    // The space a member lives in: its instance's.
+    let space_of = |r: &crate::node::SitedFace| {
+        crate::mate::member_of(doc, r).map(|m| {
+            evaluation
+                .unplaced
+                .get(&m.instance)
+                .map(|(group, _)| *group)
+        })
+    };
     for &id in doc.order() {
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
             continue;
         };
+        // Only a mate whose two members live in the gathered space
+        // states anything about it (A9): a mate across spaces compares
+        // nothing, and one in another space is that space's gather's.
+        // A head that resolves to no member is minted wherever it is
+        // asked, so its refusal is the gather's to raise, in the world.
+        match (space_of(a), space_of(b)) {
+            (Some(sa), Some(sb)) if sa == space && sb == space => {}
+            (None, _) | (_, None) if space.is_none() => {}
+            _ => continue,
+        }
         // A mate that is not a live value of this evaluation declares
         // nothing here (see the doc comment).
         if !evaluation

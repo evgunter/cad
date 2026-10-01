@@ -7,9 +7,9 @@
 //! recipe into the host and deletes the instance. Both are PURE
 //! functions returning new document values, the ordinary recorded
 //! [`DocEdit`]s that produce them, and the [`crate::Maintenance`]
-//! those edits performed — the cluster-record acts the mate graph's
-//! motion forced, and the payload names a departing cut node
-//! stranded. The input documents are untouched,
+//! those edits reported — the payload names a departing cut node
+//! stranded, and the offset a spliced mate's door cleared. The input
+//! documents are untouched,
 //! so undo is this layer's undo everywhere else: keeping the prior
 //! value. There is no compound edit arm; atomicity is purity (no
 //! partially-refactored document is ever observable).
@@ -20,38 +20,40 @@
 //! an edge with exactly one endpoint in the cut is a severed consuming
 //! edge, refused typed naming the edge. (Closure under inputs is A4's
 //! "ancestor-closed"; closure under consumers is what makes every cut
-//! sink a document sink, i.e. an A10 root.) The cut must also be a
-//! union of whole placement groups — vacuously true in the mate-less
-//! v1, where every instantiate node is its own singleton group
-//! (A11), and re-checked for real when mates land.
+//! sink a document sink, i.e. an A10 root.)
 //!
-//! # Placements move with the cut (A11), one frame is hoisted
+//! # Gauges and offsets cross the seam (A4)
 //!
-//! The cut must be a union of WHOLE placement groups — a torn
-//! group refuses [`SplitError::TornGroup`], because A11 puts the
-//! frame on the group and a torn one has one frame and two homes.
-//! When the cut is EXACTLY one placement group — its instances and
-//! the mates holding them together, nothing else (ASM-4 D-2 rider ii,
-//! re-keyed by ASM-R2a now that mates make a group multi-node) — its
-//! frame is HOISTED: the part document holds the copy
-//! unplaced (identity) and the remainder's new instance is placed at
-//! the group's old frame — D-2's "placed at the group's old
-//! frame", and the shape a reusable part wants (its world pose belongs
-//! to the assembly). Every other cut moves its recorded placements
-//! into the part document VERBATIM and leaves the remainder instance
-//! at identity — the cut material's world pose is baked into its own
-//! recipe and placements, so identity IS its old frame. Both shapes
-//! make the A4 acceptance identity exact: the identity placement
-//! fast-path re-materializes the moved material bit-for-bit, and
-//! [`crate::Frame::compose`]'s identity fast-paths give the inline
-//! round trip back the original frames with zero arithmetic.
+//! The cut must be a union of WHOLE placement groups — a torn group
+//! refuses [`SplitError::TornGroup`] — so a placing mate never crosses
+//! it. Every gauge reference leaving the cut lands on ONE anchor, a
+//! kept gauge or the world ([`SplitError::TwoAnchors`]), and the
+//! instance left behind names it. The cut's one placed thing gives
+//! that instance its offset: a cut that is exactly one placed group —
+//! its instances and the mates holding them, nothing else — HOISTS its
+//! root's offset onto the instance and lands the root at the empty
+//! chain in the part, the shape a reusable part wants; any other cut
+//! moves verbatim and the instance sits at the empty offset. Neither
+//! computes a frame: an offset is moved as the chain it is.
+//!
+//! [`inline`] is the inverse. At the empty offset the part's content
+//! lands on the instance's gauge verbatim; a part that is one group
+//! rooted at the empty chain on its world has its root take the
+//! instance's offset. A mate side crosses the seam only where its
+//! coordinates do not change — the instance it reads is its group's
+//! root, on the part's world, at the empty chain — and the placing
+//! mates of one pair must still read one pair (A4's frame and fold
+//! rules). The shapes A4 builds with a minted gauge — a cut holding a
+//! gauge, an inline at an offset over any other part — refuse typed
+//! until that is built ([`SplitError::CutHoldsGauge`],
+//! [`InlineError::NeedsAGauge`]).
 //!
 //! The remainder receives ONE `InstantiatePart` for the whole cut
 //! (the D-2 amendment, adjudicated at review ordinal 40): each
 //! remainder instance materializes the ENTIRE new document's product,
 //! so per-group instances of one pinned document would duplicate
 //! every other group's material N times. The single instance carries
-//! all cut groups at their moved placements. Consequence (amendment
+//! every cut group where it sat. Consequence (amendment
 //! rider i): the cut roots COLLAPSE onto the instance's root-list
 //! position, so `inline(split(d))` restores the root SET and the
 //! spliced block's relative order but NOT the original interleaving of
@@ -80,17 +82,14 @@
 //!
 //! # Interface records
 //!
-//! A mate EDGE whose two ends land on opposite sides of the cut would
-//! become one [`crate::InterfaceCrossing::Mate`] entry in the
-//! remainder instance's [`crate::InterfaceRecord`] (ASM-R2b D-4, the
-//! hook ASM-4 left) — but **no accepted cut puts them there, so split
-//! always mints the EMPTY record**. The cut rules make it unreachable:
-//! an edge welds its two members into one placement group and
-//! `TornGroup` refuses to tear one. The collector below carries the
-//! argument in full; the door that would make a crossing reachable is
-//! banked as ASM-XSPLIT. A mate that is not an edge — a dangling or
-//! nested-pattern head — contributes nothing however its names fall,
-//! and that one IS reachable: the gate is what skips it.
+//! A mate EDGE whose two ends land on opposite sides of the cut is one
+//! [`crate::InterfaceCrossing::Mate`] entry in the remainder
+//! instance's [`crate::InterfaceRecord`] (ASM-R2b D-4; AQ8). A PLACING
+//! mate never crosses — it welds its members into one group and
+//! `TornGroup` refuses to tear one — so every crossing is a declaring
+//! mate, its ends on different gauges. A mate that is not an edge — a
+//! dangling or nested-pattern head — contributes nothing however its
+//! names fall: the gate is what skips it.
 //!
 //! # Determinism (D6/D9)
 //!
@@ -604,7 +603,10 @@ impl core::fmt::Display for SplitError {
                 f,
                 "split: instance {i} carries an offset beside its group's root, which the \
                  split lands at the empty offset, so the statement would not hold. {}",
-                Recourse(&format!("clear instance {i}'s offset (SetOffset), then split", i = instance.0)),
+                Recourse(&format!(
+                    "clear instance {i}'s offset (SetOffset), then split",
+                    i = instance.0
+                )),
                 i = instance.0
             ),
             Self::PartIdCollides { id } => write!(
@@ -927,15 +929,17 @@ impl core::fmt::Display for InlineError {
                 f,
                 "inline: the instance sits off the world's origin, but part root {} is plain \
                  recipe geometry, which sits on no gauge — the frame is not expressible \
-                 locally"
-                ,
+                 locally",
                 root.0
             ),
             Self::MatePlaced { instance } => write!(
                 f,
                 "inline: instance {i} carries no offset of its own, so where it sits is a \
                  solve result the splice cannot state. {}",
-                Recourse(&format!("give instance {i} an offset (SetOffset), then inline", i = instance.0)),
+                Recourse(&format!(
+                    "give instance {i} an offset (SetOffset), then inline",
+                    i = instance.0
+                )),
                 i = instance.0
             ),
             Self::Unplaced { instance, cause } => write!(
@@ -1181,14 +1185,9 @@ pub struct SplitOutcome {
     pub part: ProfileDoc,
     /// The recorded edits producing `remainder` from the input.
     pub remainder_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance `remainder_edits` performed, in edit order
-    /// ([`Maintenance`]): what the A11 registry did as the cut's names
-    /// re-anchored onto the instance (a kept mate that welded nothing
-    /// while its far end was a local body welds the instance to its
-    /// near end once the name is instance-qualified — a join) and as
-    /// the cut nodes left (a cut group's mates and members going is
-    /// its splits and drops), and every payload name a departing cut
-    /// node stranded behind it (DM7). An accepted edit travels whole, so the
+    /// The maintenance `remainder_edits` reported, in edit order
+    /// ([`Maintenance`]): every payload name a departing cut node
+    /// stranded behind it (DM7). An accepted edit travels whole, so the
     /// outcome carries what its edits DID beside what they produced: a
     /// caller holding a document with the maintenance of its last
     /// accepted edit swaps `remainder` and this in together.
@@ -1196,14 +1195,9 @@ pub struct SplitOutcome {
     /// The recorded edits producing `part` from
     /// `Doc::empty(part_id)`.
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance `part_edits` performed, in edit order
-    /// ([`Maintenance`]). The part is built by inserting the cut nodes, and a cut
-    /// mate welds its two members as it lands, so a multi-member
-    /// group cut whole re-forms in the part as one join per mate
-    /// that welded two groups still separate when it landed. That
-    /// insert is the one part-side edit that moves a mate graph: the
-    /// tolerance, parameter, witness, placement and root edits
-    /// reconcile nothing.
+    /// The maintenance `part_edits` reported, in edit order
+    /// ([`Maintenance`]): a cut mate that joins two groups as it lands
+    /// clears the joined root's offset, as at every mate insert.
     pub part_maintenance: Vec<Maintenance>,
     /// The remainder's new instantiate node.
     pub instance: RecipeNodeId,
@@ -1225,13 +1219,10 @@ pub struct InlineOutcome {
     pub doc: ProfileDoc,
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
-    /// The maintenance `edits` performed, in edit order
-    /// ([`Maintenance`]): the part's mates weld their spliced members
-    /// as they land, a wrapped name's re-anchoring moves what the
-    /// instance
-    /// welded onto the spliced node (a split, where the spliced node
-    /// is no member), and the instance's delete drops or re-keys its
-    /// group's row. An accepted edit travels whole; a caller holding
+    /// The maintenance `edits` reported, in edit order
+    /// ([`Maintenance`]): a spliced mate that joins two groups as it
+    /// lands clears the joined root's offset, as at every mate insert.
+    /// An accepted edit travels whole; a caller holding
     /// a document with the maintenance of its last accepted edit swaps
     /// `doc` and this in together.
     pub maintenance: Vec<Maintenance>,
@@ -1954,7 +1945,11 @@ pub fn split(
     }
     let anchor = anchor.flatten();
     // The cut groups, each with its root and why it is unplaced.
-    let cut_groups: Vec<(&Vec<RecipeNodeId>, RecipeNodeId, Option<crate::mate::Unplaced>)> = groups
+    let cut_groups: Vec<(
+        &Vec<RecipeNodeId>,
+        RecipeNodeId,
+        Option<crate::mate::Unplaced>,
+    )> = groups
         .iter()
         .filter(|members| members.iter().any(|m| cut.contains(m)))
         .map(|members| {
@@ -2043,8 +2038,10 @@ pub fn split(
         let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
             continue;
         };
-        let (Some(ma), Some(mb)) = (crate::mate::member_of(doc, a), crate::mate::member_of(doc, b))
-        else {
+        let (Some(ma), Some(mb)) = (
+            crate::mate::member_of(doc, a),
+            crate::mate::member_of(doc, b),
+        ) else {
             continue;
         };
         for (side, inner, outer) in [
@@ -2057,7 +2054,9 @@ pub fn split(
             if doc.node(outer.instance).and_then(Node::gauge_ref) == anchor {
                 return Err(SplitError::WouldStartPlacing { mate });
             }
-            if !inner.copy.is_empty() || inner.at != inner.instance || !root_lands_empty(inner.instance)
+            if !inner.copy.is_empty()
+                || inner.at != inner.instance
+                || !root_lands_empty(inner.instance)
             {
                 return Err(SplitError::MateFrameCrosses { mate, side });
             }
@@ -2222,14 +2221,13 @@ pub fn split(
     let to_part_world = |_: Option<RecipeNodeId>| Ok(None);
     for &old in doc.order().iter().filter(|id| cut.contains(id)) {
         let Some(node) = doc.node(old) else { continue };
-        let mut node = remap_node(node, &node_map, &step_map, &to_part_world).map_err(
-            |miss| match miss {
+        let mut node =
+            remap_node(node, &node_map, &step_map, &to_part_world).map_err(|miss| match miss {
                 RemapMiss::Input(input) => SplitError::PartEdit {
                     error: Box::new(EditError::UnresolvedInput { input }),
                 },
                 RemapMiss::Name { name, missing } => SplitError::reaches(old, name, missing),
-            },
-        )?;
+            })?;
         // The hoist lands the root at the empty chain.
         if let (Some((_, root)), Node::InstantiatePart { offset, .. }) = (hoisted, &mut node)
             && root == old
@@ -2287,13 +2285,12 @@ pub fn split(
     // ITSELF, not a re-spelling of it: this collector, A12's reading
     // edges and A11's groups ask ONE predicate.
     //
-    // # Why no accepted cut reaches this record
+    // # Which mates cross
     //
-    // The record is unreachable, and predicate identity alone does not
-    // establish that — the loop below tests NAMES
-    // (`derivation_nodes ⊆ cut`) while the group precondition tests
-    // INSTANCES. Three facts carry the argument, and the second is the
-    // one that ties those two readings together:
+    // A crossing is a DECLARING mate: a placing one welds its members
+    // into one group, and `TornGroup` above refused any cut that is not
+    // a union of whole groups. Three facts make the name reading below
+    // agree with that instance reading:
     //
     // 1. `Node::Mate::payload_names()` is exactly `[a, b]`, so a kept
     //    mate's two references are classified above: each is wholly
@@ -2305,19 +2302,14 @@ pub fn split(
     //    input instance on the other: `pattern ∈ cut` iff
     //    `pattern.input ∈ cut`. A pattern-placed head's derivation
     //    nodes and the MEMBER it resolves to therefore always land on
-    //    the same side, which is what makes (1)'s name reading agree
-    //    with the group precondition's instance reading. For a plain
-    //    head the two are the same node and this is trivial.
-    // 3. An edge's two members are welded into one placement group
-    //    (`mate::groups`, on this same predicate), and `TornGroup`
-    //    above refuses any cut that is not a union of WHOLE groups.
+    //    the same side. For a plain head the two are the same node.
+    // 3. A placing edge's two members are welded into one group, which
+    //    lies wholly on one side.
     //
-    // Together: an edge's two ends are never on opposite sides of an
-    // accepted cut, so this loop mints nothing for one and the record
-    // is ALWAYS empty. Remove any one of the three and the argument
-    // fails. The conversion door that would make a crossing reachable
-    // is banked as ASM-XSPLIT. Exhausted over every subset of two
-    // recipes in `rev_fix_xsplit_unreachable.rs`.
+    // So a mate this loop records is one whose ends sit on different
+    // gauges — exactly the declarations AQ8 says the record carries.
+    // `rev_fix_xsplit_unreachable.rs` exhausts the placing half over
+    // every subset of two recipes.
     //
     // A mate with a DANGLING reference — one resolving to no member at
     // all — is not an edge and contributes NO crossing, however its
@@ -2446,8 +2438,8 @@ pub fn split(
     // A10 on the remainder: the instance takes the FIRST cut root's
     // list position (the cut material's product order collapses onto
     // the instance); A10's automatic root-list bookkeeping appended it
-    // instead — the list's own move, not one of the A11 cluster-record
-    // acts the outcome's `maintenance` fields hold.
+    // instead — the list's own move, which the outcome's `maintenance`
+    // fields do not report.
     let mut desired: Vec<RecipeNodeId> = Vec::new();
     let mut placed = false;
     for &r in doc.roots() {
@@ -2582,14 +2574,17 @@ pub fn inline(
     }
     // The part's groups, each with its root, read once for the shape
     // and for the frame rule below.
-    let part_groups: Vec<(Vec<RecipeNodeId>, RecipeNodeId, Option<crate::mate::Unplaced>)> =
-        crate::mate::groups(&part)
-            .into_iter()
-            .map(|members| {
-                let (root, cause) = crate::mate::solve::root_and_cause(&part, &members);
-                (members, root, cause)
-            })
-            .collect();
+    let part_groups: Vec<(
+        Vec<RecipeNodeId>,
+        RecipeNodeId,
+        Option<crate::mate::Unplaced>,
+    )> = crate::mate::groups(&part)
+        .into_iter()
+        .map(|members| {
+            let (root, cause) = crate::mate::solve::root_and_cause(&part, &members);
+            (members, root, cause)
+        })
+        .collect();
     let at_the_empty_chain = |id: RecipeNodeId| {
         matches!(
             part.node(id),
@@ -2656,9 +2651,9 @@ pub fn inline(
             if here.name.node != instance {
                 continue;
             }
-            let inner = FaceName::new((**of).clone())
-                .ok()
-                .and_then(|face| crate::mate::member_of(&part, &crate::node::SitedFace::at_mint(face)));
+            let inner = FaceName::new((**of).clone()).ok().and_then(|face| {
+                crate::mate::member_of(&part, &crate::node::SitedFace::at_mint(face))
+            });
             let Some(inner) = inner.filter(|m| {
                 m.copy.is_empty() && m.at == m.instance && part_root_at_empty(m.instance)
             }) else {
