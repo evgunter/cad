@@ -931,3 +931,35 @@ fn r1_the_flush_detector_compares_an_unplaced_group_with_the_world() {
         "a flush finding across spaces: {found:?}"
     );
 }
+
+/// **The compound door over a first operand that already DECLARES a
+/// mate to a part on the target gauge.** c and b are bases on gauge
+/// g, each at its own offset; a1 (a top on the world) declares a seat
+/// on c. "Copy b's gauge to a1, then mate a1 to b": the re-gauge turns
+/// the a1–c mate into a placing one before the insert reads the groups.
+#[test]
+fn r1_the_compound_door_when_the_mover_declares_onto_the_target_gauge() {
+    let p = parts("r1-compound-declare");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-compound-declare"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, Placement::literal(&Frame::translation([0.0, 0.0, 0.0]))));
+    let (doc, c) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let doc = set_gauge(doc, c, Some(g));
+    let doc = set_offset(doc, c, Some(Placement::literal(&Frame::translation([20.0, 0.0, 0.0]))));
+    let (doc, b) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let doc = set_gauge(doc, b, Some(g));
+    let (doc, a1) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, m1) = insert(doc, seat(head(p.top_cap(a1)), head(p.base_cap(c))));
+    let before_c = solve(&doc, &o, Tol::witness()).placement(&doc, c).unwrap().translation;
+    assert_eq!(solve(&doc, &o, Tol::witness()).role(m1), Some(editor_core::MateRole::Declaring));
+    let mut done = doc;
+    for edit in editor_core::regauge_then_mate(&done.clone(), seat(head(p.top_cap(a1)), head(p.base_cap(b)))) {
+        let applied = editor_core::apply(&done, &edit, Tol::witness(), &editor_core::RefusingReach).unwrap();
+        eprintln!("{:?} -> maintenance {:?}", std::mem::discriminant(&edit), applied.maintenance);
+        done = applied.doc;
+    }
+    let poses = solve(&done, &o, Tol::witness());
+    eprintln!("m1 role {:?}; offsets c {:?} b {:?} a1 {:?}", poses.role(m1), offset_of(&done, c).is_some(), offset_of(&done, b).is_some(), offset_of(&done, a1).is_some());
+    eprintln!("faults c {:?} a1 {:?} m1 {:?}", poses.fault(c), poses.fault(a1), poses.fault(m1));
+    eprintln!("c before {before_c:?} after {:?}", poses.placement(&done, c).map(|f| f.translation));
+}

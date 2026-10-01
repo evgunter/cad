@@ -1,0 +1,79 @@
+"""place2-r1: one A∘F∘B row through Python, against an independent composition."""
+import math
+import shutil
+import sys
+import tempfile
+
+sys.path.insert(0, "/home/user/place2-r1/crates/pncad-py/tests")
+import bench_scene  # noqa: E402
+from pncad import (  # noqa: E402
+    CapEnd, ContactClass, Doc, DocEdit, Frame, Node, Placement, Workspace, m, rad,
+    solve_document,
+)
+
+
+def mat(f):
+    c = f.columns  # columns[j] = image of basis j
+    o = [x.meters for x in f.origin]
+    return [[c[0][i], c[1][i], c[2][i], o[i]] for i in range(3)] + [[0, 0, 0, 1]]
+
+
+def mul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+
+def rz(t, v):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0, v[0]], [s, c, 0, v[1]], [0, 0, 1, v[2]], [0, 0, 0, 1]]
+
+
+def tr(v):
+    return rz(0.0, v)
+
+
+def gap(a, b):
+    return max(abs(a[i][j] - b[i][j]) for i in range(3) for j in range(4))
+
+
+d = tempfile.mkdtemp()
+try:
+    ws = Workspace(d)
+    (post_doc, post_ref), (_, shelf_ref) = bench_scene.parts(ws)
+    post_cap = bench_scene.part_cap(post_doc, CapEnd.End)
+
+    def seat(doc, post, shelf):
+        return Node.mate(
+            shelf, bench_scene.instance_face(ws, doc, shelf, CapEnd.Start),
+            post, bench_scene.instance_face(ws, doc, post, CapEnd.End),
+            ContactClass.Rest,
+            bench_scene.seat(*bench_scene.STAND_SEATS[0], post_cap=post_cap),
+        )
+
+    # Control: post at the world identity, shelf seated.
+    c = Doc("r1-py-control")
+    cp = c.insert(Node.instantiate_part(post_ref))
+    cs = c.insert(Node.instantiate_part(shelf_ref))
+    c.insert(seat(c, cp, cs), resolver=ws)
+    rel = mat(solve_document(c, resolver=ws).placement(c, cs))
+
+    doc = Doc("r1-py-afb")
+    outer_f = Frame.rotate_then_translate((0.0, 0.0, 1.0), 0.25 * rad, (0 * m, 0 * m, 2 * m))
+    outer = doc.insert(Node.gauge(Placement.literal(outer_f)))
+    inner = doc.insert(Node.gauge(Placement.literal(Frame.translation((5 * m, 0 * m, 0 * m))), outer))
+    post = doc.insert(Node.instantiate_part(post_ref))
+    shelf = doc.insert(Node.instantiate_part(shelf_ref))
+    doc.apply(DocEdit.set_gauge(post, inner))
+    doc.apply(DocEdit.set_gauge(shelf, inner))
+    off_f = Frame.rotate_then_translate((0.0, 0.0, 1.0), 0.3 * rad, (1 * m, 2 * m, 0 * m))
+    doc.apply(DocEdit.set_offset(post, Placement.literal(off_f)))
+    doc.insert(seat(doc, post, shelf), resolver=ws)
+    poses = solve_document(doc, resolver=ws)
+    w_post = mul(mul(rz(0.25, (0, 0, 2)), tr((5, 0, 0))), rz(0.3, (1, 2, 0)))
+    w_shelf = mul(w_post, rel)
+    g_post = gap(mat(poses.placement(doc, post)), w_post)
+    g_shelf = gap(mat(poses.placement(doc, shelf)), w_shelf)
+    print("post gap", g_post, "shelf gap", g_shelf)
+    assert g_post < 1e-12 and g_shelf < 1e-12
+    print("python A∘F∘B row: OK")
+finally:
+    shutil.rmtree(d, True)
