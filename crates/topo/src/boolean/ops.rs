@@ -1333,13 +1333,15 @@ pub(super) fn merge_rows(
 /// sign is decided or every face reaches the last round every lane runs
 /// (`geom_brep::props::quad::LAST_ROUND_EVERY_LANE_RUNS`).
 ///
-/// There the rounds run out at a resolution: the quadrature's interval
-/// floor, measured on the oblique-capped rod (`r = 0.5`, cut 20° at
-/// `z = 3.5`, `tests/reach_volume_backstop.rs`) at 5.5e-10 m³ against
-/// a reporting half-width of 9.2e-7 m³, and growing with the body's
-/// size. What is still open is then metered as a boundary displacement
-/// — the margin's lower end over the two bodies' summed area — and
-/// decided against the model's own band: inside it, the open range is
+/// There the rounds run out at a resolution: the last round's
+/// half-width, measured on the oblique-capped rod (`r = 0.5`, cut 20° at
+/// `z = 3.5`, `sweep/tests/reach_volume_backstop.rs`) as ≈ 2.2e-10 m³
+/// of rule remainder whatever ε plus ≈ 0.55·ε m³ (7.7e-10 m³ at the
+/// default ε, against a reporting half-width of 9.2e-7 m³), the
+/// remainder growing with the body's size. What is still open is then
+/// metered as a boundary displacement — the margin's lower end over
+/// the two bodies' summed area — and decided against the model's own
+/// band: inside it, the open range is
 /// below the model's resolution and the bound is accepted as an
 /// in-band margin is (below); certified beyond it, the measurement
 /// cannot decide a question the model can tell apart, and the gate
@@ -1708,50 +1710,16 @@ pub(super) fn describe_minted_edges<T: Decide>(
         let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(corrupt());
         };
-        // Curved seam edges (M5 PR 9) keep their minted conic carrier
-        // and pin the witness at the carrier's mid parameter (the S2
-        // contract); planar chords keep the M3 line lane bit-
-        // identically (fresh chord carrier, lerp witness).
         let existing = body
             .get_curve_geom(edge_data.curve)
             .and_then(crate::null::CurveGeom::certified)
             .cloned();
-        let curved = existing
-            .as_ref()
-            .is_some_and(|c| !matches!(c.carrier(), geom::Curve3::Line { .. }));
-        let (witness, extent) = if curved {
-            let c = existing.as_ref().ok_or_else(corrupt)?;
-            let (t0, t1) = c.params();
-            let mid = c.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
-            (
-                mid,
-                geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1)),
-            )
-        } else {
-            (p0.lerp(p1, T::from_f64(0.5)), p0.distance(p1))
-        };
+        let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
+        let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
+        let (witness, extent) = (draft.witness, draft.extent);
         match geom_brep::classify_dihedral(surf1, surf2, witness, extent, band) {
             Ok(geom_brep::DihedralClass::Transverse) => {
-                let spec = if curved {
-                    let c = existing.as_ref().ok_or_else(corrupt)?;
-                    let (t0, t1) = c.params();
-                    geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeDescriptionSpec::Intersection {
-                            s1,
-                            s2,
-                            witness,
-                        },
-                        carrier: c.carrier().clone(),
-                        param_start: t0,
-                        param_end: t1,
-                    }
-                } else {
-                    let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                    spec.description =
-                        geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
-                    spec
-                };
-                body.set_edge_curve(edge, spec, tol)
+                body.set_edge_curve(edge, draft.into_spec(s1, s2), tol)
                     .map_err(|_| BooleanError::JoinDesync {
                         what: "minted-edge description failed certification",
                     })?;

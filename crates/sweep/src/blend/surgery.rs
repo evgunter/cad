@@ -2289,9 +2289,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 /// A link edge's midpoint (the trimline inward direction's anchor).
 fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<Point3<T>> {
     let e = body.get_edge(edge)?;
-    let c = body.get_curve_geom(e.curve)?.certified()?;
-    let (t0, t1) = c.params();
-    Some(c.carrier().eval((t0 + t1) * T::from_f64(0.5)))
+    Some(body.get_curve_geom(e.curve)?.certified()?.mid_point())
 }
 
 // ------------------------------------------------------------------
@@ -4104,7 +4102,7 @@ fn attach_contact<T: Decide + Bounds>(
         // rule's first-order gate in either surface order, and that
         // branch refuses it as the surgery contradicting its own
         // routing.
-        let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
+        let witness = curve.mid_point(t0, t1);
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
         // The band meets its support tangentially along the contact
@@ -4119,7 +4117,7 @@ fn attach_contact<T: Decide + Bounds>(
         // refuses typed at the door (D4 ¶3) — never silently either
         // side — and a transverse station refutes this branch's
         // smooth premise, refused as the invariant it breaks.
-        let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
+        let witness = curve.mid_point(t0, t1);
         let verdict = {
             let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
                 return Err(not_intact(

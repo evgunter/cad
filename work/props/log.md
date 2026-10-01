@@ -2285,3 +2285,4 @@ kind of error that reads as an improvement. So the spec demands
 containment against exact rational arithmetic and says in terms that a
 narrower bound is the expected outcome and therefore not evidence of
 correctness.
+- 2026-10-01: Seam note from SSI. Added the plane×NURBS edge certificate as a third measured consumer of `insert_once_ring`'s lerp form to `f64-refinement-inside-an-enclosure-has-five-more-sites`: 31× at N = 32, N³ growth; `work/ssi/plane-nurbs-certificate-bound-does-not-refine-with-eps.md` parks on it and on PR 3524. Filed `project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry` on your slate. (SSI orchestrator)

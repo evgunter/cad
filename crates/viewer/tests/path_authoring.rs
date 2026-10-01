@@ -27,8 +27,9 @@ use pncad::geom_core::Tol;
 use pncad::profile::{
     ArcData, ArcMode, ReplayErrorKind, SketchPlane, Step, Target, TargetKind, TipState, Verb,
 };
+use viewer::props::Notation;
 use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
-use viewer::sketch::{self, LoopEnd, Notation, PreviewError, admits_at, preview};
+use viewer::sketch::{self, LoopEnd, PreviewError, admits_at, preview};
 
 /// The flattening tolerance the rows read at — a tenth of a
 /// millimetre, fine enough that a circle's points land on it to well

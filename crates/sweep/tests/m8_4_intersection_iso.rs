@@ -210,7 +210,7 @@ fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::Surfac
         Err(topo::EulerOpError::Certification {
             error:
                 geom_brep::CertifyError::Escalated {
-                    check: geom_brep::CertCheck::PlaneNurbsCertificate,
+                    check: geom_brep::CertCheck::PlaneNurbsHull,
                     cause,
                     ..
                 },
