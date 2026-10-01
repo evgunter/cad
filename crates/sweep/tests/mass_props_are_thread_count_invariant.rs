@@ -309,6 +309,25 @@ fn digest() -> String {
 /// stage prefix and the face's key.** Only the text after `REFUSED`
 /// moves; the refusing face stays pinned, now by the line's own
 /// `at FaceKey(…)`, and no verdict, pad or count changes.
+///
+/// **Re-cut at all three ε when the certification schedule began
+/// assigning its end samples** (`geom_brep::schedule_param`: `t₀` and
+/// `t₁` themselves rather than `t₀ + (t₁ − t₀)·0` and `·1`). Only the
+/// `sym_thin_strip validate_geometric` row moves: 8 of its decisions
+/// discharge as structural zeros instead of numerically (`sz` 26 → 34,
+/// `num` 634 → 626 at every ε), and `frozen` falls 803 → 757 /
+/// 768 → 722 / 801 → 755 at ε = 1e-6 / 1e-9 / 1e-12. Decisions, shapes
+/// and the verdict are unchanged. The end sample is now the interval's
+/// own end exactly, so 8 end residuals take a form the session proves
+/// zero rather than one it rounds.
+///
+/// **Re-cut at all three ε when profile loops stopped storing a bulge
+/// beside each arc and the lifts began copying the stored carrier**
+/// (PATHS 5a, #3527). Only the `frozen` column of the two
+/// `validate_geometric` rows moves, and down: `sym_arc_loft`
+/// 656 → 654 / 570 → 568 / 641 → 638 and `sym_thin_strip`
+/// 757 → 754 / 722 → 719 / 755 → 752 at ε = 1e-6 / 1e-9 / 1e-12.
+/// Decisions, discharges, shapes and verdicts are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

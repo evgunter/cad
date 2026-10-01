@@ -60,10 +60,10 @@ A viewer-owned standing type was not taken, because the standing rides
 inside kernel containers (`Resolution`, `InterrogateError`) that the
 viewer's selection and tool values hold. The product gather is not
 re-attributed: `session.product_fault()` hands out the gather's own
-value, and only the at-rest badge's words are the tree's
-(`viewer::tree::product_refusal_wording`, which renders the root's
-standing re-read by `standing_as_drawn`, so the badge says "upstream"
-of a mate too).
+value, and no chrome surface draws its standing: the tree badges the
+refused root at its row, and the at-rest badge takes no verdict on a
+gather refusal (since 2026-10-01; before that it drew the root's
+standing re-read by `standing_as_drawn`).
 
 The question is a design one. Should `NodeStanding`, or a sibling
 reading on `Evaluation`, carry cross-placement blame, with its own

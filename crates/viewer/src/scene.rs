@@ -1243,7 +1243,7 @@ pub enum ProbeStop {
 /// document (dev profile, this lane): 87 ms to gather, against 2.4 ms
 /// to clone the body that gather produced. What that measurement
 /// decides, and why it carries no guard, is stated where the decision
-/// is (`session`'s `LandedRun::body`).
+/// is (`session`'s `Gathered::body`).
 ///
 /// # Errors
 ///

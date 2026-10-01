@@ -721,11 +721,10 @@ fn iso_curve_candidates(
                 continue;
             }
             // Not a rung condition: `boundary_iso_u` is a control-net
-            // copy, and the only refusal it can build is a weight on
-            // the extracted column that is not positive and finite —
-            // which `geom::NurbsSurface::new` already refuses of the
-            // whole net. Carried out to the ladder rather than read as
-            // "not this shape".
+            // copy whose refusals — a net that disagrees with its own
+            // knot vector, or a bad weight on the column — are what
+            // `geom::NurbsSurface::new` already refuses. Carried out to
+            // the ladder rather than read as "not this shape".
             let iso = geom_brep::boundary_iso_u(wp.as_ref(), end)?;
             // The column's `u` is the payload's own KNOT domain end
             // (#327), never a `[0, 1]` literal: an imported chart
@@ -1025,8 +1024,7 @@ fn arc_rim_on_wall_boundary(
         }
         let mut worst = 0.0f64;
         for i in 0..geom_brep::CERT_SAMPLES {
-            let f = f64::from(i) / f64::from(geom_brep::CERT_SAMPLES - 1);
-            let q = iso.eval(d0 + (d1 - d0) * f);
+            let q = iso.eval(geom_brep::sample_param(d0, d1, i));
             let w = q - center;
             // The axial component, bound by name (the tripwire note
             // in [`line_frame`], same shape).
@@ -1064,11 +1062,11 @@ enum ArcRimRefusal {
     /// meters. This is the gate's own verdict.
     Residual(f64),
     /// A wall boundary column would not re-wrap as a curve, so the
-    /// gate has no locus to meter the rim against. A weight on that
-    /// column is not a positive finite number — a state
-    /// `geom::NurbsSurface::new` refuses of the whole net, so no body
-    /// this reader assembles reaches it — and the refusal names the
-    /// offending weight rather than being reported as a rim
+    /// gate has no locus to meter the rim against. The wall's stored
+    /// net disagrees with its own knot vector or holds a bad weight on
+    /// that column — a state `geom::NurbsSurface::new` refuses, so no
+    /// body this reader assembles reaches it — and the refusal names
+    /// which invariant broke rather than being reported as a rim
     /// deviation.
     ChartRow(SplineError),
 }
@@ -1244,8 +1242,7 @@ fn carrier_on_surface(
         return false;
     }
     (0..geom_brep::CERT_SAMPLES).all(|i| {
-        let f = f64::from(i) / f64::from(geom_brep::CERT_SAMPLES - 1);
-        let p = carrier.eval(t0 + (t1 - t0) * f);
+        let p = carrier.eval(geom_brep::sample_param(t0, t1, i));
         ((p - origin).dot(normal) / n).abs() <= eps
     })
 }

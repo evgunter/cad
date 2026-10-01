@@ -111,6 +111,7 @@ fn the_f64_seam_answers_every_public_door() {
     // boundary refuses first, and that refusal is named so a change to
     // the LANE absence cannot hide behind it.
     let (mut fresh, cap) = box_with_approx_cap(d, 1e-9);
+    // Lifts both refusals: the cap's chart is the lane under test; its edges are not.
     fresh
         .set_face_surface_stranding_for_tests(
             cap,
@@ -126,6 +127,7 @@ fn the_f64_seam_answers_every_public_door() {
         other => panic!("the `f64` mint must not report the lane's absence: {other:?}"),
     }
     let (mut single, scap) = box_with_approx_cap(d, 1e-9);
+    // Lifts both refusals: the cap's chart is the lane under test; its edges are not.
     single
         .set_face_surface_stranding_for_tests(
             scap,
@@ -186,6 +188,7 @@ fn the_interval_seam_refuses_at_every_public_door() {
         })
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
+    // Lifts both refusals: the cap's chart is the lane under test; its edges are not.
     body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
@@ -269,6 +272,7 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
     let nurbs = planar_patch(1.0).map_scalar(Interval::from_f64);
+    // Lifts both refusals: the cap's chart is the lane under test; its edges are not.
     body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {

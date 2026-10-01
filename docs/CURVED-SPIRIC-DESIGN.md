@@ -137,14 +137,16 @@ meters conversion"; `plane_torus_section` answers
 `SectionError::RoutesToGeneralRung` there (trilean 2's definite
 `pt_axis_plane_gap`). The block is real and it is ONE function:
 `geom-brep/src/ssi/enclose.rs:implicit_enclosure` (and its gradient
-twin) return `RingInterval::poison()` for `Surface::Torus` because
-the torus residual `((ρ − R)² + h² − r²)/2r` carries `ρ = |w|`, a
-square root the C9 ring does not provide (`geom-core/src/
-ring_interval.rs` module doc; README clause C9). Note for Q3(ii):
-the same tree already carries an outward-rounded bracket square root
-— `geom/src/curves/boxes.rs:Brk::sqrt_nonneg` — because `f64::sqrt`
-is IEEE correctly rounded; the ring's omission is a ratified
-minimalism, not an obstacle.
+twin) refuse `Surface::Torus`. The torus residual
+`((ρ − R)² + h² − r²)/2r` is written with `ρ = |w|`, but the square root
+is in that spelling, not in the surface: with the torus quartic
+`F = A² − 4R²ρ²`, `A = |q|² + R² − r²`, the residual is
+`m = F / (2r·(A + 2Rρ))`, and `A ≥ R² − r² > 0` on a ring torus, so
+exclusion reads the sign of `F`, the between-samples bound is
+`sup|F∘C| / (2r·inf A∘C)`, and the tube gradient `∇F/(4rA)` is the unit
+normal on the surface — root-free throughout. What certification
+arithmetic may take (C9's operation list, including `√`) is its own
+clause in `crates/geom-brep/README.md`.
 
 **Held: `Curve3` has no quartic kind** — `geom/src/curves.rs:Curve3`
 is `Line | Circle | Ellipse | Nurbs`.
