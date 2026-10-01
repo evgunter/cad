@@ -36,7 +36,7 @@
 use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::battery::{Chain, Convexity, Link};
+use super::battery::{Chain, Convexity, JointVerdict, Link, joint_verdict};
 use super::build::{face_cycle, fan_at, outward_of};
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
@@ -141,39 +141,34 @@ impl Joint {
         // Only the plane–plane band mints the struts a joint is fused
         // across: the ruled band is cut off at transverse caps and
         // mints none, and a torus arm on an open arc has no band.
-        if !(arriving.arm.is_plane_plane() && leaving.arm.is_plane_plane()) {
-            return Err(unbuilt_chain(
-                chain,
-                "an open chain's links meet on supports other than two planes; that \
-                 junction is not implemented",
-            ));
-        }
-        let mut pa = [arriving.face_a, arriving.face_b];
-        let mut pb = [leaving.face_a, leaving.face_b];
-        pa.sort_unstable();
-        pb.sort_unstable();
-        if pa != pb {
-            return Err(unbuilt_chain(
-                chain,
-                "an open chain's links meet on different support faces; that junction is \
-                 not implemented",
-            ));
-        }
-        // Two edges between the same two faces close a manifold
-        // vertex's fan, so the valence is two; checked, not inherited.
-        let incident = fan_at(body.edges_of_vertex(vertex)).ok_or_else(|| {
-            not_intact(
-                EntityId::Vertex(vertex),
-                "a joint's vertex orbit does not walk",
-            )
-        })?;
-        if incident.len() != 2 {
-            return Err(unbuilt_corner_config(
-                vertex,
-                CornerConfig::NEdgeVertex {
-                    valence: incident.len(),
-                },
-            ));
+        match joint_verdict(body, vertex, arriving, leaving) {
+            JointVerdict::Joint => {}
+            JointVerdict::NotPlanar => {
+                return Err(unbuilt_chain(
+                    chain,
+                    "an open chain's links meet on supports other than two planes; that \
+                     junction is not implemented",
+                ));
+            }
+            JointVerdict::OtherFaces => {
+                return Err(unbuilt_chain(
+                    chain,
+                    "an open chain's links meet on different support faces; that junction is \
+                     not implemented",
+                ));
+            }
+            JointVerdict::Valence(valence) => {
+                return Err(unbuilt_corner_config(
+                    vertex,
+                    CornerConfig::NEdgeVertex { valence },
+                ));
+            }
+            JointVerdict::OrbitBroken => {
+                return Err(not_intact(
+                    EntityId::Vertex(vertex),
+                    "a joint's vertex orbit does not walk",
+                ));
+            }
         }
         Ok(Self {
             vertex,

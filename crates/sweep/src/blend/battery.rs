@@ -45,6 +45,7 @@ use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
 use super::build::fan_at;
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
 use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, decide};
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
@@ -1945,6 +1946,52 @@ fn corner_at<T: Decide + Bounds>(
     corner_config(vertex, valence, convex, normals, radius, band).map(|()| None)
 }
 
+/// **What a junction of an open chain is**, read once for every reader:
+/// the open-chain door (`admit::Joint::admit`) refuses each non-joint
+/// arm by name, and predicate 2 groups exactly the [`JointVerdict::Joint`]
+/// junctions into one feature — so the two cannot disagree on which
+/// junctions are joints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum JointVerdict {
+    /// Both links plane–plane, on the same two support faces, at a
+    /// valence-2 vertex: one band the vertex only splits.
+    Joint,
+    /// A link's supports are not two planes.
+    NotPlanar,
+    /// The links lie on different support faces.
+    OtherFaces,
+    /// The vertex carries edges other than the two links.
+    Valence(usize),
+    /// The vertex's edge orbit does not walk.
+    OrbitBroken,
+}
+
+/// Judge the junction at `vertex` between `arriving` and `leaving`.
+pub(super) fn joint_verdict<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    arriving: &Link<T>,
+    leaving: &Link<T>,
+) -> JointVerdict {
+    if !(arriving.arm.is_plane_plane() && leaving.arm.is_plane_plane()) {
+        return JointVerdict::NotPlanar;
+    }
+    let mut pa = [arriving.face_a, arriving.face_b];
+    let mut pb = [leaving.face_a, leaving.face_b];
+    pa.sort_unstable();
+    pb.sort_unstable();
+    if pa != pb {
+        return JointVerdict::OtherFaces;
+    }
+    // Two edges between the same two faces close a manifold vertex's
+    // fan, so the valence is two; checked, not inherited.
+    match fan_at(body.edges_of_vertex(vertex)) {
+        None => JointVerdict::OrbitBroken,
+        Some(es) if es.len() != 2 => JointVerdict::Valence(es.len()),
+        Some(_) => JointVerdict::Joint,
+    }
+}
+
 /// Predicate 2's sweep: for each support face, every pair of its
 /// boundary edges, with the blended ones carrying their setbacks.
 ///
@@ -2006,10 +2053,7 @@ fn consumption_sweep<T: Decide + Bounds>(
         let open = matches!(chain.closure, ChainClosure::Open { .. });
         for j in chain.junctions.iter().filter(|_| open) {
             let (a, b) = (ring[j.arriving], ring[j.leaving]);
-            let (mut pa, mut pb) = ([a.face_a, a.face_b], [b.face_a, b.face_b]);
-            pa.sort_unstable();
-            pb.sort_unstable();
-            if pa == pb {
+            if joint_verdict(body, j.vertex, a, b) == JointVerdict::Joint {
                 let (from, to) = (ids[j.leaving], ids[j.arriving]);
                 for id in &mut ids {
                     if *id == from {
@@ -2125,32 +2169,44 @@ fn consumption_sweep<T: Decide + Bounds>(
             } else {
                 continue;
             };
-            let (Curve3::Line { origin, dir }, Some(p)) = (
-                trim,
-                body.get_vertex(*v).and_then(|x| body.get_point(x.point)),
-            ) else {
-                continue;
+            // A joint is plane–plane by its verdict, and
+            // `arms::plane_plane_blend` mints its trimlines as lines.
+            let Curve3::Line { origin, dir } = trim else {
+                return Err(BlendError::SurgeryInvariant {
+                    at: EntityId::Edge(link.edge),
+                    detail: "a plane–plane joint's trimline is not a line",
+                });
             };
+            let p = body
+                .get_vertex(*v)
+                .and_then(|x| body.get_point(x.point))
+                .ok_or_else(|| not_intact(EntityId::Vertex(*v), "a joint's stored point"))?;
             let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
             let run_edges = members(link.edge);
-            for (e, pts) in &boundary {
+            for (e, _) in &boundary {
                 if run_edges.contains(e) || !run_edges.iter().any(|m| shares_vertex(body, *m, *e)) {
                     continue;
                 }
-                // The distance from the foot to that edge: exact to a
-                // straight edge's line, else to its nearest sample.
-                let gap = match carrier_of(body, *e) {
-                    Some((Curve3::Line { origin: o, dir: d }, _, _)) => {
-                        (foot - o).cross(d).norm() / d.norm()
+                // The run ends at a corner on this PLANE support, so the
+                // end edge is straight unless the corner's third support
+                // is curved — which no corner carves, and which refuses
+                // here as that rather than being sampled.
+                let (o, d) = match carrier_of(body, *e) {
+                    Some((Curve3::Line { origin, dir }, _, _)) => (origin, dir),
+                    Some(_) => {
+                        return Err(unbuilt_geometry(
+                            EntityId::Edge(*e),
+                            CORNER_SUPPORT_NOT_PLANAR,
+                        ));
                     }
-                    _ => {
-                        let mut ds = pts.iter().map(|q| (*q - foot).norm());
-                        let Some(first) = ds.next() else {
-                            continue;
-                        };
-                        ds.fold(first, T::min)
+                    None => {
+                        return Err(not_intact(
+                            EntityId::Edge(*e),
+                            "a joined run's end edge carrier",
+                        ));
                     }
                 };
+                let gap = (foot - o).cross(d).norm() / d.norm();
                 face_clearance(face, gap, T::zero(), look(*e, face), false, band)?;
             }
         }

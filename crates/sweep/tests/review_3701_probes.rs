@@ -127,8 +127,8 @@ fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joined: usiz
     );
 }
 
-/// Five-link chains, mixed link lengths, a joint just outside a
-/// corner's reach (2r + 0.001), and r just under the screen's limit.
+/// Five-link chains, mixed link lengths, joints near corners on both
+/// rims, and a mid joint at r = 0.49.
 #[test]
 fn joined_bands_build_across_link_counts_and_by_corners() {
     builds("3 links", 2.0, &[0.7, 1.3], &[], 0.25, 2);
@@ -142,7 +142,7 @@ fn joined_bands_build_across_link_counts_and_by_corners() {
         4,
     );
     builds(
-        "joint at 2r + 0.001 by a corner",
+        "joints 0.501 from a corner, on both rims",
         2.0,
         &[0.501],
         &[1.499],
@@ -163,14 +163,15 @@ fn the_clearance_screen_lets_joined_chains_the_band_can_carve_build() {
     builds("mid joint, r = 0.9", 2.0, &[1.0], &[], 0.9, 2);
 }
 
-/// **A joint inside a corner's reach still refuses.** At x = 0.2 with
-/// r = 0.25 the joint's foot would lie short of the corner's foot on
-/// the same trimline, inside the corner patch; the screen meters the
-/// foot against the end edge's trimline and refuses, on both verbs.
+/// **A joint inside a corner's reach still refuses — to the boundary.**
+/// At r = 0.25 the corner's foot sits 0.25 along the rim, so a joint at
+/// x = 0.2499999 puts the band's foot inside the corner patch and
+/// refuses on both verbs, while one at x = 0.2500001 builds: the screen
+/// meters the joint's own foot, not a setback-sum stand-in for it.
 #[test]
 fn a_joint_inside_a_corners_setback_refuses() {
     let t = Tol::witness();
-    let body = prism(2.0, &[0.2], &[], t);
+    let body = prism(2.0, &[0.2499999], &[], t);
     let req: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for (verb, err) in [
         (
@@ -193,6 +194,12 @@ fn a_joint_inside_a_corners_setback_refuses() {
             "{verb}: {err}"
         );
     }
-    // Clear of the corner's foot by a hair, it builds.
-    builds("joint at r + 0.001", 2.0, &[0.251], &[], 0.25, 2);
+    builds(
+        "joint just beyond the corner's foot",
+        2.0,
+        &[0.2500001],
+        &[],
+        0.25,
+        2,
+    );
 }
