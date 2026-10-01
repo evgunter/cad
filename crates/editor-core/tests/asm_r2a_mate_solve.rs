@@ -694,8 +694,8 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
             instance,
             root_is_cut,
         }) => {
-            assert_eq!(root, ids[2], "the torn group's root is named");
-            assert_eq!(instance, ids[3], "so is the member left behind");
+            assert_eq!(root, doc.spoken(ids[2]), "the torn group's root is named");
+            assert_eq!(instance, doc.spoken(ids[3]), "so is the member left behind");
             assert!(root_is_cut, "and which side each is on");
         }
         other => panic!("expected TornGroup, got {other:?}"),
@@ -712,6 +712,20 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     .to_string();
     assert!(message.contains("tears the placement group"), "{message}");
     assert!(message.contains("widen the cut"), "{message}");
+    assert!(
+        message.contains(&format!(
+            "rooted at {} (the root is cut, its member {} is kept)",
+            doc.spoken(ids[2]),
+            doc.spoken(ids[3])
+        )),
+        "both ends are spoken, the root's side and the member's said: {message}"
+    );
+    for id in [ids[2], ids[3]] {
+        assert!(
+            !message.contains(&id.0.to_string()),
+            "{id:?} in decimal: {message}"
+        );
+    }
     // The tear is refused in the OTHER direction too: keeping the
     // root and cutting the member is the same fault.
     let other_way = BTreeSet::from([ids[0], ids[1], mates[0], ids[3]]);
@@ -727,7 +741,7 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
             instance,
             root_is_cut,
         }) => {
-            assert_eq!((root, instance), (ids[2], ids[3]));
+            assert_eq!((root, instance), (doc.spoken(ids[2]), doc.spoken(ids[3])));
             assert!(!root_is_cut);
         }
         other => panic!("expected TornGroup, got {other:?}"),

@@ -498,7 +498,10 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             input,
             consumer_is_cut,
         }) => {
-            assert_eq!((consumer, input), (extrude, profile));
+            assert_eq!(
+                (consumer, input),
+                (doc.spoken(extrude), doc.spoken(profile))
+            );
             assert!(!consumer_is_cut);
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
@@ -516,7 +519,10 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             input,
             consumer_is_cut,
         }) => {
-            assert_eq!((consumer, input), (extrude, profile));
+            assert_eq!(
+                (consumer, input),
+                (doc.spoken(extrude), doc.spoken(profile))
+            );
             assert!(consumer_is_cut);
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
@@ -554,7 +560,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             input,
             consumer_is_cut,
         }) => {
-            assert_eq!((consumer, input), (declared, decl));
+            assert_eq!((consumer, input), (doc.spoken(declared), doc.spoken(decl)));
             assert!(consumer_is_cut);
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
@@ -575,7 +581,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             input,
             consumer_is_cut,
         }) => {
-            assert_eq!((consumer, input), (declared, decl));
+            assert_eq!((consumer, input), (doc.spoken(declared), doc.spoken(decl)));
             assert!(!consumer_is_cut, "the consumer is the one left behind here");
         }
         other => panic!("expected SeveredEdge, got {other:?}"),
@@ -641,8 +647,8 @@ fn row3_uncut_param_reference_refuses() {
             kept_node,
         }) => {
             assert_eq!(param, ParamName::from_static("h"));
-            assert_eq!(cut_node, e1);
-            assert_eq!(kept_node, e2);
+            assert_eq!(cut_node, doc.spoken(e1));
+            assert_eq!(kept_node, doc.spoken(e2));
         }
         other => panic!("expected UncutParamReference, got {other:?}"),
     }
@@ -740,7 +746,7 @@ fn row3_further_typed_refusals() {
     );
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceConsumed { node, by }) => {
-            assert_eq!((node, by), (inst, consumer));
+            assert_eq!((node, by), (host.spoken(inst), host.spoken(consumer)));
         }
         other => panic!("expected InstanceConsumed, got {other:?}"),
     }
@@ -762,8 +768,8 @@ fn row3_further_typed_refusals() {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
             assert_eq!(
                 root,
-                part_doc.order()[BODY_POSITION],
-                "the plain extrude root is named"
+                part_doc.spoken(part_doc.order()[BODY_POSITION]),
+                "the plain extrude root is named, spoken from the part"
             );
         }
         other => panic!("expected UnplaceableFrame, got {other:?}"),
@@ -1131,13 +1137,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         None,
     ) {
         Err(SplitError::BodyNameCrossesCut { name }) => {
-            assert_eq!(*name, body_name);
+            assert_eq!(name.name(), &body_name);
             let msg = format!("{}", SplitError::BodyNameCrossesCut { name });
             assert!(
-                msg.contains(&format!(
-                    "minted by node {}",
-                    test_utils::refusal::tag(ids[1].0)
-                )),
+                msg.contains(&format!("minted by {}", doc.spoken(ids[1]))),
                 "the message names the name: {msg}"
             );
             assert!(
@@ -1196,7 +1199,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         None,
     ) {
         Err(SplitError::NameStraddlesCut { name, missing }) => {
-            assert_eq!(*name, straddler);
+            assert_eq!(name.name(), &straddler);
             assert_eq!(
                 missing, None,
                 "the straddle classification weighs the whole derivation set, so it singles \
@@ -1256,10 +1259,11 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             name,
             missing,
         }) => {
-            assert_eq!(node, decl);
-            assert_eq!(*name, reaching);
+            assert_eq!(node, doc.spoken(decl));
+            assert_eq!(name.name(), &reaching);
             assert_eq!(
-                missing, kept_e,
+                missing,
+                doc.spoken(kept_e),
                 "and the node outside the cut that it reaches, which the carrier id does not \
                  say"
             );
@@ -1272,8 +1276,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
                 }
             );
             assert!(
-                msg.contains(&format!("node {}", test_utils::refusal::tag(decl.0)))
-                    && msg.contains("outside the cut"),
+                msg.contains(&doc.spoken(decl).to_string()) && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
             );
         }
@@ -1420,7 +1423,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     );
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::ForeignInstanceName { name }) => {
-            assert_eq!(*name, foreign);
+            assert_eq!(name.name(), &foreign);
             let msg = format!("{}", InlineError::ForeignInstanceName { name });
             assert!(
                 msg.contains("InPart"),
@@ -1448,7 +1451,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     );
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceBodyNameReferenced { name }) => {
-            assert_eq!(*name, body_name);
+            assert_eq!(name.name(), &body_name);
             let msg = format!("{}", InlineError::InstanceBodyNameReferenced { name });
             assert!(
                 msg.contains("output body"),
@@ -1518,20 +1521,24 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
         match inline(&host, inst, &resolver, Tol::witness()) {
             Err(InlineError::StrandedPartName { name, missing }) => {
-                assert_eq!(*name, stranded);
+                assert_eq!(name.name(), &stranded);
                 assert_eq!(
-                    missing, extra,
-                    "the refusal carries the deleted node, nested={nested}"
+                    missing,
+                    editor_core::SpokenNode::absent(extra),
+                    "the refusal carries the deleted node, which the part no longer holds, \
+                     nested={nested}"
                 );
                 if nested {
                     assert_ne!(
-                        missing, name.node,
+                        missing.id(),
+                        name.name().node,
                         "nested: the node that stranded is inside a path segment, so the name \
                          alone does not name it"
                     );
                 } else {
                     assert_eq!(
-                        missing, name.node,
+                        missing.id(),
+                        name.name().node,
                         "flat: the name IS minted at the stranded node, so the two coincide — \
                          the case that cannot tell the id from the name"
                     );
@@ -1689,7 +1696,7 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
         None,
     ) {
         Err(SplitError::NameOnDroppedStep { name, step }) => {
-            assert_eq!((*name, step), (dropped.clone(), dropped_step));
+            assert_eq!((name.name(), step), (&dropped, dropped_step));
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }
@@ -1705,7 +1712,7 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
         Tol::witness(),
     ) {
         Err(InlineError::NameOnDroppedStep { name, step }) => {
-            assert_eq!((*name, step), (dropped, dropped_step));
+            assert_eq!((name.name(), step), (&dropped, dropped_step));
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }
