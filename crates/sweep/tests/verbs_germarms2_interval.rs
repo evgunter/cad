@@ -131,10 +131,10 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 ///   would have greened a `bool_germ_frame_axes_coplanar` escalation,
 ///   i.e. the arm going indeterminate, as if it were noise.
 fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &str) {
-    let (d, r) = (format!("{direct:?}"), format!("{reposed:?}"));
-    if d == r {
+    if crate::common::germ_pair::same_door(direct, reposed) {
         return;
     }
+    let (d, r) = (format!("{direct:?}"), format!("{reposed:?}"));
     let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
     assert!(
         band.zero() <= 1e-12,

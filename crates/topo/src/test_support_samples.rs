@@ -967,6 +967,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             s.push((format!("{arm}{m}"), e));
         }
         for check in [
+            WedgeCheck::Arm,
             WedgeCheck::Dihedral,
             WedgeCheck::SecondOrder,
             WedgeCheck::MaterialSide,

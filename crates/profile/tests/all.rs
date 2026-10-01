@@ -166,6 +166,8 @@ mod scalar_lift_door;
 mod seal;
 #[path = "sketch_plane.rs"]
 mod sketch_plane;
+#[path = "table_arcs_inside_scene_resolution.rs"]
+mod table_arcs_inside_scene_resolution;
 #[path = "validate_ok.rs"]
 mod validate_ok;
 #[path = "validate_ok_probe.rs"]

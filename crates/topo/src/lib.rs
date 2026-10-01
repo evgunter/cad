@@ -347,6 +347,140 @@ pub mod test_support {
         crate::splitting::through_the_join(operand, plane, tol)
     }
 
+    /// **Which decision a Boolean refusal came from**, as the executed-
+    /// offer harness keys it (`test_utils::offer`), and whether it is the
+    /// kernel's own defect. Two refusals of one decision carry one key: a
+    /// coincidence's key drops what its door read of the declaration, and
+    /// a definite arm carries its decision's (D4 ¶1 (iv): one story).
+    pub fn offer_key(err: &crate::BooleanError) -> (String, bool) {
+        use crate::{BooleanDecision, BooleanError, BooleanErrorKind, SphereQuestion};
+        let decision = decision_key;
+        let key = match err {
+            BooleanError::Escalated { decision: d, .. } => decision(*d),
+            BooleanError::SpheresMeet { .. } => {
+                decision(BooleanDecision::Sphere(SphereQuestion::Nested))
+            }
+            BooleanError::CurvedSectorSideUnsupported { .. } => {
+                decision(BooleanDecision::PierceCurvature)
+            }
+            BooleanError::DegenerateTorus { convention, .. } => {
+                decision(BooleanDecision::Torus(*convention))
+            }
+            other => format!("{:?}", other.kind()),
+        };
+        let defect = err.to_string().contains(geom_core::KERNEL_DEFECT_ENDING)
+            || matches!(
+                err.kind(),
+                BooleanErrorKind::ClassificationInvariant
+                    | BooleanErrorKind::CorruptOperand
+                    | BooleanErrorKind::JoinDesync
+            );
+        (key, defect)
+    }
+
+    /// A decision's [`offer_key`]: a coincidence's drops what its door
+    /// read of the declaration.
+    fn decision_key(d: crate::BooleanDecision) -> String {
+        match d {
+            crate::BooleanDecision::Coincidence(which, _) => format!("Coincidence({which:?})"),
+            other => format!("{other:?}"),
+        }
+    }
+
+    /// Whether two [`offer_key`]s name one decision: equal, or a lever
+    /// gate and the reading it meters (the gate passing leaves the same
+    /// question to that reading), each pair derived from the map the
+    /// raisers route by (`LeverArm::reading`).
+    pub fn offer_same_decision(a: &str, b: &str) -> bool {
+        use crate::{BooleanDecision, DeclarationRead, LeverArm};
+        let key = decision_key;
+        a == b
+            || LeverArm::ALL.into_iter().any(|gate| {
+                let (g, r) = (
+                    key(BooleanDecision::LeverArm(gate)),
+                    key(gate.reading(DeclarationRead::Moot)),
+                );
+                (a, b) == (g.as_str(), r.as_str()) || (a, b) == (r.as_str(), g.as_str())
+            })
+    }
+
+    /// **The refusals an executed offer meets further along whose own
+    /// story is not yet true**, each with the row that owns it: the
+    /// earlier offer is true of its decision (its decision no longer
+    /// refuses at 0.9 × its value), and the later refusal's story is that
+    /// refusal's obligation (`test_utils::offer::judge_laters`).
+    pub const LATER_STORIES_OWNED: &[(&str, &str)] = &[(
+        "Containment",
+        "work/contact/contain-escalation-carries-no-decision.md",
+    )];
+
+    /// The offers the executed-offer census counts as run in `sweep`,
+    /// whose doors build the solids they need (a ball): each decision's
+    /// key, the side of zero its margin lies on, and the child row of
+    /// `sweep`'s `offer_rows` that executes it. That suite checks it runs
+    /// each one.
+    pub const OFFERS_EXECUTED_IN_SWEEP: &[(&str, bool, &str)] = &[
+        ("Sphere(Apart)", true, "apart_in_band"),
+        ("Sphere(Apart)", true, "apart_in_the_zero_band"),
+        ("Sphere(Nested)", true, "nested_in_band"),
+        ("Sphere(Nested)", true, "nested_in_the_zero_band"),
+        ("Sphere(AgainstPlane)", false, "clear_of_a_slab_in_band"),
+        ("Sphere(AgainstPlane)", true, "into_a_slab_in_band"),
+        (
+            "Sphere(Apart)",
+            true,
+            "apart_off_axis_in_the_zero_band_union",
+        ),
+        (
+            "Sphere(Apart)",
+            true,
+            "apart_off_axis_in_the_zero_band_subtract",
+        ),
+        (
+            "Sphere(Apart)",
+            true,
+            "apart_off_axis_in_the_zero_band_intersect",
+        ),
+        ("Sphere(Apart)", true, "apart_off_axis_in_band_union"),
+        ("Sphere(Apart)", true, "apart_off_axis_in_band_subtract"),
+        (
+            "Sphere(Nested)",
+            true,
+            "nested_off_axis_in_the_zero_band_union",
+        ),
+        (
+            "Sphere(Nested)",
+            true,
+            "nested_off_axis_in_the_zero_band_subtract",
+        ),
+        ("Sphere(Nested)", true, "nested_off_axis_in_band_subtract"),
+        (
+            "Coincidence(EdgeOnPlane)",
+            false,
+            "ball_under_a_slab_in_band_union",
+        ),
+        (
+            "Coincidence(EdgeOnPlane)",
+            true,
+            "ball_under_a_slab_in_band_subtract",
+        ),
+        (
+            "Coincidence(EdgeOnPlane)",
+            false,
+            "ball_beside_a_slab_in_band_union",
+        ),
+        (
+            "Coincidence(EdgeOnPlane)",
+            true,
+            "ball_beside_a_slab_in_band_subtract",
+        ),
+        (
+            "Coincidence(EdgeOnCurvedFace)",
+            true,
+            "brick_below_a_tube_union",
+        ),
+    ];
+
     /// The topology-arena lengths of `body`. A free function because
     /// `Body::arena_counts` is `pub(crate)` — an inherent method's
     /// reach follows its own visibility, not its module's, so making
@@ -449,16 +583,17 @@ pub use body::Body;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
-    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation,
-    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact, DiscardRow,
-    FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
-    PairRefusalSite, PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, SectorRung, SideCode,
-    SolidContainment, SolidFaces, SweepStrategy, SweepTrace, TangentLocus, TangentLocusError,
-    TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted,
-    VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, intersect_with, oriented_plane_eq, point_in_solid,
+    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Coincide,
+    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact,
+    DeclarationRead, DiscardRow, FaceContainment, FacePairDeclaration, LeverArm, NeighbourOffset,
+    NullEdgePairRecord, Operand, OperandKeys, PairRefusalSite, PairSite, PatchContact,
+    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PointInSolidError, RestZipFrontier, SectorRung, SelfCheck, Settling, SideCode,
+    SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TangentLocus,
+    TangentLocusError, TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared,
+    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
+    insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq, point_in_solid,
     point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_locus,
     tangent_pair_relation, union, union_with,
 };
@@ -549,10 +684,10 @@ pub use source::{
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcWindowCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord, PlaneSide,
-    PointInLoopError, Section, SectionPolygon, SectorEntry, SectorEntryKind, SplitError,
-    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
-    SplitResult, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
-    vertex_sides,
+    PointInLoopError, Section, SectionError, SectionPolygon, SectionRegion, SectorEntry,
+    SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
+    SplitReduceError, SplitReduction, SplitResult, classify_neighborhood, plane_section,
+    point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{
