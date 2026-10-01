@@ -193,7 +193,8 @@ impl DatumKindChoice {
     /// **The kind noun of the node this choice creates** —
     /// `node_kind_noun`'s word for it, which the form's proposed label
     /// counts by ([`crate::tree::proposed_label`]).
-    /// `tests/node_labels.rs` holds each to the node the form commits.
+    /// `drafts::tests::each_datum_choices_noun_is_the_kind_of_the_node_it_commits`
+    /// holds each to the node the form commits.
     pub(crate) fn noun(self) -> &'static str {
         match self {
             Self::Plane => "Datum plane",

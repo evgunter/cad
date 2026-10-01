@@ -351,7 +351,8 @@ pub(crate) const ADD_PROFILE: &str = "Add profile";
 
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
 /// `node_kind_noun`'s words, which a form's proposed label counts by.
-/// `tests/node_labels.rs` holds each to the node its form commits.
+/// `creation_nouns` (below) holds the profile's and the extrude's to
+/// the node their op mints.
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
 const MATE_NOUN: &str = "Mate";
@@ -2938,5 +2939,46 @@ mod declared_union {
         let (painted, held, _) = panel(&session, offer, (BooleanOp::Union, &tool), None);
         assert_eq!(painted, "", "an edit since: nothing is drawn");
         assert_eq!(held, None, "an edit since: the offer is dropped");
+    }
+}
+
+/// **A form's noun is the kind of the node its op mints**: the
+/// proposed label counts by the noun, so the noun has to be
+/// `node_kind_noun`'s word for what the form commits.
+#[cfg(test)]
+mod creation_nouns {
+    #![allow(clippy::expect_used)]
+
+    use pncad::document::{Doc, ProfileProgram, node_kind_noun};
+    use pncad::geom_core::Tol;
+
+    use super::{EXTRUDE_NOUN, PROFILE_NOUN};
+    use crate::session::{DocSession, ProfilePlane, SessionOp};
+    use crate::test_support::{framed_square, len};
+
+    /// The single node `op` minted on `session`, by its kind noun.
+    fn minted_noun(session: &mut DocSession, op: SessionOp) -> &'static str {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let node = *outcome.minted.last().expect("the op minted a node");
+        node_kind_noun(session.doc().node(node).expect("the minted node is live"))
+    }
+
+    #[test]
+    fn the_profile_and_extrude_forms_nouns_are_their_nodes_kinds() {
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("creation-nouns", tol);
+        let (doc, profile) = framed_square(&doc, 0.02, tol);
+        let mut session = DocSession::inline(doc, tol);
+        let extrude = SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        };
+        assert_eq!(minted_noun(&mut session, extrude), EXTRUDE_NOUN);
+        let add_profile = SessionOp::AddProfile {
+            plane: ProfilePlane::NewXy,
+            loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
+        };
+        assert_eq!(minted_noun(&mut session, add_profile), PROFILE_NOUN);
     }
 }

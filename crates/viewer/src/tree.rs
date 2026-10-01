@@ -556,7 +556,7 @@ pub fn headline(spoken: &SpokenNode, pose: Option<&str>) -> Headline {
 /// counting past any `Kind N` already taken, so the proposal repeats
 /// no label of its kind. Only a proposal: the kernel mints no label,
 /// and this is stored only if the person commits it. `None` for a
-/// `noun` no label can be made from (a blank one).
+/// `noun` no label can hold (one with a control character).
 #[must_use]
 pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
     let taken: Vec<&str> = doc

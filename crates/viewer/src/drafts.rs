@@ -1224,6 +1224,40 @@ mod tests {
     /// The picked ids are arbitrary: `admits` reads the node's kind,
     /// and whether an id names the kind its seat wants is the
     /// add-datum door's question.
+    /// **A datum choice's noun is the kind of the node it lowers to**:
+    /// the add-datum form's proposed label counts by
+    /// [`DatumKindChoice::noun`], so it has to be `node_kind_noun`'s
+    /// word for what the form commits.
+    #[test]
+    fn each_datum_choices_noun_is_the_kind_of_the_node_it_commits() {
+        for (datum_kind, _) in DatumKindChoice::ALL {
+            let spec = picked(datum_kind)
+                .datum_spec(Some(&seated()), Notation::DEFAULT)
+                .expect("the default drafts are finite")
+                .expect("every pick is filled");
+            assert_eq!(
+                pncad::document::node_kind_noun(&datum_node(spec)),
+                datum_kind.noun(),
+                "{datum_kind:?}"
+            );
+        }
+    }
+
+    /// Blank clears; a label is kept as typed; a text the rule refuses
+    /// is refused.
+    #[test]
+    fn a_label_field_reads_blank_as_clear_and_holds_the_rest_to_the_rule() {
+        assert_eq!(super::label_typed(" \t "), Ok(None));
+        assert_eq!(
+            super::label_typed(" lid ").map(|label| label.map(|l| l.as_str().to_owned())),
+            Ok(Some(" lid ".to_owned()))
+        );
+        assert!(matches!(
+            super::label_typed("a\u{7}b"),
+            Err(pncad::document::LabelFault::Control { at: 1, .. })
+        ));
+    }
+
     #[test]
     fn every_datum_seat_is_fillable_from_the_add_datum_form() {
         let authorable: Vec<_> = DatumKindChoice::ALL
