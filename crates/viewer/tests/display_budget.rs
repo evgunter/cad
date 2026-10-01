@@ -258,19 +258,14 @@ const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 /// twenty-two characters.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
     let text = d.render_in(MM);
-    // BOTH factors below are spelled here DELIBERATELY rather than
-    // read from the code, and they are two different numbers.
-    //
-    // `1.0e3` is the render's: this row checks that `render_mm`
-    // applies it, so reading `scene::MM_PER_METRE` would make the
-    // check agree with the render by construction.
-    //
-    // `1.0e-3` is the δ FIELD's commit factor (`pane::view`'s
-    // `delta_field`), which the field spells itself. Restating it
-    // states independently that the two are inverses — which is the
-    // coincidence `DisplayTolerance::new`'s doc argues its bound
-    // from, and which no constant in the crate holds.
-    let mm = d.get() * 1.0e3;
+    // The factor is spelled here DELIBERATELY rather than read from
+    // the unit table, so the check does not agree with the render by
+    // construction. The render divides the δ by the `mm` row's factor
+    // (`props::written`, the panel's own conversion) and the δ field
+    // commits a typed number times it (`props::from_written`), so the
+    // value the text must read back as is the quotient by `1.0e-3`,
+    // and what it reads back to is the product by it.
+    let mm = d.get() / 1.0e-3;
     let read: f64 = text.parse().unwrap_or_else(|error| {
         panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
     });
@@ -302,7 +297,9 @@ fn fits_and_reads_back_as_a_delta(d: DisplayTolerance) {
 /// over millimetres reads `0.000` below half a micrometre — a value
 /// [`DisplayTolerance::new`] refuses, in every place a user reads the δ
 /// in force as a number they can act on. All three go through
-/// [`DisplayTolerance::render_mm`] now, so this row covers all three.
+/// [`DisplayTolerance::render_in`], so this row covers all three — in
+/// millimetres, the finest length unit, where the conversion gives way
+/// first.
 ///
 /// **The population is every δ the door accepts, and the row reaches
 /// both ends of it.** A geometric grid carries the millimetre and metre
@@ -380,8 +377,9 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
 ///
 /// A δ past [`COARSEST_DELTA`] is finite and strictly positive and
 /// `mesh::tessellate` would take it, so the door's old predicate
-/// accepted it — and [`DisplayTolerance::render_mm`] multiplies by a
-/// thousand, so what a user read was `inf`: not a δ the door accepts,
+/// accepted it — and its millimetre value overflows, so what a user
+/// reading in millimetres ([`DisplayTolerance::render_in`]) would read
+/// is `inf`: not a δ the door accepts,
 /// and infinitely far from the value. No text can repair that, because
 /// the millimetre value is not an `f64` at all; what the door holds is
 /// the only place the render's domain can be made total.
@@ -389,8 +387,8 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
 /// **The bound is measured here rather than asserted from a constant.**
 /// It is where `δ * 1.0e3` stops being finite, and that is exactly
 /// `f64::MAX * 1.0e-3` — the largest δ the field's own commit path
-/// (`mm * 1.0e-3` over a finite `mm`) can name. So the narrowing takes
-/// nothing a person could have typed.
+/// in millimetres (`mm * 1.0e-3` over a finite `mm`) can name. So the
+/// narrowing takes nothing a person could have typed in millimetres.
 #[test]
 fn the_door_refuses_a_delta_whose_millimetre_value_is_not_one() {
     assert!(
