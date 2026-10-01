@@ -112,3 +112,32 @@ fn one_body_twice_refuses_as_an_exhausted_witness_set() {
         "the refusal names the witness set that ran out: {err:?}"
     );
 }
+
+/// The trio again along z with an L-shaped profile, so `b`'s end faces
+/// are non-convex: the centroid of the triple at the reflex corner lies
+/// OUTSIDE the face, and outside the accumulation. Each rotation of the
+/// profile starts the face's loop at a different vertex, so one of them
+/// offers that centroid first; only `point_in_face`'s certificate keeps
+/// it from deciding `b` lies outside (union volume 9, an assembly).
+#[test]
+fn a_non_convex_end_face_offers_only_a_certified_interior_point() {
+    let tol = Tol::witness();
+    let l = [
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+        (1.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let a = common::prism_z::<f64>(&l, 0.0, 1.0, tol).body;
+    let c = common::prism_z::<f64>(&l, 0.8, 2.0, tol).body;
+    let ac = declared_union(&a, &c).expect("a ∪ c");
+    for start in 0..l.len() {
+        let profile: Vec<(f64, f64)> = l[start..].iter().chain(&l[..start]).copied().collect();
+        let b = common::prism_z::<f64>(&profile, 0.5, 1.5, tol).body;
+        let all = declared_union(&ac, &b)
+            .unwrap_or_else(|e| panic!("profile from vertex {start}: {e:?}"));
+        assert_valid_with_volume(&format!("profile from vertex {start}"), &all, 6.0);
+    }
+}
