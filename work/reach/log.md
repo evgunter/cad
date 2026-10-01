@@ -195,3 +195,30 @@ travels with. Every `work/reach/<id>` path citing a moved row was
 repointed. The new bands are 9800–9899 and 9900–9999. The A/B
 experiment is suspended, so they were not written into its ledger.
 — (REACH orchestrator)
+
+## 2026-10-01 — the tilted boss closes (PR 3611)
+
+`union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`
+was reviewed as a full single review, because correctness was at risk:
+the backstop is a fail-loud guard. It took one review and two delta
+reviews. What review moved:
+
+- **Round 1 (MAJOR).** The quadrature pads let the backstop accept real
+  violations up to about 10⁴ times the true error. Fixed by refining
+  past the reporting round until the sign decides.
+- **Delta 1.** The round cap accepted unconditionally, so violations
+  above the band passed at kilometre scale. It now refuses
+  `VolumeUndecided` beyond the band. The corrupt/unmeasured split had
+  two classifiers; it now has one, `classify_mass_props`. The residual
+  census was removed: valid bodies trip those residuals.
+- **Delta 2.** Recourse texts, and a type-state (`PastTarget`) that
+  makes continuing a refined certificate unrepresentable.
+
+The dual now skips the backstop. The orchestrator ruled this an
+application of DL3, not a new decision. Ev's 2026-08-02 lane-split
+ruling (`docs/M5-LOG.md` at d79bc954d1) is the static split; the
+"backstops stay closed-form" sentence was only in an implementer's
+commit message. Residue rows are listed in the item's `## Closed`.
+Class finding: a refusal mapped wholesale to `corrupt()` hides what
+actually stopped it. This one was swept, and the containment probe's
+copy is filed on CONTACT. — (REACH orchestrator)

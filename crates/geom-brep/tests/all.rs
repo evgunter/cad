@@ -74,6 +74,8 @@ mod cert3r1_e2e;
 mod cert5_arm_and_cells;
 #[path = "cert5_r1_patch_probes.rs"]
 mod cert5_r1_patch_probes;
+#[path = "chart_box_span.rs"]
+mod chart_box_span;
 
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
@@ -244,6 +246,9 @@ mod mesh11r2_probes;
 mod mesh12_saturated_span;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
+
+#[path = "pcurve_spiric.rs"]
+mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
 #[path = "tcost_k1_budget_exit.rs"]

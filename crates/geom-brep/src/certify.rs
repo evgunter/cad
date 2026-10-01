@@ -14,7 +14,8 @@
 //!
 //! Certification is closed-form residual evaluation at a **fixed
 //! schedule**: [`CERT_SAMPLES`] = 9 parameters
-//! `t_i = t₀ + (t₁ − t₀)·(i/8)`, i = 0…8 — endpoints included, the
+//! `t_i = t₀ + (t₁ − t₀)·(i/8)`, i = 0…8 — endpoints included and
+//! ASSIGNED (`t₀` and `t₁` themselves, [`schedule_param`]), the
 //! fractions exact dyadics, the arithmetic a fixed association order —
 //! so two runs over the same body produce byte-identical
 //! [`Certificate`]s. Interior samples (i = 1…7) additionally carry the
@@ -1400,28 +1401,36 @@ impl<T: Real> EdgeCurve<T> {
     /// re-statement to every image on it, which is what makes an
     /// orientation reversal a certification-preserving map rather
     /// than a geometry change with a stale certificate beside it.
+    ///
+    /// # Errors
+    ///
+    /// `None` exactly when [`crate::Pcurve::mirror_v`] answers `None`
+    /// — a spiric WALL image, which has no reflected locus. That door
+    /// carries the derivation and the reason no caller reaches it: a
+    /// wall image lives on a torus chart, and the one producer of this
+    /// call (`topo::revert`) mirrors plane charts only.
     #[must_use]
-    pub fn with_chart_v_mirrored(&self) -> Self {
+    pub fn with_chart_v_mirrored(&self) -> Option<Self> {
         let description = match self.description {
             EdgeDescription::Chart(ref c) => EdgeDescription::Chart(ChartCurve {
                 surface: c.surface,
-                pcurve: c.pcurve.mirror_v(),
+                pcurve: c.pcurve.mirror_v()?,
                 seam: c.seam,
             }),
             ref other => other.clone(),
         };
-        Self {
+        Some(Self {
             description,
             authority: self.authority,
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
             certificate: self.certificate,
-        }
+        })
     }
 
-    /// The carrier parameter at schedule sample `i` (i ∈ 0…8):
-    /// `t₀ + (t₁ − t₀)·(i/8)`, the module-doc schedule. Exposed so the
+    /// The carrier parameter at schedule sample `i` (i ∈ 0…8): the
+    /// module-doc schedule ([`sample_param`]). Exposed so the
     /// tier-3 validator samples the *same* parameters the certification
     /// did (D9).
     pub fn sample_param(&self, i: u32) -> T {
@@ -1572,16 +1581,60 @@ impl<T: Real> EdgeCurve<T> {
     }
 }
 
-/// The schedule parameter `t₀ + (t₁ − t₀)·(i/8)` (exact dyadic
-/// fraction; fixed association order, D9).
+/// The certification schedule's parameter at sample `i` — the
+/// [`CERT_SAMPLES`]-point [`schedule_param`].
 ///
 /// Public because the contact vocabulary's tangency verification runs
 /// the SAME schedule over a locus that is not an edge yet
 /// (`topo::boolean::contact_verify`): two samplers over one schedule
 /// is the twin this export exists to prevent.
 pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
-    let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
-    t0 + (t1 - t0) * frac
+    schedule_param(t0, t1, i, CERT_SAMPLES)
+}
+
+/// The fraction `i / (samples − 1)` of a uniform `samples`-point
+/// schedule — an exact dyadic when `samples − 1` is a power of two, as
+/// every fixed schedule in this crate's certificates is. The same
+/// precondition as [`schedule_param`].
+pub(crate) fn schedule_fraction(i: u32, samples: u32) -> f64 {
+    f64::from(i) / f64::from(samples - 1)
+}
+
+/// **The one uniform sample schedule** over a parameter interval: sample
+/// `i` of `samples` (both ends included) over `[t₀, t₁]`.
+///
+/// The ends are ASSIGNED — `t₀` at sample 0, `t₁` at the last — and
+/// the interior is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in that
+/// association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in `f64` in
+/// general, and an image re-expressed on `[t₀, t₁]` exactly has its
+/// last knot at `t₁` itself, so a last sample computed rather than
+/// assigned sits an ulp outside it.
+///
+/// Every fixed sample schedule over a carrier's parameter interval
+/// reads this: the certification schedule ([`sample_param`], and
+/// through it the SSI certificate's limb 1, tier 3, the contact
+/// verifier, the importer's plane and arc-rim checks and the blend
+/// battery), the plane × NURBS chart image's foot schedule and the
+/// parameter its refusals report, and the ellipse-on-cylinder pcurve
+/// fit. A tessellation's chords and a quadrature's pieces partition an
+/// interval rather than sample it, and assign their ends themselves.
+///
+/// # Panics
+///
+/// When `samples < 2` or `i ≥ samples`: a schedule names both of its
+/// ends, and every caller passes a fixed count.
+pub fn schedule_param<T: Real>(t0: T, t1: T, i: u32, samples: u32) -> T {
+    assert!(
+        samples >= 2 && i < samples,
+        "schedule_param: sample {i} of a {samples}-point schedule"
+    );
+    if i == 0 {
+        t0
+    } else if i == samples - 1 {
+        t1
+    } else {
+        t0 + (t1 - t0) * T::from_f64(schedule_fraction(i, samples))
+    }
 }
 
 /// The honest spatial **extent** of an edge — the lever arm the
@@ -2285,7 +2338,7 @@ fn run_checks<T: Decide>(
             // keeps it legal.
             Resolved::Scaffold(mc) => {
                 let p = spec.carrier.eval(t);
-                let s = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
+                let s = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
                 check_residual(
                     "carrier_matches_mapped_source",
                     CertCheck::MappedSource,
@@ -2383,7 +2436,7 @@ fn run_checks<T: Decide>(
                 // dropped it. Both would have been caught here rather
                 // than by a row someone thought to write.
                 if let Some(mc) = declared {
-                    let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
+                    let frac = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
                     check_residual(
                         "carrier_matches_mapped_source",
                         CertCheck::MappedSource,
@@ -2634,6 +2687,35 @@ mod tests {
 
     fn eps() -> f64 {
         Tol::witness().get().eps
+    }
+
+    /// The one schedule's ends are the interval's own bits on an
+    /// interval where the computed last sample misses `t₁` by an ulp,
+    /// and the chart image's 33-point schedule passes through every
+    /// certification sample bit for bit — the superset limb 1
+    /// re-projects on.
+    #[test]
+    fn the_schedule_assigns_its_ends_and_the_image_schedule_contains_the_certificates() {
+        let (t0, t1) = (0.3_f64, 0.9_f64);
+        let computed = t0 + (t1 - t0) * 1.0;
+        assert_ne!(computed.to_bits(), t1.to_bits(), "the fixture must miss t1");
+        let fit = crate::edge_nurbs::PXN_FIT_SAMPLES;
+        let stride = (fit - 1) / (CERT_SAMPLES - 1);
+        for k in 0..CERT_SAMPLES {
+            let cert = sample_param(t0, t1, k);
+            let image = schedule_param(t0, t1, k * stride, fit);
+            assert_eq!(
+                cert.to_bits(),
+                image.to_bits(),
+                "sample {k}: {cert} vs {image}"
+            );
+        }
+        assert_eq!(sample_param(t0, t1, 0).to_bits(), t0.to_bits(), "first end");
+        assert_eq!(
+            sample_param(t0, t1, CERT_SAMPLES - 1).to_bits(),
+            t1.to_bits(),
+            "last end"
+        );
     }
 
     /// Every member of the residual taxonomy, for the two censuses
@@ -2902,7 +2984,7 @@ mod tests {
         m = m.max(spec.carrier.eval(t1).distance(end));
         for i in 0..CERT_SAMPLES {
             let p = spec.carrier.eval(sample_param(t0, t1, i));
-            let frac = f64::from(i) / f64::from(CERT_SAMPLES - 1);
+            let frac = schedule_fraction(i, CERT_SAMPLES);
             let v = v0 + (v1 - v0) * frac;
             m = m.max(p.distance(surface.eval(u, v)));
         }
@@ -3094,7 +3176,7 @@ mod tests {
             let p = mapped
                 .carrier
                 .eval(sample_param(mapped.param_start, mapped.param_end, i));
-            let s = f64::from(i) / f64::from(CERT_SAMPLES - 1);
+            let s = schedule_fraction(i, CERT_SAMPLES);
             mapped_legacy = mapped_legacy.max(p.distance(mc.eval(s)));
         }
         let mapped_delta = ulps(mapped_cert.max_residual, mapped_legacy);

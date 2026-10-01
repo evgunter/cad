@@ -69,6 +69,7 @@ LEGEND = [
     ("#333", False, "dot — a loop junction;  arrow — traversal direction"),
     ("#c1590a", False, "fitted — the rung-3 SSI-trace chart projection"),
     ("#a01c3c", False, "general — a curve-in-UV with no construction provenance"),
+    ("#1d7a5f", False, "spiric — the exact plane×torus section’s chart image"),
 ]
 
 

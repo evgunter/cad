@@ -1494,6 +1494,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Merge => "merge",
         BooleanErrorKind::ResultInvalid => "result_invalid",
         BooleanErrorKind::ResultVolumeImplausible => "result_volume_implausible",
+        BooleanErrorKind::VolumeUnmeasured => "volume_unmeasured",
+        BooleanErrorKind::VolumeCorrupt => "volume_corrupt",
+        BooleanErrorKind::VolumeUndecided => "volume_undecided",
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
     }

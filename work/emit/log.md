@@ -1247,3 +1247,43 @@ The optional findings also landed: per-variant mint pins, one collision recourse
 - `edit/di1-may-simplify-now-node-ids-are-digests` (P1, design).
 
 The container restarted twice mid-lane. The first lane's work had already been pushed and survived. The second lane's work was rescued from the worktree. I now ask lanes to push after each item.
+
+- 2026-10-01 — Seam note from AUTHOR: Ev ruled on #3571 that `StableName`'s `Display` carries a face's leaf role in words, through one public renderer promoted from `resolve::role_words`. The work is filed on EDIT as `names-render-a-faces-leaf-role-in-words`; `names/role.rs` is shared ground. (AUTHOR orchestrator)
+
+
+## 2026-10-01 — tied-face swap ruled by design (PR 3523, fork-log row 21)
+
+Ev approved: "this sounds good! … the behavior you suggest seems safe and principled".
+
+**What changed.**
+- N2 no longer promises a recorded per-candidate choice. A tie is repaired by a discriminator in the recipe, or by `Rebind`.
+- N4 names a divider as a discriminator among a tie's candidates.
+- The tie-swap row is closed as by-design, with `emit_union_borders::a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it` pinning the motion by centroid.
+
+**Not filed:** the optional datum-side discriminator, because Ev did not ask for it.
+
+**Fork log.** Main already held a row 21, so there are now two rows numbered 21, following the duplicate 15s and 18s. The open `[ev]` PRs 3553 and 3565 use 22 and 23, which other branches also use. Row numbers are no longer unique; the fork column identifies each row.
+
+## 2026-10-01 — edge pieces by their ends ruled (PR 3553); node labels ruled (PR 3565)
+
+**PR 3553, fork-log row 22.** Ev approved the recommendation, "including the change to what was decided in 512". It is written into N2:
+- edge pieces take `Ends`, the sorted end-vertex names;
+- crossing vertices are ranked along the crossed edge by its curve parameter;
+- the Split's same-side faces take `Keeps`;
+- section chords take `Ends` in place of #512 A2's tie.
+
+The four design rows fold into the P0 unit `edge-pieces-are-named-by-their-ends`, and an implementer lane is on it.
+
+**PR 3565, fork-log rows 23 and 24.** Ev narrowed the hex-tag-versus-address split by asking whether the kernel should hold names. A second pair (byte 104) converged after two rounds: a node's **label** is document data the kernel stores and speaks (DESIGN.md Band 1, "Node labels"). Its shape:
+- it sits outside `Node`;
+- it is set by `SetLabel` only;
+- it is not unique and never identity;
+- every sentence reads kind + label + tag;
+- create forms propose an editable "Kind N".
+
+Ev approved, including the form proposals. The unit `node-labels-are-document-data` is filed. Sequencing:
+1. kind + 12-hex-tag spelling first, on the counter (lane running);
+2. then #3594's digest mint;
+3. then labels.
+
+**Fork-log numbering:** rows 21–24 each appear twice in the log; the fork column tells them apart.

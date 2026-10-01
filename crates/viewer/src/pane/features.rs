@@ -628,11 +628,11 @@ mod tests {
 
     /// **A failed row's words are said quietly**: the row is loud once,
     /// at its badge, and the line under it is that verdict's words —
-    /// egui's weak text, not the theme's unresolved colour.
+    /// egui's weak text, not the theme's actionable colour.
     #[test]
     fn a_failed_rows_words_are_weak_under_its_loud_badge() {
-        let (painted, voices) = landed_voiced(|ui| {
-            failure_lines(ui, &placer_refused_row(None), &Theme::DEFAULT);
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            failure_lines(ui, &placer_refused_row(None), theme);
         });
         assert_eq!(find(&painted, FAILURE).ink, Some(voices.weak));
     }
@@ -802,8 +802,8 @@ mod tests {
 
     /// `row`, drawn by the pane's own row function, unselected and not
     /// hidden.
-    fn feature_row_drawn(ui: &mut egui::Ui, row: &TreeRow) {
-        feature_row_ui(ui, row, false, false, &Theme::DEFAULT);
+    fn feature_row_drawn(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) {
+        feature_row_ui(ui, row, false, false, theme);
     }
 
     /// **A measure with a value paints it on its own row**, in the
@@ -816,7 +816,8 @@ mod tests {
     #[test]
     fn a_measure_with_a_value_paints_it_beside_its_row() {
         let fixture = measure_fixture();
-        let painted = landed(|ui| feature_row_drawn(ui, &fixture.row(fixture.distance)));
+        let painted =
+            landed(|ui| feature_row_drawn(ui, &fixture.row(fixture.distance), &Theme::DEFAULT));
         let value = find(&painted, "0.0125 m");
         let kind = find(&painted, &format!("Measure {GLYPH_ROOT}"));
         assert!(
@@ -841,7 +842,8 @@ mod tests {
     #[test]
     fn a_measured_angle_paints_in_radians() {
         let fixture = measure_fixture();
-        let drawn = painted_text(|ui| feature_row_drawn(ui, &fixture.row(fixture.angle)));
+        let drawn =
+            painted_text(|ui| feature_row_drawn(ui, &fixture.row(fixture.angle), &Theme::DEFAULT));
         assert!(drawn.contains("0.5 rad"), "{drawn}");
     }
 
@@ -867,7 +869,9 @@ mod tests {
             "the premise: the kernel's words name the door that answers: {reason}"
         );
         let row = fixture.row(fixture.clearance);
-        let (painted, voices) = landed_voiced(|ui| feature_row_drawn(ui, &row));
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            feature_row_drawn(ui, &row, theme)
+        });
         let line = find(&painted, &reason);
         assert_under(find(&painted, "Measure"), line);
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
@@ -888,7 +892,7 @@ mod tests {
         let RowStatus::Failed { message, .. } = &row.status else {
             panic!("the premise: a distance over zero fails: {:?}", row.status)
         };
-        let drawn = painted(|ui| feature_row_drawn(ui, &row));
+        let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert_eq!(
             drawn,
             vec!["Measure".to_owned(), "FAILED".to_owned(), message.clone()],
@@ -916,7 +920,9 @@ mod tests {
             note: Some(note.to_owned()),
             ..placer_refused_row(None)
         };
-        let (painted, voices) = landed_voiced(|ui| feature_row_drawn(ui, &row));
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            feature_row_drawn(ui, &row, theme)
+        });
         let line = find(&painted, note);
         assert_under(find(&painted, "Mate"), line);
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
@@ -966,8 +972,9 @@ mod tests {
             ),
             "the premise: 0.0125 m is at least 0.01 m"
         );
-        let (painted, voices) =
-            landed_voiced(|ui| feature_row_drawn(ui, &fixture.row(fixture.holds)));
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            feature_row_drawn(ui, &fixture.row(fixture.holds), theme)
+        });
         let kind = find(&painted, &format!("Assertion {GLYPH_ROOT}"));
         let state = find(&painted, state_of(&fixture, fixture.holds));
         let comparison = find(
@@ -1013,8 +1020,9 @@ mod tests {
             ),
             "the premise: 0.0125 m is not at least 0.02 m"
         );
-        let (painted, voices) =
-            landed_voiced(|ui| feature_row_drawn(ui, &fixture.row(fixture.violated)));
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            feature_row_drawn(ui, &fixture.row(fixture.violated), theme)
+        });
         assert_eq!(
             texts(&painted),
             vec![
@@ -1023,7 +1031,7 @@ mod tests {
                 &compared(&fixture, fixture.violated, "0.0125 m", "0.02 m"),
             ],
         );
-        assert_eq!(find(&painted, state).ink, Some(voices.unresolved));
+        assert_eq!(find(&painted, state).ink, Some(voices.actionable));
     }
 
     /// **An assertion's numbers are spelled in its measure's
@@ -1034,7 +1042,8 @@ mod tests {
     #[test]
     fn an_assertion_over_an_angle_paints_both_numbers_in_radians() {
         let fixture = measure_fixture();
-        let drawn = painted(|ui| feature_row_drawn(ui, &fixture.row(fixture.angle_holds)));
+        let drawn =
+            painted(|ui| feature_row_drawn(ui, &fixture.row(fixture.angle_holds), &Theme::DEFAULT));
         let comparison = compared(&fixture, fixture.angle_holds, "0.5 rad", "1 rad");
         assert!(
             drawn.contains(&comparison),
@@ -1059,8 +1068,9 @@ mod tests {
             other => panic!("the premise: a margin of 2ε is in the sliver band: {other:?}"),
         };
         let state = state_of(&fixture, fixture.indeterminate);
-        let (painted, voices) =
-            landed_voiced(|ui| feature_row_drawn(ui, &fixture.row(fixture.indeterminate)));
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            feature_row_drawn(ui, &fixture.row(fixture.indeterminate), theme)
+        });
         assert_eq!(
             texts(&painted),
             vec![
@@ -1094,7 +1104,7 @@ mod tests {
         };
         let row = fixture.row(fixture.unavailable);
         let pointer = tree::link_wording(fixture.clearance);
-        let drawn = painted(|ui| feature_row_drawn(ui, &row));
+        let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert_eq!(
             drawn,
             vec![
@@ -1124,7 +1134,7 @@ mod tests {
             "the premise: a failed measure poisons its assertion: {:?}",
             row.status
         );
-        let drawn = painted(|ui| feature_row_drawn(ui, &row));
+        let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert_eq!(
             drawn,
             vec![
@@ -1205,9 +1215,9 @@ mod tests {
             pose: None,
             ..instance_row()
         };
-        let drawn = painted(|ui| feature_row_drawn(ui, &row));
+        let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert_eq!(drawn, vec!["Extrude".to_owned()], "{drawn:?}");
-        let with = painted(|ui| feature_row_drawn(ui, &instance_row()));
+        let with = painted(|ui| feature_row_drawn(ui, &instance_row(), &Theme::DEFAULT));
         assert!(
             with.iter().any(|text| text == "shown"),
             "the premise: an instance row draws one: {with:?}"
@@ -1245,7 +1255,7 @@ mod tests {
             ..instance_row()
         };
 
-        let drawn = painted_text(|ui| feature_row_drawn(ui, &row));
+        let drawn = painted_text(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert!(
             drawn.contains(&Refusal::version_question(&offer))
                 && drawn.contains(VersionOffer::LABEL),
@@ -1278,7 +1288,7 @@ mod tests {
             version_offer: None,
             ..row
         };
-        let drawn = painted_text(|ui| feature_row_drawn(ui, &unoffered));
+        let drawn = painted_text(|ui| feature_row_drawn(ui, &unoffered, &Theme::DEFAULT));
         assert!(
             !drawn.contains(VersionOffer::LABEL)
                 && !drawn.contains(&Refusal::version_question(&offer)),

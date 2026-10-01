@@ -221,6 +221,7 @@ CERT_IMPORTERS=(
   crates/geom-core/src/spline/hull.rs
   crates/geom-core/src/spline/net.rs
   crates/geom-core/src/sym/signed.rs
+  crates/geom/src/curves/second_derivative.rs
   crates/mesh/src/chords.rs
   crates/topo/src/props/quad_lane.rs
 )

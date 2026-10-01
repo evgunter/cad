@@ -81,7 +81,7 @@ use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
     Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, remap_carried, remap_contacts, volume_backstop,
+    merge_rows, remap_carried, remap_contacts,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -356,7 +356,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     body.sweep_and_close();
     let body = zipped;
     gate(&body)?;
-    volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
+    T::gate_volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,

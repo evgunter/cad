@@ -22,7 +22,8 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, SurfaceKey,
+    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, SpiricImage,
+    SurfaceKey,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
@@ -51,6 +52,15 @@ fn nurbs(weights: Vec<f64>) -> Arc<NurbsCurve2<f64>> {
 /// the interval its rows sample: `(name, image, t0, t1)`. The
 /// `General` net is genuinely rational, so the `(−a)/b = −(a/b)` limb
 /// of the NURBS arm is exercised and not only the polynomial one.
+///
+/// **Hand-written, and checked against the enum.** This list was
+/// hand-short by one for the whole life of `Pcurve::Spiric`'s first
+/// landing, which is exactly how a wrong `mirror_v` arm reached a
+/// green gate; `every_variant_appears_in_the_kinds_census` below is
+/// the row that makes the compiler say so from now on. A spiric
+/// carries TWO entries because its two chart images answer this door
+/// differently — the cap reflects exactly, the wall has no reflection
+/// at all.
 fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
     vec![
         (
@@ -97,7 +107,74 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
             0.0,
             1.0,
         ),
+        (
+            "Spiric/Cap",
+            Pcurve::Spiric {
+                major: 0.09375,
+                minor: 0.0703125,
+                offset: 0.0078125,
+                image: SpiricImage::Cap {
+                    p0: Point2::new(-0.09201, -0.02778),
+                    pm: Vec2::new(1.0, 0.0),
+                    pa: Vec2::new(0.0, -0.0703125),
+                },
+            },
+            -0.4,
+            0.9,
+        ),
+        (
+            "Spiric/Wall",
+            Pcurve::Spiric {
+                major: 0.09375,
+                minor: 0.0703125,
+                offset: 0.0078125,
+                image: SpiricImage::Wall {
+                    u0: core::f64::consts::FRAC_PI_2,
+                    v0: 0.0,
+                    sense: -1.0,
+                },
+            },
+            -0.4,
+            0.9,
+        ),
     ]
+}
+
+/// Which kinds have a reflected locus at all: every one but a spiric
+/// WALL image, whose two channels ride one `sense`
+/// (`Pcurve::mirror_v`'s docs carry the derivation).
+fn reflects(p: &Pcurve<f64>) -> bool {
+    !matches!(
+        p,
+        Pcurve::Spiric {
+            image: SpiricImage::Wall { .. },
+            ..
+        }
+    )
+}
+
+/// **The census is the enum's, not a hand-written list's.** One entry
+/// per `Pcurve` variant at minimum, and the match below is exhaustive,
+/// so a new variant is a compile error in this file — which is what
+/// the hand-written `kinds()` above could not be on its own.
+#[test]
+fn every_variant_appears_in_the_kinds_census() {
+    let mut seen = [false; 6];
+    for (_, p, _, _) in kinds() {
+        let slot = match p {
+            Pcurve::Harmonic { .. } => 0,
+            Pcurve::Fitted(_) => 1,
+            Pcurve::General(_) => 2,
+            Pcurve::IsoLine { .. } => 3,
+            Pcurve::IsoArc { .. } => 4,
+            Pcurve::Spiric { .. } => 5,
+        };
+        seen[slot] = true;
+    }
+    assert!(
+        seen.iter().all(|b| *b),
+        "the kinds() census is short a variant: {seen:?}"
+    );
 }
 
 fn schedule(t0: f64, t1: f64) -> impl Iterator<Item = f64> {
@@ -111,7 +188,17 @@ fn schedule(t0: f64, t1: f64) -> impl Iterator<Item = f64> {
 #[test]
 fn mirror_v_is_the_exact_reflection_and_a_bitwise_involution_in_every_kind() {
     for (name, p, t0, t1) in kinds() {
-        let m = p.mirror_v();
+        let Some(m) = p.mirror_v() else {
+            assert!(
+                !reflects(&p),
+                "{name}: the door refused an image that has a reflection"
+            );
+            continue;
+        };
+        assert!(
+            reflects(&p),
+            "{name}: the door answered for an image with no reflected locus"
+        );
         assert_eq!(
             core::mem::discriminant(&m),
             core::mem::discriminant(&p),
@@ -133,11 +220,56 @@ fn mirror_v_is_the_exact_reflection_and_a_bitwise_involution_in_every_kind() {
             );
         }
         assert_eq!(
-            format!("{:?}", m.mirror_v()),
+            format!(
+                "{:?}",
+                m.mirror_v().expect("the reflection of a reflection")
+            ),
             format!("{p:?}"),
             "{name}: involution"
         );
     }
+}
+
+/// **The one image with no reflection says so.** A spiric WALL image
+/// rides one `sense` on both channels, so the chart reflection
+/// `(u, v) ↦ (u, −v)` — `u` fixed, `v` negated — is unrepresentable,
+/// and the door answers `None` rather than an image whose `v` channel
+/// is wrong by the whole span.
+///
+/// The number this row exists for: the arm that silently kept `sense`
+/// returned `v = −v0 + sense·t` where the reflection is
+/// `−v0 − sense·t`, so `|v + v′|` reached the span's whole width while
+/// `mirror_v ∘ mirror_v` still held — an involution-only row is blind
+/// to it, which is why this row measures the locus.
+#[test]
+fn a_spiric_wall_image_has_no_reflection_and_the_door_says_so() {
+    let mut walls = 0;
+    let mut caps = 0;
+    for (name, p, t0, t1) in kinds() {
+        let Pcurve::Spiric { ref image, .. } = p else {
+            continue;
+        };
+        match image {
+            SpiricImage::Wall { .. } => {
+                walls += 1;
+                assert!(p.mirror_v().is_none(), "{name}: a wall has no reflection");
+            }
+            SpiricImage::Cap { .. } => {
+                caps += 1;
+                let m = p.mirror_v().expect("a cap image reflects");
+                for (i, t) in schedule(t0, t1).enumerate() {
+                    let (a, b) = (p.eval(t), m.eval(t));
+                    assert_eq!(a.x.to_bits(), b.x.to_bits(), "{name}: u moved at {i}");
+                    assert_eq!(
+                        (-a.y).to_bits(),
+                        b.y.to_bits(),
+                        "{name}: v is not the exact negation at {i}"
+                    );
+                }
+            }
+        }
+    }
+    assert_eq!((walls, caps), (1, 1), "both spiric images were exercised");
 }
 
 /// The NURBS arms go through `NurbsCurve2::map_points`, and that door
@@ -168,7 +300,7 @@ fn the_nurbs_arms_are_map_points_and_agree_with_a_re_validated_rebuild() {
             format!("{via_door:?}"),
             "{name}: map_points differs from the re-validated rebuild"
         );
-        let (Pcurve::Fitted(m) | Pcurve::General(m)) = p.mirror_v() else {
+        let Some(Pcurve::Fitted(m) | Pcurve::General(m)) = p.mirror_v() else {
             panic!("{name}: the variant moved")
         };
         assert_eq!(format!("{:?}", *m), format!("{via_door:?}"), "{name}");
@@ -326,7 +458,9 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             ),
             "{name}: the stored image on the reverted plane: {stale:?}"
         );
-        let mirrored = fwd.with_chart_v_mirrored();
+        let mirrored = fwd
+            .with_chart_v_mirrored()
+            .unwrap_or_else(|| panic!("{name}: a plane-chart image reflects"));
         let fresh = mirrored
             .recertify(start, end, |_| Some(rev.clone()), band)
             .unwrap_or_else(|e| panic!("{name}: mirrored refused on the reverted plane {e:?}"));
@@ -336,7 +470,10 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             "{name}: the travelling certificate is not the fresh run's"
         );
         assert_eq!(
-            format!("{:?}", mirrored.with_chart_v_mirrored()),
+            format!(
+                "{:?}",
+                mirrored.with_chart_v_mirrored().expect("door involution")
+            ),
             format!("{fwd:?}"),
             "{name}: door involution"
         );
@@ -379,7 +516,11 @@ fn a_description_without_a_chart_image_is_invariant_under_the_door() {
     )
     .expect("the line is the two planes' intersection");
     assert_eq!(
-        format!("{:?}", edge.with_chart_v_mirrored()),
+        format!(
+            "{:?}",
+            edge.with_chart_v_mirrored()
+                .expect("an intrinsic description has no chart image to refuse")
+        ),
         format!("{edge:?}")
     );
 }
