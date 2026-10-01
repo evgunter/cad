@@ -50,7 +50,11 @@
 //! - **No `PartialEq` / `PartialOrd` / `Hash` derives.** Comparison is
 //!   the predicate layer's job (M0 PR 3): geometric equality is a
 //!   tolerance decision, never a bit pattern — and the scalar `T` carries
-//!   no comparison surface anyway (see `real.rs` on why).
+//!   no comparison surface anyway (see `real.rs` on why). A point set
+//!   has no canonical order in this kernel. Two clouds are compared by
+//!   matching under a tolerance (0 for exact), never by sorting and
+//!   zipping. Representation identity, where a site needs it, is
+//!   per-coordinate `to_bits` at that site with its reason.
 //! - **No left scalar multiplication `s * v`.** That impl must live on
 //!   the *scalar* type (`impl Mul<Vec3<T>> for T`), which coherence
 //!   forbids for a generic scalar and which we decline to special-case
