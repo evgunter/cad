@@ -237,7 +237,7 @@ fn every_rigid_map_moves_an_edge_certified_near_eps() {
     let body = lamina(delta);
     for (name, map) in rotations() {
         topo::transform_rigid(&body, &map, Tol::witness())
-        .unwrap_or_else(|e| panic!("{name}: the image of an edge certified near ε moves: {e}"));
+            .unwrap_or_else(|e| panic!("{name}: the image of an edge certified near ε moves: {e}"));
     }
 }
 
