@@ -11,8 +11,9 @@
 //!   through the fitted lane, which the operators do not carry — the op
 //!   refuses there, typed, with the body untouched;
 //! - a carrier outside an analytic chart's closed-form classes, where
-//!   the minting pass itself leaves the face uncovered — the op gives
-//!   the face that same answer, and it stores nothing.
+//!   the op stores nothing on the face — and the minting pass, which
+//!   leaves a face uncovered only for a carrier that can lie on it,
+//!   refuses one that cannot.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -98,13 +99,15 @@ fn a_strut_on_a_minted_spline_wall_refuses_with_the_body_untouched() {
     assert_eq!(format!("{body:?}"), before);
 }
 
-/// **An uncovered carrier leaves the face uncovered.** A quarter
-/// revolve of a trapezoid mints a cone wall. A strut from one of its
-/// corners along a circle tilted off the cone's axis is outside the
-/// cone chart's closed-form classes (rims and rulings), so the minting
-/// pass would store nothing on that face — and the op gives it that
-/// answer: it returns `Ok`, the wall stores no row, and the pass,
-/// re-run, agrees.
+/// **An off-chart strut leaves the wall unminted, and the pass names
+/// it.** A quarter revolve of a trapezoid mints a cone wall. A strut
+/// from one of its corners along a circle tilted off the cone's axis
+/// is outside the cone chart's closed-form classes (rims and rulings):
+/// the op returns `Ok` with no row on the wall, and tier 3, which reads
+/// only stored rows, has nothing to say. A circle whose plane is not ⊥
+/// the axis is no plane section of a right circular cone, so the strut
+/// does not lie on its face, and the minting pass, re-run, refuses it
+/// as `CarrierOffChart` rather than leaving the face uncovered.
 #[test]
 fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
     let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
@@ -140,7 +143,17 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
         "the cone wall kept a row the minting pass would not store"
     );
     assert_eq!(validate_pcurves(&body, band()), vec![]);
-    topo::mint_pcurves_of(&mut body, &[cone], tol()).unwrap();
+    let refused = topo::mint_pcurves_of(&mut body, &[cone], tol()).unwrap_err();
+    assert!(
+        matches!(
+            refused,
+            topo::PcurveMintError::Certify {
+                half_edge,
+                error: geom_brep::PcurveCertifyError::CarrierOffChart { chart: "cone", .. },
+            } if half_edge == made.he_plus || half_edge == made.he_minus
+        ),
+        "the strut is not on the cone: {refused:?}"
+    );
     assert!(cycle.iter().all(|&he| body.pcurve(he).is_none()));
 }
 
