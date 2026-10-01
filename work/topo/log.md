@@ -5798,3 +5798,13 @@ question:
 The lane stops if the clean route needs one of those.
 
 Brief: `mergedesc-impl-brief.md` (hash in `brief-hashes.txt`).
+
+## PR 3669 merged (2026-10-01)
+
+`movefac`'s mate hop now proves the face it hops to lists the loop it
+hopped through. The case it guards is `unreachable!`, carrying its
+premises (D2 row 4).
+
+- **Merged:** `7410cc68eb` from head `16bee7bbc5`.
+- **CI:** run 36861620526 passed, and the PR was clean when merged.
+- **Filed on SHELL and HONE:** the receipt's two walk rows.
