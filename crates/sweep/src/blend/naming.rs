@@ -198,8 +198,8 @@ pub struct BlendNaming {
     /// the band discriminates.
     pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,
     /// The SURVIVING piece of a source edge the band's carve split ←
-    /// that source edge: a seam meridian at a ladder rim's crossing, or
-    /// a cap rim at a ruled band's transverse cap. (Present even when
+    /// that source edge: a seam meridian at a ladder rim's or an annulus
+    /// rim's crossing, or a cap rim at a ruled band's transverse cap. (Present even when
     /// the surviving piece kept the source key — the piece is a
     /// fragment, so it is named as one.)
     pub meridian_remnants: Vec<(EdgeKey, EdgeKey)>,
@@ -209,12 +209,10 @@ pub struct BlendNaming {
     ///
     /// `meridian_remnants` carries no band, and needs none: a band that
     /// splits a piece an earlier band recorded retires that row before
-    /// recording its own — `surgery::split_fragment` on the ladder and
-    /// ruled arms, the hand-kept `retain`s in `rim_phase_annulus` on the
-    /// annulus arm (the second spelling
-    /// `work/band/annulus-rim-phase-keeps-a-second-spelling-of-the-split-provenance.md`
-    /// files) — so one source meridian's surviving pieces are recorded
-    /// once each, and their names are unique by that alone.
+    /// recording its own — `surgery::split_fragment`, the one home of
+    /// that split for the ladder, annulus and ruled arms alike — so one
+    /// source meridian's surviving pieces are recorded once each, and
+    /// their names are unique by that alone.
     pub slits: Vec<(EdgeKey, EdgeKey, Vec<EdgeKey>)>,
 
     /// What the blend retired from the source.
