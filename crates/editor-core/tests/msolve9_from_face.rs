@@ -1,7 +1,6 @@
 //! MSOLVE-9 acceptance — **a mate frame that names a face of the part
-//! and resolves at evaluation** through the reach road (the spec is
-//! `docs/MSOLVE-9-SPEC.md`; `ASSEMBLY.md` A11 rule 5 is the ratified
-//! sentence).
+//! and resolves at evaluation** through the reach road (`ASSEMBLY.md`
+//! A11 rule 5 is the ratified sentence).
 //!
 //! `MateFrame::FromFace` stores the PART-LOCAL name of a face; the
 //! solve asks the mated part's own evaluation for that face's
