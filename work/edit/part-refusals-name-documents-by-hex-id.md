@@ -30,6 +30,11 @@ arena key does. On EDIT's ground:
   <32 hex>").
 - `EditError::PinUnchanged` (`crates/editor-core/src/edit.rs`, "node 6
   already pins <64 hex>"), the whole pin.
+- `SplitError::PartIdCollides` (`crates/editor-core/src/refactor.rs`,
+  "the new document id <32 hex> collides with the split document or a
+  document the cut references"), found by the split and inline census
+  `crates/editor-core/tests/refusal_concision_refactor.rs` (PR 3676)
+  and admitted there.
 - Not on any roster, found by the same sweep: `crates/editor-core/src/update.rs`'s
   "update: every reference to {id} already pins {pin}" (hex twice, and
   a stage prefix).
@@ -50,7 +55,8 @@ are admitted by exact row and exact span
 `crates/editor-core/tests/refusal_concision_chains.rs` (`ADMISSIONS`,
 `Part/ReferenceCycle`), `crates/editor-core/tests/refusal_concision_at_rest.rs`
 (the carried routes' `CARRIED_FROM`) and
-`crates/viewer/tests/refusal_concision_edits.rs` (`ADMISSIONS`). An
+`crates/viewer/tests/refusal_concision_edits.rs` (`ADMISSIONS`) and
+`crates/editor-core/tests/refusal_concision_refactor.rs` (`ADMISSIONS`). An
 admission whose span its row no longer holds is red, so each goes
 when its row is fixed.
 

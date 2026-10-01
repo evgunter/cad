@@ -3082,6 +3082,32 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
         row(
+            "Unplaced/NoOffset",
+            NodeErrorKind::Unplaced {
+                group: RecipeNodeId(6),
+                cause: editor_core::Unplaced::NoOffset,
+            },
+        ),
+        row(
+            "Unplaced/DeadGauge",
+            NodeErrorKind::Unplaced {
+                group: RecipeNodeId(6),
+                cause: editor_core::Unplaced::DeadGauge {
+                    gauge: RecipeNodeId(2),
+                },
+            },
+        ),
+        row(
+            "PlacementRefused",
+            NodeErrorKind::PlacementRefused {
+                node: RecipeNodeId(2),
+                error: NodeErrorKind::EmptyOperand {
+                    input: RecipeNodeId(1),
+                }
+                .into(),
+            },
+        ),
+        row(
             "CrossingUnverified",
             NodeErrorKind::CrossingUnverified {
                 instance: RecipeNodeId(tagged(6)),
@@ -3561,6 +3587,36 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                     part: doc_ref(),
                     refusal: editor_core::ReachRefusal::NoExtent,
                 }),
+            },
+        ),
+        (
+            "OffsetDisagrees",
+            M::OffsetDisagrees {
+                instance: n(7),
+                root: n(6),
+                predicate: "mate_member_translation_zero",
+                clash: Clash::Length { metres: 0.002 },
+            },
+        ),
+        (
+            "OffsetUnchecked/Placement",
+            M::OffsetUnchecked {
+                instance: n(7),
+                cause: Box::new(editor_core::OffsetCheck::Placement {
+                    node: n(3),
+                    error: NodeErrorKind::EmptyOperand { input: n(2) }.into(),
+                }),
+            },
+        ),
+        (
+            "OffsetUnchecked/Unleverable",
+            M::OffsetUnchecked {
+                instance: n(7),
+                cause: Box::new(editor_core::OffsetCheck::Unleverable(LeverRefusal::Reach {
+                    instance: n(7),
+                    part: doc_ref(),
+                    refusal: editor_core::ReachRefusal::NoExtent,
+                })),
             },
         ),
     ]

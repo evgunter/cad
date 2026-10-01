@@ -61,7 +61,7 @@ fn a_program_failing_validate_loads_clean_and_refuses_typed_at_evaluation() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(desc(plane, vec![BOWTIE.to_vec()])),
+            node: Box::new(Node::Profile(desc(plane, vec![BOWTIE.to_vec()]))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

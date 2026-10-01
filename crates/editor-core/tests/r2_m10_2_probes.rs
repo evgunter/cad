@@ -121,7 +121,7 @@ fn with_measure(
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: Node::measure(expr, refs).expect("indices in range"),
+            node: Box::new(Node::measure(expr, refs).expect("indices in range")),
         },
     );
     let id = crate::fixture::newest(&doc);
@@ -165,27 +165,31 @@ fn boxed(
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, z0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
         },
     );
     let plane = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(fixture::desc(
+            node: Box::new(Node::Profile(fixture::desc(
                 plane,
                 vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-            )),
+            ))),
         },
     );
     let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
-            },
+            }),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -206,7 +210,11 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, cz], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, cz],
+                [1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+            )),
         },
     );
     let plane = crate::fixture::newest(&doc);
@@ -216,29 +224,29 @@ fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, Recipe
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
+            node: Box::new(fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0))),
         },
     );
     let axis = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![half],
                 ids: Vec::new(),
-            }),
+            })),
         },
     );
     let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Revolve {
+            node: Box::new(Node::Revolve {
                 profile: p,
                 axis,
                 angle: ang(std::f64::consts::TAU),
-            },
+            }),
         },
     );
     let s = crate::fixture::newest(&doc);
@@ -258,31 +266,35 @@ fn cylinder(
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, z0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
         },
     );
     let plane = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![LoopProgram::Circle {
                     centre: [len(cx), len(cy)],
                     radius: len(r),
                 }],
                 ids: Vec::new(),
-            }),
+            })),
         },
     );
     let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
-            },
+            }),
         },
     );
     let e = crate::fixture::newest(&doc);
@@ -714,35 +726,35 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
     let d1 = push(
         &d1,
         &DocEdit::InsertNode {
-            node: fixture::frame(
+            node: Box::new(fixture::frame(
                 [0.01, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
                 [0.0, theta.cos(), -theta.sin()],
-            ),
+            )),
         },
     );
     let plane = crate::fixture::newest(&d1);
     let d2 = push(
         &d1,
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
+            node: Box::new(Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.001),
                 }],
                 ids: Vec::new(),
-            }),
+            })),
         },
     );
     let p = crate::fixture::newest(&d2);
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(0.01),
-            },
+            }),
         },
     );
     let c2 = crate::fixture::newest(&d3);
@@ -788,13 +800,13 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 // A bound the measure VIOLATES: the box diagonal is at
                 // most sqrt(3) < 100.
                 bound: len(100.0),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     let assertion = crate::fixture::newest(&d3);
@@ -848,7 +860,12 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
         ];
         for (what, node) in attempts {
-            match try_push(&d3, &DocEdit::InsertNode { node }) {
+            match try_push(
+                &d3,
+                &DocEdit::InsertNode {
+                    node: Box::new(node),
+                },
+            ) {
                 // Refused at the edit door: ideal.
                 Err(_) => {}
                 // Admitted: it MUST then fail typed at evaluation, and
@@ -889,11 +906,11 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
     let with_assertion = push(
         &with_measure_doc,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: len(100.0),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     let assertion = crate::fixture::newest(&with_assertion);
@@ -1043,14 +1060,14 @@ fn r2_a_transform_has_no_emission_to_measure() {
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::transform(
+            node: Box::new(Node::transform(
                 b,
                 editor_core::Step::Rigid {
                     translation: [len(100.0), len(0.0), len(0.0)],
                     axis: [scl(0.0), scl(0.0), scl(1.0)],
                     angle: ang(0.0),
                 },
-            ),
+            )),
         },
     );
     let moved = crate::fixture::newest(&d3);
@@ -1128,11 +1145,11 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     let good = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     let text = editor_core::save(&good, &[], Tol::witness()).expect("a well-formed document saves");
@@ -1172,11 +1189,11 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     let bad_dim = try_push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     assert!(
@@ -1186,11 +1203,11 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     let bad_target = try_push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure: b,
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     assert!(
@@ -1242,11 +1259,11 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
         let d4 = push(
             &d3,
             &DocEdit::InsertNode {
-                node: Node::Assertion {
+                node: Box::new(Node::Assertion {
                     measure,
                     bound: len(0.02),
                     dir: AssertionDir::AtLeast,
-                },
+                }),
             },
         );
         let assertion = crate::fixture::newest(&d4);
@@ -1320,11 +1337,11 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     let doc = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     );
     let assertion = *doc.order().last().expect("the assertion is the last node");
@@ -1372,7 +1389,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
             measure,
             bound: Dimension::Length,
             ..
-        })) => assert_eq!(measure, b),
+        })) => assert_eq!(measure.id(), b),
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 }
@@ -1425,14 +1442,14 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let slotted = try_push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: d1.order()[1],
                 distance: Expr::div(
                     len(13.0),
                     Expr::param(ParamName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
-            },
+            }),
         },
     );
     if let Ok(doc) = slotted {
@@ -1489,11 +1506,11 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let Ok(d3) = try_push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Assertion {
+            node: Box::new(Node::Assertion {
                 measure,
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
-            },
+            }),
         },
     ) else {
         eprintln!("R2/nonfinite-assert: the assertion was refused at the edit door");

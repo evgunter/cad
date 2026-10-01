@@ -102,8 +102,8 @@ pub use appearance::{
 };
 pub use assembly::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, MintRefusal, MintedDeclaration, RefusedRef, Relation, Route, assemble,
-    assemble_gathered,
+    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, RefusedRef, Relation, Route,
+    assemble, assemble_gathered,
 };
 pub use checks::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
@@ -121,8 +121,8 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, Maintenance,
-    MaintenanceNet, apply, apply_logged, cascade_delete_order,
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, MaintenanceNet, apply,
+    apply_replayed, cascade_delete_order, regauge_then_mate,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
@@ -146,11 +146,12 @@ pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
     Alignment, AuthoredFrame, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash,
-    ClassAdmission, ClusterMaintenance, Coset, FaceFrame, FacePoseRefusal, FaceRefusal, Lever,
-    LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member,
-    NO_AT_REST_RECORD_RECOURSE, PlacerRow, ReachRefusal, RefusingReach, SolvedPoses, Subgroup,
-    UNDER_RECOURSE, class_admission, groups, member_of, reading_edges, relative_freedom_components,
-    root_of, solve_document, table_gap,
+    ClassAdmission, Coset, FaceFrame, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
+    OFFSET_RECOURSE, OffsetCheck, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses,
+    Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, class_admission, gauge_chain,
+    groups, member_of, places, reading_edges, relative_freedom_components, root_of, solve_document,
+    table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
@@ -178,9 +179,9 @@ pub use names::{
     select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
-    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef,
-    SlotId, StepArg, StepId, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, ListFault,
+    MeasureNodeFault, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg,
+    SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow, VectorSlot,
 };
 pub use parse::{ParamNameFault, ParamNameReason, ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
@@ -193,8 +194,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    Product, ProductError, ProductErrorKind, SourceFinding, product, product_named,
-    product_recorded,
+    OwnSpace, Product, ProductError, ProductErrorKind, SourceFinding, own_spaces, product,
+    product_named, product_recorded,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
