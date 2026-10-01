@@ -59,7 +59,7 @@ impl core::fmt::Display for UnnamedEntity {
             "name lookup: node {}'s {} in output body {} evaluated but \
              has no name in its table — naming emission is total, so \
              this is a kernel bug",
-            self.node.0,
+            self.node,
             self.entity.key.kind().noun(),
             self.entity.body
         )

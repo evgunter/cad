@@ -201,7 +201,7 @@ pub enum ReachRefusal {
 /// What `eval::mate_reach` answers over options carrying no resolver,
 /// as a value for a door that has no options at all — and the honest
 /// reach for an edit that asks the parts nothing: one that cannot move
-/// a cluster's gauge and inserts no mate whose admission reads a part
+/// a group's root and inserts no mate whose admission reads a part
 /// (a side that names a face, a rider on a coincidence). Such an
 /// insert refuses through it, typed, at the door.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

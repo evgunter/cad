@@ -60,7 +60,7 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 3);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     let (doc, eval) = session.landed_pair().expect("landed");
@@ -403,7 +403,7 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
     assert_eq!(
         fault.to_string(),
         format!(
-            "instance {}'s geometry is fused into node {} together with instance(s) {} — \
+            "instance {:012x}'s geometry is fused into node {:012x} together with instance(s) {:012x} — \
              a display operation cannot address it separately",
             a.0, weld.0, b.0
         )
@@ -454,7 +454,7 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     let note = session
         .tree_rows()
         .into_iter()
-        .find(|row| row.kind == "Mate")
+        .find(|row| row.spoken.kind() == Some("Mate"))
         .expect("the mate row exists")
         .note
         .expect("a Tangent mate carries its standing note");
@@ -542,12 +542,12 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         .expect_err("a mate is not an instance")
         .to_string();
     assert_eq!(
-        absent_says, "node 9999 is not in the document",
+        absent_says, "node 00000000270f is not in the document",
         "the absent id's sentence says the id denotes nothing"
     );
     assert_eq!(
         wrong_kind_says,
-        format!("node {} is not a part instance", mate.0),
+        format!("node {:012x} is not a part instance", mate.0),
         "the wrong-kind sentence says something IS there and is the \
          wrong thing"
     );

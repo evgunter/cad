@@ -2462,6 +2462,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::CarrierDomain(_)) => {
             "its curve's parameter range cannot carry the curve's image on its spline face"
         }
+        CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. }) => KIND,
@@ -2509,7 +2510,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::Limb { .. }
                 | P::TubeStraddles { .. }
                 | P::Escalated { .. }
-                | P::ReportedTransversalityPoisoned(_),
+                | P::ReportedTransversalityPoisoned(_)
+                | P::ChartSpeed(_),
             ) => unreachable!("a decision's refused arm always has its decision's ending"),
         }),
     };
@@ -2552,6 +2554,33 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         }
         CertCheck::PlaneNurbsReportedTransversality => {
             "the check's own summary of how clearly its faces cross came out unreadable"
+        }
+        CertCheck::PlaneNurbsChartSpeed | CertCheck::PlaneNurbsChartSpeedBound => {
+            "how fast its spline face moves along a parameter direction is too close to call \
+             at this tolerance"
+        }
+    }
+}
+
+/// Why a plane × NURBS edge's spline face carries no chart speed, by the
+/// axis the speed failed on: the face is constant along it, or too large
+/// to bound.
+fn chart_speed_reason(r: geom_brep::ChartSpeedRefusal) -> &'static str {
+    use geom_brep::{ChartAxis as A, ChartSpeedRefusal as C};
+    match r {
+        C::Zero { axis: A::U } => {
+            "its spline face is constant along u, so the check cannot measure a length across \
+             it"
+        }
+        C::Zero { axis: A::V } => {
+            "its spline face is constant along v, so the check cannot measure a length across \
+             it"
+        }
+        C::NotFinite { axis: A::U } => {
+            "its spline face is too large for the check to bound how fast it moves along u"
+        }
+        C::NotFinite { axis: A::V } => {
+            "its spline face is too large for the check to bound how fast it moves along v"
         }
     }
 }
@@ -13267,6 +13296,31 @@ mod certify_escalation_rows {
                 "its faces are tangent where its description says they cross. Recourse: move \
                  the geometry so the faces cross at a clearer angle, or, if this angle is \
                  intended, tighten the tolerance below 5e-11 m",
+            ),
+            // A degenerate spline face is the face's own fact, and its
+            // lever is the face: constant along an axis, or too large
+            // to bound — never "no way through yet".
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
+                        axis: geom_brep::ChartAxis::V,
+                    }),
+                )),
+                "its spline face is constant along v, so the check cannot measure a length \
+                 across it. Recourse: move the geometry so the spline face varies along both \
+                 of its parameter directions",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::ChartSpeed(
+                        geom_brep::ChartSpeedRefusal::NotFinite {
+                            axis: geom_brep::ChartAxis::U,
+                        },
+                    ),
+                )),
+                "its spline face is too large for the check to bound how fast it moves along u. \
+                 Recourse: move the geometry to a scale where the spline face's control points \
+                 stay well inside the range of finite numbers",
             ),
             // At exact tangency no tolerance decides it: the lever alone.
             (

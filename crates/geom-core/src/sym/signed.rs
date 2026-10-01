@@ -1,8 +1,14 @@
-//! **Rule C — the clause-3 fold** behind [`SymRules::signed_root`]:
+//! **The value reads, and the one door the value comes through.**
+//! Rule C — the clause-3 fold behind [`SymRules::signed_root`]:
 //! `sqrt(X) → R` where `X = R²` as forms and `R` has a CERTIFIED sign
-//! over the leaf's box, and `abs(R) → ±R` likewise. This is the one
-//! rule of the atom algebra that reads a value, and this module is the
-//! whole of how it reads one.
+//! over the leaf's box, and `abs(R) → ±R` likewise. Beside it, behind
+//! its own dial ([`SymRules::decision_read`]), the DECISION READ: the
+//! arm a `Select` takes where its decision's sign is certified over
+//! the box, and the arm `min`/`max` takes, which is the same read
+//! (`max(A, B)` IS `select(B − A, A, B)`). Rule G's side condition
+//! asks for a third (`enclose_poly`), under rule C's dial. Three
+//! reads; ONE enclosure, and this module is the whole of how a value
+//! is read.
 //!
 //! # What is read, and through which door
 //!
@@ -12,10 +18,19 @@
 //! a parameter axis already holds `(lo, hi)` as two `f64`s), and the
 //! candidate `R` is enclosed over those brackets in the always-compiled,
 //! outward-rounded [`Interval`](crate::interval::Interval). No type is punned, no feature is
-//! gated, no bound is added: `R` is a polynomial in the parameters and
-//! `π`, evaluated in certification arithmetic; a form with any other indeterminate (an
-//! opaque real, an atom, a frozen node) is not enclosable and the fold
-//! declines.
+//! gated, no bound is added. What a form may carry and still be
+//! enclosed depends on the read:
+//!
+//! - rule C's fold encloses a polynomial in the parameters and `π`
+//!   alone (`enclose`); any other indeterminate (an opaque real, an
+//!   atom, a frozen node) is not enclosable there and the fold
+//!   declines;
+//! - the decision read and rule G's side condition enclose through the
+//!   session's atoms as well (`enclose_deep`): a `sqrt`, `abs`, `min`
+//!   or `max` atom is entered and its argument enclosed in turn, to
+//!   `ENCLOSE_DEPTH` levels. An opaque real, a frozen node, any other
+//!   atom, or an atom past that depth is not enclosable, and the read
+//!   declines.
 //!
 //! # Why it is sound (clause 3 of the theorem)
 //!
@@ -41,9 +56,9 @@
 use crate::real::Bounds;
 use core::f64::consts::PI;
 
-use super::form::{Form, Mono, Poly, exp_of};
+use super::form::{Form, Mono, Poly, leading, mono_div, trailing};
 use super::rational::Rat;
-use super::{INDET_PI, IndetMap, SymBudget, SymOp};
+use super::{AtomInfo, INDET_PI, IndetMap, Session, SymBudget, SymOp, manifest, quotient};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
 
@@ -51,26 +66,6 @@ use crate::interval::certification::Certification;
 /// up: a real residual's root is a handful of terms, and the bound keeps
 /// a non-square polynomial from being chased term by term.
 const ROOT_TERMS: usize = 64;
-
-/// The exponent of `id` in `m` (zero where absent).
-/// A graded-lexicographic comparison: total degree first, then the
-/// exponent vector over `ids` — a monomial order, which the
-/// leading-term recurrence below needs (the map's own `Vec` order is
-/// not one). Allocation-free: it runs over every term of every
-/// argument the early walk offers, and the first cut's per-term key
-/// vector was the cost of the whole walk.
-fn cmp_mono(a: &Mono, b: &Mono, ids: &[u128]) -> core::cmp::Ordering {
-    let deg = |m: &Mono| m.iter().map(|(_, e)| *e).sum::<u32>();
-    deg(a).cmp(&deg(b)).then_with(|| {
-        for &id in ids {
-            let o = exp_of(a, id).cmp(&exp_of(b, id));
-            if o != core::cmp::Ordering::Equal {
-                return o;
-            }
-        }
-        core::cmp::Ordering::Equal
-    })
-}
 
 /// Every indeterminate id of `p`, sorted.
 fn ids_of(p: &Poly) -> Vec<u128> {
@@ -80,38 +75,11 @@ fn ids_of(p: &Poly) -> Vec<u128> {
     ids
 }
 
-/// The leading term of `p` under the graded-lex order over `ids`.
-fn lead<'a>(p: &'a Poly, ids: &[u128]) -> Option<(&'a Mono, Rat)> {
-    p.terms()
-        .iter()
-        .max_by(|(a, _), (b, _)| cmp_mono(a, b, ids))
-        .map(|(m, c)| (m, c.clone()))
-}
-
 /// The monomial whose square is `m`, if every exponent is even.
 fn mono_sqrt(m: &Mono) -> Option<Mono> {
     m.iter()
         .map(|&(i, e)| (e % 2 == 0).then_some((i, e / 2)))
         .collect()
-}
-
-/// `t / r` as monomials, if `r` divides `t`.
-fn mono_div(t: &Mono, r: &Mono) -> Option<Mono> {
-    let mut out: Mono = Vec::with_capacity(t.len());
-    for &(i, e) in t {
-        let re = r.iter().find(|(j, _)| *j == i).map_or(0, |(_, e)| *e);
-        if re > e {
-            return None;
-        }
-        if e - re > 0 {
-            out.push((i, e - re));
-        }
-    }
-    // Every factor of `r` must appear in `t`.
-    if r.iter().any(|(j, _)| !t.iter().any(|(i, _)| i == j)) {
-        return None;
-    }
-    Some(out)
 }
 
 /// **The exact polynomial square root**: `Some(r)` with `r² == x` as
@@ -137,13 +105,13 @@ pub(super) fn poly_sqrt(x: &Poly, budget: SymBudget) -> Option<Poly> {
         return Some(Poly::zero());
     }
     let ids = ids_of(x);
-    let (lm, lc) = lead(x, &ids)?;
+    let (lm, lc) = leading(x)?;
     let r0m = mono_sqrt(lm)?;
     let r0c = lc.sqrt_exact()?;
     // The trailing term of a square is the square of the root's
     // trailing term: an odd exponent or a non-square coefficient there
     // settles it without building anything.
-    let (tm, tc) = trail(x, &ids)?;
+    let (tm, tc) = trailing(x)?;
     mono_sqrt(tm)?;
     tc.sqrt_exact()?;
     // And a square polynomial takes a square VALUE at every rational
@@ -167,7 +135,7 @@ pub(super) fn poly_sqrt(x: &Poly, budget: SymBudget) -> Option<Poly> {
         if root.terms().len() >= cap {
             return None;
         }
-        let (tm, tc) = lead(&rem, &ids)?;
+        let (tm, tc) = leading(&rem)?;
         let nm = mono_div(tm, &r0m)?;
         let nc = tc.mul(&twice.recip()?)?;
         // rem -= 2·root·t + t²
@@ -218,14 +186,6 @@ fn is_square_at_a_point(x: &Poly, ids: &[u128]) -> bool {
     acc.sqrt_exact().is_some()
 }
 
-/// The trailing term of `p` under the graded-lex order over `ids`.
-fn trail<'a>(p: &'a Poly, ids: &[u128]) -> Option<(&'a Mono, Rat)> {
-    p.terms()
-        .iter()
-        .min_by(|(a, _), (b, _)| cmp_mono(a, b, ids))
-        .map(|(m, c)| (m, c.clone()))
-}
-
 /// The monomial `m^e` as a polynomial with coefficient one.
 fn mono_poly(m: &Mono, e: u32) -> Poly {
     Poly::term(m.iter().map(|&(i, k)| (i, k * e)).collect(), Rat::one())
@@ -241,24 +201,13 @@ fn rat_enclosure(c: &Rat) -> Interval {
     }
 }
 
-/// The enclosure of `p` over the parameter brackets, or `None` where
-/// `p` carries an indeterminate no bracket is known for.
+/// The enclosure of `p` over the parameter brackets alone — no atom
+/// entered, which is rule C's own reach ([`fold`] declines an argument
+/// carrying anything else). ONE walker with the others: the depth cap
+/// is what distinguishes the two reaches, so a shallow read is the
+/// deep one asked at its floor.
 fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<Interval> {
-    let mut acc = Interval::zero();
-    for (m, c) in p.terms() {
-        let mut term = rat_enclosure(c);
-        for &(id, e) in m {
-            let x = if id == INDET_PI {
-                Interval::from_bounds(PI.next_down(), PI.next_up())
-            } else {
-                let &(lo, hi) = params.get(&id)?;
-                Interval::from_bounds(lo, hi)
-            };
-            term = term * x.powi(i32::try_from(e).ok()?);
-        }
-        acc = acc + term;
-    }
-    Some(acc)
+    enclose_deep(p, params, &IndetMap::default(), ENCLOSE_DEPTH)
 }
 
 /// The certified sign of the quotient `num / den` over the brackets:
@@ -325,6 +274,537 @@ pub(super) fn fold(
     }
     out.gated = true;
     Some(out)
+}
+
+// ------------------------------------------------------------------
+// The DECISION READ (DECIDE-3): rule C's certified read, extended from
+// `sqrt`/`abs` to the decision door and to `min`/`max`.
+// ------------------------------------------------------------------
+
+/// π to the ring's own rounding — the one spelling, read by every
+/// enclosure this module builds.
+fn pi_bracket() -> Interval {
+    Interval::from_bounds(PI.next_down(), PI.next_up())
+}
+
+/// How many atom levels the deep enclosure descends before it declines.
+/// A frame's conditioning floor nests a `min` over a `max` over an
+/// `abs` over a `sqrt` over the normal's own root — four — and the
+/// candidate norms of a tilted frame add two more; past that the cost
+/// of one node's read is the cost of a sub-tree, and declining is the
+/// conservative direction.
+const ENCLOSE_DEPTH: usize = 8;
+
+fn ring_sqrt(x: Interval) -> Interval {
+    if !x.is_certified() || x.hi() < 0.0 {
+        return Interval::refused();
+    }
+    let lo = if x.lo() <= 0.0 {
+        0.0
+    } else {
+        x.lo().sqrt().next_down()
+    };
+    Interval::from_bounds(lo, x.hi().sqrt().next_up())
+}
+
+fn ring_abs(x: Interval) -> Interval {
+    if !x.is_certified() || x.lo() >= 0.0 {
+        x
+    } else if x.hi() <= 0.0 {
+        -x
+    } else {
+        Interval::from_bounds(0.0, x.hi().max(-x.lo()))
+    }
+}
+
+fn ring_min(a: Interval, b: Interval) -> Interval {
+    if !a.is_certified() || !b.is_certified() {
+        return Interval::refused();
+    }
+    Interval::from_bounds(a.lo().min(b.lo()), a.hi().min(b.hi()))
+}
+
+fn ring_max(a: Interval, b: Interval) -> Interval {
+    if !a.is_certified() || !b.is_certified() {
+        return Interval::refused();
+    }
+    Interval::from_bounds(a.lo().max(b.lo()), a.hi().max(b.hi()))
+}
+
+/// The enclosure of one indeterminate: a parameter's bracket, `π`, or
+/// a `sqrt`/`abs`/`min`/`max` ATOM over arguments this function can
+/// enclose in turn. `None` for anything else — an opaque real, a
+/// frozen node, a `select` or a trig atom — because an indeterminate
+/// with no bracket has no enclosure, and a guess would be a value the
+/// tier is not entitled to.
+fn enclose_indet(
+    id: u128,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Option<Interval> {
+    if id == INDET_PI {
+        return Some(pi_bracket());
+    }
+    if let Some(&(lo, hi)) = params.get(&id) {
+        return Some(Interval::from_bounds(lo, hi));
+    }
+    if depth >= ENCLOSE_DEPTH {
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_note(|| "depth exhausted".into());
+        return None;
+    }
+    let Some(atom) = atoms.get(&id) else {
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_note(|| format!("unbracketed@{depth} opaque"));
+        return None;
+    };
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_entered(depth + 1);
+    let arg = |k: usize| {
+        let Some(f) = atom.args[k].as_deref() else {
+            #[cfg(feature = "sym-profile-testing")]
+            super::profile::read_note(|| format!("unbracketed@{depth} {:?} arity", atom.op));
+            return None;
+        };
+        enclose_form_deep(f, params, atoms, depth + 1)
+    };
+    let out = match atom.op {
+        SymOp::Sqrt => ring_sqrt(arg(0)?),
+        SymOp::Abs => ring_abs(arg(0)?),
+        SymOp::Min => ring_min(arg(0)?, arg(1)?),
+        SymOp::Max => ring_max(arg(0)?, arg(1)?),
+        _ => {
+            #[cfg(feature = "sym-profile-testing")]
+            super::profile::read_note(|| format!("unbracketed@{depth} {:?}", atom.op));
+            return None;
+        }
+    };
+    #[cfg(feature = "sym-profile-testing")]
+    if !out.is_certified() {
+        super::profile::read_note(|| format!("poison@{depth}"));
+    }
+    out.is_certified().then_some(out)
+}
+
+fn enclose_deep(
+    p: &Poly,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Option<Interval> {
+    let mut acc = Interval::zero();
+    for (m, c) in p.terms() {
+        let mut term = rat_enclosure(c);
+        for &(id, e) in m {
+            let x = enclose_indet(id, params, atoms, depth)?;
+            let Ok(e) = i32::try_from(e) else {
+                #[cfg(feature = "sym-profile-testing")]
+                super::profile::read_note(|| format!("exponent@{depth}"));
+                return None;
+            };
+            term = term * x.powi(e);
+        }
+        acc = acc + term;
+    }
+    #[cfg(feature = "sym-profile-testing")]
+    if !acc.is_certified() {
+        super::profile::read_note(|| format!("poison@{depth}"));
+    }
+    acc.is_certified().then_some(acc)
+}
+
+fn enclose_form_deep(
+    f: &Form,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Option<Interval> {
+    if f.poisoned {
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_note(|| format!("poisoned argument@{depth}"));
+        return None;
+    }
+    let q =
+        enclose_deep(&f.num, params, atoms, depth)? / enclose_deep(&f.den, params, atoms, depth)?;
+    #[cfg(feature = "sym-profile-testing")]
+    if !q.is_certified() {
+        super::profile::read_note(|| format!("poison@{depth}"));
+    }
+    q.is_certified().then_some(q)
+}
+
+/// The deep enclosure of one polynomial over the session's brackets —
+/// the door rule G's side-condition source 4 reads (`super::root`).
+pub(super) fn enclose_poly(p: &Poly, sess: &Session) -> Option<Interval> {
+    if sess.params.is_empty() {
+        return None;
+    }
+    enclose_deep(p, &sess.params, &sess.atoms, 0)
+}
+
+/// `p` with every manifestly POSITIVE indeterminate of its content
+/// divided out. A factor that is `> 0` wherever it has a value moves
+/// neither the sign of the product nor its zero set, and dividing it
+/// out is what lets a decision whose halves are dressed in norms be
+/// read from the polynomial underneath.
+fn strip_positive_content(p: &Poly, sess: &Session) -> Poly {
+    // Rule E's own content split, asked rather than re-derived: the
+    // monomial every term is divisible by, then the division. What is
+    // this rule's own is the middle line — keeping only the factors
+    // whose sign the form settles.
+    let mut common = quotient::content(p);
+    common.retain(|&(id, _)| manifest::indet_positive(id, sess));
+    if common.is_empty() {
+        return p.clone();
+    }
+    quotient::divide(p, &common).unwrap_or_else(|| p.clone())
+}
+
+/// **The decision read** for `Select(d, when_le, when_gt)`:
+/// `Some(true)` where `d ≤ 0` is CERTIFIED at every point of the box,
+/// `Some(false)` where `d > 0` is, `None` otherwise (straddling,
+/// poisoned, or not enclosable).
+///
+/// **`d ≤ 0` is read as `d < 0` in practice, and that is a property of
+/// the instrument, not of the rule.** The enclosure is outwardly
+/// rounded and a rational coefficient is padded to an `f64` bracket
+/// ([`rat_enclosure`]), so an exact `d = 0` at the tie comes back as a
+/// bracket that touches zero from both sides and the read declines.
+/// The door's own comparison is `≤`, and a tie the read declined is
+/// answered by the numeric channel exactly as it was before the read
+/// existed: a missed discharge, never a wrong arm. Sharpening it would
+/// take an exact rational enclosure at the tie, which is a different
+/// instrument. Manifestly positive factors are
+/// stripped from both halves first: the sign of `P/Q` with `Q > 0` is
+/// the sign of `P`, and so is its zero set.
+///
+/// A fold through this is equal to the atom AT EVERY POINT OF THE BOX
+/// and not identically in the parameters, exactly as rule C's is, so
+/// the caller marks the form `gated` and the discharge is counted
+/// `sign_gated`.
+pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
+    #[cfg(feature = "sym-profile-testing")]
+    let (t0, mark) = (super::profile::clock(), super::profile::read_enclose_mark());
+    let out = read_decision(d, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    if let Some(t0) = t0 {
+        let spent = t0.elapsed();
+        let class = instrument::classify(d, sess, out.is_some());
+        super::profile::read_done(spent, mark, d.digest(), &class);
+    }
+    out
+}
+
+fn read_decision(d: &Form, sess: &Session) -> Option<bool> {
+    if d.poisoned {
+        return None;
+    }
+    let enclose = |p: &Poly| {
+        #[cfg(feature = "sym-profile-testing")]
+        let t0 = super::profile::clock();
+        let stripped = strip_positive_content(p, sess);
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_strip(t0);
+        #[cfg(feature = "sym-profile-testing")]
+        let t0 = super::profile::clock();
+        let e = enclose_deep(&stripped, &sess.params, &sess.atoms, 0);
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_enclose(t0);
+        e
+    };
+    let den = enclose(&d.den)?;
+    let den_positive = if manifest::positive(&Form::poly(d.den.clone()), sess) || den.lo() > 0.0 {
+        true
+    } else if den.hi() < 0.0 {
+        false
+    } else {
+        return None;
+    };
+    let num = enclose(&d.num)?;
+    if (num.hi() <= 0.0 && den_positive) || (num.lo() >= 0.0 && !den_positive) {
+        return Some(true);
+    }
+    if (num.lo() > 0.0 && den_positive) || (num.hi() < 0.0 && !den_positive) {
+        return Some(false);
+    }
+    None
+}
+
+/// **The certified ORDER read** at `min`/`max` — `max(A, B)` IS
+/// `select(B − A, A, B)`, so the arm is the same read: the one the
+/// comparison `A ≤ B` picks wherever that comparison is certified over
+/// the box. `None` where it is not.
+pub(super) fn order(
+    op: SymOp,
+    a: &Form,
+    b: &Form,
+    sess: &Session,
+    budget: SymBudget,
+) -> Option<Form> {
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::clock();
+    let diff = b.neg().and_then(|nb| a.add(&nb, budget));
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_order(t0, diff.as_ref().is_none_or(|d| d.poisoned));
+    let diff = diff?;
+    if diff.poisoned {
+        return None;
+    }
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_in_order(true);
+    let le = decision(&diff, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_in_order(false);
+    let mut out = match (op, le?) {
+        (SymOp::Max, true) | (SymOp::Min, false) => b.clone(),
+        (SymOp::Max, false) | (SymOp::Min, true) => a.clone(),
+        _ => return None,
+    };
+    out.gated = true;
+    Some(out)
+}
+
+/// The read's INSTRUMENT (`sym-profile-testing` only): why one call of
+/// [`decision`] declined, whether an id-walk over its two halves could
+/// have said so before enclosing, and how deep its enclosure reaches.
+/// It re-encloses what the read enclosed, reads the refusal the
+/// enclosure noted at its own arms (`profile::read_note`), and decides
+/// nothing.
+#[cfg(feature = "sym-profile-testing")]
+mod instrument {
+    use super::super::profile::{ReadClass, read_classifying, read_noted};
+    use super::super::{Session, manifest};
+    use super::{Form, Interval, Poly, enclose_deep, strip_positive_content};
+    use crate::real::Bounds;
+
+    /// One half re-enclosed: the enclosure, the refusal it noted, and
+    /// the deepest atom level it entered.
+    fn half(p: &Poly, sess: &Session) -> (Option<Interval>, Option<String>, usize) {
+        read_classifying(true);
+        let e = enclose_deep(p, &sess.params, &sess.atoms, 0);
+        let (note, deepest) = read_noted();
+        read_classifying(false);
+        (e, note, deepest)
+    }
+
+    /// Whether a refusal is one an id-walk sees without an interval.
+    fn structural(note: Option<&String>) -> bool {
+        note.is_some_and(|c| {
+            c.starts_with("unbracketed") || c.starts_with("depth") || c.starts_with("poisoned")
+        })
+    }
+
+    pub(in super::super) fn classify(d: &Form, sess: &Session, settled: bool) -> ReadClass {
+        if d.poisoned {
+            return ReadClass {
+                cause: Some("poisoned form".into()),
+                prepass: false,
+                depth: None,
+            };
+        }
+        let (de, dn, dd) = half(&strip_positive_content(&d.den, sess), sess);
+        let (ne, nn, nd) = half(&strip_positive_content(&d.num, sess), sess);
+        let prepass = structural(dn.as_ref()) || structural(nn.as_ref());
+        let depth = (de.is_some() && ne.is_some()).then_some(dd.max(nd));
+        if settled {
+            return ReadClass {
+                cause: None,
+                prepass,
+                depth,
+            };
+        }
+        // The read's own order: the denominator's half first, and its
+        // sign before the numerator is looked at.
+        let unnoted = || "unnoted".to_owned();
+        let cause = match de {
+            None => dn.unwrap_or_else(unnoted),
+            Some(dv) => {
+                let signed = manifest::positive(&Form::poly(d.den.clone()), sess)
+                    || dv.lo() > 0.0
+                    || dv.hi() < 0.0;
+                if !signed {
+                    "straddle (den)".into()
+                } else if ne.is_none() {
+                    nn.unwrap_or_else(unnoted)
+                } else {
+                    "straddle (num)".into()
+                }
+            }
+        };
+        ReadClass {
+            cause: Some(cause),
+            prepass,
+            depth,
+        }
+    }
+
+    /// **Every refusal of the enclosure is noted, and named as the
+    /// enclosure made it** — at the shapes a decision form carries: an
+    /// opaque id at the top, a root chain either side of the cap over a
+    /// bracketed or an opaque leaf, `abs`, both arguments of
+    /// `min`/`max`, a missing argument, an unbracketed id in an
+    /// argument's DENOMINATOR, a poisoned argument, a root of a
+    /// negative bracket, and an atom no enclosure reaches. A refusal
+    /// arm without its note reds here as `None`.
+    #[cfg(test)]
+    #[allow(clippy::unwrap_used)]
+    mod tests {
+        use std::sync::Arc;
+
+        use super::super::super::profile::{read_classifying, read_noted};
+        use super::super::super::{AtomInfo, IndetMap, SymOp};
+        use super::super::{ENCLOSE_DEPTH, Form, Poly, enclose_deep};
+
+        const PARAM: u128 = 1;
+        const NEG: u128 = 2;
+        const OPAQUE: u128 = 999;
+        const TOP: u128 = 7;
+
+        fn f(id: u128) -> Option<Arc<Form>> {
+            Some(Arc::new(Form::poly(Poly::indet(id))))
+        }
+
+        /// `k` nested `sqrt` atoms over `leaf`, ids `100 ..`; answers
+        /// the outermost.
+        fn chain(atoms: &mut IndetMap<AtomInfo>, k: usize, leaf: u128) -> u128 {
+            let mut inner = leaf;
+            for i in 0..k {
+                let id = 100 + i as u128;
+                atoms.insert(
+                    id,
+                    AtomInfo {
+                        op: SymOp::Sqrt,
+                        payload: 0,
+                        args: [f(inner), None, None],
+                    },
+                );
+                inner = id;
+            }
+            inner
+        }
+
+        /// One atom at the top: what it is, its op, its arguments, and
+        /// the note its enclosure must make (`None`: it encloses).
+        type AtTop<'a> = (&'a str, SymOp, [Option<Arc<Form>>; 3], Option<&'a str>);
+
+        fn noted(
+            p: &Poly,
+            params: &IndetMap<(f64, f64)>,
+            atoms: &IndetMap<AtomInfo>,
+        ) -> (bool, Option<String>, usize) {
+            read_classifying(true);
+            let e = enclose_deep(p, params, atoms, 0);
+            let (note, deepest) = read_noted();
+            read_classifying(false);
+            (e.is_some(), note, deepest)
+        }
+
+        #[test]
+        fn every_refusal_of_the_enclosure_is_noted_where_it_is_made() {
+            let mut params = IndetMap::default();
+            params.insert(PARAM, (1.0, 2.0));
+            params.insert(NEG, (-2.0, -1.0));
+            // Root chains, behind a bracketed term the enclosure meets
+            // first: `(depth entered or the note)`.
+            let chains: [(usize, u128, Result<usize, &str>); 6] = [
+                (0, PARAM, Ok(0)),
+                (0, OPAQUE, Err("unbracketed@0 opaque")),
+                (2, PARAM, Ok(2)),
+                (2, OPAQUE, Err("unbracketed@2 opaque")),
+                (ENCLOSE_DEPTH, PARAM, Ok(ENCLOSE_DEPTH)),
+                (ENCLOSE_DEPTH, OPAQUE, Err("depth exhausted")),
+            ];
+            for (k, leaf, want) in chains {
+                let mut atoms = IndetMap::default();
+                let top = chain(&mut atoms, k, leaf);
+                let p = Poly::indet(PARAM).add(&Poly::indet(top)).unwrap();
+                let (encloses, note, deepest) = noted(&p, &params, &atoms);
+                match want {
+                    Ok(d) => {
+                        assert!(encloses && note.is_none(), "{k} over {leaf}: {note:?}");
+                        assert_eq!(deepest, d, "{k} over {leaf}: the depth entered");
+                    }
+                    Err(c) => {
+                        assert!(!encloses, "{k} over {leaf}");
+                        assert_eq!(note.as_deref(), Some(c), "{k} over {leaf}");
+                    }
+                }
+            }
+            // One atom at the top, by op and arguments.
+            let x = f(PARAM);
+            let o = f(OPAQUE);
+            let over = Some(Arc::new(Form::quotient(
+                Poly::indet(PARAM),
+                Poly::indet(OPAQUE),
+            )));
+            let atoms_at: [AtTop<'_>; 9] = [
+                (
+                    "abs of the parameter",
+                    SymOp::Abs,
+                    [x.clone(), None, None],
+                    None,
+                ),
+                ("max of two", SymOp::Max, [x.clone(), x.clone(), None], None),
+                (
+                    "max, opaque second",
+                    SymOp::Max,
+                    [x.clone(), o.clone(), None],
+                    Some("unbracketed@1 opaque"),
+                ),
+                (
+                    "min, opaque second",
+                    SymOp::Min,
+                    [x.clone(), o, None],
+                    Some("unbracketed@1 opaque"),
+                ),
+                (
+                    "min, second missing",
+                    SymOp::Min,
+                    [x.clone(), None, None],
+                    Some("unbracketed@0 Min arity"),
+                ),
+                (
+                    "sqrt over x / opaque",
+                    SymOp::Sqrt,
+                    [over, None, None],
+                    Some("unbracketed@1 opaque"),
+                ),
+                (
+                    "sqrt over poison",
+                    SymOp::Sqrt,
+                    [Some(Arc::new(Form::poison())), None, None],
+                    Some("poisoned argument@1"),
+                ),
+                (
+                    "sqrt of a negative bracket",
+                    SymOp::Sqrt,
+                    [f(NEG), None, None],
+                    Some("poison@0"),
+                ),
+                (
+                    "select over parameters",
+                    SymOp::Select,
+                    [x.clone(), x.clone(), x],
+                    Some("unbracketed@0 Select"),
+                ),
+            ];
+            for (what, op, args, want) in atoms_at {
+                let mut atoms = IndetMap::default();
+                atoms.insert(
+                    TOP,
+                    AtomInfo {
+                        op,
+                        payload: 0,
+                        args,
+                    },
+                );
+                let (encloses, note, _) = noted(&Poly::indet(TOP), &params, &atoms);
+                assert_eq!(encloses, want.is_none(), "{what}: the enclosure");
+                assert_eq!(note.as_deref(), want, "{what}: the note");
+            }
+        }
+    }
 }
 
 #[cfg(test)]

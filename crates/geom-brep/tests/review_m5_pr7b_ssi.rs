@@ -225,7 +225,7 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
         &carrier,
         Some(&bad),
         &SsiOperand::Analytic(&p),
-        &SsiOperand::Nurbs(&w),
+        &SsiOperand::nurbs(&w).expect("the wall's chart speeds mint"),
         TubeScale::uniform(1.5),
         band(),
     )
