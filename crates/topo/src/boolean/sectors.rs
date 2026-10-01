@@ -413,38 +413,41 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 ///   argument at `vtxfac`'s on-edge resolution and
 ///   `recl::resolve_bisector_graze`, which refuse where it is not.
 ///
-/// # Why a definite first-order verdict is not enough on a curved face
+/// # Why a definite first-order verdict is charged on a curved face
 ///
 /// The first-order displacement `d̂·n̂·l` at a distance `l` along the
 /// bound is the DISPLACEMENT off the pierced face's tangent plane. On
 /// a plane that displacement is the truth. On a curved face it is a
 /// first-order model of the truth, and the model's error at the same
-/// distance is bounded by the sagitta `l²/lever` — which can EXCEED
-/// the first-order term and flip the material side. The witness is a
-/// hole wall (`r = 1`, material outside, so the outward normal points
-/// at the axis): at `l = 0.5` a direction with `d̂·n̂ ≈ +0.0995` is a
-/// definite `Exits`, while the point at that distance sits at
-/// `ρ = 1.0726` — outside the wall, i.e. INSIDE the material. First
-/// order says out, the body says in, and nothing in the first-order
-/// chain can see it.
+/// distance is bounded by the sagitta `l²/lever` — which grows faster
+/// than the first-order term and flips the side far enough out. The
+/// witness is a hole wall (`r = 1`, material outside, so the outward
+/// normal points at the axis): a direction with `d̂·n̂ ≈ +0.0995` is a
+/// definite `Exits`, and it does leave the material — but by
+/// `l = 0.5` it has crossed back, and the point there sits at
+/// `ρ = 1.0726`, INSIDE the material.
 ///
-/// **The charge is direction-agnostic on purpose**: requiring the
-/// first-order displacement to definitely EXCEED the sagitta in
-/// magnitude is sound for either bend. It is taken at the sector's
-/// `arm` and at the reach's own length; either passing certifies a
-/// point of the bound definitely on the verdict's side near the
-/// vertex. **`lever` is [`geom_brep::curvature_lever_arm`] at the
-/// pierce point**, so a PLANE passes `f64::MAX`, the sagitta
-/// underflows to zero, and the charge reduces to the reading just
-/// decided definite.
+/// So a verdict stands only where some point of the bound is
+/// certified on its side by more than the band: the first-order
+/// displacement must definitely EXCEED the sagitta at a distance the
+/// bound reaches. The charge is direction-agnostic on purpose, which
+/// is sound for either bend, and it is taken at the distance that
+/// maximizes it — `slope·lever/2`, capped at the reach's own length —
+/// so a refusal says no point of the bound certifies, not that one
+/// arbitrary point did not. What is left is a bound departing within
+/// about `2·sqrt(band·lever)` of tangent, whose side is second order.
+/// **`lever` is the pierced face's smallest radius of curvature at
+/// the pierce point** ([`geom_brep::min_radius_of_curvature`]), so a
+/// PLANE passes [`NO_CURVATURE`], the sagitta underflows to zero, and
+/// the charge reduces to the reading just decided definite.
 ///
-/// A `Zero` takes NO charge: `On` is not a side. An in-band or
-/// wrong-side charge is a **typed refusal**, never a first-order guess.
+/// A `Zero` takes NO charge: `On` is not a side. A charge that does
+/// not clear the band is a **typed refusal**, never a first-order
+/// guess.
 pub(super) fn side_code<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     face_normal: OutwardNormal<T>,
-    arm: T,
     lever: T,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
@@ -486,23 +489,26 @@ pub(super) fn side_code<T: Decide>(
     // spec writes `arm²/(2·lever)`; this is that term with the constant
     // corrected in the REFUSING direction, the only direction a
     // soundness charge may be wrong in.
-    let at_arm = decide(
+    //
+    // **Where the charge is taken.** The certified displacement at `l`
+    // is `g(l) = slope·l − l²/lever`, `slope = displacement / length`
+    // the bound's first-order departure per metre. `g` is a downward
+    // parabola with its peak at `l* = slope·lever/2`, so over the
+    // bound's own reach `(0, length]` it is largest at
+    // `min(l*, length)`, and any `l` in that range is a point of the
+    // bound. Reading it anywhere else can only refuse a verdict this
+    // point certifies.
+    let slope = displacement / length;
+    let half = T::one() / (T::one() + T::one());
+    let l = (slope * half * lever).min(length);
+    match decide(
         "bool_pierce_sector_side_curved",
-        Margin::of((dir.normalize().dot(n) * arm).abs() - arm.powi(2) / lever),
+        Margin::of(slope * l - l.powi(2) / lever),
         band,
-    );
-    if matches!(at_arm, Ok(Sign::Positive)) {
-        return Ok(verdict);
-    }
-    let at_length = decide(
-        "bool_pierce_sector_side_curved",
-        Margin::of(displacement - length.powi(2) / lever),
-        band,
-    );
-    match (at_length, at_arm) {
-        (Ok(Sign::Positive), _) => Ok(verdict),
-        (_, Ok(_)) => Err(BooleanError::CurvedSectorSideUnsupported { band }),
-        (_, Err(diag)) => Err(BooleanError::coincidence(diag)),
+    ) {
+        Ok(Sign::Positive) => Ok(verdict),
+        Ok(_) => Err(BooleanError::CurvedSectorSideUnsupported { band }),
+        Err(diag) => Err(BooleanError::coincidence(diag)),
     }
 }
 
@@ -730,10 +736,9 @@ type SidePair = (SideCode, SideCode);
 fn pair_codes<T: Decide>(
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
-    arm: T,
     band: Band,
 ) -> Result<(SidePair, SidePair), BooleanError> {
-    let code = |dir, reach, normal| side_code(dir, reach, normal, arm, NO_CURVATURE(), band);
+    let code = |dir, reach, normal| side_code(dir, reach, normal, NO_CURVATURE(), band);
     Ok((
         (
             code(sa.start, sa.start_reach, sb.normal)?,
@@ -795,7 +800,7 @@ pub(super) fn pair_search<T: Decide>(
             let (sa_codes, sb_codes) = if coplanar {
                 (on, on)
             } else {
-                pair_codes(sa, sb, arm, band)?
+                pair_codes(sa, sb, band)?
             };
             records.push(PairRecord {
                 a: i,
@@ -833,7 +838,6 @@ mod tests {
                 Vec3::new(0.3, 0.0, -1.0),
                 Reach::Bisector(1.0),
                 n,
-                1.0,
                 super::NO_CURVATURE(),
                 b
             )
@@ -845,7 +849,6 @@ mod tests {
                 Vec3::new(0.3, 0.0, 1.0),
                 Reach::Bisector(1.0),
                 n,
-                1.0,
                 super::NO_CURVATURE(),
                 b
             )
@@ -857,7 +860,6 @@ mod tests {
                 Vec3::new(1.0, 2.0, 0.0),
                 Reach::Bisector(1.0),
                 n,
-                1.0,
                 super::NO_CURVATURE(),
                 b
             )
@@ -906,64 +908,61 @@ mod tests {
         assert!(!sector_overlap(&s1, &touch, b).unwrap());
     }
 
-    /// **The curvature charge's planted red — the R1 review's witness,
-    /// executed against the door it now guards.**
+    /// **The curvature charge, on the R1 review's witness.**
     ///
     /// A HOLE wall of radius 1: the material is everything OUTSIDE the
-    /// cylinder, so the face's outward normal points at the axis. At
-    /// `arm = 0.5`, the direction `(-0.1, 1, 0)/|·|` has
-    /// `d̂·n̂ = +0.0995`, which [`geom_brep::enters_material`] classifies
-    /// as a definite `Exits` — and the point at that very lever arm
-    /// sits at `ρ = 1.0726`, OUTSIDE the wall and therefore INSIDE the
-    /// material. First order says out, the body says in.
+    /// cylinder, so the face's outward normal points at the axis. The
+    /// direction `(-0.1, 1, 0)/|·|` has `d̂·n̂ = +0.0995`, a definite
+    /// first-order `Exits`. It leaves the material and crosses back
+    /// before `l = 0.5`, where it sits at `ρ = 1.0726`. The charge,
+    /// taken at its best distance `0.0995/2`, certifies `Out`; the
+    /// point there is inside the hole, so the verdict is the bound's
+    /// side near the vertex and not a reading at the arm.
     ///
-    /// The sagitta bound `0.5²/1 = 0.25` exceeds the first-order
-    /// displacement `0.0995 × 0.5 = 0.0498`, so the charge is
-    /// definitely negative and the verdict is REFUSED rather than
-    /// answered backwards. Before the charge, this configuration
-    /// returned `SideCode::Out` — a wrong topology, silently.
-    ///
-    /// The second row is the same geometry with the arm short enough
-    /// that the first-order term dominates (`arm = 0.05`: sagitta
-    /// bound 0.0025 against displacement 0.004975), where the verdict
-    /// legitimately stands. Both directions, so the charge cannot pass
-    /// by refusing everything.
+    /// The planted red is the same wall with a direction `1e-5` off
+    /// tangent: the bound is back on the wall within `2e-5`, it never
+    /// departs by more than `2.5e-11`, below the band, and the charge
+    /// refuses although the first-order verdict is still definite at
+    /// the arm. A plane takes no charge at all.
     #[test]
-    fn a_curved_side_verdict_is_refused_when_the_sagitta_dominates() {
+    fn a_curved_side_verdict_stands_only_where_a_point_certifies_it() {
         use geom_brep::{EntersMaterial, enters_material};
         let b = band();
         let r = 1.0_f64;
-        // The hole's outward normal points at the axis.
         let n = OutwardNormal::from_chart(Vec3::new(-1.0, 0.0, 0.0), true);
+        let base = geom_core::Point3::new(r, 0.0, 0.0);
+        let rho = |d: Vec3<f64>, l: f64| {
+            let q = base + d.normalize() * l;
+            q.x.hypot(q.y)
+        };
+
         let d = Vec3::new(-0.1, 1.0, 0.0);
-        // The first-order verdict, unchanged and still definite.
         assert_eq!(
-            enters_material(d, n, 0.5, b).unwrap(),
-            EntersMaterial::Exits,
-            "the witness needs a DEFINITE first-order Out"
+            side_code(d, Reach::Bisector(0.5), n, r, b).unwrap(),
+            SideCode::Out,
+            "a definite slope certifies at slope·lever/2"
         );
-        // And it is contradicted at its own lever arm.
-        let q = geom_core::Point3::new(r, 0.0, 0.0) + d.normalize() * 0.5;
-        assert!(q.x.hypot(q.y) > r, "the arm point must be off the wall");
-        // The charge refuses rather than reporting the wrong side.
+        let best = d.normalize().dot(n.vec()) * r / 2.0;
+        assert!(rho(d, best) < r, "the certified point is in the hole");
+        assert!(rho(d, 0.5) > r, "the arm point has crossed back");
+
+        let shallow = Vec3::new(-1e-5, 1.0, 0.0);
+        assert_eq!(
+            enters_material(shallow, n, 0.5, b).unwrap(),
+            EntersMaterial::Exits,
+            "the planted red needs a DEFINITE first-order verdict"
+        );
         assert!(
             matches!(
-                side_code(d, Reach::Bisector(0.5), n, 0.5, r, b),
+                side_code(shallow, Reach::Bisector(0.5), n, r, b),
                 Err(BooleanError::CurvedSectorSideUnsupported { .. })
             ),
-            "the sagitta dominates: the verdict must not stand"
+            "no point of a bound that never clears the band certifies"
         );
-        // The other direction: a short enough arm and the first-order
-        // term dominates, so the verdict stands.
         assert_eq!(
-            side_code(d, Reach::Bisector(0.05), n, 0.05, r, b).unwrap(),
-            SideCode::Out
-        );
-        // And a PLANE is unmoved — an infinite lever makes the charge
-        // vacuous, which is what keeps the planar lane bit-identical.
-        assert_eq!(
-            side_code(d, Reach::Bisector(0.5), n, 0.5, NO_CURVATURE::<f64>(), b).unwrap(),
-            SideCode::Out
+            side_code(shallow, Reach::Bisector(0.5), n, NO_CURVATURE::<f64>(), b).unwrap(),
+            SideCode::Out,
+            "against a plane the first-order reading is the truth"
         );
     }
 

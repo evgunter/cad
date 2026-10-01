@@ -42,3 +42,28 @@ member orders. Found by the obstacle-mechanism measurement (branch
 `emit/borders-mechanism-probe`, `crates/editor-core/tests/borders_probe.rs`,
 fixture `round_boss_slab`); it keeps the naming layer's curved dividers
 untested.
+
+## Measured (REACH slab-cut lane, 2026-10-01)
+
+Both repros raise at `boolean::sectors::side_code`'s curvature charge,
+called from `vtxfac` on a slab edge's pierce vertex in the cylinder
+wall, with a DEFINITE first-order side:
+
+| fixture | bound | `d̂·n̂` | arm = reach | lever `R` |
+|---|---|---|---|---|
+| drum ∖ slab | bisector `+y` in the slab floor | −0.231 (In) | 0.00735 | 0.013 |
+| boss ∪ slab, order [0,1,2] | chord `+y`, the slab side's edge | +0.986 (Out) | 1.18 / 1.41 | 0.6 |
+
+The charge was read at the sector's arm and at the bound's far end,
+both past `R·|d̂·n̂|`, where the sagitta outgrows the first-order term.
+Second order is not the missing information: the charge peaks at
+`l* = |d̂·n̂|·R/2` (`1.7e-4` and `0.146` m of certified displacement
+here). It is now read there, capped at the reach; what still refuses
+is a bound within about `2·sqrt(band·R)` of tangent, whose side is
+second order — the residue the `enters_material_order2` recourse
+still names.
+
+Both fixtures then stop at the join, `SectionArcWindow { NoChartedRun }`:
+a pierce ring in a wall face has no join arm
+(`work/tang/pierce-ring-has-no-join-arm`). The rows are
+`editor-core`'s `reach_slab_cut_sector_side`.

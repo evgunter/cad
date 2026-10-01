@@ -4,13 +4,10 @@
 //! **What this file pins, and what it does NOT.** Every row here drives
 //! whole BODIES through the public union door, so a row reaches a
 //! predicate only if the layers ahead of it admit the pose. The
-//! meeting-axes pose does reach the join and stops at the pinch door.
-//! The skew pose does not: skew walls carry no declared cover, so it
-//! stops at a CROSSING-layer door with the germ pair never minted, and
-//! this file's skew row asserts exactly that and nothing about the
-//! frame dispatch.
+//! meeting-axes pose does reach the join and stops at the pinch door,
+//! and the skew pose reaches the frame dispatch's no-arm door.
 //!
-//! So the new predicate's two-arm pin is NOT here. It is
+//! The new predicate's two-arm pin is still not here. It is
 //! `topo::boolean::join`'s `frame_dispatch_interval_tests`, which calls
 //! `pair_section_frame` at `Interval` directly and reaches both arms —
 //! meeting axes to `Zero`/pinch, skew axes to a definite sign/`NoArm`.
@@ -188,17 +185,13 @@ fn the_pinch_door_is_reached_at_the_certified_scalar() {
     );
 }
 
-/// **The skew pose at the BODY level**, which is a weaker statement
-/// than its name once suggested and is written as the weaker one.
-///
-/// Slide the pair along the common perpendicular `â₁ × â₂` by the
-/// dyadic `0.375` and the pose stops at a CROSSING-layer door: skew
-/// walls carry no declared cover, so the germ pair is never minted and
-/// `bool_germ_frame_axes_coplanar` is never reached from here. What
-/// this row asserts is therefore the LAYER — the pose stays off every
-/// join door, the pinch door included — and not the dispatch's skew
-/// arm, which is pinned at the certified scalar in
-/// `topo::boolean::join`'s `frame_dispatch_interval_tests` instead.
+/// **The skew pose at the BODY level, at the certified scalar.** Slide
+/// the pair along the common perpendicular `â₁ × â₂` by the dyadic
+/// `0.375`: the crossings are found, the germ pair is minted, and the
+/// frame dispatch's skew arm answers it — no arm, not the pinch door.
+/// The dispatch's verdict itself is pinned at the certified scalar in
+/// `topo::boolean::join`'s `frame_dispatch_interval_tests`; this row
+/// says a body reaches it there.
 #[test]
 fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
@@ -212,10 +205,13 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     assert!(
         matches!(
             err,
-            BooleanError::CurvedPierceUnsupported { .. }
-                | BooleanError::CurvedSectorSideUnsupported { .. }
+            BooleanError::GermFrameUnsupported {
+                a_kind: geom_brep::SurfaceKind::Cylinder,
+                b_kind: geom_brep::SurfaceKind::Cylinder,
+                ..
+            }
         ),
-        "a skew pair must stop at a crossing-layer door, never a join one: {err:?}"
+        "a skew pair must reach the frame dispatch's no-arm door, never the pinch: {err:?}"
     );
     // The re-posed twin, on the same obligation as every other row
     // here: a rigid motion moves no contact, so a pose whose direct and

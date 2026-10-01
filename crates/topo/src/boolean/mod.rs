@@ -834,21 +834,21 @@ pub enum BooleanError {
         verdict: geom_brep::recourse::Refused,
     },
     /// A pierce sector's FIRST-ORDER material verdict could not be
-    /// certified against the pierced face's curvature: the sagitta
-    /// bound at the sector's own lever arm is not definitely below the
-    /// first-order displacement, so the tangent-plane verdict may have
-    /// the material side backwards (`boolean::sectors::side_code`
-    /// carries the argument and the witness). The **definite** half of
-    /// a two-tolerance pair on `bool_pierce_sector_side_curved`; an
-    /// in-band charge escalates as [`BooleanError::Escalated`] on the
-    /// same predicate instead.
+    /// certified against the pierced face's curvature: at no distance
+    /// the bound reaches does its first-order displacement definitely
+    /// exceed the sagitta bound, so the bound departs too close to
+    /// tangent for the tangent-plane verdict to say which side it lies
+    /// on (`boolean::sectors::side_code` carries the argument and the
+    /// witness). The **definite** half of a two-tolerance pair on
+    /// `bool_pierce_sector_side_curved`; an in-band charge escalates
+    /// as [`BooleanError::Escalated`] on the same predicate instead.
     ///
     /// A refusal, never a guess: a first-order answer here would be a
-    /// wrong TOPOLOGY rather than a conservative one. The recourse is
-    /// the second-order sector trilean
-    /// (`geom_brep::enters_material_order2`), which the declared-
-    /// `Tangent` lump already consumes and which no lane wires into
-    /// this verdict yet.
+    /// wrong TOPOLOGY rather than a conservative one. The side of a
+    /// near-tangent bound is second order, so the recourse is the
+    /// second-order sector trilean (`geom_brep::enters_material_order2`),
+    /// which the declared-`Tangent` lump already consumes and which no
+    /// lane wires into this verdict yet.
     CurvedSectorSideUnsupported {
         /// The band the curvature charge was classified against.
         band: Band,
@@ -1760,8 +1760,8 @@ impl core::fmt::Display for BooleanError {
             Self::CurvedSectorSideUnsupported { .. } => write!(
                 f,
                 "where an edge pierces a curved face, the Boolean cannot be sure which \
-                 side of the face the material is on: the face curves too sharply \
-                 there for the check it has. Recourse: {COINCIDENCE_RECOURSE}"
+                 side of the face the material is on: the edge leaves the face too \
+                 close to tangent for the check it has. Recourse: {COINCIDENCE_RECOURSE}"
             ),
             Self::CurvedEdgeUnsupported { operand, .. } => write!(
                 f,

@@ -176,7 +176,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: side_code(s.end, s.end_reach, n_pierced, s.arm, pierced_lever, band)?,
+            class: side_code(s.end, s.end_reach, n_pierced, pierced_lever, band)?,
             lumped: false,
         });
     }

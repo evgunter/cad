@@ -124,13 +124,11 @@ pub enum ArcWindowCase {
     /// degenerate relative to the chord (an ill-conditioned operand, or
     /// a run that does not actually co-bound the face with this chord).
     ///
-    /// An asymmetric wall pierce was measured here once (an off-centre
-    /// bar through a pipe). The x₁ rows below say which of the two
-    /// readings that was — a run that does not end where its chord
-    /// starts is the PAIRING one — and #1291 carries the fixture debt:
-    /// the pose now stops one layer earlier, at the sector-side
-    /// curvature charge, so the question is parked with its evidence
-    /// rather than answered.
+    /// An asymmetric wall pierce lands here (an off-centre bar through
+    /// a pipe, a rod through a three-face wall). The x₁ rows below say
+    /// which of the two readings that is — a run that does not end
+    /// where its chord starts is the PAIRING one — and #1291 holds the
+    /// question with those fixtures.
     NeitherContained,
     /// BOTH candidates lie inside the window: the window spans at least
     /// one full period, so containment does not distinguish the arcs.
