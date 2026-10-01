@@ -4444,10 +4444,7 @@ mod winding_arm_tests {
                     he2: e1.he_minus,
                 },
                 arc(-Vec3::unit_z()),
-                FaceSurface::New {
-                    surface: plane(),
-                    sense: true,
-                },
+                FaceSurface::Inherit,
                 tol,
             )
             .unwrap();

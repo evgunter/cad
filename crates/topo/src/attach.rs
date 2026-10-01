@@ -1844,6 +1844,7 @@ mod tests {
                     door: RechartDoor::SetFaceSurface,
                     face: membrane,
                     edges: rim.clone(),
+                    chord: false,
                 },
                 |b| b.set_face_surface(membrane, plain).unwrap_err(),
             );
@@ -1900,6 +1901,7 @@ mod tests {
                 door: RechartDoor::SetFaceSurface,
                 face: membrane,
                 edges: rim.clone(),
+                chord: false,
             },
             |b| {
                 let again = cap_at(b, top, 0.0);
@@ -1949,6 +1951,7 @@ mod tests {
                 door: RechartDoor::SetFaceSurface,
                 face: membrane,
                 edges: rim[1..].to_vec(),
+                chord: false,
             },
             |b| b.set_face_surface(membrane, swap()).unwrap_err(),
         );
@@ -2010,6 +2013,7 @@ mod tests {
                     door: RechartDoor::SetFaceSurface,
                     face: membrane,
                     edges: rim,
+                    chord: false,
                 },
                 |b| {
                     b.set_face_surface(

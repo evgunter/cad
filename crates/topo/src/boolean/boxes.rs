@@ -2362,19 +2362,22 @@ mod tests {
         let he = body
             .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
             .unwrap();
+        // Lifts RechartUnvouched: the top rim names the wall at its own height, which callers re-label the face onto.
         let face = body
-            .mef(
-                MefSite::Chords {
-                    he1: he,
-                    he2: e_b.he_plus,
-                },
-                EdgeCurveSpec::line_between(on(u0, z1), on(u0, z0)),
-                FaceSurface::Shared {
-                    key: cyl,
-                    sense: true,
-                },
-                Tol::witness(),
-            )
+            .lifting_rechart_refusals_for_tests(|body| {
+                body.mef(
+                    MefSite::Chords {
+                        he1: he,
+                        he2: e_b.he_plus,
+                    },
+                    EdgeCurveSpec::line_between(on(u0, z1), on(u0, z0)),
+                    FaceSurface::Shared {
+                        key: cyl,
+                        sense: true,
+                    },
+                    Tol::witness(),
+                )
+            })
             .unwrap()
             .face;
         (body, face)
@@ -3428,38 +3431,39 @@ mod tests {
             minor_radius: minor,
             u_ref,
         });
-        let meridian = |body: &mut Body<f64>, u: f64| -> (EdgeCurveSpec<f64>, Surface<f64>) {
-            let spine = center + e(u) * major;
-            let plane = Surface::Plane {
-                origin: center,
-                normal: axis.cross(e(u)),
-                u_ref: e(u),
-            };
-            let pk = body.add_surface(plane.clone());
-            let ax = if forward {
-                e(u).cross(axis)
-            } else {
-                axis.cross(e(u))
-            };
-            (
-                EdgeCurveSpec {
-                    description: EdgeDescriptionSpec::Intersection {
-                        s1: torus,
-                        s2: pk,
-                        witness: on(u, core::f64::consts::PI),
+        let meridian =
+            |body: &mut Body<f64>, u: f64| -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
+                let spine = center + e(u) * major;
+                let plane = Surface::Plane {
+                    origin: center,
+                    normal: axis.cross(e(u)),
+                    u_ref: e(u),
+                };
+                let pk = body.add_surface(plane);
+                let ax = if forward {
+                    e(u).cross(axis)
+                } else {
+                    axis.cross(e(u))
+                };
+                (
+                    EdgeCurveSpec {
+                        description: EdgeDescriptionSpec::Intersection {
+                            s1: torus,
+                            s2: pk,
+                            witness: on(u, core::f64::consts::PI),
+                        },
+                        carrier: Curve3::Circle {
+                            center: spine,
+                            axis: ax,
+                            radius: minor,
+                            u_ref: e(u),
+                        },
+                        param_start: 0.0,
+                        param_end: core::f64::consts::TAU,
                     },
-                    carrier: Curve3::Circle {
-                        center: spine,
-                        axis: ax,
-                        radius: minor,
-                        u_ref: e(u),
-                    },
-                    param_start: 0.0,
-                    param_end: core::f64::consts::TAU,
-                },
-                plane,
-            )
-        };
+                    pk,
+                )
+            };
         let (m0, cap0_plane) = meridian(&mut body, u0);
         let cap0 = body
             .mef(
@@ -3467,8 +3471,8 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 m0,
-                FaceSurface::New {
-                    surface: cap0_plane,
+                FaceSurface::Shared {
+                    key: cap0_plane,
                     sense: true,
                 },
                 Tol::witness(),
@@ -3513,8 +3517,8 @@ mod tests {
                     he2: strut.he_minus,
                 },
                 m1,
-                FaceSurface::New {
-                    surface: cap1_plane,
+                FaceSurface::Shared {
+                    key: cap1_plane,
                     sense: true,
                 },
                 Tol::witness(),

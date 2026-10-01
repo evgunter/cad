@@ -3784,6 +3784,12 @@ pub(crate) mod staleness_posture {
              drops on the same terms",
             ),
             (
+                "lifting_rechart_refusals_for_tests",
+                Neither,
+                "a failure-injection scope that writes nothing itself: every door its \
+             closure calls holds its own posture",
+            ),
+            (
                 "set_face_surfaces_describing",
                 Transfers,
                 "`set_face_surface`'s swap per face, on its terms: a face's rows are kept \
