@@ -230,7 +230,11 @@ the overflow and the collapse want opposite repairs, so the refusal says which
 one it caught. Where nothing covariant discriminates (congruent candidates,
 overlapping extents, a section line crossing one operand face twice) the table
 records one `Entry::Tied` row: naming a tie succeeds, referencing it is
-`ResolveError::Ambiguous`, and the only repair is a recorded user choice. Ties
+`ResolveError::Ambiguous`. A tie is repaired by a discriminator in the recipe —
+a feature whose recorded verdict tells the candidates apart — or by a `Rebind`
+to a name that already distinguishes them; there is no per-candidate choice,
+because a candidate number is storage order, not something the author wrote,
+so a tie the recipe cannot tell apart stays unreferenceable until it does. Ties
 propagate downstream as tied (`defer.rs`); `select_where` filters a tied name
 all-or-nothing (`SelectRefusal::TiedDisagrees`), no per-candidate narrowing.
 
@@ -275,7 +279,12 @@ an arena key.
 `Entry::Tied` row numbers its candidates, and the number belongs to the row: a
 tied row holds (candidate, entity) pairs, and a row that narrows to one
 candidate (a `Part`'s projection of the half that holds it, a split's
-pass-through of the uncut one) is a `Unique` row that keeps its candidate. The
+pass-through of the uncut one, a divider that crosses one candidate and leaves
+the other whole) is a `Unique` row that keeps its candidate. A divider is a
+discriminator among a tie's candidates like any other: the divided candidate's
+pieces are named by their `Borders`, the undivided candidates stay under the
+bare name, and an edit that moves the divider onto another candidate moves each
+name with its role. The
 pass-through ops of N1 carry the candidate with the name; an op that wraps the
 name numbers afresh, as it mints a fresh name. The product's gather therefore
 has one rule for strict and tied names alike: a (name, candidate) pair reaches

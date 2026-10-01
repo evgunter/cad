@@ -191,7 +191,7 @@ example's arm renders 68 on the test's NURBS payload.
 operand: their `operand` field is the face's operand at some raise
 sites and the edge's or the scanned body's at others (measured: a NURBS
 wall on B reports `operand: A`). Filed as
-`work/reach/boolean-refusal-operand-field-means-two-things.md`.
+`work/hone/boolean-refusal-operand-field-means-two-things.md`.
 
 **Census and rows.** A static census over every `impl Display for`
 counted literal words per arm (before: 50 arms at 60+; the PR body has

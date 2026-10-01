@@ -245,6 +245,7 @@ const HOLDERS: &[&str] = &[
     "crates/geom-core/src/spline/net.rs",
     "crates/geom-core/src/sym/signed.rs",
     "crates/geom/src/curves/nurbs.rs",
+    "crates/geom/src/curves/second_derivative.rs",
     "crates/geom/src/net.rs",
     "crates/geom/src/surfaces/nurbs.rs",
     "crates/mesh/src/chords.rs",
@@ -359,7 +360,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          construction",
     ),
     ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
-    ("crates/mesh/src/chords.rs", 2, 2, ""),
+    ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
+    ("crates/mesh/src/chords.rs", 1, 1, ""),
     ("crates/mesh/src/nurbs_cert.rs", 1, 1, ""),
     ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
 ];
