@@ -50,7 +50,8 @@
 //!   enter a pair, so the operation runs. A bigger box refuses an
 //!   operation whose faces never meet.
 //! - `boolean::reduce`'s undeclared-continuation scan
-//!   (`refuse_undeclared_continuations`) mostly PRUNES: a face pair
+//!   (`refuse_undeclared_continuations`, its boxes built by the
+//!   driver in `boolean/mod.rs` and passed in) mostly PRUNES: a face pair
 //!   or an edge pair whose boxes clear is never asked, and whether two
 //!   faces meet is decided point-on-edge through `Decide`, so a bigger
 //!   box costs exact work there. Its one box-decided answer is the
@@ -2936,9 +2937,16 @@ mod tests {
         // occurrence cannot arrive, leave or move unnoticed — which it
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
-        const PINNED: [(&str, usize); 4] = [
+        //
+        // `boolean/mod.rs`'s two and three of `boolean/reduce.rs`'s
+        // eight are ONE door, the undeclared-continuation scan: the
+        // driver builds its padded boxes (`boxes::face_box`/`edge_box`
+        // at `pad`) and hands them in as closures, and the scan's own
+        // calls through those closure parameters match the same text.
+        const PINNED: [(&str, usize); 5] = [
+            ("boolean/mod.rs", 2),
             ("boolean/ops.rs", 4),
-            ("boolean/reduce.rs", 7),
+            ("boolean/reduce.rs", 8),
             ("census.rs", 7),
             ("separation.rs", 2),
         ];
