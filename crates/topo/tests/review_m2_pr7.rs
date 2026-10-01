@@ -134,6 +134,7 @@ fn volume_check_is_gated_on_otherwise_clean_reports() {
     else {
         panic!("cube face must be planar");
     };
+    // Lifts both refusals: the plane definitely off its vertices is the row's other tier-3 error.
     body.set_face_surface_stranding_for_tests(
         fk,
         FaceSurface::New {

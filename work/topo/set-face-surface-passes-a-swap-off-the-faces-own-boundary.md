@@ -2,11 +2,14 @@
 id: set-face-surface-passes-a-swap-off-the-faces-own-boundary
 kind: issue
 title: set_face_surface passes a swap that moves a face off its own boundary, which only tier 3 reports
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: M
+branch: topo/set-face-surface-vouches-its-boundary
+pr: 3598
 refs: [set-face-surface-hands-the-caller-an-ordering-obligation-in-prose, mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move]
+closed: 2026-10-01
 ---
 
 ## What
