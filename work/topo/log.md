@@ -5909,3 +5909,17 @@ PR 3513's CI on `fa330e3b82` failed one check:
 - **Ported into PR 3513** at `26906c5ae1`, with one standing-down comment
   on the PR. That merge also brings PR 3513 up to current main.
 - I am subscribed to PR 3717 and will merge it when it is green.
+
+## PR 3513 and PR 3717 merged (2026-10-01)
+
+- **PR 3717** (the census roster line for `short_arm`): merged as
+  `0fbf5d1b9c`, after CI run 36881383483 passed. Main's census red is
+  fixed.
+- **PR 3513** ("every Boolean escalation names its decision, and only a
+  declarable coincidence offers a declaration"): merged as `8b6bcc204f`
+  from head `26906c5ae1`, after CI run 36881409782 passed (`gate ok`).
+  - It took six fix passes, three merges of main and one text pass.
+  - Its three rows were closed on the branch.
+
+**Unblocked by PR 3513:** merge-orientation-rung, plane-offset-rung and
+vertex-orbit.
