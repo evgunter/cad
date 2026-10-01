@@ -2,11 +2,12 @@
 id: placeholder-chart-sup-arms-are-not-a-bound
 kind: issue
 title: chart_stretch_sup answers unit arms for a placeholder chart while chart_stretch_inf answers certifies-nothing
-status: dispatched
+status: review
 opened: 2026-09-15
 priority: P0
 cost: H
 branch: pcert/placeholder-chart-sup
+pr: 3614
 ---
 
 
