@@ -123,11 +123,12 @@ and a transform moves one. The alternatives weighed and rejected are in
     and reaches every consumer of `MateFrame`. Spec last, on top of
     MSOLVE-6's reach road (the same `PartCache` answers both the
     extent and the face pose). LIB's façade and Python half follow it.
-    Ratified by Ev on `[ev]` PR 2895 (2026-09-20); dispatches from
-    main after MSOLVE-10.
-    Spec `docs/MSOLVE-9-SPEC.md` and the A11 sentence drafted
-    2026-09-19 on an `[ev]` PR; dispatches after Ev's sign-off and
-    after MSOLVE-8.
+    Ratified by Ev on `[ev]` PR 2895 (2026-09-20). Merged on PR 2934
+    (2026-09-24) after a dual review: a face frame is `FromFace
+    { face }` alone (the roll is the carrier's own `u_ref`; the
+    authored reference had no admitted value and was dropped), the
+    wire externally tagged, the frame resolved at the nominal value
+    only.
 
 **Routed onto this slate 2026-09-13 … 09-17 by DOCM's exit sweep,
 CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
@@ -175,11 +176,13 @@ CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
     to fail — is this program's, small, lands as **`MSOLVE-10`** after
     MSOLVE-8 (the door's refusal names the table's own predicate).
     Half (2) — how a mate's roll is turned: documented roll-reference
-    conventions or a rotate-mate affordance — is MSOLVE-9's question
-    in its kernel half: `FromFace { face, reference }` names a roll
-    reference, and its spec states the convention the row says is
-    undocumented; the affordance itself is CHROME's viewer seam and
-    is handed there when MSOLVE-9's convention is ratified. Closed
+    conventions or a rotate-mate affordance — was assigned to
+    MSOLVE-9's `reference` rule, and that premise did not survive:
+    MSOLVE-9 measured that every analytic carrier fixes its own
+    in-frame reference, so a face frame's roll is the carrier's and
+    the authored reference was dropped. Turning a face-mated part's
+    roll therefore has no spelling yet; that is
+    `a-face-frame-cannot-turn-its-roll`'s row. Closed
     on PR 2913 with both halves recorded: MSOLVE-10 merged
     2026-09-20 (spec into the ledger at the unit head), the reviews
     settling the principle that the doors decide edits and the solve

@@ -50,11 +50,7 @@ fn a_mate_bearing_document_round_trips() {
             .into(),
         }],
     };
-    let f = MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let f = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
@@ -63,7 +59,7 @@ fn a_mate_bearing_document_round_trips() {
                 b: crate::fixture::head(name(ids[1])),
                 class: ContactClass::Rest,
                 alignment: Alignment {
-                    a: f,
+                    a: f.clone(),
                     b: f,
                     primitive: MatePrimitive::PlanarRest { offset: 0.5 },
                     sense: AxisSense::Opposed,
