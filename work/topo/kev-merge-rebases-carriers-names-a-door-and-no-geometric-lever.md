@@ -2,7 +2,9 @@
 id: kev-merge-rebases-carriers-names-a-door-and-no-geometric-lever
 kind: issue
 title: MergeRebasesCarriers names the describing kill door and no geometric lever (D4 ¶1 (i))
-status: open
+status: review
+pr: 3621
+branch: topo/euler-corruption-ends-one-way
 opened: 2026-10-01
 priority: P4
 cost: E
@@ -28,3 +30,13 @@ members at the merged vertex (kev_describing ...)". Word it to fit
 the decision, and pin the render on a real raise, as
 `attach::tests::the_keys_only_rechart_refusals_end_in_the_chart_as_their_lever`
 does.
+
+## Done (PR 3621)
+
+The arm ends "Recourse: re-describe those edges at the surviving
+vertex, or kill the edge's other end where its fan holds no certified
+edge (kev_describing takes their re-descriptions under a band, and kev
+on the other half kills the other end)", pinned on the real raise by
+`euler_kill::tests::the_keys_only_merge_refusal_ends_in_its_lever`,
+which also takes the second lever through (`kev` on the strut's other
+half kills its tip).

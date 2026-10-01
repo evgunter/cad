@@ -2474,6 +2474,32 @@ mod tests {
         (body, seg, strut, other)
     }
 
+    /// **The keys-only merge refusal ends in its own lever** (D4 ¶1
+    /// (i)): the members' descriptions, or the other end, before the
+    /// door. On the real raise, and the other end is a way through:
+    /// `kev` on the strut's other half kills its tip, whose fan holds
+    /// no certified edge.
+    #[test]
+    fn the_keys_only_merge_refusal_ends_in_its_lever() {
+        let (mut body, _seed, _seg, strut) = strutted();
+        let text = body
+            .kev(strut.he_minus)
+            .map(|_| ())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            text.ends_with(
+                "Recourse: re-describe those edges at the surviving vertex, or kill the \
+                 edge's other end where its fan holds no certified edge (kev_describing takes \
+                 their re-descriptions under a band, and kev on the other half kills the \
+                 other end)"
+            ),
+            "{text}"
+        );
+        assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+        body.kev(strut.he_plus).unwrap();
+    }
+
     #[test]
     fn kev_names_every_certified_member_in_orbit_order() {
         let (mut body, seg, strut, other) = two_member_merge();

@@ -1223,8 +1223,10 @@ impl EulerOpError {
             ),
             Self::MergeRebasesCarriers { edges } => format!(
                 "kev: the fan merge re-bases certified edges {edges:?} onto the surviving \
-                 vertex, and the keys-only kill takes no band to certify them there \
-                 (kev_describing takes one, and their re-descriptions)"
+                 vertex, and the keys-only kill takes no band to certify them there. \
+                 Recourse: re-describe those edges at the surviving vertex, or kill the edge's \
+                 other end where its fan holds no certified edge (kev_describing takes their \
+                 re-descriptions under a band, and kev on the other half kills the other end)"
             ),
             Self::NotMergedMember { edge } => format!(
                 "kev_describing: edge {edge:?} is not a member of the merged fan, so the \
