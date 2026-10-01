@@ -104,7 +104,7 @@ mated one.
 ## Colour (G5)
 
 A **theme** is a user preference: it supplies every semantic mark
-(selection, hover, free-move probe, focus, unresolved), the default
+(selection, hover, free-move probe, focus, actionable), the default
 body colour, the ambient term and the viewport **ground**
 (`Theme::ground`, what fills the viewport where no geometry is drawn).
 It is never written into a document, not persisted by `editor-core`,
@@ -117,7 +117,10 @@ renderer's door. Colourblind legibility is a claim a theme makes, not
 a constraint on every theme: a palette that claims its marks stay
 distinguishable under dichromatic vision is held to it by simulation
 in `tests/theme.rs`, measured on the composited colour, since marks
-are mixed over the body colour. That bar puts `colorblind-safe` on a
+are mixed over the body colour. The same claim covers the chrome's
+loud/quiet split: a badge's words carry its meaning, and the claim
+holds its salience: the actionable colour stays apart from the
+panel, plain text and weak text under the three dichromacies. That bar puts `colorblind-safe` on a
 light ground. Preferences live in hand-editable TOML at
 `$XDG_CONFIG_HOME/pncad/viewer.toml` (`src/prefs.rs`); malformed TOML
 refuses, an unknown key reports and the rest applies, an unknown
