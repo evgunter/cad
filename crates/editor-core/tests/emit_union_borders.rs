@@ -1199,7 +1199,7 @@ fn a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it() {
 
 /// A cylinder of radius 0.3 about the axis through `c` along `x × y`,
 /// from `c` for `length`.
-fn cylinder(
+pub(crate) fn cylinder(
     doc: ProfileDoc,
     c: [f64; 3],
     x: [f64; 3],
@@ -1232,7 +1232,9 @@ fn cylinder(
 /// direction separates: each piece is named by its two ends (N2's
 /// `Ends`), which differ in the lateral edge of the cylinder each line
 /// runs into. So the pair boolean names, and so does the union in
-/// either member order, with one table between the two orders.
+/// either member order, with one table between the two orders. (The
+/// top's two pieces border the one lower half-wall, so they are N2's
+/// tie; no edge is.)
 #[test]
 fn a_curved_divider_names_as_the_pair_boolean_does() {
     let doc = ProfileDoc::empty_derived("union-dividing-across", Tol::witness());
@@ -1253,8 +1255,8 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
         let mut out = BTreeMap::new();
         for (name, entry) in t.iter() {
             assert!(
-                matches!(entry, Entry::Unique(_)),
-                "a tied row: {name:?} {entry:?}"
+                name.kind != EntityKind::Edge || matches!(entry, Entry::Unique(_)),
+                "a tied edge: {name:?} {entry:?}"
             );
             if name.kind == EntityKind::Edge
                 && matches!(
