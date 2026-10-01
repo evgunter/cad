@@ -240,24 +240,32 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// second-order jet margin the tier-3 validator decides.
 ///
 /// "One home" is **aspiration, not fact**, and the gap is filed as
-/// issue 1439. Three hand-rolled siblings of this fold remain across
+/// issue 1439. Two hand-rolled siblings of this fold remain across
 /// the workspace — `topo::boolean::contact_verify` (the fold's own
-/// stated origin), `crate::ssi` and `topo::boolean::ops` — down from
-/// the six that issue counted: `crate::certify` reaches the fold
-/// through [`tangent_second_order`], and `sweep::extrude` and
+/// stated origin) and `topo::boolean::ops` — down from the six that
+/// issue counted: `crate::certify` reaches the fold through
+/// [`tangent_second_order`], `sweep::extrude` and
 /// `sweep::revolve::upgrade` through [`must_carry_over_edge`], which
-/// composes it. The two hand-rolled siblings of the second-order
-/// MARGIN are a different pair and are counted on
-/// [`tangent_second_order`]. `contact_tangent_opposed` is also
-/// [`classify_material_pairing`]'s own twin — the same C1 lemma
-/// between bodies rather than within one. Consolidating the rest is
-/// that issue's work, deliberately NOT absorbed here; until it lands,
-/// a new site levering against its own fold is a silent
-/// non-comparability, so route new callers through this function.
+/// composes it, and `crate::ssi` through `pair_lever_arm`. The two
+/// hand-rolled siblings of the second-order MARGIN are a different
+/// pair and are counted on [`tangent_second_order`].
+/// `contact_tangent_opposed` is also [`classify_material_pairing`]'s
+/// own twin — the same C1 lemma between bodies rather than within one.
+/// Consolidating the rest is that issue's work, deliberately NOT
+/// absorbed here; until it lands, a new site levering against its own
+/// fold is a silent non-comparability, so route new callers through
+/// this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
-    curvature_lever_arm(s1, p)
-        .min(curvature_lever_arm(s2, p))
-        .min(extent)
+    pair_lever_arm(s1, s2, p).min(extent)
+}
+
+/// The two curvature arms of [`folded_lever_arm`] folded without the
+/// extent, for a caller that applies its own extent once at the point
+/// of use (the SSI march's arm guard). An arm
+/// [`curvature_lever_arm`] cannot state (a NURBS or approximated
+/// carrier) makes the pair's arm poison.
+pub(crate) fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>) -> T {
+    curvature_lever_arm(s1, p).min(curvature_lever_arm(s2, p))
 }
 
 /// **`tangent_second_order`** — the must-carry rule's one metered
@@ -713,6 +721,20 @@ mod tests {
             normal,
             u_ref,
         }
+    }
+
+    /// The fold propagates poison from either arm and from the extent:
+    /// a NURBS operand folds to poison, never to the plane's arm or the
+    /// extent that would otherwise win.
+    #[test]
+    fn the_folded_arm_is_poison_when_any_operand_is() {
+        let p = plane(Vec3::unit_z(), Vec3::unit_x());
+        let n = Surface::nurbs_placeholder();
+        let o = Point3::origin();
+        assert!(folded_lever_arm(&p, &n, o, 1.0).is_nan());
+        assert!(folded_lever_arm(&n, &p, o, 1.0).is_nan());
+        assert!(folded_lever_arm(&p, &p, o, f64::NAN).is_nan());
+        assert_eq!(folded_lever_arm(&p, &p, o, 1.0), 1.0);
     }
 
     #[test]

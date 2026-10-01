@@ -199,3 +199,52 @@ Bisected to PR 3612: `m10_sym_profile_interval` `the_forms_the_walks_build_are_p
 is red on main at the default ε. Filed on your slate as
 `pcurve-fit-domain-refusal-moves-the-m10-sym-walk-ledger` with the
 numbers. Whether to re-baseline is your call. — (REACH orchestrator)
+
+## 2026-10-01 — two merged, one red on main, Ev's questions
+
+**Merged:** PR 3610 (`pcurve-chart-box-is-looser-than-harmonic-extent`)
+and PR 3612 (`pcurve-fit-refusal-drops-the-domain-doors-reason`), by a
+merge-steward lane in sequence after their fix passes went green. Both
+rows closed here rather than on their own branches: a state-sync commit
+on a merged-code branch would have re-earned the gate for no code.
+
+**3612 turned main red.** Its exact end samples moved `editor-core`'s
+`m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row`
+ledger, which its change filter did not run (the steward bisected
+3610's merge green, 3612's red). The re-baseline is this program's debt,
+on `pcert/rebaseline-sym-ledger`, ported into PR 3614, whose CI it
+reds. 3614's other red, `sweep`'s `reach_volume_backstop` off the
+default ε, is REACH's (`work/reach/reach-volume-backstop-fails-off-the-default-eps.md`,
+caused by PR 3611): inherited, annotated on the PR, not absorbed.
+
+**`D36`** stopped at its gate (3614 unmerged) with its per-site
+classification done: three meanings, about 9 uncovered (two gated by a
+new sphere incidence trilean), 14 not on the chart, 5 image mismatches,
+8 unreachable or fixed by a type change. It resumes when 3614 lands.
+
+**Ev asked on PR 3617** why `extrude` does not mint and why the octant
+is uncached. Answered there: no reason is recorded for extrude
+(filed on CARVE as `extrude-mints-no-pcurve-rows`), and the octant can
+be cached — the fitted Circle route exists, no mint site reaches it
+(filed here as `mint-has-no-route-to-the-fitted-general-circle-arm`).
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — 3614 and the ledger re-baseline merged
+
+PR 3652 re-baselined `editor-core`'s sym walk ledger (main red since
+3612's merge): only the decision walks moved, the same calls building
+fewer forms, at every ε row for the slab and once for the plate, whose
+move was hidden behind the slab's failing assertion until that one was
+fixed. Measured locally at all three ε rows; green hosted.
+
+PR 3614 (`placeholder-chart-sup-arms-are-not-a-bound`) merged with the
+re-baseline ported in. Its one remaining red was confirmed at the step
+level as inherited: default ε, the slow set and doc-tests green; the
+off-ε step failed on exactly the four `reach_volume_backstop` rows
+REACH has filed (`reach-volume-backstop-fails-off-the-default-eps`,
+PR 3611's). Annotated on the PR before merging; REACH keeps the debt.
+
+`D36` resumes now that its gate (3614) has landed.
+
+Signed (PCERT orchestrator).
