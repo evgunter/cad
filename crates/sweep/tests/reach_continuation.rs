@@ -529,6 +529,11 @@ fn a_kiss_or_a_gap_is_no_continuation() {
     }
 }
 
+/// One row of `overlapping_aligned_pairs_are_accepted_as_continuations`:
+/// label, whether the op is a subtract (else a union), the two
+/// operands, the expected volume and the expected face count.
+type ContinuationRow = (&'static str, bool, Body<f64>, Body<f64>, f64, usize);
+
 /// **Aligned pairs whose interiors OVERLAP are minted and accepted as
 /// continuations today.** C4 defines a continuation as interiors
 /// disjoint; the detector and the door do not ask, and the results are
@@ -550,7 +555,7 @@ fn a_kiss_or_a_gap_is_no_continuation() {
 fn overlapping_aligned_pairs_are_accepted_as_continuations() {
     let none = BooleanDeclarations::default();
     let p = brick((0.0, W), (0.0, H), (0.0, 1.0));
-    let rows: [(&str, bool, Body<f64>, Body<f64>, f64, usize); 4] = [
+    let rows: [ContinuationRow; 4] = [
         (
             "overlapping plates",
             false,

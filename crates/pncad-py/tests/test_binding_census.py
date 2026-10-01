@@ -3566,6 +3566,7 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",
     "SelectRefusal::Band": "SelectRefusal.reason",
+    "SelectRefusal::DistinctFinding": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::PartIdCollides": "SplitError.variant",

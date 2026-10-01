@@ -5139,8 +5139,8 @@ class Evaluation:
         Findings are DEFINITE and canonically ordered. Raises
         `SelectRefusal`, typed (`node_has_no_value` when either node
         has no value, `pair_in_band`, `tied_disagrees`, `unreadable`,
-        `band`) — an ambiguous pair is never silently included or
-        dropped."""
+        `band`, `distinct_finding` for a kernel defect) — an ambiguous
+        pair is never silently included or dropped."""
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every

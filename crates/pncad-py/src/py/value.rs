@@ -1630,7 +1630,9 @@ impl Evaluation {
     /// ambiguity band (`reason="pair_in_band"` — neither reported nor
     /// silently dropped), a tied name whose candidates disagree
     /// (`"tied_disagrees"`), an unreadable name-table entry
-    /// (`"unreadable"`), and an ambient tolerance admitting no band at
+    /// (`"unreadable"`), a matched pair the kernel classifies as
+    /// distinct (`"distinct_finding"`, a kernel defect), and an
+    /// ambient tolerance admitting no band at
     /// all under the constructor's own word (`reason="empty"` when K·ε
     /// collapsed back onto ε, `"invalid_value"` when it overflowed).
     fn find_flush_candidates(
