@@ -31,7 +31,7 @@ use crate::session::SessionOp;
 
 /// The modal revolve tool. A value: the chrome holds one while the tool
 /// is active, a test constructs one and drives the same methods.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RevolveTool {
     seats: Seats,
 }

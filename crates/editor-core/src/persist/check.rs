@@ -716,6 +716,8 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         | DocEdit::ClearAppearanceMeta { .. }
         | DocEdit::SetRoots { .. }
         | DocEdit::SetPlacement { .. }
+        // A label is text.
+        | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => None,
     }
 }
@@ -795,6 +797,12 @@ pub enum SnapshotError {
     },
     /// A witness attached to a node id that names nothing live.
     WitnessOnMissingNode {
+        /// The offending node id.
+        node: RecipeNodeId,
+    },
+    /// A label attached to a node id that names nothing live — the
+    /// state `DeleteNode`, which drops the label, never leaves.
+    LabelOnMissingNode {
         /// The offending node id.
         node: RecipeNodeId,
     },
@@ -1114,6 +1122,9 @@ impl core::fmt::Display for SnapshotError {
                 "a witness is attached to node {}, which is not live",
                 node
             ),
+            Self::LabelOnMissingNode { node } => {
+                write!(f, "a label is attached to node {node}, which is not live")
+            }
             Self::EpsilonInvalid { value } => write!(
                 f,
                 "the recorded ε {value:e} is not finite and strictly positive"
@@ -1475,6 +1486,13 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             });
         }
     }
+    // The label store's key rule: every key names a live node.
+    for &node in doc.labels.keys() {
+        check_id(node)?;
+        if !doc.nodes.contains_key(&node) {
+            return Err(SnapshotError::LabelOnMissingNode { node });
+        }
+    }
     // The A11 placement registry (ASM-2A D-6): every key names a live
     // instantiate node, and every frame is one the edit door would
     // have accepted.
@@ -1691,6 +1709,7 @@ mod tests {
             DeclareInput,
             WitnessSite,
             WitnessOnMissingNode,
+            LabelOnMissingNode,
             SlotDimension,
             SlotUnknownDocParam,
             SlotDocParamDimension,
@@ -1736,6 +1755,7 @@ mod tests {
             | SnapshotError::DeclareInput { .. }
             | SnapshotError::WitnessSite { .. }
             | SnapshotError::WitnessOnMissingNode { .. }
+            | SnapshotError::LabelOnMissingNode { .. }
             | SnapshotError::EpsilonInvalid { .. }
             | SnapshotError::Roots(_)
             | SnapshotError::PlacementSite { .. }
@@ -1810,6 +1830,7 @@ mod tests {
             },
             SnapshotError::WitnessSite { node },
             SnapshotError::WitnessOnMissingNode { node },
+            SnapshotError::LabelOnMissingNode { node },
             SnapshotError::SlotDimension {
                 node,
                 slot: SlotId::Distance,
@@ -1996,14 +2017,14 @@ mod tests {
     /// Built through the edit door, so every invariant beside the one a
     /// row then breaks is the one `apply` maintains.
     fn instances_of_an_unresolved_reference(
-        label: &str,
+        seed: &str,
         n: usize,
     ) -> (ProfileDoc, Vec<RecipeNodeId>) {
         let doc_ref = crate::ident::DocRef {
             id: crate::ident::DocumentId::derive("check-part"),
             pin: crate::ident::ContentPin::of_bytes(b"check-part"),
         };
-        let mut doc = ProfileDoc::empty_derived(label, Tol::witness());
+        let mut doc = ProfileDoc::empty_derived(seed, Tol::witness());
         let mut ids = Vec::new();
         for _ in 0..n {
             let applied = crate::edit::apply(

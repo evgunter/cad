@@ -1202,10 +1202,16 @@ impl ViewerApp {
                 None if tool_edit => {
                     self.tools.close();
                     self.drafts.accepted(&accepted_op, &minted);
+                    self.drafts
+                        .creation_landed(self.session.committed_doc(), &minted);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
-                None => self.drafts.accepted(&accepted_op, &minted),
+                None => {
+                    self.drafts.accepted(&accepted_op, &minted);
+                    self.drafts
+                        .creation_landed(self.session.committed_doc(), &minted);
+                }
             }
         }
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());

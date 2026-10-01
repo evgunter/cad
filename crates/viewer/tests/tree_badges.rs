@@ -1285,7 +1285,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
         "{rows:?}"
     );
     assert_eq!(
-        row(profile).repair_at.map(|at| at.id()),
+        row(profile).repair_at.as_ref().map(|at| at.id()),
         Some(frame),
         "the profile's row links to the frame whose slot refused"
     );
