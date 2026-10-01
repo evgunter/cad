@@ -67,8 +67,8 @@
 // carries beside the name, and which of the two doors was refused is
 // the whole of what that arm says beyond the parameter.
 // `Maintenance` rides with `Applied` by the same rule: it is what
-// `Applied::maintenance` answers in — the A11 cluster-record acts an
-// edit forced and the references a delete stranded (DM7) — and a
+// `Applied::maintenance` answers in — the offset the mate door cleared
+// (A11 (2)) and the references a delete stranded (DM7) — and a
 // consumer that can hold an `Applied` in a typed field must be able to
 // hold what it carries. `MaintenanceNet` rides with it: a consumer
 // that applies several edits as one action (a cascade delete) folds
@@ -85,9 +85,9 @@
 // what those doors refuse with, and the shape types are what an
 // `AuthoredStep` is made of.
 pub use editor_core::{
-    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
-    StepIdFault, apply, apply_logged,
+    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
+    MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId, StepIdFault, apply,
+    apply_replayed, regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -323,9 +323,12 @@ pub use editor_core::ContentBits;
 // `Doc::roots` and set through
 // `DocEdit::SetRoots`; `product` is the whole-document gather those
 // roots name, and `RootFault` is the shared invariant refusal both
-// the edit and persistence doors carry.
+// the edit and persistence doors carry. `OwnSpace` is one unplaced
+// group's own space, which a `Product` carries beside the world for
+// the at-rest gate to check, and `own_spaces` gathers every one.
 pub use editor_core::{
-    Product, ProductError, ProductErrorKind, RootFault, SourceFinding, product, product_recorded,
+    OwnSpace, Product, ProductError, ProductErrorKind, RootFault, SourceFinding, own_spaces,
+    product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -335,9 +338,8 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the group placement a document
-// records per instantiate node
-// (read through `Doc::placement`, written by `DocEdit::SetPlacement`);
+// Instantiated parts. `Frame` is the rigid motion a gauge's or an
+// instance offset's `Placement` evaluates to;
 // `PartResolver` is the document seam evaluation crosses to reach a
 // referenced document, `ResolveFailure`/`ResolveFault` its classified
 // refusal, and `PartFault` the evaluation-side cause an
@@ -353,9 +355,7 @@ pub use editor_core::{
 // authored payload (`Alignment` over two `MateFrame`s — each an
 // `AuthoredFrame` or a `FaceFrame` — a `MatePrimitive`, an
 // `AxisSense`), the solve's per-node outcome
-// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
-// cluster-record maintenance (`ClusterMaintenance`, one arm of the
-// `Maintenance` row carried above), and `MateFault`
+// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
@@ -382,11 +382,11 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance,
-    FaceFrame, Lever, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member,
-    PartReach, PlacerRow, ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE,
-    groups, mate_reach, member_of, reading_edges, relative_freedom_components, root_of,
-    solve_document,
+    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, FaceFrame, Lever,
+    MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE,
+    OffsetCheck, PartReach, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses,
+    Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, mate_reach,
+    member_of, places, reading_edges, relative_freedom_components, root_of, solve_document,
 };
 /// Why a mate's `FromFace` frame did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
@@ -437,7 +437,9 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // own or a part's — and `CarriedDeclarations` is what an instantiated
 // value carries up. `AssemblyError::CarriedMintRefusal` is the
 // outermost gate's refusal over inner mates that could not be minted
-// at all, and `CarriedRefusal` is one of its rows; `MintRefusal` is one
+// at all, and `CarriedRefusal` is one of its rows; `CarriedUnplaced` is
+// an unplaced group below, which the part's world product leaves out
+// (`Evaluation::unplaced_below`); `MintRefusal` is one
 // row of the gate's refusal over this document's own mates. Both arms
 // raise EVERY row they hold, so the row types are what the gate's
 // answer is made of and a consumer matching that answer must name
@@ -447,8 +449,8 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap
 // do it by re-typing the sentence.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef,
-    Relation, Route, assemble, assemble_gathered,
+    CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE,
+    RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class

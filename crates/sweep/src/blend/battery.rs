@@ -45,6 +45,7 @@ use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
 use super::build::fan_at;
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
 };
@@ -1981,8 +1982,65 @@ fn corner_at<T: Decide + Bounds>(
     corner_config(vertex, valence, convex, normals, radius, band).map(|()| None)
 }
 
+/// **What a junction of an open chain is**, read once for every reader:
+/// the open-chain door (`admit::Joint::admit`) refuses each non-joint
+/// arm by name, and predicate 2 groups exactly the [`JointVerdict::Joint`]
+/// junctions into one feature — so the two cannot disagree on which
+/// junctions are joints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum JointVerdict {
+    /// Both links plane–plane, on the same two support faces, at a
+    /// valence-2 vertex: one band the vertex only splits.
+    Joint,
+    /// A link's supports are not two planes.
+    NotPlanar,
+    /// The links lie on different support faces.
+    OtherFaces,
+    /// The vertex carries edges other than the two links.
+    Valence(usize),
+    /// The vertex's edge orbit does not walk.
+    OrbitBroken,
+}
+
+/// Judge the junction at `vertex` between `arriving` and `leaving`.
+pub(super) fn joint_verdict<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    arriving: &Link<T>,
+    leaving: &Link<T>,
+) -> JointVerdict {
+    if !(arriving.arm.is_plane_plane() && leaving.arm.is_plane_plane()) {
+        return JointVerdict::NotPlanar;
+    }
+    let mut pa = [arriving.face_a, arriving.face_b];
+    let mut pb = [leaving.face_a, leaving.face_b];
+    pa.sort_unstable();
+    pb.sort_unstable();
+    if pa != pb {
+        return JointVerdict::OtherFaces;
+    }
+    // Two edges between the same two faces close a manifold vertex's
+    // fan, so the valence is two; checked, not inherited.
+    match fan_at(body.edges_of_vertex(vertex)) {
+        None => JointVerdict::OrbitBroken,
+        Some(es) if es.len() != 2 => JointVerdict::Valence(es.len()),
+        Some(_) => JointVerdict::Joint,
+    }
+}
+
 /// Predicate 2's sweep: for each support face, every pair of its
 /// boundary edges, with the blended ones carrying their setbacks.
+///
+/// **A joined run is one feature.** Consecutive links of one chain on
+/// the same two support faces (a joint, `admit::Joint`) are one band
+/// whose setback on each support is ONE trimline, so two links of one
+/// run are never a pair, and the run's adjacency is the run's: an edge
+/// touching either end of the run is its neighbour, as a plain edge's
+/// neighbours are. What a joint itself needs is metered instead: its
+/// foot on each support must lie beyond the trimline of the edge that
+/// meets the run at each end — the corner's own foot is on that
+/// trimline, so a joint short of it would put the band's foot inside
+/// the corner patch.
 fn consumption_sweep<T: Decide + Bounds>(
     body: &Body<T>,
     chains: &[Chain<T>],
@@ -2016,6 +2074,52 @@ fn consumption_sweep<T: Decide + Bounds>(
     let chain_ix = |e: EdgeKey| -> Option<usize> {
         chain_of.iter().find(|(ee, _)| *ee == e).map(|(_, ci)| *ci)
     };
+    // The joined runs: each requested edge's run id, a junction of an
+    // open chain whose two links share both support faces joining the
+    // leaving link's run to the arriving one's.
+    let mut run_of: Vec<(EdgeKey, usize)> = Vec::new();
+    // Per joint: (vertex, the arriving link) — what its feet are read
+    // off.
+    let mut joints: Vec<(VertexKey, &Link<T>)> = Vec::new();
+    for chain in chains {
+        let ring: Vec<&Link<T>> = chain.links().collect();
+        let mut ids: Vec<usize> = (0..ring.len()).map(|i| run_of.len() + i).collect();
+        // Joints are an OPEN chain's: a closed rim is carved by the rim
+        // phases, whose arcs this screen meters edge by edge.
+        let open = matches!(chain.closure, ChainClosure::Open { .. });
+        for j in chain.junctions.iter().filter(|_| open) {
+            let (a, b) = (ring[j.arriving], ring[j.leaving]);
+            if joint_verdict(body, j.vertex, a, b) == JointVerdict::Joint {
+                let (from, to) = (ids[j.leaving], ids[j.arriving]);
+                for id in &mut ids {
+                    if *id == from {
+                        *id = to;
+                    }
+                }
+                joints.push((j.vertex, a));
+            }
+        }
+        for (i, l) in ring.iter().enumerate() {
+            run_of.push((l.edge, ids[i]));
+        }
+    }
+    let run =
+        |e: EdgeKey| -> Option<usize> { run_of.iter().find(|(ee, _)| *ee == e).map(|(_, r)| *r) };
+    let members = |e: EdgeKey| -> Vec<EdgeKey> {
+        match run(e) {
+            Some(r) => run_of
+                .iter()
+                .filter(|(_, rr)| *rr == r)
+                .map(|(ee, _)| *ee)
+                .collect(),
+            None => vec![e],
+        }
+    };
+    let touches = |a: EdgeKey, b: EdgeKey| -> bool {
+        let (ma, mb) = (members(a), members(b));
+        ma.iter()
+            .any(|x| mb.iter().any(|y| shares_vertex(body, *x, *y)))
+    };
     for face in faces {
         let Some(fa) = body.get_face(face) else {
             continue;
@@ -2048,11 +2152,15 @@ fn consumption_sweep<T: Decide + Bounds>(
             for j in (i + 1)..boundary.len() {
                 let (ei, pi) = (&boundary[i].0, &boundary[i].1);
                 let (ej, pj) = (&boundary[j].0, &boundary[j].1);
-                // Adjacent boundary edges TOUCH (gap 0 at the shared
+                // Adjacent boundary features TOUCH (gap 0 at the shared
                 // vertex) — their setbacks are judged by the corner
                 // and G1 predicates, not by this one, so the pair is
-                // skipped exactly when the edges share a vertex.
-                if shares_vertex(body, *ei, *ej) {
+                // skipped exactly when the features share a vertex. Two
+                // links of one joined run are one feature, and skipped.
+                if run(*ei).is_some() && run(*ei) == run(*ej) {
+                    continue;
+                }
+                if touches(*ei, *ej) {
                     continue;
                 }
                 // The closest approach of the two sampled boundaries.
@@ -2085,6 +2193,57 @@ fn consumption_sweep<T: Decide + Bounds>(
                     cross_chain,
                     band,
                 )?;
+            }
+        }
+        // Each joint on this face: its foot against the trimline of
+        // every boundary edge that meets its run at an end.
+        for (v, link) in &joints {
+            let trim = if link.face_a == face {
+                &link.blend.trim_a.0
+            } else if link.face_b == face {
+                &link.blend.trim_b.0
+            } else {
+                continue;
+            };
+            // A joint is plane–plane by its verdict, and
+            // `arms::plane_plane_blend` mints its trimlines as lines.
+            let Curve3::Line { origin, dir } = trim else {
+                return Err(BlendError::SurgeryInvariant {
+                    at: EntityId::Edge(link.edge),
+                    detail: "a plane–plane joint's trimline is not a line",
+                });
+            };
+            let p = body
+                .get_vertex(*v)
+                .and_then(|x| body.get_point(x.point))
+                .ok_or_else(|| not_intact(EntityId::Vertex(*v), "a joint's stored point"))?;
+            let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
+            let run_edges = members(link.edge);
+            for (e, _) in &boundary {
+                if run_edges.contains(e) || !run_edges.iter().any(|m| shares_vertex(body, *m, *e)) {
+                    continue;
+                }
+                // The run ends at a corner on this PLANE support, so the
+                // end edge is straight unless the corner's third support
+                // is curved — which no corner carves, and which refuses
+                // here as that rather than being sampled.
+                let (o, d) = match carrier_of(body, *e) {
+                    Some((Curve3::Line { origin, dir }, _, _)) => (origin, dir),
+                    Some(_) => {
+                        return Err(unbuilt_geometry(
+                            EntityId::Edge(*e),
+                            CORNER_SUPPORT_NOT_PLANAR,
+                        ));
+                    }
+                    None => {
+                        return Err(not_intact(
+                            EntityId::Edge(*e),
+                            "a joined run's end edge carrier",
+                        ));
+                    }
+                };
+                let gap = (foot - o).cross(d).norm() / d.norm();
+                face_clearance(face, gap, T::zero(), look(*e, face), false, band)?;
             }
         }
     }

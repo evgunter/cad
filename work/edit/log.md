@@ -1207,3 +1207,38 @@ track budgets, spec notes under `docs/doc-ledger/`.
 
 **Operations.** EDIT's load is over budget, so no new row is pulled until #3505 rules and P2 is dispatched. Main's census crossing is the lesson: before merging a fix for a red main, re-check main's head for a fix that has just landed.
 - 2026-09-30 — Seam note from AUTHOR: while weighing AUTHOR's negative-extrude fork (#3551), a designer measured `plate_param` (corpus). Its nominal sits exactly on `bool_join_nearest` Zero verdicts: every edit of the boss height from ±1e-7 relative to ±10% flips it Zero→nonzero without any failure, and outline corners move `point_in_loop_arm` counts at 1e-7 relative. Across the 29 corpus documents under their recorded bump, 4 diff their decision logs without failing. If the Zero verdicts are authored coincident geometry, that coincidence rather than the driver's width may be what limits `range.rs`'s certified range on the corpus ("certifies nothing" table). Not filed as a row: yours to judge. Scratch evidence was in the designer lanes and is deleted. (AUTHOR orchestrator)
+
+## 2026-10-01 — twentieth sitting: split/inline ruled; P2a and P2-core merged
+
+**Ruled and merged.**
+- **`[ev]` #3505: split and inline under gauges, merged `c80090264`.** Ev's rulings, now ASSEMBLY.md A4, A11 (2) and AQ8:
+  - choice 1 = A: a mate-placed instance inlines only when its part is one group rooted at the empty chain;
+  - choice 2 = A: a moved member's further offset refuses;
+  - choice 3 = B: both hoist shapes;
+  - choice 4 = (i): the unplaced state is "its own space", not special logic; split moves an unplaced cut group as it is.
+  - The 0-versus-50 root offset is accepted because M1 fixes it uniformly. M1 is filed on MSOLVE: `a-mate-frame-is-written-in-the-reading-instances-coordinates` (P2, design).
+  - Fork-log row 21: neither designer in full (A on 1 and 2, B on 3 and 4).
+- **The P2 spec (#3623)**, then **P2a, the group/root vocabulary (#3625, `bcc34d761`)**, orchestrator's read.
+- **P2-core: gauges (#3676, `a772283dd`), a dual review, DR-34.**
+  - The cut, approved mid-unit: P2-core admits only shapes whose result is exactly A4's document. Everything else refuses typed until P2-split.
+  - Mate-door ruling C: no ratified clause said which side moves, and the viewer's stories pick the mover first, so "mate a to b" moves a's group.
+  - The world pose is A∘F∘B: the solve stays gauge-free, and F composes outside the placers.
+  - Both reviews: NOT-MERGEABLE-AS-IS (R1 2 MAJOR, R2 4 MAJOR), byte 126.
+  - The blinded coder's tally is 5: split's anchor vote, flush across spaces, the own-space gate bypassed by the viewer badge and Python, STEP leaking through the document seam, and split leaving a placing mate behind. The mate door's first-offset clear was bilateral and split across the MAJOR line.
+  - The fix pass took the union, items 1–20 (spec corrections committed on the PR). It stopped once on a usage limit and resumed.
+  - Three more merges of main followed, as #3594, #3713/#3728, #3741 and #3737 landed. They brought the spoken maintenance and refusal arms into P2's vocabulary.
+  - The eps step found one defect neither reviewer raised: `admit_mate` read document order off a digest-id comparison. It is fixed here, and the class is filed.
+  - Merged over main's one remaining red with Ev's leave (in chat).
+- **Readout 2.** DR-34 takes the tally to 10. CLEAVE raised the rule-9 ask (`[ev]` #3704) at DR-30. Ev asked how the fable-opus and Opus/Opus streams compare; I added this pair's coded data there. Ev ruled the protocol change (`7cb05367e`); DR-34 is recorded under it, with a fairness flag because I read readout 2 before recording.
+
+**Main red, and rows filed off it.**
+- **REACH: `reach-volume-backstop-fails-off-the-default-eps`** (P0), from P2a's CI. REACH fixed it in #3636.
+- **The CLEAVE sym-ledger crossing.** `m10_sym`'s pin was bisected to #3645 and fixed by #3684.
+- **`r1_pxn_probes`.** #3524 and #3685, each green alone, red together. SSI's row was filed by LINALG, and REACH fixed it in #3737.
+- **REACH: `an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed`** (P0), filed via #3742. The row PR 3636 fixed reds again at 1e-6 in a new place. I pointed REACH at it on #3737.
+- **EDIT: `document-order-is-read-off-node-id-comparison-since-ids-are-digests`** (P1), via #3742.
+- **`placement-split-and-inline-at-a-gauge-are-refused-until-p2-split`** (P1), filed by the place2 lane. It is P2-split.
+
+**Disclosure.** Merge commit `04eee6062` on `edit/placement-gauges`, now on main through #3676, carries no attribution trailers. It is not amended, because history is merge-only.
+
+**Next.** P2-split is an L unit and gets a concurrent dual under `7cb05367e`. P3 goes to the viewer owner's slate. Ev asked whether placement should split off into its own program. I recommended splitting after #3676 merged, either a PLACE program or a fresh EDIT session; that waits on Ev.
