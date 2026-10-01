@@ -3481,6 +3481,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::ClassNotAdmitted": "MateFault.variant",
     "MateFault::TableLacks": "MateFault.variant",
     "MateFault::Indeterminate": "MateFault.variant",
+    "MateFault::PoseOutOfRange": "MateFault.variant",
     "MateFault::Band": "MateFault.variant",
     "MateFault::Contradictory": "MateFault.variant",
     "MateFault::Under": "MateFault.variant",
