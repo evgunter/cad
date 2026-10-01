@@ -66,10 +66,10 @@
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::{Interval, Point3, Real, SizedPass, SupSpeed, Vec3};
+use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
 
 use super::SsiError;
-use super::enclose::{Box3, NurbsBoxes, implicit_enclosure};
+use super::enclose::{Box3, NurbsBoxes, implicit_enclosure, max_keeping_nan};
 use crate::recourse::{SizedDecision, StoredDefinite};
 
 /// The refinement floor, as a multiple of ε: a cell narrower than this
@@ -664,7 +664,7 @@ impl SweepCell for Box3 {
     fn reach(self) -> f64 {
         [self.y.mag(), self.z.mag()]
             .into_iter()
-            .fold(self.x.mag(), Real::max)
+            .fold(self.x.mag(), max_keeping_nan)
     }
     fn finest_width_at(reach: f64) -> f64 {
         Interval::from_bounds(reach.next_down(), reach).width()
@@ -861,7 +861,7 @@ impl UvRect {
     /// The wider side; `NaN` when either side is, so a NaN side fails
     /// the floor test rather than dropping out of it.
     fn width(self) -> f64 {
-        Real::max(self.u.1 - self.u.0, self.v.1 - self.v.0)
+        max_keeping_nan(self.u.1 - self.u.0, self.v.1 - self.v.0)
     }
 
     fn center(self) -> (f64, f64) {
@@ -919,7 +919,7 @@ impl SweepCell for UvRect {
     fn reach(self) -> f64 {
         [self.u.1, self.v.0, self.v.1]
             .into_iter()
-            .fold(self.u.0.abs(), |m, x| Real::max(m, x.abs()))
+            .fold(self.u.0.abs(), |m, x| max_keeping_nan(m, x.abs()))
     }
     fn finest_width_at(reach: f64) -> f64 {
         reach - reach.next_down()

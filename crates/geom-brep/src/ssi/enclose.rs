@@ -72,7 +72,7 @@ use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, norm_sq, norm_sup};
-use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, Real, SupSpeed, Vec3};
+use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
 use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
 
@@ -152,7 +152,7 @@ impl Box3 {
     pub(crate) fn width(self) -> f64 {
         [self.y.width(), self.z.width()]
             .into_iter()
-            .fold(self.x.width(), Real::max)
+            .fold(self.x.width(), max_keeping_nan)
     }
 
     /// The center as an f64 point (a marcher seed, never a claim).
@@ -481,6 +481,18 @@ impl ChartSpeeds {
 /// into an ordered point.
 fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> bool {
     u0 <= u1 && v0 <= v1
+}
+
+/// The larger of two readings, `NaN` when either is: the fold for a
+/// cell's sides and reach, where `f64::max` would return the readable
+/// operand and drop a refused one. (`Real::max` has the same contract,
+/// and is not named in a certification file.)
+pub(crate) fn max_keeping_nan(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b.is_nan() {
+        f64::NAN
+    } else {
+        a.max(b)
+    }
 }
 
 /// Control-net enclosures for a NURBS chart over a parameter rectangle
