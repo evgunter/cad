@@ -18,7 +18,7 @@ use test_utils::fuzz::Rng;
 
 use super::{claimed_components, misread};
 use crate::body::Body;
-use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey, ShellKey};
+use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey};
 use crate::fixtures::{
     detached_digons, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strut_cube,
     through_the_scalpel,
@@ -28,20 +28,29 @@ use crate::test_support_fixtures::declined_cube;
 /// A link the labelling reads, torn live-but-foreign: a `next` its
 /// cycle walk steps, a `parent_loop` the proof reads a member's loop
 /// from, a loop's `first` the walk starts at, and an edge's slots the
-/// mate hop reads.
+/// mate hop reads; or a loop's boundary torn `Empty` at a live vertex
+/// while its half-edges still claim it, so the walk from its face
+/// steps none of them and a mate hop into it has no hop back; or a
+/// loop's `face` torn to another live face, which does not list it, so
+/// a mate hop into the loop lands on a face that does not own it: the
+/// converse's subject, which no other kind writes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Tear {
     NextForeign,
     ParentLoopForeign,
     LoopAnchorForeign,
     EdgeBijection,
+    LoopEmptied,
+    LoopFaceForeign,
 }
 
-const TEARS: [Tear; 4] = [
+const TEARS: [Tear; 6] = [
     Tear::NextForeign,
     Tear::ParentLoopForeign,
     Tear::LoopAnchorForeign,
     Tear::EdgeBijection,
+    Tear::LoopEmptied,
+    Tear::LoopFaceForeign,
 ];
 
 /// The bodies torn: one to three components, rings, a strut, genus.
@@ -78,6 +87,18 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut Rng) {
             let e = body.get_edge_mut(edge).unwrap();
             e.he_plus = he;
             e.he_minus = other;
+        }
+        Tear::LoopEmptied => {
+            let vertex = body.get_half_edge(he).unwrap().start;
+            body.get_loop_mut(l).unwrap().boundary = LoopBoundary::Empty { vertex };
+        }
+        // Drawn here, after the three draws every kind makes, so the
+        // other kinds' streams, and so their cells, are the ones they
+        // were before this kind existed.
+        Tear::LoopFaceForeign => {
+            let own = body.get_loop(l).unwrap().face;
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).filter(|&k| k != own).collect();
+            body.get_loop_mut(l).unwrap().face = faces[pick(faces.len())];
         }
     }
 }

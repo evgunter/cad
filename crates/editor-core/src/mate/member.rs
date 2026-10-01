@@ -199,8 +199,8 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                     // placer, no name segment, and — because the
                     // index it carries is an EXPRESSION — nothing
                     // evaluated. The name is the authority on which
-                    // copy; this node is checked against it where the
-                    // offset already evaluates ([`derived_offset`]).
+                    // copy; this node is checked against it per
+                    // reference ([`check_reference`]).
                     part = Some(at);
                     at = of;
                 }
@@ -353,9 +353,13 @@ pub(super) fn walk_of<P>(
 /// [`MateFault::PartSelectsAnotherCopy`] for the disagreement, naming
 /// both indices. A number this check needs that does not EXIST refuses
 /// [`MateFault::PlacerRefused`] instead, carrying the evaluation
-/// layer's own words for it: `Expr` for a count or a `Part` index
-/// whose expression does not evaluate in `env`, `MissingInput` for a
-/// node the walk recorded and the document no longer holds.
+/// layer's own words for it, at the node whose slot it is: `Expr` for
+/// a pattern's count at the pattern, and for a `Part`'s index at the
+/// `Part`, whose expression does not evaluate in `env`;
+/// `InstanceOutOfRange` at the `Part` for an index outside the value it
+/// selects from, judged before the name is; `MissingInput`
+/// for a node the walk recorded and the document does not hold, which
+/// no door reaches.
 ///
 /// The two numbers are read one at a time with `eval_count` — the
 /// call [`eval_slots`] itself makes for a structural slot — rather
@@ -401,6 +405,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
         let Placer::Pattern { node, i, part } = *placer else {
             continue;
         };
+        // No door reaches this refusal either: the walk recorded the
+        // pattern where it read it from this document.
         let Some(Node::Pattern { count, .. }) = doc.node(node) else {
             return Err(refused(
                 node,
@@ -442,28 +448,66 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
         let Some(part) = level.part else {
             continue;
         };
+        // The flat index is a row of THIS level's value, so a layout
+        // that overflows it is this level's — the pattern the `Part`
+        // selects from — and never a level below, whose own count
+        // fits. A pattern over another pattern's many bodies does not
+        // evaluate, so its row states a refusal of its own and the
+        // mate carries this one.
+        // The value's flat length is that level's arithmetic too.
+        let past_width = || {
+            refused(
+                level.node,
+                NodeErrorKind::Naming(crate::names::NamingError::Emission {
+                    what: "an output-body index exceeds the table's u32 row width",
+                }),
+                PlacerRow::Silent,
+            )
+        };
         let mut flat = level.i;
+        let mut bodies = level.n;
         for below in &levels[t + 1..] {
             if below.part.is_some() {
                 break;
             }
             flat = crate::names::flat_body_index(flat, below.n, below.i)
-                .map_err(|e| refused(below.node, NodeErrorKind::Naming(e), PlacerRow::Silent))?;
+                .map_err(|e| refused(level.node, NodeErrorKind::Naming(e), PlacerRow::Silent))?;
+            bodies = bodies.checked_mul(below.n).ok_or_else(past_width)?;
         }
+        // No door reaches this refusal: the walk recorded `part` only
+        // where it read this node of this document as a `Part`
+        // selecting an instance, and the walk is of the document it
+        // hands here. It is answered rather than assumed, at the
+        // `Part`, whose node it is about.
         let Some(Node::Part {
+            of,
             select: PartSelect::Instance(index),
-            ..
         }) = doc.node(part)
         else {
             return Err(refused(
-                level.node,
+                part,
                 NodeErrorKind::MissingInput { input: part },
                 PlacerRow::Silent,
             ));
         };
-        // The `Part`'s index, seated at the pattern, whose own row reads
-        // `Ok`.
-        let selected = count_of(level.node, index, SlotId::Instance, PlacerRow::Silent)?;
+        // The index is the `Part`'s own `Instance` slot, so its refusal
+        // is the `Part`'s, which the evaluation fails with the same
+        // refusal in its own right.
+        let selected = count_of(part, index, SlotId::Instance, PlacerRow::States)?;
+        // Judged against the value's flat length before the name, as the
+        // evaluation judges it: an index outside it selects no copy, and
+        // the `Part` fails on it in its own right.
+        if !(0..i64::from(bodies)).contains(&selected) {
+            return Err(refused(
+                part,
+                NodeErrorKind::InstanceOutOfRange {
+                    input: *of,
+                    index: selected,
+                    count: bodies as usize,
+                },
+                PlacerRow::States,
+            ));
+        }
         if selected != i64::from(flat) {
             return Err(MateFault::PartSelectsAnotherCopy {
                 mate,

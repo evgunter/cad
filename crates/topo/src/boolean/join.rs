@@ -145,11 +145,97 @@ struct SolidJoin {
     in_set: SecondaryMap<VertexKey, ()>,
     /// OUT-side end vertices (above ends).
     out_set: SecondaryMap<VertexKey, ()>,
-    /// Aux partner surfaces minted into THIS body for curved germ
-    /// pairs (M5 PR 9), keyed by the OTHER body's germ face — one
-    /// mint per partner surface, every chord of the same germ face
-    /// shares it (the descriptions stay key-coherent for D6).
-    aux_partner: std::collections::BTreeMap<FaceKey, crate::geometry::SurfaceKey>,
+    /// Aux surfaces minted into THIS body for curved germ pairs (M5
+    /// PR 9), keyed by the datum each one IS ([`AuxDatum`]) — one mint
+    /// per datum, every chord that rides it shares it (the descriptions
+    /// stay key-coherent for D6).
+    aux: std::collections::BTreeMap<AuxDatum, crate::geometry::SurfaceKey>,
+}
+
+/// What an aux surface in [`SolidJoin::aux`] is a copy of, which is
+/// what makes two chords' reads of one entry the same datum.
+///
+/// The two shapes are kept apart because they depend on different
+/// things: a partner copy depends on the partner face's surface alone,
+/// a radical plane on BOTH spheres. Keying the radical plane by the
+/// partner face alone hands a second sphere of THIS body the first
+/// one's plane — a chord described against a plane it does not lie in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum AuxDatum {
+    /// A copy of the OTHER body's germ face's surface (a partner plane
+    /// for a wall-side chord, a partner wall for a planar-side one).
+    Partner(FaceKey),
+    /// The radical plane of a sphere pair: this body's sphere surface
+    /// and the other body's.
+    Radical {
+        own: crate::geometry::SurfaceKey,
+        partner: crate::geometry::SurfaceKey,
+    },
+}
+
+impl SolidJoin {
+    /// The wall-side chord lane against `plane`: one chord through
+    /// [`JoinLane::Split`], its aux plane read from and minted into
+    /// [`Self::aux`] under `datum`.
+    fn join_split<T: Decide>(
+        &mut self,
+        body: &mut Body<T>,
+        (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+        plane: crate::splitting::SplitPlane<T>,
+        datum: AuxDatum,
+        tol: Tol,
+    ) -> Result<(), BooleanError> {
+        let mut ctx = crate::chord_join::SectionCtx {
+            plane,
+            plane_key: self.aux.get(&datum).copied(),
+        };
+        self.joiner
+            .join(
+                body,
+                h1,
+                h2,
+                crate::chord_join::JoinLane::Split(&mut ctx),
+                tol,
+            )
+            .map_err(BooleanError::Join)?;
+        if let Some(k) = ctx.plane_key {
+            self.aux.insert(datum, k);
+        }
+        Ok(())
+    }
+
+    /// The planar-side chord lane against the partner `wall`, whose
+    /// face's azimuth window is `window`: one chord through
+    /// [`JoinLane::BoolPlanar`], the wall copy keyed by `partner_face`.
+    fn join_bool_planar<T: Decide>(
+        &mut self,
+        body: &mut Body<T>,
+        (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+        wall: geom::Surface<T>,
+        window: (T, T),
+        partner_face: FaceKey,
+        tol: Tol,
+    ) -> Result<(), BooleanError> {
+        let datum = AuxDatum::Partner(partner_face);
+        let mut partner = self.aux.get(&datum).copied();
+        self.joiner
+            .join(
+                body,
+                h1,
+                h2,
+                crate::chord_join::JoinLane::BoolPlanar {
+                    wall,
+                    window,
+                    partner_key: &mut partner,
+                },
+                tol,
+            )
+            .map_err(BooleanError::Join)?;
+        if let Some(k) = partner {
+            self.aux.insert(datum, k);
+        }
+        Ok(())
+    }
 }
 
 impl SolidJoin {
@@ -164,7 +250,7 @@ impl SolidJoin {
             joiner: ChordJoiner::new(band),
             in_set,
             out_set,
-            aux_partner: std::collections::BTreeMap::new(),
+            aux: std::collections::BTreeMap::new(),
         }
     }
 
@@ -313,15 +399,19 @@ pub(super) fn bool_connect<T: Decide>(
         // planar side against the wall face's own window, so both
         // solids select the SAME geometric arc); plane×sphere (M5
         // S13) rides the same two lanes with the exact C5 Circle and
-        // the sphere chart's azimuth window; any other pair refuses
-        // typed citing its C5 routing (per-arm, C12.1).
+        // the sphere chart's azimuth window; a sphere pair rides the
+        // wall-side lane on both sides against its radical plane; any
+        // other pair refuses typed citing its C5 routing (per-arm,
+        // C12.1).
         let germ = open[m.entry].a[m.entry_slot].0;
-        let surf_of = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .cloned()
-                .ok_or(desync("germ face surface no longer resolves"))
-        };
+        let surf_of =
+            |body: &Body<T>,
+             f: FaceKey|
+             -> Result<(crate::geometry::SurfaceKey, geom::Surface<T>), BooleanError> {
+                body.get_face(f)
+                    .and_then(|fd| Some((fd.surface, body.get_surface(fd.surface)?.clone())))
+                    .ok_or(desync("germ face surface no longer resolves"))
+            };
         // The germ faces' SURFACES, deliberately unoriented (S10): what
         // the curved lanes below take from a plane germ is a
         // [`SplitPlane`] — a section datum, an operation input whose
@@ -331,9 +421,9 @@ pub(super) fn bool_connect<T: Decide>(
         // a sense flip, so folding the sense in here would rewrite an
         // input that never meant "outward"; the created faces' own
         // orientation comes from the joiner's stored winding.
-        let ga = surf_of(&red.a, germ.a_face)?;
-        let gb = surf_of(&red.b, germ.b_face)?;
-        use crate::chord_join::{JoinLane, SectionCtx, face_azimuth_window};
+        let (ka, ga) = surf_of(&red.a, germ.a_face)?;
+        let (kb, gb) = surf_of(&red.b, germ.b_face)?;
+        use crate::chord_join::{JoinLane, face_azimuth_window};
         use crate::splitting::SplitPlane;
         use geom::Surface as Sf;
         match (&ga, &gb) {
@@ -387,72 +477,70 @@ pub(super) fn bool_connect<T: Decide>(
                 let window = face_azimuth_window(&red.b, &gb, germ.b_face, band)
                     .map_err(BooleanError::Join)?
                     .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                let mut partner = sa.aux_partner.get(&germ.b_face).copied();
-                sa.joiner
-                    .join(
-                        &mut red.a,
-                        a1,
-                        a2,
-                        JoinLane::BoolPlanar {
-                            wall: gb.clone(),
-                            window,
-                            partner_key: &mut partner,
-                        },
-                        tol,
-                    )
-                    .map_err(BooleanError::Join)?;
-                if let Some(k) = partner {
-                    sa.aux_partner.insert(germ.b_face, k);
-                }
-                let mut ctx = SectionCtx {
-                    plane: SplitPlane {
-                        origin: *origin,
-                        normal: *normal,
-                    },
-                    plane_key: sb.aux_partner.get(&germ.a_face).copied(),
+                sa.join_bool_planar(&mut red.a, (a1, a2), gb.clone(), window, germ.b_face, tol)?;
+                let plane = SplitPlane {
+                    origin: *origin,
+                    normal: *normal,
                 };
-                sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::Split(&mut ctx), tol)
-                    .map_err(BooleanError::Join)?;
-                if let Some(k) = ctx.plane_key {
-                    sb.aux_partner.insert(germ.a_face, k);
-                }
+                sb.join_split(
+                    &mut red.b,
+                    (b1, b2),
+                    plane,
+                    AuxDatum::Partner(germ.a_face),
+                    tol,
+                )?;
             }
             (Sf::Sphere { .. }, Sf::Plane { origin, normal, .. })
             | (Sf::Cylinder { .. }, Sf::Plane { origin, normal, .. }) => {
-                let mut ctx = SectionCtx {
-                    plane: SplitPlane {
-                        origin: *origin,
-                        normal: *normal,
-                    },
-                    plane_key: sa.aux_partner.get(&germ.b_face).copied(),
+                let plane = SplitPlane {
+                    origin: *origin,
+                    normal: *normal,
                 };
-                sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::Split(&mut ctx), tol)
-                    .map_err(BooleanError::Join)?;
-                if let Some(k) = ctx.plane_key {
-                    sa.aux_partner.insert(germ.b_face, k);
-                }
+                sa.join_split(
+                    &mut red.a,
+                    (a1, a2),
+                    plane,
+                    AuxDatum::Partner(germ.b_face),
+                    tol,
+                )?;
                 let window = face_azimuth_window(&red.a, &ga, germ.a_face, band)
                     .map_err(BooleanError::Join)?
                     .ok_or(desync("wall germ face has no charted azimuth window"))?;
-                let mut partner = sb.aux_partner.get(&germ.a_face).copied();
-                sb.joiner
-                    .join(
-                        &mut red.b,
-                        b1,
-                        b2,
-                        JoinLane::BoolPlanar {
-                            wall: ga.clone(),
-                            window,
-                            partner_key: &mut partner,
-                        },
-                        tol,
-                    )
-                    .map_err(BooleanError::Join)?;
-                if let Some(k) = partner {
-                    sb.aux_partner.insert(germ.a_face, k);
-                }
+                sb.join_bool_planar(&mut red.b, (b1, b2), ga.clone(), window, germ.a_face, tol)?;
+            }
+            // **The sphere pair rides its RADICAL PLANE.** Two spheres
+            // meet in a circle lying in the one plane both residuals
+            // agree on, so on each side the section is that sphere cut
+            // by that plane: the wall-side chord lane of the plane×sphere
+            // pair above, run on BOTH sides against the same plane. The
+            // plane is computed from the pair's own C5 Circle, once per
+            // germ, so the two sides' chords are sections of one datum;
+            // each body's aux copy of it is keyed by the two spheres it
+            // depends on ([`AuxDatum::Radical`]). The arc-side rule's
+            // polar premise is the plane×sphere arm's own gate in
+            // `chord_join::section_case`: a radical plane tilted against
+            // either chart's polar axis refuses there, typed.
+            (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
+                let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
+                    Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
+                        center,
+                        axis,
+                        ..
+                    })) => SplitPlane {
+                        origin: center,
+                        normal: axis,
+                    },
+                    Ok(_) => {
+                        return Err(desync("germ pair's sphere×sphere section is not a circle"));
+                    }
+                    Err(geom_brep::SectionError::Escalated(diag)) => {
+                        return Err(BooleanError::coincidence(diag));
+                    }
+                    Err(_) => return Err(desync("germ pair's section refused at join time")),
+                };
+                let datum = |own, partner| AuxDatum::Radical { own, partner };
+                sa.join_split(&mut red.a, (a1, a2), radical, datum(ka, kb), tol)?;
+                sb.join_split(&mut red.b, (b1, b2), radical, datum(kb, ka), tol)?;
             }
             (a_s, b_s) => {
                 // No wired join arm for this germ pair (cyl×cyl's
@@ -818,17 +906,10 @@ pub(super) fn pair_section_frame<T: Decide>(
         // different consumer with a different question; putting it here
         // would refuse a frame the facing test can use.
         //
-        // **And no polar gate lives at that consumer either — said out
-        // loud so the absence reads as a decision, not an omission.**
-        // `chord_join::section_case` refuses EVERY curved×curved pair by
-        // KIND, before any germ-pair section is consulted, so a sphere
-        // section never reaches the azimuth-anchored rule at all. That
-        // blanket refusal is strictly stronger than a polar gate (which
-        // would admit the aligned pairs), and it is what makes a gate
-        // here or there dead code today; its text NAMES the sphere pair
-        // and the polar premise so a reader who arrives at it lands on
-        // the right fact. When the ring lane narrows that refusal, the
-        // premise becomes live and the gate is owed then.
+        // The polar premise is live at that consumer: the join hands
+        // each side the pair's radical plane, so the chord reaches
+        // `chord_join::section_case` as a plane×sphere pair and its
+        // polar gate decides there, per operand chart.
         (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
             return match geom_brep::sphere_sphere_section(sa, sb, band) {
                 Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {

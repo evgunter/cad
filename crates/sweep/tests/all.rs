@@ -561,6 +561,8 @@ mod mate7a_r1_probes;
 mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "snowman.rs"]
+mod snowman;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
