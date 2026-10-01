@@ -258,7 +258,7 @@ pub struct FaceFrame {
 /// `f64`; on an analysis lane — the `Dual64` passes of
 /// `stackup::sensitivities`, the `Interval` leaf of a certified
 /// `clearance` — the product's coordinates pin no single number, and
-/// the side refuses [`FaceRefusal::Unpinned`] rather than read the
+/// the side refuses [`FacePoseRefusal::Unpinned`] rather than read the
 /// nominal and drop the pose's own sensitivity to the parameters. So
 /// those two doors refuse an assembly that holds a face frame, where
 /// the same mate authored as vectors still solves on every lane.
