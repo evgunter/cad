@@ -791,3 +791,16 @@ refuses instead of indexing, and an escalation's rendered text; both
 can be read and believed). It is outside any A/B block (the protocol
 is suspended), so TRIM-B2 slot 2 stays unspent and the block's record
 closes by the suspension at the walk.
+
+## The iso doors merged; the P-2 spec deleted; the slate is empty (2026-10-01)
+
+PR #3525 merged (c60bfd61f): `boundary_iso_u/_v` and `interior_iso_u`
+refuse a net whose lengths disagree with its knots instead of
+panicking (one count rule, `NurbsSurface::check_net_counts`), and the
+iso-row escalation renders its decision in plain words with its own
+kind's recourse minus the declaration. Single style review (MERGEABLE,
+no correctness findings); a four-item fix pass on its style notes;
+outside any A/B block. TRIM-B2 slot 2 stays unspent: the block's record
+closes by the suspension. `docs/PCURVE-P2-SPEC.md` is deleted with a
+ledger note, closing the last open row. Every row on the slate is
+closed; the exit walk goes to Ev as an `[ev]` PR.

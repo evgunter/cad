@@ -74,6 +74,29 @@ impl<T: Real> ControlPoint<T> for Point3<T> {
     }
 }
 
+/// The count half of [`validate_counts`]: `control` points and
+/// `weights` weights against the `expected` control count, in that
+/// order. The one statement of the count rule, which
+/// [`crate::NurbsSurface::check_net_counts`] exposes.
+///
+/// # Errors
+///
+/// [`SplineError::ControlCountMismatch`], then
+/// [`SplineError::WeightCountMismatch`].
+pub(crate) fn check_counts(
+    expected: usize,
+    control: usize,
+    weights: usize,
+) -> Result<(), SplineError> {
+    if control != expected {
+        return Err(SplineError::ControlCountMismatch { control, expected });
+    }
+    if weights != control {
+        return Err(SplineError::WeightCountMismatch { weights, control });
+    }
+    Ok(())
+}
+
 /// Constructor validation: counts and weight positivity/finiteness.
 /// `expected` is the control count the knot structure demands — one
 /// knot vector's `control_count` for a curve, the product of the two
@@ -91,15 +114,7 @@ pub(crate) fn validate_counts(
     control: usize,
     weights: &[f64],
 ) -> Result<(), SplineError> {
-    if control != expected {
-        return Err(SplineError::ControlCountMismatch { control, expected });
-    }
-    if weights.len() != control {
-        return Err(SplineError::WeightCountMismatch {
-            weights: weights.len(),
-            control,
-        });
-    }
+    check_counts(expected, control, weights.len())?;
     for (index, w) in weights.iter().enumerate() {
         if !(*w > 0.0) {
             return Err(SplineError::NonPositiveWeight { index, weight: *w });
