@@ -281,11 +281,7 @@ struct SourceLine<'a> {
 
 impl crate::finding::Finding for SourceLine<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "root {} output {}",
-            self.source.node.0, self.source.output
-        )
+        write!(f, "root {} output {}", self.source.node, self.source.output)
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -336,18 +332,16 @@ impl Staged for ProductError {
                 second,
             } => {
                 let what = match select {
-                    None => format!("node {}'s body", placed.0),
+                    None => format!("node {}'s body", placed),
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Above)) => {
-                        format!("the above half of node {}", placed.0)
+                        format!("the above half of node {}", placed)
                     }
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
-                        format!("the below half of node {}", placed.0)
+                        format!("the below half of node {}", placed)
                     }
-                    Some(crate::node::PartSelect::Instance(i)) => format!(
-                        "instance `{}` of node {}",
-                        crate::expr::unparse(i),
-                        placed.0
-                    ),
+                    Some(crate::node::PartSelect::Instance(i)) => {
+                        format!("instance `{}` of node {}", crate::expr::unparse(i), placed)
+                    }
                 };
                 write!(
                     f,
@@ -355,7 +349,7 @@ impl Staged for ProductError {
                      a transform or part selection mints no name, so both \
                      would carry its names. Recourse: place it under one \
                      root, or union the two",
-                    first.0, second.0
+                    first, second
                 )
             }
             Self::NoBodyRoots => f.write_str(
@@ -375,21 +369,21 @@ impl Staged for ProductError {
                 f,
                 "root {}'s {} name (minted by node {}) collides in the \
                  product's name table",
-                node.0,
+                node,
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
             Self::Naming { name, .. } => write!(
                 f,
                 "the {} name minted by node {} collides in the \
                  product's name table",
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
             Self::Graft { node, source } => write!(
                 f,
                 "the kernel could not graft root {}'s body: {source}",
-                node.0
+                node
             ),
             Self::RootInvalid { findings } => {
                 // Findings arrive in gather order, so one root's outputs
@@ -413,10 +407,10 @@ impl Staged for ProductError {
                     }
                     Labels::Stripped => {
                         if let [root] = roots.as_slice() {
-                            write!(f, "root {} is not valid at rest:", root.0)?;
+                            write!(f, "root {} is not valid at rest:", root)?;
                         } else {
                             let named: Vec<String> =
-                                roots.iter().map(|r| r.0.to_string()).collect();
+                                roots.iter().map(ToString::to_string).collect();
                             write!(f, "roots {} are not valid at rest:", named.join(", "))?;
                         }
                         crate::finding::render_lines(
@@ -441,7 +435,7 @@ impl Staged for ProductError {
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
                  succeed",
-                node.0
+                node
             ),
         }
     }
@@ -921,12 +915,13 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         if body.solids().next().is_none() {
             continue;
         }
-        let keys = topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref(), tol).map_err(
-            |source| ProductError::Graft {
-                node: *node,
-                source: Box::new(source),
-            },
-        )?;
+        let keys =
+            topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref()).map_err(|source| {
+                ProductError::Graft {
+                    node: *node,
+                    source: Box::new(source),
+                }
+            })?;
         grafted.push((source, keys));
     }
 
@@ -1272,8 +1267,8 @@ mod tests {
     /// `&'static str`, empty finding lists, and one unit arm of the
     /// kernel's own refusal), so no arm is left unbuilt.
     fn every_arm() -> Vec<ProductError> {
-        let node = RecipeNodeId(3);
-        let through = RecipeNodeId(1);
+        let node = RecipeNodeId(test_utils::refusal::tagged(3));
+        let through = RecipeNodeId(test_utils::refusal::tagged(1));
         vec![
             ProductError::EvaluationOfAnotherDocument {
                 expected: crate::ident::DocumentId::derive("expected"),
@@ -1284,16 +1279,16 @@ mod tests {
             ProductError::Root(NodeStanding::Failed { node }),
             ProductError::Root(NodeStanding::Poisoned { node, through }),
             ProductError::PlacedUnderTwoRoots {
-                placed: RecipeNodeId(1),
+                placed: RecipeNodeId(test_utils::refusal::tagged(1)),
                 select: None,
                 first: node,
-                second: RecipeNodeId(4),
+                second: RecipeNodeId(test_utils::refusal::tagged(4)),
             },
             ProductError::Naming {
                 node,
                 name: Box::new(StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(1),
+                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
                     path: Vec::new(),
                 }),
             },
@@ -1447,8 +1442,8 @@ mod tests {
     #[test]
     fn a_root_without_a_value_renders_its_standing() {
         let standing = NodeStanding::Poisoned {
-            node: RecipeNodeId(4),
-            through: RecipeNodeId(2),
+            node: RecipeNodeId(test_utils::refusal::tagged(4)),
+            through: RecipeNodeId(test_utils::refusal::tagged(2)),
         };
         assert_eq!(
             ProductError::Root(standing).to_string(),
@@ -1467,10 +1462,10 @@ mod tests {
     fn the_naming_refusal_claims_rootedness_only_on_the_per_root_path() {
         let named = |node: u64, minted: u64| {
             ProductError::Naming {
-                node: RecipeNodeId(node),
+                node: RecipeNodeId(test_utils::refusal::tagged(node)),
                 name: Box::new(StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(minted),
+                    node: RecipeNodeId(test_utils::refusal::tagged(minted)),
                     path: Vec::new(),
                 }),
             }
@@ -1478,7 +1473,7 @@ mod tests {
         };
         let carried = named(8, 6);
         assert!(
-            carried.contains("root 8") && carried.contains("node 6"),
+            carried.contains("root 000000000008") && carried.contains("node 000000000006"),
             "the per-root path names the root that carried and the node that minted: {carried}"
         );
         let merged = named(6, 6);
@@ -1487,7 +1482,7 @@ mod tests {
             "the final narrowing's collision has no one root to name, and must not invent one: {merged}"
         );
         assert!(
-            merged.contains("node 6"),
+            merged.contains("node 000000000006"),
             "it still names the node that minted the colliding name: {merged}"
         );
     }

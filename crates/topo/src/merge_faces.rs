@@ -613,7 +613,7 @@ impl MergeDecision {
             Self::DeclaredPlanes(PlaneRung::Orientation) => {
                 "whether the two declared faces face the same way across the edge they share"
             }
-            Self::DeclaredPlanes(PlaneRung::Parallel) => PlaneRung::Parallel.subject(),
+            Self::DeclaredPlanes(rung @ (PlaneRung::Parallel | PlaneRung::Norm)) => rung.subject(),
             Self::DeclaredOffset => "whether the two declared planes lie apart",
             Self::LoopWinding => "which way a loop of the merged face winds about its normal",
         }
@@ -628,9 +628,9 @@ impl MergeDecision {
                 DECLARED_ORIENTATION.recourse(arm, Reading::Build)
             }
             // The declared rung bridges in-band parallelism, so what
-            // escalates here is a norm the rung could not read, as at the
-            // Boolean's declared door (`BooleanDecision::DeclaredParallel`).
-            Self::DeclaredPlanes(PlaneRung::Parallel) | Self::DeclaredOffset => {
+            // escalates here is a norm the rung could not read, as at every
+            // Boolean door (`SelfCheck::Normals`).
+            Self::DeclaredPlanes(PlaneRung::Parallel | PlaneRung::Norm) | Self::DeclaredOffset => {
                 Unsized::Defect.recourse(arm, Reading::Build)
             }
             Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
@@ -1107,15 +1107,15 @@ impl EstablishedFact {
 /// surgery: the kind census ([`Body::merge_kind`]) on a face whose
 /// surface key does not resolve, and the adjacency test
 /// ([`Body::planes_declared_equal`]) on a face, vertex or point it
-/// cannot resolve. The rest belong to operators this
-/// door does not call: the attachment and split gates
-/// (`set_edge_curve`, `split_edge`), the make-side sites (`mev`,
-/// `mef`), `kvfs`, `kfmrh`'s cross-solid form, `movefac`'s ownership
-/// proof and the shell-move door. That is not a third arm: an arm the
-/// door cannot reach cannot be pinned, and a classification nothing can
-/// distinguish is documentation, which is what this table is. No
-/// count of the remainder is stated here; the match below is the
-/// census.
+/// cannot resolve. The rest belong to operators this door does not
+/// call: the attachment and split gates (`set_edge_curve`,
+/// `split_edge`), the make-side sites (`mev`, `mef`), `kvfs`,
+/// `kfmrh`'s cross-solid form, `movefac`'s ownership proof, the
+/// shell-move door and the null-face door. That is not a third arm: an
+/// arm the door cannot reach cannot be pinned, and a classification
+/// nothing can distinguish is documentation, which is what this table
+/// is. No count of the remainder is stated here; the match below is
+/// the census.
 ///
 /// The match producing this is exhaustive on purpose, like the enum's
 /// own: a new [`EulerOpError`] variant does not compile until someone
@@ -1181,6 +1181,7 @@ impl OpPlacement {
             | E::FanOrbitBroken { .. }
             | E::LoopNotEmpty { .. }
             | E::NotSameFace { .. }
+            | E::NullPairForeignLoop { .. }
             | E::SolidNotSingleShell { .. }
             | E::ShellNotSingleFace { .. }
             | E::NullScaffoldCurve { .. }

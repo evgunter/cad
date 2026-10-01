@@ -79,6 +79,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use pncad::document::{Doc, Frame, Node, ProfileProgram, RecipeNodeId};
+use pncad::geom_core::Vec3;
 
 use crate::g1;
 
@@ -209,19 +210,19 @@ impl core::fmt::Display for AdmissionFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NoSuchNode { node } => {
-                write!(f, "node {} is not in the document", node.0)
+                write!(f, "node {} is not in the document", node)
             }
             Self::NotAnInstance { node } => {
-                write!(f, "node {} is not a part instance", node.0)
+                write!(f, "node {} is not a part instance", node)
             }
             Self::MateConstrained { instance, mates } => {
-                let list: Vec<String> = mates.iter().map(|m| m.0.to_string()).collect();
+                let list: Vec<String> = mates.iter().map(ToString::to_string).collect();
                 write!(
                     f,
                     "instance {} is mate-constrained (mate node(s) {}): its pose is \
                      mate-derived, so the free-move probe refuses — delete the mate(s) if \
                      free relative motion is intended",
-                    instance.0,
+                    instance,
                     list.join(", ")
                 )
             }
@@ -230,13 +231,13 @@ impl core::fmt::Display for AdmissionFault {
                 root,
                 others,
             } => {
-                let list: Vec<String> = others.iter().map(|o| o.0.to_string()).collect();
+                let list: Vec<String> = others.iter().map(ToString::to_string).collect();
                 write!(
                     f,
                     "instance {}'s geometry is fused into node {} together with instance(s) {} — \
                      a display operation cannot address it separately",
-                    instance.0,
-                    root.0,
+                    instance,
+                    root,
                     list.join(", ")
                 )
             }
@@ -543,10 +544,9 @@ fn is_rigid(frame: &Frame) -> bool {
     if !frame.is_finite() {
         return false;
     }
-    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    let [c0, c1, c2] = frame.columns;
-    let unit = |c: [f64; 3]| (dot(c, c) - 1.0).abs() <= RIGID_SLACK;
-    let perp = |a: [f64; 3], b: [f64; 3]| dot(a, b).abs() <= RIGID_SLACK;
+    let [c0, c1, c2] = frame.columns.map(Vec3::from_array);
+    let unit = |c: Vec3<f64>| (c.dot(c) - 1.0).abs() <= RIGID_SLACK;
+    let perp = |a: Vec3<f64>, b: Vec3<f64>| a.dot(b).abs() <= RIGID_SLACK;
     unit(c0)
         && unit(c1)
         && unit(c2)

@@ -164,7 +164,7 @@ impl core::fmt::Display for ResolveError {
                 "the {} name's minting node {} is no longer in the document ({edit}) — \
                  the repair is an explicit rebind",
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
         }
     }
@@ -475,7 +475,7 @@ impl core::fmt::Display for Cutter<'_> {
             None => write!(f, "no role")?,
         }
         if leaf.node != self.0.node {
-            write!(f, ", minted by node {}", leaf.node.0)?;
+            write!(f, ", minted by node {}", leaf.node)?;
         }
         write!(f, ")")
     }
@@ -505,7 +505,7 @@ fn piece_words(e: &crate::names::ProfileEdgeRef) -> String {
     use crate::names::{ProfileEdgeRef, SectionCircle};
     match e {
         ProfileEdgeRef::Piece { step, role } => {
-            format!("the {role} of the profile step minted #{}", step.0)
+            format!("the {role} of the profile step {}", step)
         }
         ProfileEdgeRef::Section { circle, role } => format!(
             "the {role} of the {} circle",
@@ -732,12 +732,12 @@ impl core::fmt::Display for UpstreamCause {
                 f,
                 "{} flipped from {from} to {to} at node {}",
                 FlipSubject(predicate),
-                at.0
+                at
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
                 "a structural parameter changed at node {} (slot {})",
-                node.0,
+                node,
                 param.label()
             ),
             Self::RecipeEdit { edit } => write!(f, "the recipe changed ({edit})"),
@@ -789,7 +789,7 @@ impl core::fmt::Display for Diagnosis {
                 f,
                 "at node {}, the piece of its face nearest it now no longer borders {} \
                  and borders {} it did not",
-                node.0,
+                node,
                 Walls(gone),
                 Walls(new)
             ),
@@ -803,13 +803,13 @@ impl core::fmt::Display for Diagnosis {
                 "at node {}, the group this fragment's parent was divided into held \
                  {was} entities in the last-good run and holds {now} now; {cutters}; and \
                  no verdict flip was found that explains the change",
-                node.0
+                node
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
                 "a structural parameter changed on the derivation path (node {}, slot \
                  {})",
-                node.0,
+                node,
                 param.label()
             ),
             // A SITE of difference, not a claim that an edit happened
@@ -837,7 +837,7 @@ impl core::fmt::Display for Diagnosis {
                 f,
                 "{cause}, upstream of node {}, the name's minting node, but not on its \
                  derivation path",
-                node.0
+                node
             ),
         }
     }
@@ -873,8 +873,8 @@ impl core::fmt::Display for Walls<'_> {
 /// reused).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecipeEditRef {
-    /// The node was deleted (it once existed: its id is below the
-    /// document's mint counter).
+    /// The node was deleted (it once existed: the document's mint log
+    /// holds its id).
     NodeDeleted {
         /// The deleted node.
         node: RecipeNodeId,
@@ -903,13 +903,13 @@ pub enum RecipeEditRef {
 impl core::fmt::Display for RecipeEditRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeDeleted { node } => write!(f, "node {} was deleted", node.0),
-            Self::NodeInserted { node } => write!(f, "node {} was inserted", node.0),
+            Self::NodeDeleted { node } => write!(f, "node {} was deleted", node),
+            Self::NodeInserted { node } => write!(f, "node {} was inserted", node),
             // A difference statement, not an edit claim — this arm is
             // the diff fallback's site vocabulary.
-            Self::NodeChanged { node } => write!(f, "node {}'s payload differs", node.0),
+            Self::NodeChanged { node } => write!(f, "node {}'s payload differs", node),
             Self::ForeignNode { node } => {
-                write!(f, "node {} was never minted by this document", node.0)
+                write!(f, "node {} was never minted by this document", node)
             }
         }
     }
@@ -1225,7 +1225,9 @@ impl<U: Decide> Prior<'_, U> {
         flips: &FlipSet,
         nodes: &BTreeSet<RecipeNodeId>,
     ) -> Option<Evidence> {
-        if let Some((node, f)) = flips.flips_on_nodes(nodes).first() {
+        if let Some((node, f)) =
+            in_document_order(self.doc(), new.doc, flips.flips_on_nodes(nodes)).first()
+        {
             return Some(Evidence::Flip(*node, *f));
         }
         let ddiff = self.doc().diff(new.doc);
@@ -1236,6 +1238,23 @@ impl<U: Decide> Prior<'_, U> {
         }
         recipe_edit_change(self.doc(), new.doc, &ddiff, Some(nodes)).map(Evidence::Edit)
     }
+}
+
+/// `found` in the order the lanes read evidence: by where its node
+/// stands in the current document, then in the last-good one — the
+/// node the author placed first answers first, whatever its id. Stable,
+/// so one node's flips keep their own order.
+fn in_document_order<V>(
+    old: &Doc<ProfileProgram>,
+    new: &Doc<ProfileProgram>,
+    mut found: Vec<(RecipeNodeId, V)>,
+) -> Vec<(RecipeNodeId, V)> {
+    let (in_new, in_old) = (new.positions(), old.positions());
+    let at = |positions: &BTreeMap<RecipeNodeId, usize>, id| {
+        positions.get(&id).copied().unwrap_or(usize::MAX)
+    };
+    found.sort_by_key(|&(id, _)| (at(&in_new, id), at(&in_old, id)));
+    found
 }
 
 /// One lane's find ([`Prior::lanes`]), before a scope wraps it in the
@@ -1270,8 +1289,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
         let flips = diff_verdicts(self.ctx.eval, new.eval);
-        let family = flips
-            .flips_on_nodes(path)
+        let family = in_document_order(self.doc(), new.doc, flips.flips_on_nodes(path))
             .into_iter()
             .find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY));
         let flip = |f: VerdictFlip| Diagnosis::PredicateFlip {
@@ -1397,10 +1415,11 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             None => {}
         }
     } else if let Some(base) = unqualified(name)
-        // The same collapse for a face piece: the undivided survivor is
-        // offered for an explicit `Rebind`, never bound. There is no
-        // over-tie to widen to here — a `Borders` tie is a row of the
-        // QUALIFIED name, which step 2 already answered.
+        // The same collapse for a face or edge piece: the undivided
+        // survivor is offered for an explicit `Rebind`, never bound.
+        // There is no over-tie to widen to here — a `Borders`, `Keeps`
+        // or `Ends` tie is a row of the QUALIFIED name, which step 2
+        // already answered.
         && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
@@ -1479,18 +1498,20 @@ fn fragment_base(name: &StableName) -> Option<StableName> {
     (!base.path.is_empty()).then_some(base)
 }
 
-/// A face piece's base ([`fragment_base`]) — what the SAME group is
-/// called once it stops being multi-fragment, and therefore the
-/// current-run counterpart of a vanished piece.
+/// A face or edge piece's base ([`fragment_base`]) — what the SAME
+/// group is called once it stops being multi-fragment, and therefore
+/// the current-run counterpart of a vanished piece.
 ///
 /// Not [`widened_base`]: that one asks which ROW a ranked reference
-/// landed on and must refuse a `Borders` tail; this one asks which FACE
+/// landed on and must refuse a piece's tail; this one asks which entity
 /// a piece became and must refuse an `OrderAlong` tail. Same pop,
 /// different questions, so different filters.
 fn unqualified(name: &StableName) -> Option<StableName> {
     matches!(
         name.path.last(),
-        Some(RoleSeg::Fragment(Qualifier::Borders(_)))
+        Some(RoleSeg::Fragment(
+            Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_)
+        ))
     )
     .then(|| fragment_base(name))
     .flatten()
@@ -1566,12 +1587,18 @@ fn border_delta<T: Decide>(
 /// here. A fragment qualifier exists only while its group has two or
 /// more members (N2), and `OrderAlong` spells the group's size into
 /// the name as `of`. So a fragment name vanishes whenever its group
-/// changes size, and that event need not flip any discriminator: a
+/// stops being divided, and a ranked crossing's whenever its group
+/// changes size, and neither event need flip any discriminator: a
 /// `Borders` group that stops being divided leaves no piece whose walls
 /// could be compared — the walls still stand where they stood relative
 /// to the survivor — and an `OrderAlong` group ranks its members
 /// against EACH OTHER, so a group of one runs no pair. What remains in
-/// evidence is the count.
+/// evidence is the count. An edge piece's `Ends` holds no count, so a
+/// cut elsewhere on its parent, by a face that does not already cross
+/// it, leaves its name as it was. A crossing keeps an ordinal, so a
+/// second crossing by a face that already crosses the parent renames
+/// the first, and every piece whose `Ends` cite it vanishes too; so do
+/// a piece whose own end moves and a group that collapses to one.
 ///
 /// # What is counted
 ///
@@ -2161,6 +2188,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetTolerance { .. }
         | DocEdit::SetRoots { .. }
         | DocEdit::SetPlacement { .. }
+        | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {
@@ -2357,7 +2385,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
             }
             // Discrimination references, not derivation.
             RoleSeg::Fragment(q) => match q {
-                Qualifier::Borders(walls) => {
+                Qualifier::Borders(walls) | Qualifier::Keeps(walls) | Qualifier::Ends(walls) => {
                     if partners == Partners::Include {
                         for n in walls {
                             visit(n, partners, f);
@@ -2388,10 +2416,13 @@ fn structural_param_change(
     path: Option<&BTreeSet<RecipeNodeId>>,
 ) -> Option<(RecipeNodeId, SlotId)> {
     let changed_params: Vec<&crate::doc::ParamName> = ddiff.params.iter().collect();
-    let candidates: Vec<RecipeNodeId> = match path {
-        Some(p) => p.iter().copied().collect(),
-        None => new.order().to_vec(),
-    };
+    // In document order: a node both runs hold is in `new`'s order.
+    let candidates: Vec<RecipeNodeId> = new
+        .order()
+        .iter()
+        .copied()
+        .filter(|id| path.is_none_or(|p| p.contains(id)))
+        .collect();
     for id in candidates {
         let (Some(a), Some(b)) = (old.node(id), new.node(id)) else {
             continue;

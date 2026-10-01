@@ -16,9 +16,10 @@ maps in `crates/pncad-py/src/tags.rs` publish the word
 - `resolve_fault_tag` answers it for `ResolveFault::Unresolved`: the
   resolver found no document at the pin. `node_error_tag`'s
   `PartUnresolved` class and `inline` reach it through that map.
-- `lever_refusal_tag` answers it for `LeverRefusal::PartUnresolved`
-  (`crates/editor-core/src/mate.rs`), which carries a whole
-  `eval::PartFault`: no resolver, a pin mismatch, an epsilon seam, a
+- `lever_refusal_tag` answers it, through `reach_refusal_tag`, for
+  `ReachRefusal::PartUnresolved` inside `LeverRefusal::Reach`
+  (`crates/editor-core/src/mate/reach.rs`; `LeverRefusal::PartUnresolved`
+  until PR 3680), which carries a whole `eval::PartFault`: no resolver, a pin mismatch, an epsilon seam, a
   failed root, a reference cycle, and so on, as well as the seam's
   `Unresolved`.
 

@@ -25,7 +25,7 @@ walk is `docs/guide/assembly.md`.
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
-| A9, A11 partitions | `relative_freedom_components`, `clusters`, `gauge_of` in `src/mate/solve.rs` |
+| A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
 | A10 roots and gather | `src/roots.rs`, `src/product.rs`, `DocEdit::SetRoots` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
@@ -108,10 +108,11 @@ The memo reads the stamp too and refuses differently, since `evaluate`
 returns no `Result`: a prior of another document is dropped whole
 before the schedule is built, and the run records the drop as
 `Evaluation::prior_refused` while recomputing everything. Node ids
-alone could not decide any of this — they are minted by a per-document
-counter, so two documents built from one recipe carry the SAME ids for
-the same nodes, and a gather over the wrong one would succeed, in
-full, about other geometry.
+alone could not decide any of this — they are minted from the edits
+that inserted them and not from the document's identity, so two
+documents built from one recipe carry the SAME ids for the same nodes,
+and a gather over the wrong one would succeed, in full, about other
+geometry.
 
 What the stamp decides is the DOCUMENT half only, at every door
 here. A LATER evaluation of the same document is admitted — by the
@@ -454,9 +455,12 @@ changes the solve's algorithm — coset intersection over decided
 predicates, no numeric fitting, no geometry inspected inside the
 fold — and nothing is stored twice: the face name is the state, the
 frame is derived. A mated part that does not resolve faults its
-mate `MateFault::Unleverable` in the resolver's own voice, carrying
-the part fault unaltered, and that fault poisons the cluster as any
-mate fault does. The two questions that DO need a number are
+mate in the resolver's own voice, carrying the part fault unaltered —
+`MateFault::FaceUnresolved` (`FacePoseRefusal::PartUnresolved`, in
+`FaceRefusal::Reach`) where a
+`FromFace` side stands on it, since a side's frame is read before the
+lever, else `MateFault::Unleverable` — and that fault poisons the
+cluster as any mate fault does. The two questions that DO need a number are
 asked once per reference, where the solve reads it — for every
 reference of every live mate, not only the ones a tree edge's offset
 derives: the named copy must exist (its index against the pattern's

@@ -2,11 +2,12 @@
 id: geom-core-linalg-has-no-array-doors
 kind: issue
 title: geom-core linalg has no [f64;3] or [[f64;3];3] conversions, so every stored-array frame in editor-core lowers to Vec3/Mat3 by hand
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2375]
 priority: P1
 cost: E
+closed: 2026-10-01
 ---
 
 
@@ -185,3 +186,22 @@ a perspective divide by hand over `[[f64; 4]; 4]` and `[f64; 4]` —
 the viewer's projection arithmetic is not a lowering of a geometry type
 but a type the library does not have. Whether that belongs in this
 row's schedule or in its own is not decided here.
+
+## Closed (2026-10-01)
+
+Closed by #3710.
+
+**The doors.**
+- `from_array` / `to_array` (const) on `Vec2`/`Vec3`/`Point2`/`Point3`.
+- `Mat3::from_cols_array` / `to_cols_array` / `cols`.
+- `Affine3::cols` / `components`.
+
+Each door destructures by pattern, so a new field fails to compile
+(E0027) at the door. Every hand lowering the row named was retired,
+plus the live hits a re-sweep found. The review checked every retired
+site against its old spelling by differential: all were bit-identical.
+
+**Left for other rows.**
+- Test-side adoption: `array-doors-are-not-yet-adopted-by-the-test-suites`.
+- The viewer's 4×4 camera arithmetic:
+  `the-viewer-camera-spells-4x4-arithmetic-with-no-mat4-to-lower-to`.

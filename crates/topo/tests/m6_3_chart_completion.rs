@@ -218,7 +218,8 @@ where
 }
 
 /// The closed-form door refuses the class typed — the fitted lane is
-/// the ONLY route (never a silent fallback, C5).
+/// the ONLY route (never a silent fallback, C5). The circle lies on
+/// the sphere, so the pair is uncovered, not off the chart.
 #[test]
 fn a_general_circle_refuses_the_closed_form_sphere_door_typed() {
     let band = Band::linear(Tol::witness()).unwrap();
@@ -226,7 +227,11 @@ fn a_general_circle_refuses_the_closed_form_sphere_door_typed() {
         .expect_err("azimuth-non-harmonic");
     assert!(matches!(
         err,
-        geom_brep::PcurveCertifyError::UnsupportedCarrier
+        geom_brep::PcurveCertifyError::UnsupportedCarrier {
+            chart: geom_brep::SurfaceKind::Sphere,
+            carrier: geom_brep::CurveKind::Circle,
+            class: geom_brep::UncoveredClass::SphereGeneralCircle,
+        }
     ));
 }
 
@@ -288,7 +293,7 @@ mod certified {
     /// route's honesty is what this row asserts and it is unmoved —
     /// the bound still lands inside the open sliver band, and the
     /// three arms below still partition ε the same way.
-    const HULL_SUP_AT_INTERVAL: f64 = 1.7985010297969555e-12;
+    const HULL_SUP_AT_INTERVAL: f64 = 1.0164301818350718e-12;
 
     /// This route is **honest at every ε**, and which of three things
     /// that means depends on where ε sits relative to

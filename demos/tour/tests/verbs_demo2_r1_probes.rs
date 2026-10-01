@@ -13,7 +13,7 @@ use pncad::geom::Surface;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 
 /// The spine frame the tube doors take: ring centre, spine axis, and
 /// the reference radial the window's angles start from. The axis is
@@ -178,7 +178,7 @@ const TOP: f64 = 0.75;
 const ROLL: f64 = 0.05;
 
 fn bud(tol: Tol) -> Body<f64> {
-    let meridian: ProfileLoop<f64> = Open
+    let meridian: ConstructedLoop<f64> = Open
         .at(Point2::new(BORE, 0.0))
         .line_to(Point2::new(1.0, 0.0), tol)
         .expect("base")

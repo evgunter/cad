@@ -140,11 +140,13 @@ pub trait Certification: sealed::Sealed + Copy {
     /// (lower above upper, an inverted window included) and when it is
     /// an infinity alone (lower `+inf`, or upper `-inf`).
     ///
-    /// Spelled over the endpoints, keeping the enclosure's own
-    /// decoration, rather than through the backend's `intersection`,
-    /// which caps its result at `Trv` — that would refuse every clamp,
-    /// which is a change to what the door says rather than to what the
-    /// arithmetic computes.
+    /// The endpoints are the backend's `intersection`'s, so a choice
+    /// between zeros of opposite sign follows the backend's rule (`-0`
+    /// below, `+0` above) rather than whatever `f64::max`/`min` compile
+    /// to. The decoration is the enclosure's own, not `intersection`'s:
+    /// that one is `Trv` on every input, a statement about set
+    /// operations rather than about this narrowing, and keeping it
+    /// would refuse every clamp.
     #[must_use]
     fn clamped_to(self, lo: f64, hi: f64) -> Self;
 
@@ -217,7 +219,8 @@ impl Certification for Interval {
         if !self.is_certified() || lo.is_nan() || hi.is_nan() {
             return Self::refused();
         }
-        let narrowed = DInterval::from_bounds(self.0.lo().max(lo), self.0.hi().min(hi));
+        let meet = self.0.intersection(DInterval::from_bounds(lo, hi));
+        let narrowed = DInterval::from_bounds(meet.lo(), meet.hi());
         Self(narrowed.with_dec_capped(self.0.decoration()))
     }
 

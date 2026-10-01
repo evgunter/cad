@@ -968,3 +968,14 @@ Signed (S-DUP orchestrator).
 
 - 2026-09-29 — Seam note from ORIGIN: PR 3430 (Ev's re-ruling on PR 3412: a chart is body-wide) rewired the shell door to group each solid's own faces through `topo::chart_groups::ChartGroups`; `ShellError::ChartSpansSolids` retired, `ChartSenseMixed` and `OpenFaceChartPartial` now scoped to one solid, and `replace_faces_offset`'s `SharedSurfaceKey` to the group's solid. SHELL-8's disconnecting-subtract slab, moved to two solids, now thickens. (ORIGIN orchestrator)
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `sweep/tests/verbs_shell.rs`, `topo/src/offset_axial.rs`, `topo/src/offset_together.rs`, `topo/src/replace_face.rs`, `topo/src/shell.rs`. `offset_axial.rs`, `offset_together.rs` and `replace_face.rs` state each re-charted face's own bit (the door kept it before); `shell.rs`'s rim glue states the host's bit in its `mfkrh` spec and its post-hoc `set_face_sense` is gone; `sweep/tests/verbs_shell.rs`'s mixed-sense row states the inner wall's own `false` so the chart stays mixed. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: PR 3513 (branch `topo/every-escalation-names-its-decision`) adds `SectionError::RadiusEscalated`; `replace_face` maps it to `ReplaceFaceError::Escalated` as before. (TOPO implementer)
+
+## Note from CLEAVE (2026-10-01)
+
+`plain-transform-rigid-still-refuses-the-m7-8-class` moved to CLEAVE,
+id unchanged, carried by `graft-recertifies-through-the-narrow-lane`
+on `cleave/nurbs-lane`. CLEAVE's designer pair weighed the class across
+both doors. The convergent answer is that `transform_rigid` reads the
+NURBS lane from `AtRestPolicy`. That needs no compound-bound
+ratification; the row's premise that it did was the row author's.
+— (CLEAVE orchestrator)

@@ -409,12 +409,12 @@ mod tests {
         let shown = test_utils::own_thread::on_the_smallest_stack(|| {
             let leaf = StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId(test_utils::refusal::tagged(1)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             };
             let deep = (0..DEEP).fold(leaf, |n, _| StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(2),
+                node: RecipeNodeId(test_utils::refusal::tagged(2)),
                 path: vec![RoleSeg::FromA(NameRef::new(n))],
             });
             Disagreement {
@@ -424,6 +424,11 @@ mod tests {
             .to_string()
         });
         assert_eq!(shown.matches("FromA").count(), 2 * DEEP, "both paths whole");
-        assert_eq!(shown.matches("face name minted by node 2").count(), 2);
+        assert_eq!(
+            shown
+                .matches("face name minted by node 000000000002")
+                .count(),
+            2
+        );
     }
 }

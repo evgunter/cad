@@ -25,9 +25,9 @@
 //! knows a part only by its id.
 //!
 //! What it does write, and what the rule above does not reach, is what
-//! a node IS: [`node_kind`]'s vocabulary spelling, [`node_number`]'s
-//! `feature 3`, and [`frame_pose`]'s statement of which frame a datum
-//! frame is. Those are readings of the node, not verdicts about a run,
+//! a node IS: the document's spoken node (`Extrude 000000000003`, its
+//! kind noun and tag, [`node_label`]), and [`frame_pose`]'s statement
+//! of which frame a datum frame is. Those are readings of the node, not verdicts about a run,
 //! and they are sited here because the tree and the creation forms'
 //! pickers have to name a node the same way.
 //!
@@ -36,17 +36,17 @@
 //! them the selection is on, and which row a failure sends the eye to.
 //!
 //! One thing a run said that is no failure rides the row as well: what
-//! an `Ok` value says ([`Readout`]) — a measure's value, spelled as the
-//! chrome spells any computed value, or the kernel's typed reason it
-//! has none; what an assertion found of it ([`Asserted`]); and that a
-//! boolean, or a side of a split, holds no material.
+//! an `Ok` value says ([`Readout`]) — a measure's value, spelled when
+//! drawn as the chrome spells any computed value, or the kernel's typed
+//! reason it has none; what an assertion found of it ([`Asserted`]);
+//! and that a boolean, or a side of a split, holds no material.
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
 //! Mates and instances are DAG LEAVES — a mate's references are names,
 //! not edges — so the placement solve is one shared computation the
-//! result DAG has no edges for. When a cluster refuses, the kernel
-//! records the SAME typed fault against every instance in that cluster
+//! result DAG has no edges for. When a group refuses, the kernel
+//! records the SAME typed fault against every instance in that group
 //! and every mate holding it together, and each of those nodes reports
 //! it as its own `Failed`. Read verbatim that draws four identical
 //! FAILED badges and sends the eye nowhere.
@@ -94,9 +94,9 @@
 //!   it does not (a `Part` indexing past its pattern's count, a pattern
 //!   of no copies), and then both rows are loud and neither is
 //!   poisoned through the other.
-//! - **Raised while a cluster's fold derives an offset**
+//! - **Raised while a group's fold derives an offset**
 //!   (`mate::member::derived_offset`): a `PlacerRefused` only. It
-//!   reaches every instance and mate of the cluster, and they point at
+//!   reaches every instance and mate of the group, and they point at
 //!   the mate, whose row carries the placer's refusal verbatim. A
 //!   placer on the chain above an instance the fault reached is
 //!   poisoned by the evaluation even when its own slots are broken, so
@@ -129,7 +129,7 @@
 //! **[`MateFault::Band`] names none, and it is the arm that still
 //! reaches rows.** A band is the RUN's tolerance, not a decision about
 //! any node: with no band the solve decides nothing, and faults every
-//! mate and every instance in the DOCUMENT — across cluster
+//! mate and every instance in the DOCUMENT — across group
 //! boundaries, and including instances no mate touches — with one
 //! shared cause. No row is more at fault than another, so nothing here
 //! picks one and every row it reached keeps its own `Failed`. That
@@ -180,16 +180,16 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr,
+    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr, Label,
     MateFault, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
-    ProfileProgram, RecipeNodeId, SplitSide, ValuePayload,
+    ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
-use crate::props::{computed_text, in_written, render_number};
+use crate::props::{Computed, Notation, in_written, render_number};
 use crate::session::VersionOffer;
 
 /// **One level of a failure's traceback**, as the tree draws it: the
@@ -232,7 +232,7 @@ pub enum RowStatus {
     /// Two things arrive here: a DAG descendant of a failed node, which
     /// the evaluation itself reports as poisoned; and a node the
     /// placement solve left without a pose because some OTHER mate in
-    /// its cluster refused, which the evaluation reports as its own
+    /// its group refused, which the evaluation reports as its own
     /// `Failed` (the module header's second section).
     Poisoned {
         /// The row to go and read: a node THIS TREE badges `Failed`,
@@ -325,8 +325,9 @@ impl RowStatus {
 pub struct TreeRow {
     /// The recipe node this row is.
     pub id: RecipeNodeId,
-    /// The node's kind, as the vocabulary spells it.
-    pub kind: &'static str,
+    /// The node as a sentence speaks it: its kind noun, its label when
+    /// it has one, and its tag.
+    pub spoken: SpokenNode,
     /// **Which one of its kind this node is**, when the node itself can
     /// say — a datum frame's pose ([`frame_pose`]), and an instance's
     /// part by its file name ([`part_file`]). `None` is a node kind
@@ -357,7 +358,7 @@ pub struct TreeRow {
     /// `None` on every row that is not `Failed`. A row's other links
     /// carry their own target: a `Poisoned` row's is its `through`,
     /// and an assertion's is its [`Asserted::measure`].
-    pub repair_at: Option<RecipeNodeId>,
+    pub repair_at: Option<SpokenNode>,
     /// **What this row's `Ok` value says** ([`Readout`]); `None` on a
     /// value that says nothing beyond `Ok`, and on every other row,
     /// whose status says why there is none.
@@ -390,12 +391,10 @@ impl TreeRow {
 /// have made some.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Readout {
-    /// The value, already spelled ([`computed_text`]: canonical
-    /// notation, width-bounded, with its unit's symbol) — which keeps
-    /// the row `Eq`, and keeps the notation choice here with the rest
-    /// of what the tree writes about a node rather than at each
-    /// surface that draws it.
-    Value(String),
+    /// The value, as a quantity: spelled when the row is DRAWN
+    /// ([`Computed::spelled`]), in the working notation in force then,
+    /// so a notation changed after the run re-spells it.
+    Value(Computed),
     /// No value at this build's scalar — a value of the node, not a
     /// failure. Its `Display` is the kernel's sentence, which names
     /// the door that can answer.
@@ -447,21 +446,22 @@ pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
 }
 
 /// **An assertion's verdict, as its row says it**: the kernel's
-/// verdict with both numbers spelled as the measure's own value is
-/// ([`computed_text`], in the measure's dimension), the side of the
-/// bound the measure must fall on, and which measure that is.
+/// verdict with both numbers carried as the measure's own value is
+/// ([`Computed`], in the measure's dimension, spelled when drawn), the
+/// side of the bound the measure must fall on, and which measure that
+/// is.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Asserted {
     /// The landed verdict.
-    pub verdict: AssertionVerdict<String>,
+    pub verdict: AssertionVerdict<Computed>,
     /// Which side of the bound the measure must fall on.
     pub dir: AssertionDir,
     /// The measure node the assertion constrains.
-    pub measure: RecipeNodeId,
+    pub measure: SpokenNode,
 }
 
 // `AssertionVerdict` derives `PartialEq` alone, for its scalar's sake;
-// over `String` numbers and an `Eq` reason it is an equivalence.
+// over bitwise-compared numbers and an `Eq` reason it is an equivalence.
 impl Eq for Asserted {}
 
 impl Asserted {
@@ -476,86 +476,104 @@ impl Asserted {
         }
     }
 
-    /// **The comparison the verdict decided**, as a report reads it —
-    /// `0.0125 m >= 0.01 m` — or `None` where there is no verdict.
-    pub fn comparison(&self) -> Option<String> {
+    /// **The comparison the verdict decided**, as a report reads it
+    /// in `notation` — `0.0125 m >= 0.01 m` — or `None` where there is
+    /// no verdict. Both numbers read in the one notation, whatever the
+    /// bound was written in, so the two sides of one comparison never
+    /// read in two.
+    pub fn comparison(&self, notation: Notation) -> Option<String> {
         match &self.verdict {
             AssertionVerdict::Holds { measured, bound }
-            | AssertionVerdict::Violated { measured, bound } => {
-                Some(format!("{measured} {} {bound}", self.dir.symbol()))
-            }
+            | AssertionVerdict::Violated { measured, bound } => Some(format!(
+                "{} {} {}",
+                measured.spelled(notation),
+                self.dir.symbol(),
+                bound.spelled(notation)
+            )),
             AssertionVerdict::Unevaluated { .. } => None,
         }
     }
 }
 
-/// The kind name of a recipe node — the node vocabulary's own
-/// spelling.
+/// **How the chrome names one node**: the node as the document speaks
+/// it ([`SpokenNode`]), and what the node itself says about which one
+/// of its kind it is ([`frame_pose`], or an instance's part file,
+/// [`part_file`]).
 ///
-/// **The datum FLAVOURS are named apart** (`Datum plane`, not
-/// `Datum`), which is the same rule one level down: a plane and a
-/// frame are the same surface differing only in whether the spin about
-/// the normal is pinned, so a tree that called both "Datum" would ask
-/// a reader to tell them apart by clicking. The whole name is the
-/// vocabulary's, not a prose gloss — this string is also what the
-/// delete confirmation and the kind census say.
-pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
-    match node {
-        Node::Profile(_) => "Profile",
-        Node::Extrude { .. } => "Extrude",
-        Node::Revolve { .. } => "Revolve",
-        Node::Transform { .. } => "Transform",
-        Node::Boolean { .. } => "Boolean",
-        Node::Union { .. } => "Union",
-        Node::Split { .. } => "Split",
-        Node::Pattern { .. } => "Pattern",
-        Node::Part { .. } => "Part",
-        Node::PlacedUnion { .. } => "PlacedUnion",
-        Node::Datum(Datum::Plane { .. }) => "Datum plane",
-        Node::Datum(Datum::Frame { .. }) => "Datum frame",
-        Node::Datum(Datum::FaceFrame { .. }) => "Datum frame (on face)",
-        Node::Datum(Datum::AxisInPlane { .. }) => "Datum axis (in sketch)",
-        Node::Datum(Datum::Axis { .. }) => "Datum axis",
-        Node::Datum(Datum::Point { .. }) => "Datum point",
-        Node::Declare { .. } => "Declare",
-        Node::Fillet { .. } => "Fillet",
-        Node::Chamfer { .. } => "Chamfer",
-        Node::Shell { .. } => "Shell",
-        Node::Tube { .. } => "Tube",
-        Node::HollowTube { .. } => "HollowTube",
-        Node::Loft { .. } => "Loft",
-        Node::Sweep { .. } => "Sweep",
-        Node::InstantiatePart { .. } => "InstantiatePart",
-        Node::Mate { .. } => "Mate",
-        Node::Measure { .. } => "Measure",
-        Node::Assertion { .. } => "Assertion",
+/// The one spelling a tree row, a picker entry and a properties heading
+/// share ([`named`]): the spoken node is what every refusal calls a
+/// node by, and the pose is the half that tells two frames apart.
+pub fn node_label(doc: &Doc<ProfileProgram>, id: RecipeNodeId, files: &PartFiles) -> String {
+    let pose = doc
+        .node(id)
+        .and_then(|node| frame_pose(doc, node).or_else(|| part_file(node, files)));
+    named(&doc.spoken(id), pose.as_deref())
+}
+
+/// A spoken node and its pose, as [`node_label`] draws them:
+/// `Datum frame 000000000002 — yz at (0, 0, 0) m`, or
+/// `Datum frame "floor" (000000000002) — yz at (0, 0, 0) m` when the
+/// node is labelled.
+pub fn named(spoken: &SpokenNode, pose: Option<&str>) -> String {
+    match pose {
+        Some(pose) => format!("{spoken} — {pose}"),
+        None => spoken.to_string(),
     }
 }
 
-/// **How the chrome names one node inside a sentence**: its number,
-/// and what the node itself says about which one of its kind it is.
-///
-/// The one home for a picker entry's text. The number is what every
-/// refusal in this crate calls a node by, so it stays; what follows it
-/// is [`frame_pose`], which is the half that tells two frames apart.
-pub fn node_label(node: &Node<ProfileProgram>, id: RecipeNodeId) -> String {
-    match frame_pose(node) {
-        Some(pose) => format!("{} — {pose}", node_number(id)),
-        None => node_number(id),
+/// **A feature-tree row's headline**, in its two voices: `lead` drawn
+/// as the row's text, and `muted` beside it, quieter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Headline {
+    /// What the row reads as.
+    pub lead: String,
+    /// What it says beside that, in a muted voice — `None` when the
+    /// lead already says everything.
+    pub muted: Option<String>,
+}
+
+/// **What a feature-tree row's headline says** (DESIGN.md Band 1,
+/// "Node labels"): a labelled node leads with its label, with its kind
+/// and tag muted beside it (`base plate` · `Extrude 3fa9c1d2a0b1`); an
+/// unlabelled one reads as [`named`] says it, kind, tag and pose.
+#[must_use]
+pub fn headline(spoken: &SpokenNode, pose: Option<&str>) -> Headline {
+    match (spoken.label(), spoken.kind()) {
+        (Some(label), Some(kind)) => Headline {
+            lead: label.to_string(),
+            muted: Some(format!("{kind} {}", spoken.id())),
+        },
+        _ => Headline {
+            lead: named(spoken, pose),
+            muted: None,
+        },
     }
 }
 
-/// **How the chrome names a node when there is nothing more to say**:
-/// `feature 3`.
-///
-/// One home for the phrase, because it is the word a person carries
-/// between surfaces — a combo entry, a downstream row's pointer, a
-/// property panel's heading, a refusal's subject — and a surface that
-/// spelled it
-/// `node 3` would be talking about something a reader has to
-/// translate.
-pub fn node_number(id: RecipeNodeId) -> String {
-    format!("feature {}", id.0)
+/// **The label a create form proposes** for a new node of kind `noun`
+/// ([`node_kind_noun`]'s word): `Kind N`, where N counts the live nodes
+/// of that kind at this moment, plus one — three extrudes, labelled or
+/// not, propose `Extrude 4` — stepping past any N whose `Kind N` a node
+/// of that kind already carries, so the proposal repeats no label of
+/// its kind. Only a proposal: the kernel mints no label, and this is
+/// stored only if the person commits it. `None` for a `noun` no label
+/// can hold (one with a control character).
+#[must_use]
+pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
+    let of_kind = || {
+        doc.order().iter().filter(|id| {
+            doc.node(**id)
+                .is_some_and(|node| node_kind_noun(node) == noun)
+        })
+    };
+    let taken: Vec<&str> = of_kind()
+        .filter_map(|id| doc.label(*id))
+        .map(Label::as_str)
+        .collect();
+    let text = (of_kind().count() + 1..)
+        .map(|n| format!("{noun} {n}"))
+        .find(|text| !taken.contains(&text.as_str()))?;
+    Label::new(text).ok()
 }
 
 /// **What the NODE says about a datum frame's pose** — the sentence
@@ -578,7 +596,7 @@ pub fn node_number(id: RecipeNodeId) -> String {
 ///
 /// `None` is a node with no such sentence — every kind but the two
 /// frames.
-pub fn frame_pose(node: &Node<ProfileProgram>) -> Option<String> {
+pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Option<String> {
     match node {
         Node::Datum(Datum::Frame { origin, u, v }) => {
             Some(match (plane_name(u, v), written_point(origin)) {
@@ -588,7 +606,7 @@ pub fn frame_pose(node: &Node<ProfileProgram>) -> Option<String> {
                 (None, None) => "origin driven".to_owned(),
             })
         }
-        Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on {}'s face", node_number(*at))),
+        Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on {}'s face", doc.spoken(*at))),
         Node::Datum(
             Datum::Plane { .. }
             | Datum::Axis { .. }
@@ -729,10 +747,10 @@ pub fn rows(
         };
         let depth = depth_of(&node.inputs(), &depths);
         depths.insert(id, depth);
-        let status = status_of(id, evaluation, files);
+        let status = status_of(doc, id, evaluation, files);
         let (repair_at, readout, version_offer) = match status {
             RowStatus::Failed { .. } => (
-                evaluation.and_then(|ev| repair_of(id, ev)),
+                evaluation.and_then(|ev| repair_of(id, ev).map(|at| doc.spoken(at))),
                 None,
                 evaluation
                     .and_then(|ev| own_error(id, ev))
@@ -740,15 +758,15 @@ pub fn rows(
             ),
             RowStatus::Ok => (
                 None,
-                evaluation.and_then(|ev| readout_of(id, node, ev)),
+                evaluation.and_then(|ev| readout_of(doc, id, node, ev)),
                 None,
             ),
             RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None, None),
         };
         rows.push(TreeRow {
             id,
-            kind: node_kind(node),
-            pose: frame_pose(node).or_else(|| part_file(node, files)),
+            spoken: doc.spoken(id),
+            pose: frame_pose(doc, node).or_else(|| part_file(node, files)),
             depth,
             root: roots.contains(&id),
             status,
@@ -823,15 +841,19 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
 /// count is authored, and the words of any refusal state it), a
 /// declaration, a mate.
 fn readout_of(
+    doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
     node: &Node<ProfileProgram>,
     evaluation: &Evaluation<f64>,
 ) -> Option<Readout> {
     match &evaluation.usable(id).ok()?.payload {
-        ValuePayload::Measure { value, dim } => Some(Readout::Value(computed_text(*dim, *value))),
+        ValuePayload::Measure { value, dim } => Some(Readout::Value(Computed {
+            canonical: *value,
+            dimension: *dim,
+        })),
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
         ValuePayload::Assertion(verdict) => {
-            Some(Readout::Asserted(asserted(node, verdict, evaluation)))
+            Some(Readout::Asserted(asserted(doc, node, verdict, evaluation)))
         }
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
         ValuePayload::Split { above, below } => match (above, below) {
@@ -854,10 +876,11 @@ fn readout_of(
     }
 }
 
-/// **An assertion's verdict, its numbers spelled in its measure's
+/// **An assertion's verdict, its numbers carried in its measure's
 /// dimension.** A verdict carries numbers only when its measure
 /// evaluated to a value, so the dimension is that value's.
 fn asserted(
+    doc: &Doc<ProfileProgram>,
     node: &Node<ProfileProgram>,
     verdict: &AssertionVerdict<f64>,
     evaluation: &Evaluation<f64>,
@@ -873,9 +896,12 @@ fn asserted(
         ),
     };
     Asserted {
-        verdict: verdict.clone().map(|number| computed_text(dim(), number)),
+        verdict: verdict.clone().map(|number| Computed {
+            canonical: number,
+            dimension: dim(),
+        }),
         dir: *dir,
-        measure: *measure,
+        measure: doc.spoken(*measure),
     }
 }
 
@@ -909,36 +935,56 @@ pub fn carried_lines(kind: &NodeErrorKind, files: &PartFiles) -> Vec<CarriedLine
         .collect()
 }
 
-/// **Where a row stands**, before anything is drawn of it: a status
-/// read whole, or the row's own failure, whose words are drawn only
-/// where they are shown ([`status_of`]).
+/// **Where a row stands**, before anything is drawn of it: the
+/// structural fact, whose words are drawn only where they are shown
+/// ([`status_of`]).
 enum Standing<'e> {
-    Status(RowStatus),
+    /// No result in the evaluation, or no evaluation.
+    Unevaluated,
+    /// A usable value.
+    Ok,
+    /// The row's own failure.
     Failed(&'e NodeError),
+    /// Drawn downstream of `through`; `cause_known` is whether the
+    /// chain ends at a failure, which is what earns the row its
+    /// pointer ([`downstream_wording`]).
+    Downstream {
+        through: RecipeNodeId,
+        cause_known: bool,
+    },
 }
 
 fn standing(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> Standing<'_> {
     let Some(ev) = evaluation else {
-        return Standing::Status(RowStatus::Unevaluated);
+        return Standing::Unevaluated;
     };
     match ev.result(id) {
-        None => Standing::Status(RowStatus::Unevaluated),
-        Some(NodeResult::Ok(_)) => Standing::Status(RowStatus::Ok),
+        None => Standing::Unevaluated,
+        Some(NodeResult::Ok(_)) => Standing::Ok,
         Some(NodeResult::Failed(error)) => {
-            downstream_of_mate(id, error).map_or(Standing::Failed(error), Standing::Status)
+            downstream_of_mate(id, error).unwrap_or(Standing::Failed(error))
         }
-        Some(NodeResult::Poisoned { through }) => Standing::Status(poisoned_through(*through, ev)),
+        Some(NodeResult::Poisoned { through }) => poisoned_through(*through, ev),
     }
 }
 
 /// One node's status, read out of the result DAG.
 fn status_of(
+    doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
     evaluation: Option<&Evaluation<f64>>,
     files: &PartFiles,
 ) -> RowStatus {
     match standing(id, evaluation) {
-        Standing::Status(status) => status,
+        Standing::Unevaluated => RowStatus::Unevaluated,
+        Standing::Ok => RowStatus::Ok,
+        Standing::Downstream {
+            through,
+            cause_known,
+        } => RowStatus::Poisoned {
+            through,
+            message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
+        },
         Standing::Failed(error) => RowStatus::Failed {
             message: error.to_string(),
             carried: carried_lines(&error.kind, files),
@@ -960,21 +1006,23 @@ fn status_of(
 /// carries its pointer only when its chain ends at a failure
 /// ([`poisoned_through`]); the `message: None` arm is the broken
 /// invariant reported as absence, and it answers `None` here too, so a
-/// caller that says "feature N, which failed" cannot be handed an `N`
+/// caller that says "node N, which failed" cannot be handed an `N`
 /// the tree does not badge failed. That arm is not expected to be
 /// reachable — the evaluation names a failed ancestor as `through` —
 /// and it is refused rather than assumed for the same reason the tree
 /// reports it as absence.
 pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<RecipeNodeId> {
     match standing(id, Some(evaluation)) {
-        Standing::Failed(_) | Standing::Status(RowStatus::Failed { .. }) => Some(id),
-        Standing::Status(RowStatus::Poisoned {
+        Standing::Failed(_) => Some(id),
+        Standing::Downstream {
             through,
-            message: Some(_),
-        }) => Some(through),
-        Standing::Status(
-            RowStatus::Poisoned { message: None, .. } | RowStatus::Ok | RowStatus::Unevaluated,
-        ) => None,
+            cause_known: true,
+        } => Some(through),
+        Standing::Downstream {
+            cause_known: false, ..
+        }
+        | Standing::Ok
+        | Standing::Unevaluated => None,
     }
 }
 
@@ -985,14 +1033,14 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
 pub fn own_error(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<&NodeError> {
     match standing(id, Some(evaluation)) {
         Standing::Failed(error) => Some(error),
-        Standing::Status(_) => None,
+        Standing::Ok | Standing::Unevaluated | Standing::Downstream { .. } => None,
     }
 }
 
 /// **A kernel standing, re-read as this tree draws its node** (the
 /// module header's second section).
 ///
-/// The kernel reports a node a cluster refusal reached as its own
+/// The kernel reports a node a group refusal reached as its own
 /// `Failed`, and a node poisoned through such a node as poisoned
 /// through it; the tree draws both as downstream of the mate the fault
 /// blames. Answered off [`cause_row`]: a node whose cause is another
@@ -1065,20 +1113,17 @@ pub fn interrogation_as_drawn(
 /// the payload's own words are read once instead of once per row the
 /// failure reached.
 ///
-/// The row pointed at is named by [`node_number`], the chrome's one
-/// spelling of a node: this sentence is chrome, drawn in the tree.
-pub fn downstream_wording(through: RecipeNodeId) -> String {
-    format!(
-        "upstream failure at {} — that row carries the cause",
-        node_number(through)
-    )
+/// The row pointed at is named as the document speaks it
+/// ([`SpokenNode`]): this sentence is chrome, drawn in the tree.
+pub fn downstream_wording(through: &SpokenNode) -> String {
+    format!("upstream failure at {through} — that row carries the cause")
 }
 
-/// **What a link to a node says**: that node's name, as
-/// [`node_number`] spells it, and nothing about why — the why is
-/// drawn elsewhere, so this names only WHERE to go.
-pub fn link_wording(at: RecipeNodeId) -> String {
-    format!("see {}", node_number(at))
+/// **What a link to a node says**: the node as the document speaks it,
+/// and nothing about why — the why is drawn elsewhere, so this names
+/// only WHERE to go.
+pub fn link_wording(at: &SpokenNode) -> String {
+    format!("see {at}")
 }
 
 /// Another node whose own slot refused, when a `Failed` row's error
@@ -1210,6 +1255,7 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::Under { .. }
         | MateFault::SelfMate { .. }
         | MateFault::Unleverable { .. }
+        | MateFault::FaceUnresolved { .. }
         | MateFault::Contradictory { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. } => None,
@@ -1221,22 +1267,22 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
 ///
 /// That ancestor is `Failed` in the run, but the tree may redraw its
 /// row as downstream itself — reachably: a boolean over two instances
-/// of a cluster that then refuses is poisoned through an instance
+/// of a group that then refuses is poisoned through an instance
 /// whose own row now points at the mate. Two hops, one of them a row
 /// with nothing to act on, so this carries the same cause that row
 /// does. One step settles it: a mate the fault names keeps its own
 /// `Failed`.
-fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
+fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_> {
     let Some(error) = ev.result(through).and_then(NodeResult::error) else {
         // The chain does not end at a failure: report the absence.
-        return RowStatus::Poisoned {
+        return Standing::Downstream {
             through,
-            message: None,
+            cause_known: false,
         };
     };
-    downstream_of_mate(through, error).unwrap_or(RowStatus::Poisoned {
+    downstream_of_mate(through, error).unwrap_or(Standing::Downstream {
         through,
-        message: Some(downstream_wording(through)),
+        cause_known: true,
     })
 }
 
@@ -1260,7 +1306,8 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
-        | MateFault::Unleverable { mate, .. } => vec![*mate],
+        | MateFault::Unleverable { mate, .. }
+        | MateFault::FaceUnresolved { mate, .. } => vec![*mate],
         // Names no mate and reaches EVERY row of the document — the
         // asymmetry with the arm below is stated once, on `MateFault`.
         MateFault::Band { .. } => Vec::new(),
@@ -1295,7 +1342,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 /// fault — never `Ok` off a stale memo, and never `Poisoned`, since
 /// mates are DAG leaves. A row here that pointed at a green row would
 /// be that inconsistency surfacing, not a case to absorb.
-fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> {
+fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<Standing<'static>> {
     let NodeErrorKind::Mate(fault) = &error.kind else {
         return None;
     };
@@ -1305,9 +1352,9 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
     }
     // The first mate the fault names, in the fault's own order.
     let through = blamed.into_iter().next()?;
-    Some(RowStatus::Poisoned {
+    Some(Standing::Downstream {
         through,
-        message: Some(downstream_wording(through)),
+        cause_known: true,
     })
 }
 

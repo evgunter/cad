@@ -84,13 +84,13 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// renumbers nodes moves every row). The companion below tells the
 /// two apart only in part — it drops the entry keys, not the ids — so
 /// a re-pin states which of the two it is. Last re-pinned for the ids:
-/// step ids became digests of the document's mint chain, so the ids the
-/// walls' names spell moved and the vocabulary did not.
-const DIE_TABLE_DIGEST: u64 = 0x134d_6ccf_1829_e20f;
+/// node ids became digests of the document's mint chain, so every id a
+/// name spells moved and the vocabulary did not.
+const DIE_TABLE_DIGEST: u64 = 0x46ff_fbb3_d481_e812;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0x6a83_945d_66b8_4085;
+const DIE_NAMES_DIGEST: u64 = 0x2b81_90a8_18a7_4d6e;
 
 #[test]
 fn die_name_tables_are_golden() {

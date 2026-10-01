@@ -11,7 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::prelude::{Open, Start, Via, query};
-use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::chamfer::chamfer_edges;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
@@ -32,7 +32,7 @@ fn axis_y<S: Scalar>() -> RevolveAxis<S> {
 /// conventional two-semicircle split is its private lowering and PQ4
 /// (no mid-carrier seams for chains) is untouched. Lowers to exactly
 /// the two-vertex bulge-1 loop this helper used to build by hand.
-fn circle<S: Scalar>(cx: f64, cy: f64, r: f64, tol: Tol) -> ProfileLoop<S> {
+fn circle<S: Scalar>(cx: f64, cy: f64, r: f64, tol: Tol) -> ConstructedLoop<S> {
     pncad::profile::circle(p2(cx, cy), S::from_f64(r), tol)
         .expect("circle radius is positive")
         .into()
@@ -355,7 +355,7 @@ fn stop(
 pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     let (x, y, z) = (4.0, 2.4, 1.0);
     let setback = 0.15;
-    let lp: ProfileLoop<S> = Open
+    let lp: ConstructedLoop<S> = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(x, 0.0), tol)
         .expect("spacer south")
@@ -558,7 +558,7 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     // The sphere zone rides the UNIT circle about the origin from its
     // equator to the 3-4-5 point (0.8, 0.6), where the pucker takes
     // over; the via point is that arc's own midpoint.
-    let lp: ProfileLoop<S> = Open
+    let lp: ConstructedLoop<S> = Open
         .at(p2(0.2, 0.0))
         .line_to(p2(1.0, 0.0), tol)
         .expect("bud base annulus")

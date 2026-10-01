@@ -93,7 +93,9 @@ fn flat_bowed_seam(
 /// wall's chart optionally REVERSED in `v` before the description is
 /// attached — same surface point set, opposite `v` orientation.
 /// `None` is the ε-FINE cell, asserted rather than skipped: this seam's
-/// certified between-samples sup is ~6.22e-12 m, so at ε_in = 1e-12 the
+/// certified between-samples sup is ~5.47e-14 m (it was ~6.22e-12 m
+/// before `insert_once_ring` took the convex insertion form, 114x
+/// wider), so below ε_in = 1e-13 the
 /// declare-and-check rung refuses TYPED carrying that number and there
 /// is no chart image to probe at all.
 fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
@@ -174,19 +176,19 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     ) {
         Ok(_) => {
             assert!(
-                eps >= 1e-9,
+                eps >= 1e-13,
                 "the seam's certified sup does not fit a finer ε_in"
             );
         }
         Err(topo::EulerOpError::Certification {
             error:
                 geom_brep::CertifyError::Escalated {
-                    check: geom_brep::CertCheck::PlaneNurbsCertificate,
+                    check: geom_brep::CertCheck::PlaneNurbsHull,
                     cause,
                     ..
                 },
         }) => {
-            assert!(eps < 1e-9, "only the ε-fine cell refuses: {cause:?}");
+            assert!(eps < 1e-13, "only the ε-fine cell refuses: {cause:?}");
             let geom_core::ErrorTextReading::Value(sup) =
                 cause.margin.diagnostic_f64_for_error_text()
             else {

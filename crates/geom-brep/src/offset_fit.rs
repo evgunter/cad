@@ -221,6 +221,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{norm_sup, sqrt_down};
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
@@ -228,7 +229,7 @@ use geom_core::{
     Band, BandError, Interval, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, Point3, Tol,
 };
 
-use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
+use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
 use crate::recourse::Reading;
 
@@ -1681,7 +1682,7 @@ fn interpolate_offset_grid(
         for v in vs {
             let p = offset_point(base, d, *u, *v)
                 .ok_or(OffsetFitError::NonFiniteSample { uv: (*u, *v) })?;
-            row.extend_from_slice(&[p.x, p.y, p.z]);
+            row.extend_from_slice(&p.to_array());
         }
         rows_u.push(row);
     }
@@ -1852,17 +1853,30 @@ enum Refine {
 /// as a flat one, and near the enclosure's floor the bound rises
 /// routinely — a finer schedule re-interpolates a different fit, and
 /// the Bézier decomposition's insertion width grows with the grid.
-/// `offset_fit`'s suite reaches the face on a bilinear saddle wall
-/// (`the_second_non_improving_round_is_the_stalls_face`): at
-/// `d = ±5e-10` and target `1e-14` it stalls on round 4, and at
-/// `d = 1e-6` on the budget's last round ([`OFFSET_FIT_BUDGET`]),
-/// where taking the verdict before the budget test is what gives the
-/// round the stall's face.
+/// `offset_fit`'s suite reaches the face on a bilinear saddle wall at
+/// `theta = 0.6` (`the_second_non_improving_round_is_the_stalls_face`):
+/// at `d = ±5.6234132519034906e-11` and target `1e-14` it stalls on
+/// round 5, and at `d = 1.333521432163324e-10` on the budget's last
+/// round ([`OFFSET_FIT_BUDGET`]), where taking the verdict before the
+/// budget test is what gives the round the stall's face.
 ///
-/// The `5e-10` stall rides on that width. PROPS has a convex form of
-/// the decomposition's insertion in view that narrows it, under which
-/// the request measured certifying on round 3; if it lands, the
-/// fixture may stop stalling, and the row says to find another one.
+/// **Those stalls ride on that width, and the fixture has already moved
+/// once because of it.** `geom_core::spline::compose`'s insertion took
+/// the convex form `c_{i−1}·β + c_i·α`, which stopped the
+/// decomposition's width compounding per insertion; the `theta = 0.3`
+/// requests the row used to carry (`d = ±5e-10`, round 4, and
+/// `d = 1e-6`) all certify under it — the `5e-10` one on round 3 at
+/// 7.9933e-15. The row's own docs carry the hunt that found the
+/// replacements, and the same thing will happen again to any fixture
+/// pinned here: a narrowing of the assembly moves it, and the answer is
+/// to re-find a stalling request, never to widen the arm.
+///
+/// **`+∞` is not a failure to improve**, which is the other half of why
+/// the arm is reachable at all: the first guard below exempts a
+/// non-finite `prev_sup`, so the rounds before a bound first becomes
+/// finite are `Directional` and cannot make a later non-improving round
+/// the SECOND one. A fixture whose early rounds carry no finite bound
+/// therefore still reaches the budget's face rather than the stall's.
 ///
 /// The test carries no epsilon on purpose. Widening it ("improved by
 /// less than 1%") would refuse loops that are converging slowly, at a
@@ -2136,7 +2150,7 @@ fn recentre_origin(base: &NurbsSurface<f64>) -> Origin {
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     for p in base.control() {
-        for (c, v) in [p.x, p.y, p.z].into_iter().enumerate() {
+        for (c, v) in p.to_array().into_iter().enumerate() {
             lo[c] = lo[c].min(v);
             hi[c] = hi[c].max(v);
         }
@@ -2497,9 +2511,9 @@ impl Composite {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{Composite, Refine, directional_mark, stall_verdict};
-    use crate::offset_meters::{norm_sup, sqrt_up};
     use geom_core::Bounds;
     use geom_core::interval::certification::Certification;
+    use geom_core::interval::{norm_sup, sqrt_up};
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, Tol};
 
@@ -2655,6 +2669,21 @@ mod tests {
     /// The row measures the two readings on ONE composite, so the
     /// only thing that differs between them is the expression under
     /// test.
+    ///
+    /// **The sup CELL is `(21, 6)`, not `(21, 12)`, since
+    /// `insert_once_ring` took the convex insertion form.** The sup's
+    /// VALUE is unmoved to the four digits these rows pin — only the
+    /// cell that carries it moved, and it moved in ONE direction: `u`
+    /// stays at 21, `v` comes off the high end. That is what the change
+    /// does here. The decomposition inserts in ascending knot order per
+    /// direction, so the lerp form's compounding width collected at the
+    /// high end of each; with it gone, the cell that carries the sup is
+    /// decided by the residual rather than by where the fold's dust
+    /// piled up, and on this grid the residual's worst `v` is 6. `u` had
+    /// no reason to move: 21 is where the residual's worst `u` already
+    /// was. The componentwise readings on the new cell moved in the
+    /// third digit with it (`1.5798e-8`, `3.2219e-4`, `3.1059e-4` and a
+    /// ratio of `18.872` before).
     #[test]
     fn the_sign_witness_floors_norm_e_where_the_components_straddle_zero() {
         let base = quarter_cylinder();
@@ -2681,7 +2710,7 @@ mod tests {
         assert_eq!((cert.rounds, cert.cells), (4, 308));
         let comp = Composite::build(&base, &fit, d).unwrap();
         let (su, sv, sup) = sup_cell(&comp, reg.floor, d, ELow::Witness);
-        assert_eq!((su, sv), (21, 12));
+        assert_eq!((su, sv), (21, 6));
         assert!(near(sup, 1.7072e-5), "sup cell bound is {sup:e}");
         assert!(
             near(cert.hull_sup, sup),
@@ -2700,15 +2729,15 @@ mod tests {
         // by the regularity floor, not by `‖E‖`.
         let (dist_c, tau_c, t3_c, e_mig, sup_c) =
             decompose(&comp, su, sv, reg.floor, d, ELow::Componentwise);
-        assert!(near(e_mig, 1.5798e-8), "componentwise floor is {e_mig:e}");
-        assert!(near(sup_c, 3.2219e-4) && near(dist_c, 9.3763e-6) && near(t3_c, 3.1059e-4));
+        assert!(near(e_mig, 1.5814e-8), "componentwise floor is {e_mig:e}");
+        assert!(near(sup_c, 3.2189e-4) && near(dist_c, 9.3762e-6) && near(t3_c, 3.1030e-4));
         assert!(near(tau_c, tau), "τ moved: {tau_c:e} against {tau:e}");
         assert!(
             t3_c > 0.96 * sup_c,
             "the componentwise reading's sup is not its τ²/‖E‖ term"
         );
         assert!(
-            near(sup_c / sup, 18.872),
+            near(sup_c / sup, 18.855),
             "the bound moved by {}",
             sup_c / sup
         );
@@ -2717,7 +2746,7 @@ mod tests {
         // over the one it replaces, and the row measures that rather
         // than resting on the argument.
         let worst = no_cell_loosens(&comp, reg.floor, d);
-        assert!(near(worst, 18.872), "the widest cell gain is {worst}");
+        assert!(near(worst, 18.855), "the widest cell gain is {worst}");
 
         // One round finer — the grid the `1e-9` request stops on at
         // the sample cap. The cells are small enough that the
@@ -2728,17 +2757,26 @@ mod tests {
         assert_eq!((cert5.rounds, cert5.cells), (5, 364));
         let comp5 = Composite::build(&base, &fit5, d).unwrap();
         let (su5, sv5, sup5) = sup_cell(&comp5, reg.floor, d, ELow::Witness);
-        assert_eq!((su5, sv5), (21, 12));
+        assert_eq!((su5, sv5), (21, 6));
         let (dist5, tau5, t35, e_lo5, _) = decompose(&comp5, su5, sv5, reg.floor, d, ELow::Witness);
-        assert!(near(sup5, 3.7544e-7), "cap-grid sup is {sup5:e}");
-        assert!(near(e_lo5, 8.3071e-7) && near(dist5, 1.2216e-7) && near(t35, 4.7996e-8));
+        // The SAME quantity `tests/offset_fit.rs`'s
+        // `a_micron_scale_offset_certifies_and_names_its_limit` pins as
+        // the cap stop's `achieved`, and it is pinned there to 5e-11
+        // absolute. Re-measured here rather than left to ride `near`'s
+        // 5e-4: one number must not have two precisions, and under the
+        // convex insertion form it moved (3.7544e-7 before).
+        assert!(near(sup5, 3.75359e-7), "cap-grid sup is {sup5:e}");
+        assert!(near(e_lo5, 8.30740e-7) && near(dist5, 1.22136e-7) && near(t35, 4.79839e-8));
         assert!(
             tau5 > dist5 && tau5 > t35,
             "τ = {tau5:e} no longer carries the cap grid's sup"
         );
         let (.., e_mig5, sup5_c) = decompose(&comp5, su5, sv5, reg.floor, d, ELow::Componentwise);
-        assert!(near(e_mig5, 7.7991e-7), "componentwise floor is {e_mig5:e}");
-        assert!(near(sup5_c, 3.7912e-7) && near(sup5_c / sup5, 1.0098));
+        assert!(
+            near(e_mig5, 7.79946e-7),
+            "componentwise floor is {e_mig5:e}"
+        );
+        assert!(near(sup5_c, 3.79036e-7) && near(sup5_c / sup5, 1.00979));
         let worst5 = no_cell_loosens(&comp5, reg.floor, d);
         assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }

@@ -309,8 +309,8 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     let sup = composite_sup(
         curve,
         &ImplicitSurface::Cylinder {
-            point: [first.x, first.y, first.z],
-            axis: [chord.x, chord.y, chord.z],
+            point: first.to_array(),
+            axis: chord.to_array(),
             radius: 0.0,
         },
     );
@@ -436,14 +436,14 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     let plane_sup = composite_sup(
         curve,
         &ImplicitSurface::Plane {
-            point: [center.x, center.y, center.z],
-            normal: [axis.x, axis.y, axis.z],
+            point: center.to_array(),
+            normal: axis.to_array(),
         },
     );
     let sphere_sup = composite_sup(
         curve,
         &ImplicitSurface::Sphere {
-            center: [center.x, center.y, center.z],
+            center: center.to_array(),
             radius,
         },
     );
@@ -1888,14 +1888,14 @@ mod r2_delta {
             let ps = composite_sup(
                 &carrier,
                 &ImplicitSurface::Plane {
-                    point: [center.x, center.y, center.z],
-                    normal: [axis.x, axis.y, axis.z],
+                    point: center.to_array(),
+                    normal: axis.to_array(),
                 },
             );
             let ss = composite_sup(
                 &carrier,
                 &ImplicitSurface::Sphere {
-                    center: [center.x, center.y, center.z],
+                    center: center.to_array(),
                     radius,
                 },
             );

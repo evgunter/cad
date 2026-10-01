@@ -1,6 +1,6 @@
 //! **What stands at a bulge that is not 1 — the nominal pins.** The
 //! form-level mechanism's reach is the UNIT bulge (`sym.rs`'s "The
-//! form-level algebra" section; `work/sym/rule-d-reaches-the-unit-bulge-only`):
+//! form-level algebra" section; `work/decide/rule-d-reaches-the-unit-bulge-only`):
 //! every document M10-10 measured authors its arcs through
 //! `LoopProgram::Circle`/`CircleSplit(2)`, kernel bulge `1`. These rows
 //! hold the per-predicate split AT THE NOMINAL, under the shipped set
@@ -15,8 +15,14 @@
 //! the renders `m10_10_evidence_interval` makes of these documents
 //! (`CAD_M10_10_DOC=r1_segment_boss|r2_d_tab_literal|r2_d_tab_parameter`,
 //! and the dyadic controls `r2_d_tab_literal_dyadic|r2_d_tab_parameter_dyadic`);
-//! `m10_bulge_renders.txt` beside this file is the trimmed record of
-//! those renders, with the boss's freeze cause uncut.
+//! `m10_bulge_renders.txt` beside this file is the record of those
+//! renders at this tree: per document the whole split, then every
+//! decision the tier was asked and left numeric on an arc-family
+//! predicate with its freeze causes and its attributed cause — every
+//! form attributed to the sign of `b` or of the apothem UNCUT, so the
+//! attribution is re-checked by evaluating it, the frozen ones cut —
+//! and the boss's former value-free residual, rendered at the base and
+//! gone here.
 //!
 //! The split is the same at ε = 1e-6, 1e-9 and 1e-12 (the atoms a
 //! residual carries do not depend on the band), so the rows assert
@@ -33,8 +39,10 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// parameter's alike on every row but one — asserted on both, so the
 /// equality is a pinned fact and not a copy, and the one row that
 /// PARTS is supplied per document by [`d_tab_table`]. What stands:
-/// `carrier_matches_mapped_source` 12 of 180 on the literal and 16 on
-/// the parameter (it was 18 on both until SYM-5's rule E).
+/// `carrier_matches_mapped_source` 10 of 180 on the literal and 14 on
+/// the parameter (it was 18 on both until SYM-5's rule E; two more
+/// reach the door since the certification schedule assigns its last
+/// sample `t₁` itself, `geom_brep::schedule_param`).
 /// `carrier_endpoint_start`'s last 4 of 36 went with SYM-5's
 /// rule E (the quotient's common factor): they are 24/0/12/0 now, the
 /// rim identity `‖q − c‖ = r` through the DOOR at every sample — the
@@ -51,13 +59,20 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `witness_on_surface_1` 1 on the same ring and, on the parameter,
 /// the radius's `abs(R(b))`. At the dyadic control `bulge = 0.5`
 /// (evidence only) the ring is out of the way on the on-surface
-/// residuals — `carrier_on_surface_2` 27 → 18, `carrier_on_surface_1`
-/// 9 → 0, `witness_on_surface_2` 3 → 2, `witness_on_surface_1` 1 → 0,
+/// residuals — on the parameter control `carrier_on_surface_2` 27 → 4
+/// under the drive's ladder (all four frozen on terms and degree; 6
+/// with one attempt per rung), `carrier_on_surface_1` 9 → 0,
+/// `witness_on_surface_2` 3 → 0, `witness_on_surface_1` 1 → 0,
 /// `carrier_endpoint_start` 4 → 0 — and `carrier_matches_mapped_source`
-/// is 16 on the parameter control, where the sign of `b` stands in
-/// the open. At 512 bits the literal's `carrier_on_surface_2` is 18
-/// and its `carrier_on_surface_1` 0; `carrier_endpoint_start` stays
-/// 24/0/8/4. The literal's shipped CEILING is not the residue: 0.56 of
+/// is 6 there under the ladder (8 with one attempt per rung), every one
+/// frozen. The carrier's span is spelled from the decided turn
+/// (`sweep`'s `arc_span`), so the decisions that stood on the sign
+/// of `b` in the open, and those whose freeze stood on the bulk of the
+/// sign's second atom, are gone (`m10_bulge_renders.txt` attributes
+/// what is left). A 512-bit ring
+/// (SYM-3's measurement, before rule E) took the literal's
+/// `carrier_on_surface_2` to 18 and its `carrier_on_surface_1` to 0.
+/// The literal's shipped CEILING is not the residue: 0.56 of
 /// its real study, bounded by `arc_diameter_clearance` (the annulus's
 /// real-margin class); the parameter's is `3.52e2·ε`, on and off
 /// alike.
@@ -82,7 +97,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("extrusion_normal_component", [0, 0, 0, 2]),
     ("interval_span_forward", [0, 0, 0, 36]),
     ("interval_span_winding", [0, 0, 0, 12]),
-    ("line_span", [0, 0, 0, 8]),
+    ("line_span", [4, 0, 0, 4]),
     ("newell_plane_residual", [30, 0, 0, 0]),
     ("path_circle_radius", [0, 0, 0, 1]),
     ("path_junction_turn", [0, 0, 0, 4]),
@@ -117,6 +132,33 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// ring again (folding it takes 20 and uncovers 20 freezes). The rim
 /// identity is the door's here (`carrier_endpoint_start` 12/0/12/0),
 /// as is the chart phase, as on the plate.
+///
+/// **DECIDE-3 takes one more of `arc_span`**, 4/0/0/2 -> 5/0/0/1, and
+/// **DECIDE-3 takes the `abs` wall the paragraph above describes.**
+/// The canonical root spells `sqrt(L²)` as `|L|`, which is the atom
+/// the carrier's own `abs` mints, so the radius `abs(signed_radius)`
+/// and the square it used to stand against meet on ONE indeterminate
+/// instead of two: `carrier_on_surface_1` and `carrier_on_surface_2`
+/// go 81/0/0/9 -> 90/0/0/0 each, `witness_on_surface_1` and
+/// `witness_on_surface_2` 9/0/0/1 -> 10/0/0/0, `arc_span` 4/0/0/2 ->
+/// 5/0/0/1 and `contact_at_shared_vertex` 4/0/0/5 -> 6/0/0/3 — every
+/// one of them a THEOREM, none of them a read. `line_span` gains four
+/// THEOREMS, `[0, 0, 0, 8] -> [4, 0, 0, 4]`: four of its eight
+/// comparisons are between two rational CONSTANTS, and A0 now decides
+/// those exactly — the fix
+/// `work/decide/a0-leaves-max-and-min-of-constants-opaque` asked for.
+/// The other four carry a parameter and no form settles them.
+///
+/// **Rule G's exact quotient takes the last of `arc_span`**, 5/0/0/1
+/// -> 6/0/0/0, a THEOREM. It was the one value-free residual on the
+/// boss and the decision that bounds its ceiling:
+/// `2^-59·sqrt(5)·|c + 2^59·h| − sqrt(P/Q)` with `Q = (1 + h/a)⁴`
+/// dividing `P = 5a²(1 + h/a)⁶` exactly (`a = c·2^-59` the chord half,
+/// `h` its deviation) — a polynomial factor both halves share, which
+/// rule E's monomial cancellation does not see. Minted over the
+/// quotient `5(a + h)²`, the root is the first term's atom
+/// (`m10_bulge_renders.txt` carries the form uncut). Nothing else on
+/// the boss, either D-tab or either control moves.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -127,7 +169,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
         &[
             ("arc_apex_identity", [0, 0, 0, 1]),
             ("arc_diameter_clearance", [0, 0, 0, 6]),
-            ("arc_span", [4, 0, 0, 2]),
+            ("arc_span", [6, 0, 0, 0]),
             ("assert_bound", [0, 0, 0, 1]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
@@ -135,9 +177,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_endpoint_start", [12, 0, 12, 0]),
             ("carrier_line_circle", [0, 0, 0, 3]),
             ("carrier_matches_mapped_source", [72, 0, 54, 0]),
-            ("carrier_on_surface_1", [81, 0, 0, 9]),
-            ("carrier_on_surface_2", [81, 0, 0, 9]),
-            ("contact_at_shared_vertex", [4, 0, 0, 5]),
+            ("carrier_on_surface_1", [90, 0, 0, 0]),
+            ("carrier_on_surface_2", [90, 0, 0, 0]),
+            ("contact_at_shared_vertex", [6, 0, 0, 3]),
             ("datum_unit_norm", [0, 0, 0, 2]),
             ("dihedral_arm", [0, 0, 0, 80]),
             ("dihedral_wedge", [0, 0, 0, 80]),
@@ -145,7 +187,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("extrusion_normal_component", [0, 0, 0, 2]),
             ("interval_span_forward", [0, 0, 0, 24]),
             ("interval_span_winding", [0, 0, 0, 12]),
-            ("line_span", [0, 0, 0, 2]),
+            ("line_span", [0, 2, 0, 0]),
             ("newell_plane_residual", [18, 0, 0, 0]),
             ("path_circle_radius", [0, 0, 0, 1]),
             ("path_junction_turn", [0, 0, 0, 2]),
@@ -156,8 +198,8 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),
             ("witness_at_mid_parameter", [10, 0, 0, 0]),
-            ("witness_on_surface_1", [9, 0, 0, 1]),
-            ("witness_on_surface_2", [9, 0, 0, 1]),
+            ("witness_on_surface_1", [10, 0, 0, 0]),
+            ("witness_on_surface_2", [10, 0, 0, 0]),
         ],
     );
 }
@@ -172,8 +214,9 @@ fn d_tab_table(mapped_source: [u64; 4]) -> Vec<(&'static str, [u64; 4])> {
 }
 
 /// The D-tab with its bulge a literal `0.4`: [`D_TAB_AT_THE_NOMINAL`],
-/// with `carrier_matches_mapped_source` 126/0/42/12 — six of the
-/// eighteen that used to stand went to the DOOR with SYM-5's rule E.
+/// with `carrier_matches_mapped_source` 126/0/44/10 — six of the
+/// eighteen that used to stand went to the DOOR with SYM-5's rule E,
+/// and two more with the schedule's assigned last sample.
 #[test]
 fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -181,7 +224,7 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 42, 12]),
+        &d_tab_table([126, 0, 44, 10]),
     );
 }
 
@@ -189,8 +232,8 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
 /// the literal's ([`D_TAB_AT_THE_NOMINAL`]) except on ONE row. At the
 /// nominal the bulge's sign is not what blocks on any of the shared
 /// rows, the ring is, on the same nodes — but with SYM-5's rule E the
-/// two part on `carrier_matches_mapped_source`: 126/0/42/12 on the
-/// literal against 126/0/38/16 here, so four of the six the rule takes
+/// two part on `carrier_matches_mapped_source`: 126/0/44/10 on the
+/// literal against 126/0/40/14 here, so four of the six the rule takes
 /// on the literal it does not take when the bulge is a parameter. The
 /// sign
 /// entered, where the dyadic control showed it, through the carrier's
@@ -207,6 +250,6 @@ fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a parameter)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 38, 16]),
+        &d_tab_table([126, 0, 40, 14]),
     );
 }

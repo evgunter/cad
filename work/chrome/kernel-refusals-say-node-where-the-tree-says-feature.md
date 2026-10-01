@@ -3,7 +3,7 @@ id: kernel-refusals-say-node-where-the-tree-says-feature
 kind: issue
 title: chrome: kernel refusals the tree draws verbatim say 'node N' where the tree's own words say 'feature N'
 status: parked
-blocked_on: [node-labels-are-document-data]
+blocked_on: [refusal-values-speak-the-node-with-its-label]
 opened: 2026-09-29
 priority: P3
 cost: E

@@ -140,7 +140,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
     def test_a_foreign_node_refuses_before_any_slot_is_looked_up(self):
         doc = Doc()
         blank(doc)
-        other = Doc(label="a-longer-recipe")
+        other = Doc(seed="a-longer-recipe")
         for _ in range(3):
             stray = blank(other)
         with self.assertRaises(EditError) as caught:
@@ -190,12 +190,12 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         another names a parameter the target does not declare — the
         continuous door runs the same reference check the structural
         one does."""
-        declared = Doc(label="declares-the-wall")
+        declared = Doc(seed="declares-the-wall")
         blank(declared)
         declared.apply(DocEdit.set_doc_param(ParamName("wall"), DocParam.length(T * m)))
         expr = declared.parse_expr("wall")
 
-        doc = Doc(label="declares-nothing")
+        doc = Doc(seed="declares-nothing")
         box = blank(doc)
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.set_param(box, "distance", expr))
@@ -299,7 +299,7 @@ class TestTheNameRepair(unittest.TestCase):
         allowed — that is the distinction this refusal keeps."""
         doc = Doc()
         _box, top, _hollow = self.cup(doc)
-        longer = Doc(label="a-longer-recipe")
+        longer = Doc(seed="a-longer-recipe")
         for _ in range(4):
             far = blank(longer)
         foreign = top_of(longer, far)

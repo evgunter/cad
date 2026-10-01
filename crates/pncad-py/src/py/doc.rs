@@ -712,8 +712,8 @@ fn profile_of<'d>(doc: &'d d::ProfileDoc, node: &NodeId) -> PyResult<&'d d::Prof
     match doc.node(node.0) {
         Some(d::Node::Profile(program)) => Ok(program),
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
-            "node {} is not a profile",
-            node.0.0
+            "{} is not a profile",
+            doc.spoken(node.0)
         ))),
     }
 }
@@ -726,6 +726,13 @@ pub(crate) fn piece_text(piece: &pncad::select::ProfileEdgeRef) -> PyResult<Stri
             "a profile piece failed to serialize: {err}"
         ))
     })
+}
+
+/// A text as a label, or the label rule's refusal at the call that
+/// offered it.
+fn label_from_text(py: Python<'_>, text: &str) -> PyResult<d::Label> {
+    d::Label::new(text)
+        .map_err(|fault| boundary_edit_err(py, BoundaryEdit::Label(&fault), fault.to_string()))
 }
 
 /// Read a stable name back from [`name_text`]'s output.
@@ -828,7 +835,7 @@ pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
 #[pymethods]
 impl NodeId {
     fn __repr__(&self) -> String {
-        format!("NodeId({})", self.0.0)
+        format!("NodeId({})", self.0.full())
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -897,9 +904,15 @@ impl Doc {
         applied.record
     }
 
-    /// Insert a node and take the acceptance up: `insert`'s body,
-    /// which accepts internally rather than handing an un-accepted
-    /// `Applied` back for a caller to remember to swap.
+    /// Insert a node, label it when `label` is given, and take the
+    /// acceptance up: `insert`'s body, which accepts internally rather
+    /// than handing an un-accepted `Applied` back for a caller to
+    /// remember to swap.
+    ///
+    /// A labelled insert is the kernel's two edits — the insert, which
+    /// carries no label, then `SetLabel` on the id it minted — taken up
+    /// as one acceptance: both land or neither does, and the record and
+    /// maintenance are the insert's (a label edit performs none).
     ///
     /// `Ok(None)` is the contract violation "an accepted `InsertNode`
     /// minted no id", and the document is **not** swapped on that arm:
@@ -908,15 +921,29 @@ impl Doc {
     fn insert_node(
         &mut self,
         node: d::Node<d::ProfileProgram>,
+        label: Option<d::Label>,
         resolver: Option<&super::store::Workspace>,
     ) -> Result<Option<NodeId>, d::EditError> {
         let tol = Tol::witness();
         let seam = seam(resolver);
         let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
         let applied = d::apply(&self.inner, &d::DocEdit::InsertNode { node }, tol, &reach)?;
-        if applied.record.minted.is_none() {
+        let Some(id) = applied.record.minted else {
             return Ok(None);
-        }
+        };
+        let applied = match label {
+            None => applied,
+            Some(label) => {
+                let edit = d::DocEdit::SetLabel {
+                    node: id,
+                    label: Some(label),
+                };
+                d::Applied {
+                    doc: d::apply(&applied.doc, &edit, tol, &reach)?.doc,
+                    ..applied
+                }
+            }
+        };
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
@@ -947,19 +974,20 @@ impl Doc {
     /// A document's id answers WHICH PART, and a workspace refuses to
     /// hold two files claiming one — so `Doc()` mints a FRESH random
     /// identity and two documents authored here are two parts.
-    /// `Doc(label)` derives the id from the label instead: same
-    /// label, same id, on every platform, which is the spelling a
+    /// `Doc(seed)` derives the id from the seed text instead: same
+    /// seed, same id, on every platform, which is the spelling a
     /// caller whose saves must reproduce byte for byte wants — and
-    /// which therefore makes two same-label documents the SAME part,
-    /// deliberately.
+    /// which therefore makes two same-seed documents the SAME part,
+    /// deliberately. (The seed is not a label: a node's label is
+    /// `Doc.label`.)
     ///
     /// Raises `IdentityError` if the OS entropy source refuses.
     #[new]
-    #[pyo3(signature = (label = None))]
-    fn new(py: Python<'_>, label: Option<&str>) -> PyResult<Self> {
+    #[pyo3(signature = (seed = None))]
+    fn new(py: Python<'_>, seed: Option<&str>) -> PyResult<Self> {
         let tol = Tol::witness();
-        let inner = match label {
-            Some(label) => crate::identity::derived(label, tol),
+        let inner = match seed {
+            Some(seed) => crate::identity::derived(seed, tol),
             // The tag is the store's own, through `crate::tags`, not a
             // literal chosen here: `interactive` refuses with the whole
             // `WorkspaceError` vocabulary, and which of its arms a
@@ -1150,8 +1178,8 @@ impl Doc {
             .pieces(&self.inner.param_env::<f64>(), Tol::witness())
             .map_err(|refusal| {
                 pyo3::exceptions::PyValueError::new_err(format!(
-                    "node {} has no pieces under the current values: {refusal}",
-                    profile.0.0
+                    "{} has no pieces under the current values: {refusal}",
+                    self.inner.spoken(profile.0)
                 ))
             })?;
         pieces
@@ -1173,32 +1201,32 @@ impl Doc {
         self.inner.roots().iter().copied().map(NodeId).collect()
     }
 
-    /// An instance's **cluster frame**: the placement recorded for the
-    /// cluster this node belongs to, or the identity when nothing was
+    /// An instance's **group frame**: the placement recorded for the
+    /// group this node belongs to, or the identity when nothing was
     /// recorded.
     ///
     /// Total — a node with no recorded row answers the identity, which
     /// is what an unplaced instance's placement IS. To know whether a
     /// row exists, compare against `Frame.translation((0*m, 0*m,
     /// 0*m))`; to know which node the registry is keyed by, ask
-    /// `gauge_of`.
+    /// `root_of`.
     ///
     /// This is the AUTHORED frame, not the solved one: a mated
-    /// instance's world pose is its cluster frame composed with the
+    /// instance's world pose is its group frame composed with the
     /// solve's relative pose, which is `SolvedPoses.placement`.
     fn placement(&self, node: &NodeId) -> super::place::Frame {
         super::place::Frame(self.inner.placement(node.0))
     }
 
     /// The placement **registry itself**: every node with a recorded
-    /// cluster frame, as node → frame.
+    /// group frame, as node → frame.
     ///
     /// `placement` is total and answers the identity for a node with
     /// no row, which is what an unplaced instance's placement IS — so
     /// this is the door that distinguishes "placed at the identity"
     /// from "carries no frame of its own". A mated instance that is
-    /// not its cluster's gauge is ABSENT here however it is posed:
-    /// placement lives on the cluster, and its pose is solved.
+    /// not its group's root is ABSENT here however it is posed:
+    /// placement lives on the group, and its pose is solved.
     fn placements(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
         let out = PyDict::new(py);
         for (node, frame) in self.inner.placements() {
@@ -1277,14 +1305,21 @@ impl Doc {
 
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
-    #[pyo3(signature = (node, *, resolver=None))]
+    ///
+    /// `label=` labels the new node in the same call: the insert and a
+    /// `DocEdit.set_label`, both applied or neither. A text that is not
+    /// a label refuses before anything is applied (`label_blank`,
+    /// `label_line_break`, `label_control_character`).
+    #[pyo3(signature = (node, *, label=None, resolver=None))]
     fn insert(
         &mut self,
         py: Python<'_>,
         node: &Node,
+        label: Option<&str>,
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<NodeId> {
-        self.insert_node(node.inner.clone(), resolver)
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        self.insert_node(node.inner.clone(), label, resolver)
             .map_err(|err| edit_err(py, &err))?
             .ok_or_else(|| {
                 // The SAME contract violation `declare` refuses —
@@ -1325,15 +1360,43 @@ impl Doc {
     /// one plane should bind the id once and pass it twice — that
     /// sharing is a fact about the document, and now there is
     /// something in the document for it to be a fact about.
-    #[pyo3(signature = (plane=None, elevation=None))]
+    ///
+    /// `label=` labels the frame in the same call, as `insert`'s does.
+    #[pyo3(signature = (plane=None, elevation=None, *, label=None))]
     fn sketch_frame(
         &mut self,
         py: Python<'_>,
         plane: Option<SketchPlane>,
         elevation: Option<super::expr::Expr>,
+        label: Option<&str>,
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
-        self.insert(py, &node, None)
+        self.insert(py, &node, label, None)
+    }
+
+    /// The label a person gave `node`, or `None` when it has none.
+    ///
+    /// A label is document data beside the node: not unique, never
+    /// identity, and set or cleared only by `DocEdit.set_label` (or
+    /// `insert(..., label=...)`).
+    ///
+    /// Raises `EditError` (`unknown_node`) for a node this document
+    /// does not hold, as `node_kind` does: `None` is the answer about
+    /// a held node with no label, so it cannot also mean "no such
+    /// node".
+    fn label(&self, py: Python<'_>, node: &NodeId) -> PyResult<Option<String>> {
+        if self.inner.node(node.0).is_none() {
+            let err = d::EditError::UnknownNode { id: node.0 };
+            let message = format!(
+                "{}. Recourse: ask for the label of a node this document holds",
+                err.problem()
+            );
+            return Err(edit_err_saying(py, &err, message));
+        }
+        Ok(self
+            .inner
+            .label(node.0)
+            .map(|label| label.as_str().to_owned()))
     }
 
     /// Declare ONE inspected finding: insert a `Declare` node with
@@ -2835,7 +2898,7 @@ impl Node {
     /// its own recorded edit (`DocEdit.update_reference`, or
     /// `update_references` for every site at once).
     ///
-    /// **No frame argument.** Placement lives on the CLUSTER, and the
+    /// **No frame argument.** Placement lives on the GROUP, and the
     /// registry holding it is document data — an instance carries no
     /// frame of its own, which is what makes zero-anchor and
     /// multi-anchor states unrepresentable rather than merely refused.
@@ -2880,11 +2943,14 @@ impl Node {
     /// `class_admission` — ask it BEFORE authoring, because a class
     /// the solve folds may still mint nothing at the at-rest gate.
     ///
-    /// `alignment` is the authored datum: which frames coincide, at
-    /// which axis sense, with which clocking. It is AUTHORED data, not
-    /// geometry read back — nothing checks it against the faces `a`
-    /// and `b` name (issue #944), so a mate can solve cleanly and
-    /// still be refuted at the gate.
+    /// `alignment` is the datum: which frames coincide, at which axis
+    /// sense, with which clocking. A side is either a face of its part
+    /// (`MateFrame.from_face`), resolved from the part's own product
+    /// at every evaluation, or three AUTHORED vectors. A face frame is
+    /// its face, so it follows a part edit; authored vectors are not
+    /// geometry read back — nothing checks them against the faces `a`
+    /// and `b` name, so a mate authored so can solve cleanly and still
+    /// be refuted at the gate.
     ///
     /// **A head must name a FACE, and that is refused here.** A mate
     /// declares a face-pair contact; the kernel says so in the type of
@@ -2914,7 +2980,7 @@ impl Node {
                 a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?),
                 b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?),
                 class: class_.to_kernel(py)?,
-                alignment: alignment.0,
+                alignment: alignment.0.clone(),
             },
         })
     }
@@ -3463,12 +3529,34 @@ impl DocEdit {
         }
     }
 
-    /// Delete a node.
+    /// Delete a node. Its label, if any, goes with it.
     #[staticmethod]
     fn delete_node(id: &NodeId) -> Self {
         Self {
             inner: d::DocEdit::DeleteNode { id: id.0 },
         }
+    }
+
+    /// **Set or clear a node's label**: `label` replaces the label the
+    /// node has, `None` clears it. A label is document data beside the
+    /// node, so the edit recomputes nothing; it does move the content
+    /// pin, as a recolour does.
+    ///
+    /// Refuses at this call a text that is not a label (`EditError`:
+    /// `label_blank`, `label_line_break`, `label_control_character`),
+    /// and at `apply` a node the document does not hold
+    /// (`unknown_node`) or an edit that would leave the label as it is
+    /// (`label_unchanged`).
+    #[staticmethod]
+    #[pyo3(signature = (node, label))]
+    fn set_label(py: Python<'_>, node: &NodeId, label: Option<&str>) -> PyResult<Self> {
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        Ok(Self {
+            inner: d::DocEdit::SetLabel {
+                node: node.0,
+                label,
+            },
+        })
     }
 
     /// **Replace a node's whole LIST input** — a `Node.union`'s
@@ -3816,13 +3904,13 @@ impl DocEdit {
         }
     }
 
-    /// Place an instance's **cluster**.
+    /// Place an instance's **group**.
     ///
-    /// The target is the instantiate node whose cluster moves, and the
+    /// The target is the instantiate node whose group moves, and the
     /// frame REPLACES whatever was recorded (the identity, if nothing
-    /// was). Placement is per-cluster, not per-instance: an instance
+    /// was). Placement is per-group, not per-instance: an instance
     /// coupled to others by mates shares their frame, and setting it
-    /// through any member places the whole cluster — `gauge_of` says
+    /// through any member places the whole group — `root_of` says
     /// which node the registry is actually keyed by.
     ///
     /// Refuses typed on `EditError`: `placement_on_non_instance`,

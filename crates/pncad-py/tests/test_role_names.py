@@ -212,8 +212,10 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         halves = of_role(ev, node, EntityKind.Face, SegTag.BandPi)
         self.assertEqual(len(bands), 3, "the fourth segment lies on the axis")
         self.assertEqual(len(halves), 3, "and each band has its pi half")
-        self.assertEqual(bands, [band(node, scene.piece(0, seg)) for seg in range(3)])
-        self.assertEqual(halves, [band_pi(node, scene.piece(0, seg)) for seg in range(3)])
+        # In NAME order, the pieces' step ids ascending.
+        by_id = sorted((scene.piece(0, seg) for seg in range(3)), key=step_id)
+        self.assertEqual(bands, [band(node, p) for p in by_id])
+        self.assertEqual(halves, [band_pi(node, p) for p in by_id])
         # A door answering the other door's text would pass every
         # count above; these are two roles and two texts.
         self.assertNotEqual(band(node, scene.piece(0, 0)), band_pi(node, scene.piece(0, 0)))

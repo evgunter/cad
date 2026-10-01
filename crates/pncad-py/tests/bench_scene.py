@@ -35,9 +35,9 @@ assert that they agree. What the switch is for is that comparison
 (`test_assembly_author.TestBenchLayout`); what the scene ships is the
 pattern.
 
-A `Doc`'s identity is derived from its label, so the two part documents
+A `Doc`'s identity is derived from its seed, so the two part documents
 have the same identities whatever authored them, and a document
-re-authored under the same label with different dimensions is the same
+re-authored under the same seed with different dimensions is the same
 id at a different pin — which is how a part legitimately changes on
 disk.
 """
@@ -100,20 +100,20 @@ PATTERN_SPACING = 0.2
 #: Where the flat-packed shelf sits, relative to the same gap.
 FLAT_PACK_SHELF_Y = 0.9
 
-#: The stand's gauge post: the one instance carrying an authored frame,
+#: The stand's root post: the one instance carrying an authored frame,
 #: inset in y so the bench top overhangs front and back.
-GAUGE_OFFSET_Y = (SHELF_DEPTH - POST_SECTION) / 2.0
+ROOT_OFFSET_Y = (SHELF_DEPTH - POST_SECTION) / 2.0
 
-POST_LABEL = "pncad-demo-post"
-SHELF_LABEL = "pncad-demo-shelf"
-LAYOUT_LABEL = "pncad-demo-layout"
-STAND_LABEL = "pncad-demo-stand"
+POST_SEED = "pncad-demo-post"
+SHELF_SEED = "pncad-demo-shelf"
+LAYOUT_SEED = "pncad-demo-layout"
+STAND_SEED = "pncad-demo-stand"
 
 
 # ---- The part documents ----
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """A rectangular prism part document, rooted at the origin.
 
     The extrusion runs +z from the sketch plane at z = 0, so the part's
@@ -121,7 +121,7 @@ def prism(label, width, depth, height):
     Three nodes: the sketch frame, the section drawn on it, the
     extrude that consumes both.
     """
-    doc = Doc(label)
+    doc = Doc(seed)
     profile = doc.insert(
         Node.polygon(
             [
@@ -139,14 +139,14 @@ def prism(label, width, depth, height):
 
 def post(height=POST_HEIGHT, section=POST_SECTION):
     """The post: a square-section upright. The dimensions are arguments
-    so a caller can author the SAME part changed — same label, so same
+    so a caller can author the SAME part changed — same seed, so same
     identity, at a different pin."""
-    return prism(POST_LABEL, section, section, height)
+    return prism(POST_SEED, section, section, height)
 
 
 def shelf(thickness=SHELF_THICKNESS, length=SHELF_LENGTH, depth=SHELF_DEPTH):
     """The shelf: the board the posts carry."""
-    return prism(SHELF_LABEL, length, depth, thickness)
+    return prism(SHELF_SEED, length, depth, thickness)
 
 
 # ---- Naming and mates ----
@@ -194,21 +194,47 @@ def mate_frame(origin):
     )
 
 
-def seat(a_frame, b_frame, primitive=None):
+def seat(a_frame, b_frame, primitive=None, post_cap=None):
     """The scene's alignment: two frames meeting, axes aligned, no
-    clocking rider."""
+    clocking rider. A seat given as `POST_CAP` is the face frame on
+    `post_cap`, the post's own cap name; any other seat is an authored
+    frame at that point."""
+
+    def frame(spelling):
+        if spelling is POST_CAP:
+            assert post_cap is not None, "a face seat needs the post's cap name"
+            return MateFrame.from_face(post_cap)
+        return mate_frame(spelling)
+
     return Alignment(
-        mate_frame(a_frame),
-        mate_frame(b_frame),
+        frame(a_frame),
+        frame(b_frame),
         primitive or MatePrimitive.frame_coincidence(),
         AxisSense.Aligned,
     )
 
 
+#: The post's seat as the tour authors it: the post's top cap FACE,
+#: by the post's own name, resolved by the solve from the post's own
+#: evaluation — so a post whose height changes moves the seat with
+#: it. A marker here; `stand` spells it as `MateFrame.from_face` on
+#: the cap it selects from the post document.
+POST_CAP = "the post's top cap face"
+
 #: The stand's two mates, as (a seat, b seat) in document order: the
-#: gauge post's top to the shelf's underside, then the shelf's
-#: underside to the far post's top.
-STAND_SEATS = ((POST_SEAT, SEAT_A), (SEAT_B, POST_SEAT))
+#: root post's top to the shelf's underside, then the shelf's
+#: underside to the far post's top. The post sides are the cap face,
+#: the shelf sides authored points (the shelf's own datum, not a face
+#: of it).
+STAND_SEATS = ((POST_CAP, SEAT_A), (SEAT_B, POST_CAP))
+
+
+def part_cap(part_doc, side):
+    """A cap face of a PART, by the part's own name: selected on the
+    part document's own evaluation, with no instance wrapped round it
+    — what a mate frame that names a face stores."""
+    found = evaluate(part_doc).select(part_doc.roots[0], cap_selector(side))
+    return one(found)
 
 
 # ---- The assembly documents ----
@@ -232,7 +258,7 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
 
     Answers the document and its three nodes, in document order.
     """
-    doc = Doc(LAYOUT_LABEL)
+    doc = Doc(LAYOUT_SEED)
     post_i = doc.insert(Node.instantiate_part(post_ref))
     # The post is laid on its SIDE: a rotation, which is why the frame
     # stores a general linear part and not a translation.
@@ -267,15 +293,15 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     """The assembled bench: a post at each end of the shelf, the shelf
     SEATED on them by mates.
 
-    Only the gauge post carries an authored frame — placement lives on
-    the cluster, and the mates place the rest. Answers the document,
+    Only the root post carries an authored frame — placement lives on
+    the group, and the mates place the rest. Answers the document,
     its three instances and its two mates, each in document order.
     """
-    doc = Doc(STAND_LABEL)
+    doc = Doc(STAND_SEED)
     post_a = doc.insert(Node.instantiate_part(post_ref))
     doc.apply(
         DocEdit.set_placement(
-            post_a, Frame.translation((0 * m, GAUGE_OFFSET_Y * m, 0 * m))
+            post_a, Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m))
         )
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))
@@ -283,15 +309,32 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)
+    # The post's seat is its cap face by the POST's own name — read
+    # off the post document the store resolves, never off the
+    # instance — and the insert resolves it through the store, since
+    # the face is the part's.
+    post_cap = part_cap(store.resolve(post_ref), CapEnd.End)
     mate_1 = doc.insert(
         Node.mate(
-            post_a, a_top, shelf_i, s_bottom, class_, seat(*STAND_SEATS[0], primitive)
-        )
+            post_a,
+            a_top,
+            shelf_i,
+            s_bottom,
+            class_,
+            seat(*STAND_SEATS[0], primitive, post_cap=post_cap),
+        ),
+        resolver=store,
     )
     mate_2 = doc.insert(
         Node.mate(
-            shelf_i, s_bottom, post_b, b_top, class_, seat(*STAND_SEATS[1], primitive)
-        )
+            shelf_i,
+            s_bottom,
+            post_b,
+            b_top,
+            class_,
+            seat(*STAND_SEATS[1], primitive, post_cap=post_cap),
+        ),
+        resolver=store,
     )
     return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
 
@@ -313,7 +356,7 @@ def parts(store):
 
 
 def write(store):
-    """Author the whole scene into `store` and answer label -> `Doc`.
+    """Author the whole scene into `store` and answer seed -> `Doc`.
 
     The four documents are WRITTEN, so a caller that wants the scene as
     the persistence door hands it back resolves each one out of the

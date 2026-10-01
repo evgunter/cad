@@ -81,3 +81,17 @@ VERBS: `work/verbs/plan.md` records that VERBS CLAIMS #347's remaining half (the
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Evidence (2026-10-01, `reach-snowman`): circle × sphere landed, circle × cylinder did not
+
+The crossing layer now has a circle × sphere root lane
+(`topo::boolean::circle_sphere`, a closed form: the residual along a
+circle against a sphere is a first harmonic) beside circle × torus. The
+cylinder cell is still `Unsettled` in `reduce::wall_crossing`, and it is
+the one this row's parallel-cylinder pose needs. Its residual is a
+degree-2 trigonometric polynomial
+(`geom_brep::implicit`'s `circle_residual_harmonics` already computes
+its `(c₀, A₁, A₂)`), so `circle_torus::half_angle_roots`, which is
+surface-generic over degree-2 harmonics, is the root door it would
+call; only the harmonics' phases, a noise meter and a
+`f_per_metre` floor are owed.

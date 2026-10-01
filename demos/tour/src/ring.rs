@@ -112,7 +112,7 @@ use pncad::prelude::{
 // The prefix data lives with the unit TABLE, one hop away from the
 // prelude — the scene converts its own constants with the same factor
 // the table pairs with `mm`, so the two cannot drift.
-use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::quantity::MILLI;
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
@@ -143,7 +143,7 @@ const RI_MM: f64 = 50.0;
 const RI: f64 = RI_MM * MILLI;
 
 /// One concentric circle of the section, centred on the tube axis.
-fn section(radius: f64, tol: Tol) -> ProfileLoop<f64> {
+fn section(radius: f64, tol: Tol) -> ConstructedLoop<f64> {
     pncad::profile::circle(p2(R, 0.0), radius, tol)
         .expect("a positive section radius")
         .into()

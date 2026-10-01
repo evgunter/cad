@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-25
 priority: P0
 cost: D
-needs_ev: true
 ---
 
 
@@ -96,3 +95,14 @@ kind (a closed-loop run keeps its C12.5 cut), the station vertex stays
 where a cap carries the profile, the run wall is named `Lateral([run])` /
 `Band([run])` with N3's covers/offers read through one constituents view,
 F7's sweep sentence comes out, and loft stays per segment.
+
+## Ruled (Ev, 2026-10-01, on the `[ev]` PR): construct
+
+"i'm glad that this works! (i was hoping that the thing i called 'wacky'
+wasn't necessary)". Extrude and revolve build one wall per cosurface run
+on every carrier kind (a closed-loop run keeps its C12.5 cut); the
+station vertex stays where a cap carries the profile; the run wall is
+`Lateral([run])` / `Band([run])`, with N3's covers/offers read through one
+constituents view; F7's 2026-09-25 sweep sentence is retracted; loft stays
+per segment. The row is the implementation; curved runs may land as their
+own row under this ruling.

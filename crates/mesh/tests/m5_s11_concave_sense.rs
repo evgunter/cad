@@ -54,7 +54,7 @@ fn notched() -> Body<f64> {
         .line_to(profile::Start, Tol::witness())
         .unwrap()
         .loop_;
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+    let vp = Profile::new(SketchPlane::xy(), vec![lp.into_loop()])
         .validate(geom_core::Tol::witness())
         .unwrap();
     extrude(&vp, Extrusion::Distance(1.0), Tol::witness())

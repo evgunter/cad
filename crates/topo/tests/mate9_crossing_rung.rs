@@ -159,7 +159,7 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
         Tol::witness(),
     );
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
 
     // Bare control: the crossings refuse PLAIN — no verdict is named
@@ -224,9 +224,9 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
         Tol::witness(),
     );
     let mut body = post.body;
-    let fkeys = topo::graft_disjoint_all_keyed(&mut body, &flush.body, Tol::witness()).unwrap();
+    let fkeys = topo::graft_disjoint_all_keyed(&mut body, &flush.body).unwrap();
     let flush_top = fkeys.face(flush.top_face).unwrap();
-    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
 
     let bare = crossings(&errors(&body, &ContactRecords::default()));
@@ -339,8 +339,8 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
     );
     let post_top = post.top_face;
     let mut body = post.body;
-    let _ = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
-    let bkeys = topo::graft_disjoint_all_keyed(&mut body, &block.body, Tol::witness()).unwrap();
+    let _ = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
+    let bkeys = topo::graft_disjoint_all_keyed(&mut body, &block.body).unwrap();
     let block_bottom = bkeys.face(block.bottom_face).unwrap();
 
     let bare = crossings(&errors(&body, &ContactRecords::default()));
@@ -385,7 +385,7 @@ fn the_pierce_stays_categorical() {
         Tol::witness(),
     );
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let pierces = |records: &ContactRecords| -> Vec<String> {
         errors(&body, records)
@@ -440,7 +440,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
         tol,
     );
     let mut dual = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut dual, &shelf.body, tol).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut dual, &shelf.body).unwrap();
     let pair = (post.top_face, keys.face(shelf.bottom_face).unwrap());
 
     fn lane_refusals(errors: &[ValidationError]) -> Vec<&ValidationError> {

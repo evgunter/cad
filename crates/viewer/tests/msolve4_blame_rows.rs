@@ -88,12 +88,12 @@ fn mate_row_role(ev: &Evaluation<f64>, id: RecipeNodeId) -> MateRole {
     }
 }
 
-/// **The offender the cluster rows break a cluster with**: a planar
+/// **The offender the group rows break a group with**: a planar
 /// rest alone on `post`, which leaves its pair free to slide and spin,
 /// so the solve refuses UNDER naming that one mate. A verdict about
 /// the PAIR, which the edit door admits — a mate the coset table
 /// refuses on its own datum is refused at the insert, so no row here
-/// can build a refused cluster out of one through the session.
+/// can build a refused group out of one through the session.
 fn add_rest(
     session: &mut DocSession,
     bench: &common::asm::Bench,
@@ -133,12 +133,12 @@ fn check(
 }
 
 /// **The finding's first shape, pumped between the edits**: a sound
-/// mate evaluates, a second mate then breaks the cluster around it,
+/// mate evaluates, a second mate then breaks the group around it,
 /// and the sound mate's row reports the refusal rather than the `Ok`
 /// its memo entry still held. The reverse closes the row — delete the
 /// offender and every row returns to `Ok` off the faulted prior.
 #[test]
-fn a_cluster_refusal_reaches_the_mate_that_evaluated_before_it() {
+fn a_group_refusal_reaches_the_mate_that_evaluated_before_it() {
     let tol = Tol::witness();
     let bench = common::asm::bench("rev4-cluster", tol);
     let mut session = common::asm::open_bench(&bench, tol);
@@ -193,7 +193,7 @@ fn a_cluster_refusal_reaches_the_mate_that_evaluated_before_it() {
 /// succession on one unedited mate.**
 ///
 /// The succession is the part no single edit reaches: a mate faulted
-/// by a pair contradiction, then faulted again by a cluster refusal
+/// by a pair contradiction, then faulted again by a group refusal
 /// once the contradiction is removed. The memo serves only `Ok`
 /// priors, so a stale fault can never be served — this row is what
 /// says so on a document rather than on the reuse rule, and it ends
@@ -245,7 +245,7 @@ fn two_faults_in_succession_on_one_mate_never_serve_a_stale_one() {
     }
 
     // A second, different fault on `held` without repairing the first:
-    // the cluster now also refuses through post_b's under-determined
+    // the group now also refuses through post_b's under-determined
     // rest.
     let offender = add_rest(&mut session, &bench, bench.post_b);
     let (_, ev) = check(&session, tol, "contradiction + offender");
@@ -254,13 +254,13 @@ fn two_faults_in_succession_on_one_mate_never_serve_a_stale_one() {
     // (`check` above asserted exactly that, for every node).
     let _ = mate_row_fault(&ev, held);
 
-    // Remove the contradiction: held's fault must now be the cluster
+    // Remove the contradiction: held's fault must now be the group
     // refusal (a different fault), never the stale contradiction.
     delete(&mut session, added);
     session.pump();
     let (_, ev) = check(&session, tol, "offender only");
     let f3 = mate_row_fault(&ev, held);
-    // The offender's fault is the cluster's UNDER, naming the offender
+    // The offender's fault is the group's UNDER, naming the offender
     // alone; what must not survive is the PAIR contradiction naming
     // held and added.
     assert!(

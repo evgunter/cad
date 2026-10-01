@@ -74,7 +74,8 @@ use geom_brep::{
 use geom_core::{Band, ErrorTextReading, Margin, Sign, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::{
-    BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
+    BlendDecision, BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted,
+    fillet_edges,
 };
 use sweep::test_support::{
     ROD_FILLET, ball_poled_z, bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube,
@@ -380,6 +381,7 @@ fn in_band_refusal(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> B
         Err(BlendRefusal { error, .. }) => {
             let BlendError::Escalated {
                 site: BlendSite::Link { .. },
+                decision: BlendDecision::ContactSecondOrder,
                 source,
             } = &error
             else {
