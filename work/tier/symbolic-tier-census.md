@@ -389,8 +389,8 @@ boss at bulge 2 stood at `carrier_matches_mapped_source` 6 of 54 and
 SYM-5's rule E; it is 0 of 54 and 9 of 90 now and the ceiling has moved
 `8.2611e2 → 9.3559e2 · ε`), and
 a PARAMETER bulge was outside the mechanism until the carrier's span was
-spelled from the arc's decided turn, `4·atan(σ·b)` (`sweep`'s
-`turned_span`): it now meets the pushforward's `4·atan b`, and what
+spelled as the stored sweep signed by the arc's decided turn (`sweep`'s
+`arc_span`): it now shares the pushforward's `atan b` atom, and what
 stands at such a bulge is the coefficient ring (R2's D-tab at
 `fl(0.4)`: `3.52e2 · ε` either way), the term budget and the sign of
 the apothem — `work/decide/rule-d-reaches-the-unit-bulge-only`.

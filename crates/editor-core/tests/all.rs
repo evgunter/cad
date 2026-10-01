@@ -286,6 +286,8 @@ mod msolve7_member_residue;
 mod msolve8_levered_clash;
 #[path = "msolve9_from_face.rs"]
 mod msolve9_from_face;
+#[path = "onb_seam_class_interval.rs"]
+mod onb_seam_class_interval;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 #[path = "rv_payloadrefs_probes.rs"]
@@ -603,6 +605,9 @@ mod kstats_bracket_rows;
 #[path = "m10_9_r1_probes_interval.rs"]
 mod m10_9_r1_probes_interval;
 
+#[path = "sym_9_retry_interval.rs"]
+mod sym_9_retry_interval;
+
 #[path = "m10_10_evidence_interval.rs"]
 mod m10_10_evidence_interval;
 #[path = "m10_10_pins_interval.rs"]
@@ -644,6 +649,12 @@ mod wire_rv_unknown;
 
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
+#[path = "decide_3_split_rows_interval.rs"]
+mod decide_3_split_rows_interval;
+#[path = "decide_6_read_cost_interval.rs"]
+mod decide_6_read_cost_interval;
+#[path = "decide_7_rule_g_cost_interval.rs"]
+mod decide_7_rule_g_cost_interval;
 #[path = "edit_refusal_recourse.rs"]
 mod edit_refusal_recourse;
 #[path = "emit_edge_piece_locality.rs"]

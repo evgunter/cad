@@ -25,7 +25,7 @@ walk is `docs/guide/assembly.md`.
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
-| A9, A11 partitions | `relative_freedom_components`, `clusters`, `gauge_of` in `src/mate/solve.rs` |
+| A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
 | A10 roots and gather | `src/roots.rs`, `src/product.rs`, `DocEdit::SetRoots` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 

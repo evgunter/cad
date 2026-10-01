@@ -1499,7 +1499,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // cluster's gauge instead of refusing a non-gauge key, and the
         // cluster maintenance re-keys the registry whenever the mate
         // graph moves, so a non-gauge row exists only in a file.
-        let gauge = crate::mate::gauge_of(doc, node);
+        let gauge = crate::mate::root_of(doc, node);
         if gauge != node {
             return Err(SnapshotError::PlacementNotGauge { node, gauge });
         }

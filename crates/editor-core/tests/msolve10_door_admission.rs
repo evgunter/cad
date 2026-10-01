@@ -33,7 +33,7 @@ use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
     EditError, EvalOptions, FacePoseRefusal, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc,
-    ReachRefusal, RecipeNodeId, RefusingReach, gauge_of, load, mate_reach, save,
+    ReachRefusal, RecipeNodeId, RefusingReach, load, mate_reach, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
@@ -669,11 +669,11 @@ fn a3_a_doctored_snapshot_carrying_a_table_gap_loads_and_the_solve_refuses_it() 
 
 /// **A mate on a pair the fold never reads is refused on the datum
 /// alone**: two members over ONE instance — the instance and a copy
-/// of it — form a pair `solve_cluster` never folds, so the solve
+/// of it — form a pair `solve_group` never folds, so the solve
 /// records NOTHING against such a mate whatever its datum says (it
 /// declares, fault-free), while the insert door refuses a table gap
 /// and a contradictory rider on it all the same. Which pairs the fold
-/// reads is a cluster fact the door does not decide; the datum is
+/// reads is a group fact the door does not decide; the datum is
 /// malformed by itself. The two documents are reached the only way
 /// they can be, through a doctored snapshot.
 #[test]
@@ -1151,7 +1151,7 @@ fn corpus() -> Vec<Row> {
         // re-decides nothing, so the document holds it.
         let (doc, ids, opts, body) = instances("msolve10-corpus-hand-edited", 2);
         let text = save(&doc, &[], Tol::witness()).expect("saves");
-        // The mate joins the two instances' clusters, and a log entry
+        // The mate joins the two instances' groups, and a log entry
         // carries the rows its edit performs — so the hand-edited entry
         // records the join, as the save door would have.
         let entry = LoggedEdit {
@@ -1178,9 +1178,9 @@ fn corpus() -> Vec<Row> {
         });
         let loaded = load(&doctored, Tol::witness()).expect("replay re-decides nothing");
         assert_eq!(
-            gauge_of(&loaded.doc, ids[1]),
+            root_of(&loaded.doc, ids[1]),
             ids[0],
-            "the recorded join names the gauge the joined cluster keeps"
+            "the recorded join names the root the joined group keeps"
         );
         ("msolve10-corpus-hand-edited", loaded.doc, opts)
     });

@@ -177,7 +177,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryVerdict, edge_extent, must_carry_over_edge,
+    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal, edge_extent,
+    must_carry_over_edge,
 };
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
@@ -4403,10 +4404,31 @@ fn attach_contact<T: Decide + Bounds>(
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
             must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
         };
-        match verdict {
-            MustCarryVerdict::JetDeterminate => {
-                EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
-            }
+        // In-band: a separation certifiable as neither positive nor
+        // zero — a band a few K·ε in radius, or a corner arc whose
+        // extent is the lever — escalated typed with the deciding
+        // station's own reading, at the link the contact edge belongs
+        // to. Refuted: a station reads the join a corner, so this
+        // branch's premise — a definitely-smooth join — is refuted by
+        // the geometry. The carrier kind routed the edge here, and
+        // every kind whose surfaces cross at an angle is routed to the
+        // transverse branch above, so that is the surgery
+        // contradicting its own routing, announced rather than
+        // repaired by storing a description the routing did not
+        // choose.
+        let refused = |refusal| match refusal {
+            MustCarryRefusal::InBand(source) => BlendError::Escalated {
+                site: BlendSite::Link { edge: link },
+                source,
+            },
+            MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
+                at: EntityId::Edge(edge),
+                detail: "a contact edge routed as a smooth join reads definitely \
+                         transverse at a certification station",
+            },
+        };
+        match verdict.description(s1, s2, witness).map_err(refused)? {
+            MustCarryDescription::Intrinsic(description) => description,
             // The surfaces under-determine the locus, so the
             // description stays CONVENTIONAL: an image in a chart,
             // derived by the certification door from the exact carrier
@@ -4424,39 +4446,13 @@ fn attach_contact<T: Decide + Bounds>(
             // is the folded lever arm, or any band under a run with
             // `K < 2`. A pair the lane REFUSES lands here too once
             // every station has read smooth first-order (a crossing
-            // out of lane answers `Transverse` below, as in lane): the
+            // out of lane is refuted above, as in lane): the
             // certificate cannot store an intrinsic tangency there, so
             // the conventional image is the honest description, and
             // the door derives it — `geom_brep::chart_pcurve` images a
             // ruling `Line` in a `Cone`'s chart as readily as in a
             // plane's. No arm the battery admits mints such a pair.
-            MustCarryVerdict::UnderDetermined => EdgeDescriptionSpec::chart(s1),
-            // In-band: a separation certifiable as neither positive nor
-            // zero — a band a few K·ε in radius, or a corner arc whose
-            // extent is the lever — escalated typed with the deciding
-            // station's own reading, at the link the contact edge
-            // belongs to.
-            MustCarryVerdict::InBand(source) => {
-                return Err(BlendError::Escalated {
-                    site: BlendSite::Link { edge: link },
-                    source,
-                });
-            }
-            // A station reads the join a corner: this branch's premise
-            // — a definitely-smooth join — is refuted by the geometry.
-            // The carrier kind routed the edge here, and every kind
-            // whose surfaces cross at an angle is routed to the
-            // transverse branch above, so reaching this arm is the
-            // surgery contradicting its own routing, announced rather
-            // than repaired by storing a description the routing did
-            // not choose.
-            MustCarryVerdict::Transverse => {
-                return Err(BlendError::SurgeryInvariant {
-                    at: EntityId::Edge(edge),
-                    detail: "a contact edge routed as a smooth join reads definitely \
-                             transverse at a certification station",
-                });
-            }
+            MustCarryDescription::Conventional => EdgeDescriptionSpec::chart(s1),
         }
     };
     body.set_edge_curve(

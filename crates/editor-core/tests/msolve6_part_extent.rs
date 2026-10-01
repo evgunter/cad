@@ -423,7 +423,7 @@ fn a3_a_10m_part_tilted_1e_8_is_refused_at_its_scale() {
 /// **A part that does not resolve faults the mate `Unleverable`,
 /// carrying the `PartFault` unaltered** — and the blast radius is
 /// pinned: the mate faults (it used to stay `Determining`), and its
-/// cluster's instances carry the mate fault, in the resolver's voice.
+/// group's instances carry the mate fault, in the resolver's voice.
 #[test]
 fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
     // The part lives in ANOTHER store: the reference is well formed
@@ -479,7 +479,7 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
         "the resolver's own classification, unaltered: {part:?}"
     );
     assert_eq!(poses.role(mate), Some(MateRole::Refused));
-    // The blast radius: every instance in the cluster carries the
+    // The blast radius: every instance in the group carries the
     // fault, and the evaluation fails them in the mate's voice.
     assert_eq!(poses.fault(ids[0]), Some(fault));
     assert_eq!(poses.fault(lost), Some(fault));
@@ -1829,7 +1829,7 @@ fn a6_a_logged_edit_has_one_wire_shape_and_its_rows_round_trip() {
     assert_eq!(back, with);
 }
 
-/// **A whole-cluster split levers through the part it is minting**
+/// **A whole-group split levers through the part it is minting**
 /// (the `WithPart` resolver composed with the caller's), and with no
 /// resolver at all refuses typed — `Unresolved` on the new instance,
 /// in the resolver's own voice, never a frame nothing decided.
@@ -1854,7 +1854,7 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         Tol::witness(),
         opts.resolver.as_ref(),
     )
-    .expect("a whole-cluster cut splits through the part in hand");
+    .expect("a whole-group cut splits through the part in hand");
     let none = split(
         &doc,
         &cut,

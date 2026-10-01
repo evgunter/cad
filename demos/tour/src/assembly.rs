@@ -204,10 +204,10 @@ fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
 ///
 /// Every node the scenes insert through here — an instance, a pattern,
 /// a sketch — is admitted on its own datum, and an insert never moves a
-/// cluster's gauge (a new mate JOINS clusters; the survivor keeps its
-/// gauge), so neither the door nor the maintenance asks the reach and
+/// group's root (a new mate JOINS groups; the survivor keeps its
+/// root), so neither the door nor the maintenance asks the reach and
 /// the refusing one is the honest value. A mate goes through
-/// [`insert_mate`]; the edits that move a gauge — the split and the
+/// [`insert_mate`]; the edits that move a root — the split and the
 /// inline below — take the workspace's own reach.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     insert_through(doc, node, tol, &RefusingReach)
@@ -242,7 +242,7 @@ fn insert_through(
 /// Applies an edit that mints nothing, through `reach` — the scene
 /// builders pass the refusing one for a placement (see [`insert`]);
 /// the update door passes the workspace's, because a pin move on a
-/// mated document re-keys clusters through the parts' own extent.
+/// mated document re-keys groups through the parts' own extent.
 fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol, reach: &dyn MateReach) {
     let applied = apply(doc, e, tol, reach).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
     *doc = applied.doc;
@@ -504,8 +504,8 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
 }
 
 /// The stand: a post at each end of the shelf, the shelf SEATED on
-/// them by mates. Only the gauge post carries an authored frame —
-/// A11 puts placement on the cluster, and the mates place the rest.
+/// them by mates. Only the root post carries an authored frame —
+/// A11 puts placement on the group, and the mates place the rest.
 struct Stand {
     doc: ProfileDoc,
     post_a: RecipeNodeId,
@@ -730,21 +730,21 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     )
 }
 
-/// The assembled stand: the mates place the clusters, mint their
+/// The assembled stand: the mates place the groups, mint their
 /// declarations, and the gate reports what it could decide.
 fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
     let ev = run(&stand.doc, &with_store(ws), tol);
 
     // The solve, read the way an author reads it: which instance is
-    // the cluster's gauge, and what role each mate took (A11 rules
+    // the group's root, and what role each mate took (A11 rules
     // 3-4 — tree mates DETERMINE, the rest DECLARE).
     let store = store(ws);
     let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     let poses = solve_document(&stand.doc, &reach, tol);
-    let gauge = poses.gauge(stand.shelf_i).expect("the shelf is placed");
+    let root = poses.root(stand.shelf_i).expect("the shelf is placed");
     assert_eq!(
-        gauge, stand.post_a,
-        "the cluster's gauge is its earliest instance in document order"
+        root, stand.post_a,
+        "the group's root is its earliest instance in document order"
     );
     for mate in [stand.mate_1, stand.mate_2] {
         assert!(
@@ -753,16 +753,16 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
         );
     }
     println!(
-        "   [stand] one placement cluster of 3 instances, gauge = node {}; \
+        "   [stand] one placement group of 3 instances, root = node {}; \
          2 mates, roles {:?}/{:?} — the shelf and the far post carry NO authored frame",
-        gauge,
+        root,
         poses.role(stand.mate_1).expect("mate 1 is live"),
         poses.role(stand.mate_2).expect("mate 2 is live"),
     );
 
     // Where the mates put the far post: SOLVED, composed outward from
-    // the gauge along the mate tree, never stored. The registry holds
-    // one frame for the whole cluster, and it is the gauge's.
+    // the root along the mate tree, never stored. The registry holds
+    // one frame for the whole group, and it is the root's.
     let solved = poses
         .placement(&stand.doc, stand.post_b)
         .expect("the far post is placed");
@@ -782,7 +782,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
     );
     // And the ROTATION, which is the half a translation check cannot
     // see: both mates align +z with +z at zero clocking, so composing
-    // out from the gauge must leave the post's own axes unturned. A
+    // out from the root must leave the post's own axes unturned. A
     // solve that rotated the post and still landed its seating point
     // would pass the translation check and put the part in sideways.
     assert_eq!(
@@ -1141,7 +1141,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         tol,
         Some(&store),
     )
-    .expect("cutting one whole cluster out is legal");
+    .expect("cutting one whole group out is legal");
     ws.create(&out.part, tol).expect("the new part is stored");
     ws.resave(&out.remainder, tol)
         .expect("the remainder is stored");
@@ -1260,7 +1260,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         back_names.iter().count(),
         "and the inline neither loses nor invents a name either"
     );
-    // The cluster frame the split hoisted onto the instance is put
+    // The group frame the split hoisted onto the instance is put
     // back on the restored node, bit for bit — placement is document
     // data, and a round trip that dropped it would still pass every
     // name check above while moving the part.
@@ -1268,12 +1268,12 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         back.doc
             .placement(restored)
             .bit_eq(&layout.placement(shelf_i)),
-        "the round trip restores the cluster frame exactly"
+        "the round trip restores the group frame exactly"
     );
     println!(
         "   inline: {} node(s) spliced back, {} recorded edit(s); all {} product names \
          resolve through the two recorded node maps, the table is the same size, and the \
-         hoisted cluster frame comes back bit-exact",
+         hoisted group frame comes back bit-exact",
         back.node_map.len(),
         back.edits.len(),
         before_names.iter().count()
@@ -1283,7 +1283,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     //
     // The invariant under test is that split and inline are INVERSES
     // for every legal cut, and the shape most likely to break it is
-    // this one — the cut hoists the post cluster's authored frame onto
+    // this one — the cut hoists the post group's authored frame onto
     // the remainder's instance, and `inline` refuses a non-identity
     // frame whose part's roots are not themselves instances
     // (`UnplaceableFrame`), which a Pattern root is not. It does NOT
@@ -1317,7 +1317,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
             match inline(&posts.remainder, posts.instance, &store, tol) {
                 Ok(_) => println!(
                     "   second cut: the patterned-post cell splits out AND inlines back \
-                     (the hoisted cluster frame is expressible in the part's own recipe)"
+                     (the hoisted group frame is expressible in the part's own recipe)"
                 ),
                 Err(e @ InlineError::UnplaceableFrame { .. }) => println!(
                     "   second cut (gap): the patterned-post cell splits out but does NOT \
@@ -1754,7 +1754,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
         caption: "the bench — assembled, and flat-packed".to_string(),
         montage: true,
         story: "an ASSEMBLY document: two instances of a post document and one of a \
-                shelf document, the shelf SEATED on both by mates — only the gauge post \
+                shelf document, the shelf SEATED on both by mates — only the root post \
                 carries an authored frame, the other two poses are solved. Beside it \
                 the same two part documents laid out for shipping: ONE post instance \
                 patterned TWICE plus the shelf, nothing touching, which is A5's \
