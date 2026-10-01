@@ -59,3 +59,7 @@ build error in each. Deciding every tag moved one answer:
 satisfies. Its policy was left as it stood; that it names a corner
 patch the tag says it cannot have is
 `dependent-normals-names-a-run-out-policy-the-tag-says-cannot-help`.
+A corner support whose outward normal did not resolve (a face or stored
+surface key that does not resolve) used to land on `DependentNormals`
+through a zero normal; it now refuses as `BodyNotIntact` at that face,
+so the tag is minted only by the independence decision.

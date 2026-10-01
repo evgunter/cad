@@ -242,11 +242,11 @@ pub enum BlendDecision {
     /// axis or ruling its arm is derived from. Passes only at zero.
     SupportCoaxiality,
     /// `tangent_second_order`: the must-carry rule's reading of a
-    /// contact edge the surgery is about to describe. Either definite
-    /// sign builds. Decided in `geom_brep` (`must_carry_over_edge`),
-    /// whose in-band verdict may instead carry a station's first-order
-    /// wedge reading (`dihedral_wedge`, `dihedral_arm`); the surgery
-    /// reports either as this decision.
+    /// contact edge the surgery is about to describe. Decided in
+    /// `geom_brep` (`must_carry_over_edge`), whose in-band verdict may
+    /// instead carry a station's first-order wedge reading
+    /// (`dihedral_wedge`, `dihedral_arm`) without saying which; the
+    /// surgery reports either as this decision.
     ContactSecondOrder,
     /// `fillet3_corner_independence`: a uniform trivalent corner's three
     /// support normals are independent.
@@ -340,8 +340,9 @@ impl BlendDecision {
     }
 
     /// The size a smaller tolerance could decide passing, and what the
-    /// decision passes on — `None` for a decision that passes only at
-    /// zero, whose refused margin is a miss and not a size (D4 ¶1 (i)).
+    /// decision passes on — `None` where no smaller tolerance is a true
+    /// offer: a decision that passes only at zero, whose refused margin
+    /// is a miss and not a size (D4 ¶1 (i)), and the must-carry relay.
     fn sized(self) -> Option<(&'static str, SizedPass)> {
         match self {
             Self::RadiusHeadroom | Self::SpineRegularity => {
@@ -349,10 +350,15 @@ impl BlendDecision {
             }
             Self::FaceClearance | Self::RingClearance => Some(("clearance", SizedPass::Positive)),
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
-            Self::ConvexitySign => Some(("wedge angle", SizedPass::NonZero)),
-            Self::ContactSecondOrder => Some(("separation", SizedPass::AnySign)),
+            Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
             Self::ChainG1 | Self::SupportCoaxiality | Self::CapTransverse => None,
+            // The second-order separation passes on any definite sign,
+            // but the relay's in-band verdict may be a station's
+            // first-order wedge, which a smaller tolerance decides
+            // transverse and refuses; with no way to tell the two
+            // apart, no tolerance is offered rather than a false one.
+            Self::ContactSecondOrder => None,
         }
     }
 
@@ -783,6 +789,12 @@ pub const FILLET3_RADIUS_RECOURSE: &str =
 /// `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`,
 /// `review_contact_edge_must_carry_r1_probes::r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door`.
 /// Ball language kept: only a fillet mints a tangential contact.
+///
+/// It is the whole ending, with no tolerance arm: the must-carry
+/// relay's in-band verdict does not say whether the second-order
+/// separation or a station's first-order wedge escalated, and a smaller
+/// tolerance decides the wedge transverse, which refuses
+/// (`BlendDecision::ContactSecondOrder`).
 pub const FILLET3_CONTACT_RECOURSE: &str = "change the radius: larger on a plane support or one curving away from the \
      band; smaller on one curving the band's way (past the margin's peak), or on a slim \
      corner arc, which builds conventionally; or blend a larger feature";

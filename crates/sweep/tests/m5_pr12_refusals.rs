@@ -466,7 +466,7 @@ fn trio_chain_g1() {
     let tiny = in_band();
     let escalated = chain_g1(x, Vec3::new(1.0, tiny, 0.0), 1.0, v, b).unwrap_err();
     assert_same_recourse(&definite, &escalated, "tangent-continuous chain");
-    // The collapsed-arm gate: an arm at zero is not a question.
+    // The arm gate: an angle at an arm decided zero is not a question.
     let collapsed = chain_g1(x, y, 0.0, v, b).unwrap_err();
     match &collapsed {
         BlendError::Escalated {
@@ -474,13 +474,13 @@ fn trio_chain_g1() {
             decision: BlendDecision::ChainArm,
             source,
         } => assert_eq!(source.predicate, Some("fillet3_chain_arm")),
-        other => panic!("a collapsed arm must escalate Invalid, got {other:?}"),
+        other => panic!("an arm decided zero must refuse as the arm gate, got {other:?}"),
     }
-    // `fillet3_chain_arm` never refuses definitely — it is the gate on
-    // the junction question, so it only ever escalates — and it
-    // carries the sentence its gated predicate's definite refusal
-    // carries: a caller whose junction arm collapsed and a caller
-    // whose junction kinked both need a chain the door can take.
+    // `fillet3_chain_arm` refuses through `Escalated` on every arm, the
+    // decided-zero one carrying the arm it read, and its lever is the
+    // one its gated predicate's definite refusal carries: a caller
+    // whose junction arm collapsed and a caller whose junction kinked
+    // both need a chain the door can take.
     assert_same_recourse(&definite, &collapsed, "tangent-continuous chain");
 }
 

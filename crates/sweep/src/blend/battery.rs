@@ -435,15 +435,16 @@ pub struct BatteryVerdict<T: Real> {
 }
 
 /// A junction arm `fillet3_chain_arm` decided non-positive: an angle at
-/// a collapsed arm is not a question, so it escalates as poison at
-/// `site` rather than classifying.
-fn collapsed_arm(site: BlendSite, band: Band) -> BlendError {
+/// so short an arm is not a question, so it refuses at `site` as that
+/// decision, carrying the arm it read — the band-decided sibling of an
+/// in-band arm, with the same ending (D4 ¶1 (iv)).
+fn short_arm<T: Bounds>(site: BlendSite, arm: T, band: Band) -> BlendError {
     let decision = BlendDecision::ChainArm;
     BlendError::Escalated {
         site,
         decision,
         source: Indeterminate {
-            margin: MarginDiag::INVALID,
+            margin: measured(arm),
             band,
             predicate: Some(decision.predicate()),
             terminal_sliver: false,
@@ -669,7 +670,7 @@ pub fn convexity_at<T: Decide + Bounds>(
     match classify(site, BlendDecision::ChainArm, Margin::of(arm), band)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            return Err(collapsed_arm(site, band));
+            return Err(short_arm(site, arm, band));
         }
     }
     let margin = Margin::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
@@ -726,7 +727,7 @@ pub fn chain_g1<T: Decide + Bounds>(
     match classify(site, BlendDecision::ChainArm, Margin::of(arm), band)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            return Err(collapsed_arm(site, band));
+            return Err(short_arm(site, arm, band));
         }
     }
     let sin_theta = tau_in.normalize().cross(tau_out.normalize()).norm();
@@ -1952,11 +1953,10 @@ fn corner_at<T: Decide + Bounds>(
         return corner_config(vertex, faces.len(), convex, normals, radius, band).map(|()| None);
     }
     for (i, f) in faces.iter().enumerate() {
-        // A support whose outward normal does not resolve leaves a
-        // ZERO normal, which drives the independence determinant to
-        // zero and lands on `DependentNormals` — a refusal, never a
-        // pass. Documented rather than silent (fix pass F6).
-        normals[i] = outward(body, *f, *p).unwrap_or(Vec3::new(T::zero(), T::zero(), T::zero()));
+        normals[i] = outward(body, *f, *p).ok_or(BlendError::BodyNotIntact {
+            at: EntityId::Face(*f),
+            detail: "a corner's support face or its stored surface, for its outward normal",
+        })?;
     }
     corner_config(vertex, valence, convex, normals, radius, band).map(|()| None)
 }

@@ -45,7 +45,10 @@ the conditional, valued tighten only on the band-decided arms.
   sized; the three that pass only at zero (`fillet3_chain_g1`,
   `fillet3_support_coaxiality`, `fillet3_cap_transverse`) end in the
   lever alone. `FILLET3_CONTACT_RECOURSE` no longer says "lower the
-  tolerance"; its band-decided arm offers the valued conditional.
+  tolerance", and offers no tolerance either: the must-carry relay
+  cannot say whether its in-band verdict is the second-order reading
+  or a wedge one, for which the offer would be false (ENCL's
+  `must-carry-in-band-verdict-does-not-say-which-decision-escalated`).
 - `ClassifiedMargin` stays a type: it carries the predicate's name and
   refusals on a positive sign (`ChainNotG1`), which `recourse::Refused`
   cannot. It reaches the table through `ClassifiedMargin::arm`.

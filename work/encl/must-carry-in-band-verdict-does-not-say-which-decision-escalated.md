@@ -21,14 +21,15 @@ sign (intrinsic or conventional description), while a wedge decided
 definitely transverse refutes the caller's smooth premise and refuses.
 
 `sweep::blend`'s surgery (`surgery.rs`, the `MustCarryVerdict::InBand`
-arm of the contact-edge description pass) now reports every in-band
-verdict as `BlendDecision::ContactSecondOrder`, whose ending offers
-"if this separation is intended, tighten the tolerance below m/K" —
-true of the second-order reading and false of a wedge one, where a
-smaller tolerance decides `Transverse`. The only way the blend could
-tell them apart is by matching `source.predicate`, which D4 ¶1 (i)
-rules out ("the decision is a closed type at its site ... never a
-lookup by predicate name").
+arm of the contact-edge description pass) reports every in-band
+verdict as `BlendDecision::ContactSecondOrder`. A tolerance offer — "if
+this separation is intended, tighten the tolerance below m/K" — is true
+of the second-order reading and false of a wedge one, where a smaller
+tolerance decides `Transverse` and the surgery refuses. Telling them
+apart would mean matching `source.predicate`, which D4 ¶1 (i) rules out
+("the decision is a closed type at its site ... never a lookup by
+predicate name"), so the blend offers no tolerance at all on this
+decision: the second-order reading is owed one and does not get it.
 
 Not reached by any fixture: the blend's contact edges are tangent by
 construction, so a wedge station reads Zero far inside the band.
@@ -37,4 +38,5 @@ construction, so a wedge station reads Zero far inside the band.
 
 Let the verdict say which question escalated — `InBand` carrying a
 closed station decision beside the `Indeterminate` (or two arms) — so a
-caller maps it to its own decision exhaustively.
+caller maps it to its own decision exhaustively; the blend then gives
+the second-order reading its `SizedPass::AnySign` ending back.

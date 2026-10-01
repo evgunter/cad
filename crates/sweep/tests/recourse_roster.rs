@@ -287,6 +287,131 @@ fn the_payloads_name_does_not_route_the_refusal() {
     }
 }
 
+/// Every in-band reading either lane reports, on both sides of zero,
+/// with whether it is negative.
+fn in_band_readings() -> Vec<(MarginDiag, bool)> {
+    let b = Band::linear(Tol::witness()).expect("the run's band forms");
+    let mid = (b.zero() + b.escalate()) / 2.0;
+    vec![
+        (MarginDiag::value(mid), false),
+        (MarginDiag::value(-mid), true),
+        (MarginDiag::enclosure(mid * 0.9, mid), false),
+        (MarginDiag::enclosure(-mid, -mid * 0.9), true),
+    ]
+}
+
+/// The decisions no smaller tolerance can truthfully be offered for:
+/// the three that pass only at zero (a refused margin is a miss, D4 ¶1
+/// (i)), and the must-carry relay, whose in-band verdict may be a
+/// first-order wedge reading that a smaller tolerance refuses.
+const NO_TOLERANCE: &[BlendDecision] = &[
+    BlendDecision::ChainG1,
+    BlendDecision::SupportCoaxiality,
+    BlendDecision::CapTransverse,
+    BlendDecision::ContactSecondOrder,
+];
+
+/// The decisions that pass on a negative sign as well as a positive one.
+const TWO_SIDED: &[BlendDecision] = &[BlendDecision::ConvexitySign];
+
+/// **No tolerance is offered where none decides the margin passing**,
+/// on any in-band reading — including the relay's wedge reading, which
+/// its payload names and its decision cannot see.
+#[test]
+fn a_decision_no_tolerance_decides_passing_is_offered_none() {
+    for decision in NO_TOLERANCE {
+        for (m, _) in in_band_readings() {
+            for name in [decision.predicate(), "dihedral_wedge"] {
+                let text = BlendError::Escalated {
+                    site: BlendSite::Chain,
+                    decision: *decision,
+                    source: Indeterminate {
+                        margin: m,
+                        ..escalation(Some(name))
+                    },
+                }
+                .to_string();
+                assert!(!text.contains("tighten"), "{decision:?} {m}: {text}");
+                assert!(text.contains(decision.lever()), "{decision:?} {m}: {text}");
+            }
+        }
+    }
+}
+
+/// **Each sized decision's pass set, read on both sides of zero**: an
+/// in-band reading is offered the tolerance exactly where the decision
+/// passes on that reading's sign, and never where it passes only at
+/// zero.
+#[test]
+fn an_in_band_reading_is_offered_the_tolerance_exactly_where_its_sign_passes() {
+    for decision in BlendDecision::ALL {
+        for (m, negative) in in_band_readings() {
+            let text = BlendError::Escalated {
+                site: BlendSite::Chain,
+                decision,
+                source: Indeterminate {
+                    margin: m,
+                    ..escalation(Some(decision.predicate()))
+                },
+            }
+            .to_string();
+            let want =
+                !NO_TOLERANCE.contains(&decision) && (!negative || TWO_SIDED.contains(&decision));
+            assert_eq!(
+                text.contains("tighten the tolerance below "),
+                want,
+                "{decision:?} {m}: {text}"
+            );
+        }
+    }
+}
+
+/// **`fillet3_chain_arm` tells one story on its band-decided arms**
+/// (D4 ¶1 (iv)): a junction arm decided zero ends as an in-band one
+/// does — the chain lever and the tolerance its own reading gives —
+/// and neither reads as an unreadable margin. The in-band ending is
+/// pinned whole.
+#[test]
+fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
+    use sweep::blend::battery::chain_g1;
+    let b = Band::linear(Tol::witness()).expect("the run's band forms");
+    let k = b.escalate() / b.zero();
+    let v = topo::VertexKey::default();
+    let (x, y) = (
+        geom_core::Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Vec3::new(0.0, 1.0, 0.0),
+    );
+    let mid = (b.zero() + b.escalate()) / 2.0;
+    let short = b.zero() / 2.0;
+    for (arm, what) in [(mid, "in band"), (short, "decided zero")] {
+        let err = chain_g1(x, y, arm, v, b).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                BlendError::Escalated {
+                    decision: BlendDecision::ChainArm,
+                    ..
+                }
+            ),
+            "{what}: {err:?}"
+        );
+        let text = err.to_string();
+        assert!(
+            text.ends_with(&format!(
+                "Recourse: {}, or, if this link length is intended, tighten the tolerance \
+                 below {:e} m",
+                sweep::blend::FILLET3_CHAIN_RECOURSE,
+                arm / k
+            )),
+            "{what}: {text}"
+        );
+        assert!(
+            !text.contains(geom_core::UNREADABLE_MARGIN_NOTE),
+            "{what}: a short link is the caller's geometry: {text}"
+        );
+    }
+}
+
 /// **Nothing in the crate's `src` is invisible to the reader.**
 ///
 /// A name built somewhere other than the call — a const, a struct
