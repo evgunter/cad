@@ -96,13 +96,14 @@ split.
 ## Closed
 
 Option (a), with (b)'s guard as well. `rim_phase_annulus` splits every
-seam through `surgery::split_fragment`; the lookup it reads is hoisted
-into `surgery::fragment_source`, and the annulus checks that it
-returns the PLAN's seam key BEFORE each split, refusing with the
-sequential recourse where it does not (NOT KNOWN REACHABLE, the
-refresh's own convention). The rows keep naming the plan's key, so no
-name moves. `blend_surgery`'s debug postcondition now holds every birth
-row's SOURCE half to a key the source body carries, on every carve.
+seam through `surgery::split_fragment`, passing the PLAN's seam key as
+the source it expects; `split_fragment` refuses BEFORE the split, with
+the sequential recourse, where its lookup disagrees (NOT KNOWN
+REACHABLE, the refresh's own convention), and the annulus names its
+rows from the source the split returns — as the ladder does. No name
+moves. `blend_surgery`'s debug postcondition now holds every birth
+row's SOURCE half (an exhaustive destructure of `BlendNaming`) to a key
+the source body carries, on every carve.
 
 Re-measured over the `sweep` suite (1789 rows) with a probe at the
 check: 757 annulus seam splits, 38 with the live key moved off the
@@ -120,3 +121,8 @@ Pinned by `blend_tworims::a_seam_two_bands_split_is_named_after_its_source_by_ev
 (zone pair and lantern triple, both of which take the moved arm): red
 under a `split_fragment` that forgets the lookup (and the postcondition
 fires first) and red under one that forgets the stale-row retain.
+
+`blend_tworims::every_band_crossing_names_the_seam_its_foot_split`
+pins the RIGHT source, not just a source: each split row's foot touches
+a remnant of the seam the row names (red under a row naming another
+crossing's seam, which every other row passes).
