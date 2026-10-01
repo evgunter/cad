@@ -1344,3 +1344,34 @@ Implements the ruling on PR 3565:
   - "label" has other meanings.
 
 Next: PR 2 (dispatched).
+
+## 2026-10-01 — edit refusals speak the node (PR 3728, labels PR 2)
+
+Every `EditError` node field is a `SpokenNode`, built at the edit door:
+- a held node is spoken from the pre-edit document;
+- a minting node by kind alone (`entering`);
+- a gauge from after the edit, falling back to before;
+- an absent id by tag (`absent`).
+
+The rule is stated on `edit::written`.
+
+**Memoized `NodeError`.** It keeps a bare id and is spoken by the frame that hands it out (`NodeError::spoken`, `CarriedLevel::line_in`). A level inside a part stays a tag.
+
+**Python.** Payloads keep the full id. Exception text is spoken from the evaluated document.
+
+**`PathOffTree` and `LabelUnchanged`.** Each now holds its fact once.
+
+**Review.** Nothing blocking. Folded:
+- three doubled nouns, now held by a display-contract test;
+- the size comment, now a 64-bit const assert;
+- the concision fixture, which now speaks each node by its real kind;
+- tests for the dropped-gauge arm, a labelled `SetMembers` input, and a frame's `Evaluation` drawn across a rename.
+
+**A test assertion that would have been false.** The asked-for "recomputed == 0" does not hold: the memo reuses only `Ok` values, so a failed node recomputes every run. The test pins the frame-held evaluation instead.
+
+**Closed** chrome's `kernel-refusals-say-node-where-the-tree-says-feature`. Ev ruled kind + label/tag everywhere. The inner `node <tag>` is a leftover on the memoized row.
+
+**Filed** (parent: the labels unit):
+- `kernel-door-refusals-beyond-edit-speak-the-node`, which includes `StableName`'s minting node inside about 14 `EditError` sentences;
+- `viewer-refusals-speak-the-node`, which notes that a kept `Refusal::Edit` freezes its label;
+- `memoized-refusals-speak-inner-nodes-through-the-frame`.
