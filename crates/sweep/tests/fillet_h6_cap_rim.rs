@@ -470,9 +470,10 @@ fn print_the_arm_at_a_small_k() {
             println!("KPROBE non_intersection_rims={conventional}");
             println!("KPROBE wall_chart_rims={wall_chart}");
             println!("KPROBE cap_chart_rims={cap_chart}");
-            // The rule the smooth arm stores by, re-read on each rim
-            // that kept the conventional description: the arm stored
-            // what the rule decided, not what an argument predicted.
+            // The rule re-read on each rim that kept the conventional
+            // description: it reads these plane pairs under-determined,
+            // the premise the smooth arm's comment states. This pins
+            // the rule's answer on them, not that the arm asks it.
             let mut under_determined = 0usize;
             for cap in [built.bottom, built.top] {
                 for edge in face_edges(&built.body, cap) {
@@ -597,8 +598,7 @@ fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_is_reached_below_it() 
     );
     assert!(
         below.contains("KPROBE rule_under_determined_rims=4"),
-        "each smooth rim's description is the must-carry rule's under-determined \
-         verdict:\n{below}",
+        "the must-carry rule must read each smooth rim under-determined:\n{below}",
     );
     assert!(
         below.contains("KPROBE tier3=Err n=4"),
