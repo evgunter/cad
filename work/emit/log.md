@@ -1375,3 +1375,28 @@ The rule is stated on `edit::written`.
 - `kernel-door-refusals-beyond-edit-speak-the-node`, which includes `StableName`'s minting node inside about 14 `EditError` sentences;
 - `viewer-refusals-speak-the-node`, which notes that a kept `Refusal::Edit` freezes its label;
 - `memoized-refusals-speak-inner-nodes-through-the-frame`.
+
+## 2026-10-01 — kernel refusals at every door speak the node (PR 3735)
+
+**`RootFault`.** It speaks at all three doors. The edit door uses `spoken_before_else_after`. The load and save doors speak from the document they validate.
+
+**Names.** A forwarded name speaks its minting node through `SpokenName` in the 15 `EditError` name arms.
+
+**Maintenance rows.** The strand and orphan rows speak from the document as it stood before the edit, so a strand says the label of the node it lost.
+
+**Articles.** A first-letter `sentence::article` fixes "a edge", "a arc", "a empty" and similar across editor-core.
+
+**Load-door ruling, mine, on review.** The lane first kept the bare tag at the load door, but both of its premises were false:
+- the validator judges a parsed `Doc`;
+- labels pass `Label::new` at the parse, and `LabelOnMissingNode` runs first.
+
+Also, save runs the same validator, and `EditReplay` already spoke labels at load. DESIGN.md Band 1 makes no exception for load or save. The `spoken.rs` sentence the lane cited was an agent's own wording, never ratified, and is now corrected.
+
+**Filed**, each with parent the labels unit:
+- `split-and-inline-refusals-speak-the-node` (also records `SplitError` printing decimal `u64`s);
+- `analysis-door-refusals-speak-the-node`;
+- `selection-door-refusals-speak-the-node`;
+- `persist-door-refusals-speak-the-node`;
+- the issue `a-cluster-act-speaks-its-gauges-by-tag`.
+
+**Also today:** `[ev]` PR 3734 is open. It asks how a union decides which member faces a merged face cites. The designers converged on linking in member space; fork-log row 37.
