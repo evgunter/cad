@@ -693,7 +693,7 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
 }
 
 fn f64_bits(d: &mut Digest, p: &geom_core::Point3<f64>) {
-    for c in [p.x, p.y, p.z] {
+    for c in p.to_array() {
         d.u64(c.to_bits());
     }
 }
@@ -719,7 +719,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
     let got = corpus_digest::<Interval, _, _>(
         |d, p| {
-            for c in [p.x, p.y, p.z] {
+            for c in p.to_array() {
                 d.u64(c.lo().to_bits());
                 d.u64(c.hi().to_bits());
             }
@@ -744,7 +744,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     use geom_core::Probe;
     let got = corpus_digest::<Probe, _, _>(
         |d, p| {
-            for c in [p.x, p.y, p.z] {
+            for c in p.to_array() {
                 d.u64(c.0.to_bits());
             }
         },

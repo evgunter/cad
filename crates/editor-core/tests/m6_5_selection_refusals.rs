@@ -192,7 +192,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.node, RecipeNodeId(99));
+            assert_eq!(name.name().node, RecipeNodeId(99));
         }
         other => panic!("a typo id must refuse at the edit door, got {other:?}"),
     }

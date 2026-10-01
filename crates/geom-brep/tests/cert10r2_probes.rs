@@ -57,11 +57,11 @@ fn assert_cells_enclose(name: &str, s: &NurbsSurface<f64>, cells: &[PatchCell], 
                 let v = c.v.0 + (c.v.1 - c.v.0) * fv;
                 let jet = s.ders(u, v);
                 let per: [(&str, [f64; 3], [Interval; 3]); 5] = [
-                    ("s_u", [jet.du.x, jet.du.y, jet.du.z], c.s_u),
-                    ("s_v", [jet.dv.x, jet.dv.y, jet.dv.z], c.s_v),
-                    ("s_uu", [jet.duu.x, jet.duu.y, jet.duu.z], c.s_uu),
-                    ("s_uv", [jet.duv.x, jet.duv.y, jet.duv.z], c.s_uv),
-                    ("s_vv", [jet.dvv.x, jet.dvv.y, jet.dvv.z], c.s_vv),
+                    ("s_u", jet.du.to_array(), c.s_u),
+                    ("s_v", jet.dv.to_array(), c.s_v),
+                    ("s_uu", jet.duu.to_array(), c.s_uu),
+                    ("s_uv", jet.duv.to_array(), c.s_uv),
+                    ("s_vv", jet.dvv.to_array(), c.s_vv),
                 ];
                 for (what, truth, enc) in per {
                     for k in 0..3 {

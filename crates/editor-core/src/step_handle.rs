@@ -364,11 +364,15 @@ impl core::fmt::Display for StepHandleRefusal {
                  bind the handle against the profile the document holds",
             ),
             Self::StepIds(fault) => write!(f, "this program's step ids are malformed: {fault}"),
-            Self::RoleNotDrawn { verb, role } => write!(
-                f,
-                "a `{verb}` step never draws a {role}; its roles are {}",
-                RoleWords(RoleList::of(*verb))
-            ),
+            Self::RoleNotDrawn { verb, role } => {
+                let role = role.to_string();
+                write!(
+                    f,
+                    "a `{verb}` step never draws {} {role}; its roles are {}",
+                    crate::sentence::article(&role),
+                    RoleWords(RoleList::of(*verb))
+                )
+            }
         }
     }
 }

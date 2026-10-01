@@ -666,7 +666,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
             assert_eq!(at, editor_core::FrameSite::Listed { index: 1 });
             let text = error.to_string();
             assert!(
-                text.contains("placement 1 of node") && text.contains("Recourse:"),
+                text.contains("placement 1 of PlacedUnion ") && text.contains("Recourse:"),
                 "names the listed placement and its recourse: {text}"
             );
         }

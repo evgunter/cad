@@ -1345,10 +1345,7 @@ mod tests {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
                 Some(Surface::Plane { origin, normal, .. }) => {
-                    let (o, n) = (
-                        [origin.x, origin.y, origin.z],
-                        [normal.x, normal.y, normal.z],
-                    );
+                    let (o, n) = (origin.to_array(), normal.to_array());
                     n[axis].abs() > 0.5 && o[axis] == value
                 }
                 _ => false,

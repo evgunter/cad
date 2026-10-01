@@ -475,16 +475,16 @@ mod tests {
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::new(o[0], o[1], o[2]),
-            normal: Vec3::new(n[0], n[1], n[2]),
+            origin: Point3::from_array(o),
+            normal: Vec3::from_array(n),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
         geom::Curve3::Line {
-            origin: Point3::new(o[0], o[1], o[2]),
-            dir: Vec3::new(d[0], d[1], d[2]),
+            origin: Point3::from_array(o),
+            dir: Vec3::from_array(d),
         }
     }
 

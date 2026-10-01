@@ -234,19 +234,19 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
     );
 }
 
-/// **Role resolution's chord-midpoint probe is unsound on a curved
-/// edge.** The cutter is the half-space `y ≥ 0` over the rod's whole
-/// length, with a thin half-rod (`r = 0.1`) on the axis, bulging either
-/// way. Every rod vertex sits on the cutter's boundary, so role
-/// resolution falls to its `Anchor::ChordMidpoint` chord midpoints, and
-/// a rim semicircle's is the circle's centre — a point on neither
-/// flanking region, whose one verdict both loops then take. The join
-/// refuses `SectionLoopMixed` rather than resolving. Pinned at that
-/// outcome; the fix is
-/// `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`.
+/// **Role resolution reads a curved edge at a point ON it.** The cutter
+/// is the half-space `y ≥ 0` over the rod's whole length, with a thin
+/// half-rod (`r = 0.1`) on the axis, bulging either way. Every rod
+/// vertex sits on the cutter's boundary, so each loop's regions decide
+/// at an edge: a rim semicircle's midpoint along its carrier, never its
+/// chord midpoint (the circle's centre, on neither flanking region,
+/// which once read both loops alike). The half rod remains, less the
+/// bump where it bulges into it and plus the bump where it bulges away.
 #[test]
-fn a_chord_midpoint_probe_reads_both_loops_alike() {
-    for bulge in [1.0, -1.0] {
+fn a_rim_semicircle_decides_role_resolution_at_its_own_midpoint() {
+    let half = PI * R * R / 2.0;
+    let bump = PI * 0.1 * 0.1 / 2.0;
+    for (bulge, area) in [(1.0, half - bump), (-1.0, half + bump)] {
         let cutter = extruded(
             SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -1.0))),
             bulge_loop(vec![
@@ -259,15 +259,10 @@ fn a_chord_midpoint_probe_reads_both_loops_alike() {
             ]),
             6.0,
         );
-        let r = topo::subtract(&rod(), &cutter, tol());
-        assert!(
-            matches!(
-                r,
-                Err(BooleanError::Join(SplitJoinError::SectionLoopMixed { .. }))
-            ),
-            "bulge {bulge}: {:?}",
-            r.err()
-        );
+        let r = topo::subtract(&rod(), &cutter, tol())
+            .unwrap_or_else(|e| panic!("bulge {bulge}: {e:?}"));
+        let body = &r.body().expect("a half rod remains").body;
+        assert_sound(body, area * LEN, &format!("bulge {bulge}"));
     }
 }
 
