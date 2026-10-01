@@ -22,8 +22,8 @@
 //! driver's own K population, whose subdivision refines margins toward
 //! zero by construction and therefore crowds the escalation band in
 //! bulk without anything being wrong; `docs/K-REPORT.md`'s recourse 2
-//! is the demotion this implements, and ci.yml's step carries the
-//! recorded justification.
+//! is the demotion this implements, and nightly.yml's step carries
+//! the recorded justification.
 //!
 //! It is deliberately NOT `--advisory`: rule 1 is the trigger E6 names
 //! for re-opening the K question, so a flag the caller cannot demote
@@ -99,7 +99,7 @@ fn discipline(total_flags: usize, unruled: &[(&'static str, usize)]) -> String {
         ));
     }
     out.push_str(
-        "\n         If the flagged margins are REAL, INTENDED geometry, do NOT change the geometry\n         to silence this lint. A fired lint is evidence ABOUT THE MARGIN DISTRIBUTION\n         — possibly that the threshold or the baseline is stale — not a geometry defect.\n         \n         Recourse, in order:\n         \x20 1. Re-derive the baseline and the thresholds per the snapshot-contract\n         \x20    runbook: docs/K-REPORT.md, \"M7 addendum (2026-08-07): the large-K\n         \x20    lint's floor refresh\", which re-derives BASELINE_FLOOR_MARGIN, the\n         \x20    percentile choice and the eps-coupled ratio against a fresh sweep.\n         \x20 2. If re-derivation is not warranted, demote this row to advisory with a\n         \x20    recorded justification (ci.yml + local-scripts/ci-local.sh together — the\n         \x20    hosted and local rows must not drift).\n         \n         Changing geometry to get under a lint threshold is the one forbidden move.\n",
+        "\n         If the flagged margins are REAL, INTENDED geometry, do NOT change the geometry\n         to silence this lint. A fired lint is evidence ABOUT THE MARGIN DISTRIBUTION\n         — possibly that the threshold or the baseline is stale — not a geometry defect.\n         \n         Recourse, in order:\n         \x20 1. Re-derive the baseline and the thresholds per the snapshot-contract\n         \x20    runbook: docs/K-REPORT.md, \"M7 addendum (2026-08-07): the large-K\n         \x20    lint's floor refresh\", which re-derives BASELINE_FLOOR_MARGIN, the\n         \x20    percentile choice and the eps-coupled ratio against a fresh sweep.\n         \x20 2. If re-derivation is not warranted, demote this row to advisory with a\n         \x20    recorded justification (nightly.yml's `k-lint` job).\n         \n         Changing geometry to get under a lint threshold is the one forbidden move.\n",
     );
     out
 }

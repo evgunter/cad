@@ -12,8 +12,22 @@
 //! The oracle is [`interval_transcendentals::DInterval`] — the rigorous
 //! unit (issue #115) the scalar is a newtype over, a normal dependency
 //! of `geom-core` and read here as a dev oracle. It carries decorations
-//! and exactness witnesses, and the certification surface (`sqr`,
+//! and exactness witnesses, and the surface this lane compares (`sqr`,
 //! `powi`, the operators) is a re-spelling of them.
+//!
+//! # What it can and cannot see
+//!
+//! Its agreements hold BY CONSTRUCTION: every operator it compares is
+//! `Self(self.0 op rhs.0)`, and the two certification doors it reaches —
+//! `Certification::sqr` and `Certification::powi` — are delegates of
+//! `Real::powi`, which forwards to the same backend call. So it is a
+//! forwarding regression guard: a pad, an algebraic rule or an
+//! association introduced on top of the backend reds here. It is not
+//! evidence about the certification doors that are more than a
+//! delegate — `hull`, `clamped_to`, `contains`, `width` and `mag` each
+//! add a refusal or a reading of their own, and
+//! `certification_door_differential.rs` compares them, each against a
+//! reference spelled from its contract.
 //!
 //! # What is asserted
 //!
@@ -61,6 +75,7 @@ test_utils::gated_to![
 
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use interval_transcendentals::{DInterval, Decoration};
 use test_utils::fuzz;
 
@@ -96,8 +111,9 @@ fn moderate(rng: &mut fuzz::Rng) -> f64 {
 /// `EDGE_MAGNITUDES` (which adds the 2Prod witness floor, and sits in
 /// another workspace). Each is chosen for the property its lane
 /// asserts; adding a value here is a reason to read the other two, not
-/// a reason to assume they follow.
-const CORNERS: [f64; 16] = [
+/// a reason to assume they follow. `certification_door_differential.rs`
+/// reads this list itself, beside its own `EXTRAS`.
+pub(crate) const CORNERS: [f64; 16] = [
     f64::NEG_INFINITY,
     -f64::MAX,
     -1e300,

@@ -127,6 +127,8 @@ mod msolve5_read_below_a_root;
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
+#[path = "part_root_carried.rs"]
+mod part_root_carried;
 #[path = "path_authoring.rs"]
 mod path_authoring;
 #[path = "pick3_acceptance.rs"]
@@ -139,8 +141,6 @@ mod prefs;
 mod profile_draw;
 #[path = "profile_edit.rs"]
 mod profile_edit;
-#[path = "profile_edit_order.rs"]
-mod profile_edit_order;
 #[path = "refusal_concision_edits.rs"]
 mod refusal_concision_edits;
 #[path = "review_gui0_r1.rs"]
@@ -166,8 +166,6 @@ mod review_pick_r2;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
-#[path = "review_pick2_r1.rs"]
-mod review_pick2_r1;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "select_pick.rs"]

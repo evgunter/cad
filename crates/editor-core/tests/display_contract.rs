@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ParamNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ClusterMaintenance, ContactClass, DeclareError,
@@ -22,8 +23,9 @@ use editor_core::{
     MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
     PersistError, PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef,
     ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
+    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
 };
+use editor_core::{Mispaired, NameLookupError, NodeStanding};
 use geom_core::BandError;
 
 /// The gate's refusal over ONE of this document's own mates: the arm
@@ -165,11 +167,12 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
             NodePickError::NoSuchBody { node, body: 2 },
             vec!["node 4", "index 2"],
         ),
-        // The wrapped standing/kernel refusals are forwarded in their
-        // own doors' words, not paraphrased — prefix included.
+        // The standing speaks under this door's prefix; the wrapped
+        // kernel refusals are forwarded in their own doors' words, not
+        // paraphrased — prefix included.
         (
-            NodePickError::Standing(HitTestError::NodeFailed { node }),
-            vec!["hit test:", "node 4", "failed"],
+            NodePickError::Standing(NodeStanding::Failed { node }),
+            vec!["pick:", "node 4", "failed"],
         ),
         (
             NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance {
@@ -190,34 +193,157 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
 }
 
 test_utils::f6_variants! {
-    /// `ResolveIndeterminate`'s census — see [`NODE_PICK_ERROR`].
-    const RESOLVE_INDETERMINATE: ResolveIndeterminate =
-        [TargetFailed, TargetPoisoned, TargetNotEvaluated];
+    /// `NameLookupError`'s census — see [`NODE_PICK_ERROR`].
+    const NAME_LOOKUP_ERROR: NameLookupError = [EvaluationOfAnotherDocument, Standing];
+}
+
+/// The name doors' refusal of the whole call names the lookup, and
+/// then the pairing or the standing — never a hit test, which these
+/// doors do not run.
+#[test]
+fn name_lookup_error_display_names_its_content_not_its_struct() {
+    let expected = DocumentId::derive("name-lookup-expected");
+    let found = DocumentId::derive("name-lookup-found");
+    let cases = [
+        (
+            NameLookupError::EvaluationOfAnotherDocument(Mispaired { expected, found }),
+            vec![
+                "name lookup:".to_owned(),
+                format!("of document {found}, not of document {expected}"),
+                "two documents".to_owned(),
+            ],
+        ),
+        (
+            NameLookupError::Standing(NodeStanding::Poisoned {
+                node: RecipeNodeId(6),
+                through: RecipeNodeId(2),
+            }),
+            vec![
+                "name lookup:".to_owned(),
+                "node 6".to_owned(),
+                "poisoned".to_owned(),
+                "node 2".to_owned(),
+            ],
+        ),
+    ];
+    let cases: Vec<(NameLookupError, Vec<&str>)> = cases
+        .iter()
+        .map(|(e, want)| (*e, want.iter().map(String::as_str).collect()))
+        .collect();
+    assert_f6_every_variant(&cases, &NAME_LOOKUP_ERROR, &["Mispaired"]);
+    for (refusal, _) in &cases {
+        assert!(
+            !refusal.to_string().contains("hit test"),
+            "no hit test ran: {refusal}"
+        );
+    }
+}
+
+/// The name doors' per-entity refusal is a LOOKUP's, and its sentence
+/// says so: it names the lookup, the entity by kind and body, and the
+/// bug it is — and it names no hit test, because none ran.
+/// `NodePick::patch_names` and `boundary_names` build their index by
+/// a table read, and the viewer forwards this sentence whole into a
+/// status line about a drawn patch or edge, so a "hit test:" here
+/// would be a claim about an event that did not happen. The hit-test
+/// door's own arm forwards this sentence under its own prefix
+/// (`m4_pr4_hit`'s row), which is the one place that prefix is true.
+#[test]
+fn an_unnamed_entity_names_the_lookup_and_no_hit_test() {
+    let unnamed = UnnamedEntity {
+        node: RecipeNodeId(2),
+        entity: editor_core::EntityRef {
+            body: 0,
+            key: editor_core::EntityKey::Edge(topo::EdgeKey::default()),
+        },
+    };
+    assert_f6(
+        &unnamed,
+        &["name lookup:", "node 2", "edge", "body 0", "kernel bug"],
+        &["UnnamedEntity", "Unnamed"],
+    );
+    let text = unnamed.to_string();
+    assert!(
+        !text.contains("hit test"),
+        "the lookup's sentence claims no hit test: {text}"
+    );
+    assert_eq!(
+        HitTestError::from(unnamed).to_string(),
+        format!("hit test: {text}"),
+        "the hit-test door forwards the lookup's sentence whole, under its own prefix"
+    );
+}
+
+test_utils::f6_variants! {
+    /// `NodeStanding`'s census — see [`NODE_PICK_ERROR`].
+    const NODE_STANDING: NodeStanding = [NotEvaluated, NotInDocument, Failed, Poisoned];
+}
+
+/// The standing names itself — the node, its state, where the repair
+/// is — and no door: every door that carries it puts its own subject
+/// in front (`node_standing`'s rows hold that half).
+#[test]
+fn node_standing_display_names_its_content_and_no_door() {
+    let node = RecipeNodeId(6);
+    let cases = [
+        (
+            NodeStanding::NotEvaluated { node },
+            vec!["node 6", "no result", "canceled", "re-evaluate"],
+        ),
+        (
+            NodeStanding::NotInDocument { node },
+            vec!["node 6", "not a node of the document"],
+        ),
+        (
+            NodeStanding::Failed { node },
+            vec!["node 6", "failed", "own failure"],
+        ),
+        (
+            NodeStanding::Poisoned {
+                node,
+                through: RecipeNodeId(2),
+            },
+            vec!["node 6", "poisoned", "node 2", "upstream"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &NODE_STANDING, &[]);
+    for (standing, _) in &cases {
+        let text = standing.to_string();
+        for door in [
+            "hit test",
+            "pick",
+            "lookup",
+            "export",
+            "select",
+            "reference",
+        ] {
+            assert!(
+                !text.contains(door),
+                "the standing names no door ({door}): {text}"
+            );
+        }
+    }
 }
 
 #[test]
 fn resolve_indeterminate_display_names_its_content_not_its_struct() {
-    let cases = [
-        (
-            ResolveIndeterminate::TargetFailed {
+    assert_f6(
+        &ResolveIndeterminate {
+            standing: NodeStanding::Poisoned {
                 node: RecipeNodeId(6),
-            },
-            vec!["minting node 6", "failed"],
-        ),
-        (
-            ResolveIndeterminate::TargetPoisoned {
                 through: RecipeNodeId(2),
             },
-            vec!["poisoned", "node 2", "upstream"],
-        ),
-        (
-            ResolveIndeterminate::TargetNotEvaluated {
-                node: RecipeNodeId(6),
-            },
-            vec!["minting node 6", "no result"],
-        ),
-    ];
-    assert_f6_every_variant(&cases, &RESOLVE_INDETERMINATE, &[]);
+        },
+        &[
+            "indeterminate",
+            "minting node",
+            "node 6",
+            "poisoned",
+            "node 2",
+            "upstream",
+        ],
+        &["ResolveIndeterminate", "Poisoned", "standing:"],
+    );
 }
 
 test_utils::f6_variants! {
@@ -232,23 +358,20 @@ fn declare_error_display_names_its_content_not_its_struct() {
             DeclareError::NoFindings,
             vec!["no findings", "records no intent"],
         ),
-        // The wrapping arm forwards the document edit's own refusal,
-        // which already carries its slot and its recourse.
+        // The wrapping arm forwards the document edit's problem and
+        // states its own recourse: the caller passed findings, and the
+        // edit door's "name an entity" is about a node nobody wrote.
         (
-            DeclareError::Edit(EditError::SlotDimensionMismatch {
-                slot: SlotId::Radius,
-                expected: Dimension::Length,
-                found: Dimension::Angle,
-            }),
+            DeclareError::Edit(EditError::DeclareNamesMissingNode { name: face_name() }),
             vec![
                 "the document edit refused",
-                "needs a length expression",
-                "got an angle",
+                "refers to a node that is not live",
+                "Recourse: declare findings inspected from this document as it now stands",
             ],
         ),
         (
             DeclareError::NoMintedId,
-            vec!["minted no node id", "kernel bug"],
+            vec!["minted no node id", geom_core::KERNEL_DEFECT_ENDING],
         ),
     ];
     assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
@@ -263,9 +386,7 @@ test_utils::f6_variants! {
     /// keeps both in step, so they could not drift, but the enum has
     /// one roster in this binary and this is it.
     pub(crate) const INTERROGATE_ERROR: InterrogateError = [
-        NodeNotEvaluated,
-        NodeFailed,
-        NodePoisoned,
+        Standing,
         NoSuchName,
         Ambiguous,
         WrongKind,
@@ -282,15 +403,7 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
     let through = RecipeNodeId(3);
     let cases = [
         (
-            InterrogateError::NodeNotEvaluated { node },
-            vec!["node 7", "no result"],
-        ),
-        (
-            InterrogateError::NodeFailed { node },
-            vec!["node 7", "failed"],
-        ),
-        (
-            InterrogateError::NodePoisoned { node, through },
+            InterrogateError::Standing(NodeStanding::Poisoned { node, through }),
             vec!["node 7", "node 3", "poisoned"],
         ),
         (InterrogateError::NoSuchName, vec!["stale", "another node"]),
@@ -337,16 +450,20 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
 /// six ordinary enums. Only ADDITION is unchecked, and the wildcard
 /// below does not repair it: reaching the panic needs a case that
 /// constructs the new variant, which is the vacuity this file exists to
-/// close. The real home is a unit test beside the enum, inside the
-/// crate where the attribute does not apply
-/// (`work/wire/select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`);
-/// the other six are not weakened to match this one.
+/// close. The census beside the enum, inside the crate where the
+/// attribute does not apply (`crates/editor-core/src/names/geompred.rs`,
+/// `mod census`), holds the enum's VARIANT SET; nothing ties this
+/// file's hand-written roster below, or its rendering cases, to that
+/// census, so a variant added there still reaches this file only by
+/// hand. The other six are not weakened to match this one.
 fn select_refusal_is_exhaustive(e: &SelectRefusal) {
     match e {
         SelectRefusal::InBand { .. }
         | SelectRefusal::TiedDisagrees { .. }
         | SelectRefusal::Unreadable { .. }
         | SelectRefusal::NotADatum { .. }
+        | SelectRefusal::DatumHasNoValue(_)
+        | SelectRefusal::NodeHasNoValue(_)
         | SelectRefusal::NotALength { .. }
         | SelectRefusal::PairInBand { .. }
         | SelectRefusal::BadValue(_)
@@ -371,6 +488,8 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
             "TiedDisagrees",
             "Unreadable",
             "NotADatum",
+            "DatumHasNoValue",
+            "NodeHasNoValue",
             "NotALength",
             "PairInBand",
             "BadValue",
@@ -382,9 +501,10 @@ const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
 /// refusal carries out of the funnel.
 fn in_band(predicate: &'static str) -> geom_core::Indeterminate {
     geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::Value(3e-11),
+        margin: geom_core::MarginDiag::value(3e-11),
         band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
         predicate: Some(predicate),
+        terminal_sliver: false,
     }
 }
 
@@ -431,6 +551,19 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 found: "a body",
             },
             vec!["node 9", "a body", "evaluated datum"],
+        ),
+        (
+            SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
+                node: RecipeNodeId(9),
+                through: RecipeNodeId(4),
+            }),
+            vec!["distance query's datum", "node 9", "poisoned", "node 4"],
+        ),
+        (
+            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
+                node: RecipeNodeId(9),
+            }),
+            vec!["flush query's node", "node 9", "failed"],
         ),
         (
             SelectRefusal::NotALength {
@@ -609,6 +742,58 @@ fn parse_error_display_names_its_content_not_its_struct() {
     assert_f6_every_variant(&cases, &PARSE_ERROR, &[]);
 }
 
+test_utils::f6_variants! {
+    /// `ParamNameReason`'s census — see [`NODE_PICK_ERROR`]. The
+    /// lexer's finding inside `ParamNameFault`, which is what
+    /// `ParamName::new` refuses with.
+    const PARAM_NAME_REASON: ParamNameReason = [
+        Blank,
+        OutsideAlphabet,
+        NotAnIdentifier,
+        NotOneToken,
+        Padded,
+    ];
+}
+
+#[test]
+fn param_name_reason_display_names_its_content_not_its_struct() {
+    let cases = [
+        (ParamNameReason::Blank, vec!["blank", "one identifier"]),
+        (
+            ParamNameReason::OutsideAlphabet { pos: 5, ch: '#' },
+            vec!["byte 5", "'#'", "outside the expression alphabet"],
+        ),
+        (
+            ParamNameReason::NotAnIdentifier {
+                pos: 0,
+                found: "1".to_string(),
+            },
+            vec!["byte 0", "\"1\"", "not an identifier"],
+        ),
+        (
+            ParamNameReason::NotOneToken {
+                pos: 1,
+                found: "+".to_string(),
+            },
+            vec!["byte 1", "\"+\"", "after the identifier"],
+        ),
+        (ParamNameReason::Padded, vec!["padded", "whitespace"]),
+    ];
+    assert_f6_every_variant(&cases, &PARAM_NAME_REASON, &[]);
+    // The wrapper frames the reason after the quoted text, and quotes
+    // for the parse door's reason: these are bytes an author typed.
+    let shown = editor_core::ParamNameFault {
+        offered: " width ".to_string(),
+        reason: ParamNameReason::Padded,
+    }
+    .to_string();
+    assert_f6(
+        &shown,
+        &["parameter name \" width \" is padded"],
+        &["Padded"],
+    );
+}
+
 /// Every rendering of a [`Dimension`] a user can reach, in one place.
 ///
 /// A dimension is a quantity KIND — what a value measures — not an
@@ -621,7 +806,7 @@ fn parse_error_display_names_its_content_not_its_struct() {
 /// almost right.
 #[test]
 fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
-    let name = ParamName("width".to_string());
+    let name = ParamName::from_static("width");
     let dump_words = dimension_dump_words();
     let dumps = as_strs(&dump_words);
 
@@ -826,6 +1011,7 @@ test_utils::f6_variants! {
         PlacementSite,
         PlacementNonFinite,
         PlacementImproper,
+        PlacementNonRigid,
         PlacementNotGauge,
         MateAlignment,
         PlacementRule,
@@ -835,7 +1021,8 @@ test_utils::f6_variants! {
         AssertionBound,
         MetadataUnversioned,
         StepIds,
-        NameStepBeyondCounter,
+        MintLogOrder,
+        NameStepNotMinted,
     ];
 }
 
@@ -935,7 +1122,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotUnknownDocParam {
                 node,
                 slot: SlotId::Radius,
-                name: ParamName::new("fillet"),
+                name: ParamName::from_static("fillet"),
             },
             vec!["slot radius", "fillet", "does not declare"],
         ),
@@ -943,7 +1130,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotDocParamDimension {
                 node,
                 slot: SlotId::Distance,
-                name: ParamName::new("depth"),
+                name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -952,14 +1139,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::PayloadUnknownDocParam {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::from_static("depth"),
             },
             vec!["node 5", "payload expression", "depth", "does not declare"],
         ),
         (
             SnapshotError::PayloadDocParamDimension {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -991,15 +1178,31 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["keyed by node 5", "does not instantiate a part"],
         ),
         (
-            SnapshotError::PlacementNonFinite { node },
-            vec!["placement frame on node 5", "non-finite coordinate"],
+            SnapshotError::PlacementNonFinite {
+                node,
+                at: editor_core::FrameSite::Registry,
+            },
+            vec!["placement frame for node 5", "non-finite coordinate"],
         ),
         (
             SnapshotError::PlacementImproper {
                 node,
+                at: editor_core::FrameSite::Step { index: 1 },
                 determinant: -1.0,
             },
-            vec!["placement frame on node 5", "improper (mirroring)"],
+            vec!["step 2 of node 5's placement", "improper (mirroring)"],
+        ),
+        (
+            SnapshotError::PlacementNonRigid {
+                node,
+                at: editor_core::FrameSite::Registry,
+                check: "transform_rigid_col01_orth",
+            },
+            vec![
+                "placement frame for node 5",
+                "not definitely rigid",
+                "may shear",
+            ],
         ),
         (
             SnapshotError::PlacementNotGauge {
@@ -1077,7 +1280,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::NameStepBeyondCounter {
+            SnapshotError::MintLogOrder { step: StepId(6) },
+            vec!["not strictly ascending at id 6", "which no mint writes"],
+        ),
+        (
+            SnapshotError::NameStepNotMinted {
                 name: Box::new(StableName {
                     kind: EntityKind::Face,
                     node,
@@ -1087,9 +1294,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     })],
                 }),
                 step: StepId(8),
-                next_step: 6,
             },
-            vec!["minted by node 5", "profile step id #8", "step counter 6"],
+            vec![
+                "minted by node 5",
+                "profile step id #8",
+                "mint log does not hold",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
@@ -1132,7 +1342,7 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     }
 
     let node = RecipeNodeId(5);
-    let name = ParamName::new("width");
+    let name = ParamName::from_static("width");
 
     let edit_door: Vec<(String, String)> = vec![
         arm(&EditError::SlotUnknownDocParam {
@@ -1232,86 +1442,83 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     }
 }
 
-/// A predicate flip names the two signs as words: `Sign` has a
-/// `Display`, and a diagnosis's payload-holding arms forward the
-/// payload's own rendering.
+/// A predicate flip names the two signs as words and says what was
+/// decided in words: `Sign` has a `Display`, and the predicate's name
+/// is routing, kept to `Debug`.
 #[test]
 fn a_predicate_flip_names_its_signs_as_words() {
     let sign_debug: Vec<String> = all_signs().iter().map(|s| format!("{s:?}")).collect();
     let sign_words = as_strs(&sign_debug);
     assert_f6(
         &Diagnosis::PredicateFlip {
-            predicate: "name_frag_side_of",
+            predicate: "name_frag_order_along",
             from: geom_core::predicate::Sign::Positive,
             to: geom_core::predicate::Sign::Negative,
-            source: editor_core::FlipSource::VerdictLog,
         },
-        &["name_frag_side_of", "flipped from positive to negative"],
+        &[
+            "the margin deciding the order of two pieces along an edge flipped from positive \
+             to negative",
+        ],
         // Every `Sign`, not the two this row happens to construct: a
         // rendering that leaked `Zero` would be just as much a dump.
         // `PredicateFlip` is `Diagnosis`'s own identifier, and this row
         // renders that one arm.
-        &[sign_words.as_slice(), &["PredicateFlip"]].concat(),
-    );
-}
-
-/// The RECOVERED flip says so, and names the partner through the
-/// stable name's own `Display` — the two halves a reader needs to know
-/// that this flip is in no log they could go and check, and which pair
-/// it is about.
-#[test]
-fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
-    let sign_debug: Vec<String> = all_signs().iter().map(|s| format!("{s:?}")).collect();
-    let sign_words = as_strs(&sign_debug);
-    assert_f6(
-        &Diagnosis::PredicateFlip {
-            predicate: "name_frag_side_of",
-            from: geom_core::predicate::Sign::Positive,
-            to: geom_core::predicate::Sign::Negative,
-            source: editor_core::FlipSource::ShadowExec {
-                partner: Box::new(face_name()),
-            },
-        },
-        &[
-            "name_frag_side_of",
-            "flipped from positive to negative",
-            &face_name().to_string(),
-            "recovered by re-running the pair at diagnosis time",
-            "one of the two runs recorded no side verdict at the name's minting node",
-        ],
         &[
             sign_words.as_slice(),
-            &["PredicateFlip", "ShadowExec", "FlipSource"],
+            &["PredicateFlip", "name_frag_order_along"],
         ]
         .concat(),
     );
+    // A predicate with no words says so in the kernel's one phrase for
+    // it, never by its name: the volume backstop, wordless on purpose
+    // (`edit_refusal_recourse::WORDLESS` says why).
+    let unnamed = Diagnosis::PredicateFlip {
+        predicate: "volume_backstop",
+        from: geom_core::predicate::Sign::Zero,
+        to: geom_core::predicate::Sign::Positive,
+    }
+    .to_string();
+    assert!(
+        unnamed.starts_with(&format!("the margin of {}", geom_core::UNNAMED_DECISION))
+            && !unnamed.contains("volume_backstop"),
+        "{unnamed}"
+    );
 }
 
-/// The shadow rung's REFUSAL states what stood between the diagnosis
-/// and evidence that exists — both arms, because a refusal a reader
-/// cannot act on is the fall-through it was written to replace.
+/// The border delta names the walls in words through the stable
+/// name's own `Display`, both directions, and says "no wall" where a
+/// direction has none.
 #[test]
-fn the_shadow_exec_refusal_states_which_wall_it_hit() {
+fn a_border_delta_names_the_walls_that_moved() {
+    let wall = |n| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(n),
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    };
     assert_f6(
-        &Diagnosis::ShadowExecDeclined {
+        &Diagnosis::BorderDelta {
             node: RecipeNodeId(7),
-            reason: editor_core::ShadowExecRefusal::PairTooWide {
-                pairs: 33,
-                ceiling: 32,
-            },
+            gone: vec![wall(3), wall(4)],
+            new: vec![],
         },
-        &["no side verdict", "minting node", "33", "32", "re-execute"],
-        &["ShadowExecDeclined", "PairTooWide", "ShadowExecRefusal"],
+        &[
+            "at node 7",
+            &format!("no longer borders the {} and the {}", wall(3), wall(4)),
+            "borders no wall it did not",
+        ],
+        &["BorderDelta", "gone", "new"],
     );
     assert_f6(
-        &Diagnosis::ShadowExecDeclined {
+        &Diagnosis::BorderDelta {
             node: RecipeNodeId(7),
-            reason: editor_core::ShadowExecRefusal::ProbeRefused {
-                probe: "a probe's own sentence".to_owned(),
-            },
+            gone: vec![],
+            new: vec![wall(5)],
         },
-        &["a probe refused", "a probe's own sentence"],
-        &["ShadowExecDeclined", "ProbeRefused", "ShadowExecRefusal"],
+        &[
+            "no longer borders no wall",
+            &format!("borders the {} it did not", wall(5)),
+        ],
+        &["BorderDelta"],
     );
 }
 
@@ -1466,10 +1673,9 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 predicate: "bool_point_in_solid_plane",
                 from: Sign::Negative,
                 to: Sign::Positive,
-                source: editor_core::FlipSource::VerdictLog,
             },
-            "predicate bool_point_in_solid_plane flipped from negative to positive on the \
-             name's derivation path"
+            "the margin deciding which side of a face's plane a point lies on flipped from \
+             negative to positive on the name's derivation path"
                 .to_owned(),
         ),
         (
@@ -1504,8 +1710,8 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 to: Sign::Positive,
             }),
             format!(
-                "predicate bool_point_in_solid_plane flipped from negative to positive at node \
-                 10{tail}"
+                "the margin deciding which side of a face's plane a point lies on flipped from \
+                 negative to positive at node 10{tail}"
             ),
         ),
         (
@@ -1536,6 +1742,38 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 "StructuralParam",
                 "RecipeEdit",
             ],
+        );
+    }
+}
+
+/// A fold consumption points at the union that minted the name and
+/// says WHICH composition consumed the entity, in words a reader can
+/// tell apart — a split and
+/// a merge split later are two different sentences — and says why
+/// nothing is offered in its place.
+#[test]
+fn a_fold_consumption_names_the_composition_and_why_nothing_is_offered() {
+    use editor_core::FoldConsumption;
+    let banned = ["ConsumedByFold", "FoldConsumption", "FragmentedMerge"];
+    for (by, wants) in [
+        (
+            FoldConsumption::Split,
+            &["split it into fragments", "none is offered"][..],
+        ),
+        (
+            FoldConsumption::FragmentedMerge,
+            &[
+                "a declared merge consumed it",
+                "split the merged face",
+                "none is offered",
+            ][..],
+        ),
+    ] {
+        let d = Diagnosis::ConsumedByFold { by };
+        assert_f6(
+            &d,
+            &[&["the union that minted it"][..], wants].concat(),
+            &banned,
         );
     }
 }
@@ -1641,7 +1879,8 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     );
     let shown = editor_core::FaceName::new(StableName {
         kind: EntityKind::Vertex,
-        ..edge_name.clone()
+        node: edge_name.node,
+        path: edge_name.path.clone(),
     })
     .expect_err("a vertex is not a face name")
     .to_string();
@@ -2031,7 +2270,7 @@ fn a_lever_refusal_names_the_instance_and_why() {
     };
     let mut body = topo::Body::<f64>::new();
     let face = body
-        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap()
         .face;
     assert_f6(
@@ -2166,8 +2405,10 @@ test_utils::f6_variants! {
         SharedRim,
         MergedChord,
         MergedChordOffRim,
+        MergedChordConstituents,
         SeamLineSides,
         MemberEdgeTied,
+        SplitReference,
         NarrowBand,
         Band,
         Escalated,
@@ -2180,7 +2421,7 @@ test_utils::f6_variants! {
 fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
     let mut body = topo::Body::<f64>::new();
     let born = body
-        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs births a solid, shell, face and lone vertex");
     let edge = body
         .mev_line(
@@ -2296,6 +2537,14 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["merged faces", "operand node 29", "does not lie within"],
         ),
         (
+            NamingError::MergedChordConstituents {
+                edge,
+                face,
+                several: 2,
+            },
+            vec!["merged face", "holds 2 faces", "no rule picks"],
+        ),
+        (
             NamingError::SeamLineSides {
                 node: RecipeNodeId(31),
                 edge,
@@ -2331,15 +2580,32 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["naming band is too narrow", "below 2"],
         ),
         (
+            NamingError::SplitReference {
+                group: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(41),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                }),
+                reference: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(43),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                }),
+                curved: false,
+            },
+            vec!["node 41", "node 43", "several faces on different carriers"],
+        ),
+        (
             NamingError::Escalated {
-                predicate: "side_of_plane",
+                predicate: "name_frag_order_along",
                 source: geom_core::Indeterminate {
-                    margin: geom_core::predicate::MarginDiag::Invalid,
+                    margin: geom_core::predicate::MarginDiag::INVALID,
                     band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
                     predicate: Some("side_of_plane"),
+                    terminal_sliver: false,
                 },
             },
-            vec!["side_of_plane", "escalated"],
+            vec!["the order of two pieces along an edge", "too close to call"],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
@@ -2428,7 +2694,8 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         &also_banned,
     );
     // One clause, two subjects: whatever the sentence says, the two
-    // doors say it in the same words about the same address.
+    // doors say it in the same words about the same address. The edit
+    // door adds its recourse after it.
     for slot in [profile_slot, scalar_slot, component_slot] {
         let at_load = SnapshotError::SlotDimension {
             node,
@@ -2441,7 +2708,17 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
             expected: Dimension::Length,
             found: Dimension::Angle,
         };
-        assert_eq!(at_load.to_string(), format!("node 7: {at_edit}"));
+        let at_load = at_load.to_string();
+        let clause = at_load
+            .strip_prefix("node 7: ")
+            .unwrap_or_else(|| panic!("the load door names the node first: {at_load}"));
+        assert_eq!(at_edit.problem().to_string(), clause);
+        assert_eq!(
+            at_edit.to_string(),
+            format!(
+                "{clause}. Recourse: write it from length literals and parameters declared length"
+            )
+        );
     }
 }
 
@@ -2672,7 +2949,8 @@ test_utils::f6_variants! {
         Shape,
         NotThisProfiles,
         Repeated,
-        BeyondCounter,
+        NotMinted,
+        Collides,
     ];
 }
 
@@ -2710,11 +2988,16 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             vec!["step id 4 stands for two steps"],
         ),
         (
-            StepIdFault::BeyondCounter {
-                step: StepId(12),
-                next_step: 10,
-            },
-            vec!["step id 12", "step counter 10", "never minted it"],
+            StepIdFault::NotMinted { step: StepId(12) },
+            vec![
+                "step id 12",
+                "not in the document's mint log",
+                "never minted it",
+            ],
+        ),
+        (
+            StepIdFault::Collides { step: StepId(7) },
+            vec!["drew step id 7", "mint log already holds"],
         ),
     ];
     assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);
@@ -2724,7 +3007,7 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             fault: StepIdFault::Repeated { step: StepId(2) },
         },
         &[
-            "node 4's program step ids",
+            "node 4's program cannot take the step ids given",
             "step id 2 stands for two steps",
         ],
         &["StepIdsRefused", "Repeated"],
@@ -2743,13 +3026,12 @@ fn a_step_id_fault_names_the_id_or_the_count() {
                 )],
             },
             step: StepId(9),
-            next_step: 5,
         },
         &[
             "edge name minted by node 3",
             "profile step id #9",
             "never minted",
-            "step counter is 5",
+            "mint log does not hold it",
         ],
         &["NameStepNeverMinted"],
     );
@@ -2871,7 +3153,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         SeedError, SplitError,
     };
 
-    let name = ParamName::new("width");
+    let name = ParamName::from_static("width");
     let node = RecipeNodeId(5);
     let framed: Vec<(&str, String)> = vec![
         (
@@ -2962,11 +3244,11 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     // read rather than decorating a name the document holds.
     let echoed = ParseError::UnknownParam {
         pos: 4,
-        name: name.0.clone(),
+        name: name.as_str().to_owned(),
     }
     .to_string();
     assert!(
-        echoed.contains(&format!("{:?}", name.0)),
+        echoed.contains(&format!("{:?}", name.as_str())),
         "the parse door delimits the bytes it read: {echoed}"
     );
 }
@@ -2977,10 +3259,10 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
 /// certified-lane sibling, so the two cannot drift into asking
 /// different questions of the same rule.
 fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
-    let quoted = format!("{:?}", name.0);
+    let quoted = format!("{:?}", name.as_str());
     for (door, shown) in framed {
         assert!(
-            shown.contains(&name.0),
+            shown.contains(name.as_str()),
             "{door} does not name the parameter at all: {shown}"
         );
         assert!(
@@ -2997,7 +3279,7 @@ fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) 
 fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};
 
-    let name = ParamName::new("width");
+    let name = ParamName::from_static("width");
     let framed: Vec<(&str, String)> = vec![
         (
             "RangeRefusal::NotAContinuousParam",

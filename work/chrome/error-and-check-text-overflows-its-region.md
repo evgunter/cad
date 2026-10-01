@@ -2,12 +2,13 @@
 id: error-and-check-text-overflows-its-region
 kind: issue
 title: viewer: the CONCISION half — error messages should be shorter, and most of the text is the kernel's typed refusals (Ev's request; the layout half landed in 3058)
-status: open
+status: closed
 opened: 2026-09-17
-pr: 3108
+pr: 3457
+closed: 2026-09-29
 priority: P0
 cost: E
-refs: [3058, 3088]
+refs: [3058, 3088, 3108]
 ---
 
 **Ev reported this** (in chat, 2026-09-17). There are two halves.
@@ -190,7 +191,7 @@ example's arm renders 68 on the test's NURBS payload.
 operand: their `operand` field is the face's operand at some raise
 sites and the edge's or the scanned body's at others (measured: a NURBS
 wall on B reports `operand: A`). Filed as
-`work/reach/boolean-refusal-operand-field-means-two-things.md`.
+`work/hone/boolean-refusal-operand-field-means-two-things.md`.
 
 **Census and rows.** A static census over every `impl Display for`
 counted literal words per arm (before: 50 arms at 60+; the PR body has
@@ -337,7 +338,7 @@ reworking, `replace_face_offset:` (under `Shell/Face`, `Shell/Lift`),
 `certification:` (`geom-brep/src/certify.rs`) and the clearance
 engine's `Debug` payload (`editor-core/src/measure.rs`). Those are
 filed, each admitted by exact row id and exact label in the chain
-test's `FILED` / `FILED_DEBUG` lists with the row that owns it:
+test's `FILED` / `ADMISSIONS` lists with the row that owns it:
 `work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md`,
 `work/props/props-refusal-prose-outgrows-the-viewer.md` and
 `work/issues/unowned-refusal-prose-outgrows-the-viewer.md`.
@@ -373,3 +374,73 @@ unowned row. The row closes when that residue lands or a program
 takes it; the chain test's `FILED` and `KERNEL_KEYED` entries naming
 `Shell/Roles`, `Check/Unsupported` and `Transform/Certify` are what
 say it has.
+
+## Closed 2026-09-29 (`chrome/refusal-residue`)
+
+**The residue, measured first.** On main, `certify.rs`'s
+`certification:` prefix was already gone (ENCL's certify pass), so the
+`("Transform/Certify", "certification")` entry in `FILED` admitted
+nothing. The live residue was `topo/src/props.rs`, rewritten here at
+the source, prose only:
+
+- `ShellClassifyError`: no `shell classification:` prefix and no
+  `shell ShellKey(…):`. The per-shell arms render their payload (which
+  already said "a shell's signed volume …"); the escalation reads "the
+  sign of a shell's volume is too close to call: …"; a band failure
+  "the shells cannot be classified: …".
+- `MassPropsError`: no `mass properties:` prefix and no face or edge
+  key. `Face` reads "a face's share of the volume and surface area
+  cannot be computed: …". `RingOnCurvedFace` reads "the kernel cannot
+  measure the volume of a curved face with a hole" and ends in
+  `KERNEL_OR_FILE_DEFECT_ENDING`: no construction mints a ring on a
+  curved face — STEP import refuses one before a body exists, blend
+  keeps curved faces ring-free and the Boolean slit-zip refuses a slit
+  face that carries rings — so reaching it is a construction or file
+  defect. (This PR's first pass read it as "not yet", on the premise
+  that a STEP file reaches it; that premise was false, since the import
+  refuses it first.) `Corrupt` and `NullScaffoldEdge` end in the same
+  ending; a body at rest never carries a scaffold edge. The two other
+  readings of these states (`topo::validate`'s `NOT_YET`, `mesh`'s
+  "finish the surgery") are filed on RESTFRONT as
+  `work/restfront/ring-and-scaffold-refusals-read-three-ways.md`.
+
+Shell/Roles, before (60 words) and after (56):
+
+> … sorted into one outer boundary and its voids: shell classification:
+> shell ShellKey(null): a shell's signed volume … is zero at this
+> tolerance. Recourse: …
+
+> … sorted into one outer boundary and its voids: a shell's signed
+> volume … is zero at this tolerance. Recourse: …
+
+Check/Unsupported, before (47) and after (44):
+
+> … cannot be computed for this body: shell classification: shell
+> ShellKey(null): mass properties: curved face FaceKey(null) carries
+> interior rings — curved patches are swept UV rectangles and no
+> construction produces one, so report this rather than repairing a body
+
+> … cannot be computed for this body: the kernel cannot measure the
+> volume of a curved face with a hole. There is no way through: this is
+> a kernel defect or a damaged file; report it
+
+**The closing check passes.** `KERNEL_KEYED` no longer lists
+`Shell/Roles`, `Check/Unsupported`, `Transform/Certify` or the seven
+`Transform/Certify/Routed/*` rows, and `FILED` no longer lists their
+prefixes; the chain tests are green without them. Put back, the old
+`props.rs` turns both rows red on the prefix, the shell key and the
+arena key (and `Check/Unsupported` on a missing recourse).
+
+The guard these rows are held to was made structural in the same PR
+(`the-refusal-shape-guard-has-blind-spots`,
+`refusal-checker-stays-green-when-a-message-loses-its-recourse`), and
+what it newly finds is filed on its owners' slates
+(`*-refusals-short-of-the-shape-guard`). No refusal needed a
+viewer-side summary.
+
+**The recourse criterion was split off.** Holding every refusal to one
+recourse in both directions (a missing recourse is red) found 298
+refusals the viewer draws with none. That half of the standard is not
+closed here: it is filed as P2 rows on the owners' slates
+(`*-refusals-short-of-the-shape-guard`), each admitted by exact id
+with a must-fire check.

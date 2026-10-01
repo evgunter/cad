@@ -95,11 +95,11 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn param(n: &str, dim: Dimension) -> Expr {
+fn param(n: &'static str, dim: Dimension) -> Expr {
     Expr::param(name(n), dim)
 }
 
@@ -149,7 +149,7 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
         .doc
 }
 
-fn entry<'a>(entries: &'a [Sensitivity], n: &str) -> &'a SensitivityOutcome {
+fn entry<'a>(entries: &'a [Sensitivity], n: &'static str) -> &'a SensitivityOutcome {
     &entries
         .iter()
         .find(|s| s.param == name(n))
@@ -272,7 +272,7 @@ fn plate_spaced(
     );
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(MIN_WEB, Dimension::Length).expect("finite"),
+        bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure, assertion)
@@ -326,12 +326,14 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
         profile: p,
         distance: len(1.0),
     });
-    let copy = r.insert(Node::Transform {
-        input: cube,
-        translation: [param("t", Dimension::Length), len(0.0), len(0.0)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let copy = r.insert(Node::transform(
+        cube,
+        editor_core::Step::Rigid {
+            translation: [param("t", Dimension::Length), len(0.0), len(0.0)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let ev = eval(&r.doc);
     let at = |node, x: f64| {
         editor_core::all_vertices(&ev, node)
@@ -1308,11 +1310,11 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     // A frame per section height: the sections are drawn on DIFFERENT
     // planes, so they are different nodes.
     let frame_at = |r: &mut Recorder, z: f64| {
-        r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }))
+        r.insert(fixture::frame(
+            [0.0, 0.0, z],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ))
     };
     let section = |plane| {
         Node::Profile(ProfileProgram {

@@ -82,9 +82,19 @@ procedure: exclusion, structural rung, declared rung, definite
 separation/crossing by geometry, in-band ⇒ escalate. The exclusion step
 as built is `census::sweep_cross_solid_backstop`: a cross-solid pair with
 a curved side is cleared only on a definitely-positive separation margin
-from certified reach boxes (`face_reach`) and refused `CensusUndecidable`
-otherwise; same-solid distinct-key curved pairs are undetected (their
-constructor's obligation). Refusals are typed with `CONTACT_RECOURSE`
+from certified reach boxes (`face_reach`), or, where the pair meets, by
+the touch analysis reading every curved face of a touch's star through
+that box (its corners' signed distances from the candidate plane: a box
+on its side certifies the Rest, and anything else refuses, never decides
+a crossing), and refused `CensusUndecidable` otherwise; same-solid
+distinct-key curved pairs are undetected (their constructor's
+obligation). A declaration licenses a coincidence, never a side: every
+meeting between two solids, whether a sweep found it undeclared, a
+record names it, or a declared face pair backs it, is read by the one
+touch analysis, and the pair clears only when each meeting reads Rest.
+A record's certificate licenses only what it checked (a patch record's
+opposed conformal interface; a vertex record's coincidence), so no
+record excuses a meeting or a face from being read. Refusals are typed with `CONTACT_RECOURSE`
 (declare the class or move the geometry; no tolerance arm, since ε cannot
 supply intent). Invariant: no flag, mode or tolerance glues value
 equality.
@@ -100,8 +110,8 @@ senses opposed (aligned coincidence is contradicted), definitely-positive
 trim overlap in a shared chart — exact on the planar trim inventory
 (`chart_region.rs`), typed elsewhere (`NonPlanarTrim`, `ArmUnbounded`,
 `SeamBranch`); empty ⇒ stale, in-band ⇒ escalate. The chart authority is
-one of three, in fixed order (`declared_pair_overlap`): the structurally
-shared chart (`same_chart`); for a declared **planar** pair the shared
+one of three, in fixed order (`declared_pair_overlap`): the declared
+shared chart (`declared_chart`); for a declared **planar** pair the shared
 world carrier — one plane description taken as representative frame,
 legitimate by the frame-invariance lemma at `world_carrier` (both chart
 maps are isometries, so every quantity the area machinery consumes is
@@ -147,6 +157,36 @@ is scalar-generic; an indeterminate verification at an interval scalar
 aborts. Failures, all typed: `UndeclaredContact`, `ContactContradicted`
 (at use and at rest), `StaleContactDeclaration`, `CensusEscalated`.
 Invariant: every definite verdict wins over every declaration.
+
+**Continuation.** Two faces, one from each operand, on one carrier
+with their senses ALIGNED, interiors disjoint, sharing only a boundary
+curve, are a *continuation*: one surface carried on across the seam.
+A continuation is not a contact and is not a `ContactClass`. The two
+declaration seats take different types, so each states only what its
+consumer can use. A mate (and every record and census reading) takes a
+`ContactClass`. A boolean node takes a `BooleanCoincidence`, which is
+`Contact(ContactClass) | Continuation`. A continuation is therefore
+declared on a boolean node and nowhere else: a mate cannot state
+one, and at rest two flush walls carry nothing to verify. Its verification is `Rest`'s carrier rung with the
+sense bit reversed: carrier non-contradiction through the kind ladder,
+senses aligned as an exact bit. Opposed senses contradict it, as
+aligned senses contradict `Rest` at every door. A union merges a
+declared continuation pair (the merge stage's declared rung). An
+undeclared continuation refuses at the reduction for every carrier
+kind, naming the face pair and the recourse (declare it), exactly as
+an undeclared opposed coincidence does.
+
+**The crossing layer's one-sided cover.** An edge lying on, or
+touching, the other operand's carrier is recorded at its endpoints only
+when the edge's parent carrier is certified to lie in one closed side
+of that carrier. That certificate has exactly these sources: a verified
+`Rest` (residual ≡ 0), a verified `Tangent` (the witness lane), a
+verified continuation, or a structural tangency (an edge described
+`TangentIntersection`) on either operand, to a face verified as one
+carrier with the target. It is never read from values: a root
+verdict of "tangent" is a band decision, so a graze within the band
+refuses, and an exact tangency is reached only through structure or a
+declaration.
 
 **C5 — The signed gap.** For a declared pair on same-kind carriers with a
 shared mating frame, g is the carrier-relative signed offset: parallel

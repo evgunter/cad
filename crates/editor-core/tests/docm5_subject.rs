@@ -308,7 +308,7 @@ fn a_root_without_a_value_refuses_as_the_registrys_own_precondition() {
         "and the gather refuses this pair too, so the two arms compete"
     );
     match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("refuses") {
-        ChecksError::Root { node } => assert_eq!(node, root),
+        ChecksError::Root(standing) => assert_eq!(standing.node(), root),
         other => panic!("expected the registry's own precondition, got {other}"),
     }
 }
@@ -622,7 +622,7 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
     let doc = editor_core::apply(
         &entry.doc,
         &editor_core::DocEdit::SetDocParam {
-            name: editor_core::ParamName::new("fins"),
+            name: editor_core::ParamName::from_static("fins"),
             value: editor_core::DocParam::Count { value: 160 },
         },
         tol,
@@ -663,12 +663,14 @@ fn one_body_under_two_roots(id: &str) -> ProfileDoc {
     let moved = |doc, dx: f64| {
         insert(
             doc,
-            Node::Transform {
-                input: extrude,
-                translation: [len(dx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                extrude,
+                editor_core::Step::Rigid {
+                    translation: [len(dx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         )
     };
     let (doc, _) = moved(doc, 3.0);

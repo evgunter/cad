@@ -144,9 +144,10 @@ pub(super) fn apply_rule_a<T: Decide>(
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
+                    margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("split_sector_extent"),
+                    terminal_sliver: false,
                 }));
             }
             Err(diag) => return Err(sliver(diag)),
@@ -221,9 +222,10 @@ pub(super) fn apply_rule_a<T: Decide>(
             // escalate rather than guess.
             Ok(EntersMaterial::Tangent) => {
                 return Err(sliver(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
+                    margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("enters_material"),
+                    terminal_sliver: false,
                 }));
             }
             Err(diag) => return Err(sliver(diag)),
@@ -417,7 +419,9 @@ mod tests {
     #[test]
     fn an_unbounded_face_has_no_lever_arm() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body
+            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+            .unwrap();
         assert!(matches!(
             body.get_loop(seed.r#loop).unwrap().boundary,
             crate::entity::LoopBoundary::Empty { .. }

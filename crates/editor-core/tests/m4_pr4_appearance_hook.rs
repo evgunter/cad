@@ -12,6 +12,7 @@
 
 use crate::fixture;
 
+use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Diagnosis, DocEdit,
     EditError, EntityKind, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Resolution,
@@ -294,7 +295,6 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
             eval: &prior_ev,
         },
         loss,
-        Tol::witness(),
     );
     let Resolution::Failed(f) = r else {
         panic!("expected Failed, got {r:?}");
@@ -368,10 +368,11 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     let ev = run(&doc);
     assert_eq!(ev.appearance.losses.len(), 1);
     let loss = &ev.appearance.losses[0];
-    assert_eq!(
-        loss.cause,
-        AppearanceLossCause::TargetPoisoned { through: a }
-    );
+    let poisoned = NodeStanding::Poisoned {
+        node: uni,
+        through: a,
+    };
+    assert_eq!(loss.cause, AppearanceLossCause::Indeterminate(poisoned));
     assert_eq!(
         enrich_appearance_loss(
             RunCtx {
@@ -380,7 +381,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
             },
             loss
         ),
-        Resolution::Indeterminate(ResolveIndeterminate::TargetPoisoned { through: a })
+        Resolution::Indeterminate(ResolveIndeterminate { standing: poisoned })
     );
 
     // Canceled: the not-evaluated arm, with the node made explicit.
@@ -404,7 +405,8 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
     );
     assert_eq!(ev2.appearance.losses.len(), 1);
     let loss2 = &ev2.appearance.losses[0];
-    assert_eq!(loss2.cause, AppearanceLossCause::TargetNotEvaluated);
+    let unevaluated = NodeStanding::NotEvaluated { node: ext };
+    assert_eq!(loss2.cause, AppearanceLossCause::Indeterminate(unevaluated));
     assert_eq!(
         enrich_appearance_loss(
             RunCtx {
@@ -413,7 +415,9 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
             },
             loss2
         ),
-        Resolution::Indeterminate(ResolveIndeterminate::TargetNotEvaluated { node: ext })
+        Resolution::Indeterminate(ResolveIndeterminate {
+            standing: unevaluated
+        })
     );
 }
 

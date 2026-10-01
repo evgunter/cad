@@ -3,7 +3,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
   "snapshot": {
     "id": "a8d79f40ddb79de569d778f1c0b832f9",
     "next_id": 0,
-    "next_step": 0,
+    "step_mint": {
+      "chain": "0000000000000000000000000000000000000000000000000000000000000000",
+      "log": []
+    },
     "nodes": {},
     "order": [],
     "roots": [],
@@ -239,7 +242,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "End",
                         {
                           "Piece": {
-                            "step": 1,
+                            "step": 4546703346243476841,
                             "role": "Leg"
                           }
                         }
@@ -256,7 +259,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "End",
                         {
                           "Piece": {
-                            "step": 2,
+                            "step": 4990306042536128628,
                             "role": "Leg"
                           }
                         }
@@ -273,7 +276,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "End",
                         {
                           "Piece": {
-                            "step": 3,
+                            "step": 10985843265047041854,
                             "role": "Leg"
                           }
                         }
@@ -290,7 +293,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "End",
                         {
                           "Piece": {
-                            "step": 4,
+                            "step": 16639099113663446862,
                             "role": "Leg"
                           }
                         }
@@ -307,7 +310,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "Start",
                         {
                           "Piece": {
-                            "step": 1,
+                            "step": 4546703346243476841,
                             "role": "Leg"
                           }
                         }
@@ -324,7 +327,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "Start",
                         {
                           "Piece": {
-                            "step": 2,
+                            "step": 4990306042536128628,
                             "role": "Leg"
                           }
                         }
@@ -341,7 +344,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "Start",
                         {
                           "Piece": {
-                            "step": 3,
+                            "step": 10985843265047041854,
                             "role": "Leg"
                           }
                         }
@@ -358,7 +361,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "Start",
                         {
                           "Piece": {
-                            "step": 4,
+                            "step": 16639099113663446862,
                             "role": "Leg"
                           }
                         }
@@ -373,7 +376,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     {
                       "LateralEdge": {
                         "Piece": {
-                          "step": 1,
+                          "step": 4546703346243476841,
                           "role": "Leg"
                         }
                       }
@@ -387,7 +390,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     {
                       "LateralEdge": {
                         "Piece": {
-                          "step": 2,
+                          "step": 4990306042536128628,
                           "role": "Leg"
                         }
                       }
@@ -401,7 +404,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     {
                       "LateralEdge": {
                         "Piece": {
-                          "step": 3,
+                          "step": 10985843265047041854,
                           "role": "Leg"
                         }
                       }
@@ -415,7 +418,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     {
                       "LateralEdge": {
                         "Piece": {
-                          "step": 4,
+                          "step": 16639099113663446862,
                           "role": "Leg"
                         }
                       }
@@ -654,58 +657,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -719,58 +730,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -784,58 +803,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -849,58 +876,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -914,58 +949,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -979,58 +1022,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1044,58 +1095,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1109,58 +1168,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1174,58 +1241,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1239,58 +1314,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1304,58 +1387,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1369,58 +1460,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1434,58 +1533,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1499,58 +1606,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1564,58 +1679,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1629,58 +1752,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1694,58 +1825,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1759,58 +1898,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1824,58 +1971,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1889,58 +2044,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1954,58 +2117,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -2091,7 +2262,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               "End",
                               {
                                 "Piece": {
-                                  "step": 1,
+                                  "step": 4546703346243476841,
                                   "role": "Leg"
                                 }
                               }
@@ -2116,7 +2287,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               "End",
                               {
                                 "Piece": {
-                                  "step": 2,
+                                  "step": 4990306042536128628,
                                   "role": "Leg"
                                 }
                               }
@@ -2141,7 +2312,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               "End",
                               {
                                 "Piece": {
-                                  "step": 3,
+                                  "step": 10985843265047041854,
                                   "role": "Leg"
                                 }
                               }
@@ -2166,7 +2337,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               "End",
                               {
                                 "Piece": {
-                                  "step": 4,
+                                  "step": 16639099113663446862,
                                   "role": "Leg"
                                 }
                               }
@@ -2191,7 +2362,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               "Start",
                               {
                                 "Piece": {
-                                  "step": 1,
+                                  "step": 4546703346243476841,
                                   "role": "Leg"
                                 }
                               }
@@ -2216,7 +2387,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               "Start",
                               {
                                 "Piece": {
-                                  "step": 2,
+                                  "step": 4990306042536128628,
                                   "role": "Leg"
                                 }
                               }
@@ -2241,7 +2412,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               "Start",
                               {
                                 "Piece": {
-                                  "step": 3,
+                                  "step": 10985843265047041854,
                                   "role": "Leg"
                                 }
                               }
@@ -2266,7 +2437,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                               "Start",
                               {
                                 "Piece": {
-                                  "step": 4,
+                                  "step": 16639099113663446862,
                                   "role": "Leg"
                                 }
                               }
@@ -2289,7 +2460,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                           {
                             "LateralEdge": {
                               "Piece": {
-                                "step": 1,
+                                "step": 4546703346243476841,
                                 "role": "Leg"
                               }
                             }
@@ -2311,7 +2482,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                           {
                             "LateralEdge": {
                               "Piece": {
-                                "step": 2,
+                                "step": 4990306042536128628,
                                 "role": "Leg"
                               }
                             }
@@ -2333,7 +2504,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                           {
                             "LateralEdge": {
                               "Piece": {
-                                "step": 3,
+                                "step": 10985843265047041854,
                                 "role": "Leg"
                               }
                             }
@@ -2355,7 +2526,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                           {
                             "LateralEdge": {
                               "Piece": {
-                                "step": 4,
+                                "step": 16639099113663446862,
                                 "role": "Leg"
                               }
                             }
@@ -2420,7 +2591,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2472,7 +2643,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2524,7 +2695,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2576,7 +2747,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2628,7 +2799,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2680,7 +2851,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2732,7 +2903,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2784,7 +2955,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2836,7 +3007,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2888,7 +3059,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2940,7 +3111,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -2992,7 +3163,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3044,7 +3215,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3096,7 +3267,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3132,7 +3303,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 1,
+                                        "step": 4546703346243476841,
                                         "role": "Leg"
                                       }
                                     }
@@ -3153,7 +3324,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3189,7 +3360,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 1,
+                                        "step": 4546703346243476841,
                                         "role": "Leg"
                                       }
                                     }
@@ -3210,7 +3381,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3246,7 +3417,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 1,
+                                        "step": 4546703346243476841,
                                         "role": "Leg"
                                       }
                                     }
@@ -3267,7 +3438,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3303,7 +3474,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 1,
+                                        "step": 4546703346243476841,
                                         "role": "Leg"
                                       }
                                     }
@@ -3324,7 +3495,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3360,7 +3531,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 1,
+                                        "step": 4546703346243476841,
                                         "role": "Leg"
                                       }
                                     }
@@ -3381,7 +3552,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3417,7 +3588,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 1,
+                                        "step": 4546703346243476841,
                                         "role": "Leg"
                                       }
                                     }
@@ -3438,7 +3609,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3474,7 +3645,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 1,
+                                        "step": 4546703346243476841,
                                         "role": "Leg"
                                       }
                                     }
@@ -3495,7 +3666,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3531,7 +3702,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 1,
+                                        "step": 4546703346243476841,
                                         "role": "Leg"
                                       }
                                     }
@@ -3552,7 +3723,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3588,7 +3759,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 2,
+                                        "step": 4990306042536128628,
                                         "role": "Leg"
                                       }
                                     }
@@ -3609,7 +3780,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3645,7 +3816,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 2,
+                                        "step": 4990306042536128628,
                                         "role": "Leg"
                                       }
                                     }
@@ -3666,7 +3837,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3702,7 +3873,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 2,
+                                        "step": 4990306042536128628,
                                         "role": "Leg"
                                       }
                                     }
@@ -3723,7 +3894,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3759,7 +3930,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 2,
+                                        "step": 4990306042536128628,
                                         "role": "Leg"
                                       }
                                     }
@@ -3780,7 +3951,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -3816,349 +3987,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 3,
-                                        "role": "Leg"
-                                      }
-                                    }
-                                  }
-                                ]
-                              },
-                              "b": {
-                                "kind": "Face",
-                                "node": 29,
-                                "path": [
-                                  {
-                                    "FromMember": {
-                                      "member": 22,
-                                      "of": {
-                                        "kind": "Face",
-                                        "node": 7,
-                                        "path": [
-                                          {
-                                            "Band": {
-                                              "Piece": {
-                                                "step": 6,
-                                                "role": "Leg"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                },
-                {
-                  "kind": "Edge",
-                  "node": 31,
-                  "path": [
-                    {
-                      "FromTarget": {
-                        "kind": "Edge",
-                        "node": 30,
-                        "path": [
-                          {
-                            "Seam": {
-                              "a": {
-                                "kind": "Face",
-                                "node": 2,
-                                "path": [
-                                  {
-                                    "Lateral": {
-                                      "Piece": {
-                                        "step": 3,
-                                        "role": "Leg"
-                                      }
-                                    }
-                                  }
-                                ]
-                              },
-                              "b": {
-                                "kind": "Face",
-                                "node": 29,
-                                "path": [
-                                  {
-                                    "FromMember": {
-                                      "member": 22,
-                                      "of": {
-                                        "kind": "Face",
-                                        "node": 7,
-                                        "path": [
-                                          {
-                                            "BandPi": {
-                                              "Piece": {
-                                                "step": 6,
-                                                "role": "Leg"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                },
-                {
-                  "kind": "Edge",
-                  "node": 31,
-                  "path": [
-                    {
-                      "FromTarget": {
-                        "kind": "Edge",
-                        "node": 30,
-                        "path": [
-                          {
-                            "Seam": {
-                              "a": {
-                                "kind": "Face",
-                                "node": 2,
-                                "path": [
-                                  {
-                                    "Lateral": {
-                                      "Piece": {
-                                        "step": 3,
-                                        "role": "Leg"
-                                      }
-                                    }
-                                  }
-                                ]
-                              },
-                              "b": {
-                                "kind": "Face",
-                                "node": 29,
-                                "path": [
-                                  {
-                                    "FromMember": {
-                                      "member": 23,
-                                      "of": {
-                                        "kind": "Face",
-                                        "node": 7,
-                                        "path": [
-                                          {
-                                            "Band": {
-                                              "Piece": {
-                                                "step": 6,
-                                                "role": "Leg"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                },
-                {
-                  "kind": "Edge",
-                  "node": 31,
-                  "path": [
-                    {
-                      "FromTarget": {
-                        "kind": "Edge",
-                        "node": 30,
-                        "path": [
-                          {
-                            "Seam": {
-                              "a": {
-                                "kind": "Face",
-                                "node": 2,
-                                "path": [
-                                  {
-                                    "Lateral": {
-                                      "Piece": {
-                                        "step": 3,
-                                        "role": "Leg"
-                                      }
-                                    }
-                                  }
-                                ]
-                              },
-                              "b": {
-                                "kind": "Face",
-                                "node": 29,
-                                "path": [
-                                  {
-                                    "FromMember": {
-                                      "member": 23,
-                                      "of": {
-                                        "kind": "Face",
-                                        "node": 7,
-                                        "path": [
-                                          {
-                                            "BandPi": {
-                                              "Piece": {
-                                                "step": 6,
-                                                "role": "Leg"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                },
-                {
-                  "kind": "Edge",
-                  "node": 31,
-                  "path": [
-                    {
-                      "FromTarget": {
-                        "kind": "Edge",
-                        "node": 30,
-                        "path": [
-                          {
-                            "Seam": {
-                              "a": {
-                                "kind": "Face",
-                                "node": 2,
-                                "path": [
-                                  {
-                                    "Lateral": {
-                                      "Piece": {
-                                        "step": 3,
-                                        "role": "Leg"
-                                      }
-                                    }
-                                  }
-                                ]
-                              },
-                              "b": {
-                                "kind": "Face",
-                                "node": 29,
-                                "path": [
-                                  {
-                                    "FromMember": {
-                                      "member": 24,
-                                      "of": {
-                                        "kind": "Face",
-                                        "node": 7,
-                                        "path": [
-                                          {
-                                            "Band": {
-                                              "Piece": {
-                                                "step": 6,
-                                                "role": "Leg"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                },
-                {
-                  "kind": "Edge",
-                  "node": 31,
-                  "path": [
-                    {
-                      "FromTarget": {
-                        "kind": "Edge",
-                        "node": 30,
-                        "path": [
-                          {
-                            "Seam": {
-                              "a": {
-                                "kind": "Face",
-                                "node": 2,
-                                "path": [
-                                  {
-                                    "Lateral": {
-                                      "Piece": {
-                                        "step": 3,
-                                        "role": "Leg"
-                                      }
-                                    }
-                                  }
-                                ]
-                              },
-                              "b": {
-                                "kind": "Face",
-                                "node": 29,
-                                "path": [
-                                  {
-                                    "FromMember": {
-                                      "member": 24,
-                                      "of": {
-                                        "kind": "Face",
-                                        "node": 7,
-                                        "path": [
-                                          {
-                                            "BandPi": {
-                                              "Piece": {
-                                                "step": 6,
-                                                "role": "Leg"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                },
-                {
-                  "kind": "Edge",
-                  "node": 31,
-                  "path": [
-                    {
-                      "FromTarget": {
-                        "kind": "Edge",
-                        "node": 30,
-                        "path": [
-                          {
-                            "Seam": {
-                              "a": {
-                                "kind": "Face",
-                                "node": 2,
-                                "path": [
-                                  {
-                                    "Lateral": {
-                                      "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4179,7 +4008,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -4215,7 +4044,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4236,7 +4065,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -4272,7 +4101,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4293,7 +4122,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -4329,7 +4158,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4350,7 +4179,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -4386,7 +4215,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4407,7 +4236,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -4443,7 +4272,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4464,7 +4293,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -4500,7 +4329,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4521,7 +4350,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -4557,7 +4386,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4578,7 +4407,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -4614,7 +4443,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4635,7 +4464,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "Band": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }
@@ -4671,7 +4500,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                   {
                                     "Lateral": {
                                       "Piece": {
-                                        "step": 4,
+                                        "step": 10985843265047041854,
                                         "role": "Leg"
                                       }
                                     }
@@ -4692,7 +4521,349 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                           {
                                             "BandPi": {
                                               "Piece": {
-                                                "step": 6,
+                                                "step": 11974322194023072388,
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "Edge",
+                  "node": 31,
+                  "path": [
+                    {
+                      "FromTarget": {
+                        "kind": "Edge",
+                        "node": 30,
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": 2,
+                                "path": [
+                                  {
+                                    "Lateral": {
+                                      "Piece": {
+                                        "step": 16639099113663446862,
+                                        "role": "Leg"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": 29,
+                                "path": [
+                                  {
+                                    "FromMember": {
+                                      "member": 22,
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": 7,
+                                        "path": [
+                                          {
+                                            "Band": {
+                                              "Piece": {
+                                                "step": 11974322194023072388,
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "Edge",
+                  "node": 31,
+                  "path": [
+                    {
+                      "FromTarget": {
+                        "kind": "Edge",
+                        "node": 30,
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": 2,
+                                "path": [
+                                  {
+                                    "Lateral": {
+                                      "Piece": {
+                                        "step": 16639099113663446862,
+                                        "role": "Leg"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": 29,
+                                "path": [
+                                  {
+                                    "FromMember": {
+                                      "member": 22,
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": 7,
+                                        "path": [
+                                          {
+                                            "BandPi": {
+                                              "Piece": {
+                                                "step": 11974322194023072388,
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "Edge",
+                  "node": 31,
+                  "path": [
+                    {
+                      "FromTarget": {
+                        "kind": "Edge",
+                        "node": 30,
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": 2,
+                                "path": [
+                                  {
+                                    "Lateral": {
+                                      "Piece": {
+                                        "step": 16639099113663446862,
+                                        "role": "Leg"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": 29,
+                                "path": [
+                                  {
+                                    "FromMember": {
+                                      "member": 23,
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": 7,
+                                        "path": [
+                                          {
+                                            "Band": {
+                                              "Piece": {
+                                                "step": 11974322194023072388,
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "Edge",
+                  "node": 31,
+                  "path": [
+                    {
+                      "FromTarget": {
+                        "kind": "Edge",
+                        "node": 30,
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": 2,
+                                "path": [
+                                  {
+                                    "Lateral": {
+                                      "Piece": {
+                                        "step": 16639099113663446862,
+                                        "role": "Leg"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": 29,
+                                "path": [
+                                  {
+                                    "FromMember": {
+                                      "member": 23,
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": 7,
+                                        "path": [
+                                          {
+                                            "BandPi": {
+                                              "Piece": {
+                                                "step": 11974322194023072388,
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "Edge",
+                  "node": 31,
+                  "path": [
+                    {
+                      "FromTarget": {
+                        "kind": "Edge",
+                        "node": 30,
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": 2,
+                                "path": [
+                                  {
+                                    "Lateral": {
+                                      "Piece": {
+                                        "step": 16639099113663446862,
+                                        "role": "Leg"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": 29,
+                                "path": [
+                                  {
+                                    "FromMember": {
+                                      "member": 24,
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": 7,
+                                        "path": [
+                                          {
+                                            "Band": {
+                                              "Piece": {
+                                                "step": 11974322194023072388,
+                                                "role": "Leg"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "Edge",
+                  "node": 31,
+                  "path": [
+                    {
+                      "FromTarget": {
+                        "kind": "Edge",
+                        "node": 30,
+                        "path": [
+                          {
+                            "Seam": {
+                              "a": {
+                                "kind": "Face",
+                                "node": 2,
+                                "path": [
+                                  {
+                                    "Lateral": {
+                                      "Piece": {
+                                        "step": 16639099113663446862,
+                                        "role": "Leg"
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "b": {
+                                "kind": "Face",
+                                "node": 29,
+                                "path": [
+                                  {
+                                    "FromMember": {
+                                      "member": 24,
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": 7,
+                                        "path": [
+                                          {
+                                            "BandPi": {
+                                              "Piece": {
+                                                "step": 11974322194023072388,
                                                 "role": "Leg"
                                               }
                                             }

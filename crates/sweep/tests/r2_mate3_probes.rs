@@ -2,9 +2,8 @@
 //! cusp door's reversal.
 //!
 //! 1. **Reachability**: a `.cusp()` profile validates, `extrude` builds
-//!    the cusp solid, `validate_geometric` refuses it typed
-//!    `UndeclaredCusp`, and the declaration the verb carries out
-//!    (`Extruded::declared_contacts`) legalizes exactly that joint.
+//!    the cusp solid, and `validate_geometric` passes it with nothing
+//!    declared at rest — the cusp strut is a jet-determinate tangency.
 //!
 //! 2. **The exactness of the reversal**: the cusp door negates the
 //!    incoming ray rather than re-deriving it as `ang + π`. This probe
@@ -17,23 +16,19 @@ use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};
 use sweep::{Extrusion, extrude};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The lune: the cross-section of D1's kissing-cylinders figure,
 /// authored through the new door. Circles (0,1) r 1 and (0,2) r 2 are
 /// internally tangent at the origin; the region kept is the x ≥ 0 lip.
 fn lune() -> profile::ClosedLoop<f64> {
     let tol = Tol::witness();
-    Open.at(p2(0.0, 4.0))
+    Open.at(Point2::new(0.0, 4.0))
         .angle(-std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
         .line(2.0, tol)
         .unwrap()
         .turn(std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
-        .tangent_arc_to(p2(0.0, 0.0), tol)
+        .tangent_arc_to(Point2::new(0.0, 0.0), tol)
         .unwrap()
         .cusp()
         .tangent_arc_to(Start, tol)
@@ -41,11 +36,10 @@ fn lune() -> profile::ClosedLoop<f64> {
 }
 
 /// **The reachability chain, executed.** Nothing on it proceeds
-/// silently: the body refuses at rest undeclared, and the declaration
-/// the author made on the profile joint comes out of the verb beside
-/// the body — never as body state — and legalizes exactly that joint.
+/// silently: the body passes at rest, and check 4 marked the strut on
+/// the kiss `Tangent` — a tangency it judged, not one it skipped.
 #[test]
-fn r2_cusp_profile_extrudes_refuses_undeclared_and_carries_its_declaration() {
+fn r2_cusp_profile_extrudes_and_passes_at_rest() {
     let tol = Tol::witness();
     let loops = vec![profile::ProfileLoop::from(lune())];
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
@@ -55,64 +49,31 @@ fn r2_cusp_profile_extrudes_refuses_undeclared_and_carries_its_declaration() {
     let ext =
         extrude(&validated, Extrusion::Distance(1.0), tol).expect("extrude BUILDS the cusp solid");
     let body = &ext.body;
-    println!(
-        "R2 chain: v/e/f = {}/{}/{}",
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count()
-    );
-    // Structural tiers pass; the at-rest geometric gate is what catches
-    // it, and it must be TYPED, naming the cusp end.
     assert_eq!(topo::validate_closed(body), Ok(()));
-    let errs = topo::validate_geometric(body, tol)
-        .expect_err("the extruded cusp solid must refuse at rest");
-    println!("R2 chain: at-rest verdict {errs:?}");
-    assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::UndeclaredCusp {
-                wedge: geom_brep::MaterialWedge::Cusp,
-                ..
-            }
-        )),
-        "the refusal must be the typed UndeclaredCusp: {errs:?}"
-    );
-    // The declaration the author DID make (on the profile joint)
-    // arrives as a record BESIDE the body, never as body state: the
-    // undeclared call above refused, and the carried record is the one
-    // cusp edge's wall pair, which is what makes the body legal.
-    let cusp_edges: Vec<_> = errs
-        .iter()
-        .filter_map(|e| match e {
-            topo::ValidationError::UndeclaredCusp { edge, .. } => Some(*edge),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(cusp_edges.len(), 1, "exactly one cusp edge: {cusp_edges:?}");
-    let e = body.get_edge(cusp_edges[0]).unwrap();
-    let face_of = |he| {
-        let l = body.get_half_edge(he).unwrap().parent_loop;
-        body.get_loop(l).unwrap().face
-    };
-    let mut pair = [face_of(e.he_plus), face_of(e.he_minus)];
-    pair.sort();
-    let carried: Vec<_> = ext
-        .declared_contacts
-        .iter()
-        .map(|d| {
-            let mut p = [d.a, d.b];
-            p.sort();
-            (p, d.class)
-        })
-        .collect();
     assert_eq!(
-        carried,
-        [(pair, topo::ContactClass::Tangent)],
-        "the verb carries the cusp edge's wall pair, and nothing else"
+        topo::validate_geometric(body, tol),
+        Ok(()),
+        "the extruded cusp solid is legal at rest"
     );
-    let after = topo::validate_geometric_declared(body, &ext.declared_contacts, tol);
-    println!("R2 chain: declared verdict {after:?}");
-    assert_eq!(after, Ok(()), "declared, the extruded cusp solid is legal");
+    let marks = topo::contact_marks(body, tol).expect("valid");
+    let on_the_kiss = |v| {
+        let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        p.x.abs() < 1e-9 && p.y.abs() < 1e-9
+    };
+    let marked: Vec<_> = marks
+        .iter()
+        .filter(|(_, m)| **m == topo::ContactMark::Tangent)
+        .map(|(e, _)| e)
+        .collect();
+    let [edge] = marked.as_slice() else {
+        panic!("exactly one Tangent mark: {marks:?}");
+    };
+    let he = body.get_edge(*edge).unwrap().he_plus;
+    assert!(
+        on_the_kiss(body.get_half_edge(he).unwrap().start)
+            && on_the_kiss(body.half_edge_end(he).unwrap()),
+        "the one Tangent mark is the strut on the kiss"
+    );
 }
 
 /// **The reversal's exactness, measured.** The departure ray must be

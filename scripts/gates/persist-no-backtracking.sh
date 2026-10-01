@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # persist-no-backtracking.sh — nothing on editor-core's wire asks serde
-# to TRY an alternative. ONE home; ci.yml's "persist wire does not
-# backtrack" step and local-scripts/ci-local.sh's discipline row both
-# call this file.
+# to TRY an alternative. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE CLAIM THIS GUARDS, and why a comment was not enough.
 # `persist::refusal` carries a structured `DimensionError` out of a

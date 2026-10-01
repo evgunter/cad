@@ -46,7 +46,7 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use revolve_common::{axis_y, p2, validated};
+use revolve_common::{axis_y, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::point_in_solid;
 use topo::{Body, FaceKey};
@@ -62,7 +62,10 @@ fn ball() -> Body<f64> {
 /// on-axis diameter). `cy ≠ 0` is what the anchored-versus-vector-area
 /// row needs: it makes the `c·A⃗` terms nonzero.
 fn ball_at(cy: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, cy - 1.0), 1.0), (p2(0.0, cy + 1.0), 0.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, cy - 1.0), 1.0),
+        (Point2::new(0.0, cy + 1.0), 0.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -175,10 +178,10 @@ fn offcentre_flipped_ball_still_cancels() {
 fn assembly_flip_is_wrong_but_nonzero() {
     let ball = ball_at(0.0);
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(5.0, 0.0),
-        p2(6.0, 0.0),
-        p2(6.0, 2.0),
-        p2(5.0, 2.0),
+        Point2::new(5.0, 0.0),
+        Point2::new(6.0, 0.0),
+        Point2::new(6.0, 2.0),
+        Point2::new(5.0, 2.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -222,10 +225,10 @@ fn assembly_flip_is_wrong_but_nonzero() {
 #[test]
 fn tier_three_refusal_is_surgical() {
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(0.0, 1.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(0.0, 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -268,10 +271,10 @@ fn mixed_turn_arcs() -> sweep::Extruded<f64> {
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), b),
-        (p2(2.0, 0.0), 0.0),
-        (p2(2.0, 1.5), -b),
-        (p2(0.0, 1.5), 0.0),
+        (Point2::new(0.0, 0.0), b),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.5), -b),
+        (Point2::new(0.0, 1.5), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -407,12 +410,12 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
 //
 // Inverting EVERY face's sense on the three-station arc loft is refused
 // at its two planar caps, exactly as on the square loft: check 6's
-// planar arm winds a loop of `Line` and `Circle` carriers exactly (the
-// chord polygon plus each arc's circular segment), so an arc cap is as
-// falsifiable as a polygonal one. The spline walls stay silent on both
-// bodies, and a planar loop riding an `Ellipse` or NURBS carrier stays
-// outside the arm; the rows below pin both residues so their silence
-// stays visible.
+// planar arm winds a loop of `Line`, `Circle` and `Ellipse` carriers
+// exactly (the chord polygon plus each arc's conic segment), so an arc
+// cap is as falsifiable as a polygonal one. The spline walls stay
+// silent on both bodies, and a planar loop riding a NURBS or spiric
+// carrier stays outside the arm; the rows below pin the walls' residue
+// so its silence stays visible, and the ellipse-bounded face's refusal.
 //
 // They live here and not in `topo`'s `tier3_tests` because the bodies
 // are `sweep` output: `topo` cannot reach the constructors that build
@@ -443,15 +446,6 @@ fn sense_inverted_at(body: &Body<f64>, face: FaceKey) -> Body<f64> {
     let sense = out.get_face(face).expect("the face is live").sense;
     out.set_face_sense(face, !sense).expect("the face is live");
     out
-}
-
-/// Whether `face`'s surface is a spline chart — the discriminant of
-/// check 6's curved-arm skip and of tier 3's `nurbs_adjacent`
-/// short-circuit, asked of a FACE key.
-fn is_spline_chart_face(body: &Body<f64>, face: FaceKey) -> bool {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .is_some_and(|s| s.spline_chart().is_some())
 }
 
 /// The certified carriers of `l`'s cycle, in cycle order; empty for a
@@ -487,8 +481,8 @@ fn loop_carriers(body: &Body<f64>, l: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
 /// - the loop is the outer loop OR one of `face.rings`;
 /// - the loop's boundary is a `Cycle` (an empty ring bounds no area and
 ///   is NOT examined);
-/// - every certified carrier on the cycle is a `Line` or a `Circle` —
-///   an `Ellipse`, spiric or NURBS carrier puts the loop outside.
+/// - every certified carrier on the cycle is a `Line`, a `Circle` or an
+///   `Ellipse` — a spiric or NURBS carrier puts the loop outside.
 ///
 /// A `(face, loop)` PAIR and not a face, because `LoopRoleInverted`
 /// names both and a face can refuse once per loop.
@@ -501,9 +495,14 @@ fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
         for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
             let carriers = loop_carriers(body, l);
             if !carriers.is_empty()
-                && carriers
-                    .iter()
-                    .all(|c| matches!(c, geom::Curve3::Line { .. } | geom::Curve3::Circle { .. }))
+                && carriers.iter().all(|c| {
+                    matches!(
+                        c,
+                        geom::Curve3::Line { .. }
+                            | geom::Curve3::Circle { .. }
+                            | geom::Curve3::Ellipse { .. }
+                    )
+                })
             {
                 out.push((fk, l));
             }
@@ -631,7 +630,12 @@ fn an_inverted_arc_bounded_planar_cap_refuses_naming_its_face_and_loop() {
 /// `Circle` carriers only, so every chord polygon is a DIGON: its
 /// Newell term is zero and the winding is the arcs' segment terms alone.
 fn washer() -> Body<f64> {
-    let circle = |r: f64| bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)]);
+    let circle = |r: f64| {
+        bulge_loop(vec![
+            (Point2::new(-r, 0.0), 1.0),
+            (Point2::new(r, 0.0), 1.0),
+        ])
+    };
     let prof = Profile::new(SketchPlane::xy(), vec![circle(1.0), circle(0.5)])
         .validate(Tol::witness())
         .expect("the washer profile validates");
@@ -694,12 +698,12 @@ fn an_inverted_cap_refuses_at_its_arc_ring_as_well_as_its_outline() {
 /// or a semicircle the mutants below are invisible.
 fn notched_slab() -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(0.5, 0.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(0.5, 0.0), 0.0),
         // Bulge −tan(Δ/4), Δ = 60°: a clockwise arc, bowing INTO the
         // counterclockwise region. Chord 0.5 = 2R sin 30° gives R = ½.
-        (p2(0.5, 0.08), -(15f64.to_radians().tan())),
-        (p2(0.0, 0.08), 0.0),
+        (Point2::new(0.5, 0.08), -(15f64.to_radians().tan())),
+        (Point2::new(0.0, 0.08), 0.0),
     ]);
     let prof = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -748,21 +752,22 @@ fn a_narrow_arc_cap_certifies_honest_and_refuses_inverted() {
     }
 }
 
-/// **The residue: a planar loop riding an `Ellipse` stays outside the
-/// arm.** `tilted_cut_upper`'s cut face is a plane bounded by one exact
+/// **An inverted ellipse-bounded planar face refuses by name.**
+/// `tilted_cut_upper`'s cut face is a plane bounded by one exact
 /// `Ellipse`; its bottom cap is bounded by circle arcs. Inverting the
-/// bit of the circle cap is refused; inverting the bit of the ellipse
-/// face is not — check 6's planar arm answers on `Line` and `Circle`
-/// carriers only, and a loop riding an ellipse (or a NURBS carrier) is
-/// not examined.
+/// bit of either is refused, as exactly one `LoopRoleInverted` naming
+/// that face and its outer loop: check 6's planar arm winds an elliptic
+/// arc by its exact segment `axis · major·minor · (Δ − sin Δ)`, as it
+/// winds a circular one.
 ///
-/// **How it goes red.** The day the arm reaches ellipse carriers the
-/// `is_ok` fails, and this row is re-cut to the new verdict rather than
-/// loosened. A split that stopped minting an `Ellipse` for the tilted
-/// cut fails the carrier premise. The runtime values are the stored
-/// carrier discriminants and the two validation results.
+/// **How it goes red.** An arm narrowed back to `Line` and `Circle`
+/// carriers leaves the inverted cut face `Ok`, and the `expect_err`
+/// fails; a mis-signed elliptic segment term refuses the honest body in
+/// the first assertion. A split that stopped minting an `Ellipse` for
+/// the tilted cut fails the carrier premise. The runtime values are the
+/// stored carrier discriminants and the validation results.
 #[test]
-fn an_ellipse_bounded_planar_face_stays_outside_the_planar_arm() {
+fn an_inverted_ellipse_bounded_planar_face_refuses_by_name() {
     let tol = Tol::witness();
     let body = crate::common::tilted_cut_upper();
     assert!(
@@ -781,118 +786,14 @@ fn an_ellipse_bounded_planar_face_stays_outside_the_planar_arm() {
     assert_eq!(elliptic.len(), 1, "the tilted cut face rides an `Ellipse`");
     assert_eq!(circular.len(), 1, "the bottom cap rides circle arcs");
     assert!(
-        !planar_arm_reaches(&body).contains(&elliptic[0]),
-        "the ellipse-bounded loop is outside the planar arm"
+        planar_arm_reaches(&body).contains(&elliptic[0]),
+        "the ellipse-bounded loop is inside the planar arm"
     );
 
-    let (cap, cap_loop) = circular[0];
-    let errs = topo::validate_geometric(&sense_inverted_at(&body, cap), tol)
-        .expect_err("the circle-bounded cap's inversion is refused");
-    assert_eq!(role_inversions(&errs), vec![(cap, cap_loop)]);
-
-    assert!(
-        topo::validate_geometric(&sense_inverted_at(&body, elliptic[0].0), tol).is_ok(),
-        "MEASURED RESIDUE: an ellipse-bounded planar face inverted through the public \
-         door is clean at rest"
-    );
-}
-
-/// **The planar arm is the only sense reader on the arc loft.** Check
-/// 6's planar arm now reads the bit on both caps; the other three
-/// readers stay gated shut on this body, and the row pins each gate:
-///
-/// - check 6's CURVED arm reads `face.sense` directly and skips `Plane`
-///   and spline charts — every face here is one or the other;
-/// - tier 3's **check 4 MATERIAL arm** reads `sense` on both sides of a
-///   definitely-smooth edge, behind `nurbs_adjacent` — every edge here
-///   has a spline-chart face, so the short-circuit fires first;
-/// - check 7 reads the bit only at `props::curved_face`'s rimless-band
-///   site, which no loft face reaches; the row states that as the
-///   reporting door giving the SAME reading under the inversion — a
-///   bit-identical volume where it computes, the same typed refusal
-///   where this body's rational walls honestly run out of budget.
-///
-/// So the walls' bits are read by nothing at rest (residual 3), and the
-/// whole-body inversion is caught at the caps alone.
-///
-/// **How it goes red.** An arm that stops examining the caps fails the
-/// first assertion. If `loft_body` ever mints an analytic cylinder for
-/// a circular-arc profile segment, that wall is neither `Plane` nor a
-/// spline chart and the second assertion fails, the third with it. If
-/// the quadrature ever folds the bit into a loft face's flux, the
-/// same-reading assertion fails. The runtime values are the stored
-/// `Surface` discriminants, the per-edge face pair, and the `f64` bits
-/// of the metered volume (or the typed `MassPropsError` where the
-/// schedule refuses).
-#[test]
-fn the_planar_arm_is_the_only_sense_reader_on_the_arc_loft() {
-    let tol = Tol::witness();
-    let arc = crate::common::arc_prism();
-
-    let mut planar_outers: Vec<(FaceKey, topo::LoopKey)> = arc
-        .faces()
-        .filter(|(_, f)| matches!(arc.get_surface(f.surface), Some(Surface::Plane { .. })))
-        .map(|(k, f)| (k, f.outer))
-        .collect();
-    planar_outers.sort();
-    assert_eq!(
-        planar_arm_reaches(&arc),
-        planar_outers,
-        "check 6's planar arm examines every planar face's loop of the arc prism"
-    );
-
-    // The curved arm's gate: `Plane` or a spline chart, face by face.
-    for (k, f) in arc.faces() {
-        let s = arc.get_surface(f.surface).expect("the surface is live");
-        assert!(
-            matches!(s, Surface::Plane { .. }) || is_spline_chart_face(&arc, k),
-            "face {k:?} is neither planar nor a spline chart ({s:?}) — check 6's \
-             curved arm would now run on it and this row's answer has changed"
-        );
-    }
-
-    // Check 4's MATERIAL arm's gate: every edge nurbs-adjacent.
-    for (k, e) in arc.edges() {
-        let spline_side = |he| {
-            arc.face_of_half_edge(he)
-                .is_some_and(|fk| is_spline_chart_face(&arc, fk))
-        };
-        assert!(
-            spline_side(e.he_plus) || spline_side(e.he_minus),
-            "edge {k:?} has no spline-chart face — tier 3's `nurbs_adjacent` \
-             short-circuit no longer covers it and check 4's MATERIAL arm's \
-             `Face::sense` read is now reachable here"
-        );
-    }
-
-    // Check 7's blindness: the reporting door gives the SAME reading
-    // under the whole-body inversion. Phrased over the whole outcome,
-    // not over a volume, because this body's walls are rational and the
-    // fixed schedule honestly runs out of budget at a tight ε (the m8-3
-    // posture) — a refusal is as much the door's output as a number is,
-    // and both must be unmoved by a bit no lane here reads.
-    let honest = topo::mass_properties(&arc, tol);
-    let lied = topo::mass_properties(&sense_inverted_everywhere(&arc), tol);
-    match (&honest, &lied) {
-        (Ok(h), Ok(l)) => {
-            assert!(
-                h.volume > 0.0,
-                "the honest arc prism encloses positive volume; got {}",
-                h.volume
-            );
-            assert_eq!(
-                h.volume.to_bits(),
-                l.volume.to_bits(),
-                "the metered enclosure must not move under a sense inversion this \
-                 body's flux never reads — if it moved, some lane started folding \
-                 the bit in"
-            );
-        }
-        (Err(h), Err(l)) => assert_eq!(
-            h, l,
-            "the door's typed refusal must not move under the inversion either"
-        ),
-        _ => panic!("the inversion changed WHETHER the enclosure computes: {honest:?} vs {lied:?}"),
+    for (face, l) in [circular[0], elliptic[0]] {
+        let errs = topo::validate_geometric(&sense_inverted_at(&body, face), tol)
+            .expect_err("an inverted planar face's winding disagrees with its bit");
+        assert_eq!(role_inversions(&errs), vec![(face, l)]);
     }
 }
 
@@ -942,7 +843,8 @@ fn the_public_sense_door_inversion_of_an_arc_loft_is_refused_at_its_caps() {
 /// of its vertices plus the arc's apex (−3.06): a convex arc makes the
 /// inscribed polygon smaller than the region, and a big one flips it.
 fn c_shape(dx: f64) -> Vec<ProfileLoop<f64>> {
-    let d = |deg: f64, r: f64| p2(dx + r * deg.to_radians().cos(), r * deg.to_radians().sin());
+    let d =
+        |deg: f64, r: f64| Point2::new(dx + r * deg.to_radians().cos(), r * deg.to_radians().sin());
     vec![bulge_loop(vec![
         (d(5.0, 1.0), 87.5f64.to_radians().tan()),
         (d(355.0, 1.0), 0.0),

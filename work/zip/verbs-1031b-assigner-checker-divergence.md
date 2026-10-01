@@ -170,7 +170,7 @@ What that closes and what it does not:
   `outer[0] > ring[1]` assertion in `verbs_1031b_arcwind.rs` still
   stands.
 - Ellipse-bearing loops stay outside the checker:
-  `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`.
+  `work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`.
 
 The refusal-surface measurement this row asked for was run before the
 arm landed; its table is in ATREST-4's PR.

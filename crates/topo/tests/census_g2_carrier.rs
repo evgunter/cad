@@ -302,11 +302,25 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         // two independently authored curved descriptions, each in its
         // own arena, with no shared key and no `GeomSource`.
         let (mut a_body, mut b_body) = (a.body, b.body);
+        // Lifts both refusals: two independently authored curved descriptions are the declared pair.
         a_body
-            .set_face_surface(a.top_face, FaceSurface::New(surface.clone()))
+            .set_face_surface_stranding_for_tests(
+                a.top_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
+        // Lifts both refusals: two independently authored curved descriptions are the declared pair.
         b_body
-            .set_face_surface(b.bottom_face, FaceSurface::New(surface.clone()))
+            .set_face_surface_stranding_for_tests(
+                b.bottom_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
         (a_body, a.top_face, b_body, b.bottom_face)
     };
@@ -508,8 +522,8 @@ fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
     // function of sin θ and a bare angle would hide that.
     let ks = [2.0, 10.0, 30.0, 100.0, 300.0, 3000.0];
     let margin_of = |r: &Result<ChartOverlap, ChartRegionError>| match r {
-        Err(ChartRegionError::Escalated(d)) => match d.margin {
-            geom_core::MarginDiag::Value(v) => d.predicate.map(|p| (p, v)),
+        Err(ChartRegionError::Escalated(d)) => match d.margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(v) => d.predicate.map(|p| (p, v)),
             _ => None,
         },
         _ => None,
@@ -667,8 +681,8 @@ fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
     let k_eps = Tol::witness().k() * eps;
     let base = slab(1.0);
     let margin_of = |r: &Result<ChartOverlap, ChartRegionError>| match r {
-        Err(ChartRegionError::Escalated(d)) => match d.margin {
-            geom_core::MarginDiag::Value(v) => d.predicate.map(|p| (p, v)),
+        Err(ChartRegionError::Escalated(d)) => match d.margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(v) => d.predicate.map(|p| (p, v)),
             _ => None,
         },
         _ => None,

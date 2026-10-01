@@ -41,6 +41,7 @@ test_utils::gated_to![
     "crates/step-import/src/lib.rs",
     "crates/topo/src/validate.rs",
     "crates/topo/src/props.rs",
+    "crates/topo/src/props/",
     "crates/geom-brep/src/props/",
     "crates/step-import/tests/common/",
 ];
@@ -100,7 +101,7 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 /// own value rather than a second computation, and no comparison of
 /// VALUES can check that — a second computation would agree bit for
 /// bit. The count is the only witness, and it is exact: a single-solid
-/// file skips the per-solid gate as an identity at one instance, so the
+/// file owes no per-solid gate (`topo::per_part_gate_owed`), so the
 /// whole import runs exactly the certificates its aggregate tier-3′
 /// gate runs, which must be one measurement's worth.
 ///

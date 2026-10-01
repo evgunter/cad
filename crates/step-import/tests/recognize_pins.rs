@@ -526,8 +526,8 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                             cause,
                             ..
                         },
-                } => match cause.margin {
-                    geom_core::MarginDiag::Value(v) => Some(v),
+                } => match cause.margin.diagnostic_f64_for_error_text() {
+                    geom_core::ErrorTextReading::Value(v) => Some(v),
                     _ => None,
                 },
                 _ => None,

@@ -24,9 +24,6 @@ use profile::{
 fn tol() -> Tol {
     Tol::witness()
 }
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 type Built = Result<ProfileLoop<f64>, PathError<f64>>;
 
@@ -67,13 +64,13 @@ fn builds_and_validates(lp: Built, what: &str) {
 /// **line × circle**, radius-3 carrier: the offset line `y = r` and the
 /// offset circle `3 − r` touch at `r = 1.5`; the margin is `3 − 2r`.
 fn line_arc_r3(radius: f64) -> Built {
-    Open.at(p2(0.0, 3.0))
-        .line_to(p2(0.0, 0.0), tol())?
+    Open.at(Point2::new(0.0, 3.0))
+        .line_to(Point2::new(0.0, 0.0), tol())?
         .toward(1.0, 0.0, tol())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -89,13 +86,13 @@ fn lobes_06(radius: f64) -> Built {
     let tip = 0.64f64.sqrt();
     Open.arc_fillet_arc(
         Center {
-            c: p2(-0.6, 0.0),
+            c: Point2::new(-0.6, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.0, -tip),
+            p: Point2::new(0.0, -tip),
         },
         radius,
         Center {
-            c: p2(0.6, 0.0),
+            c: Point2::new(0.6, 0.0),
             winding: ArcSweep::Ccw,
             p: Start,
         },
@@ -109,15 +106,15 @@ fn lobes_06(radius: f64) -> Built {
 fn mixed_08(radius: f64) -> Built {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-0.8, 0.0),
+            c: Point2::new(-0.8, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.7, 0.0),
+            p: Point2::new(0.7, 0.0),
         },
         radius,
         Center {
-            c: p2(0.8, 0.0),
+            c: Point2::new(0.8, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(2.3, 0.0),
+            p: Point2::new(2.3, 0.0),
         },
         tol(),
     )?
@@ -134,19 +131,19 @@ fn mixed_08(radius: f64) -> Built {
 fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Built {
     let y = 2.0 - delta;
     let cx = -(4.0 - y * y).sqrt();
-    Open.at(p2(cx - a, y))
+    Open.at(Point2::new(cx - a, y))
         .toward(1.0, 0.0, tol())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -2.0),
+                p: Point2::new(0.0, -2.0),
             },
             tol(),
         )?
-        .line_to(p2(-3.0, -3.0), tol())?
-        .line_to(p2(-3.0, 3.0), tol())?
+        .line_to(Point2::new(-3.0, -3.0), tol())?
+        .line_to(Point2::new(-3.0, 3.0), tol())?
         .line_to(Start, tol())
         .map(|c| c.loop_)
 }
@@ -162,21 +159,21 @@ fn lever_lens(big: f64, rho2: f64) -> Built {
     let d = big + r;
     Open.arc_fillet_arc(
         Center {
-            c: p2(0.0, 0.0),
+            c: Point2::new(0.0, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.0, -big),
+            p: Point2::new(0.0, -big),
         },
         r,
         Center {
-            c: p2(d, 0.0),
+            c: Point2::new(d, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(d, big),
+            p: Point2::new(d, big),
         },
         tol(),
     )?
-    .line_to(p2(d, 2.0 * big), tol())?
-    .line_to(p2(-1.5 * big, 2.0 * big), tol())?
-    .line_to(p2(-1.5 * big, -1.5 * big), tol())?
+    .line_to(Point2::new(d, 2.0 * big), tol())?
+    .line_to(Point2::new(-1.5 * big, 2.0 * big), tol())?
+    .line_to(Point2::new(-1.5 * big, -1.5 * big), tol())?
     .line_to(Start, tol())
     .map(|c| c.loop_)
 }
@@ -321,15 +318,15 @@ fn the_lever_gate_is_reachable_in_band_on_the_lens_and_renders_its_sentence() {
 fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
     let eps = tol().eps();
     let closed = Open
-        .at(p2(0.0, 3.0))
-        .line_to(p2(0.0, 0.0), tol())
+        .at(Point2::new(0.0, 3.0))
+        .line_to(Point2::new(0.0, 0.0), tol())
         .unwrap()
         .toward(1.0, 0.0, tol())
         .unwrap()
         .fillet_arc(
             0.75,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -346,8 +343,8 @@ fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
     let err = replay_guided(&steps, &structure, tol()).expect_err("in band under guidance");
     let shown = err.to_string();
     assert!(
-        shown.contains("'fillet_offset_line_circle'"),
-        "names the gate: {shown}"
+        format!("{err:?}").contains("\"fillet_offset_line_circle\""),
+        "names the gate: {err:?}"
     );
     assert!(
         shown.contains(geom_core::COINCIDENCE_RECOURSE),

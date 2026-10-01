@@ -250,11 +250,11 @@ fn full_pappus_y(t: &Revolved<f64>) -> f64 {
 /// run closing. Wire k = 4, interior vertices 3.
 fn dome() -> ProfileLoop<f64> {
     ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(1.0, 0.0),
-        p2(1.0, 1.0),
-        p2(0.5, 1.5),
-        p2(0.0, 1.5),
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.5, 1.5),
+        Point2::new(0.0, 1.5),
     ])
 }
 
@@ -388,11 +388,11 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
     // cosurface run must yield ONE cylinder key across all FOUR band
     // faces, and the split rims (both bands) stay conventional.
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(1.0, 0.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
     ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
@@ -463,7 +463,10 @@ fn survives_ball_pole_valence_and_volume() {
     // implementer's lifted-oracle shape, but with the reviewer's dense
     // samples and a magnitude bound from an independently computed
     // chordal expectation).
-    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -527,7 +530,12 @@ fn survives_ball_pole_valence_and_volume() {
 
 #[test]
 fn survives_washer_zip_lineage_and_seam_state() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -602,10 +610,10 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     // every wall sharing one torus key.
     let b = FRAC_PI_8.tan();
     let lp = bulge_loop(vec![
-        (p2(2.0, 0.5), b),
-        (p2(1.5, 1.0), b),
-        (p2(1.0, 0.5), b),
-        (p2(1.5, 0.0), b),
+        (Point2::new(2.0, 0.5), b),
+        (Point2::new(1.5, 1.0), b),
+        (Point2::new(1.0, 0.5), b),
+        (Point2::new(1.5, 0.0), b),
     ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
@@ -666,7 +674,10 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
     // silently wrong model is set_edge_curve's certification gate
     // (SeamSide: samples must sit on the u_ref side). Verify the gate
     // actually refuses.
-    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
     let vp = validated(vec![lp]);
     let mut t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     let RevolvedKind::Full { pi_meridians, .. } = &t.kind else {
@@ -701,7 +712,7 @@ fn survives_seam_alignment_under_rotated_placement_and_oblique_axis() {
     // identity frame: a translated/rotated sketch placement AND an
     // in-sketch axis that is neither x nor y and misses the origin.
     let axis = RevolveAxis {
-        origin: p2(0.25, -0.5),
+        origin: Point2::new(0.25, -0.5),
         dir: Vec2::new(1.0, 2.0), // normalized internally
     };
     let d = Vec2::new(1.0, 2.0).normalize();
@@ -709,7 +720,7 @@ fn survives_seam_alignment_under_rotated_placement_and_oblique_axis() {
     // Rectangle in axis-adapted coordinates: r ∈ [1, 2], z ∈ [0, 1].
     let corner = |r: f64, z: f64| {
         let p = axis.origin + d * z + e_r * r;
-        p2(p.x, p.y)
+        Point2::new(p.x, p.y)
     };
     let lp = ProfileLoop::polygon([
         corner(1.0, 0.0),
@@ -769,7 +780,12 @@ fn survives_seam_alignment_under_rotated_placement_and_oblique_axis() {
 
 #[test]
 fn survives_rim_witness_is_bitwise_mid_parameter_antipode() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     for r in &t.rims[0] {
@@ -811,7 +827,12 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
     // WitnessMidpoint contract honesty: put the witness at the rim's
     // START point (which IS on both surfaces — the naive witness) and
     // verify certification refuses it on a full-period rim.
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let mut t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     let rim = t.rims[0][0].unwrap();
@@ -852,7 +873,12 @@ fn survives_start_point_witness_on_full_rim_is_refused() {
 fn survives_wedge_volume_magnitude_both_signs() {
     // Unit square on the axis, |θ| = π/2. Pappus:
     // V = |θ|/2 · ∮ r² dz = (π/4)·1 (only the r = 1 edge contributes).
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     for theta in [FRAC_PI_2, -FRAC_PI_2] {
         let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
@@ -898,7 +924,12 @@ fn survives_near_parallel_line_escalates_sliver_axis_clearance() {
     // cylinder nor a definite cone — must escalate as
     // SliverAxisClearance, never silently classify.
     let d = 3.0 * eps();
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0 + d, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0 + d, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(
@@ -912,7 +943,12 @@ fn survives_near_perpendicular_line_escalates_sliver_axis_clearance() {
     // dz = 3ε over dr = 1: neither a definite plane annulus nor a
     // definite cone.
     let d = 3.0 * eps();
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, d), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, d),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(
@@ -927,7 +963,12 @@ fn survives_negative_sliver_radius_is_typed_not_crossing() {
     // trilean must surface SliverRadius (escalation), not
     // VertexCrossesAxis.
     let d = 3.0 * eps();
-    let lp = ProfileLoop::polygon([p2(-d, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(-d, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(-d, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(-d, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::SliverRadius { .. }), "{e:?}");
@@ -939,7 +980,12 @@ fn survives_definite_near_band_classes_do_not_flip() {
     // off-axis — the revolve must succeed with a tiny inner cylinder,
     // at every ε row.
     let r = 100.0 * eps();
-    let lp = ProfileLoop::polygon([p2(r, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(r, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(r, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(r, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -953,11 +999,11 @@ fn survives_two_isolated_axis_vertices_pinch_is_non_manifold() {
     // NonManifoldAxisContact, not accepted and not MultipleAxisRuns
     // (there are zero runs).
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(1.0, 0.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
-        p2(0.5, 1.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
+        Point2::new(0.5, 1.0),
     ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
@@ -980,14 +1026,14 @@ fn survives_tight_but_definite_torus_clearance_is_accepted() {
     let (cx, cy) = (1.0, 0.5);
     let a0 = -0.2_f64;
     let a1 = 0.2_f64;
-    let p_lo = p2(cx + r_c * a0.cos(), cy + r_c * a0.sin());
-    let p_hi = p2(cx + r_c * a1.cos(), cy + r_c * a1.sin());
+    let p_lo = Point2::new(cx + r_c * a0.cos(), cy + r_c * a0.sin());
+    let p_hi = Point2::new(cx + r_c * a1.cos(), cy + r_c * a1.sin());
     let bulge = ((a1 - a0) / 4.0).tan();
     let lp = bulge_loop(vec![
         (p_lo, bulge),
         (p_hi, 0.0),
-        (p2(1.5, cy + r_c * a1.sin()), 0.0),
-        (p2(1.5, cy + r_c * a0.sin()), 0.0),
+        (Point2::new(1.5, cy + r_c * a1.sin()), 0.0),
+        (Point2::new(1.5, cy + r_c * a0.sin()), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
@@ -1021,7 +1067,7 @@ fn survives_near_full_period_rim_span_escalates() {
     // pinning here.
     let mut body = Body::<f64>::new();
     let q = Point3::new(1.0, 0.0, 0.0);
-    let seed = body.mvfs(q).unwrap();
+    let seed = body.mvfs(q, true).unwrap();
     let center = Point3::new(0.0, 0.0, 0.0);
     let radius = 1.0;
     let span = TAU - 3.0 * eps() / radius;
@@ -1074,11 +1120,11 @@ fn survives_near_collinear_cone_join_is_refused_upstream() {
     // silent share/split choice.
     let d = 3.0 * eps();
     let lp = ProfileLoop::polygon([
-        p2(1.0, 0.0),
-        p2(2.0, 1.0),
-        p2(3.0, 2.0 + d),
-        p2(3.0, 3.0),
-        p2(1.0, 3.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(3.0, 2.0 + d),
+        Point2::new(3.0, 3.0),
+        Point2::new(1.0, 3.0),
     ]);
     // FINDING-check resolved as SURVIVES: profile VALIDATION refuses
     // the near-collinear join first (chord_side escalation), so
@@ -1099,7 +1145,12 @@ fn survives_near_collinear_cone_join_is_refused_upstream() {
 #[test]
 #[ignore]
 fn probe_fan_oracle_coned_volume() {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let t = revolve(
         &vp,
@@ -1156,10 +1207,10 @@ fn survives_near_tangent_arc_join_classification() {
     let delta = 3.0 * eps();
     let bulge = (FRAC_PI_8 - delta / 2.0).tan();
     let lp = bulge_loop(vec![
-        (p2(2.0, 0.0), 0.0),
-        (p2(2.0, 1.0), bulge),
-        (p2(1.0, 2.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.0), bulge),
+        (Point2::new(1.0, 2.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
     ]);
     match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Err(e) => {
@@ -1183,7 +1234,12 @@ fn survives_theta_near_pi_axis_edge_dihedral() {
     // transverse; θ = π ± 100ε must classify definitely (transverse ⇒
     // Intersection axis edge) — the near-band definite class must not
     // flip.
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     match revolve(
         &vp,
@@ -1227,7 +1283,12 @@ fn survives_angle_full_range_boundary_rows() {
     // θ = τ − 3ε (r_max = 2): headroom in the band — must escalate
     // (AngleEscalated), never accept-as-partial or alias to Full.
     // θ = τ − 1000ε: definite partial — must build.
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let e = revolve(
         &vp,
@@ -1260,7 +1321,12 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
     // non-periodic chart must be structurally malformed
     // (SeamOnNonPeriodic), so the washer's plane-wall meridian can
     // never be silently "upgraded".
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let mut t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
@@ -1310,7 +1376,12 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
     // leave ONE cone key across all four cone band faces. The seed
     // face still carries its Nurbs placeholder while the band-2 mefs
     // run — this pins that ordering.
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 1.0), p2(2.0, 2.0), p2(0.0, 2.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(0.0, 2.0),
+    ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -1368,10 +1439,10 @@ fn probe_sliver_dihedral_arms() {
     let delta = 3.0 * eps();
     let bulge = (FRAC_PI_8 - delta / 2.0).tan();
     let lp = bulge_loop(vec![
-        (p2(2.0, 0.0), 0.0),
-        (p2(2.0, 1.0), bulge),
-        (p2(1.0, 2.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.0), bulge),
+        (Point2::new(1.0, 2.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
     ]);
     match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Err(e) => println!("near-tangent arc: upstream validation: {e:?}"),
@@ -1380,7 +1451,12 @@ fn probe_sliver_dihedral_arms() {
             revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).map(|_| "built")
         ),
     }
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     println!(
         "theta = pi - 3eps: {:?}",
@@ -1402,11 +1478,11 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // conventional split must survive in BOTH bands, and tier 3 must
     // accept it while the transverse base join upgrades.
     let mut lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
         // quarter arc to (0, 2), center (0,1)
-        (p2(1.0, 1.0), FRAC_PI_8.tan()),
-        (p2(0.0, 2.0), 0.0),
+        (Point2::new(1.0, 1.0), FRAC_PI_8.tan()),
+        (Point2::new(0.0, 2.0), 0.0),
     ]);
     // The cylinder-sphere tangency this test is ABOUT is declared
     // (#101): the discipline gates the profile door; the D2 split and

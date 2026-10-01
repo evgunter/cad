@@ -2,11 +2,11 @@
 id: stranded-names-are-retired-to-an-undrawable-coordinate
 kind: issue
 title: SetProgram retires a stranded name to an undrawable coordinate rather than leaving it in place: Ev's call
-status: open
+status: closed
+closed: 2026-09-29
 priority: P1
 cost: E
 opened: 2026-09-20
-needs_ev: true
 refs: [a-committed-profile-program-has-no-whole-program-edit]
 ---
 
@@ -105,3 +105,12 @@ this row describes. Under minted step ids, a dropped step's id is never
 minted again, so a stranded name keeps its spelling and vanishes. No
 floor or tombstone is needed. Whether this row is closed is EDIT's
 call.
+
+## Closed (2026-09-29, EDIT orchestrator) — moot under EMIT's #3223
+
+#3223 deleted `RETIRED_FLOOR` and the `SegmentMap` rewrite. A dropped
+step's minted id is never minted again, so a stranded name keeps its
+spelling, can never re-denote, and resolves `Vanished`. That gives the
+honesty Ev leaned towards on #3158 ("i lean towards the tombstone"),
+carried by the id counter rather than a new variant. #3158 was answered
+and closed unmerged.

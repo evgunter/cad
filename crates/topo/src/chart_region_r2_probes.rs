@@ -1,7 +1,7 @@
 //! Blinded review R2 probes for M9-2 PR-1's chart-region predicate.
 //! Adversarial only — nothing here ships; the module is `cfg(test)`.
 
-use super::tests::{band, face_of, pt, rect, sheet, uv, xy_plane, xy_plane_rotated};
+use super::tests::{band, face_of, rect, sheet, uv, xy_plane, xy_plane_rotated};
 use super::*;
 use crate::euler::FaceSurface;
 use crate::source::GeomSource;
@@ -14,7 +14,7 @@ use geom_core::{Point3, Vec3};
 
 fn harmonic(pa: (f64, f64), pb: (f64, f64)) -> Pcurve<f64> {
     Pcurve::Harmonic {
-        p0: pt(0.0, 0.0),
+        p0: Point2::new(0.0, 0.0),
         pa: Vec2::new(pa.0, pa.1),
         pb: Vec2::new(pb.0, pb.1),
         pl: Vec2::new(1.0, 0.0),
@@ -53,7 +53,7 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
     // is the conservative direction, and it is what "no scalar
     // zero-test on T" costs.
     let p = Pcurve::Harmonic {
-        p0: pt(0.0, 0.0),
+        p0: Point2::new(0.0, 0.0),
         pa: Vec2::new(1.0, 0.0),
         pb: Vec2::new(0.0, 0.0),
         pl: Vec2::new(0.0, 0.0),
@@ -61,7 +61,7 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
     assert!(pcurve_entry(&p, 0.0, 1.0, true).is_err());
     // A genuinely curved image (u sinusoid, v linear) also refuses.
     let q = Pcurve::Harmonic {
-        p0: pt(0.0, 0.0),
+        p0: Point2::new(0.0, 0.0),
         pa: Vec2::new(1.0, 0.0),
         pb: Vec2::new(0.0, 0.0),
         pl: Vec2::new(0.0, 1.0),
@@ -78,7 +78,17 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
     // Two bodies, the SAME plane locus, different chart frames
     // (u_ref x vs y). No sources: must diverge.
     let mut ba = Body::<f64>::new();
-    let fa = sheet(&mut ba, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let fa = sheet(
+        &mut ba,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New {
+            surface: xy_plane(),
+            sense: true,
+        },
+    );
     let mut bb = Body::<f64>::new();
     let fb = sheet(
         &mut bb,
@@ -86,7 +96,10 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
         0.0,
         2.0,
         2.0,
-        FaceSurface::New(xy_plane_rotated()),
+        FaceSurface::New {
+            surface: xy_plane_rotated(),
+            sense: true,
+        },
     );
     match chart_region_overlap(&ba, fa, &bb, fb, band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
@@ -95,7 +108,17 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
     // Even the BIT-IDENTICAL surface across two sourceless bodies
     // diverges — the structural rung is the whole test.
     let mut bc = Body::<f64>::new();
-    let fc = sheet(&mut bc, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let fc = sheet(
+        &mut bc,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New {
+            surface: xy_plane(),
+            sense: true,
+        },
+    );
     match chart_region_overlap(&ba, fa, &bc, fc, band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
         other => panic!("sourceless cross-body must diverge, got {other:?}"),
@@ -108,7 +131,17 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
 #[test]
 fn probe_forged_source_on_divergent_charts() {
     let mut ba = Body::<f64>::new();
-    let fa = sheet(&mut ba, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let fa = sheet(
+        &mut ba,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New {
+            surface: xy_plane(),
+            sense: true,
+        },
+    );
     let ka = ba.get_face(fa).unwrap().surface;
     ba.set_surface_source(ka, GeomSource::minted(7, 0)).unwrap();
     let mut bb = Body::<f64>::new();
@@ -118,7 +151,10 @@ fn probe_forged_source_on_divergent_charts() {
         0.0,
         2.0,
         2.0,
-        FaceSurface::New(xy_plane_rotated()),
+        FaceSurface::New {
+            surface: xy_plane_rotated(),
+            sense: true,
+        },
     );
     let kb = bb.get_face(fb).unwrap().surface;
     bb.set_surface_source(kb, GeomSource::minted(7, 0)).unwrap();
@@ -134,7 +170,17 @@ fn probe_forged_source_on_divergent_charts() {
 #[test]
 fn probe_reverted_and_placed_sources_diverge() {
     let mut ba = Body::<f64>::new();
-    let fa = sheet(&mut ba, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let fa = sheet(
+        &mut ba,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New {
+            surface: xy_plane(),
+            sense: true,
+        },
+    );
     let ka = ba.get_face(fa).unwrap().surface;
     let src = GeomSource::minted(3, 1);
     ba.set_surface_source(ka, src.clone()).unwrap();
@@ -145,7 +191,17 @@ fn probe_reverted_and_placed_sources_diverge() {
         ("other-index", GeomSource::minted(3, 2)),
     ] {
         let mut bb = Body::<f64>::new();
-        let fb = sheet(&mut bb, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+        let fb = sheet(
+            &mut bb,
+            0.0,
+            0.0,
+            2.0,
+            2.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let kb = bb.get_face(fb).unwrap().surface;
         bb.set_surface_source(kb, other).unwrap();
         match chart_region_overlap(&ba, fa, &bb, fb, band()) {
@@ -304,13 +360,13 @@ fn probe_collinear_runs_do_not_disturb_the_walk() {
     // A's bottom edge carries three extra COLLINEAR vertices.
     let a = face_of(
         vec![
-            pt(0.0, 0.0),
-            pt(0.25, 0.0),
-            pt(0.5, 0.0),
-            pt(0.75, 0.0),
-            pt(1.0, 0.0),
-            pt(1.0, 1.0),
-            pt(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(0.25, 0.0),
+            Point2::new(0.5, 0.0),
+            Point2::new(0.75, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
         ],
         &[],
     );
@@ -329,18 +385,18 @@ fn probe_collinear_runs_do_not_disturb_the_walk() {
 fn probe_comb_yields_three_pieces_with_exact_area() {
     // A three-tooth comb crossed by a horizontal bar: three pieces.
     let comb = vec![
-        pt(0.0, 0.0),
-        pt(5.0, 0.0),
-        pt(5.0, 3.0),
-        pt(4.0, 3.0),
-        pt(4.0, 1.0),
-        pt(3.0, 1.0),
-        pt(3.0, 3.0),
-        pt(2.0, 3.0),
-        pt(2.0, 1.0),
-        pt(1.0, 1.0),
-        pt(1.0, 3.0),
-        pt(0.0, 3.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(5.0, 0.0),
+        Point2::new(5.0, 3.0),
+        Point2::new(4.0, 3.0),
+        Point2::new(4.0, 1.0),
+        Point2::new(3.0, 1.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(2.0, 3.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 3.0),
+        Point2::new(0.0, 3.0),
     ];
     let a = face_of(comb, &[]);
     let bar = face_of(rect(-1.0, 2.0, 6.0, 2.5), &[]);
@@ -394,7 +450,12 @@ fn probe_bit_identical_fast_path_is_rotation_stable() {
     let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
     // Same cycle, rotated start vertex.
     let b = face_of(
-        vec![pt(1.0, 0.0), pt(1.0, 1.0), pt(0.0, 1.0), pt(0.0, 0.0)],
+        vec![
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+        ],
         &[],
     );
     assert!(bit_equal_cyclic(&a.outer, &b.outer));
@@ -419,9 +480,26 @@ fn probe_bit_identical_fast_path_is_rotation_stable() {
 #[test]
 fn probe_replay_determinism() {
     let mut body = Body::<f64>::new();
-    let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+    let f1 = sheet(
+        &mut body,
+        0.0,
+        0.0,
+        2.0,
+        2.0,
+        FaceSurface::New {
+            surface: xy_plane(),
+            sense: true,
+        },
+    );
     let key = body.get_face(f1).unwrap().surface;
-    let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::Shared(key));
+    let f2 = sheet(
+        &mut body,
+        1.0,
+        1.0,
+        3.0,
+        3.0,
+        FaceSurface::Shared { key, sense: true },
+    );
     let first = chart_region_overlap(&body, f1, &body, f2, band()).unwrap();
     for _ in 0..64 {
         assert_eq!(
@@ -486,7 +564,12 @@ fn probe_all_vertices_on_the_other_boundary_never_answers_empty() {
     let b = face_of(rect(0.0, 0.0, 2.0, 2.0), &[]);
     // (i) the inscribed diamond on B's edge midpoints.
     let diamond = face_of(
-        vec![pt(1.0, 0.0), pt(2.0, 1.0), pt(1.0, 2.0), pt(0.0, 1.0)],
+        vec![
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 1.0),
+            Point2::new(1.0, 2.0),
+            Point2::new(0.0, 1.0),
+        ],
         &[],
     );
     let got = overlap_of_regions(&diamond, &b, false, band());

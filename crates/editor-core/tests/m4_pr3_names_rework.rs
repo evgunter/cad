@@ -8,8 +8,8 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, evaluate,
+    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc,
+    RecipeNodeId, RoleSeg, evaluate,
 };
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -139,8 +139,9 @@ fn subtract_block_from_bar_never_fails_in_naming() {
     // acceptable; failing in NAMING is not.
     if ev.value(s).is_none() {
         let err = format!("{:?}", ev.nodes.get(&s));
-        assert!(
-            !err.contains("Naming"),
+        assert_ne!(
+            ev.node_error(s).map(|e| e.kind.class()),
+            Some(NodeErrorClass::Naming),
             "bar-minus-block failed IN NAMING: {err}"
         );
     }
@@ -240,7 +241,10 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
     );
     let err = format!("{:?}", ev.nodes.get(&pat));
     assert!(
-        err.contains("WrongOperand") || err.contains("Naming"),
+        matches!(
+            ev.node_error(pat).map(|e| e.kind.class()),
+            Some(NodeErrorClass::WrongOperand | NodeErrorClass::Naming)
+        ),
         "expected a typed refusal, got: {err}"
     );
 }

@@ -61,8 +61,8 @@
 //! extrude plus all four unions, everything else reused).
 
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Expr, Node, RoleSeg,
-    SlotId, declare_node, evaluate, find_flush_candidates,
+    BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, RoleSeg, SlotId, declare_node,
+    evaluate, find_flush_candidates,
 };
 use topo::PlaneRelation;
 
@@ -178,7 +178,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: first_leg,
             slot: SlotId::Distance,
-            expr: Expr::literal(1.0625, Dimension::Length).expect("dyadic length literal"),
+            expr: len(1.0625),
         },
         bump_root: first_leg,
     }

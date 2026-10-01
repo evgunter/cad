@@ -10,7 +10,7 @@
 //! step already wrapped in one [`RoleSeg::FromMember`] carrying that
 //! member's node id. Every operand of every step is therefore in the
 //! union's own name space, and every name the pair emitter embeds — a
-//! seam's two sides, a merge's constituents, a fragment's partners —
+//! seam's two sides, a merge's constituents, a fragment's walls —
 //! already says which member it came from. It has to be put there: a
 //! pass-through op mints no name (N1), so N placements of one
 //! prototype carry N IDENTICAL tables and no inner name can tell them
@@ -26,7 +26,7 @@
 //! collapsed by the same rule. The result is then put in canonical
 //! form by `names::canonical`, the one list of a path's name-ordered
 //! positions, which the pair emitter's mint and every rewrite of a
-//! published name also end in: a `Merged` set and a `SideOf` vector
+//! published name also end in: a `Merged` set and a `Borders` set
 //! are sorted, a junction's run of lines is sorted, and a `Seam`'s two
 //! sides are put in name order, because a union has no A and B.
 //!
@@ -47,11 +47,15 @@
 //! because they read the finished table or the finished body. Each
 //! replaces something the fold wrote down about WHEN it met an entity
 //! with something the finished union says about WHAT the entity is:
-//! - a seam's side is cited as the face beside the seam that it retired
-//!   into, and a `SideOf` partner as the one published merge that lists
-//!   it, unless the constituent is itself published
-//!   ([`retire_into_merges`]) — whether a step met the face before or
-//!   after the merge is fold history;
+//! - a face is named for its PARENT, the member faces the union's merges
+//!   link to it, transitively, followed by entity through the fold
+//!   ([`Fold`], [`Parents`]): the parent itself when the finished body
+//!   holds it as one face, and otherwise the parent and one `Borders`
+//!   over the divider walls each piece borders; a seam edge is named
+//!   for the two parents it lies between, ranked along the seam when
+//!   there are several; and any other name cites a face as its parent
+//!   ([`name_by_parents`]) — whether a step cut a face before or after
+//!   it merged, and in how many steps, is fold history;
 //! - an entity of the finished body that belongs to several members at
 //!   once (a flush stretch, a corner on another member's rim) is named
 //!   for the least member entity that holds it, and every edge lying
@@ -71,11 +75,7 @@
 //! order-free as far as the boolean's output is: where different member
 //! orders leave different vertices (a declared merge can,
 //! `work/zip/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`),
-//! the names differ with them. What stays fold history is how a face
-//! that was both merged and cut is named: merged then cut, it is a
-//! fragment of the merge; cut then merged, its pieces are the merge and
-//! a bare constituent, and a seam beside the bare piece cites it
-//! (`work/emit/declared-flush-union-edge-and-vertex-names-follow-member-order.md`).
+//! the names differ with them.
 //!
 //! A refusal raised mid-fold, and the declaration door's view of an
 //! intermediate step, have no finished body and keep the fold's ranks.
@@ -108,15 +108,23 @@ use std::sync::Arc;
 use geom_core::k_stats::decide;
 use geom_core::{Margin, Sign};
 
-use crate::names::defer::TieRows;
+use crate::names::borders::Obstacles;
+use crate::names::defer::{TieRows, mint_candidates, put};
 use crate::names::discriminate::{Extent, ON_MEMBER_EDGE, band, order_along};
 use crate::names::emit::{
-    Incidence, NamingError, check_total, edge_ends, ent, face_half_edges, rims_between,
+    Incidence, NamingError, check_total, edge_ends, ent, face_half_edges, rims_between, to_u32,
     vertex_point,
 };
-use crate::names::emit_topo::{OnSegment, Segment, insert_ranked_or_tied};
+use crate::names::emit_topo::{
+    FaceDescent, OnSegment, OrientedPlane, Segment, carrier_plane, edge_extent,
+    insert_ranked_or_tied, name_parent_faces,
+};
+use crate::names::groups::Rederived;
+use crate::names::least_root::LeastRoot;
+use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
-    EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, StableName, never_in_a_boolean_table,
+    Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, StableName,
+    never_in_a_boolean_table,
 };
 use crate::names::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
@@ -196,16 +204,18 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     body: &topo::Body<T>,
     folded: &NameTable,
     members: &[Member<'_, T>],
+    fold: &Fold,
     tol: geom_core::Tol,
-) -> Result<Arc<NameTable>, NamingError> {
+) -> Result<(Arc<NameTable>, Rederived), NamingError> {
     let bnd = band(tol)?;
     let t = collapse_table(node, folded)?;
-    let t = retire_into_merges(node, t, body)?;
-    let flush = Flush::of(node, body, members, &t, bnd)?;
-    let t = rank_member_edges(t, body, members, &flush, bnd)?;
+    let parents = Parents::of(node, body, members, fold)?;
+    let flush = Flush::of(node, body, members, &parents, bnd)?;
+    let (t, held, groups) = name_by_parents(node, &t, body, members, &parents, fold, &flush, bnd)?;
+    let t = rank_member_edges(t, held, body, members, &flush, bnd)?;
     let t = cite_member_edges(t, body, members, &flush, bnd)?;
     check_total(&t, body, 0)?;
-    Ok(Arc::new(t))
+    Ok((Arc::new(t), groups))
 }
 
 /// One member of a union as [`name_union`] reads it: its node, its own
@@ -243,6 +253,7 @@ pub(crate) struct Member<'a, T: geom_core::Decide> {
 /// stretch of its edge between two places.
 fn rank_member_edges<T: geom_core::Decide>(
     t: NameTable,
+    held: Vec<(StableName, Entry)>,
     body: &topo::Body<T>,
     members: &[Member<'_, T>],
     flush: &Flush<'_, T>,
@@ -253,26 +264,27 @@ fn rank_member_edges<T: geom_core::Decide>(
     // (member, member edge) → the group's rows.
     let mut groups: BTreeMap<MemberEntity, Vec<(StableName, Entry)>> = BTreeMap::new();
     let mut out = NameTable::new();
-    for (name, entry) in t.iter() {
-        let k = match entry {
+    let rows = t
+        .iter()
+        .map(|(name, entry)| (name.clone(), entry.clone()))
+        .chain(held);
+    for (name, entry) in rows {
+        let k = match &entry {
             Entry::Unique(e) => match e.key {
                 EntityKey::Edge(k) => Some(k),
                 _ => None,
             },
             Entry::Tied(_) => None,
         };
-        let key = match (member_edge_piece(name), k) {
+        let key = match (member_edge_piece(&name), k) {
             (Some((member, edge, _)), Some(k)) => Some(flush.least_edge(k, (member, edge))),
             (Some((member, edge, _)), None) => Some((member, edge)),
             (None, Some(k)) => flush.least_within(k),
             (None, None) => None,
         };
         match key {
-            Some(key) => groups
-                .entry(key)
-                .or_default()
-                .push((name.clone(), entry.clone())),
-            None => put_entry(&mut out, name.clone(), entry)?,
+            Some(key) => groups.entry(key).or_default().push((name, entry)),
+            None => put_entry(&mut out, name, &entry)?,
         }
     }
     for ((member, edge), rows) in groups {
@@ -396,15 +408,8 @@ impl Cells {
                 at => on.push((v, at, seg.along(p))),
             }
         }
-        // Components of the `Zero` relation, by union–find.
-        fn find(root: &mut [usize], mut i: usize) -> usize {
-            while root[i] != i {
-                root[i] = root[root[i]];
-                i = root[i];
-            }
-            i
-        }
-        let mut root: Vec<usize> = (0..on.len()).collect();
+        // Components of the `Zero` relation.
+        let mut root = LeastRoot::new();
         for i in 0..on.len() {
             for j in (i + 1)..on.len() {
                 let gap = decide(ON_MEMBER_EDGE, Margin::of(on[j].2 - on[i].2), bnd).map_err(
@@ -414,8 +419,7 @@ impl Cells {
                     },
                 )?;
                 if gap == Sign::Zero {
-                    let (a, b) = (find(&mut root, i), find(&mut root, j));
-                    root[a.max(b)] = a.min(b);
+                    root.join(i, j);
                 }
             }
         }
@@ -424,7 +428,7 @@ impl Cells {
         let mut components: Vec<Place<T>> = Vec::new();
         let mut slot = vec![usize::MAX; on.len()];
         for (i, &(v, at, t)) in on.iter().enumerate() {
-            let r = find(&mut root, i);
+            let r = root.root(i);
             if slot[r] == usize::MAX {
                 slot[r] = components.len();
                 components.push((Vec::new(), Extent { min: t, max: t }, false, false));
@@ -562,27 +566,15 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         union: RecipeNodeId,
         body: &'a topo::Body<T>,
         members: &'a [Member<'a, T>],
-        t: &NameTable,
+        parents: &Parents,
         bnd: geom_core::Band,
     ) -> Result<Self, NamingError> {
         let mut faces = BTreeMap::new();
         let mut face_names = BTreeMap::new();
-        for (name, entry) in t.iter() {
-            if name.kind != EntityKind::Face {
-                continue;
-            }
-            // A tied face descends from nothing this pass can use: an
-            // edge beside it keeps the member the fold gave it.
-            let Entry::Unique(e) = entry else { continue };
-            let EntityKey::Face(f) = e.key else {
-                return Err(NamingError::Emission {
-                    what: "a union's face row names no face",
-                });
-            };
-            let mut from = BTreeSet::new();
-            member_faces(name, &mut from);
-            faces.insert(f, from);
-            face_names.insert(f, name.clone());
+        for &f in parents.of_face.keys() {
+            let parent = parents.face(f)?;
+            faces.insert(f, parent.from.clone());
+            face_names.insert(f, parent.name.clone());
         }
         let mut flush = Flush {
             union,
@@ -711,7 +703,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 let Some(name) = self.face_names.get(f) else {
                     return Ok(None);
                 };
-                others.insert(unfragmented(name));
+                others.insert(name.clone());
             }
         }
         let mut others = others.into_iter();
@@ -805,16 +797,15 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 /// member face, or every constituent's of a `Merged` set, through any
 /// `Fragment` after either.
 fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
-    match name.path.first() {
-        Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Face => {
-            out.insert((*member, of.clone()));
-        }
-        Some(RoleSeg::Merged(set)) => {
-            for c in set {
-                member_faces(c, out);
+    let mut names = vec![name];
+    while let Some(name) = names.pop() {
+        match name.path.first() {
+            Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Face => {
+                out.insert((*member, of.clone()));
             }
+            Some(RoleSeg::Merged(set)) => names.extend(set),
+            _ => {}
         }
-        _ => {}
     }
 }
 
@@ -1056,9 +1047,9 @@ struct WholeMemberEdges<'f, 'a, T: geom_core::Decide> {
 impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
     type Error = NamingError;
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, NamingError> {
+    fn name(&mut self, n: &StableName) -> Result<Carry, NamingError> {
         if n.node != self.union {
-            return Ok(None);
+            return Ok(Carry::Keep);
         }
         if let Some((member, edge, _)) = member_edge_piece(n) {
             let (member, edge) = match self.at {
@@ -1066,239 +1057,586 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
                 None => (member, edge),
             };
             let whole = entity_name(self.union, &(member, edge));
-            return Ok((whole != *n).then_some(whole));
+            return Ok(if whole == *n {
+                Carry::Keep
+            } else {
+                Carry::Replace(whole)
+            });
         }
-        let walked = n.clone().rewrite_path(self)?;
+        Ok(Carry::Descend)
+    }
+
+    fn descended(
+        &mut self,
+        n: &StableName,
+        walked: StableName,
+    ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
     }
 }
 
-/// **A face a published name cites is the face its entity borders.**
+/// A member face, by entity: the member's node and the face's key in
+/// the member's own body.
+type MemberFace = (RecipeNodeId, topo::FaceKey);
+
+/// **What a union's fold records for its end pass**: which member faces
+/// each face of the accumulation descends from, by entity, and every
+/// step's discards ([`Obstacles`]) keyed by the member faces the
+/// discarded face descends from.
 ///
-/// N3: a merged face's constituents retire into it. A fold step that met
-/// a face after a merge cites the merge (`Seam { Merged(..), .. }`, a
-/// `SideOf` partner `Merged(..)`); one that met it before the merge, or
-/// in the step that merged it, cites the constituent it met. Which of
-/// the two a name says is fold history, so the cited face is read off
-/// the finished body instead: a constituent `c` that a name of entity
-/// `x` cites is rewritten to the merge `M` when a face beside `x` (the
-/// edge's two faces, a vertex's faces, a face's neighbours) is `M` or a
-/// fragment of it, `M` lists `c`, and no face beside `x` is `c` itself
-/// or a fragment of it; so is an earlier merge whose set is part of the
-/// set of exactly one such `M`. Otherwise the citation stays: the constituent
-/// is still published where a step cut and merged one face together
-/// (`work/emit/a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires.md`),
-/// and a name citing it then borders it.
-///
-/// A `SideOf` partner names a plane, not a neighbour, and a merge lies
-/// in the plane of each constituent: a partner is cited as the one
-/// published merge that lists it, wherever that merge is, unless the
-/// partner is itself published.
-///
-/// A name embedded in another that is itself a published row is
-/// spelled as that row publishes it. A merged face's own set is its
-/// constituents and is left as it is.
-///
-/// Two rows can come out with one name — a seam line the finished body
-/// holds as two edges (a vertex a declared merge left on it) cites the
-/// same two faces twice. Neither is rewritten then, and the rewrite is
-/// re-run until no two rows collide, so the table never aliases.
-fn retire_into_merges<T: geom_core::Decide>(
-    node: RecipeNodeId,
-    t: NameTable,
-    body: &topo::Body<T>,
-) -> Result<NameTable, NamingError> {
-    // Nothing retired where nothing merged.
-    if !t
-        .iter()
-        .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-    {
-        return Ok(t);
+/// A face's descent is read off each step's rows, never off a name:
+/// a piece of a face descends from what the face does, a merged face
+/// from what each face it absorbed does, and a face of the member the
+/// step folds in from that member's face.
+pub(crate) struct Fold {
+    /// Accumulation face → the member faces it descends from.
+    lineage: BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
+    obstacles: Obstacles<MemberFace>,
+}
+
+impl Fold {
+    /// The fold before any step: the first member's body.
+    pub(crate) fn new<T: geom_core::Real>(first: RecipeNodeId, body: &topo::Body<T>) -> Self {
+        Self {
+            lineage: body
+                .faces()
+                .map(|(f, _)| (f, BTreeSet::from([(first, f)])))
+                .collect(),
+            obstacles: Obstacles::new(),
+        }
     }
-    let inc = Incidence::of(body)?;
-    let mut cx = Retire {
-        union: node,
-        t: &t,
-        inc: &inc,
-        faces: BTreeMap::new(),
-        beside_face: BTreeMap::new(),
-        merges: BTreeMap::new(),
-        frozen: BTreeSet::new(),
-        memo: BTreeMap::new(),
+
+    /// One fold step: `member` folded into the accumulation, giving
+    /// `result` with the kernel's record `naming`.
+    pub(crate) fn step<T: geom_core::Real>(
+        &mut self,
+        member: RecipeNodeId,
+        naming: &topo::BooleanNaming,
+        result: &topo::Body<T>,
+    ) -> Result<(), NamingError> {
+        let bug = |what| NamingError::Emission { what };
+        let descent = FaceDescent::of(naming);
+        let from = |lineage: &BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
+                    (operand, f): (topo::Operand, topo::FaceKey)|
+         -> Result<BTreeSet<MemberFace>, NamingError> {
+            match operand {
+                topo::Operand::A => lineage
+                    .get(&f)
+                    .cloned()
+                    .ok_or_else(|| bug("a union fold step's face descends from no face it held")),
+                topo::Operand::B => Ok(BTreeSet::from([(member, f)])),
+            }
+        };
+        self.obstacles.record(naming, result, |operand, f| {
+            from(&self.lineage, (operand, descent.clone_face(operand, f)?))
+        })?;
+        let merged = descent.merged();
+        let mut next = BTreeMap::new();
+        for (f, _) in result.faces() {
+            let mut set = BTreeSet::new();
+            for &g in merged.get(&f).map_or(&[f][..], Vec::as_slice) {
+                set.extend(from(&self.lineage, descent.result_face(g)?)?);
+            }
+            next.insert(f, set);
+        }
+        self.lineage = next;
+        Ok(())
+    }
+}
+
+/// **A union's faces, grouped by parent** (N2, N3).
+///
+/// A face's parent is its merge closure, read by entity off the fold
+/// ([`Fold`]): a finished face links the member faces it descends
+/// from, and linking is transitive. The member faces so linked are one
+/// parent, named `Merged` of all of them; a member face nothing links
+/// to another is its own parent, named as the member's face. Which step
+/// met a face first, or cut it before or after it merged, changes the
+/// spelling the fold gives it but not the member faces it descends
+/// from. Tied member faces are separate parents spelled alike.
+///
+/// A member face that a row embeds and no face of the finished body
+/// descends from is its own parent.
+struct Parents {
+    /// Finished face → its parent.
+    of_face: BTreeMap<topo::FaceKey, usize>,
+    /// Member face, by name → the names of the parents it is linked
+    /// into (several only for a tied name whose candidates went apart).
+    of_member: BTreeMap<MemberEntity, BTreeSet<StableName>>,
+    all: Vec<Parent>,
+}
+
+/// One parent of [`Parents`].
+struct Parent {
+    name: StableName,
+    /// The member faces linked into it.
+    entities: BTreeSet<MemberFace>,
+    /// Their names in their members' tables.
+    from: BTreeSet<MemberEntity>,
+    /// The finished faces that are it or pieces of it.
+    faces: Vec<topo::FaceKey>,
+    /// Whether a member face in it is tied in its member's table (N2's
+    /// tie, propagated).
+    tied: bool,
+}
+
+impl Parents {
+    /// The parents of the finished body's faces.
+    fn of<T: geom_core::Decide>(
+        union: RecipeNodeId,
+        body: &topo::Body<T>,
+        members: &[Member<'_, T>],
+        fold: &Fold,
+    ) -> Result<Self, NamingError> {
+        let bug = |what| NamingError::Emission { what };
+        let mut rows: Vec<(topo::FaceKey, &BTreeSet<MemberFace>)> = Vec::new();
+        for (f, _) in body.faces() {
+            let from = fold
+                .lineage
+                .get(&f)
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| bug("a union's face descends from no member face"))?;
+            rows.push((f, from));
+        }
+        // The member faces one finished face descends from are one class.
+        let mut link = LeastRoot::new();
+        for (_, from) in &rows {
+            let mut from = from.iter().copied();
+            let Some(first) = from.next() else { continue };
+            link.insert(first);
+            for m in from {
+                link.join(first, m);
+            }
+        }
+        let mut classes: BTreeMap<MemberFace, BTreeSet<MemberFace>> = BTreeMap::new();
+        for m in link.keys() {
+            classes.entry(link.root(m)).or_default().insert(m);
+        }
+        let mut parents = Parents {
+            of_face: BTreeMap::new(),
+            of_member: BTreeMap::new(),
+            all: Vec::new(),
+        };
+        let mut index: BTreeMap<MemberFace, usize> = BTreeMap::new();
+        for (r, entities) in classes {
+            let mut from = BTreeSet::new();
+            let mut tied = false;
+            for &(m, f) in &entities {
+                let member = member_of(members, m)?;
+                let of = member
+                    .table
+                    .name_ref_of(&ent(0, EntityKey::Face(f)))
+                    .ok_or_else(|| bug("a member face a union holds is unnamed in its member"))?
+                    .clone();
+                tied |= member.table.is_tied(&of);
+                from.insert((m, of));
+            }
+            let name = parent_name(union, &from);
+            for m in &from {
+                parents
+                    .of_member
+                    .entry(m.clone())
+                    .or_default()
+                    .insert(name.clone());
+            }
+            index.insert(r, parents.all.len());
+            parents.all.push(Parent {
+                name,
+                entities,
+                from,
+                faces: Vec::new(),
+                tied,
+            });
+        }
+        for (f, from) in rows {
+            let first = *from
+                .first()
+                .ok_or_else(|| bug("a union's face descends from no member face"))?;
+            let p = *index
+                .get(&link.root(first))
+                .ok_or_else(|| bug("a union's face has no parent"))?;
+            parents.all[p].faces.push(f);
+            parents.of_face.insert(f, p);
+        }
+        Ok(parents)
+    }
+
+    /// No parents: for a table that names no face.
+    #[cfg(test)]
+    fn empty() -> Self {
+        Self {
+            of_face: BTreeMap::new(),
+            of_member: BTreeMap::new(),
+            all: Vec::new(),
+        }
+    }
+
+    /// The oriented carrier plane every parent spelled `name` lies on:
+    /// the carrier of each one's least member face, read in its
+    /// member's own body. Every face of one parent lies on it — a member
+    /// face's pieces keep its carrier and the faces a merge lists are
+    /// coincident — so it depends on no choice among its faces. Parents
+    /// spelled alike (a tie's candidates) give a plane only when they
+    /// share one carrier.
+    fn plane<T: geom_core::Decide>(
+        &self,
+        name: &StableName,
+        members: &[Member<'_, T>],
+    ) -> Result<Plane<T>, NamingError> {
+        let bug = |what| NamingError::Emission { what };
+        let mut carriers = BTreeSet::new();
+        let mut plane = None;
+        for p in self.all.iter().filter(|p| p.name == *name) {
+            if let Some(&(m, f)) = p.entities.first() {
+                let member = member_of(members, m)?;
+                let face = member
+                    .body
+                    .get_face(f)
+                    .ok_or_else(|| bug("a member face is dangling"))?;
+                carriers.insert((m, face.surface, face.sense));
+                match carrier_plane(member.body, f)? {
+                    Some(q) => plane = plane.or(Some(q)),
+                    None => return Ok(Err(true)),
+                }
+            }
+        }
+        match (plane, carriers.len()) {
+            (Some(q), 1) => Ok(Ok(q)),
+            (Some(_), _) => Ok(Err(false)),
+            (None, _) => Err(bug("a union's seam side is no parent")),
+        }
+    }
+
+    /// Finished face `f`'s parent.
+    fn face(&self, f: topo::FaceKey) -> Result<&Parent, NamingError> {
+        self.of_face
+            .get(&f)
+            .map(|&p| &self.all[p])
+            .ok_or(NamingError::Emission {
+                what: "a finished face of a union has no parent",
+            })
+    }
+
+    /// The parent a face name some row embeds cites: the one parent all
+    /// the member faces it lists are linked into. `None` for a name that
+    /// is not a member face, a merge of member faces or a piece of
+    /// either.
+    ///
+    /// A name listing member faces of several parents cites no one face
+    /// of the finished body, and refuses.
+    fn cited(
+        &self,
+        union: RecipeNodeId,
+        n: &StableName,
+    ) -> Result<Option<StableName>, NamingError> {
+        if n.kind != EntityKind::Face {
+            return Ok(None);
+        }
+        let mut from = BTreeSet::new();
+        member_faces(n, &mut from);
+        let mut cited = BTreeSet::new();
+        for m in &from {
+            match self.of_member.get(m) {
+                Some(names) => cited.extend(names.iter().cloned()),
+                None => {
+                    cited.insert(entity_name(union, m));
+                }
+            }
+        }
+        let mut cited = cited.into_iter();
+        let Some(first) = cited.next() else {
+            return Ok(None);
+        };
+        if cited.next().is_some() {
+            return Err(NamingError::Emission {
+                what: "a name a union publishes cites faces of several parents",
+            });
+        }
+        Ok(Some(first))
+    }
+}
+
+/// What [`name_by_parents`] returns: the table, the seam rows held
+/// apart for [`rank_member_edges`], and the groups it formed.
+type ByParents = (NameTable, Vec<(StableName, Entry)>, Rederived);
+
+/// A parent's oriented carrier plane, or why it has none: `true` for a
+/// curved carrier, `false` for a tie on several carriers.
+type Plane<T> = Result<OrientedPlane<T>, bool>;
+
+/// A parent's name: its one member face, or `Merged` of all of them.
+fn parent_name(union: RecipeNodeId, from: &BTreeSet<MemberEntity>) -> StableName {
+    match from.iter().collect::<Vec<_>>().as_slice() {
+        [one] => entity_name(union, one),
+        many => canonical::minted(StableName {
+            kind: EntityKind::Face,
+            node: union,
+            path: vec![RoleSeg::Merged(
+                many.iter().map(|m| entity_name(union, m)).collect(),
+            )],
+        }),
+    }
+}
+
+/// **A union's faces and seam edges are named for parents, read off the
+/// finished body** (N2, N3).
+///
+/// - **Faces.** A parent the finished body holds as one face is that
+///   face's name. A parent it holds as several faces qualifies each with
+///   one `Fragment(Borders)` over the divider walls it borders, each
+///   cited by its parent's name: the one rule the pair boolean reads
+///   ([`Obstacles::split`], over every fold step's discards). Pieces
+///   with one set are N2's tie.
+/// - **Seam edges.** A seam edge that lies along no member edge is
+///   `Seam` of the parents on its two sides, in name order. Several such
+///   edges between the same two parents are pieces of that seam, ranked
+///   along the pair's `n_a × n_b` over the two parents' carriers, `a`
+///   the lesser side; a side with no one plane refuses
+///   [`NamingError::SplitReference`].
+/// - **Groups.** The groups formed are returned for the diagnosis
+///   ladder, except those of a tied parent, which are formed by name and
+///   so hold no one parent's count: those bases are left to the fold
+///   ([`Rederived`]).
+/// - **Every other row** cites a face as its parent, and a re-derived
+///   seam edge as it now publishes.
+///
+/// A seam edge lying along a member edge is returned apart, with only
+/// the faces it cites rewritten: [`rank_member_edges`] names it as a
+/// piece of that member edge, so its seam spelling is never published
+/// and must not collide with one that is.
+///
+/// Returns the table, the rows held apart, and the groups formed.
+#[allow(clippy::too_many_arguments)]
+fn name_by_parents<T: geom_core::Decide>(
+    union: RecipeNodeId,
+    t: &NameTable,
+    body: &topo::Body<T>,
+    members: &[Member<'_, T>],
+    parents: &Parents,
+    fold: &Fold,
+    flush: &Flush<'_, T>,
+    bnd: geom_core::Band,
+) -> Result<ByParents, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let mut out = NameTable::new();
+    let mut tie = TieRows::default();
+    let mut rec = Rederived::default();
+    // A group is formed by parent NAME, so tied parents share one and it
+    // holds no one parent's count: the fold's entity-followed groups
+    // answer for it instead.
+    let mut record = |base: &StableName, members: Vec<_>, tied: bool| {
+        if tied {
+            rec.by_fold.insert(base.clone());
+        } else {
+            rec.groups.record_by_name(base, members, false);
+        }
+    };
+    let mut held: Vec<(StableName, Entry)> = Vec::new();
+
+    // ---- Seam edges, by the parents on their two sides. ----
+    let is_seam = |name: &StableName| {
+        name.kind == EntityKind::Edge && matches!(name.path.first(), Some(RoleSeg::Seam { .. }))
+    };
+    let mut seams: BTreeSet<topo::EdgeKey> = BTreeSet::new();
+    // A unique seam row's collapsed spelling → its edge.
+    let mut respelled: BTreeMap<StableName, topo::EdgeKey> = BTreeMap::new();
+    for (name, entry) in t.iter() {
+        if !is_seam(name) {
+            continue;
+        }
+        let keys = match entry {
+            Entry::Unique(e) => vec![e.key],
+            Entry::Tied(es) => es.iter().map(|e| e.key).collect(),
+        };
+        let mut edges = Vec::with_capacity(keys.len());
+        for key in keys {
+            let EntityKey::Edge(k) = key else {
+                return Err(bug("a union's seam row names no edge"));
+            };
+            edges.push(k);
+        }
+        if edges.iter().any(|k| flush.edges.contains_key(k)) {
+            held.push((name.clone(), entry.clone()));
+            continue;
+        }
+        if let [k] = edges.as_slice() {
+            respelled.insert(name.clone(), *k);
+        }
+        seams.extend(edges);
+    }
+    // Base → ((a side, b side), from a tie, its edges).
+    type SeamGroup<'p> = ((&'p StableName, &'p StableName), bool, Vec<topo::EdgeKey>);
+    let mut seam_groups: BTreeMap<StableName, SeamGroup> = BTreeMap::new();
+    for &k in &seams {
+        let Some([f0, f1]) = flush.inc.edge_faces.get(&k).map(Vec::as_slice) else {
+            return Err(bug("a union's seam edge does not lie between two faces"));
+        };
+        if parents.of_face.get(f0) == parents.of_face.get(f1) {
+            return Err(bug("a union's seam edge lies inside one parent"));
+        }
+        let (p0, p1) = (parents.face(*f0)?, parents.face(*f1)?);
+        let (a, b) = if p0.name <= p1.name {
+            (&p0.name, &p1.name)
+        } else {
+            (&p1.name, &p0.name)
+        };
+        let base = StableName {
+            kind: EntityKind::Edge,
+            node: union,
+            path: vec![RoleSeg::Seam {
+                a: NameRef::new(a.clone()),
+                b: NameRef::new(b.clone()),
+            }],
+        };
+        let slot = seam_groups
+            .entry(base)
+            .or_insert(((a, b), false, Vec::new()));
+        slot.1 |= p0.tied || p1.tied;
+        slot.2.push(k);
+    }
+    // Edge → its seam name, for the rows that cite it.
+    let mut seam_name: BTreeMap<topo::EdgeKey, StableName> = BTreeMap::new();
+    for (base, ((a, b), tied, keys)) in &seam_groups {
+        record(
+            base,
+            keys.iter().map(|&k| ent(0, EntityKey::Edge(k))).collect(),
+            *tied,
+        );
+        if let [k] = keys.as_slice() {
+            put(
+                &mut out,
+                &mut tie,
+                *tied,
+                base.clone(),
+                ent(0, EntityKey::Edge(*k)),
+            )?;
+            seam_name.insert(*k, base.clone());
+            continue;
+        }
+        let normal = |side: &StableName| match parents.plane(side, members)? {
+            Ok((_, n)) => Ok(n),
+            Err(curved) => Err(NamingError::split_reference(base, side, curved)),
+        };
+        let dir = normal(a)?.cross(normal(b)?);
+        let extents = keys
+            .iter()
+            .map(|&k| edge_extent(body, k, dir))
+            .collect::<Result<Vec<_>, _>>()?;
+        match order_along(&extents, bnd)? {
+            Some(ranks) => {
+                let of = to_u32(
+                    keys.len(),
+                    "a union's seam has more pieces than a rank holds",
+                )?;
+                for (&k, rank) in keys.iter().zip(ranks) {
+                    let mut name = base.clone();
+                    name.path
+                        .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
+                    put(
+                        &mut out,
+                        &mut tie,
+                        *tied,
+                        name.clone(),
+                        ent(0, EntityKey::Edge(k)),
+                    )?;
+                    seam_name.insert(k, name);
+                }
+            }
+            None => mint_candidates(
+                &mut out,
+                &mut tie,
+                *tied,
+                base.clone(),
+                keys.iter().map(|&k| ent(0, EntityKey::Edge(k))).collect(),
+            )?,
+        }
+    }
+
+    // ---- Faces, by parent. ----
+    for parent in &parents.all {
+        let faces = &parent.faces;
+        record(
+            &parent.name,
+            faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect(),
+            parent.tied,
+        );
+        name_parent_faces(
+            &mut out,
+            &mut tie,
+            parent.tied,
+            parent.name.clone(),
+            faces,
+            &[],
+            (&fold.obstacles, body, &parent.entities),
+            |g| Ok(parents.face(g)?.name.clone()),
+        )?;
+    }
+
+    // ---- Every other row: its faces cited as parents. ----
+    let mut cite = CiteParents {
+        union,
+        parents,
+        seams: respelled
+            .into_iter()
+            .filter_map(|(old, k)| Some((old, seam_name.get(&k)?.clone())))
+            .collect(),
     };
     for (name, entry) in t.iter() {
-        if let Entry::Unique(e) = entry
-            && let EntityKey::Face(f) = e.key
-        {
-            cx.faces.insert(f, name.clone());
-        }
-    }
-    // Constituent → the one published merge listing it, unless the
-    // constituent is itself published (a face, or pieces of one).
-    let published: BTreeSet<StableName> = cx.faces.values().map(unfragmented).collect();
-    let mut merges: BTreeMap<StableName, Option<StableName>> = BTreeMap::new();
-    for merge in &published {
-        let [RoleSeg::Merged(set)] = merge.path.as_slice() else {
+        if name.kind == EntityKind::Face || is_seam(name) {
             continue;
-        };
-        for c in set.iter().filter(|c| !published.contains(*c)) {
-            let slot = merges
-                .entry(c.clone())
-                .or_insert_with(|| Some(merge.clone()));
-            if slot.as_ref() != Some(merge) {
-                *slot = None;
-            }
         }
+        let spelled = name.clone().rewrite_path(&mut cite)?;
+        put_entry(&mut out, spelled, entry)?;
     }
-    cx.merges = merges
-        .into_iter()
-        .filter_map(|(c, m)| Some((c, m?)))
-        .collect();
-    for fs in inc.edge_faces.values() {
-        if let [f0, f1] = fs.as_slice() {
-            cx.beside_face.entry(*f0).or_default().insert(*f1);
-            cx.beside_face.entry(*f1).or_default().insert(*f0);
-        }
+    for (name, _) in &mut held {
+        *name = name.clone().rewrite_path(&mut cite)?;
     }
-    loop {
-        cx.memo.clear();
-        let mut out: BTreeMap<StableName, Vec<StableName>> = BTreeMap::new();
-        for (name, entry) in t.iter() {
-            let spelled = match entry {
-                Entry::Unique(e) => cx.published(name, e.key)?,
-                Entry::Tied(_) => name.clone(),
-            };
-            out.entry(spelled).or_default().push(name.clone());
-        }
-        let mut collided = false;
-        for (spelled, rows) in &out {
-            if rows.len() > 1 {
-                for row in rows.iter().filter(|r| *r != spelled) {
-                    collided |= cx.frozen.insert(row.clone());
-                }
-            }
-        }
-        if !collided {
-            let mut table = NameTable::new();
-            for (name, entry) in t.iter() {
-                let spelled = match entry {
-                    Entry::Unique(e) => cx.published(name, e.key)?,
-                    Entry::Tied(_) => name.clone(),
-                };
-                put_entry(&mut table, spelled, entry)?;
-            }
-            return Ok(table);
-        }
-    }
+    tie.flush(&mut out)?;
+    Ok((out, held, rec))
 }
 
-/// The state of [`retire_into_merges`]: the table, the body's
-/// adjacency, and each row's spelling once worked out.
-struct Retire<'t> {
+/// The [`SegRewrite`] of [`name_by_parents`]: a face a name embeds is
+/// cited as its parent, and a seam edge the union re-derived as it now
+/// publishes. Only names the UNION minted are rewritten: a
+/// `FromMember`'s own name is the member's, final in the member.
+struct CiteParents<'p> {
     union: RecipeNodeId,
-    t: &'t NameTable,
-    inc: &'t Incidence,
-    /// Finished face → its name as the collapsed table has it.
-    faces: BTreeMap<topo::FaceKey, StableName>,
-    /// Finished face → the faces sharing an edge with it.
-    beside_face: BTreeMap<topo::FaceKey, BTreeSet<topo::FaceKey>>,
-    /// Constituent → the one published merge that lists it, for a
-    /// constituent no published face is or is a piece of.
-    merges: BTreeMap<StableName, StableName>,
-    /// Rows left as they are, because rewriting them collides.
-    frozen: BTreeSet<StableName>,
-    /// Row → its published spelling.
-    memo: BTreeMap<StableName, StableName>,
+    parents: &'p Parents,
+    /// A unique seam row's collapsed spelling → its published one.
+    seams: BTreeMap<StableName, StableName>,
 }
 
-impl Retire<'_> {
-    /// The faces beside entity `key`.
-    fn beside(&self, key: EntityKey) -> BTreeSet<topo::FaceKey> {
-        match key {
-            EntityKey::Face(f) => self.beside_face.get(&f).cloned().unwrap_or_default(),
-            EntityKey::Edge(e) => self
-                .inc
-                .edge_faces
-                .get(&e)
-                .into_iter()
-                .flatten()
-                .copied()
-                .collect(),
-            EntityKey::Vertex(v) => self
-                .inc
-                .vertex_edges
-                .get(&v)
-                .into_iter()
-                .flatten()
-                .flat_map(|e| self.inc.edge_faces.get(e).into_iter().flatten().copied())
-                .collect(),
-            _ => BTreeSet::new(),
+impl SegRewrite for CiteParents<'_> {
+    type Error = NamingError;
+
+    fn name(&mut self, n: &StableName) -> Result<Carry, NamingError> {
+        if n.node != self.union {
+            return Ok(Carry::Keep);
         }
+        if let Some(parent) = self.parents.cited(self.union, n)? {
+            return Ok(if parent == *n {
+                Carry::Keep
+            } else {
+                Carry::Replace(parent)
+            });
+        }
+        if let Some(now) = self.seams.get(n) {
+            return Ok(if now == n {
+                Carry::Keep
+            } else {
+                Carry::Replace(now.clone())
+            });
+        }
+        Ok(Carry::Descend)
     }
 
-    /// Row `name`, naming `key`, as it is published.
-    fn published(&mut self, name: &StableName, key: EntityKey) -> Result<StableName, NamingError> {
-        if self.frozen.contains(name) {
-            return Ok(name.clone());
-        }
-        if let Some(done) = self.memo.get(name) {
-            return Ok(done.clone());
-        }
-        let parents: BTreeSet<StableName> = self
-            .beside(key)
-            .into_iter()
-            .filter_map(|f| self.faces.get(&f).map(unfragmented))
-            .collect();
-        let mut retire: BTreeMap<StableName, Option<StableName>> = BTreeMap::new();
-        for merge in &parents {
-            let [RoleSeg::Merged(set)] = merge.path.as_slice() else {
-                continue;
-            };
-            for c in set.iter().filter(|c| !parents.contains(*c)) {
-                let slot = retire
-                    .entry(c.clone())
-                    .or_insert_with(|| Some(merge.clone()));
-                if slot.as_ref() != Some(merge) {
-                    *slot = None;
-                }
-            }
-        }
-        let own = match name.path.first() {
-            Some(RoleSeg::Merged(set)) => set.clone(),
-            _ => Vec::new(),
-        };
-        let (mut partners, mut sides) = (BTreeSet::new(), BTreeSet::new());
-        for seg in &name.path {
-            match seg {
-                RoleSeg::Fragment(Qualifier::SideOf(v)) => {
-                    partners.extend(v.iter().map(|(p, _)| p.clone()));
-                }
-                RoleSeg::Seam { a, b } => {
-                    sides.extend([(**a).clone(), (**b).clone()]);
-                }
-                _ => {}
-            }
-        }
-        let partners = partners.difference(&sides).cloned().collect();
-        let spelled = name.clone().rewrite_path(&mut RetireIntoMerges {
-            partners,
-            cx: self,
-            retire: retire
-                .into_iter()
-                .filter_map(|(c, m)| Some((c, m?)))
-                .collect(),
-            beside: parents,
-            own,
-        })?;
-        self.memo.insert(name.clone(), spelled.clone());
-        Ok(spelled)
+    fn descended(
+        &mut self,
+        n: &StableName,
+        walked: StableName,
+    ) -> Result<Option<StableName>, NamingError> {
+        Ok((walked != *n).then_some(walked))
     }
-}
-
-/// `name` without the `Fragment`s after its head: the face a fragment
-/// is a piece of.
-fn unfragmented(name: &StableName) -> StableName {
-    without_tail(name, |_| true)
 }
 
 /// `name` without the trailing `Fragment`s whose qualifier `drop`
@@ -1309,52 +1647,6 @@ fn without_tail(name: &StableName, drop: impl Fn(&Qualifier) -> bool) -> StableN
         base.path.pop();
     }
     base
-}
-
-/// The [`SegRewrite`] of [`retire_into_merges`], for one row.
-struct RetireIntoMerges<'c, 't> {
-    cx: &'c mut Retire<'t>,
-    /// The row's `SideOf` partners: a partner is a plane, so it is cited
-    /// as the merge its face retired into wherever that merge is.
-    partners: BTreeSet<StableName>,
-    /// Constituent → the merge beside this row's entity it retired into.
-    retire: BTreeMap<StableName, StableName>,
-    /// The faces beside this row's entity, `Fragment`s dropped.
-    beside: BTreeSet<StableName>,
-    /// The set the row is a merge of, whose constituents stay.
-    own: Vec<StableName>,
-}
-
-impl SegRewrite for RetireIntoMerges<'_, '_> {
-    type Error = NamingError;
-
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, NamingError> {
-        if n.node != self.cx.union || self.own.contains(n) {
-            return Ok(None);
-        }
-        if self.partners.contains(n) {
-            return Ok(self.cx.merges.get(n).cloned());
-        }
-        if let Some(merge) = self.retire.get(n) {
-            return Ok(Some(merge.clone()));
-        }
-        if let [RoleSeg::Merged(sub)] = n.path.as_slice()
-            && !self.beside.contains(n)
-        {
-            let mut into = self.beside.iter().filter(|m| {
-                matches!(m.path.as_slice(), [RoleSeg::Merged(set)] if sub.iter().all(|c| set.contains(c)))
-            });
-            if let (Some(merge), None) = (into.next(), into.next()) {
-                return Ok(Some(merge.clone()));
-            }
-        }
-        let Some(Entry::Unique(e)) = self.cx.t.lookup(n) else {
-            return Ok(None);
-        };
-        let key = e.key;
-        let spelled = self.cx.published(n, key)?;
-        Ok((spelled != *n).then_some(spelled))
-    }
 }
 
 /// A whole fold table in the union's published space — the collapse
@@ -1427,12 +1719,85 @@ use super::merged::NESTED_MERGED;
 /// line as the fold-space name and the collapsed one write it. Each
 /// name the path embeds comes out of this function whole, so it is
 /// canonical before the path holding it is ordered.
-fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
-    let name = canonical::collapsed(name, orient(node, name)?, &mut |n| collapse(node, n))
-        .map_err(|stop| match stop {
-            Stop::Image(e) => e,
-            Stop::Unrankable(u) => NamingError::Emission { what: u.what() },
-        })?;
+///
+/// A fold name nests one level per fold step, so the collapse keeps
+/// its own stack (`names::nest::descend`): every held name a collapse
+/// reads is collapsed first ([`held_collapses`]), once, and kept by its
+/// address.
+fn collapse(node: RecipeNodeId, root: &StableName) -> Result<StableName, NamingError> {
+    descend(root, &mut Collapse(node))
+}
+
+/// [`collapse`] as a [`Descent`]: a level is one fold name collapsed,
+/// kept for the levels above it behind a handle.
+struct Collapse(RecipeNodeId);
+
+impl<'s> Descent<'s> for Collapse {
+    type Level = StableName;
+    type Kept = NameRef;
+    type Error = NamingError;
+
+    fn first(&mut self, name: &'s StableName, _: &Kept<NameRef>, out: &mut Vec<&'s StableName>) {
+        out.extend(held_collapses(name));
+    }
+
+    fn level(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<NameRef>,
+    ) -> Result<StableName, Stopped<'s, NamingError>> {
+        collapse_one(self.0, name, kept)
+    }
+
+    fn keep(&mut self, _: &'s StableName, collapsed: StableName) -> Result<NameRef, NamingError> {
+        Ok(NameRef::new(collapsed))
+    }
+}
+
+/// The held names `name`'s collapse reads: the seam sides and merged
+/// constituents at the foot of its `FromA`/`FromB` descent, and every
+/// `Borders` wall along it, in the order the collapse meets them.
+fn held_collapses(name: &StableName) -> Vec<&StableName> {
+    let mut out = Vec::new();
+    let mut at = name;
+    while let Some((head, tail)) = at.path.split_first() {
+        match head {
+            RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => at = inner,
+            RoleSeg::Seam { .. } => {
+                for seg in &at.path {
+                    if let RoleSeg::Seam { a, b } = seg {
+                        out.extend([&**a, &**b]);
+                    }
+                }
+                break;
+            }
+            RoleSeg::Merged(set) => {
+                out.extend(set);
+                break;
+            }
+            _ => break,
+        }
+        for seg in tail {
+            if let RoleSeg::Fragment(Qualifier::Borders(walls)) = seg {
+                out.extend(walls);
+            }
+        }
+    }
+    out
+}
+
+/// One fold name collapsed, every held name it reads read from `done`.
+fn collapse_one<'s>(
+    node: RecipeNodeId,
+    name: &'s StableName,
+    done: &Kept<NameRef>,
+) -> Result<StableName, Stopped<'s, NamingError>> {
+    let oriented = orient(node, name, done)?;
+    let mut image = |n: &'s StableName| done.need(n).map(|r| r.name().clone());
+    let name = canonical::collapsed(name, oriented, &mut image).map_err(|stop| match stop {
+        Stop::Image(stopped) => stopped,
+        Stop::Unrankable(u) => Stopped::Refused(NamingError::Emission { what: u.what() }),
+    })?;
     // The junction's run is NOT deduplicated, unlike a `Merged` set.
     // The pair emitter deduplicates the lines before it mints, so the
     // run holds k DISTINCT fold-space lines; two collapsing to one
@@ -1444,7 +1809,8 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
     if is_junction(&name) && name.path.windows(2).any(|w| w[0] == w[1]) {
         return Err(NamingError::Emission {
             what: JUNCTION_LINES_COLLIDE,
-        });
+        }
+        .into());
     }
     Ok(name)
 }
@@ -1459,117 +1825,134 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
 /// the canonical form finds through the same wrapping: an edge's
 /// pieces all lie on its seam line, and a seam vertex's rank on its
 /// edge parent's.
-fn orient(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    if name.node != node {
-        return Err(bug(
-            "a union fold's table carries a row minted by another node",
-        ));
-    }
-    let Some((head, mut tail)) = name.path.split_first() else {
-        return Err(bug("a union fold's table carries a name with no role"));
-    };
-    let mut path = match head {
-        // Already member-keyed: the foot of a descent chain, put there
-        // by `member_view` before the step ran.
-        RoleSeg::FromMember { .. } => vec![head.clone()],
-        // The accumulated body's own name at every step, and the
-        // union's at the last one: one body out, one output-body row.
-        RoleSeg::OutputBody => vec![RoleSeg::OutputBody],
-        // The descent. Every operand of every step is in this node's
-        // space, so a `FromA`/`FromB` argument is always an earlier
-        // step's row: descended THROUGH, carrying its own
-        // discriminators out with it.
-        RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => orient(node, inner)?.path,
-        // A seam: one line, each side collapsed, with any `Fragment`
-        // tail after it.
-        //
-        // Or a seam JUNCTION: the pair emitter names the VERTEX where
-        // k ≥ 2 seam lines meet by the run of those lines' `Seam`
-        // segments and nothing after them, so a run is admitted in
-        // exactly that shape — a vertex, the whole path — and any
-        // other run (an edge's, or one followed by a discriminator) is
-        // a shape the pair emitter does not mint. The pair emitter
-        // ordered the run in the fold's space; a name stable under
-        // member reordering is ordered by the member-space lines,
-        // which the canonicalization does.
-        RoleSeg::Seam { a, b }
-            if tail
-                .first()
-                .is_some_and(|s| matches!(s, RoleSeg::Seam { .. })) =>
-        {
-            if name.kind != EntityKind::Vertex {
-                return Err(bug(FOREIGN));
+///
+/// The descent is a loop: the tails of the levels it passes through
+/// are kept, and put after the foot's path innermost first, which is
+/// the order a descent level by level would write them in.
+fn orient<'s>(
+    node: RecipeNodeId,
+    name: &'s StableName,
+    done: &Kept<NameRef>,
+) -> Result<StableName, Stopped<'s, NamingError>> {
+    let bug = |what| Stopped::Refused(NamingError::Emission { what });
+    let mut tails: Vec<&[RoleSeg]> = Vec::new();
+    let mut at = name;
+    let (mut path, foot_tail) = loop {
+        if at.node != node {
+            return Err(bug(
+                "a union fold's table carries a row minted by another node",
+            ));
+        }
+        let Some((head, mut tail)) = at.path.split_first() else {
+            return Err(bug("a union fold's table carries a name with no role"));
+        };
+        let path = match head {
+            // Already member-keyed: the foot of a descent chain, put there
+            // by `member_view` before the step ran.
+            RoleSeg::FromMember { .. } => vec![head.clone()],
+            // The accumulated body's own name at every step, and the
+            // union's at the last one: one body out, one output-body row.
+            RoleSeg::OutputBody => vec![RoleSeg::OutputBody],
+            // The descent. Every operand of every step is in this node's
+            // space, so a `FromA`/`FromB` argument is always an earlier
+            // step's row: descended THROUGH, carrying its own
+            // discriminators out with it.
+            RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => {
+                tails.push(tail);
+                at = inner;
+                continue;
             }
-            let mut lines = vec![seam_line(node, a, b)?];
-            for seg in std::mem::take(&mut tail) {
-                let RoleSeg::Seam { a, b } = seg else {
+            // A seam: one line, each side collapsed, with any `Fragment`
+            // tail after it.
+            //
+            // Or a seam JUNCTION: the pair emitter names the VERTEX where
+            // k ≥ 2 seam lines meet by the run of those lines' `Seam`
+            // segments and nothing after them, so a run is admitted in
+            // exactly that shape — a vertex, the whole path — and any
+            // other run (an edge's, or one followed by a discriminator) is
+            // a shape the pair emitter does not mint. The pair emitter
+            // ordered the run in the fold's space; a name stable under
+            // member reordering is ordered by the member-space lines,
+            // which the canonicalization does.
+            RoleSeg::Seam { a, b }
+                if tail
+                    .first()
+                    .is_some_and(|s| matches!(s, RoleSeg::Seam { .. })) =>
+            {
+                if at.kind != EntityKind::Vertex {
                     return Err(bug(FOREIGN));
-                };
-                lines.push(seam_line(node, a, b)?);
-            }
-            lines
-        }
-        RoleSeg::Seam { a, b } => {
-            vec![seam_line(node, a, b)?]
-        }
-        // An F7 merged face: its constituents are result-face names in
-        // the minting node's space (N3), so they stay in this union's
-        // space, each collapsed by this same rule.
-        //
-        // The pair emitter mints `Merged` for a DECLARED contact's
-        // merge groups, and a union carries a declaration channel of
-        // its own (`Node::Union`'s `declare` input), so a step whose
-        // bucket holds a coincident pair produces these rows and a
-        // union's published table carries them.
-        //
-        // The constituent set is FLAT (N3): a constituent is never
-        // itself a bare merged face. The mint (`emit_topo`'s
-        // merge-group loop) holds that at the first door; this is the
-        // same rule read at the union's second door — a constituent
-        // that collapses to a bare merged face is refused as the
-        // emission bug it is, never flattened. A fragment of a merged
-        // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
-        //
-        // The canonical form makes the constituent SET the name, the
-        // form the pair emitter's mint gives it too (review R8): two
-        // merge groups collapsing to ONE constituent set collide
-        // LOUDLY at insert (`DuplicateName` → typed `NamingError`),
-        // never silently aliasing two faces onto one name.
-        RoleSeg::Merged(constituents) => {
-            let mut set = Vec::with_capacity(constituents.len());
-            for c in constituents {
-                let c = collapse(node, c)?;
-                if matches!(c.path.as_slice(), [RoleSeg::Merged(_)]) {
-                    return Err(bug(NESTED_MERGED));
                 }
-                set.push(c);
+                let mut lines = vec![seam_line(a, b, done)?];
+                for seg in std::mem::take(&mut tail) {
+                    let RoleSeg::Seam { a, b } = seg else {
+                        return Err(bug(FOREIGN));
+                    };
+                    lines.push(seam_line(a, b, done)?);
+                }
+                lines
             }
-            vec![RoleSeg::Merged(set)]
-        }
-        // A `Fragment` is a TAIL segment — it discriminates a head,
-        // it is never one — and everything after it is a segment the
-        // boolean emitter does not mint at all, so a fold table
-        // carrying either is an emission bug. The long half is
-        // [`never_in_a_boolean_table`], which is where a new
-        // `RoleSeg` is classified; this match still stops the
-        // compiler if one is added and not classified there.
-        RoleSeg::Fragment(_) | never_in_a_boolean_table!() => return Err(bug(FOREIGN)),
+            RoleSeg::Seam { a, b } => {
+                vec![seam_line(a, b, done)?]
+            }
+            // An F7 merged face: its constituents are result-face names in
+            // the minting node's space (N3), so they stay in this union's
+            // space, each collapsed by this same rule.
+            //
+            // The pair emitter mints `Merged` for the kernel's merge
+            // groups — faces that share a recipe source, or a declared
+            // coincidence, which a union carries through its own
+            // `declare` input — so a fold step's table carries these rows.
+            //
+            // The constituent set is FLAT (N3): a constituent is never
+            // itself a bare merged face. The mint (`emit_topo`'s
+            // merge-group loop) holds that at the first door; this is the
+            // same rule read at the union's second door — a constituent
+            // that collapses to a bare merged face is refused as the
+            // emission bug it is, never flattened. A fragment of a merged
+            // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
+            //
+            // The canonical form makes the constituent SET the name, as
+            // the pair emitter's mint does (it tells two faces of one
+            // set apart by a `Fragment` tail): two rows collapsing to
+            // one name collide LOUDLY at insert (`DuplicateName` →
+            // typed `NamingError`), never silently aliasing two faces
+            // onto one name.
+            RoleSeg::Merged(constituents) => {
+                let mut set = Vec::with_capacity(constituents.len());
+                for c in constituents {
+                    let c = done.need(c)?.name().clone();
+                    if matches!(c.path.as_slice(), [RoleSeg::Merged(_)]) {
+                        return Err(bug(NESTED_MERGED));
+                    }
+                    set.push(c);
+                }
+                vec![RoleSeg::Merged(set)]
+            }
+            // A `Fragment` is a TAIL segment — it discriminates a head,
+            // it is never one — and everything after it is a segment the
+            // boolean emitter does not mint at all, so a fold table
+            // carrying either is an emission bug. The long half is
+            // [`never_in_a_boolean_table`], which is where a new
+            // `RoleSeg` is classified; this match still stops the
+            // compiler if one is added and not classified there.
+            RoleSeg::Fragment(_) | never_in_a_boolean_table!() => return Err(bug(FOREIGN)),
+        };
+        break (path, tail);
     };
-    for seg in tail {
+    for seg in core::iter::once(foot_tail)
+        .chain(tails.into_iter().rev())
+        .flatten()
+    {
         path.push(match seg {
-            // The discriminator's partner names are OPERAND-space
-            // names (N2) — this node's space, like every other embedded
-            // name here — so they collapse the same way. The verdicts
-            // are untouched: they are the recorded predicate evidence,
-            // not a reference.
-            RoleSeg::Fragment(Qualifier::SideOf(vec)) => {
-                let partners = vec
+            // The walls are OPERAND-space names (N2) — this node's
+            // space, like every other embedded name here — so they
+            // collapse the same way.
+            RoleSeg::Fragment(Qualifier::Borders(walls)) => RoleSeg::Fragment(Qualifier::Borders(
+                walls
                     .iter()
-                    .map(|(n, v)| Ok((collapse(node, n)?, *v)))
-                    .collect::<Result<Vec<_>, NamingError>>()?;
-                RoleSeg::Fragment(Qualifier::SideOf(partners))
-            }
+                    .map(|n| Ok(done.need(n)?.name().clone()))
+                    .collect::<Result<Vec<_>, Stopped<'s, NamingError>>>()?,
+            )),
             // The rank is a place along the fold's direction; the
             // canonicalization re-reads it.
             RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => seg.clone(),
@@ -1609,10 +1992,14 @@ fn orient(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingErr
 /// name order: a union is commutative, so "which side" would record
 /// only which of the two members the fold reached first, which is the
 /// position this node exists not to record.
-fn seam_line(node: RecipeNodeId, a: &StableName, b: &StableName) -> Result<RoleSeg, NamingError> {
+fn seam_line<'s>(
+    a: &'s StableName,
+    b: &'s StableName,
+    done: &Kept<NameRef>,
+) -> Result<RoleSeg, Stopped<'s, NamingError>> {
     Ok(RoleSeg::Seam {
-        a: NameRef::new(collapse(node, a)?),
-        b: NameRef::new(collapse(node, b)?),
+        a: done.need(a)?.clone(),
+        b: done.need(b)?.clone(),
     })
 }
 
@@ -1993,7 +2380,7 @@ mod tests {
         let mut body = topo::Body::<f64>::new();
         let mut mint = |x: f64| {
             let born = body
-                .mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a lone vertex");
             body.mev_line(
                 topo::MevSite::Lone {
@@ -2067,8 +2454,10 @@ mod tests {
                 body: &body,
                 table: member_table,
             }];
-            let flush = Flush::of(union, &body, &members, &table, bnd).unwrap();
-            let err = rank_member_edges(table, &body, &members, &flush, bnd).unwrap_err();
+            let parents = Parents::empty();
+            let flush = Flush::of(union, &body, &members, &parents, bnd).unwrap();
+            let err =
+                rank_member_edges(table, Vec::new(), &body, &members, &flush, bnd).unwrap_err();
             assert!(
                 matches!(&err, NamingError::MemberEdgeTied { member, edge: e }
                     if *member == m && **e == edge),
@@ -2112,7 +2501,7 @@ mod tests {
             let union = RecipeNodeId(9);
             let mut member_body = topo::Body::<f64>::new();
             let born = member_body
-                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
                 .expect("mvfs births a lone vertex");
             let edge = member_body
                 .mev_line(
@@ -2132,7 +2521,7 @@ mod tests {
             member_table.insert((**of).clone(), edge_ref(edge)).unwrap();
             let mut body = topo::Body::<f64>::new();
             let mut lone = |x: f64| {
-                body.mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                body.mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                     .expect("mvfs births a lone vertex")
                     .vertex
             };
@@ -2199,7 +2588,8 @@ mod tests {
             }
             let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
             let members = self.members();
-            let flush = Flush::of(self.union, &self.body, &members, &t, bnd)?;
+            let parents = Parents::empty();
+            let flush = Flush::of(self.union, &self.body, &members, &parents, bnd)?;
             cite_member_edges(t, &self.body, &members, &flush, bnd)
         }
     }
@@ -2261,7 +2651,7 @@ mod tests {
         let other = seam(member_cap(g.union, 3), member_cap(g.union, 4));
         let run = |k| {
             let one = g.named(g.piece(k), None);
-            let mut path = one.path;
+            let mut path = one.into_path();
             path.push(other.clone());
             vertex(g.union, path)
         };

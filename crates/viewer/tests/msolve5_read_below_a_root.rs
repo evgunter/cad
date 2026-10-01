@@ -35,12 +35,14 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
     let shelf = insert_into(&mut asm, Node::instantiate_part(bench.shelf), tol);
     let lifted = insert_into(
         &mut asm,
-        Node::Transform {
-            input: shelf,
-            translation: [len(0.0), len(0.0), len(0.05)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            shelf,
+            pncad::document::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.05)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
     // The second copy clears the post and the first copy.
@@ -63,7 +65,7 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
             a: common::head(asm::in_part(post, &bench.post_top)),
             b: common::head_at(lifted, b.clone()),
             class: ContactClass::Rest,
-            alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
+            alignment: asm::middle_seat_alignment(),
         },
         tol,
     );

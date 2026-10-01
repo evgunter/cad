@@ -8,7 +8,7 @@
 //! per `memories/review-and-dependency-policy.md`.
 //!
 //! No fuzzing here — every row is a written-down witness (shape 2 of
-//! `memories/test-suite-cost.md`), so no seeds and no effort dial.
+//! implementer-discipline §8), so no seeds and no effort dial.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,7 +23,7 @@ use editor_core::{
     RecipeNodeId, Selector, SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload,
     apply, evaluate, face_frame, load, save, select_where, vertex_position,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, len, len2, scl};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -112,7 +112,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::from_static("depth"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
@@ -141,7 +141,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::param(ParamName::new("depth"), Dimension::Length),
+            distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
         },
     );
     (doc, slab)
@@ -412,11 +412,10 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
 /// A ball of radius `r` centred `c` up the y-axis: the natural
 /// meridian (bulge-1 semicircle) revolved 2π about y.
 fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
     let meridian = LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.0, c - r)),
+        ProgramStep::At(len2([0.0, c - r])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p2(0.0, c + r)),
+            target: ProgramTarget::Point(len2([0.0, c + r])),
             b: scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
@@ -720,7 +719,7 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+            bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -821,7 +820,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(DEPTH, Dimension::Length).expect("finite"),
+            bound: len(DEPTH),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -838,7 +837,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(DEPTH - 5.0 * eps, Dimension::Length).expect("finite"),
+            bound: len(DEPTH - 5.0 * eps),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -869,7 +868,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+            bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -886,12 +885,14 @@ fn r1_ops_refuse_measurement_operands_typed() {
     // Transform of the MEASURE's id.
     let (doc, moved_measure) = insert(
         &doc,
-        Node::Transform {
-            input: m,
-            translation: [len(0.1), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            m,
+            editor_core::Step::Rigid {
+                translation: [len(0.1), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let ev = eval(&doc);
     for id in [bool_over_verdict, moved_measure] {
@@ -924,12 +925,14 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
     let (doc, bore, pin) = cylinders(0.3, 0.2, 0.5);
     let (doc, moved) = insert(
         &doc,
-        Node::Transform {
-            input: pin,
-            translation: [len(0.25), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pin,
+            editor_core::Step::Rigid {
+                translation: [len(0.25), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let ev = eval(&doc);
     let bore_wall = wall(&ev, bore);
@@ -985,7 +988,7 @@ fn corruptible() -> ProfileDoc {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.777, Dimension::Length).expect("finite"),
+            bound: len(0.777),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -1043,23 +1046,30 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         other => panic!("a mismatched bound dim must refuse AssertionBound, got {other:?}"),
     }
 
-    // (b) The assertion's target: point it at the sketch FRAME (node
-    // 0), which is not a measure. The slab is frame 0 + profile 1 +
-    // extrude 2, so the measure is node 3.
-    let target = "\"measure\": 3";
-    assert_eq!(text.matches(target).count(), 1, "{target:?} must be unique");
-    let corrupt = text.replace(target, "\"measure\": 0");
+    // (b) The assertion's target: point it at the sketch FRAME (the
+    // first node), which is not a measure. The slab is frame, profile
+    // and extrude, so the measure is the fourth node.
+    let [frame, _, extrude, measure] = doc.order()[..4] else {
+        panic!("a slab and its measure");
+    };
+    let target = format!("\"measure\": {}", measure.0);
+    assert_eq!(
+        text.matches(&target).count(),
+        1,
+        "{target:?} must be unique"
+    );
+    let corrupt = text.replace(&target, &format!("\"measure\": {}", frame.0));
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionTarget { .. })) => {}
         other => panic!("a non-measure target must refuse AssertionTarget, got {other:?}"),
     }
 
     // (c) A reference whose minting node does not exist. The refs are
-    // minted by the extrude (node 2).
-    let target = "\"node\": 2,";
-    let n = text.matches(target).count();
-    assert!(n >= 1, "the measure's refs name node 2");
-    let corrupt = text.replacen(target, "\"node\": 77,", 1);
+    // minted by the extrude.
+    let target = format!("\"node\": {},", extrude.0);
+    let n = text.matches(&target).count();
+    assert!(n >= 1, "the measure's refs name the extrude");
+    let corrupt = text.replacen(&target, "\"node\": 77,", 1);
     match load(&corrupt, Tol::witness()) {
         // Two typed gates can own this corruption: the id-counter
         // check (77 was never minted) or the dangling-input walk.
@@ -1082,7 +1092,10 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let [bottom, top] = caps(&ev, slab);
     let expr = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::new("ghost"), Dimension::Length)),
+        MeasureExpr::value(Expr::param(
+            ParamName::from_static("ghost"),
+            Dimension::Length,
+        )),
     )
     .expect("Length - Length");
     let err = apply(
@@ -1111,7 +1124,7 @@ fn r1_own_document_web_and_flip() {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::from_static("r"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
@@ -1126,7 +1139,7 @@ fn r1_own_document_web_and_flip() {
             plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
             }],
             ids: Vec::new(),
         })
@@ -1149,7 +1162,7 @@ fn r1_own_document_web_and_flip() {
     );
     let _ = p2;
     let ev = eval(&d5);
-    let r = || MeasureExpr::value(Expr::param(ParamName::new("r"), Dimension::Length));
+    let r = || MeasureExpr::value(Expr::param(ParamName::from_static("r"), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -1163,7 +1176,7 @@ fn r1_own_document_web_and_flip() {
         &d6,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.05, Dimension::Length).expect("finite"),
+            bound: len(0.05),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -1176,7 +1189,7 @@ fn r1_own_document_web_and_flip() {
     let d8 = push(
         &d7,
         &DocEdit::SetDocParamValue {
-            name: ParamName::new("r"),
+            name: ParamName::from_static("r"),
             value: DocParamValue::Continuous(0.24),
         },
     );

@@ -37,9 +37,7 @@ use std::sync::Arc;
 /// centered at `cx` (the asm2a fixture).
 /// **Positions** in a `part` document's node order — its sketch
 /// frame, the profile drawn on it, then the extrude that is its body.
-/// These index `doc.order()`; they are not node ids, which is why
-/// they do not borrow `fixture::resolver::PART_BODY`'s name even
-/// though this suite's parts are the same three-node shape.
+/// These index `doc.order()`; they are not node ids.
 const PLANE_POSITION: usize = 0;
 const PROFILE_POSITION: usize = 1;
 const BODY_POSITION: usize = 2;
@@ -603,11 +601,11 @@ fn row3_uncut_param_reference_refuses() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("h"),
+            name: ParamName::from_static("h"),
             value: DocParam::continuous(editor_core::Dimension::Length, 1.5),
         },
     );
-    let h = || Expr::param(ParamName::new("h"), editor_core::Dimension::Length);
+    let h = || Expr::param(ParamName::from_static("h"), editor_core::Dimension::Length);
     // Each block draws on its OWN frame. A shared one would sever an
     // edge at the cut below — the frame is a document input now — and
     // that refusal would fire before the parameter question this row
@@ -642,7 +640,7 @@ fn row3_uncut_param_reference_refuses() {
             cut_node,
             kept_node,
         }) => {
-            assert_eq!(param, ParamName::new("h"));
+            assert_eq!(param, ParamName::from_static("h"));
             assert_eq!(cut_node, e1);
             assert_eq!(kept_node, e2);
         }
@@ -658,7 +656,7 @@ fn row3_uncut_param_reference_refuses() {
         None,
     )
     .expect("a cut containing every referencing node carries the parameter");
-    assert!(out.part.params().contains_key(&ParamName::new("h")));
+    assert!(out.part.params().contains_key(&ParamName::from_static("h")));
 }
 
 /// Row 3c — inline of a stale pin is the resolver's PinMismatch,
@@ -731,12 +729,14 @@ fn row3_further_typed_refusals() {
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let (host, consumer) = insert(
         host,
-        Node::Transform {
-            input: inst,
-            translation: [len(1.0), len(0.0), len(0.0)],
-            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            inst,
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceConsumed { node, by }) => {
@@ -1286,7 +1286,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let (part_doc, _) = step(
         part_doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("L"),
+            name: ParamName::from_static("L"),
             value: DocParam::continuous(editor_core::Dimension::Length, 2.0),
         },
     );
@@ -1295,7 +1295,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let (host, _) = step(
         host,
         DocEdit::SetDocParam {
-            name: ParamName::new("L"),
+            name: ParamName::from_static("L"),
             value: DocParam::continuous(editor_core::Dimension::Length, 1.0),
         },
     );
@@ -1307,7 +1307,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         Tol::witness(),
     ) {
         Err(InlineError::ParamConflict { param }) => {
-            assert_eq!(param, ParamName::new("L"));
+            assert_eq!(param, ParamName::from_static("L"));
             let msg = format!("{}", InlineError::ParamConflict { param });
             assert!(
                 msg.contains("parameter L is declared by both"),
@@ -1612,40 +1612,54 @@ fn flat_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId>
 }
 
 /// **A split re-mints the cut profiles' steps in the part's own order,
-/// and its step map says so, however the source numbered them.** The
-/// cut profile's step 2 was re-minted by a reshaping, so its ids are
-/// not contiguous — `[5, 6, 10, 8, 9]`, the first component's five
-/// taking `0..5`. The part document mints its one profile's steps from
-/// zero in step order, and the step map pairs each old id with the id
-/// in the same position.
+/// and its step map says so, however the source minted them.** The cut
+/// profile's step 2 was re-minted by a reshaping, so its ids come from
+/// two different edits. The part document mints its one profile's steps
+/// from its own empty mint, in step order, and the step map pairs each
+/// old id with the id in the same position; the same split minted twice
+/// mints the same ids (D9).
 #[test]
 fn a_split_step_map_follows_a_non_contiguous_re_mint() {
     let (doc, [f2, p2, e2], _) = reshaped_component("asm4-steps", 2, false);
     let old = flat_ids(&doc, p2);
     let n = 5;
-    assert_eq!(
-        old,
-        [5, 6, 10, 8, 9].map(editor_core::StepId).to_vec(),
-        "the reshaped profile's ids skip the re-minted step's old id"
-    );
-    let out = split(
-        &doc,
-        &BTreeSet::from([f2, p2, e2]),
-        DocumentId::derive("asm4-steps-new"),
-        Tol::witness(),
-        None,
-    )
-    .expect("legal");
+    assert_eq!(old.len(), n, "one id per authored step");
+    let cut = || {
+        split(
+            &doc,
+            &BTreeSet::from([f2, p2, e2]),
+            DocumentId::derive("asm4-steps-new"),
+            Tol::witness(),
+            None,
+        )
+        .expect("legal")
+    };
+    let out = cut();
     let part_profile = out.node_map[&p2];
     let minted = flat_ids(&out.part, part_profile);
-    assert_eq!(minted, (0..n).map(editor_core::StepId).collect::<Vec<_>>());
-    let expected: editor_core::StepMap = old.iter().copied().zip(minted).collect();
+    assert_eq!(
+        out.part.step_mint().log(),
+        minted
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>(),
+        "the part's mint log holds exactly its one profile's {n} ids"
+    );
+    assert_eq!(minted.len(), n);
+    let expected: editor_core::StepMap = old.iter().copied().zip(minted.clone()).collect();
     assert_eq!(out.step_map, expected);
+    assert_eq!(
+        flat_ids(&cut().part, part_profile),
+        minted,
+        "one split mints one set of ids"
+    );
 }
 
 /// **A name on a step a `SetProgram` dropped does not cross a split or
-/// an inline**: the part document would mint that id afresh for a
-/// step of its own, so each refactoring refuses typed, naming the
+/// an inline**: no carried profile holds the step, so the step map has
+/// no id for it, and each refactoring refuses typed, naming the
 /// stranded name and the dropped step.
 #[test]
 fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {

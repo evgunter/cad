@@ -40,9 +40,9 @@
 //! no case split beyond the per-edge carrier match.
 //!
 //! The perimeter lever moves with the area: a conic edge contributes
-//! `|Δ|·sa` — the circle's exact arc length, the ellipse's upper bound;
-//! an over-large `P` understates the width, i.e. escalates rather than
-//! decides.
+//! `|Δ|·max(|sa|, |sb|)` — the circle's exact arc length, the ellipse's
+//! upper bound; an over-large `P` understates the width, i.e. escalates
+//! rather than decides.
 //!
 //! A LINE-ONLY cycle is decided with exactly the chord arithmetic and
 //! accumulation order: the correction block is structurally skipped,
@@ -60,38 +60,71 @@
 //! own — threading the sense onto both factors would cancel.
 
 use geom_brep::EdgeCurve;
-use geom_core::{Decide, Indeterminate, Margin, Real, Sign, Vec3};
+use geom_core::{Decide, Decided, Indeterminate, Margin, Real, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::LoopKey;
+use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, LoopKey};
+use crate::readback::DanglingRef;
 
-/// Which conic carriers a wound loop rides — the carrier set a caller
-/// may choose to answer on. Ordered, and `reach` is a threshold rather
-/// than a set, because each class's winding is exact wherever the
-/// narrower one's is: a caller admitting ellipses has no reason to
-/// refuse circles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum LoopCarriers {
-    /// Every edge a `Line`: the chord polygon IS the region.
-    Lines,
-    /// Lines and at least one `Circle`, no `Ellipse`: the bulge is the
-    /// circular segment and the arc-length lever is exact.
-    Circular,
-    /// At least one `Ellipse`: the bulge is exact, the lever an upper
-    /// bound.
-    Elliptic,
+/// The winding decision's predicate name: the K-stats key its margin is
+/// recorded under, and the name an escalation of it carries.
+pub(crate) const WINDING_PREDICATE: &str = "bool_ring_run_winding";
+
+/// The walk from the loop to its points and carriers found the body
+/// torn. A tier-1 body has none of these, but a caller that reads a
+/// body mid-surgery (the merge's role pass) holds no tier-1 proof, so
+/// each says what it found and a caller that announces it names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TornLoop {
+    /// A key on the walk does not resolve. A stale `next` link (or the
+    /// loop's own `first`) is the half-edge it names.
+    Dangling(DanglingRef),
+    /// A half-edge on the walk that its own edge does not claim, so
+    /// which way it runs along the carrier is not known.
+    Unclaimed {
+        /// The half-edge.
+        he: HalfEdgeKey,
+        /// Its edge, which claims neither it as `he_plus` nor as
+        /// `he_minus`.
+        edge: EdgeKey,
+    },
+    /// Every link resolves, and the walk does not return to the loop's
+    /// first half-edge within the arena's length.
+    Unclosed,
 }
 
-/// A lookup on the way from the loop to a point or a carrier failed —
-/// the body is torn under the call (unreachable on tier-1 input).
+/// What [`Body::planar_loop_winding_decided`] reads of a loop, `W` the
+/// winding when one is read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TornLoop;
+pub(crate) enum LoopWinding<W> {
+    /// An empty loop: a lone vertex, which bounds no area.
+    Empty,
+    /// A cycle carrying a NURBS or spiric edge or a null-edge scaffold,
+    /// which the kernel does not wind (module docs).
+    Unsupported,
+    /// The winding of a cycle the kernel reads.
+    Wound(W),
+}
 
 /// **The conic term of one traversed edge** — the one statement of it:
-/// `(axis · sa·sb · (Δ − sin Δ), |Δ|·sa)`, the vector area between the
+/// `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
 /// arc and its chord (the cross-sum's `2A` convention, odd in the
 /// signed span `Δ`) and the edge's boundary length (exact for a
-/// circle, an upper bound for an ellipse). `forward` is whether the
+/// circle, an upper bound for an ellipse: `|Δ|` times the larger
+/// semi-axis MAGNITUDE, whichever field stores it and with whatever
+/// sign — an ellipse stored with `minor > major`, or with a negative
+/// `major` and its `u_ref` flipped, certifies at mint, and this term is
+/// read in flight (the merge's role assigner, the boolean join's
+/// `ring_run_ccw`) before any at-rest check refuses it; `|Δ|·major`
+/// would then be a lower bound, overstating the metered width). The
+/// bulge needs no magnitude: `sa·sb` is the signed determinant of the
+/// affine image, so a negative semi-axis mirrors the traversal and the
+/// area's sign with it. A circle's lever is its `radius` as stored:
+/// certification meters the span as `(t₁ − t₀)·r` and refuses one
+/// that is not definitely positive, and a circle with `r < 0` over a
+/// reversed interval is the one shape that passes that and reads a
+/// negative lever here — check 1 refuses it at rest
+/// (`UnrepresentableCurveDatum`). `forward` is whether the
 /// traversal runs with increasing carrier parameter — the edge's plus
 /// half. `None` for every carrier that is not a conic: its term is its
 /// chord's, which the caller owns. Shared by
@@ -102,17 +135,20 @@ pub(crate) fn conic_segment_term<T: Real>(
     forward: bool,
 ) -> Option<(Vec3<T>, T)> {
     let (t0, t1) = curve.params();
-    let (axis, sa, sb) = match *curve.carrier() {
-        geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
+    // `(axis, sa, sb, the larger semi-axis magnitude)`. The circle's lever is its
+    // radius itself, not `radius.max(radius)`: the same value, but at a
+    // symbolic scalar a `max` node is opaque where the radius is not.
+    let (axis, sa, sb, reach) = match *curve.carrier() {
+        geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius, radius),
         geom::Curve3::Ellipse {
             axis, major, minor, ..
-        } => (axis, major, minor),
+        } => (axis, major, minor, major.abs().max(minor.abs())),
         geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
             return None;
         }
     };
     let span = if forward { t1 - t0 } else { t0 - t1 };
-    Some((axis * (sa * sb * (span - span.sin())), span.abs() * sa))
+    Some((axis * (sa * sb * (span - span.sin())), span.abs() * reach))
 }
 
 impl<T: Decide> Body<T> {
@@ -123,48 +159,96 @@ impl<T: Decide> Body<T> {
     ///
     /// `Ok(None)` — no predicate is asked — for an empty loop (a
     /// lone-vertex ring bounds no area), for a cycle carrying a NURBS
-    /// or spiric edge or a null-edge scaffold (the honest remainder),
-    /// and for a cycle whose widest carrier lies beyond `reach`, the
-    /// carrier set the caller answers on.
+    /// or spiric edge or a null-edge scaffold (the honest remainder).
+    /// There is no narrower reach to ask for: the assigner and the
+    /// checker answer on the one carrier set, which is what keeps them
+    /// from disagreeing about which loops have a winding.
     pub(crate) fn planar_loop_winding(
         &self,
         l: LoopKey,
         normal: Vec3<T>,
         band: geom_core::Band,
-        reach: LoopCarriers,
     ) -> Result<Option<Result<Sign, Indeterminate>>, TornLoop> {
-        let crate::entity::LoopBoundary::Cycle { first } =
-            self.get_loop(l).ok_or(TornLoop)?.boundary
+        Ok(match self.planar_loop_winding_decided(l, normal, band)? {
+            LoopWinding::Empty | LoopWinding::Unsupported => None,
+            LoopWinding::Wound(w) => Some(w.map(|d| d.sign)),
+        })
+    }
+
+    /// [`Body::planar_loop_winding`], keeping the margin the sign was
+    /// decided on (a caller that refuses a zero winding quotes it,
+    /// [`geom_core::k_stats::decide_reported`]) and telling an empty
+    /// loop from a cycle it does not wind.
+    pub(crate) fn planar_loop_winding_decided(
+        &self,
+        l: LoopKey,
+        normal: Vec3<T>,
+        band: geom_core::Band,
+    ) -> Result<LoopWinding<Result<Decided, Indeterminate>>, TornLoop> {
+        let dangling = |what| TornLoop::Dangling(what);
+        let crate::entity::LoopBoundary::Cycle { first } = self
+            .get_loop(l)
+            .ok_or(dangling(DanglingRef::Entity(EntityId::Loop(l))))?
+            .boundary
         else {
-            return Ok(None);
+            return Ok(LoopWinding::Empty);
         };
-        let cycle = self.loop_cycle(first).ok_or(TornLoop)?;
+        // The cycle in `next` order, bounded as `Body::loop_cycle` is,
+        // each member resolved by the step that reached it: a stale
+        // link is named, not folded into "the cycle does not close".
+        let cap = self.half_edges.len();
+        let mut cycle = Vec::new();
+        let mut he = first;
+        loop {
+            let hd = self
+                .get_half_edge(he)
+                .ok_or(dangling(DanglingRef::Entity(EntityId::HalfEdge(he))))?;
+            cycle.push((he, hd));
+            if hd.next == first {
+                break;
+            }
+            if cycle.len() == cap {
+                return Err(TornLoop::Unclosed);
+            }
+            he = hd.next;
+        }
         // One walk per half-edge: its start point, its certified curve
         // and whether it runs with the carrier's parameter.
         let mut walked = Vec::with_capacity(cycle.len());
-        let mut carriers = LoopCarriers::Lines;
-        for &he in &cycle {
-            let hd = self.get_half_edge(he).ok_or(TornLoop)?;
-            let edge = self.get_edge(hd.edge).ok_or(TornLoop)?;
+        // Whether some carrier is a conic: the one fact about the
+        // carrier set the sum reads (the correction block below).
+        let mut any_conic = false;
+        for (he, hd) in cycle {
+            let edge = self
+                .get_edge(hd.edge)
+                .ok_or(dangling(DanglingRef::Entity(EntityId::Edge(hd.edge))))?;
+            let claim = edge
+                .claim(he)
+                .ok_or(TornLoop::Unclaimed { he, edge: hd.edge })?;
             // A null-edge scaffold states no geometry: nothing here can
             // wind it.
-            let Some(curve) = self.get_curve_geom(edge.curve).ok_or(TornLoop)?.certified() else {
-                return Ok(None);
+            let Some(curve) = self
+                .get_curve_geom(edge.curve)
+                .ok_or(dangling(DanglingRef::Geometry(GeomRef::Curve(edge.curve))))?
+                .certified()
+            else {
+                return Ok(LoopWinding::Unsupported);
             };
-            carriers = carriers.max(match curve.carrier() {
-                geom::Curve3::Line { .. } => LoopCarriers::Lines,
-                geom::Curve3::Circle { .. } => LoopCarriers::Circular,
-                geom::Curve3::Ellipse { .. } => LoopCarriers::Elliptic,
-                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => return Ok(None),
-            });
-            let start = self
+            any_conic |= match curve.carrier() {
+                geom::Curve3::Line { .. } => false,
+                geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => true,
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                    return Ok(LoopWinding::Unsupported);
+                }
+            };
+            let point = self
                 .get_vertex(hd.start)
-                .and_then(|vd| self.get_point(vd.point).copied())
-                .ok_or(TornLoop)?;
-            walked.push((start, curve, edge.he_plus == he));
-        }
-        if carriers > reach {
-            return Ok(None);
+                .ok_or(dangling(DanglingRef::Entity(EntityId::Vertex(hd.start))))?
+                .point;
+            let start = *self
+                .get_point(point)
+                .ok_or(dangling(DanglingRef::Geometry(GeomRef::Point(point))))?;
+            walked.push((start, curve, claim.plus));
         }
         let p0 = walked[0].0;
         let mut newell = Vec3::new(T::zero(), T::zero(), T::zero());
@@ -187,7 +271,7 @@ impl<T: Decide> Body<T> {
         // carrier is a conic: a line-only cycle keeps the chord sum.
         // Summed on its own and added once, so the chord sum is never
         // re-associated.
-        if carriers != LoopCarriers::Lines {
+        if any_conic {
             let mut bulge = Vec3::new(T::zero(), T::zero(), T::zero());
             for &(_, curve, forward) in &walked {
                 if let Some((b, _)) = conic_segment_term(curve, forward) {
@@ -196,8 +280,8 @@ impl<T: Decide> Body<T> {
             }
             newell = newell + bulge;
         }
-        Ok(Some(crate::validate::decide(
-            "bool_ring_run_winding",
+        Ok(LoopWinding::Wound(crate::validate::decide_reported(
+            WINDING_PREDICATE,
             Margin::over_lever(normal.dot(newell), perimeter),
             band,
         )))

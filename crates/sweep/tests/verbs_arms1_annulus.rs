@@ -153,6 +153,11 @@ fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
     assert_eq!(rec.meridian_remnants.len(), 2, "one remnant per support");
     assert_eq!(rec.rim_trims.len(), 2, "one trim circle per side");
     assert_eq!(rec.slits.len(), 1, "one slit per band");
+    assert_eq!(
+        rec.slits[0].2,
+        vec![rim],
+        "the slit carries the band that slit it: its one source edge"
+    );
     assert!(
         rec.blends.is_empty() && rec.corners.is_empty() && rec.trims.is_empty(),
         "a lone closed rim fills no open-chain record"
@@ -349,17 +354,21 @@ fn a_planted_horn_torus_is_reported_by_tier_3() {
     else {
         panic!("the band's surface is a torus");
     };
+    // Lifts both refusals: the planted horn torus is what tier 3 must report.
     out.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             band_face,
-            FaceSurface::New(Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                // A spindle: the tube swallows the axis.
-                minor_radius: major_radius * 2.0,
-                u_ref,
-            }),
+            FaceSurface::New {
+                surface: Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    // A spindle: the tube swallows the axis.
+                    minor_radius: major_radius * 2.0,
+                    u_ref,
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let errors = validate_geometric(&out.body, tol())

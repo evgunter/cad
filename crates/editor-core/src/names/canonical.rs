@@ -8,8 +8,8 @@
 //! - a [`RoleSeg::Merged`] constituent set and a [`RoleSeg::BandFace`]
 //!   edge set: sorted, and deduplicated, because the SET is the name
 //!   (N3);
-//! - a [`Qualifier::SideOf`] vector: one entry per partner, sorted by
-//!   partner name;
+//! - a [`Qualifier::Borders`] set: sorted, and deduplicated, because
+//!   the set of walls is the qualifier (N2);
 //! - a seam JUNCTION, the vertex where k ≥ 2 seam lines meet, named by
 //!   the run of those lines' [`RoleSeg::Seam`] segments and nothing
 //!   else: the run is sorted and NOT deduplicated. The lines are
@@ -146,7 +146,7 @@ pub(crate) enum Stop<E> {
 }
 
 /// The image a rewrite gives an embedded name ([`canonical`]).
-pub(crate) type Image<'a, E> = &'a mut dyn FnMut(&StableName) -> Result<StableName, E>;
+pub(crate) type Image<'a, 'n, E> = &'a mut dyn FnMut(&'n StableName) -> Result<StableName, E>;
 
 impl RankRule {
     /// The rule for `now`'s ranks, `now` being `was` rewritten — every
@@ -161,11 +161,11 @@ impl RankRule {
     /// lies along its edge parent's line ([`seam_vertex_parents`]):
     /// the one edge parent, or, where both are edges, the A side's in
     /// a pair boolean's name and none in a union's.
-    fn derive<E>(
-        was: &StableName,
+    fn derive<'n, E>(
+        was: &'n StableName,
         now: &StableName,
         seams: Seams,
-        image: Image<'_, E>,
+        image: Image<'_, 'n, E>,
     ) -> Result<Self, E> {
         let is_edge = |n: &StableName| n.kind == EntityKind::Edge;
         match (was.kind, seam_vertex_parents(was), seam_vertex_parents(now)) {
@@ -189,7 +189,11 @@ impl RankRule {
     /// The rule for a rank along EDGE `was`'s line, the edge rewritten
     /// to `now`: `Reverse` exactly where `now`'s pair is the images of
     /// `was`'s pair in the other order.
-    fn along<E>(was: &StableName, now: &StableName, image: Image<'_, E>) -> Result<Self, E> {
+    fn along<'n, E>(
+        was: &'n StableName,
+        now: &StableName,
+        image: Image<'_, 'n, E>,
+    ) -> Result<Self, E> {
         let (Some((a, b)), Some((a2, b2))) = (seam_line_pair(was), seam_line_pair(now)) else {
             return Ok(Self::Keep);
         };
@@ -230,11 +234,11 @@ impl RankRule {
 ///
 /// [`Stop::Image`] where `image` refuses; [`Stop::Unrankable`] where a
 /// rank cannot be re-read.
-pub(crate) fn canonical<E>(
-    was: &StableName,
+pub(crate) fn canonical<'n, E>(
+    was: &'n StableName,
     now: StableName,
     seams: Seams,
-    image: Image<'_, E>,
+    image: Image<'_, 'n, E>,
 ) -> Result<StableName, Stop<E>> {
     let mut now = order(now, seams);
     if !has_rank(&now) {
@@ -268,10 +272,10 @@ pub(crate) fn minted_segment(seg: RoleSeg) -> RoleSeg {
 /// **A fold-table name collapsed into a union's space**, in canonical
 /// form: [`canonical`] with the union's seams [`Seams::ByName`]. A rank
 /// it cannot re-read is refused: the collapse is an emission door.
-pub(crate) fn collapsed<E>(
-    was: &StableName,
+pub(crate) fn collapsed<'n, E>(
+    was: &'n StableName,
     now: StableName,
-    image: Image<'_, E>,
+    image: Image<'_, 'n, E>,
 ) -> Result<StableName, Stop<E>> {
     canonical(was, now, Seams::ByName, image)
 }
@@ -292,10 +296,10 @@ pub(crate) fn collapsed<E>(
 /// # Errors
 ///
 /// Whatever `image` refuses.
-pub(crate) fn rewritten<E>(
-    was: &StableName,
+pub(crate) fn rewritten<'n, E>(
+    was: &'n StableName,
     now: StableName,
-    image: Image<'_, E>,
+    image: Image<'_, 'n, E>,
 ) -> Result<StableName, E> {
     let seams = Seams::of_published(was);
     if !has_rank(&now) {
@@ -311,8 +315,7 @@ pub(crate) fn rewritten<E>(
 
 /// The ordering half: every position in order, the ranks untouched.
 fn order(mut name: StableName, seams: Seams) -> StableName {
-    name.path = name
-        .path
+    name.path = core::mem::take(&mut name.path)
         .into_iter()
         .map(|seg| segment(seg, seams))
         .collect();
@@ -345,9 +348,16 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
         RoleSeg::Seam { a, b } if seams == Seams::ByName && a > b => RoleSeg::Seam { a: b, b: a },
         RoleSeg::Merged(set) => RoleSeg::Merged(sorted_set(set)),
         RoleSeg::BandFace(set) => RoleSeg::BandFace(sorted_set(set)),
-        RoleSeg::Fragment(Qualifier::SideOf(mut partners)) => {
-            partners.sort();
-            RoleSeg::Fragment(Qualifier::SideOf(partners))
+        RoleSeg::BandCross { edge, band } => RoleSeg::BandCross {
+            edge,
+            band: sorted_set(band),
+        },
+        RoleSeg::BandSlit { edge, band } => RoleSeg::BandSlit {
+            edge,
+            band: sorted_set(band),
+        },
+        RoleSeg::Fragment(Qualifier::Borders(walls)) => {
+            RoleSeg::Fragment(Qualifier::Borders(sorted_set(walls)))
         }
         // Everything else carries its names, or none, in an order of
         // its own.
@@ -368,9 +378,7 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
         | RoleSeg::EndArc { .. }
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
         | RoleSeg::BandCut(_)
-        | RoleSeg::BandSlit(_)
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
@@ -403,7 +411,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::names::role::{CapEnd, NameRef, SideVerdict};
+    use crate::names::role::{CapEnd, NameRef};
     use crate::node::RecipeNodeId;
 
     fn seam(a: StableName, b: StableName) -> RoleSeg {
@@ -429,10 +437,9 @@ mod tests {
     }
 
     fn edge(node: u64, member: u64) -> StableName {
-        StableName {
-            kind: EntityKind::Edge,
-            ..face(node, member)
-        }
+        let mut edge = face(node, member);
+        edge.kind = EntityKind::Edge;
+        edge
     }
 
     fn name(kind: EntityKind, node: u64, path: Vec<RoleSeg>) -> StableName {
@@ -538,28 +545,28 @@ mod tests {
     }
 
     #[test]
-    fn a_side_of_vector_is_one_form_in_every_order() {
-        let ps = [
-            (face(9, 2), SideVerdict::Negative),
-            (face(9, 1), SideVerdict::Positive),
-            (face(9, 3), SideVerdict::Positive),
-        ];
+    fn a_borders_set_is_one_form_in_every_order() {
+        let ws = [face(9, 2), face(9, 1), face(9, 3), face(9, 1)];
         for seams in [Seams::Sided, Seams::ByName] {
-            let out = one_form(&ps, seams, |p| {
+            let out = one_form(&ws, seams, |w| {
                 name(
                     EntityKind::Face,
                     9,
                     vec![
                         RoleSeg::Cap(CapEnd::Start),
-                        RoleSeg::Fragment(Qualifier::SideOf(p)),
+                        RoleSeg::Fragment(Qualifier::Borders(w)),
                     ],
                 )
             });
-            let Some(RoleSeg::Fragment(Qualifier::SideOf(v))) = out.path.last() else {
-                panic!("the qualifier is kept");
-            };
-            let partners: Vec<&StableName> = v.iter().map(|(n, _)| n).collect();
-            assert_eq!(partners, vec![&face(9, 1), &face(9, 2), &face(9, 3)]);
+            assert_eq!(
+                out.path.last(),
+                Some(&RoleSeg::Fragment(Qualifier::Borders(vec![
+                    face(9, 1),
+                    face(9, 2),
+                    face(9, 3)
+                ]))),
+                "the walls are sorted and a repeat is one wall"
+            );
         }
     }
 

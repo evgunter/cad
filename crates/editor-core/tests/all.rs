@@ -80,6 +80,8 @@ mod asm_r2b_interface_wire;
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
+#[path = "assemble_one_local_battery.rs"]
+mod assemble_one_local_battery;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -94,12 +96,6 @@ mod bool12r2_ec_probe;
 mod bool13_r1_probes;
 #[path = "bool13r2_probes.rs"]
 mod bool13r2_probes;
-#[path = "bool7_shadow_exec.rs"]
-mod bool7_shadow_exec;
-#[path = "bool7r1_probes.rs"]
-mod bool7r1_probes;
-#[path = "bool7r2_probes.rs"]
-mod bool7r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
 #[path = "cascade_delete.rs"]
@@ -152,6 +148,10 @@ mod edit_ladder_rim;
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
+#[path = "edit_placement_corpus_bits.rs"]
+mod edit_placement_corpus_bits;
+#[path = "edit_placement_type.rs"]
+mod edit_placement_type;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
@@ -188,6 +188,8 @@ mod refusal_concision_chains;
 mod remap_reorders_ids;
 #[path = "resolve_group_membership.rs"]
 mod resolve_group_membership;
+#[path = "resolve_piece_ladder.rs"]
+mod resolve_piece_ladder;
 #[path = "resolve_upstream_scope.rs"]
 mod resolve_upstream_scope;
 #[path = "rv_dm7_probes.rs"]
@@ -232,6 +234,8 @@ mod lib_u5_interrogate;
 mod lib_u7_select;
 #[path = "load_door_payload_param_ref.rs"]
 mod load_door_payload_param_ref;
+#[path = "load_door_program_validate.rs"]
+mod load_door_program_validate;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
 #[path = "m10_1_analysis.rs"]
@@ -283,6 +287,8 @@ mod onb_wall_normal_census;
 #[path = "rv_payloadrefs_probes.rs"]
 mod rv_payloadrefs_probes;
 
+#[path = "expr_nesting_bound.rs"]
+mod expr_nesting_bound;
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
 #[path = "m10_4_stackup_interval.rs"]
@@ -377,8 +383,6 @@ mod m4_pr6_refusal;
 mod m4_pr6_review_probes;
 #[path = "m4_pr6_roundtrip.rs"]
 mod m4_pr6_roundtrip;
-#[path = "m4_pr6_roundtrip_interval.rs"]
-mod m4_pr6_roundtrip_interval;
 #[path = "m4_pr7_appearance.rs"]
 mod m4_pr7_appearance;
 #[path = "m4_pr7_appearance_interval.rs"]
@@ -435,10 +439,18 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "name_depth.rs"]
+mod name_depth;
+#[path = "names_verbatim_edge_evaluator.rs"]
+mod names_verbatim_edge_evaluator;
+#[path = "node_standing.rs"]
+mod node_standing;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
 mod parallel_node_map_probe;
+#[path = "part_depth_bound.rs"]
+mod part_depth_bound;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -453,6 +465,8 @@ mod pinned_lift_validates_once;
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
+#[path = "product_gate_attribution.rs"]
+mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 
@@ -516,6 +530,8 @@ mod seat7_sweep_lowering;
 mod seat8_split_lowering;
 #[path = "seatfw_curved_flush.rs"]
 mod seatfw_curved_flush;
+#[path = "step_handle_binding.rs"]
+mod step_handle_binding;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -538,9 +554,6 @@ mod u8a_parse;
 mod unreadable_by_this_build;
 
 test_utils::every_suite_file_is_aggregated!();
-
-#[path = "cert_m2r1_corpus.rs"]
-mod cert_m2r1_corpus;
 
 #[path = "lib_tube_node.rs"]
 mod lib_tube_node;
@@ -627,6 +640,10 @@ mod wire_rv_unknown;
 
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
+#[path = "edit_refusal_recourse.rs"]
+mod edit_refusal_recourse;
+#[path = "emit_pair_cut_and_merged.rs"]
+mod emit_pair_cut_and_merged;
 #[path = "emit_seam_edge_merged.rs"]
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]
@@ -635,6 +652,10 @@ mod emit_seam_junction;
 mod emit_shared_rim_several;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
+#[path = "emit_split_edge_lineage.rs"]
+mod emit_split_edge_lineage;
+#[path = "emit_union_borders.rs"]
+mod emit_union_borders;
 #[path = "emit_union_flush_names.rs"]
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]

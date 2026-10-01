@@ -26,12 +26,14 @@ use geom_core::Tol;
 fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(dx), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+            editor_core::Step::Rigid {
+                translation: [len(dx), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     )
 }
 
@@ -49,9 +51,9 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
 /// two member faces.** `a` and `c` are declared flush, so the fold
 /// merges their tops into one `Merged({a.capEnd, c.capEnd})` row; `d`
 /// rests on both, undeclared. Contact is judged between members before
-/// the fold (DM4), so in every order the refusal names `a`'s top and
-/// `d`'s bottom, the first touching pair by node id, and carries no
-/// merged set: no refusal names a row the fold minted.
+/// the fold (DM4), so in every order the refusal names one member's
+/// top and `d`'s bottom, the first touching pair by node id, and
+/// carries no merged set: no refusal names a row the fold minted.
 #[test]
 fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
     let doc = ProfileDoc::empty_derived("r1_merged_refusal", Tol::witness());
@@ -69,16 +71,17 @@ fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
         else {
             panic!("{order:?}: expected the pairwise refusal, got {got:?}")
         };
-        assert_eq!(
-            finding.pair.0,
-            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-            "{order:?}"
-        );
-        assert_eq!(
-            finding.pair.1,
-            SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
-            "{order:?}"
-        );
+        // The undeclared pairs are `a`'s top on `d`'s bottom and `c`'s
+        // top on it; each pair is spelled lower id first, and the
+        // first of them by id is the one refused.
+        let top = |m: RecipeNodeId| SitedRef::new(m, fname(m, RoleSeg::Cap(CapEnd::End)));
+        let bottom = SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start)));
+        let by_id = |x: SitedRef, y: SitedRef| if x.at < y.at { (x, y) } else { (y, x) };
+        let want = [by_id(top(a), bottom.clone()), by_id(top(c), bottom.clone())]
+            .into_iter()
+            .min_by_key(|(x, y)| (x.at, y.at))
+            .expect("two candidates");
+        assert_eq!(finding.pair, want, "{order:?}");
         assert!(
             merged.0.is_empty() && merged.1.is_empty(),
             "{order:?}: {merged:?}"
@@ -108,7 +111,7 @@ fn a_merged_row_contact_is_declared_through_its_constituents() {
     let ev = run(&only_c);
     assert!(
         matches!(failure(&ev, union), Some(NodeErrorKind::UndeclaredContact { finding, .. })
-            if finding.pair.0.at == a && finding.pair.1.at == d),
+            if [finding.pair.0.at, finding.pair.1.at] == if a < d { [a, d] } else { [d, a] }),
         "{:?}",
         failure(&ev, union)
     );
@@ -168,7 +171,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
                 tr,
                 fname(
                     b0,
-                    editor_core::RoleSeg::Lateral(crate::fixture::no_piece()),
+                    editor_core::RoleSeg::Lateral(crate::fixture::no_piece_of(&doc)),
                 ),
             ),
         )]),

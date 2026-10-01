@@ -31,7 +31,7 @@ fn pi(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
 }
 
 fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
-    m.sign_within(band()).map_err(|_| ())
+    m.sign_within(band()).map(|d| d.sign).map_err(|_| ())
 }
 
 /// **THE WITNESS AT `Interval` IS "THE ENCLOSURES MEET", AND THAT IS NOT

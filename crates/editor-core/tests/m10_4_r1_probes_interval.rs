@@ -10,7 +10,7 @@
 //! - **DATUM** — a state the reviewer measured and is recording as the
 //!   shipped behaviour, red-capable if it changes.
 //! - **EVIDENCE-ONLY** — a print, no assertion that can fail on a
-//!   number (`memories/test-suite-cost.md`).
+//!   number (implementer-discipline §8).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -29,13 +29,13 @@ use editor_core::{
 };
 use geom_core::{Dual64, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn param(n: &str, dim: Dimension) -> Expr {
+fn param(n: &'static str, dim: Dimension) -> Expr {
     Expr::param(name(n), dim)
 }
 
@@ -76,7 +76,7 @@ fn eval_f64(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn opts(seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
+fn opts(seed: Option<&'static str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
         seed: seed.map(name),
         profile_lift: lift,
@@ -158,12 +158,14 @@ fn stepped_shaft_sized(
         profile: boss_p,
         distance: param("h2", Dimension::Length),
     });
-    let boss = r.insert(Node::Transform {
-        input: boss_raw,
-        translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
-    });
+    let boss = r.insert(Node::transform(
+        boss_raw,
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
@@ -601,7 +603,8 @@ fn r1_another_documents_verdict_certifies_this_one() {
 #[test]
 fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
     let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::max(a(), MeasureExpr::neg(a())).expect("Scalar lattice max")
+        MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
+            .expect("Scalar lattice max")
     });
     let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("no refusal");
     match &entries[0].outcome {
@@ -921,7 +924,10 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
                 panic!("DATUM changed — the chamber is {:?}", report.chamber)
             };
             for name in ["h1", "h2"] {
-                let (lo, hi) = leaf.get(&ParamName::new(name)).expect("the axis").span();
+                let (lo, hi) = leaf
+                    .get(&ParamName::from_static(name))
+                    .expect("the axis")
+                    .span();
                 assert!(
                     (lo + 0.1).abs() < 1e-12 && (hi - 0.1).abs() < 1e-12,
                     "{name}: [{lo}, {hi}]"
@@ -961,55 +967,4 @@ fn r1_seed_env_refuses_a_foreign_name() {
     }
     assert_eq!(ones, 1, "exactly one seeded lift");
     assert_eq!(zeros, 1, "every other lift is exactly zero");
-}
-
-/// **DATUM — the `contribution` column extrapolates past its own
-/// chamber.** `Chamber::ChamberCertified` names ONE certified LEAF, and
-/// the drive splits the analyzed box into many; `contribution` is
-/// `|dm/dp| * (the ANALYZED box\'s half-width)`. So the report
-/// multiplies a derivative marked valid over a leaf by a span many
-/// times the leaf\'s — the extrapolation E4\'s marking clause exists to
-/// make unwritable. This row measures the ratio on a drive that split.
-///
-/// **The document moved under M10-8's shipped tier**: the stepped shaft
-/// at `ε/8` — and at ±0.1 — now certifies WHOLE in one leaf (the row
-/// above), so it no longer splits and cannot carry this measurement.
-/// The two-hole plate at HALF its real study does: its
-/// whole-certifying ceiling is 0.24–0.26 of the study at every ε row
-/// (`m10_10_pins_interval`; a real margin, so the scale here is a
-/// fraction of the study rather than a multiple of ε), and at 0.5 the
-/// driver splits into 22 leaves, every one certified, with the nominal
-/// in a certified chamber.
-#[test]
-fn r1_the_contribution_extrapolates_past_its_certified_chamber() {
-    let scale = 0.5;
-    let (doc, m, _) = crate::m10_7_plate::plate(5.0e-5 * scale, 1.0e-5 * scale, Tol::witness());
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
-    assert!(
-        verdict.certified().len() > 1,
-        "this row needs a drive that SPLIT: {:?}",
-        verdict.receipt()
-    );
-    let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness()).expect("ok");
-    let row = &report.per_param[0];
-    let Chamber::ChamberCertified { leaf, .. } = (match &row.sensitivity {
-        SensitivityOutcome::Derivative { chamber, .. } => chamber.clone(),
-        other => panic!("{other:?}"),
-    }) else {
-        panic!("the nominal\'s leaf certifies here")
-    };
-    let (lo, hi) = leaf.get(&row.param).expect("the axis").span();
-    let leaf_half = 0.5 * (hi - lo);
-    let box_half = 0.5 * analyzed.get(&row.param).expect("the axis").offsets.width();
-    println!(
-        "EVIDENCE-ONLY r1 chamber vs contribution: leaf half-width {leaf_half:e}, \
-         analyzed half-width {box_half:e}, ratio {:.1}x; contribution {:?}",
-        box_half / leaf_half,
-        row.contribution
-    );
-    assert!(
-        box_half > leaf_half,
-        "DATUM: the contribution\'s span exceeds the certified chamber\'s"
-    );
 }

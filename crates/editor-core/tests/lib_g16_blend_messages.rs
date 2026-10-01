@@ -1,7 +1,7 @@
 //! **The blend refusal messages, PINNED** — adopted from the LIB-G16
 //! R2 review probe, which printed them for a cross-tree byte
 //! comparison and so expired with that comparison
-//! (`memories/test-suite-cost.md`: a one-shot comparison artefact has
+//! (implementer-discipline §8: a one-shot comparison artefact has
 //! no consumer once the diff is taken, and a test that asserts nothing
 //! is never a gate).
 //!
@@ -66,7 +66,7 @@ fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
 /// Merged into ONE row per verb rather than eight tests: nextest is
 /// process-per-test and each of these rebuilds the same cube document,
 /// so the split would pay the fixture eight times over
-/// (`memories/test-suite-cost.md`). Every assertion carries its own
+/// (implementer-discipline §8). Every assertion carries its own
 /// label so a red names the refusal without the test name helping.
 fn messages(
     blend: fn(
@@ -99,7 +99,7 @@ fn messages(
     let ghost = editor_core::StableName {
         kind: editor_core::EntityKind::Edge,
         node: cube,
-        path: vec![editor_core::RoleSeg::Lateral(fixture::no_piece())],
+        path: vec![editor_core::RoleSeg::Lateral(fixture::no_piece_of(&doc))],
     };
     let (d, n) = fixture::insert(doc, blend(cube, size, vec![ghost]));
     out.push(("resolve", msg_of(&d, n)));
@@ -132,18 +132,20 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
         ),
         (
             "kind",
-            "the fillet selection name minted by node 2 denotes a face, not an edge",
+            "the fillet selection name minted by node {cube} denotes a face, not an edge",
         ),
         (
             "resolve",
-            "a fillet selection name failed to resolve: the edge name minted by node 2 no \
+            "a fillet selection name failed to resolve: the edge name minted by node {cube} no \
              longer resolves in this evaluation: the recorded reference disagrees with the \
-             recipe as it stands on the derivation path (node 2's payload differs)",
+             recipe as it stands on the derivation path (node {cube}'s payload differs)",
         ),
     ];
+    let cube = cube_doc().1.0.to_string();
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
         assert_eq!(label, wl);
-        assert_eq!(actual, expected, "the fillet's {label} refusal text moved");
+        let expected = expected.replace("{cube}", &cube);
+        assert_eq!(actual, &expected, "the fillet's {label} refusal text moved");
     }
     // The op row is pinned by PREFIX, not whole. Its tail is the
     // kernel's own `BlendError` message, which quotes an arena key

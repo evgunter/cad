@@ -9,10 +9,6 @@ use geom_core::{Point2, Tol};
 use profile::{Bulge, ClosedLoop, Open, PathError, Profile, ProfileError, SketchPlane, Start};
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, FRAC_PI_8, PI};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validate(l: &ClosedLoop<f64>) -> Result<(), ProfileError> {
     Profile::new(SketchPlane::xy(), vec![l.loop_.clone()])
         .validate(Tol::witness())
@@ -29,7 +25,7 @@ fn band() -> (f64, f64) {
 /// straight arrival; the levered miss is exactly `off`.
 fn tilted_close(off: f64, arm: f64) -> Result<ClosedLoop<f64>, PathError<f64>> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)
@@ -71,9 +67,12 @@ fn r1_the_seam_arrival_escalation_inherits_the_junction_tail() {
     };
     let msg = err.to_string();
     println!("R1: seam-arrival escalation -> {msg}");
-    assert!(msg.contains("path_seam_arrival_turn"), "{msg}");
+    assert!(
+        format!("{err:?}").contains("path_seam_arrival_turn"),
+        "{err:?}"
+    );
     // The two halves of the inherited template are GONE.
-    assert!(!msg.contains("path junction classification"), "{msg}");
+    assert!(!msg.contains("at this junction"), "{msg}");
     assert!(!msg.contains("declare the coincidence"), "{msg}");
     // And the composed recourse points the right way: the declaration
     // is already made, and a LARGER tolerance is what admits the miss.
@@ -98,20 +97,20 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
     // at (0,-1) is a DERIVED collinear direction, so the departure
     // refuses before the seam is reached.
     let forward_line_to = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .arc_to(
             Bulge {
-                p: p2(0.0, -2.0),
+                p: Point2::new(0.0, -2.0),
                 b: 1.0,
             },
             t,
         )
         .unwrap()
-        .line_to(p2(0.0, -1.0), t)
+        .line_to(Point2::new(0.0, -1.0), t)
         .unwrap()
         .line_to(Start.arrives_tangent(), t);
     assert!(
@@ -121,16 +120,16 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
     // Reverse, with `continue_to` instead of `line_to`: the closing leg
     // departs the arc's end at a CORNER, so `Start` is off its ray.
     let reverse_continue_to = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(-FRAC_PI_2, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(0.0, -2.0), t)
+        .continue_to(Point2::new(0.0, -2.0), t)
         .unwrap()
         .arc_to(
             Bulge {
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
                 b: 1.0,
             },
             t,
@@ -182,18 +181,18 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
     let t = Tol::witness();
     let fan = |declared: bool| {
         let p = Open
-            .at(p2(0.0, 0.0))
+            .at(Point2::new(0.0, 0.0))
             .arc_to(
                 Bulge {
-                    p: p2(1.0, 1.0),
+                    p: Point2::new(1.0, 1.0),
                     b: FRAC_PI_8.tan(),
                 },
                 t,
             )
             .unwrap()
-            .line_to(p2(-1.0, 1.0), t)
+            .line_to(Point2::new(-1.0, 1.0), t)
             .unwrap()
-            .line_to(p2(-1.0, 0.0), t)
+            .line_to(Point2::new(-1.0, 0.0), t)
             .unwrap();
         if declared {
             p.line_to(Start.arrives_tangent(), t)
@@ -226,18 +225,18 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
     // THE RECOURSE, and the ruling's own point: the same straight
     // closer declaring a TANGENT joint closes AND validates.
     let g1 = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .arc_to(
             Bulge {
-                p: p2(1.0, 1.0),
+                p: Point2::new(1.0, 1.0),
                 b: FRAC_PI_8.tan(),
             },
             t,
         )
         .unwrap()
-        .line_to(p2(-1.0, 1.0), t)
+        .line_to(Point2::new(-1.0, 1.0), t)
         .unwrap()
-        .line_to(p2(-1.0, 0.0), t)
+        .line_to(Point2::new(-1.0, 0.0), t)
         .unwrap()
         .line_to(Start.arrives_tangent(), t)
         .expect("a straight leg may declare a TANGENT seam joint");
@@ -264,16 +263,16 @@ fn r1_a_cocircular_declared_tangent_arrival_is_carrier_identity_the_algebra_miss
     let t = Tol::witness();
     let c = FRAC_PI_4.cos();
     let closed = Open
-        .at(p2(1.0, 0.0))
+        .at(Point2::new(1.0, 0.0))
         .arc_to(
             Bulge {
-                p: p2(0.0, -1.0),
+                p: Point2::new(0.0, -1.0),
                 b: (3.0 * FRAC_PI_8).tan(),
             },
             t,
         )
         .unwrap()
-        .line_to(p2(c, -c), t)
+        .line_to(Point2::new(c, -c), t)
         .unwrap()
         .angle(FRAC_PI_4, t)
         .unwrap()
@@ -300,7 +299,7 @@ fn r1_a_cocircular_declared_tangent_arrival_is_carrier_identity_the_algebra_miss
 fn r1_the_sharp_arc_seam_is_told_to_use_a_target_it_cannot_take() {
     let t = Tol::witness();
     let refused = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
@@ -327,7 +326,7 @@ fn r1_the_sharp_arc_seam_is_told_to_use_a_target_it_cannot_take() {
     assert!(msg.contains("Start.arrives_tangent()"), "{msg}");
     // The recourse is real: the same chain closes with it.
     let closed = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
@@ -404,13 +403,13 @@ fn r1_the_construct_from_arrival_form_would_derive_a_tangent_departure_on_the_st
     // AUTHORED angle and let the classifier judge it against the
     // incoming west-bound straight.
     let refused = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(2.0, 2.0), t)
+        .tangent_arc_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .tangent()
         .line(2.0, t)
@@ -433,13 +432,13 @@ fn r1_the_construct_from_arrival_form_would_derive_a_tangent_departure_on_the_st
 fn r1_the_lift_layer_lifts_the_all_tangent_loop_the_algebra_authors() {
     let t = Tol::witness();
     let closed = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(2.0, 2.0), t)
+        .tangent_arc_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .tangent()
         .line(2.0, t)
@@ -469,7 +468,7 @@ fn r1_the_lift_layer_lifts_the_all_tangent_loop_the_algebra_authors() {
 fn r1_the_seam_cusp_names_a_departure_recourse() {
     let t = Tol::witness();
     let refused = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)

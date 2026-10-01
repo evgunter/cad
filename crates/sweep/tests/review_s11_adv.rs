@@ -5,9 +5,8 @@
 //! invariance per carrier, reversed authoring, a bore-groove torus
 //! band), plus the D1 guard: a TOUCHING union against a reversed-face
 //! body must refuse typed until boolean splitting inherits the parent
-//! face's sense (see `Body::set_face_sense` docs — the mef re-mint
-//! hazard). When curved unions start answering, D1 fails loudly and
-//! the inheritance fix becomes due.
+//! face's sense (the mef re-mint hazard). When curved unions start
+//! answering, D1 fails loudly and the inheritance fix becomes due.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -19,11 +18,11 @@ use profile::RawLoop;
 use crate::common::approx::band;
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{OrthoFrame, Point3};
+use geom_core::{OrthoFrame, Point2, Point3};
 use profile::{
     ArcSweep, Center, Open, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };
-use revolve_common::{assert_all_tiers, axis_y, p2, validated};
+use revolve_common::{assert_all_tiers, axis_y, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
@@ -45,12 +44,17 @@ fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
 /// arc bulges into the hole (material tab -> wall sense true).
 #[test]
 fn adv_mixed_convex_concave_hole() {
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(6.0, 0.0), p2(6.0, 6.0), p2(0.0, 6.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(6.0, 0.0),
+        Point2::new(6.0, 6.0),
+        Point2::new(0.0, 6.0),
+    ]);
     let hole = bulge_loop(vec![
-        (p2(2.0, 2.0), 0.5),
-        (p2(4.0, 2.0), 0.0),
-        (p2(4.0, 4.0), -0.5),
-        (p2(2.0, 4.0), 0.0),
+        (Point2::new(2.0, 2.0), 0.5),
+        (Point2::new(4.0, 2.0), 0.0),
+        (Point2::new(4.0, 4.0), -0.5),
+        (Point2::new(2.0, 4.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tol::witness())
@@ -124,13 +128,13 @@ fn s3() -> f64 {
 fn eye_slot(radius: f64) -> ProfileLoop<f64> {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-1.0, 0.0),
+            c: Point2::new(-1.0, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.0, -s3()),
+            p: Point2::new(0.0, -s3()),
         },
         radius,
         Center {
-            c: p2(1.0, 0.0),
+            c: Point2::new(1.0, 0.0),
             winding: ArcSweep::Ccw,
             p: Start,
         },
@@ -162,7 +166,12 @@ fn adv_eye_slot_outer_and_hole_senses() {
     let v_outer = vol(&t.body);
 
     // Same loop as a hole in a 6x6 plate.
-    let outer = ProfileLoop::polygon([p2(-3.0, -3.0), p2(3.0, -3.0), p2(3.0, 3.0), p2(-3.0, 3.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(-3.0, -3.0),
+        Point2::new(3.0, -3.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(-3.0, 3.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, eye_slot(0.3)])
         .validate(Tol::witness())
         .unwrap();
@@ -199,14 +208,14 @@ fn adv_eye_slot_outer_and_hole_senses() {
 fn adv_asymmetric_downward_invariance() {
     let mk = || {
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
             // concave bite on the right edge
-            (p2(3.0, 0.0), -0.4),
-            (p2(3.0, 1.0), 0.0),
+            (Point2::new(3.0, 0.0), -0.4),
+            (Point2::new(3.0, 1.0), 0.0),
             // convex bulge on top, off-center
-            (p2(3.0, 2.0), 0.7),
-            (p2(1.0, 2.0), 0.0),
-            (p2(0.0, 2.0), 0.0),
+            (Point2::new(3.0, 2.0), 0.7),
+            (Point2::new(1.0, 2.0), 0.0),
+            (Point2::new(0.0, 2.0), 0.0),
         ])
     };
     let up = extrude(
@@ -264,8 +273,18 @@ fn adv_asymmetric_downward_invariance() {
 /// mint identical senses - canonicalization owns the winding.
 #[test]
 fn adv_reversed_authoring_revolve_same_senses() {
-    let ccw = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let cw = ProfileLoop::polygon([p2(1.0, 0.0), p2(1.0, 1.0), p2(2.0, 1.0), p2(2.0, 0.0)]);
+    let ccw = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
+    let cw = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(2.0, 0.0),
+    ]);
     let by_kind = |lp: ProfileLoop<f64>| {
         let t = revolve(
             &validated(vec![lp]),
@@ -302,12 +321,12 @@ fn adv_bore_groove_torus_band() {
     // Only (1, 0.75) leaves on an arc: the semicircular groove cut
     // into the bore.
     let lp = bulge_loop(vec![
-        (p2(1.0, 0.0), 0.0),
-        (p2(2.0, 0.0), 0.0),
-        (p2(2.0, 1.0), 0.0),
-        (p2(1.0, 1.0), 0.0),
-        (p2(1.0, 0.75), -1.0),
-        (p2(1.0, 0.25), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.0), 0.0),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(1.0, 0.75), -1.0),
+        (Point2::new(1.0, 0.25), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -360,10 +379,10 @@ fn adv_bore_groove_torus_band() {
 /// **Re-aimed at M5 S12.** When S11 adopted this probe the `mef`
 /// re-mints DID stamp `sense: true`, so an answer here would have been
 /// a silently mis-oriented body and panicking was the right response.
-/// S12 landed the inheritance fix (`mint_face_surface_and_sense`
-/// hands `mef`'s re-mint the parent's bit whenever the fragment lands
-/// on the parent's surface; `mfkrh` takes the same decision from the
-/// same helper), so an answer is no longer prima facie wrong — the
+/// S12 landed the inheritance fix (`mef`'s re-mint takes the parent's
+/// bit whenever the fragment lands on the parent's chart,
+/// `Body::resolve_face_surface`), so an answer is no longer prima
+/// facie wrong — the
 /// row therefore AUDITS an answer instead of rejecting it, and keeps
 /// accepting the typed refusal this washer/box pair still takes (its
 /// door is the annulus-touching lane, not sense inheritance). The
@@ -372,7 +391,12 @@ fn adv_bore_groove_torus_band() {
 /// (`a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`).
 #[test]
 fn adv_touching_union_with_reversed_faces_refuses_typed() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let washer = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -382,7 +406,12 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
     .unwrap()
     .body;
     // A box poking through the bottom annulus near x = 1.5.
-    let sq = ProfileLoop::polygon([p2(1.2, -0.5), p2(1.8, -0.5), p2(1.8, 0.5), p2(1.2, 0.5)]);
+    let sq = ProfileLoop::polygon([
+        Point2::new(1.2, -0.5),
+        Point2::new(1.8, -0.5),
+        Point2::new(1.8, 0.5),
+        Point2::new(1.2, 0.5),
+    ]);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, 0.0)));
     let vp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())

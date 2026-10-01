@@ -14,10 +14,6 @@ use profile::{
     ValidatedProfile,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
@@ -27,14 +23,14 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 /// The lune through the `.cusp()` door: the kiss is canonical joint 2.
 fn lune() -> ProfileLoop<f64> {
     let tol = Tol::witness();
-    Open.at(p2(0.0, 4.0))
+    Open.at(Point2::new(0.0, 4.0))
         .angle(-std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
         .line(2.0, tol)
         .unwrap()
         .turn(std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
-        .tangent_arc_to(p2(0.0, 0.0), tol)
+        .tangent_arc_to(Point2::new(0.0, 0.0), tol)
         .unwrap()
         .cusp()
         .tangent_arc_to(Start, tol)
@@ -46,9 +42,9 @@ fn lune() -> ProfileLoop<f64> {
 /// canonicalization reverses it: the kiss at (0, 0) is input joint 2.
 fn raw_lune() -> ProfileLoop<f64> {
     bulge_loop(vec![
-        (p2(0.0, 4.0), 0.0),
-        (p2(0.0, 2.0), -1.0),
-        (p2(0.0, 0.0), 1.0),
+        (Point2::new(0.0, 4.0), 0.0),
+        (Point2::new(0.0, 2.0), -1.0),
+        (Point2::new(0.0, 0.0), 1.0),
     ])
     .with_tangent_joints(vec![2])
 }
@@ -72,14 +68,14 @@ fn the_cusp_door_records_its_joint_and_the_tangent_door_does_not() {
     let q = 0.25;
     let b = core::f64::consts::FRAC_PI_8.tan();
     let rounded = bulge_loop(vec![
-        (p2(q, 0.0), 0.0),
-        (p2(1.0 - q, 0.0), b),
-        (p2(1.0, q), 0.0),
-        (p2(1.0, 1.0 - q), b),
-        (p2(1.0 - q, 1.0), 0.0),
-        (p2(q, 1.0), b),
-        (p2(0.0, 1.0 - q), 0.0),
-        (p2(0.0, q), b),
+        (Point2::new(q, 0.0), 0.0),
+        (Point2::new(1.0 - q, 0.0), b),
+        (Point2::new(1.0, q), 0.0),
+        (Point2::new(1.0, 1.0 - q), b),
+        (Point2::new(1.0 - q, 1.0), 0.0),
+        (Point2::new(q, 1.0), b),
+        (Point2::new(0.0, 1.0 - q), 0.0),
+        (Point2::new(0.0, q), b),
     ])
     .with_tangent_joints((0..8).collect());
     let v = validated(vec![rounded]);
@@ -93,14 +89,14 @@ fn the_cusp_door_records_its_joint_and_the_tangent_door_does_not() {
 /// other one).
 #[test]
 fn a_reversed_loop_keeps_its_cusp_at_the_same_vertex() {
-    let kiss = p2(0.0, 0.0);
+    let kiss = Point2::new(0.0, 0.0);
     let v = validated(vec![raw_lune()]);
     assert_eq!(v.loops()[0].cusp_joints(), &[index_of(&v, 0, kiss)]);
     let plate = bulge_loop(vec![
-        (p2(-1.0, -1.0), 0.0),
-        (p2(3.0, -1.0), 0.0),
-        (p2(3.0, 5.0), 0.0),
-        (p2(-1.0, 5.0), 0.0),
+        (Point2::new(-1.0, -1.0), 0.0),
+        (Point2::new(3.0, -1.0), 0.0),
+        (Point2::new(3.0, 5.0), 0.0),
+        (Point2::new(-1.0, 5.0), 0.0),
     ]);
     for hole in [lune(), raw_lune()] {
         let v = validated(vec![plate.clone(), hole]);
@@ -115,9 +111,9 @@ fn a_reversed_loop_keeps_its_cusp_at_the_same_vertex() {
 #[test]
 fn an_arbelos_has_three_cusps_and_no_blend_arc() {
     let arbelos = bulge_loop(vec![
-        (p2(0.0, 0.0), -1.0),
-        (p2(1.0, 0.0), -1.0),
-        (p2(2.0, 0.0), 1.0),
+        (Point2::new(0.0, 0.0), -1.0),
+        (Point2::new(1.0, 0.0), -1.0),
+        (Point2::new(2.0, 0.0), 1.0),
     ])
     .with_tangent_joints(vec![0, 1, 2]);
     let v = validated(vec![arbelos]);

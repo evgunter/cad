@@ -71,14 +71,15 @@ struct HoledBox {
 /// Builds the holed box, asserting tier-1 validity after EVERY operator
 /// (explicitly — not relying on the operators' debug postconditions).
 fn build_holed_box(body: &mut Body<f64>) -> HoledBox {
-    let pt = Point3::new;
     let ck = |body: &Body<f64>| assert_eq!(validate(body), Ok(()));
 
     // ---- (a)–(e): the 2×2×2 box, exactly the cube test's sequence. ----
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap(); // A
     ck(body);
     let mev = |body: &mut Body<f64>, site, x, y, z| {
-        let created = body.mev_line(site, pt(x, y, z), Tol::witness()).unwrap();
+        let created = body
+            .mev_line(site, Point3::new(x, y, z), Tol::witness())
+            .unwrap();
         assert_eq!(validate(body), Ok(()));
         created
     };
@@ -93,7 +94,7 @@ fn build_holed_box(body: &mut Body<f64>) -> HoledBox {
         let created = body
             .mev_line(
                 MevSite::Fan { he1: at, he2: at },
-                pt(x, y, z),
+                Point3::new(x, y, z),
                 Tol::witness(),
             )
             .unwrap();

@@ -72,8 +72,8 @@ use geom_core::{
 };
 use profile::{ProfileLoop, SketchPlane, ValidatedProfile};
 use topo::{
-    Body, DeclaredContact, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
-    MevSite, PcurveMintError, ShellKey, SolidKey,
+    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
+    PcurveMintError, ShellKey, SolidKey,
 };
 
 use crate::skin::{LoftGeometry, Section, SkinError, loft_geometry, sweep_places};
@@ -118,30 +118,6 @@ pub struct Lofted<T: Real> {
     /// residual pad accompanies it. [`crate::loft_parameters`] answers the
     /// same question BEFORE the body is built.
     pub section_params: Vec<f64>,
-    /// **The contacts the sections declared**: one `Tangent` pair per
-    /// declared cusp joint — the walls of the two canonical segments
-    /// meeting there, arriving wall first — loops in canonical order,
-    /// joints ascending. A joint counts when ANY section declares a
-    /// cusp there (sections pair by canonical index, so the wall pair
-    /// is one pair along the loft). Empty when no section declares a
-    /// cusp.
-    ///
-    /// **What the record asserts is weaker than the class name alone
-    /// suggests.** It says the author declared this wall pair tangent
-    /// AT some section — not that the seam is a tangent contact along
-    /// its whole length. Where sections disagree (a cusp in one, a
-    /// smooth joint or a corner in another) the seam's wedge varies
-    /// along it, and the pair is still carried; a reader that takes
-    /// the `Tangent` class as a statement about every station of the
-    /// seam must re-check it there.
-    ///
-    /// The authors' declaration carried through the verb, not a
-    /// discovery. Tier 3's material arm exempts an edge with a NURBS
-    /// face by kind, so today a lofted cusp seam validates with or
-    /// without this record, and nothing reads the class along a NURBS
-    /// edge; it is carried so the declaration reaches whatever reads
-    /// the body's contacts, the same as the extrude's.
-    pub declared_contacts: Vec<DeclaredContact>,
 }
 
 /// Typed refusal of the loft/sweep body assembly (closed enum, D4 ¶3).
@@ -400,7 +376,7 @@ fn stacking_fold<T: Decide>(
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
-fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
+fn assemble<T: Decide + topo::AtRestPolicy>(
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
     tol: Tol,
@@ -459,11 +435,6 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     // each section is traversed once for the whole assembly. ----
     stacking_fold::<T>(places, geometry, band, &bq[0], &tq[0])?;
 
-    // ---- The declared cusps: per loop, the canonical joints some
-    // section declares as a cusp (the extrude's step 7, one verb
-    // over). ----
-    let cusps = declared_cusps(geometry)?;
-
     // ---- Lifted walls, kept once: face surfaces AND seam carriers
     // read the same lifted structure (D9 — one lift, shared bits). ----
     let walls_t: Vec<Vec<Arc<NurbsSurface<T>>>> = geometry
@@ -489,7 +460,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     // (`topo::surgery`), and the tier-2 check below subsumes it.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0])?;
+    let seed = body.mvfs(qs[0], true)?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
         MevSite::Lone {
@@ -529,7 +500,11 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
             he2: first.he_plus,
         },
         placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0], tol),
-        FaceSurface::New(bottom_plane),
+        // Newell over the loop the cap runs: outward, as extrude's.
+        FaceSurface::New {
+            surface: bottom_plane,
+            sense: true,
+        },
         tol,
     )?;
     hes.push(close.he_plus);
@@ -587,7 +562,12 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                 he2: first.he_plus,
             },
             placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0], tol),
-            FaceSurface::Shared(bottom_surface),
+            // The disc is transient: `kfmrh` kills it at once, and
+            // nothing reads its bit.
+            FaceSurface::Shared {
+                key: bottom_surface,
+                sense: false,
+            },
             tol,
         )?;
         hole_hes.push(close.he_plus);
@@ -633,7 +613,12 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                     he2,
                 },
                 placed_segment_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to, tol),
-                FaceSurface::New(Surface::Nurbs(Arc::clone(&walls_t[li][j]))),
+                // The skinned chart's normal points out of the
+                // material (module docs).
+                FaceSurface::New {
+                    surface: Surface::Nurbs(Arc::clone(&walls_t[li][j])),
+                    sense: true,
+                },
                 tol,
             )?;
             if j == 0 {
@@ -656,7 +641,13 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     // ---- Phase 5: the swept seed face survives as the top cap. ----
     let far_loop = cap_points(&tloops[0], &tq[0], tplace);
     let top_plane = newell_plane(&far_loop, band).map_err(LoftError::CapPlane)?;
-    body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
+    body.set_face_surface(
+        top_face,
+        FaceSurface::New {
+            surface: top_plane,
+            sense: true,
+        },
+    )?;
 
     // Both cap planes exist now, so both rims are at REST in them and
     // stop leaning on the scaffolding door they had to be minted
@@ -704,15 +695,6 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         "loft postcondition: result is not tier-2 valid (kernel bug)",
     );
 
-    // Loft never reverses a traversal, so `side_faces` is already in
-    // canonical segment order.
-    let declared_contacts = cusps
-        .iter()
-        .zip(&side_faces)
-        .flat_map(|(joints, walls)| {
-            crate::swept::cusp_contacts(joints, walls.len(), |s| Some(walls[s]))
-        })
-        .collect();
     Ok(Lofted {
         body: built,
         solid: seed.solid,
@@ -722,33 +704,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         side_faces,
         seam_edges,
         section_params: geometry.section_params.clone(),
-        declared_contacts,
     })
-}
-
-/// Per canonical loop, ascending, the joints at which SOME section
-/// declares a cusp ([`profile::ValidatedLoop::cusp_joints`]).
-///
-/// A union and not a per-section list, because the wall pair is one
-/// pair along the whole loft: sections are paired by canonical index,
-/// so joint `v` of every section lies on the seam between walls
-/// `v − 1` and `v`. What the carried record then means is stated on
-/// [`Lofted::declared_contacts`].
-fn declared_cusps(geometry: &LoftGeometry) -> Result<Vec<Vec<usize>>, LoftError> {
-    let mut cusps: Vec<Vec<usize>> = vec![Vec::new(); geometry.walls.len()];
-    for profile in &geometry.canonical {
-        for (li, lp) in profile.loops().iter().enumerate() {
-            cusps
-                .get_mut(li)
-                .ok_or(LoftError::SectionStructure)?
-                .extend_from_slice(lp.cusp_joints());
-        }
-    }
-    for joints in &mut cusps {
-        joints.sort_unstable();
-        joints.dedup();
-    }
-    Ok(cusps)
 }
 
 /// **The loft body** (M6-PLAN unit 3, spec §1): skins
@@ -788,7 +744,7 @@ fn declared_cusps(geometry: &LoftGeometry) -> Result<Vec<Vec<usize>>, LoftError>
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
-pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
@@ -831,7 +787,7 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 /// [`LoftError`] — every door named on the enum, with
 /// [`SkinError::PathTangentReversal`] arriving through
 /// [`LoftError::Skin`].
-pub fn sweep_body<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     profile: &[ProfileLoop<f64>],
     place: Affine3<f64>,
     path: &geom::NurbsCurve3<f64>,

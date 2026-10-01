@@ -32,9 +32,8 @@
 //!     own `eval`;
 //!   - the two reviewer rebuilds of the quarter cylinder
 //!     (`cert10_r1_probes.rs`, `cert10r2_probes.rs`);
-//!   - the three door-driving helpers that do not go through
-//!     `patch::face_posture` (`cert5_r2_probes.rs`, `r2_cert6_probes.rs`,
-//!     and `cert5_r1_patch_probes.rs`'s `width`);
+//!   - the door-driving helper that does not go through
+//!     `patch::face_posture` (`cert5_r2_probes.rs`);
 //!   - the five bands that are not the run's
 //!     (`decoration_plane_mint.rs`, `pcurve_p1a_meter.rs` twice,
 //!     `r2_probes.rs`, and one row of `pcurve_p1b_r2_probes.rs`);
@@ -66,6 +65,7 @@
 //! for `point`, `Interval`'s two doors for `ring` — and the
 //! spellings that are a different value stay put and say so.
 
+pub(crate) mod arc;
 pub(crate) mod fixture;
 pub(crate) mod interval;
 pub(crate) mod patch;

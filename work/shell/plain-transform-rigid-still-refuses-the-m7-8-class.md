@@ -45,12 +45,12 @@ the reason is structural:
 
 - `transform_rigid` has a generic caller chain —
   `boolean::ops::apply_recuts` → `boolean_op_recut` → `boolean_op_with`
-  → `verbs::Verb`'s `impl<T: Decide + Bounds + PcurveFittedLane>` →
+  → `verbs::Verb`'s `impl<T: Decide + Bounds + topo::AtRestPolicy>` →
   `editor_core::evaluate::<Dual64>`.
 - `CertifiedBounds` is blanket over `Bounds + CertifiedEnclosure`, and
-  `CertifiedEnclosure` is implemented for `Interval`, `RingInterval`,
-  `f64`, `Sym<T>` and `Probe` — **no `Dual`**. Verified at
-  `crates/geom-core/src/{real,interval,ring_interval,sym,k_stats}.rs`.
+  `CertifiedEnclosure` is implemented for `Interval`, `f64`, `Sym<T>`
+  and `Probe` — **no `Dual`**. Verified at
+  `crates/geom-core/src/{real,interval,sym,k_stats}.rs`.
 - `crates/geom-core/src/real.rs:1140` records the discriminator **Ev
   ratified in conversation (2026-08-29)**: *"the discriminator is that
   nothing generic calls this door"* — which is why `topo::separation`

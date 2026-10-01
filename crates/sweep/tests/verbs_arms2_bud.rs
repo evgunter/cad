@@ -346,15 +346,19 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
         })
         .expect("the bud carries one cone wall");
     let tilt = 0.05f64;
+    // Lifts both refusals: the planted off-axis pair is the row; no door mints one.
     source
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             cone_face,
-            FaceSurface::New(Surface::Cone {
-                apex,
-                axis: Vec3::new(tilt.sin(), tilt.cos(), 0.0),
-                half_angle,
-                u_ref: Vec3::new(tilt.cos(), -tilt.sin(), 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Cone {
+                    apex,
+                    axis: Vec3::new(tilt.sin(), tilt.cos(), 0.0),
+                    half_angle,
+                    u_ref: Vec3::new(tilt.cos(), -tilt.sin(), 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("planting a surface certifies nothing");
 

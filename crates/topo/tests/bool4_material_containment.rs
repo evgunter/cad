@@ -232,8 +232,8 @@ fn the_declared_l_bracket_certifies() {
 
 /// Undeclared, the L-bracket refuses on its eight touch findings — the
 /// four resting corners and the four resting edges on the wall — and
-/// on NOTHING about placement: each touch is a one-sided rest by the
-/// local side analysis, so the clear stands beside them.
+/// on NOTHING about placement: each touch is a rest by the local cone
+/// analysis, so the clear stands beside them.
 #[test]
 fn the_undeclared_l_bracket_carries_no_placement_finding() {
     let (body, _) = lbracket(false, 0.0);
@@ -349,10 +349,11 @@ fn a_part_in_a_planar_pocket_clears() {
 }
 
 /// An instance whose every vertex lies on the container's boundary is
-/// not a placement its vertices decide: the typed refusal, beside the
-/// sixteen touch findings, and never an interference verdict (the slab
-/// IS inside the cube's material, and the arm says it cannot tell —
-/// which is true of what it reads).
+/// not a placement its vertices decide, and never an interference
+/// verdict. The slab IS inside the cube's material, and the touch
+/// analysis says so: with the probe undecided, the findings are read,
+/// and their reason — a touch whose cones overlap — is the one
+/// refusal, beside the sixteen touch findings.
 #[test]
 fn every_vertex_on_the_boundary_refuses_typed() {
     let body = all_on_boundary();
@@ -362,7 +363,7 @@ fn every_vertex_on_the_boundary_refuses_typed() {
     assert_eq!(placements.len(), 1, "{errors:?}");
     let what = undecidable_what(placements[0]).expect("the typed refusal");
     assert!(
-        what.contains("every corner of one lies on the other's boundary"),
+        what.contains("one passes into the other where they touch"),
         "{what}"
     );
     assert_eq!(errors.len(), 17, "{errors:?}");
@@ -375,8 +376,10 @@ fn every_vertex_on_the_boundary_refuses_typed() {
 /// boundary pre-pass escalates on it in BOTH orderings — the part's
 /// vertices against the wall's plane, and the wall's vertices against
 /// the part's near face's plane (the pre-pass decides a plane residual
-/// before it asks the region) — so each ordering refuses typed
-/// ("escalated in band"), with no clear and no interference. `delta`
+/// before it asks the region) — so neither ordering decides, and with
+/// the probe undecided the findings are read: the sweeps' escalations
+/// stand, so the one refusal is the pair's boundaries left unchecked,
+/// with no clear and no interference. `delta`
 /// is taken from the run's band, so the row is the same statement at
 /// every `CAD_TOLERANCE_EPS` row of the matrix (default, 1e-6, 1e-12).
 #[test]
@@ -395,14 +398,12 @@ fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
         "the sweeps escalate on the in-band residual: {errors:?}"
     );
     let placements = placement_findings(&errors);
-    assert_eq!(placements.len(), 2, "{errors:?}");
-    for p in placements {
-        let what = undecidable_what(p).expect("the typed refusal");
-        assert!(
-            what.contains("too close to the other's boundary to place at this tolerance"),
-            "{what}"
-        );
-    }
+    assert_eq!(placements.len(), 1, "{errors:?}");
+    let what = undecidable_what(placements[0]).expect("the typed refusal");
+    assert!(
+        what.contains("another finding left their boundaries unchecked"),
+        "{what}"
+    );
     // And just past the band the part floats in the concavity and
     // clears — the refusal above is the band's, not the placement's.
     let (body, _) = lbracket(false, 10.0 * band.escalate());
@@ -504,7 +505,7 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
 /// the wall's plane to `x < 1` (the bracket's material) and to `x > 1`
 /// (the concavity); the vertical edges in the wall have their two
 /// adjacent faces on both sides. Undeclared, the sweeps report the
-/// touches and the side analysis refuses the clear typed; declared,
+/// touches and the cone analysis refuses the clear typed; declared,
 /// the same analysis runs over the records and refuses the same way —
 /// a record certifies a coincidence, never a side. No interference is
 /// claimed (no vertex is inside) and nothing clears.
@@ -522,7 +523,7 @@ fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
         assert_eq!(placements.len(), 1, "{name}: {errors:?}");
         let what = undecidable_what(placements[0]).expect("the typed refusal");
         assert!(
-            what.contains("passes through a face of the other where they touch"),
+            what.contains("one passes into the other where they touch"),
             "{name}: {what}"
         );
         assert!(
@@ -532,140 +533,4 @@ fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
             "{name}: {errors:?}"
         );
     }
-}
-
-/// The L-bracket's far outer wall (`x = 0`, two metres from the part,
-/// so arm 1's reach test clears every pair it is in) re-described as a
-/// NURBS net lying exactly in that plane.
-fn nurbs_wall(y: (f64, f64), z: (f64, f64)) -> geom::Surface<f64> {
-    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let ys = [y.0 - 1.0, 0.5 * (y.0 + y.1), y.1 + 1.0];
-    let zs = [z.0 - 1.0, 0.5 * (z.0 + z.1), z.1 + 1.0];
-    let (mut control, mut weights) = (Vec::new(), Vec::new());
-    for &yy in &ys {
-        for &zz in &zs {
-            control.push(Point3::new(0.0, yy, zz));
-            weights.push(1.0);
-        }
-    }
-    let n = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
-    assert!(!n.is_placeholder());
-    geom::Surface::Nurbs(std::sync::Arc::new(n))
-}
-
-/// The L-bracket with its far wall on the NURBS net, the wall's four
-/// edges re-described on the NURBS lane (the M7-8 recipe
-/// `m4_pr2_transform.rs` builds): the one way a described spline face
-/// reaches the public door at all.
-fn nurbs_walled_bracket() -> Body<f64> {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
-    let far_wall: FaceKey = l.side_faces[5];
-    let mut body = l.body;
-    let wall = body
-        .set_face_surface(
-            far_wall,
-            topo::FaceSurface::New(nurbs_wall((0.0, 3.0), (0.0, 1.0))),
-        )
-        .unwrap();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    let mut lane_edges = 0;
-    for (edge_key, edge) in edges {
-        let s1 = common::face_surface_of_he(&body, edge.he_plus);
-        let s2 = common::face_surface_of_he(&body, edge.he_minus);
-        if s1 != wall && s2 != wall {
-            continue;
-        }
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
-        let p0 = point_of(&body, start);
-        let p1 = point_of(&body, end);
-        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
-        ));
-        body.set_edge_curve_nurbs_lane(
-            edge_key,
-            geom_brep::EdgeCurveSpec {
-                description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1,
-                    s2,
-                    witness: p0.lerp(p1, 0.5),
-                },
-                carrier,
-                param_start: 0.0,
-                param_end: 1.0,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-        lane_edges += 1;
-    }
-    assert_eq!(lane_edges, 4, "the far wall has four M7-8 edges");
-    topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
-    body
-}
-
-/// **A container carrying a face kind the material test does not
-/// serve — measured at the public door.** The spline-walled bracket
-/// reaches the CENSUS and is refused there, naming the kind.
-///
-/// **That day arrived** (TRIM-2 PR-1, the trimmed-region quadrature).
-/// This row used to read "refused at tier 3 BEFORE the census": check 7
-/// could not integrate the spline face and answered
-/// `VolumeUncomputable`, so nothing carrying a described spline face
-/// reached the census through `validate_pseudomanifold`, and the
-/// version of this row that stood then said in its own doc *"so that
-/// the day check 7 admits such a face, the census row is what a reader
-/// is sent to"*. The bracket's wall edges are described `Intersection`
-/// with a `Nurbs` carrier, which is exactly what mints a
-/// `Pcurve::General`, and the trimmed lane now ANSWERS that face — so
-/// check 7 passes and the census runs. What refuses is the census's own
-/// typed cause for a kind with no cheap sound box, which is the
-/// statement this row was always pointing at
-/// (`census.rs`'s `an_unserved_face_kind_on_the_container_refuses_naming_the_cause`).
-///
-/// The row is kept at the PUBLIC door because that is where the change
-/// is visible: the refusal a caller earns moved one gate later and
-/// changed its cause, and nothing else about the body did.
-#[test]
-fn a_spline_walled_container_is_refused_at_the_census_for_its_face_kind() {
-    let container = nurbs_walled_bracket();
-    assert_eq!(topo::validate_closed(&container), Ok(()));
-    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
-    let body = assembly(&container, &part);
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
-        .expect_err("the census refuses the spline face's kind");
-    assert!(
-        errors
-            .iter()
-            .all(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
-        "check 7 admits the face now, so every finding is the census's: {errors:?}"
-    );
-    assert!(
-        errors.iter().any(|e| matches!(
-            e,
-            ValidationError::CensusUndecidable { what, .. } if what.contains("a placeholder surface, or an edge whose curve has no bounds")
-        )),
-        "and the census names the kind it cannot reach: {errors:?}"
-    );
-    // **The placement question this file is about is now ANSWERED
-    // rather than skipped**, and that is the other half of what moved:
-    // the row used to assert NO placement finding, because the body
-    // never got past check 7 to raise one. It raises exactly one, and
-    // it says why — the unserved kind leaves the containing instance's
-    // extent unclaimable.
-    let placement = placement_findings(&errors);
-    assert_eq!(
-        placement.len(),
-        1,
-        "one placement finding, the containing instance's: {errors:?}"
-    );
-    assert!(
-        matches!(
-            placement[0],
-            ValidationError::CensusUndecidable { what, .. }
-                if what.contains("where that part ends is unknown")
-        ),
-        "and it names why the extent is unclaimable: {placement:?}"
-    );
 }

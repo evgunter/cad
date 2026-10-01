@@ -17,6 +17,7 @@
 
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 
 fn cubic() -> KnotVector {
@@ -132,7 +133,7 @@ fn the_minimal_degree_one_pair_has_one_derivative_coefficient() {
         assert_eq!(
             short.len(),
             1,
-            "a refused mint answers one poison entry, never zero"
+            "a refused mint answers one refused entry, never zero"
         );
         assert!(!short[0].is_certified());
     }

@@ -1,13 +1,13 @@
 //! What a frame MARKS, over an index someone else built.
 //!
-//! # The three marks
+//! # The marks
 //!
 //! Each is a pure function of a built
-//! [`crate::pickindex::PickIndex`] and what is selected, and each
-//! answers *what should be lit* — a different question from *what is
-//! under the cursor*, which is [`crate::pickindex`]'s and stays
-//! there. Nothing here decides anything about picking, holds state, or
-//! builds an index.
+//! [`crate::pickindex::PickIndex`] and what is selected or held, and
+//! each answers *what should be lit* — a different question from
+//! *what is under the cursor*, which is [`crate::pickindex`]'s and
+//! stays there. Nothing here decides anything about picking, holds
+//! state, or builds an index.
 //!
 //! - [`highlight`] — the patch ids a selection and a hover light, as
 //!   a pure function of what is drawn and what is selected;
@@ -17,15 +17,18 @@
 //!   rather than a set of ids, and which therefore settles
 //!   selected-over-hovered here rather than leaving it to the shader
 //!   the way [`highlight`] does;
+//! - [`compose`] — both of the above with the picks a form or tool
+//!   HOLDS ([`Held`]) added: everything a frame marks about picks, as
+//!   the one value the viewport draws them from;
 //! - [`focus`] — **not a cursor question at all**: which drawn
 //!   patches the side panel's selection is RESPONSIBLE for, which for
 //!   a parameter means walking `doc.order()` for the nodes it drives.
 //!   It reaches for an index because that is where the ids live, not
 //!   because it is about a pick.
 //!
-//! **The three read the index through its public doors only** —
-//! `ids`, `name_of`, `ids_of_node`, `ids_of_target`, `edges_of_target`
-//! and `edge_polyline_for` — so no layout inside `PickIndex` is
+//! **They read the index through its public doors only** —
+//! `ids`, `name_of`, `ids_of_node`, `ids_of_target`, `edges_of_target`,
+//! `edge_names_in` and `edge_polyline_for` — so no layout inside `PickIndex` is
 //! reachable from here and none of these answers can be tightened by
 //! reaching past one. That property is what made the module separable,
 //! and keeping it is what keeps the two files independent.
@@ -45,8 +48,10 @@
 //! four semantic marks — selected, hovered, probe, focus — and only
 //! the last of those is also a door here. One door feeds several of
 //! the theme's marks (an [`EdgeOverlay`] carries a selected lane, a
-//! hovered lane and two probe flags), so the two lists correspond
-//! many-to-many and a reader should not expect to line them up.
+//! hovered lane, a held lane and a probe flag on each), so the two
+//! lists correspond many-to-many and a reader should not expect to
+//! line them up. The held mark's colour is `Theme::held`, which is not
+//! one of the four.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries). It names no driver type and no `app`-only crate.
@@ -55,40 +60,43 @@ use std::collections::BTreeSet;
 
 use pncad::document::{Doc, ParamName, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Point3;
-use pncad::prelude::{NameOrigin, attribute};
+use pncad::prelude::{NameOrigin, StableName, attribute};
 
 use crate::display::DisplayView;
 use crate::narrowing::Narrow;
-use crate::pickindex::{EdgeId, IdMap, PickIndex};
+use crate::pickindex::{EdgeId, EdgeNamesRefused, IdMap, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
 use crate::vocab::vocabulary;
 
 /// Which drawn patches the viewport should mark, and how.
 ///
 /// **A pure function of (index, selection, hover)** — see
-/// [`highlight`]. Nothing is retained: the value is recomputed each
+/// [`highlight`] — and of the held picks, through [`compose`]. Nothing
+/// is retained: the value is recomputed each
 /// frame from state that lives in exactly one place, which is the
 /// discipline the panels established and the reason no widget here
 /// holds a "currently highlighted" field.
 ///
-/// Both fields are [`IdMap::NOTHING`] when nothing is marked, so the
+/// Every field is [`IdMap::NOTHING`] when nothing is marked, so the
 /// GPU consumes them as plain uniforms with no branch for absence.
 ///
-/// **`hovered` is not narrowed against `selected`.** A hover on the
-/// patch that is already selected sets BOTH fields to that patch's id,
-/// and which mark it wears is settled downstream: `crate::gpu`'s
-/// `fs_main` tests the selected lane before the hovered one. The
-/// precedence lives there because the fragment sees both lanes at
-/// once, so every producer of this value gets the same ruling — and
-/// these fields are public, so this module is not the only producer.
-/// [`EdgeOverlay`] carries the OPPOSITE convention; [`edge_overlay`]
-/// states why.
+/// **No field is narrowed against another.** One id may sit in two
+/// fields — a hover on the selection, a held face that is also
+/// selected — and which mark it wears is settled where the fragment
+/// sees every lane at once, `crate::gpu`'s `fs_main`, in the order
+/// [`Held`] states; so every producer of this value gets the same
+/// ruling, and these fields are public, so this module is not the only
+/// producer. [`EdgeOverlay`] carries the OPPOSITE convention;
+/// [`edge_overlay`] states why.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Highlight {
     /// The selected patch's id, or [`IdMap::NOTHING`].
     pub selected: u32,
     /// The hovered patch's id, or [`IdMap::NOTHING`].
     pub hovered: u32,
+    /// The held faces' patch ids, slot for slot with [`Held::faces`],
+    /// each [`IdMap::NOTHING`] where its slot holds nothing drawn.
+    pub held: [u32; HELD_FACES],
 }
 
 /// The highlight for a selection and a hover, against the index that
@@ -109,21 +117,173 @@ pub struct Highlight {
 /// drawn but not on the body it was picked from, which is the same
 /// statement said about a stale index.
 pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovered>) -> Highlight {
-    let mark = |face: &FaceSelection| {
-        index
-            .ids_of_target(face)
-            .first()
-            .copied()
-            .unwrap_or(IdMap::NOTHING)
-    };
+    let mark = |face: &FaceSelection| face_id(index, face);
     Highlight {
         selected: selection.face().map_or(IdMap::NOTHING, mark),
         hovered: hover.and_then(Hovered::face).map_or(IdMap::NOTHING, mark),
+        // Nothing a SELECTION implies: a held pick is held by a form
+        // or a tool, so [`compose`] adds it from [`Held`].
+        held: [IdMap::NOTHING; HELD_FACES],
     }
 }
 
-/// The edge marks a frame draws: the drawn polylines of the selected
-/// and hovered edges, as line-list segment pairs in world space.
+/// **One face pick's patch id**: the id [`PickIndex::ids_of_target`]
+/// narrows it to on its own (node, body), or [`IdMap::NOTHING`] — the
+/// rule [`highlight`]'s doc states.
+fn face_id(index: &PickIndex, face: &FaceSelection) -> u32 {
+    index
+        .ids_of_target(face)
+        .first()
+        .copied()
+        .unwrap_or(IdMap::NOTHING)
+}
+
+/// **The patch a face pick is drawn as, if the picture draws it**:
+/// its id on its own (node, body) ([`highlight`]'s narrowing), on a
+/// root the display does not hide — the rule
+/// [`PickIndex::edge_polyline_for`] applies to an edge.
+///
+/// The one answer to "is this pick in the picture": the held mark
+/// lights what this answers, and the add-datum form refuses a held
+/// face it answers `None` for (`crate::session::face_frame_seat_drawn`),
+/// so the button never commits against a face the viewport is not
+/// marking.
+pub fn drawn_patch(index: &PickIndex, display: &DisplayView, face: &FaceSelection) -> Option<u32> {
+    if display.hidden_roots.contains(&face.node) {
+        return None;
+    }
+    Some(face_id(index, face)).filter(|&id| id != IdMap::NOTHING)
+}
+
+/// **How many held face picks a frame can mark at once** — the length
+/// of [`Held::faces`] and of [`Highlight::held`].
+///
+/// A count of held faces, not a tuning: the driver that gathers
+/// [`Held`] writes its slots as one array literal, so a slot added
+/// there without this count does not compile, and `crate::gpu` refuses
+/// at compile time a count its uniform lane cannot carry.
+pub const HELD_FACES: usize = 3;
+
+/// **The picks a form or a tool HOLDS**: the second source of marks
+/// beside the live selection.
+///
+/// A held pick outlives the selection that made it. The add-datum
+/// form latches a face so that an author can click the feature tree
+/// without losing it, and a modal tool keeps its picks until it
+/// commits. Nothing in the selection says so, so a picture that marked
+/// the selection alone would show no sign of a pick the next click
+/// commits against.
+///
+/// **What the held mark means: a choice a form or tool is holding,
+/// which is not the live selection.** It wears the selection's colour
+/// (`Theme::held`) and is told from the selection by shape — stripes
+/// on a face, a hollow line on an edge (`crate::gpu`).
+///
+/// **Precedence:** selected over hovered over held.
+/// A held pick that is also the selection or the hover wears that
+/// mark; `crate::gpu`'s `fs_main` rules it for faces and
+/// [`EdgeLane::DRAW_ORDER`] for edges.
+///
+/// A value built per frame from the holders' own state and never
+/// kept. Which holders there are is the viewport's to gather, in one
+/// place; each held face is narrowed by [`drawn_patch`], so one whose
+/// body is not in the picture marks nothing rather than another copy
+/// of its name.
+#[derive(Clone, Copy, Debug)]
+pub struct Held<'a> {
+    /// The held face picks, a slot per held face, `None` where that
+    /// slot holds nothing.
+    pub faces: [Option<&'a FaceSelection>; HELD_FACES],
+    /// A held edge SET, if a tool holds one.
+    pub edges: Option<HeldEdges<'a>>,
+}
+
+/// **A held edge set, as the marks read it**: the drawn body the edges
+/// are on and their names — what a tool holding a set hands over
+/// (`crate::blend::BlendTool::held_edges`).
+#[derive(Clone, Copy, Debug)]
+pub struct HeldEdges<'a> {
+    /// The node whose drawn body the edges were picked on.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+    /// The held edges' names.
+    pub names: &'a BTreeSet<StableName>,
+}
+
+impl HeldEdges<'_> {
+    /// **The held mark**: the drawn segments of the whole set, from one
+    /// pass over the body's drawn edges testing membership per edge —
+    /// and the index's refusal when some of those edges have no name.
+    ///
+    /// Not one [`edge_segments`] search per held name, which scans the
+    /// body's whole edge run each time — `O(E²)` name comparisons every
+    /// frame on a body with `E` edges. The narrowing is a single
+    /// selection's: scoped to (node, body), empty for a body this index
+    /// does not draw or the display hides, and silent about a held name
+    /// with no drawn edge.
+    ///
+    /// **The refusal is not silent**: a drawn edge with no name cannot
+    /// be told held or not, so the segments may be short by it, and
+    /// [`EdgeOverlay::held_refused`] carries it to the chrome.
+    pub fn mark(
+        &self,
+        index: &PickIndex,
+        display: &DisplayView,
+    ) -> (Vec<[f32; 3]>, Option<EdgeNamesRefused>) {
+        let drawn = index.edge_names_in(self.node, self.body);
+        let mut out = Vec::new();
+        for (id, name) in drawn.named {
+            if self.names.contains(name) {
+                out.extend(edge_id_segments(index, display, id));
+            }
+        }
+        (out, drawn.refused)
+    }
+}
+
+/// **Everything a frame marks about picks**: the selection and the
+/// hover ([`highlight`], [`edge_overlay`]) with every [`Held`] pick
+/// added — the held faces' ids in [`Highlight::held`] through
+/// [`drawn_patch`], and the held edges in [`EdgeOverlay::held`]
+/// through [`HeldEdges::mark`], flagged off the set's one body for
+/// [`EdgeOverlay::selected_probed`]'s reason.
+pub fn compose(
+    index: &PickIndex,
+    display: &DisplayView,
+    selection: &Selection,
+    hover: Option<&Hovered>,
+    held: &Held<'_>,
+) -> (Highlight, EdgeOverlay) {
+    let highlight = Highlight {
+        held: held.faces.map(|face| {
+            face.and_then(|face| drawn_patch(index, display, face))
+                .unwrap_or(IdMap::NOTHING)
+        }),
+        ..highlight(index, selection, hover)
+    };
+    let (held_segments, held_refused) = held
+        .edges
+        .map(|set| set.mark(index, display))
+        .unwrap_or_default();
+    let edges = EdgeOverlay {
+        held: held_segments,
+        held_refused,
+        held_probed: held.edges.is_some_and(|set| moved(display, set.node)),
+        ..edge_overlay(index, display, selection, hover)
+    };
+    (highlight, edges)
+}
+
+/// Whether `node` is a free-moved root — the one read behind every
+/// probe flag on an [`EdgeOverlay`].
+fn moved(display: &DisplayView, node: RecipeNodeId) -> bool {
+    display.moved_roots.contains_key(&node)
+}
+
+/// The edge marks a frame draws: the drawn polylines of the marked
+/// edges, and the other world-space lanes drawn over the solid, as
+/// line-list segment pairs in world space.
 ///
 /// **A value, so the marking is checkable without pixels.** A test
 /// asserts which segments a selection lights and where they are; what
@@ -154,15 +314,29 @@ pub struct EdgeOverlay {
     /// the un-probed body colour would quietly undo on exactly the
     /// geometry it is about.
     ///
-    /// One flag per marked edge rather than per segment, which is
-    /// enough while the marks are single-select. A consumer holding a
-    /// SET spanning several instances wants a flag per member and
-    /// should build its overlay through [`edge_segments`], asking the
-    /// display view per edge as this function does.
+    /// One flag per lane rather than per segment, which is enough
+    /// while every lane's edges are on one body: the selection and the
+    /// hover are one edge each, and a held set is on one body
+    /// ([`EdgeOverlay::held_probed`]). A lane spanning several
+    /// instances would want a flag per member.
     pub selected_probed: bool,
     /// Whether the hovered edge belongs to a free-moved instance. See
     /// [`EdgeOverlay::selected_probed`].
     pub hovered_probed: bool,
+    /// **The edges a tool HOLDS** ([`Held::edges`]), two positions per
+    /// segment: the held mark. Not narrowed against the selected or
+    /// hovered edge — [`Held`] states which wins.
+    pub held: Vec<[f32; 3]>,
+    /// **What the index could not name on the held body**
+    /// ([`HeldEdges::mark`]): [`EdgeOverlay::held`] may be short by
+    /// those edges. `None` when every drawn edge there is named, and
+    /// when nothing is held.
+    pub held_refused: Option<EdgeNamesRefused>,
+    /// Whether the held edges belong to a free-moved instance — one
+    /// flag, because a held set is on one body
+    /// ([`crate::blend::BlendTarget`]). See
+    /// [`EdgeOverlay::selected_probed`].
+    pub held_probed: bool,
     /// **Segments that are not in the document at all**: the
     /// wireframe of something a form is composing, in the same
     /// line-list shape as the marks above.
@@ -221,10 +395,9 @@ vocabulary! {
     ///   usually lies in.
     /// - A preview is over the committed profiles: it is what the person
     ///   is composing now, possibly on top of one.
-    /// - The marks are last, selected above hovered: a mark is the
+    /// - The marks are last, in [`Held`]'s precedence: a mark is the
     ///   answer to "which one is that", and it is worthless where
-    ///   something else covers it. Selection is the state the user
-    ///   committed to, so it outranks the hover.
+    ///   something else covers it.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub enum EdgeLane {
         /// [`EdgeOverlay::datums`].
@@ -233,6 +406,8 @@ vocabulary! {
         Profile,
         /// [`EdgeOverlay::preview`].
         Preview,
+        /// [`EdgeOverlay::held`].
+        Held,
         /// [`EdgeOverlay::hovered`].
         Hovered,
         /// [`EdgeOverlay::selected`].
@@ -266,16 +441,18 @@ impl EdgeOverlay {
             EdgeLane::Datum => &self.datums,
             EdgeLane::Profile => &self.profiles,
             EdgeLane::Preview => &self.preview,
+            EdgeLane::Held => &self.held,
             EdgeLane::Hovered => &self.hovered,
             EdgeLane::Selected => &self.selected,
         }
     }
 
     /// Whether `lane`'s edges belong to a free-moved instance — the
-    /// two marks carry the flag, and nothing else in the overlay
+    /// three marks carry the flag, and nothing else in the overlay
     /// belongs to an instance at all.
     pub fn probed(&self, lane: EdgeLane) -> bool {
         match lane {
+            EdgeLane::Held => self.held_probed,
             EdgeLane::Hovered => self.hovered_probed,
             EdgeLane::Selected => self.selected_probed,
             EdgeLane::Datum | EdgeLane::Profile | EdgeLane::Preview => false,
@@ -306,8 +483,8 @@ impl EdgeOverlay {
 /// screen anyway — but it would still be a value naming one edge in two
 /// lanes, and what a test reads of this overlay is the value. So the
 /// selection is settled here, and the draw order is what keeps it
-/// settled for a producer that did not narrow (the blend tool appends
-/// its held set to the selected lane without asking the hover).
+/// settled for a producer that did not narrow (a held edge is drawn in
+/// its own lane, [`EdgeOverlay::held`], without asking either mark).
 /// [`Highlight`] can leave its pair to the shader because a fragment
 /// sees both of its lanes.
 pub fn edge_overlay(
@@ -322,17 +499,21 @@ pub fn edge_overlay(
         // The one already marked as selected is not marked twice.
         selected_edge != Some(*edge)
     });
-    let probed = |edge: &EdgeSelection| display.moved_roots.contains_key(&edge.node);
+    let probed = |edge: &EdgeSelection| moved(display, edge.node);
     EdgeOverlay {
         selected: selected_edge.map(mark).unwrap_or_default(),
         hovered: hovered_edge.map(mark).unwrap_or_default(),
         selected_probed: selected_edge.is_some_and(probed),
         hovered_probed: hovered_edge.is_some_and(probed),
-        // Nothing a SELECTION implies: a preview is about something
-        // that is not in the document, so it is added by whoever is
-        // composing it, not derived from what is picked. Datums are
-        // not derived from a pick either — they are simply what the
-        // document holds — so the same line covers both.
+        // Nothing a SELECTION implies: a held pick is added by
+        // [`compose`], from whoever holds it; a preview is about
+        // something that is not in the document, so it is added by
+        // whoever is composing it. Datums are not derived from a pick
+        // either — they are simply what the document holds — so the
+        // same line covers them.
+        held: Vec::new(),
+        held_refused: None,
+        held_probed: false,
         preview: Vec::new(),
         datums: Vec::new(),
         profiles: Vec::new(),
@@ -340,22 +521,12 @@ pub fn edge_overlay(
 }
 
 /// **One edge selection's drawn segments**, as the line-list pairs a
-/// renderer consumes — the conversion [`edge_overlay`] is built from,
-/// public because the next consumer holds a SET.
+/// renderer consumes — the conversion [`edge_overlay`] is built from.
 ///
-/// A blend tool accumulates edges in tool state and wants all of them
-/// marked; [`EdgeOverlay`]'s fields are public, so it concatenates
-/// these instead of copying the polyline-to-line-list step. The
-/// narrowing is the same one a single selection gets — scoped to the
-/// selection's own (node, body), empty for a name this index does not
-/// draw there — so a set marks exactly the members that still denote
-/// something.
-///
-/// **A SET is marked through [`edge_id_segments`] instead.** This door
-/// SEARCHES the target's whole edge run for the name, so one call per
-/// held name costs `O(E²)` name comparisons on a body with `E` edges,
-/// every frame. A set-held tool walks the run once and tests
-/// membership — `crate::blend::BlendTool::mark_segments`.
+/// Scoped to the selection's own (node, body), empty for a name this
+/// index does not draw there. It SEARCHES the target's edge run for
+/// the name, so a SET is marked through [`HeldEdges::mark`], which
+/// walks the run once.
 pub fn edge_segments(
     index: &PickIndex,
     display: &DisplayView,
@@ -644,51 +815,24 @@ fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &ParamName) -> bo
 /// counted. It is asserted here rather than at the arithmetic because
 /// the question is REACHABILITY — whether the legs a frame asks for
 /// come back short — and a row against a private helper answers a
-/// different question.
+/// different question. The held mark's other way of coming back short,
+/// a drawn edge the index cannot name, is asked the same way.
 #[cfg(test)]
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
-    use pncad::document::{CancelToken, EvalOptions, Frame, RecipeNodeId, evaluate};
+    use pncad::document::{Frame, RecipeNodeId};
     use pncad::geom_core::{Point3, Tol};
+    use pncad::prelude::StableName;
 
-    use super::{LegLane, edge_id_lane, edge_id_segments};
+    use super::{HELD_FACES, Held, HeldEdges, LegLane, compose, edge_id_lane, edge_id_segments};
     use crate::display::DisplayView;
-    use crate::generation::Generation;
-    use crate::pickindex::{EdgeId, PickIndex, PictureKey};
-    use crate::scene;
-
-    /// Coarse enough to keep the row cheap, fine enough that the
-    /// plate's hole is a ring of facets — the plate-scale suites'
-    /// reading (`tests/common`'s `plate_delta`), for the same reason.
-    fn delta() -> scene::DisplayTolerance {
-        scene::DisplayTolerance::new(2.0e-4).expect("a positive delta")
-    }
-
-    /// The spike plate, evaluated, indexed — the picture a frame marks
-    /// in.
-    ///
-    /// Evaluated through the kernel door rather than through a
-    /// session: this module is a vocabulary and a session is a driver
-    /// (`crates/viewer/README.md`, Module boundaries), and the index
-    /// only ever wanted the evaluation.
-    fn plate() -> (PickIndex, RecipeNodeId) {
-        let tol = Tol::witness();
-        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
-        let eval = evaluate(
-            &doc,
-            None,
-            &CancelToken::default(),
-            &EvalOptions::default(),
-            tol,
-        );
-        let index = PickIndex::build(&doc, &eval, PictureKey::of(Generation::FIRST, delta()), tol)
-            .expect("the plate indexes");
-        (index, extrude)
-    }
+    use crate::pickindex::{EdgeId, EdgeNamesRefused, PickIndex};
+    use crate::session::Selection;
+    use crate::test_support::plate_indexed;
 
     /// The view that puts `node`'s drawn geometry `shift` metres out.
     fn moved(node: RecipeNodeId, shift: f64) -> DisplayView {
@@ -716,7 +860,7 @@ mod tests {
     /// the same list both times.
     #[test]
     fn an_edge_placed_past_the_display_seam_is_not_drawn_at_all() {
-        let (index, extrude) = plate();
+        let (_, index, extrude) = plate_indexed(Tol::witness());
         let id = some_edge(&index, extrude);
         let here = edge_id_lane(&index, &DisplayView::none(), id);
         assert!(
@@ -808,5 +952,53 @@ mod tests {
             vec![[0.0_f32, 0.0, 0.0], [1.0, 2.0, 3.0]]
         );
         assert_eq!(lane.undrawn(), 1);
+    }
+
+    /// **A held mark on a body the index cannot wholly name carries the
+    /// index's refusal** to the composed value, and draws the held edges
+    /// it can name. The naming layer's refusal is planted on a held
+    /// edge (`PickIndex::unname_edge`). A held set on a body the index
+    /// does not draw — the ordinary arm's case — marks nothing and
+    /// refuses nothing.
+    #[test]
+    fn a_held_mark_the_index_cannot_wholly_name_carries_its_refusal() {
+        let (_, mut index, extrude) = plate_indexed(Tol::witness());
+        let drawn = index.edges_in(extrude, 0).to_vec();
+        let names: BTreeSet<StableName> = drawn[..2]
+            .iter()
+            .map(|id| index.edge_name_of(*id).expect("named").clone())
+            .collect();
+        let held = |body| Held {
+            faces: [None; HELD_FACES],
+            edges: Some(HeldEdges {
+                node: extrude,
+                body,
+                names: &names,
+            }),
+        };
+        let display = DisplayView::none();
+        let first = index.unname_edge(drawn[1]);
+
+        let (_, marked) = compose(&index, &display, &Selection::None, None, &held(0));
+        assert_eq!(
+            marked.held,
+            edge_id_segments(&index, &display, drawn[0]),
+            "the held edge the index names is drawn, and only it"
+        );
+        assert_eq!(
+            marked.held_refused,
+            Some(EdgeNamesRefused {
+                node: extrude,
+                body: 0,
+                first,
+                named: drawn.len() - 1,
+                refused: 1,
+            }),
+            "the held edge it cannot name is not dropped silently"
+        );
+
+        let (_, elsewhere) = compose(&index, &display, &Selection::None, None, &held(7));
+        assert!(elsewhere.held.is_empty());
+        assert_eq!(elsewhere.held_refused, None, "the ordinary arm stays quiet");
     }
 }

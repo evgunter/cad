@@ -42,8 +42,8 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::document::{
-    ContentPin, DocRef, DocumentId, PartResolver, PersistError, ProfileDoc, ResolveFailure,
-    ResolveFault, content_pin, header_document_id, load, save,
+    ContentPin, DocRef, DocumentId, Labelled, Labels, PartResolver, PersistError, ProfileDoc,
+    Recourse, ResolveFailure, ResolveFault, Staged, content_pin, header_document_id, load, save,
 };
 use geom_core::Tol;
 
@@ -65,16 +65,14 @@ pub fn random_document_id() -> Result<DocumentId, WorkspaceError> {
     Ok(DocumentId(u128::from_be_bytes(bytes)))
 }
 
-/// The one recourse sentence a [`WorkspaceError::PinMismatch`] ends
-/// on, naming the edit that legitimately moves a pin ("accept updated
-/// version" is a recorded `DocEdit` — `DocEdit::UpdateReference`;
-/// pins never move silently). Public so
-/// callers can assert on it without restating
-/// prose.
-pub const PIN_MISMATCH_RECOURSE: &str = "the referenced document changed since this reference was pinned; if the new version is \
-     intended, record the \"accept updated version\" edit (DocEdit::UpdateReference, or \
-     workspace::update_to_store for every site at once) — references are never retargeted \
-     silently";
+/// The recourse a [`WorkspaceError::PinMismatch`] ends on, after its
+/// `Recourse:` label, naming the edit that legitimately moves a pin
+/// ("accept updated version" is a recorded `DocEdit` —
+/// `DocEdit::UpdateReference`; pins never move silently). Public so
+/// callers can assert on it without restating prose.
+pub const PIN_MISMATCH_RECOURSE: &str = "if the new version is intended, record the \"accept updated \
+     version\" edit (DocEdit::UpdateReference, or workspace::update_to_store for every site at \
+     once); references are never retargeted silently";
 
 /// Typed workspace refusal (fail loud; no silent best-effort scans
 /// or resolves).
@@ -85,6 +83,9 @@ pub enum WorkspaceError {
         /// The path the operation touched (the directory for the
         /// scan's `read_dir`, the file otherwise).
         path: PathBuf,
+        /// The OS error's class: a resolution states one way through
+        /// for a file that is not there and another for one that is.
+        kind: std::io::ErrorKind,
         /// The OS error's message.
         message: String,
     },
@@ -194,39 +195,65 @@ pub enum WorkspaceError {
     },
 }
 
+impl core::fmt::Display for WorkspaceError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", Labelled(self, Labels::Kept))
+    }
+}
+
+// The sentence a carrier that names the stage renders (a part whose
+// reference did not resolve, a scan the viewer's resolver makes) drops
+// the store's stage word, the load door's inside a load it forwards,
+// and the label clause the scan and read arms open with. `Update`
+// forwards the elaboration's own sentence, `update:` word and all: no
+// carrier that names the stage raises it.
+//
 // A path is text the caller chose, echoed back inside a sentence, so
 // every arm delimits it: an undelimited path runs into the prose
 // around it and the reader cannot see where the name ends.
-impl core::fmt::Display for WorkspaceError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl Staged for WorkspaceError {
+    const STAGE: &'static str = "workspace";
+
+    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
         match self {
-            Self::Io { path, message } => {
-                write!(f, "workspace: io error at `{}`: {message}", path.display())
-            }
-            Self::DuplicateId { id, first, second } => write!(
-                f,
-                "workspace: duplicate document id {id}: `{}` and `{}` both claim it — \
-                 document ids are unique per workspace",
-                first.display(),
-                second.display()
-            ),
+            Self::Io { path, message, .. } => match labels {
+                Labels::Kept => write!(f, "io error at `{}`: {message}", path.display()),
+                Labels::Stripped => {
+                    write!(f, "`{}` could not be accessed: {message}", path.display())
+                }
+            },
+            Self::DuplicateId { id, first, second } => match labels {
+                Labels::Kept => write!(
+                    f,
+                    "duplicate document id {id}: `{}` and `{}` both claim it — \
+                     document ids are unique per workspace",
+                    first.display(),
+                    second.display()
+                ),
+                Labels::Stripped => write!(
+                    f,
+                    "`{}` and `{}` both claim document id {id}, and document ids are unique \
+                     per workspace",
+                    first.display(),
+                    second.display()
+                ),
+            },
             Self::Header { path, error } => {
-                write!(f, "workspace: `{}` refused: {error}", path.display())
+                let error = Labelled(&**error, labels);
+                write!(f, "`{}` refused: {error}", path.display())
             }
             Self::UnknownId { id } => {
-                write!(f, "workspace: no document with id {id}")
+                write!(f, "no document with id {id}")
             }
             Self::Load { path, error } => {
-                write!(
-                    f,
-                    "workspace: `{}` refused to load: {error}",
-                    path.display()
-                )
+                let error = Labelled(&**error, labels);
+                write!(f, "`{}` refused to load: {error}", path.display())
             }
             Self::Pin { path, error } => write!(
                 f,
-                "workspace: `{}` loaded but its content pin would not compute: {error}",
-                path.display()
+                "`{}` loaded but its content pin would not compute: {}",
+                path.display(),
+                Labelled(&**error, labels)
             ),
             Self::PinMismatch {
                 id,
@@ -235,12 +262,13 @@ impl core::fmt::Display for WorkspaceError {
                 found,
             } => write!(
                 f,
-                "workspace: pin mismatch for document {id} at `{}`: the reference pins \
-                 {wanted} but the document hashes to {found} — {PIN_MISMATCH_RECOURSE}",
-                path.display()
+                "document {id} at `{}` hashes to {found}, not to the pinned {wanted}. {}",
+                path.display(),
+                Recourse(PIN_MISMATCH_RECOURSE)
             ),
             Self::Save { id, error } => {
-                write!(f, "workspace: document {id} refused to save: {error}")
+                let error = Labelled(&**error, labels);
+                write!(f, "document {id} refused to save: {error}")
             }
             Self::SaveWouldDuplicateId {
                 id,
@@ -248,7 +276,7 @@ impl core::fmt::Display for WorkspaceError {
                 requested,
             } => write!(
                 f,
-                "workspace: document {id} is already stored at `{}`, so saving it at `{}` \
+                "document {id} is already stored at `{}`, so saving it at `{}` \
                  would leave two files claiming one identity — resave it in place, or save \
                  it as a NEW document, which mints a fresh id",
                 existing.display(),
@@ -256,15 +284,15 @@ impl core::fmt::Display for WorkspaceError {
             ),
             Self::SaveTargetNotInStore { path } => write!(
                 f,
-                "workspace: `{}` is not a save target in this store — a stored document is \
+                "`{}` is not a save target in this store — a stored document is \
                  a `*.pncad` file directly in the store's root directory, and a different \
                  root is a different store",
                 path.display()
             ),
             Self::RandomnessUnavailable { message } => {
-                write!(f, "workspace: OS randomness unavailable: {message}")
+                write!(f, "OS randomness unavailable: {message}")
             }
-            Self::Update { error } => write!(f, "workspace: {error}"),
+            Self::Update { error } => write!(f, "{error}"),
         }
     }
 }
@@ -303,6 +331,7 @@ impl Workspace {
             let path = path.to_path_buf();
             move |e: std::io::Error| WorkspaceError::Io {
                 path,
+                kind: e.kind(),
                 message: e.to_string(),
             }
         };
@@ -405,6 +434,7 @@ impl Workspace {
             .ok_or(WorkspaceError::UnknownId { id })?;
         let text = std::fs::read_to_string(path).map_err(|e| WorkspaceError::Io {
             path: path.clone(),
+            kind: e.kind(),
             message: e.to_string(),
         })?;
         let loaded = load(&text, tol).map_err(|error| WorkspaceError::Load {
@@ -447,6 +477,7 @@ impl Workspace {
         })?;
         std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
             path: path.clone(),
+            kind: e.kind(),
             message: e.to_string(),
         })?;
         self.by_id.insert(id, path.clone());
@@ -474,6 +505,7 @@ impl Workspace {
         })?;
         std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
             path: path.clone(),
+            kind: e.kind(),
             message: e.to_string(),
         })?;
         Ok(path)
@@ -535,6 +567,7 @@ impl Workspace {
         })?;
         std::fs::write(&path, text).map_err(|e| WorkspaceError::Io {
             path: path.clone(),
+            kind: e.kind(),
             message: e.to_string(),
         })?;
         self.by_id.insert(id, path.clone());
@@ -609,39 +642,96 @@ impl Workspace {
     }
 }
 
+/// **When a resolver takes the store's scan**, which decides what a
+/// part the scan did not see needs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scan {
+    /// Once, at [`Workspace::open`], and held: a file put in the
+    /// directory afterwards is seen only by a store opened again. A
+    /// [`Workspace`] resolving as itself, and Python's `resolver=`.
+    AtOpen,
+    /// Again at every resolution, so a file put in the directory is
+    /// seen at the next one (the viewer's resolver).
+    PerResolution,
+}
+
+impl WorkspaceError {
+    /// A refused [`Workspace::resolve`] as the document seam's
+    /// refusal: the store's sentence without its stage word, since the
+    /// part's own sentence names the stage ("the reference did not
+    /// resolve"), then the way through for a resolver that takes its
+    /// scan as `scan` does.
+    pub fn resolve_failure(&self, scan: Scan) -> ResolveFailure {
+        ResolveFailure {
+            fault: resolve_fault(self),
+            message: match resolve_recourse(self, scan) {
+                Some(ending) => format!("{}. {ending}", self.sentence()),
+                None => self.sentence().to_string(),
+            },
+        }
+    }
+}
+
 /// The document seam: a workspace
-/// IS what an evaluation resolves references through.
+/// IS what an evaluation resolves references through, over the scan it
+/// was opened with.
 ///
 /// The verdict classification is this layer's because this layer is the
 /// one that knows: only the store can tell "the pin does not hold" from
 /// "the ε does not reconcile" from "no such document". Every other
-/// refusal is `Unresolved` — honestly wide, since the kernel's recourse
-/// for all of them is the same.
+/// refusal is `Unresolved` — honestly wide, since the kernel acts the
+/// same on all of them, and what the author does about each is this
+/// layer's to say (`resolve_recourse`).
 impl PartResolver for Workspace {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        Workspace::resolve(self, doc_ref, tol).map_err(|e| ResolveFailure {
-            fault: resolve_fault(&e),
-            // The message is the enum's own `Display`, with nothing
-            // appended and no per-variant rendering — so there is
-            // nothing here for [`resolve_fault`]'s exhaustiveness
-            // paragraph to make an exception for, and a variant added
-            // later answers for itself.
-            //
-            // A caller holding only the kernel-side
-            // `ResolveFailure::message` never sees the store's
-            // `WorkspaceError`, so this door carries the recourse ONLY
-            // because [`WorkspaceError`]'s `PinMismatch` arm ends on
-            // [`PIN_MISMATCH_RECOURSE`] unconditionally (see the arm
-            // above) — a real coupling between two impls, and the
-            // reason a second copy appended here would be a second
-            // copy rather than a fallback. It is held rather than
-            // merely hoped: `crates/viewer/tests/instance_authoring.rs`
-            // asserts the recourse on the badge an evaluation renders,
-            // which is this message, in this workspace and with no
-            // interpreter. The demo's update walk and the Python author
-            // suite pin the COUNT at one from further out.
-            message: e.to_string(),
-        })
+        Workspace::resolve(self, doc_ref, tol).map_err(|e| e.resolve_failure(Scan::AtOpen))
+    }
+}
+
+/// **What the author does about a refused resolution**, where the
+/// store's sentence does not already say it and the kernel's class
+/// does not either. Stated here rather than in [`WorkspaceError`]'s
+/// sentence because another door raises the same arm with another way
+/// through: an unknown id at [`Workspace::resave`] is a document to
+/// create, not a file to put back.
+///
+/// Exhaustive, for [`resolve_fault`]'s reason.
+fn resolve_recourse(e: &WorkspaceError, scan: Scan) -> Option<String> {
+    let recourse = |action: &str| Some(Recourse(action).to_string());
+    match e {
+        WorkspaceError::UnknownId { .. } => match scan {
+            Scan::AtOpen => {
+                recourse("put the part's file in this store's directory, then open the store again")
+            }
+            Scan::PerResolution => recourse("put the part's file in this store's directory"),
+        },
+        // Removed after the scan saw it: the scan's path is where the
+        // store looks, whichever scan.
+        WorkspaceError::Io {
+            kind: std::io::ErrorKind::NotFound,
+            ..
+        } => recourse("put the part's file back at that path"),
+        WorkspaceError::Io { .. } => recourse("make the part's file readable by this process"),
+        // Computing a pin over a document that has just loaded fails
+        // only on a serializer defect.
+        WorkspaceError::Pin { .. } => Some(geom_core::KERNEL_DEFECT_ENDING.to_owned()),
+        // Its sentence ends on its own recourse. `PIN_MISMATCH_RECOURSE`
+        // is stated once at every door: the Python author suite and the
+        // demo's update walk pin that count at one.
+        WorkspaceError::PinMismatch { .. } => None,
+        // The part's own sentence states the ε seam's recourse, which
+        // is the same whatever the store; every other load refusal
+        // forwards the load door's sentence and what that states.
+        WorkspaceError::Load { .. } => None,
+        // Raised by the scan and the write doors, never by a resolution
+        // over a store already opened.
+        WorkspaceError::DuplicateId { .. }
+        | WorkspaceError::Header { .. }
+        | WorkspaceError::Save { .. }
+        | WorkspaceError::SaveWouldDuplicateId { .. }
+        | WorkspaceError::SaveTargetNotInStore { .. }
+        | WorkspaceError::RandomnessUnavailable { .. }
+        | WorkspaceError::Update { .. } => None,
     }
 }
 

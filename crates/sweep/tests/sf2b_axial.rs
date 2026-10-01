@@ -13,14 +13,12 @@
 
 use core::f64::consts::PI;
 
+use crate::common::bulge;
+use crate::common::shell_operands::vessel;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 /// The wall thickness every row here uses.
 const T: f64 = 1.0 / 128.0;
@@ -32,7 +30,7 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -42,22 +40,19 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
     .body
 }
 
-/// The bulge (`tan(θ/4)`) of the arc from `a` to `b` about `c`.
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
-}
-
 /// **The sphere-zone vase**: a belly on a sphere centred on the axis,
 /// between two caps normal to it.
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
-    let c = p2(0.0, h / 2.0);
+    let c = Point2::new(0.0, h / 2.0);
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-            (p2(r, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (
+                Point2::new(r, 0.0),
+                bulge(Point2::new(r, 0.0), Point2::new(r, h), c),
+            ),
+            (Point2::new(r, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -67,10 +62,10 @@ fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
 fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r0, 0.0), 0.0),
-            (p2(r1, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r0, 0.0), 0.0),
+            (Point2::new(r1, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -81,10 +76,10 @@ fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
 fn wedge(r: f64, h: f64) -> Body<f64> {
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r, 0.0), 0.0),
-            (p2(r, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r, 0.0), 0.0),
+            (Point2::new(r, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
     )
@@ -199,18 +194,7 @@ fn the_partial_revolve_wedge_hollows_to_its_closed_form() {
 fn the_drum_still_hollows_on_the_new_branch() {
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
     let want = PI * r * r * h - PI * (r - T) * (r - T) * (h - 2.0 * T);
-    let got = wall(
-        "the drum",
-        &revolved(
-            bulge_loop(vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(r, 0.0), 0.0),
-                (p2(r, h), 0.0),
-                (p2(0.0, h), 0.0),
-            ]),
-            Revolution::Full,
-        ),
-    );
+    let got = wall("the drum", &vessel(r, h));
     assert!(
         (got - want).abs() <= 1e-15,
         "the wall's closed form is {want}, got {got}"
@@ -243,13 +227,16 @@ fn the_axial_door_names_its_own_boundary() {
 
     // A belly bulged the other way puts the arc's centre OFF the axis,
     // and the revolve mints a torus.
-    let c = p2(0.0, h / 2.0);
+    let c = Point2::new(0.0, h / 2.0);
     let torus_vase = revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r, 0.0), -bulge(p2(r, 0.0), p2(r, h), c)),
-            (p2(r, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (
+                Point2::new(r, 0.0),
+                -bulge(Point2::new(r, 0.0), Point2::new(r, h), c),
+            ),
+            (Point2::new(r, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     );
@@ -268,10 +255,13 @@ fn the_axial_door_names_its_own_boundary() {
     // pot's foot junction, differing only in the angle between them.
     let dome = revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r, 0.0), 0.0),
-            (p2(r, h), (core::f64::consts::FRAC_PI_2 / 4.0).tan()),
-            (p2(0.0, h + r), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r, 0.0), 0.0),
+            (
+                Point2::new(r, h),
+                (core::f64::consts::FRAC_PI_2 / 4.0).tan(),
+            ),
+            (Point2::new(0.0, h + r), 0.0),
         ])
         .with_tangent_joints(vec![2]),
         Revolution::Full,

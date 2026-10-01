@@ -73,9 +73,7 @@ vocabulary! {
 /// declaration publishes `BooleanOp::ALL`, and the form draws one
 /// button per entry of it. A fourth operation therefore arrives in
 /// this form with no MEMBERSHIP edit here — it gets its button from
-/// the kernel's list — and it cannot arrive silently either, because
-/// it has no word until this match is given one, which is a compile
-/// error and not a missing button.
+/// the kernel's list, and its word from this match.
 ///
 /// **The order is `ALL`'s**, which is the kernel's declaration order,
 /// and the type's own doc says that order carries no meaning. The form
@@ -93,8 +91,8 @@ pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
 vocabulary! {
     /// The add-datum form's kind choice — one form, and **every arm of
     /// [`crate::session::DatumSpec`]**. An enum rather than an index
-    /// into a label list, so every consumer matches exhaustively and a
-    /// new kind cannot leave a silent wildcard arm behind.
+    /// into a label list, because a consumer can match an enum and name
+    /// every kind, and cannot do that with an index.
     ///
     /// Two kinds need a PICK as well as numbers, and they pick from
     /// different places. `AxisInPlane`'s frame is a document node,
@@ -275,8 +273,8 @@ vocabulary! {
 ///
 /// **A match, not a table**, for the reason [`boolean_op_label`] is
 /// one: a mode the vocabulary gains reaches the picker from
-/// `ArcMode::ALL` with no membership edit here, and has no word until
-/// this match gives it one — a compile error, not a missing option.
+/// `ArcMode::ALL` with no membership edit here, and its word from
+/// this match.
 /// The verbs need no such function: `profile::Verb`'s own `Display`
 /// is the authoring spelling, declared on the transition table's row.
 pub(crate) fn arc_mode_label(mode: ArcMode) -> &'static str {
@@ -299,39 +297,6 @@ pub(crate) fn target_kind_label(kind: TargetKind) -> &'static str {
         TargetKind::StartArriving => "Start, arriving tangent",
     }
 }
-
-/// **Whether a path editor may change its program's SHAPE** — the
-/// verbs, their order and number, each arc's mode, side and winding,
-/// each target's form, a split circle's count — or only its numbers.
-///
-/// The add-profile form's editor is one editor with two doors. Opened
-/// on nothing it authors a new node and every control is live
-/// ([`ShapeEdits::Free`]). Opened on a committed profile it commits as
-/// slot writes, and the document's edit vocabulary writes a program's
-/// ARGUMENTS and has no door that rewrites its shape, so the controls
-/// that would are shown and not taken ([`ShapeEdits::Locked`], said
-/// as [`SHAPE_LOCKED`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ShapeEdits {
-    /// Every control is live.
-    Free,
-    /// The shape controls are drawn disabled.
-    Locked,
-}
-
-impl ShapeEdits {
-    /// Whether the shape controls take input.
-    pub(crate) fn free(self) -> bool {
-        self == Self::Free
-    }
-}
-
-/// What a locked editor says about its greyed controls — above the
-/// list, and on the disabled hover of each step row's glyph controls,
-/// under what that control would have done.
-pub(crate) const SHAPE_LOCKED: &str = "the numbers are editable here; the shape (the steps, \
-     their verbs and order, arc modes, sides and targets) is not — the document has no edit that \
-     rewrites a committed profile's program";
 
 /// The fewest subdivisions the `circle_split` count field offers —
 /// the kernel's own floor (`profile::Step::CircleSplit`'s `n`, which
@@ -490,8 +455,7 @@ impl FieldWriting {
 /// forces (`crates/viewer/src/vocab.rs` declares the macro) is that
 /// every [`MatePrimitive`] variant is either offered at a seat of this
 /// list or named below as deliberately absent, with the reason it is
-/// absent. A primitive added to the kernel enum is neither until
-/// someone writes one of the two, and the build says so.
+/// absent.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
     (MatePrimitive::FrameCoincidence, "frame coincidence"),
     (MatePrimitive::Coaxial, "coaxial"),

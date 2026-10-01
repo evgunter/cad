@@ -27,7 +27,8 @@ use fixture::resolver::in_part;
 use fixture::{in_copy, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
-fn block(label: &str) -> ProfileDoc {
+/// The unit cube `[0,1]³`, as a whole part document, and its body.
+fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -36,20 +37,20 @@ fn block(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
         },
-    );
-    doc
+    )
 }
 
-fn block_ref(label: &str) -> DocRef {
-    let doc = block(label);
+/// [`block`] as a reference, and its body.
+fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
+    let (doc, body) = block(label);
     let pin = content_pin(&doc, Tol::witness()).unwrap();
-    DocRef { id: doc.id(), pin }
+    (DocRef { id: doc.id(), pin }, body)
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
@@ -167,7 +168,8 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
 /// and plain instance heads.
 fn three_shapes() -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-shapes"), Tol::witness());
-    let (doc, a) = insert(doc, Node::instantiate_part(block_ref("rev-xs-a")));
+    let (a_ref, a_body) = block_ref("rev-xs-a");
+    let (doc, a) = insert(doc, Node::instantiate_part(a_ref));
     let (doc, pa) = insert(
         doc,
         Node::Pattern {
@@ -176,8 +178,10 @@ fn three_shapes() -> ProfileDoc {
             kind: linear(2.0),
         },
     );
-    let (doc, b) = insert(doc, Node::instantiate_part(block_ref("rev-xs-b")));
-    let (doc, c) = insert(doc, Node::instantiate_part(block_ref("rev-xs-c")));
+    let (b_ref, b_body) = block_ref("rev-xs-b");
+    let (doc, b) = insert(doc, Node::instantiate_part(b_ref));
+    let (c_ref, c_body) = block_ref("rev-xs-c");
+    let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
     let (doc, pc) = insert(
         doc,
         Node::Pattern {
@@ -199,8 +203,8 @@ fn three_shapes() -> ProfileDoc {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(pa, 1, in_part(a, CapEnd::End)),
-                in_part(b, CapEnd::Start),
+                in_copy(pa, 1, in_part(a, a_body, CapEnd::End)),
+                in_part(b, b_body, CapEnd::Start),
             ),
         },
     );
@@ -212,11 +216,12 @@ fn three_shapes() -> ProfileDoc {
     let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         seat(
-            in_copy(npc, 1, in_part(c, CapEnd::End)),
-            in_part(b, CapEnd::End),
+            in_copy(npc, 1, in_part(c, c_body, CapEnd::End)),
+            in_part(b, b_body, CapEnd::End),
         ),
         editor_core::MateSide::A,
         b,
+        b_body,
     );
     doc
 }
@@ -229,11 +234,9 @@ fn three_shapes() -> ProfileDoc {
 /// diverge.
 fn foreign_master() -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-foreign"), Tol::witness());
-    let (doc, _datum) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
-    let (doc, a) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-a")));
+    let (doc, _datum) = insert(doc, fixture::xy_frame());
+    let (a_ref, _) = block_ref("rev-xs-f-a");
+    let (doc, a) = insert(doc, Node::instantiate_part(a_ref));
     let (doc, pa) = insert(
         doc,
         Node::Pattern {
@@ -242,19 +245,22 @@ fn foreign_master() -> ProfileDoc {
             kind: linear(2.0),
         },
     );
-    let (doc, c) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-c")));
-    let (doc, d) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-d")));
+    let (c_ref, c_body) = block_ref("rev-xs-f-c");
+    let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
+    let (d_ref, d_body) = block_ref("rev-xs-f-d");
+    let (doc, d) = insert(doc, Node::instantiate_part(d_ref));
     // The head resolves to no member (the walk reaches `a` under a
     // name whose master is `c`), which the insert door refuses: it is
     // authored the way such a head arises after insert.
     let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         seat(
-            in_copy(pa, 2, in_part(c, CapEnd::End)),
-            in_part(d, CapEnd::Start),
+            in_copy(pa, 2, in_part(c, c_body, CapEnd::End)),
+            in_part(d, d_body, CapEnd::Start),
         ),
         editor_core::MateSide::A,
         d,
+        d_body,
     );
     doc
 }

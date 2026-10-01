@@ -65,7 +65,7 @@
 use crate::revolve_common;
 
 use crate::common::approx::band;
-use geom_core::{Band, Point3, Tol};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::test_support::brick;
@@ -93,8 +93,8 @@ const FIXTURE_EXTENT: f64 = DONUT_R + DONUT_MINOR;
 /// its own self-mated seam meridian.
 fn donut() -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(DONUT_R, -DONUT_MINOR), 1.0),
-        (p2(DONUT_R, DONUT_MINOR), 1.0),
+        (Point2::new(DONUT_R, -DONUT_MINOR), 1.0),
+        (Point2::new(DONUT_R, DONUT_MINOR), 1.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -125,10 +125,10 @@ fn spool_arc() -> (f64, f64) {
 
 fn spool_loop() -> ProfileLoop<f64> {
     bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), SPOOL_BULGE),
-        (p2(1.0, 1.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), SPOOL_BULGE),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ])
 }
 
@@ -149,8 +149,8 @@ fn spool() -> Body<f64> {
 /// the MAJOR azimuth and wraps the minor angle.
 fn quarter_donut() -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(DONUT_R, -DONUT_MINOR), 1.0),
-        (p2(DONUT_R, DONUT_MINOR), 1.0),
+        (Point2::new(DONUT_R, -DONUT_MINOR), 1.0),
+        (Point2::new(DONUT_R, DONUT_MINOR), 1.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -395,17 +395,12 @@ fn the_minor_window_trims_the_spool_band() {
 /// height, differing only in azimuth: the window admits the swept
 /// quadrant and refuses the rest.
 ///
-/// **One of the four quadrants is not asked here, and the reason is not
-/// this arm.** The quarter revolve's caps are two-arc DISCS, and a point
-/// in the interior of a revolved disc face is misread by the PLANAR arm
-/// — issue 1076, reproduced directly by
-/// [`issue_1076_a_revolved_disc_cap_interior_is_misread`] below and
-/// outside this unit's scope fence. That misread makes one cap
-/// transparent to the ray sweep, so the quadrant MIRRORED across it
-/// reads as material. The row asks the three quadrants the defect does
-/// not reach and pins the contaminated one in the ignored row, where it
-/// will go green when 1076 lands rather than silently passing here for
-/// the wrong reason.
+/// The fourth quadrant — the one MIRRORED across a cap — is asked in
+/// [`a_revolved_disc_caps_interior_is_on_the_face`] below, beside
+/// the cap reading that decides it: the quarter revolve's caps are
+/// two-arc DISCS, and the planar arm must read a hit inside one as
+/// inside the face, or the cap is transparent to the ray sweep and that
+/// quadrant reads as material.
 #[test]
 fn the_major_window_trims_the_quarter_donut() {
     let body = quarter_donut();
@@ -434,20 +429,15 @@ fn the_major_window_trims_the_quarter_donut() {
     );
 }
 
-/// **Issue 1076, reproduced — not this unit's to fix.** A point in the
-/// INTERIOR of a revolved disc face is misread by the planar arm
-/// (`point_in_loop` / `point_in_face` under `splitting/`, outside this
-/// unit's scope fence). The quarter donut's cap is a two-arc disc, and a
-/// point on its plane, inside the disc and off its seam diameter, must
-/// read `OnBoundary`; it reads `In`.
-///
-/// The consequence for THIS arm is in
-/// [`the_major_window_trims_the_quarter_donut`]: the misread makes the
-/// cap transparent to the ray sweep, so the quadrant mirrored across it
-/// reads as material. Both assertions here go green when 1076 lands.
+/// **A revolved disc face's interior is the face (issue 1076's
+/// `point_in_face` site).** The quarter donut's cap is a two-arc disc,
+/// and a point on its plane, inside the disc and off its seam diameter,
+/// reads `OnBoundary` — the planar arm crosses the cap's arcs on their
+/// circle rather than reading the zero-area polygon through its two
+/// vertices, which answered `In` here. With the cap read, the quadrant
+/// mirrored across it is not material.
 #[test]
-#[ignore = "issue 1076: the planar arm misreads a revolved disc face's interior"]
-fn issue_1076_a_revolved_disc_cap_interior_is_misread() {
+fn a_revolved_disc_caps_interior_is_on_the_face() {
     let body = quarter_donut();
     // On the cap plane x = 0, inside the disc, off its seam diameter.
     assert_eq!(
@@ -548,7 +538,7 @@ fn an_uncertain_root_count_escalates_naming_its_predicate() {
         "the escalation is a shell about the tangency circle, not the whole body"
     );
     assert!(
-        format!("{diag}").contains("bool_ray_torus_disc"),
+        format!("{diag:?}").contains("bool_ray_torus_disc"),
         "the refusal must name the predicate that could not certify the count"
     );
     // And the door recovers at the probe offset the rest of the suite
@@ -801,9 +791,9 @@ fn the_kind_refusal_no_longer_names_the_torus() {
 /// Neither is measured here, and neither should be read as covered by
 /// the row below. What IS closed regardless of the door is the concrete
 /// hazard: a spindle reaching the minor-window trim would divide by a
-/// vanishing radial, so `point_on_torus_in_face` decides
-/// `bool_torus_frame_radius` and takes a typed refusal instead of a
-/// poison frame. On a ring torus that predicate never fires.
+/// vanishing radial, so `point_on_torus_in_face` decides the ring
+/// convention at entry (`geom::ring_torus`) and takes a typed
+/// refusal instead of a poison frame. On a ring torus it never fires.
 #[test]
 fn a_spindle_torus_is_not_mintable_through_the_public_door() {
     // A shallow bulge on the same chord: sagitta 0.15, arc radius
@@ -814,10 +804,10 @@ fn a_spindle_torus_is_not_mintable_through_the_public_door() {
     let big_r = 1.0 + s - r;
     assert!(big_r < r, "this profile really does describe a spindle");
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), 0.3),
-        (p2(1.0, 1.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.3),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness());
     let refused = match profile {

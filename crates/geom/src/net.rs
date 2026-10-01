@@ -74,6 +74,29 @@ impl<T: Real> ControlPoint<T> for Point3<T> {
     }
 }
 
+/// The count half of [`validate_counts`]: `control` points and
+/// `weights` weights against the `expected` control count, in that
+/// order. The one statement of the count rule, which
+/// [`crate::NurbsSurface::check_net_counts`] exposes.
+///
+/// # Errors
+///
+/// [`SplineError::ControlCountMismatch`], then
+/// [`SplineError::WeightCountMismatch`].
+pub(crate) fn check_counts(
+    expected: usize,
+    control: usize,
+    weights: usize,
+) -> Result<(), SplineError> {
+    if control != expected {
+        return Err(SplineError::ControlCountMismatch { control, expected });
+    }
+    if weights != control {
+        return Err(SplineError::WeightCountMismatch { weights, control });
+    }
+    Ok(())
+}
+
 /// Constructor validation: counts and weight positivity/finiteness.
 /// `expected` is the control count the knot structure demands — one
 /// knot vector's `control_count` for a curve, the product of the two
@@ -91,15 +114,7 @@ pub(crate) fn validate_counts(
     control: usize,
     weights: &[f64],
 ) -> Result<(), SplineError> {
-    if control != expected {
-        return Err(SplineError::ControlCountMismatch { control, expected });
-    }
-    if weights.len() != control {
-        return Err(SplineError::WeightCountMismatch {
-            weights: weights.len(),
-            control,
-        });
-    }
+    check_counts(expected, control, weights.len())?;
     for (index, w) in weights.iter().enumerate() {
         if !(*w > 0.0) {
             return Err(SplineError::NonPositiveWeight { index, weight: *w });
@@ -144,7 +159,7 @@ pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool
 /// (every channel of every point is poison), and so does a DESCRIBED
 /// net that carries poison anywhere — the two states a box must treat
 /// alike, because a box is a claim about where the locus is and a net
-/// with one poisoned bracket bounds its locus on no axis. That is the
+/// with one poisoned channel bounds its locus on no axis. That is the
 /// distinction a **box** needs; a consumer that must tell the three
 /// states apart asks `crate::NurbsSurface::net_state`, which reads
 /// this door and [`is_placeholder`] together and answers
@@ -171,7 +186,7 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
 /// produces; at the interval scalar each coefficient carries its
 /// enclosure into the hull, which is what makes a composite bound over
 /// a lifted payload honest.
-pub(crate) fn ring_coords<T: CertifiedBounds, P: ControlPoint<T>>(
+pub(crate) fn certified_coords<T: CertifiedBounds, P: ControlPoint<T>>(
     control: &[P],
 ) -> Vec<Vec<Interval>> {
     // One lane per channel. The lane count is read off the channel

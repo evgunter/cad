@@ -40,6 +40,9 @@
 
 test_utils::gated_to![
     "crates/sweep/src/blend/",
+    // The vertex doors every blend corner reads its incident edges and
+    // faces through.
+    "crates/topo/src/body.rs",
     "crates/sweep/src/revolve/",
     "crates/sweep/src/extrude.rs",
     "crates/sweep/src/test_support.rs",
@@ -63,10 +66,6 @@ use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
 }
 
 /// Revolve a closed sketch loop about the sketch y-axis.
@@ -116,11 +115,11 @@ fn neck_flare(a: f64, rev: Revolution<f64>) -> Body<f64> {
     let t30 = (30.0f64).to_radians().tan();
     revolved(
         vec![
-            (p2(0.2 * a, 0.0), 0.0),
-            (p2(a, 0.0), 0.0),
-            (p2(a, 1.0), 0.0),
-            (p2(a - t30, 2.0), 0.0),
-            (p2(0.2 * a, 2.0), 0.0),
+            (Point2::new(0.2 * a, 0.0), 0.0),
+            (Point2::new(a, 0.0), 0.0),
+            (Point2::new(a, 1.0), 0.0),
+            (Point2::new(a - t30, 2.0), 0.0),
+            (Point2::new(0.2 * a, 2.0), 0.0),
         ],
         rev,
     )
@@ -147,11 +146,11 @@ fn boss(r: f64) -> Body<f64> {
     let bulge = (sweep / 4.0).tan();
     revolved(
         vec![
-            (p2(b, 0.0), 0.0),
-            (p2(2.0 * r, 0.0), 0.0),
-            (p2(2.0 * r, c), 0.0),
-            (p2(rim_r, c), bulge),
-            (p2(b, bore_y), 0.0),
+            (Point2::new(b, 0.0), 0.0),
+            (Point2::new(2.0 * r, 0.0), 0.0),
+            (Point2::new(2.0 * r, c), 0.0),
+            (Point2::new(rim_r, c), bulge),
+            (Point2::new(b, bore_y), 0.0),
         ],
         Revolution::Full,
     )
@@ -318,7 +317,7 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
     for _ in 0..fuzz::scaled(4) {
         let r = rng.range(0.5, 2.0);
         let ball = revolved(
-            vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)],
+            vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
             Revolution::Full,
         );
         let seams = find_edges(
@@ -332,7 +331,7 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
             Err(BlendError::TangentialEdge { margin, .. }) => {
                 assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
-                    margin.value(),
+                    margin.reading.diagnostic_f64_for_error_text().value(),
                     Some(0.0),
                     "a co-surface seam's sine is structurally zero; {}",
                     fuzz::replay()

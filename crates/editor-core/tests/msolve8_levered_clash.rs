@@ -26,8 +26,8 @@ use crate::fixture;
 use editor_core::mate::coset::{Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
-    EvalOptions, Lever, MateFault, MateFrame, MatePrimitive, MateReach, Node, ProfileDoc,
-    RecipeNodeId, mate_reach,
+    EvalOptions, Lever, MateFault, MateFrame, MatePrimitive, MateReach, Node, NodeErrorClass,
+    ProfileDoc, RecipeNodeId, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, at_the_door, insert, len, on_frame, run, solve, square, step};
@@ -38,8 +38,8 @@ use geom_core::{Tol, Tolerance};
 
 // ---- Substrate ----
 
-/// A one-solid part: a unit square extruded 1 tall.
-fn part(label: &str) -> ProfileDoc {
+/// A one-solid part: a unit square extruded 1 tall, and its body.
+fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -48,28 +48,28 @@ fn part(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
         },
-    );
-    doc
+    )
 }
 
-/// `n` instances of one part, the options that resolve them, and the
-/// reference the reach is asked through.
+/// `n` instances of one part, the options that resolve them, the
+/// reference the reach is asked through, and the part's body.
 struct Rig {
     doc: ProfileDoc,
     ids: Vec<RecipeNodeId>,
     o: EvalOptions,
     doc_ref: DocRef,
+    body: RecipeNodeId,
 }
 
 fn rig(label: &str, n: usize) -> Rig {
     let mut store = PartStore::new();
-    let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
+    let (doc_ref, body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..n {
@@ -82,6 +82,7 @@ fn rig(label: &str, n: usize) -> Rig {
         ids,
         o: with_resolver(store),
         doc_ref,
+        body,
     }
 }
 
@@ -119,15 +120,17 @@ fn al(
     }
 }
 
-/// A rest-class mate over the two instances' start caps.
+/// A rest-class mate over the two instances' start caps, both
+/// instances of the part whose body is `body`.
 fn mate(
+    body: RecipeNodeId,
     a: RecipeNodeId,
     b: RecipeNodeId,
     alignment: Alignment,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: fixture::head(in_part(a, CapEnd::Start)),
-        b: fixture::head(in_part(b, CapEnd::Start)),
+        a: fixture::head(in_part(a, body, CapEnd::Start)),
+        b: fixture::head(in_part(b, body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment,
     }
@@ -193,13 +196,13 @@ fn two_mates(
     } else {
         (r.ids[0], r.ids[1])
     };
-    let (doc, held) = add(r.doc, mate(a, b, first));
+    let (doc, held) = add(r.doc, mate(r.body, a, b, first));
     // The second mate meets its own admission at the door and the
     // pair's verdict at the solve: whichever refuses is the fault.
     let (doc, added, fault) = match at_the_door(
         &doc,
         &mate_reach::<f64>(&r.o, Tol::witness()),
-        mate(a, b, second),
+        mate(r.body, a, b, second),
     ) {
         Ok((doc, added)) => {
             let fault = solve(&doc, &r.o, Tol::witness())
@@ -928,8 +931,8 @@ fn c2_parallel_boundary_through_doors() {
         );
         let r = rig(&format!("msolve8-c2-doors-{i}"), 2);
         assert_eq!((rr + rr + first.lever_arm()).to_bits(), arm.to_bits());
-        let (doc, _) = add(r.doc, mate(r.ids[0], r.ids[1], first));
-        let (doc, added) = add(doc, mate(r.ids[0], r.ids[1], second));
+        let (doc, _) = add(r.doc, mate(r.body, r.ids[0], r.ids[1], first));
+        let (doc, added) = add(doc, mate(r.body, r.ids[0], r.ids[1], second));
         let want = one_spelling(w1, w2, arm, band);
         let sine_times_arm = w1.cross(w2).norm() * arm;
         let levered_norm = (w1.cross(w2) * arm).norm();
@@ -1008,7 +1011,12 @@ fn c2_inverted_coset_never_refuses() {
                     match at_the_door(
                         &r.doc,
                         &mate_reach::<f64>(&r.o, tol),
-                        mate(a, b, al(prim, sense, *f, z_up_at([0.2, 0.0, 0.0]), None)),
+                        mate(
+                            r.body,
+                            a,
+                            b,
+                            al(prim, sense, *f, z_up_at([0.2, 0.0, 0.0]), None),
+                        ),
                     ) {
                         Ok((doc, m)) => solve(&doc, &r.o, tol)
                             .fault(m)
@@ -1087,12 +1095,16 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
         Band::linear(tol).is_err(),
         "the band must refuse for this row to measure anything"
     );
+    // `band_document`'s instances pin a reference no store holds, so
+    // there is no part body for the heads to name: any id spells it.
+    let body = RecipeNodeId(0);
     let mut refused = 0_usize;
     for (x, y) in [(0, 1), (2, 3)] {
         let err = doc
             .apply(
                 &DocEdit::InsertNode {
                     node: mate(
+                        body,
                         ids[x],
                         ids[y],
                         al(
@@ -1180,6 +1192,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
     let (doc, _) = add(
         r.doc,
         mate(
+            r.body,
             ids[0],
             ids[1],
             al(
@@ -1194,6 +1207,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
     let (doc, _) = add(
         doc,
         mate(
+            r.body,
             ids[2],
             ids[3],
             al(
@@ -1232,7 +1246,18 @@ fn c4_poses_of_another_document_reaches_no_row() {
         );
     }
     let ev = run(&doc, &r.o);
-    assert!(!format!("{:?}", ev.nodes).contains("PosesOfAnotherDocument"));
+    for &id in doc.order() {
+        let Some(e) = ev.node_error(id) else {
+            continue;
+        };
+        let classes: Vec<NodeErrorClass> = core::iter::once(e.kind.class())
+            .chain(e.kind.carried_chain().map(|l| l.refusal.kind().class()))
+            .collect();
+        assert!(
+            !classes.contains(&NodeErrorClass::MatePosesOfAnotherDocument),
+            "{id:?} refuses on another document's poses: {e}"
+        );
+    }
 }
 
 // ---- k-stats: the aim is decided twice per mate, not three times ----
@@ -1277,6 +1302,7 @@ fn kstats_aim_decided_twice_per_mate() {
             let (next, _) = add(
                 doc,
                 mate(
+                    r.body,
                     r.ids[0],
                     r.ids[1],
                     al(
@@ -1341,6 +1367,7 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         let (doc, _) = add(
             r.doc,
             mate(
+                r.body,
                 a,
                 b,
                 al(
@@ -1355,6 +1382,7 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         let (doc, rest) = add(
             doc,
             mate(
+                r.body,
                 a,
                 b,
                 al(
@@ -1400,6 +1428,7 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         let (next, _) = add(
             doc,
             mate(
+                r.body,
                 first,
                 second,
                 al(

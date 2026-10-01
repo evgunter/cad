@@ -52,57 +52,25 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::operands::{nested_box, rim_plate, rounded_plate, small_box, top_rim_plate};
+use crate::common::operands::{
+    nested_box, rim_plate, rounded_plate, small_box, three_arc_cylinder, top_rim_plate,
+};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use std::collections::BTreeSet;
 use sweep::test_support::brick;
-use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanError, BooleanResult, ContactRecords, EntityId, FaceKey, SweepStrategy,
     SweepTrace, ValidationError, sweep_traces, validate_pseudomanifold,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-/// The three-arc cylinder: radius 0.5 about the z axis, its base at
-/// `z0`, `height` tall (the rows' cylinder is `cylinder(0.0, 1.0)`; the
-/// blind bore's tool is a raised one). Six vertices; the hull of them
-/// is the inscribed triangular prism, `x ∈ [−0.25, 0.5]`,
-/// `y ∈ [−0.433, 0.433]`.
-///
-/// Deliberately NOT `common::operands`'s, and not `n3r1_prune`'s
-/// either: that suite poses its cylinder by translating the PROFILE
-/// in `x`, this one by lifting the sketch plane, and which pose a rim
-/// carries is part of what these rows check.
+/// The corpus cylinder, its base at `z0`, `height` tall (the rows'
+/// cylinder is `cylinder(0.0, 1.0)`; the blind bore's tool is a raised
+/// one): this suite poses it by lifting the sketch plane. The hull of
+/// its six vertices is the inscribed triangular prism,
+/// `x ∈ [−0.25, 0.5]`, `y ∈ [−0.433, 0.433]`.
 fn cylinder(z0: f64, height: f64) -> Body<f64> {
-    cylinder_from(z0, height, 0.0)
-}
-
-/// [`cylinder`], its loop authored from the vertex at `first` degrees
-/// (one of 0, 120, 240) — the same point set, a different canonical
-/// start, so its rims' edges are minted in a different order.
-fn cylinder_from(z0: f64, height: f64, first: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![
-        (at(first), b120),
-        (at((first + 120.0) % 360.0), b120),
-        (at((first + 240.0) % 360.0), b120),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(height), Tol::witness())
-        .unwrap()
-        .body
+    three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, z0, height, 0.0)
 }
 
 /// The nested pair as one two-instance arena.
@@ -454,12 +422,12 @@ fn conic_corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
         // reference answers.
         (
             "cylinder from 240° × plate across the rim's x-extreme".to_string(),
-            cylinder_from(0.0, 1.0, 240.0),
+            three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0, 240.0),
             rim_plate(-0.499),
         ),
         (
             "cylinder from 240° × plate across the top rim's x-extreme".to_string(),
-            cylinder_from(0.0, 1.0, 240.0),
+            three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0, 240.0),
             top_rim_x_plate(-0.499),
         ),
         (
