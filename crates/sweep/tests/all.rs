@@ -519,6 +519,8 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "full_turn_wall.rs"]
+mod full_turn_wall;
 #[path = "germ_circle_torus.rs"]
 mod germ_circle_torus;
 #[path = "germ_cone_apex_closure.rs"]

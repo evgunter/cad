@@ -36,9 +36,10 @@
 //! them the selection is on, and which row a failure sends the eye to.
 //!
 //! One thing a run said that is no failure rides the row as well: what
-//! a measure measured ([`Measured`]) — its value, spelled as the chrome
-//! spells any computed value, or the kernel's typed reason it has none
-//! — and what an assertion found of it ([`Asserted`]).
+//! an `Ok` value says ([`Readout`]) — a measure's value, spelled as the
+//! chrome spells any computed value, or the kernel's typed reason it
+//! has none; what an assertion found of it ([`Asserted`]); and that a
+//! boolean, or a side of a split, holds no material.
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
@@ -140,10 +141,15 @@
 //! # A failed row outside the solve links where its own error says
 //!
 //! Every other `NodeErrorKind` is asked the same question
-//! (`repair_named`). One links: a profile refused with
+//! (`repair_named`), and a link means one thing: **another node whose
+//! own slot refused**. One arm has one: a profile refused with
 //! `FrameDirection` links to the frame, whose own direction slot is
 //! what refused — and whose row may read `Ok`, because the frame
-//! lands at the lane while its nominal does not.
+//! lands at the lane while its nominal does not. An input the failing
+//! node chose, which evaluated to a legal value that choice does not
+//! fit, refused nothing and gets no link; its number is in the words,
+//! and it is the failing node's own input, so its row is beside this
+//! one.
 //!
 //! # Order and depth
 //!
@@ -174,12 +180,12 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, CarriedIn, Datum, Doc, Evaluation, Expr, MateFault,
-    MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram,
-    RecipeNodeId, ValuePayload,
+    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr,
+    MateFault, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
+    ProfileProgram, RecipeNodeId, SplitSide, ValuePayload,
 };
 use pncad::quantity::UnitDef;
-use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
+use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
@@ -340,18 +346,22 @@ pub struct TreeRow {
     /// committed `Tangent` is not a green row indistinguishable from
     /// a certifiable one.
     pub note: Option<String>,
-    /// **The node a [`RowStatus::Failed`] row's words name as the one
-    /// to repair, when that is not this node**: whatever
-    /// `repair_named` answers for the row's own error.
+    /// **Another node whose own slot refused**, when a
+    /// [`RowStatus::Failed`] row's error names one: whatever
+    /// `repair_named` answers for the row's own error, never this row.
+    /// That node's own row may read `Ok`. The one known exception is
+    /// the kernel's: a `PlacerRefused` for a `Part` index that does not
+    /// evaluate names the pattern, whose slot refused nothing (module
+    /// header).
     ///
     /// `None` on every row that is not `Failed`. A row's other links
     /// carry their own target: a `Poisoned` row's is its `through`,
     /// and an assertion's is its [`Asserted::measure`].
     pub repair_at: Option<RecipeNodeId>,
-    /// **What a measure node measured, or an assertion found**, on a
-    /// row that is `Ok`; `None` on every other row, whose status says
-    /// why there is none.
-    pub measured: Option<Measured>,
+    /// **What this row's `Ok` value says** ([`Readout`]); `None` on a
+    /// value that says nothing beyond `Ok`, and on every other row,
+    /// whose status says why there is none.
+    pub readout: Option<Readout>,
     /// **The accept a [`RowStatus::Failed`] instance row offers**, when
     /// its failure is a pin that no longer holds
     /// ([`crate::frame::version_offer`]); `None` on every other row, and
@@ -365,18 +375,21 @@ impl TreeRow {
     /// ([`RowStatus::tone`]), except on an assertion's row, which is
     /// `Ok` and as loud as its verdict ([`Asserted::tone`]).
     pub fn tone(&self) -> Tone {
-        match &self.measured {
-            Some(Measured::Asserted(asserted)) => asserted.tone(),
-            Some(Measured::Value(_) | Measured::Unavailable(_)) | None => self.status.tone(),
+        match &self.readout {
+            Some(Readout::Asserted(asserted)) => asserted.tone(),
+            Some(Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_)) | None => {
+                self.status.tone()
+            }
         }
     }
 }
 
-/// **What a measure's or an assertion's row says the run found**: a
-/// measure's value or the kernel's reason it has none, and on an
-/// assertion's row, its verdict over that value.
+/// **What an `Ok` value says**, on its own row: a measure's value or
+/// the kernel's reason it has none, an assertion's verdict over that
+/// value, and a value that holds no material where the node could
+/// have made some.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Measured {
+pub enum Readout {
     /// The value, already spelled ([`computed_text`]: canonical
     /// notation, width-bounded, with its unit's symbol) — which keeps
     /// the row `Eq`, and keeps the notation choice here with the rest
@@ -389,6 +402,48 @@ pub enum Measured {
     Unavailable(MeasureUnavailableAt),
     /// An assertion's verdict over its measure.
     Asserted(Asserted),
+    /// A boolean's typed empty result, or a split with a side that
+    /// holds no material. A legal value, and the one a consumer
+    /// refuses as its input, so the row it came from says so.
+    Empty(Emptiness),
+}
+
+/// **Which part of a value holds no material**, and its phrase.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Emptiness {
+    /// The whole value: a boolean's typed empty result, or a split
+    /// with neither side.
+    Whole,
+    /// One side of a split.
+    Half(SplitHalf),
+}
+
+impl std::fmt::Display for Emptiness {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Whole => f.write_str("empty"),
+            Self::Half(half) => write!(f, "{} half empty", split_half_label(*half)),
+        }
+    }
+}
+
+/// The word for a half of the KERNEL's [`SplitHalf`]: the part form's
+/// radio row draws one button per entry of `SplitHalf::ALL` with it,
+/// and an empty half's readout ([`Emptiness`]) names the half with it.
+///
+/// **A match, not a table**, for the reason `forms::boolean_op_label`
+/// is: the enum is declared in `topo`, so no list written here can be
+/// projected from its declaration. A third half would arrive with no
+/// membership edit here and could not arrive silently, because it has
+/// no word until this match gives it one.
+///
+/// The words are the kernel's own sides — the plane's normal decides
+/// which is which, and neither surface paraphrases that.
+pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
+    match half {
+        SplitHalf::Above => "above",
+        SplitHalf::Below => "below",
+    }
 }
 
 /// **An assertion's verdict, as its row says it**: the kernel's
@@ -675,7 +730,7 @@ pub fn rows(
         let depth = depth_of(&node.inputs(), &depths);
         depths.insert(id, depth);
         let status = status_of(id, evaluation, files);
-        let (repair_at, measured, version_offer) = match status {
+        let (repair_at, readout, version_offer) = match status {
             RowStatus::Failed { .. } => (
                 evaluation.and_then(|ev| repair_of(id, ev)),
                 None,
@@ -685,7 +740,7 @@ pub fn rows(
             ),
             RowStatus::Ok => (
                 None,
-                evaluation.and_then(|ev| measured_of(id, node, ev)),
+                evaluation.and_then(|ev| readout_of(id, node, ev)),
                 None,
             ),
             RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None, None),
@@ -699,7 +754,7 @@ pub fn rows(
             status,
             note: node_note(node),
             repair_at,
-            measured,
+            readout,
             version_offer,
         });
     }
@@ -761,26 +816,38 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
     }
 }
 
-/// **What `id` measured in `evaluation`** — asked only of a row
+/// **What `id`'s value says in `evaluation`** — asked only of a row
 /// [`rows`] has read `Ok`, so this decides which payload, never
-/// whether there is one. `None` for every payload but a measure's or
-/// an assertion's.
-fn measured_of(
+/// whether there is one. `None` for a payload whose `Ok` is the whole
+/// of it: a body, a datum, a profile, a pattern's instances (its
+/// count is authored, and the words of any refusal state it), a
+/// declaration, a mate.
+fn readout_of(
     id: RecipeNodeId,
     node: &Node<ProfileProgram>,
     evaluation: &Evaluation<f64>,
-) -> Option<Measured> {
+) -> Option<Readout> {
     match &evaluation.usable(id).ok()?.payload {
-        ValuePayload::Measure { value, dim } => Some(Measured::Value(computed_text(*dim, *value))),
-        ValuePayload::MeasureUnavailable { reason, .. } => Some(Measured::Unavailable(*reason)),
+        ValuePayload::Measure { value, dim } => Some(Readout::Value(computed_text(*dim, *value))),
+        ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
         ValuePayload::Assertion(verdict) => {
-            Some(Measured::Asserted(asserted(node, verdict, evaluation)))
+            Some(Readout::Asserted(asserted(node, verdict, evaluation)))
         }
+        ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
+        ValuePayload::Split { above, below } => match (above, below) {
+            (SplitSide::Empty, SplitSide::Empty) => Some(Readout::Empty(Emptiness::Whole)),
+            (SplitSide::Empty, SplitSide::Body(_)) => {
+                Some(Readout::Empty(Emptiness::Half(SplitHalf::Above)))
+            }
+            (SplitSide::Body(_), SplitSide::Empty) => {
+                Some(Readout::Empty(Emptiness::Half(SplitHalf::Below)))
+            }
+            (SplitSide::Body(_), SplitSide::Body(_)) => None,
+        },
         ValuePayload::Body(_)
-        | ValuePayload::Boolean(_)
+        | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
-        | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
         | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_) => None,
@@ -1014,35 +1081,33 @@ pub fn link_wording(at: RecipeNodeId) -> String {
     format!("see {}", node_number(at))
 }
 
-/// The node a `Failed` row's error names as the one to repair, when
-/// that is another node.
+/// Another node whose own slot refused, when a `Failed` row's error
+/// names one.
 fn repair_of(id: RecipeNodeId, ev: &Evaluation<f64>) -> Option<RecipeNodeId> {
     repair_named(&ev.result(id)?.error()?.kind).filter(|at| *at != id)
 }
 
-/// **Which node an evaluation error names as the one an author
-/// repairs**: the named node whose own authored input is what
-/// refused, as against a node the words mention as evidence or as
-/// the input the failing node misused. The kernel's doc for the arm
-/// says which: `PlacerRefused`'s calls it *"the node an author goes
-/// and fixes"*; `FrameDirection`'s refusal is the frame's own slot's,
-/// carried unaltered to the reader.
+/// **Which node an evaluation error names whose own slot refused**,
+/// as against a node the words mention as evidence or as the input
+/// the failing node chose. The kernel's doc for the arm says which:
+/// `PlacerRefused`'s calls it *"the node an author goes and fixes"*;
+/// `FrameDirection`'s refusal is the frame's own slot's, carried
+/// unaltered to the reader.
 fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
     match kind {
         NodeErrorKind::Mate(fault) => repaired_at(fault),
         // The frame's own direction slot refused; the profile only
         // read it, and the frame's row may well read `Ok`.
         NodeErrorKind::FrameDirection { frame, .. } => Some(*frame),
-        // An input of the failing node whose value is a family the
-        // operand does not take (a split fed to a boolean): the input
-        // is a sound node, and choosing it is the failing node's.
-        NodeErrorKind::WrongOperand { .. } => None,
-        // Either of two nodes may be the repair — the empty input or
-        // the failing node's use of it, the pattern's count or the
-        // `Part`'s index, either frame — and one link would pick for
-        // the reader. Open:
-        // `work/chrome/failed-row-repair-links-for-arms-with-two-candidate-repairs`.
-        NodeErrorKind::EmptyOperand { .. }
+        // The named input evaluated to a legal value that the failing
+        // node's own choice does not fit — a family the operand does
+        // not take, an empty body or split side, an index outside the
+        // pattern's instances, an axis on another frame than the
+        // profile's — and nothing on it refused. The frames
+        // `AxisInDifferentPlane` names are evidence of which frame each
+        // sits on.
+        NodeErrorKind::WrongOperand { .. }
+        | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::InstanceOutOfRange { .. }
         | NodeErrorKind::AxisInDifferentPlane { .. } => None,

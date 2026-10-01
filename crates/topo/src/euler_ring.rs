@@ -676,10 +676,12 @@ impl<T: Decide> Body<T> {
     /// were complete, has its merged loop re-minted with both halves in
     /// it before any mutation, on the terms `mev` states.
     ///
-    /// **Minting order** (D9, exact): curve (placeholder, anchored at
-    /// the target anchor vertex's coordinates), edge, `he_plus`,
-    /// `he_minus`. **Kill order**: the ring loop (with its provenance
-    /// entry), after the splice.
+    /// **Minting order** (D9, exact): curve (placeholder, anchored at the
+    /// target anchor vertex's coordinates), edge, `he_plus`, `he_minus`.
+    /// **Kill order**: the ring loop (with its provenance entry and every
+    /// null-face record naming it, as a null-face record lives only while
+    /// its face holds both loops it names — [`crate::null`]), after the
+    /// splice.
     ///
     /// # Precondition check order
     ///
@@ -836,15 +838,17 @@ impl<T: Decide> Body<T> {
     /// that move whole. On a spline chart, or an `f1` that was unminted
     /// or half-minted, the drop is the whole answer at either door.
     ///
-    /// **Minting order**: nothing is minted (the loop survives with its
-    /// D5 birth record — no provenance changes for survivors; re-homed
-    /// faces keep their birth records — re-homing is not a re-birth).
-    /// **Kill order** (D9, exact): cross-shell form first re-homes
-    /// `f2`'s shell's surviving faces (appended to `f1`'s shell's list
-    /// in their surviving order) and kills the shell (with its
-    /// provenance); then, both forms, the face `f2` (with its
-    /// provenance and any F9 null-face record), then `f2`'s surface
-    /// iff orphaned ([`Body::remove_surface_if_orphaned`]).
+    /// **Minting order**: nothing is minted (the loop survives with its D5
+    /// birth record — no provenance changes for survivors; re-homed faces
+    /// keep their birth records — re-homing is not a re-birth). **Kill
+    /// order** (D9, exact): cross-shell form first re-homes `f2`'s shell's
+    /// surviving faces (appended to `f1`'s shell's list in their surviving
+    /// order) and kills the shell (with its provenance); then, both forms,
+    /// the face `f2` (with its provenance and its null-face record) and
+    /// every null-face record naming `f2`'s demoted outer loop, as a
+    /// null-face record lives only while its face holds both loops it names
+    /// ([`crate::null`]), then `f2`'s surface iff orphaned
+    /// ([`Body::remove_surface_if_orphaned`]).
     ///
     /// # Precondition check order
     ///
@@ -1090,9 +1094,10 @@ impl<T: Decide> Body<T> {
         };
         self.faces.remove(f2);
         self.face_provenance.remove(f2);
-        // Null-face record hygiene (M3 PR 1): a record never outlives
-        // its face (crate::null).
+        // A null-face record lives only while its face holds both loops
+        // it names (crate::null).
         self.null_faces.remove(f2);
+        self.drop_null_face_records_naming(ring);
         let killed_surface = self
             .remove_surface_if_orphaned(f2_data.surface)
             .then_some(f2_data.surface);
@@ -1126,11 +1131,14 @@ impl<T: Decide> Body<T> {
     /// the caller's bug, surfaced by the designation-sensitive
     /// consumers (tier-3 region checks, mass properties), not here.
     ///
-    /// Pure reparenting: the ring leaves its face's `rings`, joins
+    /// Reparenting: the ring leaves its face's `rings`, joins
     /// `to_face.rings` (appended — deterministic order), and its `face`
-    /// back-pointer is repointed. Moving a ring to its own face is a
-    /// documented no-op (`Ok(())`, body untouched — the rings order is
-    /// NOT perturbed, keeping replay byte-stable).
+    /// back-pointer is repointed. Every null-face record naming the ring is
+    /// dropped, as a null-face record lives only while its face holds both
+    /// loops it names ([`crate::null`]). Moving a ring to its own face is a
+    /// documented no-op (`Ok(())`, body untouched — the rings order is NOT
+    /// perturbed, keeping replay byte-stable, and a record naming the ring
+    /// stands).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): this door mints and kills
     /// no half-edge, and it still writes the map — a re-parenting is
@@ -1145,7 +1153,8 @@ impl<T: Decide> Body<T> {
     /// moves, as [`Body::kfmrh`] does; [`Body::ring_move_minting`]
     /// takes a band and re-mints `to_face` with the ring walked in its
     /// chart. Neither face's other loops are touched, the face the ring
-    /// leaves needs nothing, and the same-face no-op moves nothing.
+    /// leaves needs nothing beyond the record drop, and the same-face
+    /// no-op moves nothing.
     ///
     /// # Tier-1 preservation (the demotion claim's least obvious case)
     ///
@@ -1274,6 +1283,7 @@ impl<T: Decide> Body<T> {
                 unreachable!("ring_move: the ring resolved in the plan phase")
             };
             l.face = to_face;
+            self.drop_null_face_records_naming(ring);
         }
         self.drop_rows_on_chart_change(ring, from_surface, to_surface);
         crate::pcurves::apply_site_rows(self, rows, None);
@@ -2018,6 +2028,7 @@ impl<T: Decide> Body<T> {
         face_data.rings.retain(|&l| l != ring_loop);
         self.loops.remove(ring_loop);
         self.loop_provenance.remove(ring_loop);
+        self.drop_null_face_records_naming(ring_loop);
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("mekr: `u` resolved in check_anchors")
         };
