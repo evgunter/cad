@@ -18,7 +18,7 @@ use test_utils::fuzz::Rng;
 
 use super::{claimed_components, misread};
 use crate::body::Body;
-use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey, ShellKey};
+use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey};
 use crate::fixtures::{
     detached_digons, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strut_cube,
     through_the_scalpel,
@@ -30,7 +30,11 @@ use crate::test_support_fixtures::declined_cube;
 /// from, a loop's `first` the walk starts at, and an edge's slots the
 /// mate hop reads; or a loop's boundary torn `Empty` at a live vertex
 /// while its half-edges still claim it, so the walk from its face
-/// steps none of them and a mate hop into it has no hop back.
+/// steps none of them and a mate hop into it has no hop back; or a
+/// loop's `face` torn to a live face drawn from the arena, which does
+/// not list it unless the draw lands on its own, so a mate hop into the
+/// loop lands on a face that does not own it: the converse's subject,
+/// which no other kind writes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Tear {
     NextForeign,
@@ -38,14 +42,16 @@ enum Tear {
     LoopAnchorForeign,
     EdgeBijection,
     LoopEmptied,
+    LoopFaceForeign,
 }
 
-const TEARS: [Tear; 5] = [
+const TEARS: [Tear; 6] = [
     Tear::NextForeign,
     Tear::ParentLoopForeign,
     Tear::LoopAnchorForeign,
     Tear::EdgeBijection,
     Tear::LoopEmptied,
+    Tear::LoopFaceForeign,
 ];
 
 /// The bodies torn: one to three components, rings, a strut, genus.
@@ -67,6 +73,7 @@ type Build = fn() -> Body<f64>;
 fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut Rng) {
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let loops: Vec<LoopKey> = body.loops().map(|(k, _)| k).collect();
+    let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     let mut pick = |n: usize| (rng.next_u64() as usize) % n;
     let he = halves[pick(halves.len())];
     let other = halves[pick(halves.len())];
@@ -87,6 +94,10 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut Rng) {
             let vertex = body.get_half_edge(he).unwrap().start;
             body.get_loop_mut(l).unwrap().boundary = LoopBoundary::Empty { vertex };
         }
+        // Drawn here, after the three draws every kind makes, so the
+        // other kinds' streams, and so their cells, are the ones they
+        // were before this kind existed.
+        Tear::LoopFaceForeign => body.get_loop_mut(l).unwrap().face = faces[pick(faces.len())],
     }
 }
 

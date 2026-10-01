@@ -179,16 +179,31 @@ impl<T: Decide> Body<T> {
                                 owner: EntityId::Face(neighbor),
                             });
                         }
-                        // A labelled neighbour carries this label: the walk
-                        // that labelled it popped it and walked `mate_loop`,
-                        // which it lists, as the whole of the loop's
-                        // claimants, the mate among them; the mate's proven
-                        // mate is `member`, in a loop `face_key` lists, so
-                        // that walk labelled `face_key` too.
+                        // A labelled neighbour carries this label. Only an
+                        // earlier, finished walk could have given it another,
+                        // and that walk popped `neighbor` and walked
+                        // `mate_loop`, which `neighbor` lists (the check
+                        // above). The mate claims `mate_loop`, so the
+                        // empty-loop proof above refused it were it `Empty`;
+                        // it is a cycle, and the count proof equates its
+                        // distinct members with all of its claimants, the
+                        // mate among them. `proven_mate` is symmetric
+                        // (`require_halves`), so the mate's mate is `member`,
+                        // which `require_run_of` proved is `loop_key`'s, a
+                        // loop `face_key` owns both ways. That walk then
+                        // labelled `face_key` with its own label, and
+                        // `face_key` holds this one.
                         match component.get(neighbor) {
-                            Some(&reached) => debug_assert_eq!(
-                                reached, label,
-                                "movefac: a mate hop crossed into another component's label"
+                            Some(&reached) if reached == label => {}
+                            Some(&reached) => unreachable!(
+                                "movefac: the mate hop {member:?} -> {neighbor:?} (loop \
+                                 {mate_loop:?}) reached label {reached} from {face_key:?} at \
+                                 label {label}; the walk that labelled {neighbor:?} walked \
+                                 {mate_loop:?} whole, since the empty-loop proof refuses a \
+                                 claimed `Empty` loop and the count proof equates the cycle's \
+                                 distinct members with its claimants, and `proven_mate` is \
+                                 symmetric, so that walk hopped back to {face_key:?} and \
+                                 labelled it {reached}"
                             ),
                             None => {
                                 component.insert(neighbor, label);
@@ -1064,18 +1079,21 @@ mod tests {
     }
 
     /// No over-refusal: on every valid body here — one to three
-    /// components, rings, struts, genus — `movefac` partitions each shell
-    /// exactly as its records do, from its face list and from that list
-    /// reversed. An enumeration, not a sample.
+    /// components, rings, struts, genus, and `Empty` loops both with no
+    /// half-edge in the shell (`mvfs_state`) and beside half-edges that
+    /// walk other loops of the same face (`ops_two_ring_face`'s tip ring,
+    /// which the empty-loop proof must let through) — `movefac`
+    /// partitions each shell exactly as its records do, from its face
+    /// list and from that list reversed. An enumeration, not a sample.
     #[test]
     fn valid_fixtures_partition_as_their_records_do() {
         use crate::fixtures::{
             mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strutted,
-            pillow, raw_prism,
+            ops_two_ring_face, pillow, raw_prism,
         };
         use crate::test_support_fixtures::geometric_cube;
         let tol = Tol::witness();
-        let bodies: [(&str, Body<f64>); 13] = [
+        let bodies: [(&str, Body<f64>); 14] = [
             ("declined_cube", declined_cube(tol).body),
             ("geometric_cube", geometric_cube(tol).body),
             ("ops_strut_cube", ops_strut_cube(tol).body),
@@ -1087,6 +1105,7 @@ mod tests {
             ("ngon_pillow(5)", ngon_pillow(5, tol).body),
             ("raw_prism(3)", raw_prism(3, tol).body),
             ("mvfs_state", mvfs_state().body),
+            ("ops_two_ring_face", ops_two_ring_face(tol).body),
             ("one detached digon", detached_digons(1).0),
             ("two detached digons", detached_digons(2).0),
         ];

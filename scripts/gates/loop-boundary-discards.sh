@@ -192,7 +192,7 @@ REGISTER=(
   # the question it asks.
   "crates/topo/src/merge_faces.rs|outermost_survivor||1|audited: the discarded variant is a lone-vertex ring, which has no half-edge and so borders no face; the question the walk asks (which member sits in this ring) has the answer none for it"
   "crates/topo/src/merge_faces.rs|merge_group||1|audited: the discarded variant is refused, not passed over — an empty outline has no half-edge to bridge from, and the arm returns LoopNotCycle naming the outline"
-  "crates/topo/src/movefac.rs|movefac||1|audited: the discarded variant is an empty loop the line above proves no half-edge claims, so it has no member to walk and no mate to hop to; it glues only its vertex"
+  "crates/topo/src/movefac.rs|movefac||1|audited: the discarded variant is an empty loop that movefac's empty-loop proof (an Empty loop the claims map holds is LoopCycleBroken) shows no half-edge claims, so it has no member to walk and no mate to hop to; it glues only its vertex"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
   # The ONE per-loop rows walk: which half-edges of a loop a pcurve row
@@ -215,7 +215,7 @@ REGISTER=(
   # audits movefac's (no half-edge claims the empty loop) — inheriting
   # a disposition it has not earned would be the register's own
   # failure mode — and because the duplication is the open question,
-  # filed as work/topo/shell-glue-relation-has-three-implementations.md.
+  # filed as work/walks/shell-glue-relation-has-three-implementations.md.
   "crates/topo/src/seqgen.rs|shell_components||1|unaudited"
   "crates/topo/src/shell.rs|duplicate_in_loop||1|unaudited"
   "crates/topo/src/shell.rs|face_boundary_points||1|unaudited"
