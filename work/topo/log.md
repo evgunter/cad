@@ -5124,3 +5124,22 @@ so the fixer moves them back.
 - `MergeRebasesCarriers` naming no geometric lever, on the kill family.
 
 The row is closed on the branch (`7977a0974d`). The PR merges on green.
+
+## The corruption-ending row dispatched (2026-10-01)
+
+`euler-op-corruption-refusals-end-in-a-tag` is dispatched on the walk
+target, branch `topo/euler-corruption-ends-one-way`. The brief is
+`corrend-impl-brief.md`.
+
+**The row's prescription is a hypothesis.** It names
+`KERNEL_OR_FILE_DEFECT_ENDING` for the whole class. That ending's docs
+reserve it for something "READ rather than built", and PR 3592's N4
+fix established that no public path builds a `Body` from bytes. So the
+lane first settles which ending is true. It applies that one ending
+across the class, moving `KillLeavesDangling` and `NotOwned` with it,
+and keeps a caller's stale key out of the defect story.
+
+The brief carries two more items:
+- the PR 3570 `require_vertex_unnamed` Empty-loop → `LoopCycleBroken`
+  route, now unified under `KillLeavesDangling`;
+- `MergeRebasesCarriers`' lever, if its row is on main.
