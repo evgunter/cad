@@ -177,7 +177,7 @@ use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
 
-use crate::certify::{CERT_SAMPLES, CertCheck};
+use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
 use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 
@@ -1193,6 +1193,11 @@ pub enum PcurveCertifyError {
         /// carries the classifier's diagnostic whole.
         magnitude: Option<FittedMagnitude>,
     },
+    /// The general image's producer could not re-express its image on
+    /// the carrier's own parameter domain: the domain door's refusal,
+    /// carried whole, as the plane × NURBS lane carries it from the same
+    /// producer ([`crate::PlaneNurbsRefusal::CarrierDomain`]).
+    CarrierDomain(crate::edge_nurbs::CarrierDomainRefusal),
     /// A fitted-lane classification ESCALATED — D4 ¶3's
     /// escalate-never-guess, at the SSI door rather than at one of this
     /// module's own schedule checks.
@@ -1323,6 +1328,7 @@ impl core::fmt::Display for PcurveCertifyError {
                     None => String::new(),
                 }
             ),
+            Self::CarrierDomain(refusal) => write!(f, "pcurve certification: {refusal}"),
             // The classifier's own payload renderer, plus this module's
             // site context and the shared recourse tail — the
             // composition `IndeterminatePayload` exists for.
@@ -1400,6 +1406,7 @@ impl PcurveCertifyError {
             | Self::IsoUnsupported { .. }
             | Self::ChartRow { .. }
             | Self::FittedCertificate { .. }
+            | Self::CarrierDomain(_)
             | Self::ChartWindingUnsupported
             | Self::Band(_) => return None,
         };
@@ -1595,33 +1602,45 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     carrier: &NurbsCurve3<T>,
     wall: &NurbsSurface<T>,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
+    use crate::edge_nurbs::PlaneNurbsRefusal as P;
     let (t0, t1) = carrier.domain();
-    match crate::edge_nurbs::chart_image(carrier, wall, |_, _| Ok(())) {
-        Ok(image) => Ok(image),
-        Err(crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
+    let certificate = |what| PcurveCertifyError::FittedCertificate {
+        limb: None,
+        what,
+        magnitude: None,
+    };
+    crate::edge_nurbs::chart_image(carrier, wall, |_, _| Ok(())).map_err(|e| match e {
+        P::FootPointInconclusive {
             sample,
             last_distance,
-        }) => Err(PcurveCertifyError::FittedCertificate {
+        } => PcurveCertifyError::FittedCertificate {
             limb: Some(SsiLimb::OnLocus),
             what: "a foot point of the chart-image schedule would not converge, so this \
                    locus has no derived image to certify",
-            // The schedule's own parameter at that sample, computed the
-            // way the schedule computes it — not the sample index dressed
-            // up as one.
+            // The parameter the schedule projected at, not the sample
+            // index dressed up as one.
             magnitude: Some(FittedMagnitude::LastFootDistance {
-                t: t0
-                    + (t1 - t0) * f64::from(sample)
-                        / f64::from(crate::edge_nurbs::PXN_FIT_SAMPLES - 1),
+                t: crate::certify::schedule_param(
+                    t0,
+                    t1,
+                    sample,
+                    crate::edge_nurbs::PXN_FIT_SAMPLES,
+                ),
                 last_distance,
             }),
-        }),
-        Err(_) => Err(PcurveCertifyError::FittedCertificate {
-            limb: None,
-            what: "the chart image could not be interpolated through the schedule's foot \
-                   points (a degenerate parameterization)",
-            magnitude: None,
-        }),
-    }
+        },
+        P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL),
+        P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
+        P::Unsupported { what } => certificate(what),
+        other @ (P::NotTransverse { .. }
+        | P::TransversalityEscalated { .. }
+        | P::Limb { .. }
+        | P::TubeStraddles { .. }
+        | P::Escalated(_)) => unreachable!(
+            "chart_image returns these only from its per-sample hook or the certificate, and \
+             the mint passes a no-op hook and runs no certificate: {other:?}"
+        ),
+    })
 }
 
 /// The foot producer's body, shared by every certifying scalar
@@ -2328,13 +2347,6 @@ impl<T: Decide> PcurveCache<T> {
             ),
         }
     }
-}
-
-/// The carrier parameter at schedule sample `i` — bitwise the schedule
-/// [`crate::EdgeCurve::sample_param`] uses (D9: one schedule, shared).
-fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
-    let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
-    t0 + (t1 - t0) * frac
 }
 
 /// A 3-D curve in the certified basis: `c + a·cos t + b·sin t + l·t`.
