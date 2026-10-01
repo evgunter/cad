@@ -188,7 +188,12 @@ of a piece's two end vertices' names as the node publishes them, for every
 piece of a parent edge — a seam chain's pieces, pieces of an operand edge,
 pieces of an earlier seam, and a union's pieces of a member edge,
 `FromMember(m, e)` + `Ends` over the union's published vertex names, read
-off the finished body. A vertex name cites the edges it lies on by their
+off the finished body. Section chords are the same case: a section line
+that re-enters one operand face (an inner loop, a non-convex face) cuts
+several chords that `SectionEdge{side, face}` spells alike, and each takes
+`Ends` like any other edge piece. That replaces #512's A2, which tied them
+because they have no order-along direction of their own; `Ends` orders
+nothing, and Ev took it on PR 3553 (2026-10-01). A vertex name cites the edges it lies on by their
 heads, never by a piece's qualifier, so vertices are named before edge
 pieces are qualified, and nothing in a piece's name lies beyond its own
 boundary. No rule reads a plane or a direction, and a union's reading of a
@@ -254,7 +259,7 @@ name: every piece of a member face a merge links is a piece of its parent
 (N2), including a piece that never itself merged. A seam cites, as each
 side, the parent of the face beside it, and a `Borders` wall cites its
 parent. Two edges of one seam between the same two faces are two pieces of
-that seam, ranked along its line (N2), never told apart by citing a
+that seam, told apart by their ends (N2), never by citing a
 retired constituent. Referencing a constituent fails with the merged name offered, and
 when an edit removes the coincidence the merged name vanishes with its
 constituents offered. Numeric coplanarity never merges, so merges change only at
