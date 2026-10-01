@@ -514,11 +514,14 @@ pub(super) fn split_finish<T: Decide>(
 /// encoding the split produced before this step, sound by
 /// cancellation (volumes and point-in-solid read it right; tier 3
 /// passes it). That is the case for an outline edge on a spiric or
-/// NURBS carrier, whose contacts nothing here decides; for a
-/// containment or contact reading in the band; and for the clockwise
-/// polygons the join mints when it chords a curved face across the
-/// wrong arc, which touch the outline around them
-/// (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`).
+/// NURBS carrier, whose contacts nothing here decides, and for a
+/// containment or contact reading in the band. A clockwise polygon
+/// touching the outline around it would reach here too: that is what a
+/// chord run outside the face it divides makes, and the join pairs a
+/// face's crossings along the face's own section line or conic so that
+/// none does. A face it leaves to the sweep's order — a curved face
+/// whose section is straight, a planar face whose line the band cannot
+/// certify — is not covered by that pairing.
 ///
 /// # Errors
 ///

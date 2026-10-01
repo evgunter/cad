@@ -50,9 +50,10 @@
 //! pairs that face's crossings along the face's own section line
 //! ([`sort_along_line`]), where crossings are separated by their real
 //! distance and only a gap the band cannot decide — between two
-//! crossings of ONE face, whose pairing it settles — refuses. This
-//! global order still drives the sweep and still pairs a curved face's
-//! crossings.
+//! crossings of ONE face, whose pairing it settles — refuses. A curved
+//! face's crossings lie on a conic, which no lexicographic order
+//! follows, so the join pairs them along it (`super::join`). This
+//! global order still drives the sweep.
 //!
 //! Ties (both coordinates Zero — distinct null edges at one point,
 //! e.g. the two tip-vertex runs of the Fig. 14.2 notch) keep
@@ -189,8 +190,9 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     Ok(order)
 }
 
-/// One planar face's crossings ordered along its section line, from
-/// their along-line coordinates `keys` (metres, in the face's
+/// One face's crossings ordered along its section — a planar face's
+/// line, or a curved face's conic read from one point of it — from
+/// their along-section coordinates `keys` (metres, in the face's
 /// insertion order). Returns the permutation.
 ///
 /// Every comparison is against the run's band (**`split_join_line_order`**),
