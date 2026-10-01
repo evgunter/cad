@@ -5057,3 +5057,42 @@ the `kef` witness, so the mechanism rests on the loop's death:
 Dispatched on the rebase target, branch
 `topo/null-face-record-dies-with-its-loops`. The brief is
 `nullface-impl-brief.md`.
+
+## PR 3513 fix pass 4 delivered; focused review (fr4) dispatched (2026-10-01)
+
+The resumed lane delivered `6abcaad80e`, and CI run 36808353720 went
+green. An earlier run failed editor-core's WORDLESS list, which still
+named `bool_sector_coplanar`; the `vtxfac` fix stopped logging it.
+
+**The harness.**
+- `offer_rows` holds 58 cases, 50 valued and 8 withdrawn. Sweep adds
+  6 sphere cases on public `topo::union`.
+- Every valued case re-runs at 0.9× and passes (T1). Each withdrawn
+  case asserts what it meets.
+- Completeness is an exhaustive match over `BooleanErrorKind` ×
+  decisions, rendered at a fixed design band.
+
+**The false offers.**
+- Fixed true: `vtxfac` (bounds read first, no invariant from 5e-10 to
+  5e-11), `LeverArm(SectorSide)` (quotes the departure) and sphere
+  `Apart`'s zero band.
+- Withdrawn to lever alone: the negative curved clearances, the covered
+  vertex and arc, the `Planes` screen, curved FlankSense,
+  `PlaneOrientation`, `Radius(Sphere)` and others.
+
+**MINORs.** All four were closed, with rows.
+
+**Two filed:**
+- the `ByRung` lanes;
+- the plane-orientation offer at a declared Rest door.
+
+**Deviations.**
+- `SeamWedge` is now `NonNegative`.
+- Several arms run at their own site.
+
+**fr4 dispatched** on the loopanchor target, frozen `6abcaad80e`. The
+reviewer builds independent poses, re-runs a sample of offers at 0.9×,
+and probes three things:
+- the census's per-decision keying;
+- whether the withdrawn levers are true;
+- the `vtxfac` ε sweep.
