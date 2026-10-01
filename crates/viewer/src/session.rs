@@ -924,6 +924,17 @@ impl DocSession {
         Some((run.doc.as_ref(), run.evaluation.as_ref()))
     }
 
+    /// The part files the landed run's resolver could name
+    /// ([`PartFiles`]): what the tree names an instance's part by.
+    /// Unscanned while nothing has landed.
+    pub fn part_files(&self) -> &PartFiles {
+        static UNSCANNED: PartFiles = PartFiles::Unscanned;
+        self.derived
+            .landed
+            .as_ref()
+            .map_or(&UNSCANNED, |run| &run.files)
+    }
+
     /// Why the landed evaluation's product does not gather, if it does
     /// not — every class, whichever channel reports it
     /// (`frame::badge_site` decides that).

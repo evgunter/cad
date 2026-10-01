@@ -104,6 +104,13 @@ impl SpokenNode {
         Self { id, kind }
     }
 
+    /// A node no document at hand holds: `node <tag>`, what
+    /// [`Doc::spoken`] answers for an id its document does not hold.
+    #[must_use]
+    pub fn absent(id: RecipeNodeId) -> Self {
+        Self { id, kind: None }
+    }
+
     /// The node this sentence names.
     #[must_use]
     pub fn id(&self) -> RecipeNodeId {

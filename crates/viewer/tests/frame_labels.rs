@@ -30,6 +30,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName};
+use viewer::parts::PartFiles;
 use viewer::session::ProfilePlane;
 use viewer::tree;
 
@@ -49,7 +50,7 @@ fn frame_at(origin: [f64; 3]) -> Node<ProfileProgram> {
 /// picker and the tree both read, and the id the insert door minted.
 fn label_in(doc: &Doc<ProfileProgram>, node: Node<ProfileProgram>) -> (String, RecipeNodeId) {
     let (doc, id) = common::inserted(doc, node, Tol::witness());
-    (tree::node_label(&doc, id), id)
+    (tree::node_label(&doc, id, &PartFiles::Unscanned), id)
 }
 
 /// [`label_in`] over an empty document.
@@ -229,7 +230,7 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     assert_eq!(point.spoken.kind(), Some("Datum point"));
     assert_eq!(point.pose, None);
     assert_eq!(
-        tree::node_label(&doc, point.id),
+        tree::node_label(&doc, point.id, &PartFiles::Unscanned),
         format!("Datum point {:012x}", point.id.0),
         "a node with nothing more to say is named by its kind and tag"
     );

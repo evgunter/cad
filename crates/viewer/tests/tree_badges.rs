@@ -9,7 +9,7 @@
 //! must say where the failure is and must NOT recite what it was —
 //! the defect that reading gives is four instance rows carrying the
 //! same paragraph of refusal prose — and the row it points at must be
-//! one this same tree badges FAILED, or "upstream failure at feature 5"
+//! one this same tree badges FAILED, or "upstream failure at Mate 000000000005"
 //! sends the user somewhere there is nothing to read.
 
 // Panicking is a test's failure mechanism (workspace lint note).

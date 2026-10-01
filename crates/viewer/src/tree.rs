@@ -489,16 +489,25 @@ impl Asserted {
     }
 }
 
-/// **How the chrome names one node inside a sentence**: the node as
-/// the document speaks it ([`editor_core::SpokenNode`]), and what the
-/// node itself says about which one of its kind it is.
+/// **How the chrome names one node**: the node as the document speaks
+/// it ([`SpokenNode`]), and what the node itself says about which one
+/// of its kind it is ([`frame_pose`], or an instance's part file,
+/// [`part_file`]).
 ///
-/// The one home for a picker entry's text and a tree row's name: the
-/// spoken node is what every refusal calls a node by, and what follows
-/// it is [`frame_pose`], which is the half that tells two frames apart.
-pub fn node_label(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> String {
-    let spoken = doc.spoken(id);
-    match doc.node(id).and_then(|node| frame_pose(doc, node)) {
+/// The one spelling a tree row, a picker entry and a properties heading
+/// share ([`named`]): the spoken node is what every refusal calls a
+/// node by, and the pose is the half that tells two frames apart.
+pub fn node_label(doc: &Doc<ProfileProgram>, id: RecipeNodeId, files: &PartFiles) -> String {
+    let pose = doc
+        .node(id)
+        .and_then(|node| frame_pose(doc, node).or_else(|| part_file(node, files)));
+    named(doc.spoken(id), pose.as_deref())
+}
+
+/// A spoken node and its pose, as [`node_label`] and a tree row both
+/// draw them: `Datum frame 000000000002 — yz at (0, 0, 0) m`.
+pub fn named(spoken: SpokenNode, pose: Option<&str>) -> String {
+    match pose {
         Some(pose) => format!("{spoken} — {pose}"),
         None => spoken.to_string(),
     }
@@ -857,11 +866,15 @@ pub fn carried_lines(kind: &NodeErrorKind, files: &PartFiles) -> Vec<CarriedLine
         .collect()
 }
 
-/// **Where a row stands**, before anything is drawn of it: a status
-/// read whole, or the row's own failure, whose words are drawn only
-/// where they are shown ([`status_of`]).
+/// **Where a row stands**, before anything is drawn of it: the
+/// structural fact, whose words are drawn only where they are shown
+/// ([`status_of`]).
 enum Standing<'e> {
-    Status(RowStatus),
+    /// No result in the evaluation, or no evaluation.
+    Unevaluated,
+    /// A usable value.
+    Ok,
+    /// The row's own failure.
     Failed(&'e NodeError),
     /// Drawn downstream of `through`; `cause_known` is whether the
     /// chain ends at a failure, which is what earns the row its
@@ -874,11 +887,11 @@ enum Standing<'e> {
 
 fn standing(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> Standing<'_> {
     let Some(ev) = evaluation else {
-        return Standing::Status(RowStatus::Unevaluated);
+        return Standing::Unevaluated;
     };
     match ev.result(id) {
-        None => Standing::Status(RowStatus::Unevaluated),
-        Some(NodeResult::Ok(_)) => Standing::Status(RowStatus::Ok),
+        None => Standing::Unevaluated,
+        Some(NodeResult::Ok(_)) => Standing::Ok,
         Some(NodeResult::Failed(error)) => {
             downstream_of_mate(id, error).unwrap_or(Standing::Failed(error))
         }
@@ -894,7 +907,8 @@ fn status_of(
     files: &PartFiles,
 ) -> RowStatus {
     match standing(id, evaluation) {
-        Standing::Status(status) => status,
+        Standing::Unevaluated => RowStatus::Unevaluated,
+        Standing::Ok => RowStatus::Ok,
         Standing::Downstream {
             through,
             cause_known,
@@ -923,14 +937,14 @@ fn status_of(
 /// carries its pointer only when its chain ends at a failure
 /// ([`poisoned_through`]); the `message: None` arm is the broken
 /// invariant reported as absence, and it answers `None` here too, so a
-/// caller that says "feature N, which failed" cannot be handed an `N`
+/// caller that says "node N, which failed" cannot be handed an `N`
 /// the tree does not badge failed. That arm is not expected to be
 /// reachable — the evaluation names a failed ancestor as `through` —
 /// and it is refused rather than assumed for the same reason the tree
 /// reports it as absence.
 pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<RecipeNodeId> {
     match standing(id, Some(evaluation)) {
-        Standing::Failed(_) | Standing::Status(RowStatus::Failed { .. }) => Some(id),
+        Standing::Failed(_) => Some(id),
         Standing::Downstream {
             through,
             cause_known: true,
@@ -938,9 +952,8 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
         Standing::Downstream {
             cause_known: false, ..
         }
-        | Standing::Status(RowStatus::Poisoned { .. } | RowStatus::Ok | RowStatus::Unevaluated) => {
-            None
-        }
+        | Standing::Ok
+        | Standing::Unevaluated => None,
     }
 }
 
@@ -951,7 +964,7 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
 pub fn own_error(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<&NodeError> {
     match standing(id, Some(evaluation)) {
         Standing::Failed(error) => Some(error),
-        Standing::Status(_) | Standing::Downstream { .. } => None,
+        Standing::Ok | Standing::Unevaluated | Standing::Downstream { .. } => None,
     }
 }
 

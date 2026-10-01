@@ -367,7 +367,11 @@ impl ViewerBehavior<'_> {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
-                    ui.label(crate::tree::node_label(self.session.doc(), *node));
+                    ui.label(crate::tree::node_label(
+                        self.session.doc(),
+                        *node,
+                        self.session.part_files(),
+                    ));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
@@ -454,7 +458,11 @@ impl ViewerBehavior<'_> {
             return;
         }
         ui.separator();
-        ui.label(doc.spoken(node).to_string());
+        ui.label(crate::tree::node_label(
+            doc,
+            node,
+            self.session.part_files(),
+        ));
         // The admission test `SetInstanceHidden` itself runs, read once
         // for the section: the toggle below is offered exactly where
         // the op would accept it, and the free-move probe runs this
@@ -1701,7 +1709,7 @@ mod verdict_tests {
         );
     }
 
-    /// **A deleted node's one word is loud**, beside its number.
+    /// **A deleted node's one word is loud**, beside its name.
     #[test]
     fn a_deleted_nodes_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Node {

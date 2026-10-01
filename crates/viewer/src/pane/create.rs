@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{
-    AxisSense, BooleanOp, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId,
+    AxisSense, BooleanOp, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, SpokenNode,
 };
 use pncad::select::SplitHalf;
 
@@ -1037,9 +1037,10 @@ impl ViewerBehavior<'_> {
             .session
             .landed_pair()
             .map(|(doc, _)| {
+                let files = self.session.part_files();
                 sketch::frames(doc)
                     .into_iter()
-                    .map(|id| (id, tree::node_label(doc, id)))
+                    .map(|id| (id, tree::node_label(doc, id, files)))
                     .collect()
             })
             .unwrap_or_default();
@@ -1047,7 +1048,7 @@ impl ViewerBehavior<'_> {
             named
                 .get(id)
                 .cloned()
-                .unwrap_or_else(|| format!("node {id}"))
+                .unwrap_or_else(|| SpokenNode::absent(*id).to_string())
         }
     }
 

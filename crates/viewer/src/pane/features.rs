@@ -57,10 +57,7 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
 /// what tells a person WHICH frame ([`crate::tree::frame_pose`]) — the
 /// same words the creation forms' picker reads ([`crate::tree::node_label`]).
 pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egui::Response {
-    let named = match &row.pose {
-        Some(pose) => format!("{} — {pose}", row.spoken),
-        None => row.spoken.to_string(),
-    };
+    let named = tree::named(row.spoken, row.pose.as_deref());
     let label = if row.root {
         format!("{named} {GLYPH_ROOT}")
     } else {
