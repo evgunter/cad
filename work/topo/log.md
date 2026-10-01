@@ -5896,3 +5896,16 @@ Branch hazard noted: closing the rows with `checkout -B` in a second
 worktree moved the branch the lane's worktree had checked out. Nothing
 was lost, since the lane's index equals its pushed head. Next time,
 close rows in the lane's own worktree, or detached.
+
+## Main red: the bounds census (2026-10-01)
+
+PR 3513's CI on `fa330e3b82` failed one check:
+`geom-core::all bounds_census::every_sole_bracket_bound_door_is_in_the_roster`.
+- **Main fails it on its own.** BAND's `905e834018` added the sole-`Bounds`
+  door `battery.rs::short_arm` without a roster line. No fix existed on
+  any open PR or branch.
+- **The fix:** I opened PR 3717 with one `Payload` line, the same
+  disposition as `classified`. The census passes 3/3.
+- **Ported into PR 3513** at `26906c5ae1`, with one standing-down comment
+  on the PR. That merge also brings PR 3513 up to current main.
+- I am subscribed to PR 3717 and will merge it when it is green.
