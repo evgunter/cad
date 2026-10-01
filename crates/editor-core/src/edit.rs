@@ -1722,8 +1722,7 @@ impl EditError {
             Self::NodeIdCollides { id } => {
                 write!(
                     f,
-                    "the node id {} this insert mints is already in the document's mint log",
-                    id.0
+                    "the node id {id} this insert mints is already in the document's mint log"
                 )?;
                 tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
             }
