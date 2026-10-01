@@ -307,14 +307,15 @@
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::{Decide, Point3, Real, Tol};
 
-#[cfg(debug_assertions)]
 use crate::attach::Slot;
 use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
     VertexKey,
 };
-use crate::euler::{ArenaDelta, RechartDoor};
+#[cfg(debug_assertions)]
+use crate::euler::ArenaDelta;
+use crate::euler::RechartDoor;
 use crate::euler::{
     Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, ProvenMate,
     Records, RunExtent, shared_loop,
@@ -1343,6 +1344,13 @@ impl<T: Decide> Body<T> {
     /// phase acts on, and a mutation phase reads nothing it has not
     /// proven.
     ///
+    /// **What it does not ask:** where the surviving face wears another
+    /// key, whether the remnant's descriptions still name a key their
+    /// faces wear, or a key the surviving face wears — the questions
+    /// [`Body::mef`] and [`Body::ring_move`] refuse on
+    /// ([`RechartDoor`]). Production callers rely on that move today
+    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    ///
     /// # Precondition check order
     ///
     /// `he` resolves ([`EulerOpError::StaleKey`]); its edge resolves
@@ -1770,6 +1778,19 @@ impl<T: Decide> Body<T> {
     /// band is read only where that re-mint runs. A spline chart keeps
     /// the drop at either door.
     ///
+    /// **A face minted on another chart is vouched for by the ring's
+    /// edges, or refused** ([`RechartDoor::Mfkrh`]), at every door of
+    /// the family: where the new face's key is not the demoting face's,
+    /// [`Body::mef`]'s two questions are asked of every edge of the
+    /// ring — stranded ([`EulerOpError::RechartStrandsDescriptions`]),
+    /// then a certified edge naming no key the new face wears
+    /// ([`EulerOpError::RechartUnvouched`]), unless the new face is on
+    /// the demoting face's payload ([`Body::same_chart`]). Scaffold and
+    /// null edges are not asked. The lever is the chart the face is
+    /// minted on: mint it on a key the ring's certified edges name, or
+    /// on the demoting face's and move it with
+    /// [`Body::set_face_surfaces_describing`].
+    ///
     /// Euler vector: `(v 0, e 0, f +1, h −1, r −1, s 0)` — arena delta
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
     /// kill; genus is derived, not stored).
@@ -1790,7 +1811,11 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::StaleGeometry`]); a stated sense agrees with
     /// the derived one on the demoting face's chart
     /// ([`EulerOpError::SenseContradictsChart`]); the ring walks
-    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face
+    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face's
+    /// key is not the demoting face's, no edge of the ring is stranded
+    /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
+    /// in cycle order) and every certified one names that key
+    /// ([`EulerOpError::RechartUnvouched`], the same); then, where the new face
     /// would be minted, the site mint's plan ([`Body::plan_moved_rows`]'s
     /// errors, [`EulerOpError::PcurveMint`] naming the demoting face
     /// among them — `KeysOnly` at this door).
@@ -1945,6 +1970,10 @@ impl<T: Decide> Body<T> {
     /// chart, so none is owed there and this keys-only door never
     /// refuses for one. The caller states the honest bit, and mints the
     /// rows, when it gives the face a real surface.
+    ///
+    /// No description names the placeholder's fresh key, so a ring with
+    /// a certified edge is refused ([`EulerOpError::RechartUnvouched`]):
+    /// this door promotes scaffold rings.
     ///
     /// # Errors
     ///

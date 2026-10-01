@@ -796,34 +796,35 @@ pub enum EulerOpError {
         /// The edge whose description is incoherent with its faces.
         edge: EdgeKey,
     },
-    /// The keys-only [`Body::set_face_surface`] would leave these edges
-    /// described against a surface their faces no longer wear: each
-    /// description is adjacency-coherent now and would not be once the
-    /// face moves, which tier 3 reports at rest as
-    /// `DescriptionNotAdjacent`. Every one is named, in edge-arena
-    /// order, because the caller re-describes the whole list. The
-    /// lever is the chart and the descriptions: leave the face on the
-    /// chart they name, or re-describe them on the new chart through
-    /// [`Body::set_face_surfaces_describing`], which takes a band and
-    /// the re-descriptions. Raised in the plan phase, so the body is
+    /// A keys-only re-chart door ([`RechartDoor`]) would leave these
+    /// edges described against a surface their faces no longer wear:
+    /// each description is adjacency-coherent now and would not be once
+    /// the face, loop or run moves, which tier 3 reports at rest as
+    /// `DescriptionNotAdjacent`. Every one is named — in edge-arena
+    /// order at [`Body::set_face_surface`], in the order the door moves
+    /// them at the Euler doors — because the caller re-describes the
+    /// whole list. The lever is the door's own ([`RechartDoor`]): the
+    /// chart a face is re-charted or minted onto, or the face a loop
+    /// moves onto; [`Body::set_face_surfaces_describing`] takes a band
+    /// and the re-descriptions. Raised in the plan phase, so the body is
     /// untouched.
     RechartStrandsDescriptions {
         /// The door that refuses.
         door: RechartDoor,
-        /// The stranded edges, in edge-arena order.
+        /// The stranded edges.
         edges: Vec<EdgeKey>,
     },
-    /// The keys-only [`Body::set_face_surface`] would move `face` onto
-    /// another chart with these certified boundary edges naming no key
-    /// the face wears after the swap, so nothing vouches that they, and
-    /// the vertices they end at, lie on the new chart — on a plane,
-    /// tier 3's `PlanarBoundaryResidual` / `PlanarFaceResidual` at
-    /// rest. Every one is named, in edge-arena order. The lever is the
-    /// chart and the descriptions: move the face onto a chart its
-    /// certified edges name, or re-describe them on the new chart
-    /// through [`Body::set_face_surfaces_describing`], which certifies
-    /// every re-description it is handed. That door asks the boundary's
-    /// own residuals only on a plane: onto a curved chart, handed no
+    /// A keys-only re-chart door ([`RechartDoor`]) would put these
+    /// certified edges — or the certified chord a minting door mints —
+    /// on a face whose key their descriptions do not name, so nothing
+    /// vouches that they, and the vertices they end at, lie on its
+    /// chart: on a plane, tier 3's `PlanarBoundaryResidual` /
+    /// `PlanarFaceResidual` at rest. Every one is named, in the order
+    /// [`EulerOpError::RechartStrandsDescriptions`] names them. The
+    /// lever is the door's own ([`RechartDoor`]); the describing door,
+    /// [`Body::set_face_surfaces_describing`], certifies every
+    /// re-description it is handed, and asks the boundary's own
+    /// residuals only on a plane: onto a curved chart, handed no
     /// re-descriptions, it asks nothing
     /// (`work/restfront/validate-tier3-curved-boundary-containment`,
     /// #638). Raised in the plan phase, so the body is untouched.
@@ -834,9 +835,8 @@ pub enum EulerOpError {
         /// face a minting door mints from, or the face a ring moves
         /// onto.
         face: FaceKey,
-        /// The certified edges on it that name no key it wears after
-        /// the move, in edge-arena order ([`Body::set_face_surface`])
-        /// or in the order the door moves them.
+        /// The certified edges that name no key their face wears after
+        /// the move.
         edges: Vec<EdgeKey>,
         /// Whether the chord a minting door mints is among them: it has
         /// no key before the mutation phase.
@@ -2305,6 +2305,25 @@ impl<T: Decide> Body<T> {
     /// its loops the cut rewires leave complete, and a ring it keeps
     /// keeps what it had.
     ///
+    /// **A face minted on another chart is vouched for by the edges it
+    /// takes, or refused** ([`RechartDoor::Mef`]). Where `surface` is
+    /// not the old face's key, the run's edges and the chord change the
+    /// key one of their faces wears, and this keys-only door asks
+    /// [`Body::set_face_surface`]'s two questions of them: an edge whose
+    /// description is coherent now and would name no key either of its
+    /// faces wears is refused
+    /// ([`EulerOpError::RechartStrandsDescriptions`]); a certified edge
+    /// of the run, or a certified chord, whose description does not
+    /// name the new face's key is refused
+    /// ([`EulerOpError::RechartUnvouched`]), since only a certificate on
+    /// the new chart vouches that it lies there — unless the new face is
+    /// on the old one's payload ([`Body::same_chart`]). A `New` key is
+    /// one no description names, so onto a `New` chart only scaffold
+    /// and null edges pass; they carry no certificate and are not
+    /// asked. The lever is the chart the face is minted on: mint it on
+    /// a key its certified edges name, or on the old face's and move it
+    /// with [`Body::set_face_surfaces_describing`].
+    ///
     /// # Surgery (Chords, `he1 != he2`)
     ///
     /// The run `[he1 .. he2)` in `next` order moves to the new loop;
@@ -2352,7 +2371,13 @@ impl<T: Decide> Body<T> {
     /// [`FaceSurface::Shared`] key resolves (`StaleGeometry`), a stated
     /// sense agrees with the derived one on the old face's chart
     /// ([`EulerOpError::SenseContradictsChart`]), and `curve` certifies
-    /// ([`EulerOpError::Certification`]). Last, the
+    /// ([`EulerOpError::Certification`]). Then, where the new face's key
+    /// is not the old one's, no edge of the run is stranded
+    /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
+    /// in run order), then every certified edge of the run and a
+    /// certified chord name it ([`EulerOpError::RechartUnvouched`], the
+    /// same; `StaleKey` / `StaleGeometry` where a key the walk over the
+    /// run follows does not resolve). Last, the
     /// pcurve rows, as [`Body::mev`] states them: the loop, its face and
     /// the face's surface resolve; then, only where the site mint
     /// selects that face, the old loop's cycle from `he1` walks
