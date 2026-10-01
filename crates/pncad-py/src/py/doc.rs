@@ -3469,7 +3469,7 @@ impl DocParamValue {
 /// The exposed edits are `insert_node`, `delete_node`,
 /// `set_members`, `set_param`, `set_tolerance`, the
 /// document-parameter pair (`set_doc_param` / `set_doc_param_value`),
-/// `set_roots`, `set_placement`, `update_reference`, `rebind`, and
+/// `set_roots`, `set_offset`, `set_gauge`, `update_reference`, `rebind`, and
 /// `bind_count_param` / `bind_instance_param` / `bind_v_degree_param`,
 /// the structural-slot edit narrowed to one named slot and a
 /// parameter reference.

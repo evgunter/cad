@@ -458,11 +458,8 @@ class PersistError(PncadError):
     Five arms wrap a refusal of their own, and its word rides beside
     the carrier's on `inner_variant`: a profile-program fault, a
     distribution fault, a snapshot invariant, the `EditError` a
-    replayed edit raised, what a recorded maintenance row's frame fails
-    to be a placement (`non_finite`, `improper` — the `SetPlacement`
-    door's own rule, applied to the log's rows at load; `index` is the
-    entry's, and the row within it is in the message), or the dimension
-    check a saved expression failed. The nested refusal's own payload is
+    replayed edit raised, or the dimension check a saved expression
+    failed. The nested refusal's own payload is
     the inner door's surface and stays in the message.
 
     `dimension` is

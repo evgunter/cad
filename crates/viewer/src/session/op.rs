@@ -1090,7 +1090,7 @@ impl SessionOp {
     ///
     /// **This section is scoped to the tree as it stands.** DI5
     /// (`crates/editor-core/IDENTITY.md`, ratified) rules that releasing
-    /// a free-move gesture emits one `DocEdit::SetPlacement` and that
+    /// a free-move gesture emits one `DocEdit::SetOffset` and that
     /// `DisplayState::moves` empties, because a committed frame
     /// becomes document data. When that lands,
     /// [`SessionOp::CommitFreeMove`] becomes the only `true` row here

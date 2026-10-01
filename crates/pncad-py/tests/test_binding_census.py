@@ -1063,11 +1063,11 @@ BOUND_AS = {
     # its `face`, so neither inner struct is a class of its own.
     "AuthoredFrame": "MateFrame.variant",
     "FaceFrame": "MateFrame.variant",
-    # What a frame fails to be a placement: the word `PersistError`'s
-    # `maintenance_frame` arm publishes on `inner_variant` (`non_finite`,
-    # `improper`, `not_rigid`) for a recorded maintenance row held to the
-    # `SetPlacement` door's rule at load.
-    "FrameFault": "PersistError.inner_variant",
+    # What a frame fails to be a placement: the edit door spreads it
+    # into three arms of its own, so its discriminant crosses as
+    # `EditError.variant` (`non_finite_placement`,
+    # `improper_placement`, `non_rigid_placement`).
+    "FrameFault": "EditError.variant",
     # Which of a node's placement frames an edit refusal is about: its
     # position crosses as `EditError.index` (a transform's step, an
     # explicit rule's listed placement), `None` for an instance's own
@@ -3347,8 +3347,8 @@ MEMBERS_BOUND_AS = {
     "ClassAdmission::NoAtRestRecord": "ClassAdmission.variant",
     "ClassAdmission::NotAdmitted": "ClassAdmission.variant",
     # What an accepted edit did that the caller did not ask for, read
-    # off `Doc.last_maintenance`: the four cluster-record acts, and the
-    # references a delete stranded — a payload name on its carrying
+    # off `Doc.last_maintenance`: the offset a placing mate cleared, and
+    # the references a delete stranded — a payload name on its carrying
     # node, an appearance key on the store.
     #
     # THE MEASUREMENT for the third of these, the same one this file
