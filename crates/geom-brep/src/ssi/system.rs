@@ -34,7 +34,7 @@
 //! `f64`-only and untrusted throughout — C6's selection lane.
 
 use geom::{NurbsSurface, Surface, SurfaceJet3};
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Real, Vec3};
 
 use super::jet::implicit_path_jet;
 
@@ -347,9 +347,7 @@ impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
     }
 
     fn lever_arm(&self, x: &[f64; 3]) -> f64 {
-        let p = p3(x);
-        crate::implicit::curvature_lever_arm(self.a, p)
-            .min(crate::implicit::curvature_lever_arm(self.b, p))
+        crate::dihedral::pair_lever_arm(self.a, self.b, p3(x))
     }
 }
 
@@ -365,16 +363,17 @@ impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
         // patch, so the honest arm at this shape is the CHART SPEED
         // over the second-derivative magnitude — the local radius of
         // curvature of the two parameter lines, folded min-wins, with
-        // `f64::MAX` where the chart is flat (the plane identity, so a
-        // plane operand never shrinks the arm).
+        // `f64::MAX` where the chart is flat (the plane identity). A
+        // flat line never shrinks the arm; a poisoned one makes it
+        // poison.
         let mut arm = f64::MAX;
         for j in [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])] {
             for (speed, second) in [
                 (j.jet.du.norm(), j.jet.duu.norm()),
                 (j.jet.dv.norm(), j.jet.dvv.norm()),
             ] {
-                if second > 0.0 {
-                    arm = arm.min(speed * speed / second);
+                if second != 0.0 {
+                    arm = Real::min(arm, speed * speed / second);
                 }
             }
         }
@@ -412,6 +411,10 @@ mod tests {
     }
 
     fn bilinear() -> NurbsSurface<f64> {
+        bilinear_weighted(1.0)
+    }
+
+    fn bilinear_weighted(w: f64) -> NurbsSurface<f64> {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let mut control = Vec::new();
@@ -421,7 +424,7 @@ mod tests {
                 control.push(Point3::new(x, iv as f64, 0.4 * x * (1.0 - x)));
             }
         }
-        NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap()
+        NurbsSurface::new(ku, kv, control, vec![w; 6]).unwrap()
     }
 
     /// The Jacobian rows must be the implicit gradients — the system is
@@ -435,6 +438,72 @@ mod tests {
         let g = crate::implicit::implicit_gradient(&a, p3(&x));
         assert_eq!(j[0][0].to_bits(), g.x.to_bits());
         assert_eq!(j[0][2].to_bits(), g.z.to_bits());
+    }
+
+    /// **The ℝ³ arm is poison when either operand's is**: a NURBS
+    /// operand has no curvature lever arm, and the fold must hand that
+    /// to the march's arm guard rather than the sphere's radius.
+    #[test]
+    fn r3_lever_arm_with_a_nurbs_operand_is_poison() {
+        use super::super::march::TransversalityData;
+        let (s, n) = (sphere(), Surface::nurbs_placeholder());
+        let x = [0.8, 0.3, 0.2];
+        for (a, b) in [(&s, &n), (&n, &s)] {
+            let arm = ImplicitPairR3 { a, b }.lever_arm(&x);
+            assert!(
+                arm.is_nan(),
+                "a NURBS operand folded to {arm:e}, not poison"
+            );
+        }
+        let arm = ImplicitPairR3 { a: &s, b: &s }.lever_arm(&x);
+        assert_eq!(arm, 1.0, "two spheres lever against their radius");
+    }
+
+    /// **The ℝ⁴ arm is poison when either chart's jet is**. The healthy
+    /// bilinear chart bends only along `u`, where at `u = ½` the speed
+    /// is 1 and the second derivative 0.4: an arm of 2.5. A chart
+    /// whose weights underflow to `0/0` at the midpoint has a poisoned
+    /// jet, and the arm is poison rather than its sibling's 2.5.
+    #[test]
+    fn r4_lever_arm_is_poison_when_a_chart_jet_is() {
+        use super::super::march::TransversalityData;
+        let healthy = bilinear();
+        let poisoned = bilinear_weighted(f64::from_bits(1));
+        let x = [0.5, 0.5, 0.5, 0.5];
+        let both = ParametricPairR4 {
+            a: Chart::Nurbs(&healthy),
+            b: Chart::Nurbs(&healthy),
+        };
+        let arm = both.lever_arm(&x);
+        assert!(
+            (arm - 2.5).abs() <= 1e-12,
+            "the bilinear chart's arm: {arm:e}"
+        );
+        assert!(
+            Chart::Nurbs(&poisoned)
+                .jet3(0.5, 0.5)
+                .jet
+                .duu
+                .norm()
+                .is_nan(),
+            "FIXTURE: an underflowing weight poisons the second derivative"
+        );
+        for sys in [
+            ParametricPairR4 {
+                a: Chart::Nurbs(&poisoned),
+                b: Chart::Nurbs(&healthy),
+            },
+            ParametricPairR4 {
+                a: Chart::Nurbs(&healthy),
+                b: Chart::Nurbs(&poisoned),
+            },
+        ] {
+            let arm = sys.lever_arm(&x);
+            assert!(
+                arm.is_nan(),
+                "a poisoned chart folded to {arm:e}, not poison"
+            );
+        }
     }
 
     /// The order-2 and order-3 right-hand sides must be exactly the
