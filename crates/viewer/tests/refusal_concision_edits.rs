@@ -21,8 +21,8 @@ use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, Dimension, DimensionError, DistributionFault, DistributionField,
     DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault, MeasureNodeFault,
-    MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, SpokenNode,
-    StableName, StepIdFault,
+    MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, SpokenName,
+    SpokenNode, StableName, StepIdFault,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -32,12 +32,22 @@ fn shown(e: EditError) -> String {
     Refusal::Edit(Box::new(e)).to_string()
 }
 
-fn name() -> StableName {
+fn stable_name() -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(tagged(3)),
         path: Vec::new(),
     }
+}
+
+/// The name as an arm whose minting node is live speaks it.
+fn name() -> SpokenName {
+    editor_core::test_support::spoken_name(stable_name(), s(3, "Extrude"))
+}
+
+/// The name as an arm whose minting node is not live speaks it.
+fn missing() -> SpokenName {
+    SpokenName::absent(stable_name())
 }
 
 fn param() -> ParamName {
@@ -346,22 +356,25 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "DeclareNamesMissingNode",
-            EditError::DeclareNamesMissingNode { name: name() },
+            EditError::DeclareNamesMissingNode { name: missing() },
         ),
         (
             "NameStepNeverMinted",
             EditError::NameStepNeverMinted {
-                name: StableName {
-                    kind: EntityKind::Edge,
-                    node: n(3),
-                    path: vec![editor_core::RoleSeg::RimEdge(
-                        editor_core::CapEnd::End,
-                        editor_core::ProfileEdgeRef::Piece {
-                            step: editor_core::StepId(tagged(9)),
-                            role: editor_core::PieceRole::Leg,
-                        },
-                    )],
-                },
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Edge,
+                        node: n(3),
+                        path: vec![editor_core::RoleSeg::RimEdge(
+                            editor_core::CapEnd::End,
+                            editor_core::ProfileEdgeRef::Piece {
+                                step: editor_core::StepId(tagged(9)),
+                                role: editor_core::PieceRole::Leg,
+                            },
+                        )],
+                    },
+                    s(3, "Profile"),
+                ),
                 step: editor_core::StepId(tagged(9)),
             },
         ),
@@ -387,11 +400,11 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "RebindTargetMissingNode",
-            EditError::RebindTargetMissingNode { name: name() },
+            EditError::RebindTargetMissingNode { name: missing() },
         ),
         (
             "RebindUnknownName",
-            EditError::RebindUnknownName { name: name() },
+            EditError::RebindUnknownName { name: missing() },
         ),
         (
             "RebindKindMismatch",
@@ -442,7 +455,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "AppearanceNamesMissingNode",
-            EditError::AppearanceNamesMissingNode { name: name() },
+            EditError::AppearanceNamesMissingNode { name: missing() },
         ),
         (
             "AppearanceNotSet",
@@ -488,8 +501,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "Roots",
             EditError::Roots(RootFault::Ancestor {
-                ancestor: n(3),
-                descendant: n(5),
+                ancestor: s(3, "Extrude"),
+                descendant: s(5, "Fillet"),
             }),
         ),
         (
@@ -595,12 +608,16 @@ fn variant(witness: &impl core::fmt::Debug) -> String {
 
 fn next_root_fault(fault: &RootFault) -> Option<RootFault> {
     match fault {
-        RootFault::NotLive { .. } => Some(RootFault::Duplicate { root: n(3) }),
-        RootFault::Duplicate { .. } => Some(RootFault::Ancestor {
-            ancestor: n(3),
-            descendant: n(5),
+        RootFault::NotLive { .. } => Some(RootFault::Duplicate {
+            root: s(3, "Extrude"),
         }),
-        RootFault::Ancestor { .. } => Some(RootFault::Uncovered { node: n(4) }),
+        RootFault::Duplicate { .. } => Some(RootFault::Ancestor {
+            ancestor: s(3, "Extrude"),
+            descendant: s(5, "Fillet"),
+        }),
+        RootFault::Ancestor { .. } => Some(RootFault::Uncovered {
+            node: s(4, "Extrude"),
+        }),
         RootFault::Uncovered { .. } => None,
     }
 }
@@ -848,7 +865,12 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     }
     // Each states its own recourse, so each is rendered, not only the
     // representative row's — every arm, from the witness chains below.
-    for fault in witnesses(RootFault::NotLive { root: n(9) }, next_root_fault) {
+    for fault in witnesses(
+        RootFault::NotLive {
+            root: SpokenNode::absent(n(9)),
+        },
+        next_root_fault,
+    ) {
         rows.push((
             format!("Roots({})", variant(&fault)),
             EditError::Roots(fault),

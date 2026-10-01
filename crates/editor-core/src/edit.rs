@@ -30,7 +30,7 @@ use crate::node::{
 };
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
-use crate::spoken::SpokenNode;
+use crate::spoken::{SpokenName, SpokenNode};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
@@ -1105,7 +1105,7 @@ pub enum EditError {
     /// semantics; see [`Node::Declare`].)
     DeclareNamesMissingNode {
         /// The name whose node is not live.
-        name: StableName,
+        name: SpokenName,
     },
     /// A name written into the document spells a profile step the
     /// document never minted — one its mint log does not hold. The
@@ -1115,7 +1115,7 @@ pub enum EditError {
     /// it is ALLOWED — it strands, DM7.)
     NameStepNeverMinted {
         /// The name.
-        name: StableName,
+        name: SpokenName,
         /// The step it spells.
         step: StepId,
     },
@@ -1157,7 +1157,7 @@ pub enum EditError {
     /// door, mirrors the Declare carve-out).
     RebindTargetMissingNode {
         /// The target name whose node is gone.
-        name: StableName,
+        name: SpokenName,
     },
     /// A `Rebind` whose SOURCE name's node was never minted by this
     /// document (ids are never reused, so an id the mint log does not
@@ -1166,7 +1166,7 @@ pub enum EditError {
     /// `NodeGone` repair case).
     RebindUnknownName {
         /// The foreign source name.
-        name: StableName,
+        name: SpokenName,
     },
     /// A `Rebind` across entity kinds (a face reference cannot come
     /// to denote an edge — the reference's kind is part of its type).
@@ -1180,14 +1180,14 @@ pub enum EditError {
     /// refused loudly.
     RebindIdentity {
         /// The name.
-        name: StableName,
+        name: SpokenName,
     },
     /// A `Rebind` whose source name no document site references:
     /// there is nothing to repair (GUI selection state is not
     /// document state — repairing a selection is re-selecting).
     RebindNoReferences {
         /// The unreferenced source name.
-        name: StableName,
+        name: SpokenName,
     },
     /// A `ReWitness` aimed at a node that is not sketch-bearing (the
     /// witness datum is GQ1's per-sketch-node branch selection;
@@ -1214,7 +1214,7 @@ pub enum EditError {
     /// and pass through to evaluation-time resolution.
     NameUnresolvedInEvaluation {
         /// The name no table carries.
-        name: StableName,
+        name: SpokenName,
     },
     /// The supplied evaluation is of ANOTHER document (DI3, A2a).
     ///
@@ -1238,7 +1238,7 @@ pub enum EditError {
     /// precedent).
     RebindAppearanceCollision {
         /// The target name that already carries the kind.
-        name: StableName,
+        name: SpokenName,
         /// The colliding attribute kind.
         kind: AttrKind,
     },
@@ -1247,20 +1247,20 @@ pub enum EditError {
     /// a future additive extension, refused typed until ratified.
     AppearanceWrongKind {
         /// The refused name.
-        name: StableName,
+        name: SpokenName,
     },
     /// A `SetAppearance` naming a node that is not live at edit time
     /// (the Declare-parallel carve-out: a never-existed id is a typo;
     /// see [`DocEdit::SetAppearance`]).
     AppearanceNamesMissingNode {
         /// The name whose node is not live.
-        name: StableName,
+        name: SpokenName,
     },
     /// A `ClearAppearance` for an attribute that is not set — loud
     /// no-ops per the fail-loud charter.
     AppearanceNotSet {
         /// The name.
-        name: StableName,
+        name: SpokenName,
         /// The kind that was not set on it.
         kind: AttrKind,
     },
@@ -1273,7 +1273,7 @@ pub enum EditError {
     /// convention (a map carrying an integer `"v"` version field).
     MetaUnversioned {
         /// The name.
-        name: StableName,
+        name: SpokenName,
         /// The metadata key.
         key: String,
         /// The typed shape refusal.
@@ -1283,7 +1283,7 @@ pub enum EditError {
     /// refused at the edit door, never stored).
     MetaNonFinite {
         /// The name.
-        name: StableName,
+        name: SpokenName,
         /// The metadata key.
         key: String,
         /// Path of the offending float within the value tree.
@@ -1293,7 +1293,7 @@ pub enum EditError {
     /// no-ops per the fail-loud charter.
     MetaNotSet {
         /// The name.
-        name: StableName,
+        name: SpokenName,
         /// The key that was not set on it.
         key: String,
     },
@@ -1304,7 +1304,7 @@ pub enum EditError {
     /// an explicit `ClearAppearanceMeta` on either side first.
     RebindMetadataCollision {
         /// The target name that already carries the key.
-        name: StableName,
+        name: SpokenName,
         /// The colliding metadata key.
         key: String,
     },
@@ -2239,17 +2239,13 @@ impl EditError {
                     RootFault::Ancestor { ancestor, .. } => tail.recourse(
                         f,
                         format_args!(
-                            "drop root {} from the list, since its material reaches the \
-                             product through the other",
-                            ancestor
+                            "drop {ancestor} from the root list, since its material reaches \
+                             the product through the other"
                         ),
                     ),
                     RootFault::Uncovered { node } => tail.recourse(
                         f,
-                        format_args!(
-                            "list node {} or a node built from it as a product root",
-                            node
-                        ),
+                        format_args!("list {node} or a node built from it as a product root"),
                     ),
                 }
             }
@@ -2440,10 +2436,10 @@ pub enum Maintenance {
     /// happen.
     Strand {
         /// The surviving node whose payload carries the name.
-        node: RecipeNodeId,
-        /// The name it carries: its `node` is the id a delete
+        node: SpokenNode,
+        /// The name it carries: its minting node is the one a delete
         /// removed, or its locator names a step a reshaping dropped.
-        name: StableName,
+        name: SpokenName,
     },
     /// **An appearance attachment this edit stranded** (DM7): the
     /// document's appearance store holds an attribute under `name`,
@@ -2467,7 +2463,7 @@ pub enum Maintenance {
         /// The key the store holds the attachment under: its `node` is
         /// the id a delete removed, or its locator names a step a
         /// reshaping dropped.
-        name: StableName,
+        name: SpokenName,
     },
     /// **A [`Node::Declare`] this edit left with no consumer** — the
     /// delete door's orphan report, beside DM7's strands (ruled at
@@ -2522,7 +2518,7 @@ pub enum Maintenance {
         /// and it is why this arm's `Display` sentence says no node
         /// CONSUMES the declaration rather than that nothing reads
         /// it.
-        declare: RecipeNodeId,
+        declare: SpokenNode,
     },
 }
 
@@ -2542,7 +2538,7 @@ impl core::fmt::Display for Maintenance {
             // were deleted, and the name is exactly what survives.
             Self::Strand { node, name } => write!(
                 f,
-                "node {} carries a {}; this edit removed what it denoted (its minting node, or \
+                "{} carries a {}; this edit removed what it denoted (its minting node, or \
                  the profile segment it named), so the name resolves to nothing until it is \
                  rebound",
                 node, name
@@ -2573,7 +2569,7 @@ impl core::fmt::Display for Maintenance {
             // says.
             Self::OrphanedDeclare { declare } => write!(
                 f,
-                "node {} declares contacts and this edit deleted the last node that consumed \
+                "{} declares contacts and this edit deleted the last node that consumed \
                  it, so no node consumes the declaration until a boolean or union names it \
                  again",
                 declare
@@ -2607,6 +2603,8 @@ impl core::fmt::Display for Maintenance {
 /// that is what makes a key STRANDED rather than gone — so the store
 /// half reads the same keys either way; it reads `doc` so that the
 /// one pass cannot disagree with itself about which nodes are gone.
+/// The rows speak their nodes from `before`, the document the door was
+/// handed, which still holds the deleted minting node.
 ///
 /// Row order is the enumeration's, which is the order
 /// [`Applied::maintenance`] contracts for: payload strands in
@@ -2633,15 +2631,21 @@ impl core::fmt::Display for Maintenance {
 /// node it names (`rv_dm7_probes`'s
 /// `rv_a_sited_declaration_strands_nothing_inside_a_cascade` states
 /// the argument and measures the declaration case).
-fn stranded_references<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
+fn stranded_references<P>(
+    before: &Doc<P>,
+    doc: &Doc<P>,
+    deleted: RecipeNodeId,
+) -> Vec<Maintenance> {
     doc.name_carriers()
         .filter(|carrier| carrier.name().node == deleted)
         .map(|carrier| match carrier {
             NameCarrier::Payload { node, name } => Maintenance::Strand {
-                node,
-                name: name.clone(),
+                node: before.spoken(node),
+                name: before.spoken_name(name),
             },
-            NameCarrier::Store { name } => Maintenance::StrandedAppearance { name: name.clone() },
+            NameCarrier::Store { name } => Maintenance::StrandedAppearance {
+                name: before.spoken_name(name),
+            },
         })
         .collect()
 }
@@ -2656,7 +2660,7 @@ fn stranded_references<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenanc
 /// question are asked of the same two facts the strand pass uses: who
 /// is gone, and what the document now holds. A `Declare` is reported
 /// exactly when the removed node named it, it is still live, and no
-/// live node's `inputs()` hold it.
+/// live node's `inputs()` hold it. The row speaks it from `before`.
 ///
 /// [`Maintenance::OrphanedDeclare`] carries the rule — a transition,
 /// not a state — and the implementation of it is that the candidates
@@ -2685,6 +2689,7 @@ fn stranded_references<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenanc
 /// of the deleted node — nothing for the overwhelming majority of
 /// deletes, whose node consumes no declaration at all.
 fn orphaned_declares<P: crate::ProfilePayload>(
+    before: &Doc<P>,
     doc: &Doc<P>,
     deleted_inputs: &[RecipeNodeId],
 ) -> Vec<Maintenance> {
@@ -2693,7 +2698,9 @@ fn orphaned_declares<P: crate::ProfilePayload>(
         .copied()
         .filter(|id| matches!(doc.node(*id), Some(Node::Declare { .. })))
         .filter(|id| crate::roots::is_sink(doc, *id))
-        .map(|declare| Maintenance::OrphanedDeclare { declare })
+        .map(|declare| Maintenance::OrphanedDeclare {
+            declare: before.spoken(declare),
+        })
         .collect()
 }
 
@@ -2751,8 +2758,10 @@ fn settle_step_ids(
 /// in that order. Nothing is rewritten: the name keeps its spelling
 /// and resolves `Vanished`, since the dropped id is never minted
 /// again. A step id is unique across the document, so which node
-/// minted the name does not enter.
+/// minted the name does not enter. The rows speak their nodes from
+/// `before`.
 fn stranded_steps<P>(
+    before: &Doc<P>,
     doc: &Doc<P>,
     dropped: &std::collections::BTreeSet<StepId>,
 ) -> Vec<Maintenance> {
@@ -2767,11 +2776,13 @@ fn stranded_steps<P>(
         }
         match carrier {
             NameCarrier::Payload { node, name } => strands.push(Maintenance::Strand {
-                node,
-                name: name.clone(),
+                node: before.spoken(node),
+                name: before.spoken_name(name),
             }),
             NameCarrier::Store { name } => {
-                keys.push(Maintenance::StrandedAppearance { name: name.clone() });
+                keys.push(Maintenance::StrandedAppearance {
+                    name: before.spoken_name(name),
+                });
             }
         }
     }
@@ -2782,8 +2793,10 @@ fn stranded_steps<P>(
 /// **One appearance record moved onto the key `to`**, attribute by
 /// attribute and metadata entry by entry, refusing where `to` already
 /// carries the same kind or key: which value survives would be an
-/// auto-pick. The store half of [`DocEdit::Rebind`]'s name rewrite.
-fn move_appearance_record(
+/// auto-pick. The store half of [`DocEdit::Rebind`]'s name rewrite,
+/// speaking its refusal from `before`, the document the door was handed.
+fn move_appearance_record<P>(
+    before: &Doc<P>,
     store: &mut crate::appearance::AppearanceMap,
     moved: crate::appearance::AppearanceRecord,
     to: &StableName,
@@ -2792,7 +2805,7 @@ fn move_appearance_record(
     for (kind, attr) in moved.attrs {
         if dst.attrs.contains_key(&kind) {
             return Err(EditError::RebindAppearanceCollision {
-                name: to.clone(),
+                name: before.spoken_name(to),
                 kind,
             });
         }
@@ -2803,7 +2816,7 @@ fn move_appearance_record(
     for (key, value) in moved.metadata {
         if dst.metadata.contains_key(&key) {
             return Err(EditError::RebindMetadataCollision {
-                name: to.clone(),
+                name: before.spoken_name(to),
                 key,
             });
         }
@@ -2966,11 +2979,13 @@ impl MaintenanceNet {
             .into_iter()
             .filter(|row| match row {
                 Maintenance::Strand { node, name } => end
-                    .node(*node)
-                    .is_some_and(|carrier| carrier.payload_names().contains(&name)),
-                Maintenance::StrandedAppearance { name } => end.appearance().contains_key(name),
+                    .node(node.id())
+                    .is_some_and(|carrier| carrier.payload_names().contains(&name.name())),
+                Maintenance::StrandedAppearance { name } => {
+                    end.appearance().contains_key(name.name())
+                }
                 Maintenance::OrphanedDeclare { declare } => {
-                    end.node(*declare).is_some() && !consumed(*declare)
+                    end.node(declare.id()).is_some() && !consumed(declare.id())
                 }
                 Maintenance::Cluster(_) => true,
             })
@@ -2981,8 +2996,9 @@ impl MaintenanceNet {
 /// A name written into the document spells only steps the document
 /// minted ([`EditError::NameStepNeverMinted`]) — the edit door's half
 /// of the load door's `SnapshotError::NameStepNotMinted`, so a
-/// document this door accepts is one the load door reads back.
-fn check_name_steps<P>(doc: &Doc<P>, name: &StableName) -> Result<(), EditError> {
+/// document this door accepts is one the load door reads back. `doc`
+/// is the document being written, `before` the one the door was handed.
+fn check_name_steps<P>(before: &Doc<P>, doc: &Doc<P>, name: &StableName) -> Result<(), EditError> {
     match name
         .piece_steps()
         .into_iter()
@@ -2990,7 +3006,7 @@ fn check_name_steps<P>(doc: &Doc<P>, name: &StableName) -> Result<(), EditError>
     {
         None => Ok(()),
         Some(step) => Err(EditError::NameStepNeverMinted {
-            name: name.clone(),
+            name: before.spoken_name(name),
             step,
         }),
     }
@@ -3046,6 +3062,16 @@ fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
         doc.spoken(id)
     } else {
         SpokenNode::entering(id, node)
+    }
+}
+
+/// **A node an edit's result names, as its refusal speaks it**: by
+/// [`written`]'s rule when `after` holds it, and from `before` when it
+/// does not, which is [`SpokenNode::absent`] when neither holds it.
+fn spoken_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId) -> SpokenNode {
+    match after.node(id) {
+        Some(node) => written(before, id, node),
+        None => before.spoken(id),
     }
 }
 
@@ -3577,9 +3603,11 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // list.
             for name in node.payload_names() {
                 if !new.nodes.contains_key(&name.node) {
-                    return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
+                    return Err(EditError::DeclareNamesMissingNode {
+                        name: doc.spoken_name(name),
+                    });
                 }
-                check_name_steps(&new, name)?;
+                check_name_steps(doc, &new, name)?;
             }
             // The same check for the node a reference is READ AT
             // where that node is not also an input
@@ -3700,7 +3728,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // door owes is the report — every surviving reference
             // whose minting node just left, in both of the document's
             // carriers, read out of the document as it now stands.
-            reported = stranded_references(&new, *id);
+            reported = stranded_references(doc, &new, *id);
             // The declaration half of the same question, out of the
             // same post-removal document so the two reports cannot
             // disagree about which nodes are gone. Appended after the
@@ -3708,7 +3736,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // input list feeds both readers — this door and
             // `roots::on_delete` below — so the declaration reported
             // inert and the inputs re-rooted are read off one value.
-            reported.extend(orphaned_declares(&new, &inputs));
+            reported.extend(orphaned_declares(doc, &new, &inputs));
             crate::roots::on_delete(&mut new, *id, &inputs);
             // The node's witness (if any) dies with it — ids are
             // never reused, so the entry could never be read again.
@@ -3823,7 +3851,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // DM7: a name on a kept step keeps denoting its pieces and
             // is not touched; a name on a dropped step denotes nothing
             // from here on, and the door says so.
-            reported = stranded_steps(&new, &dropped);
+            reported = stranded_steps(doc, &new, &dropped);
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as
@@ -3956,7 +3984,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         }
         DocEdit::Rebind { from, to } => {
             if from == to {
-                return Err(EditError::RebindIdentity { name: from.clone() });
+                return Err(EditError::RebindIdentity {
+                    name: doc.spoken_name(from),
+                });
             }
             if from.kind != to.kind {
                 return Err(EditError::RebindKindMismatch {
@@ -3968,14 +3998,18 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // name-level resolution at evaluation — the Declare
             // carve-out's split, spec D3).
             if !new.nodes.contains_key(&to.node) {
-                return Err(EditError::RebindTargetMissingNode { name: to.clone() });
+                return Err(EditError::RebindTargetMissingNode {
+                    name: doc.spoken_name(to),
+                });
             }
-            check_name_steps(&new, to)?;
+            check_name_steps(doc, &new, to)?;
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the
             // NodeGone repair; never-minted is a typo.
             if !new.has_minted(from.node) {
-                return Err(EditError::RebindUnknownName { name: from.clone() });
+                return Err(EditError::RebindUnknownName {
+                    name: doc.spoken_name(from),
+                });
             }
             // One-shot rewrite of every EXACT reference, at every
             // payload site — `Node::payload_names` is the list and
@@ -3997,10 +4031,12 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             let mut appearance_sites = 0usize;
             if let Some(moved) = new.appearance.remove(from) {
                 appearance_sites += 1;
-                move_appearance_record(&mut new.appearance, moved, to)?;
+                move_appearance_record(doc, &mut new.appearance, moved, to)?;
             }
             if declare_sites + appearance_sites == 0 {
-                return Err(EditError::RebindNoReferences { name: from.clone() });
+                return Err(EditError::RebindNoReferences {
+                    name: doc.spoken_name(from),
+                });
             }
             EditRecord {
                 minted: None,
@@ -4024,15 +4060,19 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // v1 scope: faces and bodies (M4-PLAN item 7); edges/
             // vertices stay a typed refusal until ratified.
             if !matches!(name.kind, EntityKind::Face | EntityKind::Body) {
-                return Err(EditError::AppearanceWrongKind { name: name.clone() });
+                return Err(EditError::AppearanceWrongKind {
+                    name: doc.spoken_name(name),
+                });
             }
             // Node existence NOW, name-level resolution at evaluation
             // (the ruled Declare carve-out, applied to the second
             // name-referencing edit).
             if !new.nodes.contains_key(&name.node) {
-                return Err(EditError::AppearanceNamesMissingNode { name: name.clone() });
+                return Err(EditError::AppearanceNamesMissingNode {
+                    name: doc.spoken_name(name),
+                });
             }
-            check_name_steps(&new, name)?;
+            check_name_steps(doc, &new, name)?;
             new.appearance
                 .entry(name.clone())
                 .or_default()
@@ -4073,7 +4113,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         }
         DocEdit::ClearAppearance { name, kind } => {
             let not_set = || EditError::AppearanceNotSet {
-                name: name.clone(),
+                name: doc.spoken_name(name),
                 kind: *kind,
             };
             let Some(rec) = new.appearance.get_mut(name) else {
@@ -4109,12 +4149,16 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // Same v1 scope and node-liveness carve-out as
             // SetAppearance: the metadata rides the SAME record.
             if !matches!(name.kind, EntityKind::Face | EntityKind::Body) {
-                return Err(EditError::AppearanceWrongKind { name: name.clone() });
+                return Err(EditError::AppearanceWrongKind {
+                    name: doc.spoken_name(name),
+                });
             }
             if !new.nodes.contains_key(&name.node) {
-                return Err(EditError::AppearanceNamesMissingNode { name: name.clone() });
+                return Err(EditError::AppearanceNamesMissingNode {
+                    name: doc.spoken_name(name),
+                });
             }
-            check_name_steps(&new, name)?;
+            check_name_steps(doc, &new, name)?;
             // D7's producer convention, by the one predicate
             // `MetaValue::require_versioned`, which the save/load
             // validator also calls. Only the WALK differs between the
@@ -4123,14 +4167,14 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // arrived whole.
             if let Err(error) = value.require_versioned() {
                 return Err(EditError::MetaUnversioned {
-                    name: name.clone(),
+                    name: doc.spoken_name(name),
                     key: key.clone(),
                     error,
                 });
             }
             if let Some(path) = value.first_non_finite() {
                 return Err(EditError::MetaNonFinite {
-                    name: name.clone(),
+                    name: doc.spoken_name(name),
                     key: key.clone(),
                     path,
                 });
@@ -4147,7 +4191,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         }
         DocEdit::ClearAppearanceMeta { name, key } => {
             let not_set = || EditError::MetaNotSet {
-                name: name.clone(),
+                name: doc.spoken_name(name),
                 key: key.clone(),
             };
             let Some(rec) = new.appearance.get_mut(name) else {
@@ -4261,7 +4305,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     // The D-2 backstop, on EVERY arm: the maintenance rules make the
     // invariant-violating states unreachable, and this is what says so
     // rather than assuming it.
-    crate::roots::check(&new).map_err(EditError::Roots)?;
+    crate::roots::check(&new, |id| spoken_after(doc, &new, id)).map_err(EditError::Roots)?;
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
     // lists at least one placement, and its frames meet the SAME bar

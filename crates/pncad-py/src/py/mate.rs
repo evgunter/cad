@@ -1194,8 +1194,8 @@ impl Maintenance {
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
-            d::Maintenance::Strand { node, .. } => Some(NodeId(*node)),
-            d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(*declare)),
+            d::Maintenance::Strand { node, .. } => Some(NodeId(node.id())),
+            d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(declare.id())),
             d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
         }
     }
@@ -1211,7 +1211,7 @@ impl Maintenance {
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
             d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
-                super::doc::name_text(py, name).map(Some)
+                super::doc::name_text(py, name.name()).map(Some)
             }
             d::Maintenance::Cluster(_) | d::Maintenance::OrphanedDeclare { .. } => Ok(None),
         }

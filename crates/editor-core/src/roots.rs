@@ -30,35 +30,39 @@
 
 use crate::doc::Doc;
 use crate::node::RecipeNodeId;
+use crate::spoken::SpokenNode;
 
 /// A product-root invariant violation. One type, two doors: the edit
 /// layer wraps it in [`crate::EditError`], the persistence validator
 /// in [`crate::SnapshotError`] — a single implementation of the
-/// invariant, so the two doors cannot drift.
+/// invariant, so the two doors cannot drift. Each door speaks the
+/// nodes it names its own way: the edit door from the document it was
+/// handed, the load door by tag, since the bytes it judges are not a
+/// document yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RootFault {
     /// A root entry does not name a live node.
     NotLive {
         /// The offending entry.
-        root: RecipeNodeId,
+        root: SpokenNode,
     },
     /// A node appears twice in the root list.
     Duplicate {
         /// The repeated entry.
-        root: RecipeNodeId,
+        root: SpokenNode,
     },
     /// One root is a strict ancestor of another: the product would
     /// gather the same material twice. Both are named.
     Ancestor {
         /// The root upstream (its material also reaches `descendant`).
-        ancestor: RecipeNodeId,
+        ancestor: SpokenNode,
         /// The root downstream of it.
-        descendant: RecipeNodeId,
+        descendant: SpokenNode,
     },
     /// A live node reaches no root — a silently dead subgraph.
     Uncovered {
         /// The first uncovered node, in document order.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
 }
 
@@ -66,10 +70,10 @@ impl core::fmt::Display for RootFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotLive { root } => {
-                write!(f, "product root {} is not a live node", root)
+                write!(f, "the product root list names {root}, which is not live")
             }
             Self::Duplicate { root } => {
-                write!(f, "product root {} is listed twice", root)
+                write!(f, "the product root list names {root} twice")
             }
             Self::Ancestor {
                 ancestor,
@@ -82,7 +86,7 @@ impl core::fmt::Display for RootFault {
             ),
             Self::Uncovered { node } => write!(
                 f,
-                "node {} reaches no product root — it would contribute \
+                "{} reaches no product root — it would contribute \
                  to nothing",
                 node
             ),
@@ -135,15 +139,18 @@ pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
 ///
 /// # Errors
 ///
-/// The first [`RootFault`] found.
-pub(crate) fn check<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), RootFault> {
+/// The first [`RootFault`] found, its nodes spoken by `speak`.
+pub(crate) fn check<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    speak: impl Fn(RecipeNodeId) -> SpokenNode,
+) -> Result<(), RootFault> {
     let mut listed = std::collections::BTreeSet::new();
     for &root in &doc.roots {
         if doc.node(root).is_none() {
-            return Err(RootFault::NotLive { root });
+            return Err(RootFault::NotLive { root: speak(root) });
         }
         if !listed.insert(root) {
-            return Err(RootFault::Duplicate { root });
+            return Err(RootFault::Duplicate { root: speak(root) });
         }
     }
     // Ancestor-freedom, per root, over its own strict-ancestor cone.
@@ -155,8 +162,8 @@ pub(crate) fn check<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), RootFa
         walk_strict_ancestors(doc, root, &mut seen, |id| {
             if listed.contains(&id) {
                 Err(RootFault::Ancestor {
-                    ancestor: id,
-                    descendant: root,
+                    ancestor: speak(id),
+                    descendant: speak(root),
                 })
             } else {
                 Ok(())
@@ -171,7 +178,7 @@ pub(crate) fn check<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), RootFa
         covered.extend(seen);
     }
     if let Some(&node) = doc.order.iter().find(|id| !covered.contains(id)) {
-        return Err(RootFault::Uncovered { node });
+        return Err(RootFault::Uncovered { node: speak(node) });
     }
     Ok(())
 }

@@ -133,7 +133,7 @@ pub use eval::{
     mate_reach,
 };
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
-pub use spoken::{FullId, SpokenNode, node_kind_noun};
+pub use spoken::{FullId, SpokenName, SpokenNode, node_kind_noun};
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
 // than through the module path.
