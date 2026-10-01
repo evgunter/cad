@@ -7,6 +7,7 @@ opened: 2026-09-24
 priority: P1
 cost: H
 design: true
+needs_ev: true
 ---
 
 
@@ -62,3 +63,35 @@ contributes nothing to the section. That is a classification change in
 
 EMIT's `split-section-face-keeps-a-zero-area-spur-along-a-tangent-edge`
 (PR 3133), re-scoped by Ev's ruling.
+
+## What the refusal is evidence of
+
+Rule (b) (`splitting/rules.rs`, `apply_rule_b`) assigns an edge that
+lies in the split plane to a side using only its two neighbours' side
+labels: both neighbours Below sends it Above, and both Above sends it
+Below. That is right for a REFLEX edge, where material lies on both
+sides of the plane along the edge, so the plane passes through it. It
+is wrong for a CONVEX edge whose two faces both lie on one side, which
+is exactly a one-sided tangency. There all the material at the edge is
+on that side, and the rule mints a null edge for a contact that cuts
+nothing. `DegenerateSection` and `SectionSpur` are the join catching
+that downstream, as the module's own "Residue, stated honestly"
+paragraph says. Convexity is a fact about the body, decided from the
+two flanking faces with the `enters_material` primitive rule (a)
+already uses. With it, rule (b) reproduces the adjudicated reflex rows
+and sends a convex one-sided edge to its material. The edge stays an
+ordinary edge of the piece on that side and adds nothing to the
+section.
+
+The split already takes the other two exact one-sided contacts without
+a declaration. A plane on a face of the target is rule (a). A plane
+touching a single vertex has no runs (`insert.rs` `above_runs`). The
+edge is the only one that refuses.
+
+## The question
+
+Should an exact one-sided tangency along an edge still need a
+declaration once the split derives it? Or does it classify with its
+material, as the face and vertex contacts do? The ruling of 2026-09-24
+says the former. The derived rule is needed under either answer: a
+declaration would gate it, not replace it.
