@@ -764,14 +764,16 @@ pub enum EulerOpError {
     },
     /// An argument key, or a key the operator must follow to do its
     /// work (a `prev` link, a spine parent, a start vertex), does not
-    /// resolve.
+    /// resolve. A caller reaches the first and only a torn body the
+    /// second, and the variant does not say which.
     StaleKey {
         /// The unresolvable reference, wrapped with its kind.
         key: EntityId,
     },
     /// A geometry key the operator must read (an endpoint vertex's
     /// point for the certification gate, a `FaceSurface::Shared` key)
-    /// does not resolve.
+    /// does not resolve. A caller reaches it through a key it passed (the
+    /// `Shared` key), and only a torn body through one a record holds.
     StaleGeometry {
         /// The unresolvable geometry reference.
         key: GeomRef,
@@ -818,10 +820,7 @@ pub enum EulerOpError {
     /// ([`Body::kef`], [`Body::kev`],
     /// [`Body::kemr`]); or an `Empty` loop that [`Body::kvfs`] or
     /// [`Body::mekr`]'s `Empty` ring sites remove is claimed by a
-    /// half-edge; or the loop is `Empty` at a vertex [`Body::kvfs`] or
-    /// [`Body::kev`] removes (the crate-internal
-    /// `Body::require_vertex_unnamed`), which another loop holds or a
-    /// half-edge starts at.
+    /// half-edge.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
@@ -849,7 +848,8 @@ pub enum EulerOpError {
     /// from the edge's slots is the argument itself or names another
     /// edge (the crate-internal `require_halves`). [`Body::movefac`]
     /// refuses it for a cycle member whose mate, read from the member's
-    /// edge, names another edge.
+    /// edge, names another edge. A caller reaches the first, through
+    /// `kemr`'s arguments, and only a torn body the rest.
     NotSameEdge {
         /// The first half-edge.
         he1: HalfEdgeKey,
@@ -922,9 +922,9 @@ pub enum EulerOpError {
     },
     /// A kill would remove `to` while `from`, a record it keeps, still
     /// names it — tier-1-invalid input: a torn `face`, `rings`, `shell`,
-    /// `faces` or `solid` names the record from outside the ownership the
-    /// kill reads it by, and the kill would leave `from` naming a dead
-    /// record. Fired by [`Body::kef`] (a face listing its dying loop, a
+    /// `faces`, `solid` or `Empty` boundary names the record from outside
+    /// the ownership the kill reads it by, and the kill would leave `from`
+    /// naming a dead record. Fired by [`Body::kef`] (a face listing its dying loop, a
     /// loop or shell naming its dying face), [`Body::kvfs`] (a face
     /// listing its loop, a loop or shell naming its face, a face or solid
     /// naming its shell, a shell naming its solid), [`Body::mekr`] (a
@@ -934,7 +934,10 @@ pub enum EulerOpError {
     /// [`Body::kef`], [`Body::kev`] and [`Body::kemr`] for a half-edge's
     /// `next` or `prev`, a loop's `first`, a vertex's `emanating` or
     /// another edge's slot naming a half-edge they remove (the
-    /// crate-internal `Body::require_killed_halves_unnamed`).
+    /// crate-internal `Body::require_killed_halves_unnamed`), and
+    /// [`Body::kvfs`] and [`Body::kev`] for a loop they keep that is
+    /// `Empty` at the vertex they remove (the crate-internal
+    /// `Body::require_vertex_unnamed`).
     ///
     /// A half-edge naming a removed loop, vertex or edge has the variant
     /// that already decides that field: a half-edge claiming a removed
@@ -1166,6 +1169,14 @@ pub enum EulerOpError {
     },
 }
 
+/// The tail of a refusal a caller reaches as well as a torn body
+/// ([`EulerOpError::StaleKey`], [`EulerOpError::StaleGeometry`],
+/// [`EulerOpError::NotSameEdge`]), after the caller's repair: the
+/// variant does not say which reached it, so the sentence names the
+/// repair first and the report for a call that already met it. Every
+/// other corruption refusal ends in [`geom_core::KERNEL_DEFECT_ENDING`].
+const TORN_IF_THE_CALL_WAS_RIGHT: &str = "the body is torn, which is a kernel defect: report it";
+
 impl EulerOpError {
     /// This refusal's text, a certification refusal's ending read at
     /// `reading` ([`CertifyError::ending`]): the door that reports the
@@ -1232,19 +1243,22 @@ impl EulerOpError {
             Self::FaceMovedTwice { face } => {
                 format!("set_face_surfaces_describing: face {face:?} is moved twice")
             }
-            Self::StaleKey { key } => {
-                format!("euler op requires {key}, which does not resolve")
-            }
-            Self::StaleGeometry { key } => {
-                format!("euler op requires {key}, which does not resolve")
-            }
+            Self::StaleKey { key } => format!(
+                "euler op requires {key}, which does not resolve. Recourse: pass keys this \
+                 body holds; if the call did, {TORN_IF_THE_CALL_WAS_RIGHT}"
+            ),
+            Self::StaleGeometry { key } => format!(
+                "euler op requires {key}, which does not resolve. Recourse: pass geometry keys \
+                 this body holds; if the call did, {TORN_IF_THE_CALL_WAS_RIGHT}"
+            ),
             Self::FanStartMismatch { he1, he2 } => format!(
                 "mev fan: half-edges {he1:?} and {he2:?} start at different \
                  vertices"
             ),
             Self::FanOrbitBroken { he1, he2 } => format!(
                 "mev fan: the clockwise vertex orbit from {he1:?} never \
-                 reaches {he2:?} (malformed body)"
+                 reaches {he2:?}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NotSameLoop { he1, he2 } => format!(
                 "half-edges {he1:?} and {he2:?} belong to different loops \
@@ -1254,7 +1268,8 @@ impl EulerOpError {
                 "loop {loop:?}'s next cycle disagrees with the half-edges that \
                  claim it: a walk of it fails to close, strays into another \
                  loop or misses one of its members, or it is empty at a vertex \
-                 another loop also holds or a half-edge starts at (malformed body)",
+                 another loop also holds or a half-edge starts at. {}",
+                geom_core::KERNEL_DEFECT_ENDING,
                 loop = r#loop
             ),
             Self::LoopNotEmpty { r#loop } => format!(
@@ -1263,16 +1278,19 @@ impl EulerOpError {
             ),
             Self::LoopNotCycle { r#loop } => format!(
                 "a half-edge argument claims parent loop {loop:?}, which is \
-                 an empty loop (malformed body)",
+                 an empty loop. {}",
+                geom_core::KERNEL_DEFECT_ENDING,
                 loop = r#loop
             ),
             Self::NotSameEdge { he1, he2 } => format!(
-                "half-edges {he1:?} and {he2:?} are not the two halves of one \
-                 edge"
+                "half-edges {he1:?} and {he2:?} are not the two halves of one edge. \
+                 Recourse: pass kemr the two halves of one edge; if the call did, or was not \
+                 kemr, {TORN_IF_THE_CALL_WAS_RIGHT}"
             ),
             Self::UnclaimedHalfEdge { he, edge } => format!(
                 "half-edge {he:?}'s edge {edge:?} does not claim it in either \
-                 slot, so its mate cannot be resolved (malformed body)"
+                 slot, so its mate cannot be resolved. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::SelfLoopEdge { edge, vertex } => format!(
                 "kev: edge {edge:?} is a self-loop at vertex {vertex:?} — kev \
@@ -1285,22 +1303,24 @@ impl EulerOpError {
                  vertex, an anchor a kill writes for it starts elsewhere, a kill \
                  takes it for lone while a half-edge still starts at it or no \
                  empty loop holds it, or a kill removes it while {he:?}, which \
-                 the kill keeps, still starts at it (malformed body)"
+                 the kill keeps, still starts at it. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::EmptyAnchorsCollide { vertex } => format!(
                 "the operation would leave two empty loops holding the same \
-                 lone vertex {vertex:?} (tier 1 allows exactly one)"
+                 lone vertex {vertex:?}, which only a torn body reaches. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::KillLeavesDangling { from, to } => format!(
                 "the kill removes {to}, which {from} still names outside the ownership \
                  the kill reads, so it would be left naming a dead record. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NotOwned { child, owner } => format!(
                 "movefac took {child} as {owner}'s, but the two do not own each \
                  other both ways: {owner} does not list {child}, or {child} does \
                  not name {owner}. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::SameLoop { r#loop } => format!(
                 "two distinct loops required, but both sides name loop \
@@ -1591,6 +1611,17 @@ impl EulerOpError {
     /// that place a refusal — a driver deciding whether to record it
     /// and carry on, or to refuse — ask here instead of keeping a
     /// second copy of the list.
+    ///
+    /// **`true` reads the call's own keys as right.** A caller also
+    /// reaches [`EulerOpError::StaleKey`] and
+    /// [`EulerOpError::StaleGeometry`] by passing a key the body does
+    /// not hold, and [`EulerOpError::NotSameEdge`] by passing `kemr` two
+    /// half-edges that are not mates, and the variant does not say
+    /// which reached it. A driver passing keys it read from the body
+    /// asks the question this answers; a refusal's text cannot assume
+    /// it, so those three name the caller's repair before the report,
+    /// and every other variant answering `true` ends in
+    /// [`geom_core::KERNEL_DEFECT_ENDING`].
     ///
     /// The match is exhaustive on purpose: a new variant does not
     /// compile until someone says which side of this line it is on.
@@ -3179,8 +3210,8 @@ impl<T: Decide> Body<T> {
     /// removes: no half-edge but `moved` starts at `v`, refusing
     /// [`EulerOpError::OrbitBroken`] naming the first that does in arena
     /// order; then no loop but `killed` is `Empty` at `v`, refusing
-    /// [`EulerOpError::LoopCycleBroken`] naming the first that is.
-    /// `moved` is every half-edge the kill removes or re-bases off `v`,
+    /// [`EulerOpError::KillLeavesDangling`] from the first that is to
+    /// `v`. `moved` is every half-edge the kill removes or re-bases off `v`,
     /// and `killed` every loop it removes.
     ///
     /// A plan reads what starts at `v` from an orbit walk, or finds `v`
@@ -3199,7 +3230,10 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::OrbitBroken { he });
         }
         match self.empty_at_besides(v, killed) {
-            Some(r#loop) => Err(EulerOpError::LoopCycleBroken { r#loop }),
+            Some(r#loop) => Err(EulerOpError::KillLeavesDangling {
+                from: EntityId::Loop(r#loop),
+                to: EntityId::Vertex(v),
+            }),
             None => Ok(()),
         }
     }
@@ -6552,6 +6586,57 @@ mod tests {
         for error in every_euler_op_error_once() {
             assert!(!error.to_string().is_empty(), "{error:?}");
         }
+    }
+
+    /// **The corruption refusals end one way** (D4 ¶1 (i)): every
+    /// variant [`EulerOpError::reports_tier1_corruption`] answers `true`
+    /// for ends in [`geom_core::KERNEL_DEFECT_ENDING`], but for the three
+    /// a caller reaches too, which end in the caller's repair and then
+    /// [`TORN_IF_THE_CALL_WAS_RIGHT`]; no other variant names a defect.
+    /// Each corruption refusal states one recourse. `PcurveMint` answers
+    /// by its payload, so both of its sides are sampled beside the
+    /// shared array.
+    #[test]
+    fn corruption_refusals_end_in_the_kernel_defect_ending() {
+        use crate::pcurves::SiteRowRefusal;
+        use EulerOpErrorKind as K;
+        const CALLERS_TOO: [K; 3] = [K::StaleKey, K::StaleGeometry, K::NotSameEdge];
+        let pcurve_mint = |refusal| EulerOpError::PcurveMint {
+            face: FaceKey::default(),
+            refusal,
+        };
+        let samples = every_euler_op_error_once().into_iter().chain([
+            pcurve_mint(SiteRowRefusal::Corrupt),
+            pcurve_mint(SiteRowRefusal::KeysOnly),
+        ]);
+        let mut corrupt = 0;
+        for error in samples {
+            let text = error.to_string();
+            if !error.reports_tier1_corruption() {
+                assert!(
+                    !text.contains("kernel defect") && !text.contains("malformed"),
+                    "{text}"
+                );
+                continue;
+            }
+            corrupt += 1;
+            if CALLERS_TOO.contains(&K::from(&error)) {
+                assert!(
+                    text.ends_with(&format!("; if the call did, {TORN_IF_THE_CALL_WAS_RIGHT}"))
+                        || text.ends_with(&format!(
+                            "; if the call did, or was not kemr, {TORN_IF_THE_CALL_WAS_RIGHT}"
+                        )),
+                    "{text}"
+                );
+            } else {
+                assert!(
+                    text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
+                    "{text}"
+                );
+            }
+            assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+        }
+        assert_eq!(corrupt, 12, "the corruption samples this row reads");
     }
 
     /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),

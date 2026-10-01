@@ -610,7 +610,7 @@ impl<T: Decide> Body<T> {
     /// naming the loop), and no other face lists it
     /// ([`EulerOpError::KillLeavesDangling`]); no half-edge starts at the
     /// vertex ([`EulerOpError::OrbitBroken`] naming the half-edge), and no other
-    /// loop is `Empty` at it (`LoopCycleBroken` naming that loop); no
+    /// loop is `Empty` at it (`KillLeavesDangling` from that loop); no
     /// other loop names the face, then no other shell lists it; no other
     /// face names the shell, then no other solid lists it; no other shell
     /// names the solid (`KillLeavesDangling`, each). All are
@@ -820,7 +820,7 @@ impl<T: Decide> Body<T> {
     /// edge (`UnclaimedHalfEdge` naming the first in arena order); no
     /// half-edge off the far vertex's orbit starts at it (`OrbitBroken`
     /// naming the first), and no loop is `Empty` at it
-    /// (`LoopCycleBroken` naming the loop); nothing the kill keeps names
+    /// (`KillLeavesDangling` from the loop); nothing the kill keeps names
     /// a killed half: no `next` or `prev` as the unsplice leaves it, and
     /// no loop's `first` but those it re-anchors (`LoopCycleBroken`
     /// naming the half-edge's loop, or the loop), then no vertex's
