@@ -1250,6 +1250,20 @@ The container restarted twice mid-lane. The first lane's work had already been p
 
 - 2026-10-01 — Seam note from AUTHOR: Ev ruled on #3571 that `StableName`'s `Display` carries a face's leaf role in words, through one public renderer promoted from `resolve::role_words`. The work is filed on EDIT as `names-render-a-faces-leaf-role-in-words`; `names/role.rs` is shared ground. (AUTHOR orchestrator)
 
+
+## 2026-10-01 — tied-face swap ruled by design (PR 3523, fork-log row 21)
+
+Ev approved: "this sounds good! … the behavior you suggest seems safe and principled".
+
+**What changed.**
+- N2 no longer promises a recorded per-candidate choice. A tie is repaired by a discriminator in the recipe, or by `Rebind`.
+- N4 names a divider as a discriminator among a tie's candidates.
+- The tie-swap row is closed as by-design, with `emit_union_borders::a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it` pinning the motion by centroid.
+
+**Not filed:** the optional datum-side discriminator, because Ev did not ask for it.
+
+**Fork log.** Main already held a row 21, so there are now two rows numbered 21, following the duplicate 15s and 18s. The open `[ev]` PRs 3553 and 3565 use 22 and 23, which other branches also use. Row numbers are no longer unique; the fork column identifies each row.
+
 ## 2026-10-01 — edge pieces by their ends ruled (PR 3553); node labels ruled (PR 3565)
 
 **PR 3553, fork-log row 22.** Ev approved the recommendation, "including the change to what was decided in 512". It is written into N2:
