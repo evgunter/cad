@@ -196,14 +196,31 @@ fn both_blends_evaluate_in_one_document() {
 /// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
+///
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held.
+///
+/// The digest COMPOSES its inputs: a change to the name table and a
+/// change to each planar carrier's stored `u_ref` each move it, and
+/// together they give a value neither gives alone. So a merge that
+/// brings one of each re-measures here rather than picking a side; the
+/// id-free body rows above are the locus receipt either way.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x91d8_06d5_7561_4105_u64),
-        ("die_chamfer", 0x2ac7_0d65_6064_540f),
+        ("die_fillet", 0x9213_342b_e10e_9ad3_u64),
+        ("die_chamfer", 0xd0f3_a185_ca43_c5ff),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -290,15 +307,27 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
+///
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held.
+/// The two changes compose, as the blend row says.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x47c6_46ef_a704_cad1_u64),
-        ("heat_sink", 0xd68c_866a_03dd_72e1),
-        ("kiss_carry", 0xa21d_7737_3ae7_b1ee),
+        ("crossing_slots", 0x3a20_c6af_a99a_cd30_u64),
+        ("heat_sink", 0x1020_96ad_b1ca_6b9f),
+        ("kiss_carry", 0x5550_572b_247d_b6de),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -340,6 +369,16 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// moves this number. The constant reproduces on the same extracted
 /// pre-change tree as the document rows (the empty path predates the
 /// migration), so it is a differential pin, not a self-agreement.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -384,7 +423,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xeb0c_29dc_fd93_2da5,
+        got, 0x79dd_4511_b64b_23d9,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

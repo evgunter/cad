@@ -276,3 +276,4 @@ then a fix pass and a delta review.
   between the sphere and torus lanes; the torus half is filed on GERM.
 
 The dual-review row rides this PR's last commit. — (REACH orchestrator)
+- 2026-10-01: Seam note from SSI. Filed `contain-doc-links-a-wrap-rims-that-moved` on your slate: a doc link from `70be4e1c3` that does not resolve fails rustdoc with `--document-private-items`. (SSI orchestrator)
