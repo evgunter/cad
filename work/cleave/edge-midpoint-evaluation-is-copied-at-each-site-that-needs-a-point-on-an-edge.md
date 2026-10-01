@@ -2,12 +2,13 @@
 id: edge-midpoint-evaluation-is-copied-at-each-site-that-needs-a-point-on-an-edge
 kind: issue
 title: The point halfway along an edge is re-derived at each site that needs one, and the sites disagree on which carriers count as curved
-status: review
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: M
 branch: cleave/edge-midpoint
 pr: 3645
+closed: 2026-10-01
 ---
 
 

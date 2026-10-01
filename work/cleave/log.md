@@ -53,3 +53,9 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
 - Wave 2: the `rehome_rings` reproduction and the graft reachability
   measurement are dispatched to one lane, one after the other, each
   with its own PR (`cleave/rehome-rings`, `cleave/graft-reach`).
+- Edge midpoint merged (PR 3645) after a style review and one fix pass.
+  The curved-or-chord rule has one home (`IntersectionDraft`,
+  `Curve3::is_curved`), and `mid_param` takes the sum spelling: edge
+  parameters reach the generic sites as non-point intervals, and the
+  sum spelling keeps the enclosure tight. `chart_region::midpoint` is
+  retired into it. Filed `work/reach/split-section-boundary-curved-arm-untested-past-the-edge-gate`.
