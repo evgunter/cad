@@ -793,7 +793,7 @@ fn a_member_face_another_holds_is_a_constituent_in_every_order() {
                 .filter(|(n, _)| n.kind == EntityKind::Face)
                 .filter(|(n, _)| match n.path.as_slice() {
                     [RoleSeg::Merged(set)] => {
-                        let held: Vec<_> = set.iter().filter_map(|c| of(c)).collect();
+                        let held: Vec<_> = set.iter().filter_map(&of).collect();
                         held.contains(&ids[0]) && held.contains(&ids[1])
                     }
                     _ => false,
