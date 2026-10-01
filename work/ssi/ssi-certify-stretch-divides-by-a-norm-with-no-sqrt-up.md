@@ -150,3 +150,8 @@ no longer holds: RING-3 (#3153) dissolved `RingInterval` into
 are `Interval`s, read by `speed_sup` through `Certification::mag`.
 `offset_meters::norm_sup` takes `&[Interval; 3]`, so it can be handed
 the three sides with no lift. The finding stands.
+
+## Design (2026-10-01)
+
+Decided with three sibling rows; the spec is the "Design" section of
+`ssi-chart-speed-usability-boundary`.
