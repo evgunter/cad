@@ -11,9 +11,8 @@
 //! face or edge pick reaches the node whose DRAWN body the ray met
 //! (`Selection::seat_node`). Everything before the commit is tool
 //! state; the document transition is one [`SessionOp`], committed
-//! through the session's ordinary commit door as one action — one
-//! `DocEdit::InsertNode` for every tool but the duplicate tool, whose
-//! op inserts a pattern and its two projections as one undo.
+//! through the session's ordinary commit door as one action
+//! ([`crate::tools`] says which actions take more than one edit).
 //!
 //! The seat vocabulary, the pick rule, the survival step and the
 //! id-reuse hazard it does not cover (issue #1384) are all
@@ -91,7 +90,9 @@ impl BooleanTool {
     }
 
     /// **The one committed edit**: the session op that inserts the
-    /// boolean node through the ordinary commit door.
+    /// boolean node through the ordinary commit door, declaring no
+    /// contact. A contact the door refuses is declared through the
+    /// offer its refusal makes ([`crate::session::DeclareOffer`]).
     ///
     /// # Errors
     ///
@@ -103,6 +104,7 @@ impl BooleanTool {
             op,
             a: self.seats.require(0)?,
             b: self.seats.require(1)?,
+            declare: Vec::new(),
         })
     }
 }

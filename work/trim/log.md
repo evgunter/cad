@@ -757,3 +757,50 @@ the class and this does not grow it). The run door
 primitive `Body::drop_rows` sits under every decision site, and the
 header's two references to the doors follow it. Signed (TOPO, the
 mef/kef fix pass).
+
+## Seam note from TOPO (2026-09-30, PR 3500): a fourth staleness posture, `Completes`
+
+TOPO's `mev-null-leaves-a-complete-curved-face-half-minted` (PR 3500)
+makes a null edge's first description (`set_edge_curve`,
+`set_edge_curve_nurbs_lane`) re-mint a half-minted face through the
+site-mint loop. That door is now declared under a new fourth posture,
+`Posture::Completes`, with `describe_as_intersections` delegating to
+it.
+
+This is not the "fourth posture" this log declined on 2026-09-14 (PR
+2542). That note was about `revert`, a producer outside the guard's
+walk. This one is a mutation door that writes rows on its null arm
+and leaves content staleness to tier 3 on its certified arm, and no
+existing posture says both. The module doc now reads "Four postures
+exist". If the guard's owners would rather split the door's two arms
+than add the variant, that is a follow-up on this slate. Signed (TOPO
+orchestrator).
+## Resumed after the protocol changes (2026-09-30)
+
+See CURVED's log for what changed on main. Tracker moves: the two
+`pcurves.rs` doc items filed on TRIM before the cut
+(`pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`,
+`the-pcurves-module-header-restates-the-posture-table-below-it`) go to
+CHART, which owns `pcurves.rs` since 2026-09-20.
+
+**Dispatch this sitting, with its tier**: one unit on `nurbs_iso.rs` —
+`boundary-iso-doors-panic-before-they-can-refuse` (E) with
+`trim-escalations-offer-a-declaration-the-door-cannot-take` (E) as its
+rider — Opus implementer, **single STYLE review** (a length check that
+refuses instead of indexing, and an escalation's rendered text; both
+can be read and believed). It is outside any A/B block (the protocol
+is suspended), so TRIM-B2 slot 2 stays unspent and the block's record
+closes by the suspension at the walk.
+
+## The iso doors merged; the P-2 spec deleted; the slate is empty (2026-10-01)
+
+PR #3525 merged (c60bfd61f): `boundary_iso_u/_v` and `interior_iso_u`
+refuse a net whose lengths disagree with its knots instead of
+panicking (one count rule, `NurbsSurface::check_net_counts`), and the
+iso-row escalation renders its decision in plain words with its own
+kind's recourse minus the declaration. Single style review (MERGEABLE,
+no correctness findings); a four-item fix pass on its style notes;
+outside any A/B block. TRIM-B2 slot 2 stays unspent: the block's record
+closes by the suspension. `docs/PCURVE-P2-SPEC.md` is deleted with a
+ledger note, closing the last open row. Every row on the slate is
+closed; the exit walk goes to Ev as an `[ev]` PR.

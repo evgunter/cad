@@ -259,8 +259,6 @@ pub fn gallery_ring_at(tol: Tol) -> String {
 // committed insert; a node's value is one body), not about any one
 // suite's geometry, so a per-suite copy could only drift.
 
-use pncad::document::{BooleanValue, NodeResult};
-use pncad::prelude::ValuePayload;
 use viewer::session::{DocSession, FaceSelection, SessionOp};
 
 /// Add the world xy frame through the session, answering its id — the
@@ -388,20 +386,6 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     box_in(session, plane, size).1
 }
 
-/// A closed polygon through `points`, in order, as the step chain a
-/// `ProfileShape::Path` carries: an `At` on the first point, a line to
-/// each of the rest, and a line back to the start.
-pub fn polygon_steps(points: &[(f64, f64)]) -> Vec<pncad::profile::Step<f64>> {
-    use pncad::geom_core::Point2;
-    use pncad::profile::{Step, Target};
-    let mut steps = vec![Step::At(Point2::new(points[0].0, points[0].1))];
-    for &(x, y) in &points[1..] {
-        steps.push(Step::LineTo(Target::Point(Point2::new(x, y))));
-    }
-    steps.push(Step::LineTo(Target::Start));
-    steps
-}
-
 /// One node's row status out of a tree render — the lookup five
 /// suites had written out by hand.
 ///
@@ -424,30 +408,17 @@ pub fn near(got: f64, want: f64) -> bool {
     ((got - want) / want).abs() < 1e-9
 }
 
-/// The evaluated volume of `node`'s single body — an extrude's, a
-/// blend's, or a boolean's — with the seam pumped.
+/// [`evaluated_volume`] of `node` with the seam pumped.
 ///
 /// The evaluation read is the SHOWN document's, so mid-gesture this
-/// measures the scratch preview exactly as the viewport does. A node
-/// that failed to evaluate panics with the node's own recorded error,
-/// not just the absence of a value.
+/// measures the scratch preview exactly as the viewport does.
 pub fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
     session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    let value = eval.value(node).unwrap_or_else(|| {
-        panic!(
-            "the node evaluated: {:?}",
-            eval.result(node).and_then(NodeResult::error)
-        )
-    });
-    let body = match &value.payload {
-        ValuePayload::Body(body) => body.clone(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.clone(),
-        other => panic!("expected a body, got {other:?}"),
-    };
-    pncad::topo::mass_properties(&body, tol)
-        .expect("mass properties")
-        .volume
+    evaluated_volume(
+        session.evaluation().expect("the inline seam landed"),
+        node,
+        tol,
+    )
 }
 
 /// The story-gallery door: the directory named by

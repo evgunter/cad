@@ -198,6 +198,23 @@ pub fn step_with(
     (applied.doc, applied.record.minted)
 }
 
+/// **The id `doc`'s next insert would mint**, read by making that
+/// insert on a copy: an id no node of `doc` holds, whatever the mint.
+pub fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
+    insert(doc.clone(), xy_frame()).1
+}
+
+/// **The last node in `doc.order()`** — the one a just-applied
+/// `InsertNode` minted, for a row that pushes an insert through a door
+/// that hands back only the document.
+///
+/// # Panics
+///
+/// If `doc` holds no live node.
+pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
+    *doc.order().last().expect("the document holds a node")
+}
+
 pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let (doc, minted) = step(doc, DocEdit::InsertNode { node });
     (doc, minted.unwrap())
@@ -257,12 +274,14 @@ pub fn door_refusal(
 ///
 /// `side` is the head that resolves to nothing, spelled in `node` as
 /// it is meant to read — at its own mint, which is where the rebind
-/// leaves it.
+/// leaves it. `anchor_body` is the body node of `anchor`'s part
+/// document.
 pub fn insert_mate_with_stranded_head(
     doc: ProfileDoc,
     node: Node<ProfileProgram>,
     side: editor_core::MateSide,
     anchor: RecipeNodeId,
+    anchor_body: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
     let Node::Mate {
         a,
@@ -284,7 +303,11 @@ pub fn insert_mate_with_stranded_head(
             },
         },
     );
-    let stand_in = in_copy(scratch, 1, resolver::in_part(anchor, CapEnd::End));
+    let stand_in = in_copy(
+        scratch,
+        1,
+        resolver::in_part(anchor, anchor_body, CapEnd::End),
+    );
     let (stranded, a, b) = match side {
         editor_core::MateSide::A => (a, head(stand_in.clone()), b),
         editor_core::MateSide::B => (b, a, head(stand_in.clone())),
@@ -710,7 +733,8 @@ pub fn die() -> Die {
             distance: Expr::neg(Expr::param(
                 ParamName::from_static("pip_depth"),
                 Dimension::Length,
-            )),
+            ))
+            .expect("a shallow negation"),
         });
         masters.push((ext, u, v, pips));
     }
@@ -1402,7 +1426,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(edge.as_ref()).chain(band).collect()
         }
-        RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
+        RoleSeg::Fragment(Qualifier::Borders(v)) => v.iter().collect(),
         RoleSeg::Fragment(Qualifier::OrderAlong { .. })
         | RoleSeg::OutputBody
         | RoleSeg::Cap(_)

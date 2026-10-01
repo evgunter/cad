@@ -344,6 +344,7 @@ mod tests {
 
     use crate::body::Body;
     use crate::entity::EdgeKey;
+    use crate::fixtures::deep_snapshot;
     use crate::instance::{graft_disjoint, graft_disjoint_all_keyed};
     use crate::test_support_fixtures::declined_cube;
 
@@ -442,19 +443,30 @@ mod tests {
     fn a_source_that_is_not_a_single_solid_refuses_typed() {
         // Empty: no solid at all.
         let mut dst = cube();
+        let before = deep_snapshot(&dst);
         let err = graft_disjoint(&mut dst, &Body::<f64>::new(), Tol::witness())
             .expect_err("no solid to graft");
         assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
-        assert_eq!(dst.solids().count(), 1, "and nothing was written");
+        assert_eq!(
+            deep_snapshot(&dst),
+            before,
+            "an empty source writes nothing"
+        );
 
         // Two solids: the graft transplants ONE, so a two-solid source
         // is a caller error, not a thing to guess at.
         let mut two = cube();
         graft_disjoint(&mut two, &cube(), Tol::witness()).expect("build a two-solid body");
         let mut dst = cube();
+        let before = deep_snapshot(&dst);
         let err =
             graft_disjoint(&mut dst, &two, Tol::witness()).expect_err("two solids in the source");
         assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+        assert_eq!(
+            deep_snapshot(&dst),
+            before,
+            "a two-solid source writes nothing"
+        );
     }
 
     /// The minted solid's provenance is the SOURCE's — a graft is not

@@ -31,7 +31,8 @@ and what two widgets say too:
 And in refusal and report prose, where nothing is a widget:
 `session/refuse.rs` (the `NoSuchSlot`, `WrongNodeKind`,
 `ProfileEditStale`, `ProfileEditOrder`, `ProfileEditOrderCapped` and
-`FaceFrameFault` arms), `display.rs`, `pickindex.rs`, `props.rs`,
+`FaceFrameFault` arms; #3446 retired `ProfileEditOrder` and
+`ProfileEditOrderCapped` with the write-order search), `display.rs`, `pickindex.rs`, `props.rs`,
 `matetool.rs`, `sketch.rs`'s `NotAProfile`.
 
 ## Why it is filed and not fixed
@@ -108,7 +109,8 @@ BlendTarget`, `pane/properties.rs`'s entity heading,
   (`rg -n '\b(node|id)\.0\b' crates/viewer/src`, filtered to text)
   found two `feature {}` literals that spell the chrome word WITHOUT
   its home: `session/refuse.rs`'s `ProfileRestructure`
-  "feature {} was not edited" and `sketch.rs`'s `NotAProfile` — the
+  "feature {} was not edited" (retired by #3446: a reshaping is one
+  `SetProgram` now) and `sketch.rs`'s `NotAProfile` — the
   literal-sweep's own blind spot (`write!`, not `format!`).
 
 ## Evidence 2026-09-25 (VNEWS, from VNEWS #3281's style review)

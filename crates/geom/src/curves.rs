@@ -47,6 +47,7 @@ pub mod compose;
 pub mod fit;
 pub mod nurbs;
 pub mod projection;
+pub mod second_derivative;
 
 use std::sync::Arc;
 
@@ -776,11 +777,35 @@ pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
     )
 }
 
+/// A closed-form `sup‖C″‖` for the spiric `(R, r, d)`, in metres per
+/// radian squared — the one spelling of the bound, read by the mesh
+/// chord sizing and by STEP export's node-count schedule.
+///
+/// From `C″ = m·f″ − axis·(r·sin v)` with
+/// `|f″| = r·|(ρ·cos v − r·sin²v)/f + r·ρ²·sin²v/f³|
+///        ≤ r·((ρ_max + r)/f_min + r·ρ_max²/f_min³)`,
+/// `ρ_max = R + r`, `f_min = √((R − r)² − d²)`, plus the axis
+/// channel's `r`. Plain `f64`: a sizing quantity, conservative by the
+/// bound's own slack rather than by rounding. Off-regime data
+/// (`f_min` poison or zero) yields a non-finite answer, which every
+/// caller reads as a refusal rather than a step.
+#[must_use]
+pub fn spiric_curvature_sup(major: f64, minor: f64, offset: f64) -> f64 {
+    let rho_max = major + minor;
+    let (f_min, _) = spiric_f_range(major, minor, offset);
+    minor
+        + (minor.powi(2) + minor * rho_max) / f_min
+        + minor.powi(2) * rho_max.powi(2) / f_min.powi(3)
+}
+
 /// The spiric's radial pair from `c = cos v`: `ρ = R + r·c` and
 /// `f = √(ρ² − offset²)` — one `sqrt`, fixed order (D9). Shared by the
 /// three evaluators so the radicand is spelled once; each evaluator
-/// takes its one `sin_cos` itself.
-fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
+/// takes its one `sin_cos` itself. Public because the spiric's exact
+/// CHART images are the same `f` in chart coordinates
+/// (`geom_brep::SpiricImage`), and a second spelling of the radicand
+/// is a second place for it to be wrong.
+pub fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
     let rho = major + minor * c;
     (rho, (rho.powi(2) - offset.powi(2)).sqrt())
 }

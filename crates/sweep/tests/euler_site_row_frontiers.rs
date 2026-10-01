@@ -208,3 +208,43 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     want.sort();
     assert_eq!(missing, want);
 }
+
+/// **An operator on a spline wall a null edge holds open leaves it as
+/// found**, the answer the edge's description gives it. The strut that
+/// refuses `SplineChart` on the complete wall is taken once a null
+/// strut hangs on the same loop: the wall is incomplete already, and a
+/// refusal would strand the pipeline mid-surgery with its null edge.
+/// No row moves, and the wall misses the null strut's two rows and the
+/// new strut's two.
+#[test]
+fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
+    let mut body = lofted_prism();
+    let (_, he) = minted_face(&body, |s| s.spline_chart().is_some());
+    let null = body
+        .mev_null(
+            MevSite::Fan { he1: he, he2: he },
+            topo::NewVertexSide::Above,
+        )
+        .unwrap();
+    let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
+    let before = rows(&body);
+    let strut = body
+        .mev_line(
+            MevSite::Fan { he1: he, he2: he },
+            start_point(&body, he) + Vec3::new(0.0, 0.0, 0.25),
+            tol(),
+        )
+        .expect("the held-open wall takes the strut");
+    assert_eq!(rows(&body), before, "no row moves");
+    let mut missing: Vec<HalfEdgeKey> = validate_pcurves(&body, band())
+        .into_iter()
+        .map(|f| match f {
+            topo::PcurveMintError::MissingCache { half_edge } => half_edge,
+            other => panic!("only missing rows are reported, got {other:?}"),
+        })
+        .collect();
+    missing.sort();
+    let mut want = vec![null.he_plus, null.he_minus, strut.he_plus, strut.he_minus];
+    want.sort();
+    assert_eq!(missing, want);
+}

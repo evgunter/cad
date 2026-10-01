@@ -28,7 +28,7 @@ use pncad::profile::{
     ArcData, ArcMode, ReplayErrorKind, SketchPlane, Step, Target, TargetKind, TipState, Verb,
 };
 use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
-use viewer::sketch::{self, Notation, PreviewError, admits_at, preview};
+use viewer::sketch::{self, LoopEnd, Notation, PreviewError, admits_at, preview};
 
 /// The flattening tolerance the rows read at — a tenth of a
 /// millimetre, fine enough that a circle's points land on it to well
@@ -77,7 +77,7 @@ fn a_line_chain_previews_and_authors_the_same_square() {
     // Four corners and no subdivision: a straight leg has no sag to
     // answer for, so the flattener adds nothing between its ends.
     assert!(
-        drawn.loops[0].closed,
+        drawn.loops[0].end.closes(),
         "the square's chain closes on its own"
     );
     assert_eq!(
@@ -260,11 +260,12 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     )
     .expect("an unfinished chain still draws what it has");
     assert_eq!(drawn.loops.len(), 1);
-    assert!(
-        !drawn.loops[0].closed,
+    assert_eq!(
+        drawn.loops[0].end,
+        LoopEnd::Unfinished(None),
         "the chain has no closing verb, and the preview says so",
     );
-    assert!(drawn.has_open_chain());
+    assert!(drawn.has_unfinished_chain());
     // The authored vertices, and ONLY those: the provisional
     // `line_to Start` contributes no point of its own, so the polyline
     // is the three legs the person wrote.
@@ -295,14 +296,17 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     );
 }
 
-/// **A chain whose provisional close is itself ill-typed reports the
-/// ORIGINAL refusal.**
+/// **A chain whose provisional close is ill-typed, with nothing
+/// before its tip to draw, reports the ORIGINAL refusal.**
 ///
-/// `angle` binds a direction and leaves the position pending, and no
-/// `line_to` is well-typed there — so the close this module appends to
-/// draw an unfinished chain cannot be walked either. The refusal a
-/// reader gets is the end-of-program one, about the program they
-/// wrote, never one about a step nobody authored.
+/// `at` then `angle` binds a position and a direction over a plain
+/// point, and no `line_to` is well-typed there — so the close the
+/// preview appends to draw an unfinished chain cannot be walked, and no
+/// shorter prefix draws either: a lone `at` encloses nothing. The
+/// refusal a reader gets is the end-of-program one naming that tip,
+/// about the program they wrote, never one about a step nobody
+/// authored. With legs before such a tip, the legs are drawn and the
+/// same refusal is said beside them (the profile pane's rows).
 #[test]
 fn an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written() {
     let tol = Tol::witness();
@@ -315,15 +319,15 @@ fn an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written() {
         tol,
         CHORD,
     )
-    .expect_err("a bound direction with no position cannot be closed");
+    .expect_err("nothing before the tip draws");
     assert!(
         matches!(
             refusal,
             PreviewError::Transition {
                 loop_: 0,
                 step: 2,
+                state: TipState::DirectedPlain,
                 verb: None,
-                ..
             }
         ),
         "{refusal}",
@@ -515,25 +519,51 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     )
     .expect("the declared seam previews");
     assert!(drawn.invalid.is_none(), "{:?}", drawn.invalid);
-    assert!(drawn.loops[0].closed);
+    assert!(drawn.loops[0].end.closes());
 
     // The same seam UNDECLARED is the refusal whose sentence names the
-    // declaration — the one a person using this form now can act on.
+    // declaration — the one a person using this form now can act on —
+    // carried by the loop it cut short, which draws every step before
+    // the refused close.
     let mut undeclared = steps.clone();
     undeclared[6] = Step::LineTo(Target::Start);
-    let refusal = preview(
+    let cut = preview(
         SketchPlane::xy(),
         &[ProfileShape::Path { steps: undeclared }],
         tol,
         CHORD,
     )
-    .expect_err("an undeclared tangent seam is refused");
+    .expect("the steps before an undeclared seam still draw");
+    let refusal = cut.loops[0]
+        .end
+        .refusal()
+        .expect("an undeclared tangent seam is refused");
     assert!(
         matches!(
-            &refusal,
+            refusal,
             PreviewError::Geometry { step: 6, rendered, .. } if rendered.contains("arrives_tangent")
         ),
         "{refusal}",
+    );
+    let before: Vec<[f64; 2]> = cut.loops[0]
+        .vertices
+        .iter()
+        .map(|&at| cut.loops[0].points[at])
+        .collect();
+    // Through the `continue_to`: the provisional close after it is the
+    // seam, which the preview spells declared, as the lattice does, so
+    // the drawn tip is where the refused close leaves from.
+    assert_eq!(
+        before,
+        [
+            [0.005, 0.0],
+            [0.01, 0.0],
+            [0.01, 0.01],
+            [0.0, 0.01],
+            [0.0, 0.005],
+            [0.0, 0.0]
+        ],
+        "the vertices of every step before the refused close"
     );
 
     let mut session = session(tol);
@@ -909,12 +939,12 @@ fn a_leg_whose_separation_overflows_gets_no_heading() {
     let points = &polyline.points;
     assert_eq!(points.len(), 3, "{points:?}");
     assert_eq!(
-        sketch::heading(points, 0, polyline.closed),
+        sketch::heading(points, 0, polyline.end.closes()),
         None,
         "a separation of 1.4e308 in each axis answered a heading",
     );
     for at in [1, 2] {
-        let [dx, dy] = sketch::heading(points, at, polyline.closed)
+        let [dx, dy] = sketch::heading(points, at, polyline.end.closes())
             .unwrap_or_else(|| panic!("vertex {at} of a drawn loop has a heading"));
         let length = dx.hypot(dy);
         assert!(

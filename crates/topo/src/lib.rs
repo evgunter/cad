@@ -292,6 +292,42 @@ pub mod test_support {
     pub use crate::test_support_impl::ArenaCounts;
     pub use crate::test_support_samples::validation_error_samples;
 
+    /// The two operand clones as the boolean's join leaves them, A's
+    /// first.
+    pub type JoinedOperands = (Body<f64>, Body<f64>);
+
+    /// The boolean pipeline through its join: both operand clones with
+    /// every null edge killed, before the finish and the closing mint
+    /// (`boolean::through_the_join`). `None` where the pipeline answers
+    /// without a join to stop at.
+    ///
+    /// # Errors
+    ///
+    /// The pipeline's refusal on the way to its join.
+    pub fn boolean_through_the_join(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Option<JoinedOperands>, crate::BooleanError> {
+        crate::boolean::through_the_join(op, a, b, tol)
+    }
+
+    /// The direct split run through its join: the scratch body with
+    /// every null edge killed, before the finish and the closing mint
+    /// (`splitting::through_the_join`).
+    ///
+    /// # Errors
+    ///
+    /// The reduction's or the join's refusal.
+    pub fn split_through_the_join<T: geom_core::Decide>(
+        operand: &Body<T>,
+        plane: &crate::SplitPlane<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Body<T>, crate::SplitError> {
+        crate::splitting::through_the_join(operand, plane, tol)
+    }
+
     /// The topology-arena lengths of `body`. A free function because
     /// `Body::arena_counts` is `pub(crate)` — an inherent method's
     /// reach follows its own visibility, not its module's, so making
@@ -395,7 +431,7 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation,
-    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact,
+    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact, DiscardRow,
     FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
     PairRefusalSite, PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
     PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, SectorRung, SideCode,
@@ -414,6 +450,7 @@ pub use surgery::Surgery;
 pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
+pub use attach::Rechart;
 pub use census::{CensusStrategy, CensusTrace, SweepPairs};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
@@ -454,7 +491,8 @@ pub use instance::{
     graft_disjoint_all_onto_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup, SkippedMerge,
+    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup,
+    OutlineVerdict, SkippedMerge,
 };
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};

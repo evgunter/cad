@@ -892,7 +892,8 @@ fn a_mixed_sense_chart_refuses_typed() {
     );
     let shared = body.get_face(outer).unwrap().surface;
     let inner_sense = body.get_face(inner).unwrap().sense;
-    body.set_face_surface(
+    // Lifts both refusals: a chart worn by faces of opposite sense is the row.
+    body.set_face_surface_stranding_for_tests(
         inner,
         topo::FaceSurface::Shared {
             key: shared,

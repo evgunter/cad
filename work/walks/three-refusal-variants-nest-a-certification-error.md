@@ -56,3 +56,14 @@ the S93 unit that surfaced it had no mandate to restructure error types
 
 The second is the smallest and buys the most of what the class costs
 today (the arm-listing). Deciding is a later unit's.
+
+## Evidence: a fourth `EulerOpError` spelling (PR 3580)
+
+`RechartFalsifies { edge, error }` (`crates/topo/src/euler.rs`), raised
+by `Body::set_face_surfaces_describing` when a listed re-description
+does not certify on the moved charts, is the same shape as
+`RebasedCarrier { edge, error }`: an `EdgeKey` plus a nested
+`CertifyError`. It adds one more arm to every list above
+(`reports_tier1_corruption`, `merge_faces`' placement match, the
+`every_*_error_once` table). PR 3580 left the shape alone, as this row
+asks.

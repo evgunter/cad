@@ -471,7 +471,7 @@ mod tests {
         "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
 
     /// The split door's own clause, a stage for a subject, filed with
-    /// its owner: `work/reach/reach-refusals-short-of-the-shape-guard.md`.
+    /// its owner: `work/hone/reach-refusals-short-of-the-shape-guard.md`.
     const SPLIT_DOOR_FILED: &str = "inserting the plane crossing on edge";
 
     /// **`split_edge`'s in-band interiority reads whole at every door
@@ -1467,7 +1467,8 @@ mod tests {
         let along = (p1 - p0) * (1.0 / diagonal);
         let theta = (b.zero() + b.escalate()) / 2.0 / diagonal;
         let up = Vec3::new(0.0, 0.0, 1.0);
-        body.set_face_surface(
+        // Lifts both refusals: the bent plane is the gate's near-flat input; the half's edges are not the row.
+        body.set_face_surface_stranding_for_tests(
             half.face,
             crate::euler::FaceSurface::New {
                 surface: crate::Surface::Plane {

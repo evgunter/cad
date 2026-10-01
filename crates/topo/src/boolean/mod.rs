@@ -72,6 +72,7 @@ mod circle_torus;
 pub(crate) mod combine;
 pub mod contact_verify;
 mod contain;
+mod discard;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
@@ -124,6 +125,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // against each other (its contact arm 4) on the same loop
 // classification this module's own walk dispatches on.
 pub(crate) use contain::{LoopShape, loop_shape};
+pub use discard::DiscardRow;
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -2216,6 +2218,40 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
         tol,
     )?;
     Ok((ab, ba))
+}
+
+/// **The boolean pipeline through its join**, undeclared and realized:
+/// the two operand clones as the join leaves them, every null edge
+/// killed, before the finish, the zip and the closing mint — the
+/// production sequence itself (`ops::through_the_join`), stopped there.
+/// `None` where the pipeline answers without a join to stop at. Test
+/// vocabulary (`topo::test_support`), for the rows that read the rows
+/// a face carries at that point.
+///
+/// # Errors
+///
+/// The pipeline's refusal on the way to its join.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn through_the_join(
+    op: BooleanOp,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    tol: Tol,
+) -> Result<Option<crate::test_support::JoinedOperands>, BooleanError> {
+    Ok(
+        match ops::through_the_join(
+            op,
+            a,
+            b,
+            &BooleanDeclarations::none(),
+            SweepStrategy::Realized,
+            true,
+            tol,
+        )? {
+            ops::Joined::Answered(_) => None,
+            ops::Joined::Connected { red, .. } => Some((red.a, red.b)),
+        },
+    )
 }
 
 /// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —
