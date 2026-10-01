@@ -4,10 +4,15 @@ kind: issue
 title: chrome: kernel refusals the tree draws verbatim say 'node N' where the tree's own words say 'feature N'
 status: open
 opened: 2026-09-29
+needs_ev: true
 priority: P3
 cost: E
 design: true
 ---
+
+## Question
+
+What word names a node in text a viewer user reads? The feature tree says "feature N" (`tree::node_number`), while the kernel's refusals, which the tree draws verbatim, say "node N". So one row can read "node 7 failed: … repair node 4" above "see feature 4". The choice is the word, and which layer owns it.
 
 
 ## What
