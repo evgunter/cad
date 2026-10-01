@@ -220,3 +220,38 @@ commit message. Residue rows are listed in the item's `## Closed`.
 Class finding: a refusal mapped wholesale to `corrupt()` hides what
 actually stopped it. This one was swept, and the containment probe's
 copy is filed on CONTACT. — (REACH orchestrator)
+
+## 2026-10-01 — the full-period wall closes (PR 3615)
+
+`full-period-wall-has-no-containment-verdict` got a full single review
+and two deltas. What review moved:
+
+- **Round 1 (MAJOR).** Removing the sphere arm's period guard let the
+  face door answer a wrong `In`: a zone merged with half a cap (planted
+  with kef) read as a full turn by a metric width test.
+- **Fix.** One structural wrap test for every curved chart, with coaxial
+  rims only.
+- **Delta 1.** Approved with nits. The cone group still ran a second
+  wrap test that exempted every circle (a half-fix of the class), and the
+  coaxial test was spelled three times. Both now have one home. The walk
+  is exact and margin-free; `bool_wrap_rim` is asked only when every
+  unmated edge is a circle.
+
+Mutating either half of `wrap_rims` reddens 33 to 40+ rows. The bead
+oracle's 216/216 at each door and the near-full revolves are kept as
+rows.
+
+The merge went over two reds inherited from main (annotated on the PR):
+- `reach_volume_backstop`'s ε rows, which REACH caused and #3636 fixes.
+  It is another session's PR, checked against an independent REACH
+  rewrite.
+- `m10_sym_profile_interval`, being bisected.
+
+Residue on this slate: `line-edge-crossing-a-sphere-face-has-no-root-lane`
+and `full-turn-bore-rest-mate-does-not-union`.
+
+**Class finding: the PR gate gives the extra ε rows only to four
+crates.** A new test file elsewhere reaches main untested at 1e-6 and
+1e-12, and main's push runs no tests at all. Filed for CIW
+(`a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`).
+— (REACH orchestrator)

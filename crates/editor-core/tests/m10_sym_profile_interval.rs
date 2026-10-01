@@ -256,21 +256,21 @@ fn eps_row(eps: f64) -> usize {
 /// The slab's walk ledger at its nominal, per ε row.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9686 frozen 0 digest 4c206fa8091829f2e72e255bfcf8cb34\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 03f37caff1322731ed06355f6880c51c\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
      Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest 144775155146a913025d282ba655d459\n\
      Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
     "\
-     Plain/Decision calls 980 forms 9686 frozen 0 digest 68a31dec794118be1e5494c295c01a77\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest d6944216b808695de65a32c884bbff84\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
      Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest 25e1a56d72b822e9b22340ed78923147\n\
      Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
     "\
-     Plain/Decision calls 980 forms 9686 frozen 0 digest b2316116afff13c352e218269a06ec67\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest fffa8447b6a8ffd4d42e7d855abb8194\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
      Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
@@ -309,13 +309,13 @@ const PLATE_MAX_TERMS: usize = 288;
 /// The door's calls include the lowering's endpoint registrations: 16
 /// decisions and 16 assertions.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15090 frozen 672 digest 40bb43a79461c5a97aff872142b624de\n\
+     Plain/Decision calls 951 forms 14653 frozen 672 digest 80e1e6f05a0bccd518da4df030788582\n\
      Plain/Assertion calls 462 forms 2525 frozen 372 digest 2e14336f6eaba7e011317ac4ab863fac\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7964 frozen 8 digest 89d17038f6d91fe3575b640c9350806c\n\
+     Early/Decision calls 320 forms 7710 frozen 8 digest 3c4bcb9c2a6b5f1e52dfc65fcdf173ec\n\
      Early/Assertion calls 462 forms 3388 frozen 104 digest 24eece643fd0281869c7ad25fd6e84fb\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 346 forms 12046 frozen 104 digest 2e2d7bc050d03fe51f4feaa4ab3037a4\n\
+     Door/Decision calls 346 forms 11730 frozen 104 digest ad4bc7508b3454ca97606354da812d3b\n\
      Door/Assertion calls 206 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

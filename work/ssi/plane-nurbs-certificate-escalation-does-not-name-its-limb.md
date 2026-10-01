@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: the rung-3 certificate's escalation does not name its limb, so certification routes the uniqueness tube as a residual
 status: open
 opened: 2026-09-28
+cost: M
+priority: P1
 ---
 
 

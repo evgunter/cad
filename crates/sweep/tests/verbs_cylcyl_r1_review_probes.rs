@@ -311,13 +311,13 @@ fn revolve_minted_walls_meet_the_same_gate() {
     }
 }
 
-/// The containment door handed a FULL-TURN wall (revolve-minted, seam
-/// in the boundary): the doc promises `None` is "the honest remainder
-/// throughout — a chart form the trim cannot express" — a full-period
-/// azimuth window is such a form. Measured here: the door must never
-/// return a WRONG In/Out; None or a loud error are both recorded.
+/// The containment door handed a revolve-minted wall: an on-wall point
+/// at mid-height, far from the seams, is `In` exactly one wall face and
+/// `Out` of the other. An axis-touching revolve mints the wall as two
+/// half-turn faces; a genuine full-turn wall is
+/// `full_turn_wall::a_washers_full_turn_walls_are_height_bands`.
 #[test]
-fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
+fn a_revolved_walls_two_half_turns_place_an_on_wall_point_in_one() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let body = revolved_cyl(1.0, 2.0);
@@ -331,31 +331,23 @@ fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
         })
         .map(|(k, _)| k)
         .collect();
-    assert!(!walls.is_empty(), "a revolved rectangle has wall faces");
-    // On the carrier, mid-height, azimuth far from the seam: interior
-    // of the full-turn wall.
     let q = Point3::new(2.0_f64.cos(), 1.0, -(2.0_f64.sin()));
-    let mut outcomes = Vec::new();
-    for &f in &walls {
-        let got = topo::curved_face_containment(&body, f, q, band);
-        eprintln!("full-turn wall {f:?}: {got:?}");
-        match got {
-            Ok(Some(topo::FaceContainment::Out)) => {
-                // Only acceptable if q is genuinely off this face —
-                // with a single full wall this would be a WRONG verdict.
-                outcomes.push("Out");
-            }
-            Ok(Some(topo::FaceContainment::In)) => outcomes.push("In"),
-            Ok(Some(_)) => outcomes.push("OnBoundary"),
-            Ok(None) => outcomes.push("None"),
-            Err(_) => outcomes.push("Err"),
-        }
-    }
-    // The door must not claim Out on every wall face when the point is
-    // on the solid's wall: that would be the wrong-verdict shape.
-    assert!(
-        !(outcomes.iter().all(|o| *o == "Out")),
-        "an on-wall interior point reported Out of every wall face: {outcomes:?}"
+    let got: Vec<_> = walls
+        .iter()
+        .map(|&f| topo::curved_face_containment(&body, f, q, band).unwrap())
+        .collect();
+    let held = got
+        .iter()
+        .filter(|v| **v == Some(topo::FaceContainment::In))
+        .count();
+    let out = got
+        .iter()
+        .filter(|v| **v == Some(topo::FaceContainment::Out))
+        .count();
+    assert_eq!(
+        (held, out),
+        (1, walls.len() - 1),
+        "one wall face holds the on-wall point, the rest exclude it: {got:?}"
     );
 }
 
