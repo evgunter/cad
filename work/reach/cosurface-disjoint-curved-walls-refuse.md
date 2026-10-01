@@ -8,6 +8,7 @@ github: 1352
 refs: [1351]
 priority: P0
 cost: H
+needs_ev: true
 ---
 
 ## From GitHub issue 1352
@@ -149,3 +150,14 @@ updates `demos/tour/src/twopeg.rs` and the flush helpers to declare
 continuations, which lets ZIP's
 `a-union-glues-same-sense-cosurface-walls-without-merging-them` refuse
 or merge as the rule says.
+
+## A definition question at review (2026-10-01)
+
+The dual review of PR 3657 found aligned one-carrier pairs whose
+interiors OVERLAP being minted and accepted as continuations: a flush
+pocket, overlapping equal-height plates, a sunk stack, a rabbet cut
+flush with a wall, and the die's pip-cutter cap. The results are
+correct. C4 as ratified in PR 3613 says "interiors disjoint, sharing
+only a boundary curve", which defines those pairs out. Before PR 3657,
+they were declared `Rest`. The `[ev]` PR that widens the definition to
+match the code is open; the code keeps its behaviour meanwhile.
