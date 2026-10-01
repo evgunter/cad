@@ -343,10 +343,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
-        4,
-        4,
-        "the doors that read an endpoint (`clamped_to`, `meet`, `width`, `mag`), each refusing \
-         first",
+        3,
+        3,
+        "the reads that serve a door, each refusing first: `narrowed_to` (the one body of \
+         `clamped_to` and `meet`), `width` and `mag`",
     ),
     ("crates/geom-core/src/spline/compose/tensor.rs", 6, 6, ""),
     (
