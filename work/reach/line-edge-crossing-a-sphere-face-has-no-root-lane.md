@@ -2,11 +2,12 @@
 id: line-edge-crossing-a-sphere-face-has-no-root-lane
 kind: issue
 title: A line edge straddling a sphere face has no root lane in the reduction (lily wall probe 12 stops here)
-status: review
+status: closed
 pr: 3659
 branch: reach/sphere-union-sphere
 opened: 2026-10-01
 refs: [full-period-wall-has-no-containment-verdict, sphere-union-sphere-refuses-though-the-section-is-closed-form]
+closed: 2026-10-01
 ---
 
 Found by the `reach-fullperiod` lane once the full-turn cylinder band
@@ -71,3 +72,10 @@ A public-op row reaches the lane too: a square bar poking out of a ball
 (`crates/sweep/tests/snowman.rs`,
 `a_bar_through_a_ball_crosses_the_sphere`) refused at this door before
 and now stops at `CurvedSectorSideUnsupported`.
+
+## Closed (2026-10-01, PR 3659)
+
+The line × sphere root lane exists: `solid_contain::line_sphere_roots`,
+shared by the ray lane and the crossing layer, and general in the
+line's direction. Lily wall probe 12 now pierces at z ≈ −0.794, then
+stops one door later, at `full-turn-bore-rest-mate-does-not-union`.
