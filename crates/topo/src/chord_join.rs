@@ -235,8 +235,9 @@ pub enum SplitJoinError {
         ring: LoopKey,
     },
     /// The divided face's outer loop carries an edge the containment
-    /// walk has no crossing row for (a spiric, a spline), and every
-    /// scheduled ray from the ring's representative could meet it.
+    /// walk has no crossing row for (a spiric, a spline), and the ray
+    /// schedule from the ring's representative ran out with at least
+    /// one ray abandoned because it could meet that edge.
     RingHomingUncrossable {
         /// The unplaced ring.
         ring: LoopKey,
@@ -421,8 +422,9 @@ impl SplitJoinError {
                 ),
                 crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
                     f,
-                    "every test ray grazed a hole loop, so which piece holds it is \
-                     ill-conditioned at this tolerance. Recourse: {recourse}"
+                    "every test ray grazed the divided face's boundary, so which piece \
+                     holds a hole loop is ill-conditioned at this tolerance. Recourse: \
+                     {recourse}"
                 ),
                 crate::splitting::PointInLoopError::CorruptLoop { .. } => {
                     write!(f, "re-homing a hole loop refused: {e}")
@@ -435,8 +437,9 @@ impl SplitJoinError {
             ),
             Self::RingHomingUncrossable { .. } => write!(
                 f,
-                "which piece holds a hole loop cannot be read: a curved edge of the divided \
-                 face's boundary blocks every test ray. Recourse: {recourse}"
+                "which piece holds a hole loop cannot be read: no test ray got past a \
+                 curved edge of the divided face's boundary that it could meet. Recourse: \
+                 {recourse}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
