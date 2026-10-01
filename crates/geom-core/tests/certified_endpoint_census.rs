@@ -322,9 +322,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        10,
-        10,
-        "`Box3`'s disjointness, containment, centre and split all refuse by name, and \
+        11,
+        11,
+        "`Box3`'s disjointness, containment, centre, split and reach meet all refuse by name, and \
          so does the mignitude (`zero_free_lower_bound`, 4)",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),

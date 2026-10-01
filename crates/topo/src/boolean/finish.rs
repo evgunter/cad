@@ -35,7 +35,7 @@ use slotmap::SecondaryMap;
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, discard_row};
 use super::join::CompletedPolygonPair;
-use super::shell_witness::{contact_skip_set, shell_side};
+use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, SolidKey, VertexKey};
@@ -124,7 +124,6 @@ fn classify_shell<T: Decide>(
     shell: ShellKey,
     side_of: &SecondaryMap<FaceKey, SideCode>,
     other: &Body<T>,
-    skip: &SecondaryMap<VertexKey, ()>,
     operand: Operand,
     band: Band,
     tol: Tol,
@@ -148,7 +147,7 @@ fn classify_shell<T: Decide>(
     if let Some(s) = side {
         return Ok(s);
     }
-    shell_side(body, shell, other, skip, operand, band, tol)
+    shell_side(body, shell, other, operand, band, tol)
 }
 
 /// Distributes, classifies, and selects one solid's kept shells;
@@ -159,7 +158,6 @@ fn select_solid<T: Decide>(
     solid: SolidKey,
     side_of: &SecondaryMap<FaceKey, SideCode>,
     other: &Body<T>,
-    skip: &SecondaryMap<VertexKey, ()>,
     operand: Operand,
     keep: SideCode,
     band: Band,
@@ -176,7 +174,7 @@ fn select_solid<T: Decide>(
     }
     let mut kept = Vec::new();
     for shell in all {
-        if classify_shell(body, shell, side_of, other, skip, operand, band, tol)? == keep {
+        if classify_shell(body, shell, side_of, other, operand, band, tol)? == keep {
             kept.push(shell);
         }
     }
@@ -223,14 +221,18 @@ pub(super) fn setopfinish<T: Decide>(
         single_solid(&red.a).map_err(|_| desync("operand A is not a single-solid body"))?;
     let b_solid =
         single_solid(&red.b).map_err(|_| desync("operand B is not a single-solid body"))?;
-    let a_skip = contact_skip_set(&red.contacts, Operand::A);
-    let b_skip = contact_skip_set(&red.contacts, Operand::B);
+    debug_assert_contacts_undecisive(
+        &red.contacts,
+        (&red.a, b_pristine),
+        (&red.b, a_pristine),
+        band,
+        tol,
+    );
     let a_kept_shells = select_solid(
         &mut red.a,
         a_solid,
         &a_sides,
         b_pristine,
-        &a_skip,
         Operand::A,
         kept_side(op, Operand::A),
         band,
@@ -241,7 +243,6 @@ pub(super) fn setopfinish<T: Decide>(
         b_solid,
         &b_sides,
         a_pristine,
-        &b_skip,
         Operand::B,
         kept_side(op, Operand::B),
         band,
