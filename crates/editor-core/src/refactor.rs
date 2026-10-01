@@ -191,12 +191,12 @@ pub struct StepMapDivergence {
 
 impl core::fmt::Display for StepMapDivergence {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let id = |s: Option<StepId>| s.map_or_else(|| "none".to_owned(), |s| format!("#{}", s.0));
+        let id = |s: Option<StepId>| s.map_or_else(|| "none".to_owned(), |s| s.to_string());
         write!(
             f,
-            "the profile step minted #{} was predicted to be re-minted as {} and was minted as \
+            "the profile step {} was predicted to be re-minted as {} and was minted as \
              {}, which is a kernel bug",
-            self.step.0,
+            self.step,
             id(self.precomputed),
             id(self.minted)
         )
@@ -459,7 +459,7 @@ impl core::fmt::Display for SplitError {
         match self {
             Self::EmptyCut => f.write_str("split: the cut set is empty"),
             Self::UnknownCutNode { id } => {
-                write!(f, "split: cut entry {} is not a live node", id.0)
+                write!(f, "split: cut entry {} is not a live node", id)
             }
             Self::TornGroup {
                 root,
@@ -477,7 +477,7 @@ impl core::fmt::Display for SplitError {
                      cut, node {kept} is kept) — the frame lives on the GROUP, so the cut \
                      must be a union of WHOLE groups; widen the cut, or delete the mates \
                      holding the group together first",
-                    root.0
+                    root
                 )
             }
             Self::PartIdCollides { id } => write!(
@@ -501,9 +501,9 @@ impl core::fmt::Display for SplitError {
                     "split: the cut severs mate {}'s {} reference from the node it is read at \
                      (node {} — node {cut} is cut, node {kept} is kept); widen the cut, or \
                      re-author the mate at a node on its own side",
-                    mate.0,
+                    mate,
                     side.name(),
-                    operand.0
+                    operand
                 )
             }
             Self::SeveredEdge {
@@ -520,7 +520,7 @@ impl core::fmt::Display for SplitError {
                     f,
                     "split: the cut severs the edge from node {} to node {} (node {cut} is cut, \
                      node {kept} is kept) — a cut must be closed under inputs and consumers",
-                    consumer.0, input.0
+                    consumer, input
                 )
             }
             Self::UncutParamReference {
@@ -531,7 +531,7 @@ impl core::fmt::Display for SplitError {
                 f,
                 "split: parameter {param} is referenced by cut node {} and kept node {} — one \
                  parameter cannot silently become two documents' parameters",
-                cut_node.0, kept_node.0
+                cut_node, kept_node
             ),
             Self::PartNameReachesRemainder {
                 node,
@@ -541,7 +541,7 @@ impl core::fmt::Display for SplitError {
                 f,
                 "split: cut node {}'s reference (the {name}) derives from node {}, which is \
                  outside the cut — the new document could not express it",
-                node.0, missing.0
+                node, missing
             ),
             Self::NameStraddlesCut { name, missing } => {
                 write!(
@@ -552,15 +552,15 @@ impl core::fmt::Display for SplitError {
                 match missing {
                     // The rewrite stopped at ONE node, which for a
                     // nested name is not the name's own mint.
-                    Some(id) => write!(f, " — the rewrite stopped at node {}", id.0),
+                    Some(id) => write!(f, " — the rewrite stopped at node {}", id),
                     None => Ok(()),
                 }
             }
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "split: the {name} spells a piece of the profile step minted #{}, which no profile of this \
+                "split: the {name} spells a piece of the profile step {}, which no profile of this \
                  document draws any more — repair the stranded reference before splitting",
-                step.0
+                step
             ),
             Self::BodyNameCrossesCut { name } => write!(
                 f,
@@ -708,15 +708,15 @@ pub enum InlineError {
 impl core::fmt::Display for InlineError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { id } => write!(f, "inline: node {} is not live", id.0),
+            Self::UnknownNode { id } => write!(f, "inline: node {} is not live", id),
             Self::NotAnInstance { node } => {
-                write!(f, "inline: node {} does not instantiate a part", node.0)
+                write!(f, "inline: node {} does not instantiate a part", node)
             }
             Self::InstanceConsumed { node, by } => write!(
                 f,
                 "inline: instance {} is consumed by node {} — the recipe cannot rewire a \
                  consumer onto a spliced product",
-                node.0, by.0
+                node, by
             ),
             Self::Unresolved { failure } => {
                 write!(f, "inline: the reference did not resolve: {failure}")
@@ -740,7 +740,7 @@ impl core::fmt::Display for InlineError {
                 "inline: the instance is placed at a non-identity frame, but part root {} is \
                  plain recipe geometry with no placement of its own — the frame is not \
                  expressible locally",
-                root.0
+                root
             ),
             Self::InstanceBodyNameReferenced { name } => write!(
                 f,
@@ -754,16 +754,16 @@ impl core::fmt::Display for InlineError {
             ),
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "inline: the {name} spells a piece of the profile step minted #{}, which no profile of the \
+                "inline: the {name} spells a piece of the profile step {}, which no profile of the \
                  referenced document draws any more — repair the stranded reference before \
                  inlining",
-                step.0
+                step
             ),
             Self::StrandedPartName { name, missing } => write!(
                 f,
                 "inline: the {name} derives from node {}, which the referenced document no \
                  longer has — repair the stranded reference before inlining",
-                missing.0
+                missing
             ),
             Self::Edit { error } => write!(
                 f,

@@ -9,7 +9,7 @@
 //! must say where the failure is and must NOT recite what it was —
 //! the defect that reading gives is four instance rows carrying the
 //! same paragraph of refusal prose — and the row it points at must be
-//! one this same tree badges FAILED, or "upstream failure at feature 5"
+//! one this same tree badges FAILED, or "upstream failure at Mate 000000000005"
 //! sends the user somewhere there is nothing to read.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -61,15 +61,15 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
             assert_eq!(*through, extrude, "poison names the failure it came from");
             assert_eq!(
                 message.as_deref(),
-                Some(tree::downstream_wording(extrude).as_str()),
-                "a poisoned row POINTS at the cause's row; it does not recite it"
-            );
-            // It names that row by `tree::node_number`, the chrome's one
-            // spelling of a node's number.
-            let pointer = message.as_deref().unwrap_or_default();
-            assert!(
-                pointer.contains(&tree::node_number(extrude)),
-                "the pointer spells its row as `tree::node_number` does: {pointer}"
+                Some(
+                    format!(
+                        "upstream failure at Extrude {:012x} — that row carries the cause",
+                        extrude.0
+                    )
+                    .as_str()
+                ),
+                "a poisoned row POINTS at the cause's row, spoken by its kind and tag; it \
+                 does not recite it"
             );
         }
         other => panic!("expected Poisoned, got {other:?}"),
@@ -201,7 +201,7 @@ fn the_tree_marks_the_documents_product_roots() {
     assert_eq!(
         rows.iter()
             .find(|row| row.id == profile)
-            .map(|row| row.kind),
+            .and_then(|row| row.spoken.kind()),
         Some("Profile")
     );
 }
@@ -298,7 +298,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
                 assert_eq!(through, offender, "{what} points at the offending mate");
                 assert_eq!(
                     message,
-                    Some(tree::downstream_wording(offender)),
+                    Some(downstream_at_mate(offender)),
                     "{what} points at the cause's row"
                 );
                 assert!(
@@ -396,7 +396,7 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
                 );
                 assert_eq!(
                     message,
-                    Some(tree::downstream_wording(through)),
+                    Some(downstream_at_mate(through)),
                     "the message points at that mate's row"
                 );
             }
@@ -480,7 +480,7 @@ fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
                 through, offender,
                 "the boolean points past the instance at the mate that refused"
             );
-            assert_eq!(message, Some(tree::downstream_wording(offender)));
+            assert_eq!(message, Some(downstream_at_mate(offender)));
         }
         other => panic!("the boolean reads as downstream, got {other:?}"),
     }
@@ -551,7 +551,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         session.standing()
     );
     let mut mate_tool = MateTool::new();
-    mate_tool.pick(face.clone());
+    mate_tool.pick(session.doc(), face.clone());
     let index = common::asm::index_of(&session);
 
     common::session_insert(
@@ -659,12 +659,15 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     }
     // The mate tool's frame read, on a pick of post_a and one of post_b.
     let mut both = MateTool::new();
-    both.pick(face.clone());
-    both.pick(FaceSelection {
-        name: common::asm::in_part(bench.post_b, &bench.post_top),
-        node: bench.post_b,
-        body: 0,
-    });
+    both.pick(session.doc(), face.clone());
+    both.pick(
+        session.doc(),
+        FaceSelection {
+            name: common::asm::in_part(bench.post_b, &bench.post_top),
+            node: bench.post_b,
+            body: 0,
+        },
+    );
     match both.proposal(doc, ev, common::asm::seat_choice()) {
         Err(MateToolError::Frame {
             error: InterrogateError::Standing(standing),
@@ -678,12 +681,14 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
         panic!("the index does not build over a root with no value");
     };
-    let badge = viewer::frame::index_badge(Some(&refusal), Some(ev)).expect("a refusal badges");
+    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), Some(ev))
+        .expect("a refusal badges");
     let detail = badge
         .detail()
         .expect("the badge defers its words to the tooltip");
     assert!(
-        detail.contains(&format!("failure at node {}", offender.0)) && !detail.contains("ancestor"),
+        detail.contains(&format!("failure at node {:012x}", offender.0))
+            && !detail.contains("ancestor"),
         "the pick index's tooltip names the offending mate: {detail}"
     );
 
@@ -1180,10 +1185,11 @@ fn a_band_refusal_reaches_the_whole_document_and_blames_no_row() {
 #[test]
 fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
     use pncad::document::RecipeNodeId;
+    use viewer::test_support::spoken;
 
     let row = |id: u64, status: RowStatus| tree::TreeRow {
         id: RecipeNodeId(id),
-        kind: "Transform",
+        spoken: spoken(RecipeNodeId(id), Some("Transform")),
         pose: None,
         depth: 0,
         root: false,
@@ -1277,7 +1283,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
         "{rows:?}"
     );
     assert_eq!(
-        row(profile).repair_at,
+        row(profile).repair_at.map(|at| at.id()),
         Some(frame),
         "the profile's row links to the frame whose slot refused"
     );
@@ -1600,4 +1606,13 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             "{arm}: the input it names refused nothing, so the row links nowhere"
         );
     }
+}
+
+/// What a row downstream of a refused mate says, spelled from the
+/// mate's id alone: the mate as the document speaks it.
+fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
+    format!(
+        "upstream failure at Mate {:012x} — that row carries the cause",
+        mate.0
+    )
 }

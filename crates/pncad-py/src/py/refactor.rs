@@ -410,7 +410,7 @@ impl SplitOutcome {
     }
 
     fn __repr__(&self) -> String {
-        format!("SplitOutcome(instance={})", self.instance.0.0)
+        format!("SplitOutcome(instance={})", self.instance.0.full())
     }
 }
 

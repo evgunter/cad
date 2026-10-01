@@ -144,6 +144,10 @@ pub fn try_inserted(
 /// on — `editor_core::test_support`'s, as the literals above.
 pub use editor_core::test_support::{frame, xy_frame};
 
+/// A spoken node built by hand, for a row a test builds without a
+/// document — `editor_core::test_support`'s.
+pub use editor_core::test_support::spoken;
+
 /// An axis-aligned rectangular loop, `w` by `h`, its lower-left
 /// corner at `origin` in the plane's own coordinates, counter-clockwise
 /// from that corner — the loop [`rectangle`] draws, for a

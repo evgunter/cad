@@ -755,7 +755,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
     println!(
         "   [stand] one placement group of 3 instances, root = node {}; \
          2 mates, roles {:?}/{:?} — the shelf and the far post carry NO authored frame",
-        root.0,
+        root,
         poses.role(stand.mate_1).expect("mate 1 is live"),
         poses.role(stand.mate_2).expect("mate 2 is live"),
     );
@@ -1514,7 +1514,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     println!(
         "   staged state (gap): node {} still pins the previous version, and the store \
          holds one file per id — {}",
-        stranded.node.0,
+        stranded.node,
         pin_fault(stranded)
     );
 
@@ -1606,12 +1606,12 @@ fn pin_fault(err: &pncad::document::NodeError) -> String {
             pncad::document::PartFault::Unresolved { fault, .. } => {
                 format!(
                     "node {} reaches document {}: {fault:?}",
-                    err.node.0, doc_ref.id
+                    err.node, doc_ref.id
                 )
             }
-            other => format!("node {}: {other:?}", err.node.0),
+            other => format!("node {}: {other:?}", err.node),
         },
-        other => format!("node {}: {other}", err.node.0),
+        other => format!("node {}: {other}", err.node),
     }
 }
 
@@ -1619,7 +1619,7 @@ fn pin_fault(err: &pncad::document::NodeError) -> String {
 fn post_ref_of(doc: &ProfileDoc, node: RecipeNodeId) -> DocumentId {
     match doc.node(node) {
         Some(Node::InstantiatePart { doc_ref, .. }) => doc_ref.id,
-        other => panic!("node {} is not an instance: {other:?}", node.0),
+        other => panic!("node {} is not an instance: {other:?}", node),
     }
 }
 
@@ -1627,7 +1627,7 @@ fn post_ref_of(doc: &ProfileDoc, node: RecipeNodeId) -> DocumentId {
 fn post_pin_of(doc: &ProfileDoc, node: RecipeNodeId) -> pncad::document::ContentPin {
     match doc.node(node) {
         Some(Node::InstantiatePart { doc_ref, .. }) => doc_ref.pin,
-        other => panic!("node {} is not an instance: {other:?}", node.0),
+        other => panic!("node {} is not an instance: {other:?}", node),
     }
 }
 
