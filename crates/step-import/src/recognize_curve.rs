@@ -1888,8 +1888,8 @@ mod r2_delta {
             let ps = composite_sup(
                 &carrier,
                 &ImplicitSurface::Plane {
-                    point: [center.x, center.y, center.z],
-                    normal: [axis.x, axis.y, axis.z],
+                    point: center.to_array(),
+                    normal: axis.to_array(),
                 },
             );
             let ss = composite_sup(
