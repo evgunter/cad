@@ -176,7 +176,9 @@ fn p2_raw_variant_with_a_repeat_is_refused_at_the_insert_door() {
     };
     match apply(
         &d.doc,
-        &DocEdit::InsertNode { node: raw },
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {

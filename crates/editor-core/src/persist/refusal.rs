@@ -75,9 +75,11 @@
 //! retries, and a `serde_json::Value` intermediate — and
 //! `scripts/gates/persist-no-backtracking.sh` refuses all five across
 //! `editor-core`, so the premise is a gate rather than a reading. (The
-//! crate's one `deserialize_with`, [`crate::persist::wire`]'s `plane_ref`, is a
-//! single `deserialize_u64` with one visit method and no fallback; the
-//! gate allows it by that full path and reds if a second appears.)
+//! crate's two `deserialize_with`s, [`crate::persist::wire`]'s `plane_ref`
+//! — a single `deserialize_u64` with one visit method — and `present` —
+//! a single `Option::deserialize`, which makes a key required — have no
+//! fallback; the gate allows each by its full path and reds if a third
+//! appears.)
 //!
 //! The reading back is narrow for the same reason: a recorded refusal
 //! is adopted only when serde_json classifies the failure as

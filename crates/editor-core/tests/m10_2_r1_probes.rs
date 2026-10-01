@@ -45,7 +45,9 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
 fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -1101,7 +1103,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(expr, at_mint([bottom, top])).expect("indices in range"),
+            node: Box::new(Node::measure(expr, at_mint([bottom, top])).expect("indices in range")),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

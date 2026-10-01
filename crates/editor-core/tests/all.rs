@@ -184,6 +184,8 @@ mod refusal_concision;
 mod refusal_concision_at_rest;
 #[path = "refusal_concision_chains.rs"]
 mod refusal_concision_chains;
+#[path = "refusal_concision_refactor.rs"]
+mod refusal_concision_refactor;
 #[path = "remap_reorders_ids.rs"]
 mod remap_reorders_ids;
 #[path = "resolve_group_membership.rs"]
@@ -455,6 +457,12 @@ mod names_verbatim_edge_evaluator;
 mod node_labels;
 #[path = "node_standing.rs"]
 mod node_standing;
+#[path = "p2_gauge_offsets_and_spaces.rs"]
+mod p2_gauge_offsets_and_spaces;
+#[path = "p2_gauge_poses_and_doors.rs"]
+mod p2_gauge_poses_and_doors;
+#[path = "p2_gauges.rs"]
+mod p2_gauges;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]

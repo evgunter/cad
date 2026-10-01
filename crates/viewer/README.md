@@ -1483,7 +1483,7 @@ rigid-motion check on an unmated instance) and different side effects
 (a scratch `Doc` and an evaluation request against a display revision).
 What is shared is the transitions, and a generic over the rest would be
 a type nobody has a use for. DI5 changes what a probe's commit LANDS
-(`crates/editor-core/IDENTITY.md`: a `DocEdit::SetPlacement` rather
+(`crates/editor-core/IDENTITY.md`: a `DocEdit::SetOffset` rather
 than a `moves` entry) and changes none of the three rules, which is why
 holding them once did not wait for it — after DI5 the landing step that
 moves is the caller's, and the machine it must not break is one

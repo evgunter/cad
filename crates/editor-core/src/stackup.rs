@@ -957,6 +957,7 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(pairs.len() as u64);
         }
         ValuePayload::Mate(_) => d.u64(21),
+        ValuePayload::Gauge => d.u64(26),
         ValuePayload::Measure { value, .. } => {
             d.u64(22);
             d.scalar(*value);
