@@ -2320,11 +2320,11 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 /// that also re-frames the camera, so the line is the one place a
 /// fault raised by a landing cannot survive the landing.
 ///
-/// **Redundant colour beside its own words.** It is
-/// [`Tone::Actionable`], the tone the at-rest refusal and the checks
-/// findings already carry, and that tone's stated contract is that its
-/// colour is REDUNDANT — every badge using it says its own words, so
-/// nothing depends on the colour being read. This badge satisfies it,
+/// **Its meaning is in its own words.** It is [`Tone::Actionable`],
+/// the tone the at-rest refusal and the checks findings already carry,
+/// and that tone's stated contract is that no MEANING rests on its
+/// colour — every badge using it says its own words, and the colour
+/// carries only salience. This badge satisfies it,
 /// because [`ProductError`]'s `Display` opens every arm with
 /// "product: ".
 ///
