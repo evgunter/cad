@@ -307,16 +307,14 @@ fn washer_bore_and_under_annulus_mint_sense_false() {
         vec![Some(false), Some(true), Some(true), Some(false)],
         "bottom annulus and bore reversed; outer wall and top true"
     );
-    // Door probes live on the WEDGE fixture below: a FULL revolve's
-    // wall trim spans the whole period, which `point_in_solid`'s
-    // cosine-window lane refuses typed (`bool_wall_trim_period` — a
-    // pre-existing, sense-independent limitation, still refused
-    // loudly on the mixed-sense body rather than answered wrong).
+    // A FULL revolve's bore is a full-turn band, which the ray lane
+    // reads by height alone: the reversed bore still bounds the hole.
     let b = band();
-    match point_in_solid(&t.body, Point3::new(0.5, 0.5, 0.0), b, Tol::witness()) {
-        Err(topo::boolean::PointInSolidError::Escalated { .. }) => {}
-        other => panic!("full-period wall trim must refuse typed, got {other:?}"),
-    }
+    assert_eq!(
+        point_in_solid(&t.body, Point3::new(0.5, 0.5, 0.0), b, Tol::witness()).unwrap(),
+        topo::SolidContainment::Out,
+        "a point in the washer's hole"
+    );
 }
 
 /// The partial-revolve washer wedge (θ = π/2): the SAME wall senses

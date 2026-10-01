@@ -7,7 +7,7 @@ opened: 2026-08-29
 github: 1218
 refs: [762]
 priority: P1
-cost: D
+cost: E
 ---
 
 ## From GitHub issue 1218

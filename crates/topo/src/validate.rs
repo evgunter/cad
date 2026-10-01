@@ -2207,6 +2207,10 @@ const NOT_YET: &str = "There is no way through yet";
 /// The recourse for a tolerance that forms no usable band.
 const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 
+/// The recourse for a curve whose parameter range its image on a
+/// spline face cannot be expressed on — the lane's own.
+const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
+
 /// The recourse for a margin the band could not decide, where a
 /// coincidence between two things has an object to declare: the
 /// shared menu ([`geom_core::COINCIDENCE_RECOURSE`], which
@@ -2434,6 +2438,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "the check could not locate the curve on its spline face (the projection did not \
              converge)"
         }
+        CertifyError::PlaneNurbs(P::CarrierDomain(_)) => {
+            "its curve's parameter range cannot carry the curve's image on its spline face"
+        }
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. }) => KIND,
@@ -2459,6 +2466,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::SeamOnNonPeriodic
             | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
+            CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. }) => {
@@ -2701,6 +2709,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",
                     "Recourse: check the body at a certifying scalar",
+                ),
+                C::CarrierDomain(_) => (
+                    "a boundary curve's parameter range cannot carry its image on the face",
+                    REPARAMETERIZE,
                 ),
                 C::ChartRow { .. }
                 | C::IntervalNotForward

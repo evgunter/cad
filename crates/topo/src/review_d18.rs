@@ -2654,7 +2654,8 @@ fn kev_refuses_a_far_vertex_a_torn_empty_loop_holds() {
     let he = halves[1];
     let m = body.mate(he).unwrap();
     assert_eq!(body.get_half_edge(m).unwrap().start, vertices[0]);
-    assert_kev_refuses(&mut body, he, &EulerOpError::LoopCycleBroken { r#loop: l });
+    let torn = dangling(EntityId::Loop(l), EntityId::Vertex(vertices[0]));
+    assert_kev_refuses(&mut body, he, &torn);
 }
 
 #[test]
@@ -2871,9 +2872,7 @@ fn kvfs_refuses_a_lone_record_another_record_names() {
             b.get_loop_mut(third.r#loop).unwrap().boundary = LoopBoundary::Empty {
                 vertex: lone.vertex,
             };
-            EulerOpError::LoopCycleBroken {
-                r#loop: third.r#loop,
-            }
+            dangling(EntityId::Loop(third.r#loop), EntityId::Vertex(lone.vertex))
         },
     ];
     for tear in tears {
