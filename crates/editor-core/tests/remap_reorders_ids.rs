@@ -3,12 +3,10 @@
 //!
 //! `remap_name` rewrites a name's node ids through a map that need not
 //! keep their order (the split's map follows document order). Every
-//! name-ordered position may then come out reordered, and a rank along
-//! a seam line reads from the other end wherever that line's pair comes
-//! out swapped — including a line written in a name the ranked name
-//! EMBEDS: a pair boolean's pieces of a union's seam are
-//! `[FromA(<union seam>), OrderAlong]`, and reordering the union's
-//! members reorders that embedded seam.
+//! name-ordered position may then come out reordered — including one
+//! written in a name the re-mapped name EMBEDS: a pair boolean's pieces
+//! of a union's seam are `[FromA(<union seam>), Ends]`, and reordering
+//! the union's members reorders that embedded seam and the ends.
 //!
 //! Each scenario builds one document with its blocks created in one
 //! order, and the same document with them created in every other order,
@@ -179,14 +177,15 @@ fn pair_seam_swapped(n: &StableName, n2: &StableName, map: &NodeMap, steps: &Ste
 
 /// Re-maps every name of every op of `blocks`/`ops` from the document
 /// built in id order to the one built in each other order. Answers the
-/// wrong binds, the dangling names, and whether some ranked name's
-/// re-map reordered a seam and some union seam's own sides swapped.
+/// wrong binds, the dangling names, and whether some piece of a union
+/// seam was re-mapped with that seam's sides swapped, and some union
+/// seam's own sides swapped.
 fn remap_every_order(blocks: &[B], ops: &[Op]) -> (Vec<String>, Vec<String>, bool, bool) {
     let first: Vec<usize> = (0..blocks.len()).collect();
     let b1 = build(blocks, ops, &first);
     let ev1 = run(&b1.doc);
     let (mut wrong, mut dangle) = (Vec::new(), Vec::new());
-    let (mut ranked_moved, mut union_swapped) = (false, false);
+    let (mut ends_moved, mut union_swapped) = (false, false);
     for order in orders(blocks.len()) {
         if order == first {
             continue;
@@ -223,13 +222,18 @@ fn remap_every_order(blocks: &[B], ops: &[Op]) -> (Vec<String>, Vec<String>, boo
                     !pair_seam_swapped(n, &n2, &map, &steps),
                     "{order:?}: a pair boolean's seam swapped its sides: {n:?} -> {n2:?}"
                 );
-                ranked_moved |= matches!(
-                    (n.path.last(), n2.path.last()),
-                    (
-                        Some(RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { rank: r1, .. })),
-                        Some(RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { rank: r2, .. })),
-                    ) if r1 != r2
-                );
+                // A piece, named by its ends, of a union seam whose
+                // sides the re-map swapped inside it.
+                if let (
+                    [
+                        RoleSeg::FromA(x) | RoleSeg::FromB(x),
+                        RoleSeg::Fragment(editor_core::Qualifier::Ends(_)),
+                    ],
+                    [RoleSeg::FromA(x2) | RoleSeg::FromB(x2), _],
+                ) = (n.path.as_slice(), n2.path.as_slice())
+                {
+                    ends_moved |= union_seam_swapped(x, x2, &map, &steps);
+                }
                 match tab2.lookup(&n2) {
                     None => dangle.push(format!("{order:?}: {n:?} -> {n2:?}")),
                     Some(e2) => {
@@ -242,7 +246,7 @@ fn remap_every_order(blocks: &[B], ops: &[Op]) -> (Vec<String>, Vec<String>, boo
             }
         }
     }
-    (wrong, dangle, ranked_moved, union_swapped)
+    (wrong, dangle, ends_moved, union_swapped)
 }
 
 const A: B = ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
@@ -253,7 +257,7 @@ const X: B = ((0.9, 1.1), (0.1, 0.3), (0.45, 0.55));
 const X2: B = ((0.9, 1.1), (0.1, 0.3), (0.65, 0.7));
 
 fn assert_every_order(what: &str, blocks: &[B], ops: &[Op]) {
-    let (wrong, dangle, ranked_moved, union_swapped) = remap_every_order(blocks, ops);
+    let (wrong, dangle, ends_moved, union_swapped) = remap_every_order(blocks, ops);
     assert!(
         wrong.is_empty(),
         "{what}: {} wrong binds:\n{wrong:#?}",
@@ -265,15 +269,15 @@ fn assert_every_order(what: &str, blocks: &[B], ops: &[Op]) {
         dangle.len()
     );
     assert!(
-        ranked_moved,
-        "{what}: no rank was re-read, so the row pins nothing"
+        ends_moved,
+        "{what}: no piece of a swapped union seam was re-mapped, so the row pins nothing"
     );
     assert!(union_swapped, "{what}: no union seam's sides swapped");
 }
 
 /// The union is the A operand of a subtract that notches its seam: the
-/// subtract's pieces of that seam are ranked along a line written in
-/// the union's name they embed.
+/// subtract's pieces of that seam embed the union's name, and are named
+/// by their ends.
 #[test]
 fn a_pair_booleans_pieces_of_a_union_seam_follow_it_as_the_a_operand() {
     use R::{Blk, Op as O};
@@ -301,8 +305,7 @@ fn a_pair_booleans_pieces_of_a_union_seam_follow_it_as_the_b_operand() {
     );
 }
 
-/// A second cut of the pieces: three pieces, ranked through two
-/// wrappers.
+/// A second cut of the pieces: three pieces, through two wrappers.
 #[test]
 fn a_second_cut_of_a_union_seams_pieces_follows_it_too() {
     use R::{Blk, Op as O};

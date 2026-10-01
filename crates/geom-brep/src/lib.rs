@@ -79,8 +79,8 @@ pub mod tangent;
 pub mod torus_convention;
 
 pub use certify::{
-    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, NurbsLane,
-    edge_extent, sample_param, schedule_param,
+    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
+    IntersectionDraft, NurbsLane, edge_extent, sample_param, schedule_param,
 };
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
@@ -142,10 +142,10 @@ pub use props::{
     require_one_chart_branch,
 };
 pub use ssi::{
-    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS,
-    SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode,
-    certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
-    trace_plane_nurbs_uncertified,
+    ChartAxis, ChartSpeedRefusal, ChartedNurbs, ExhaustLane, Exhaustiveness, ExhaustivenessRefusal,
+    SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain, SsiError,
+    SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepperMode, TubeDegeneracy, certify_rung3,
+    cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

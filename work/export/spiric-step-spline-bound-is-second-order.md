@@ -117,3 +117,6 @@ item stays open on CURVED, the sharper bound is its own small unit
 (it moves `spiric_step`, and TESS's ground by consequence), and a
 fourth-order certificate for the `ε/4` gate is an `[ev]` question only
 if the export is ever wanted at the kernel's own ε.
+
+Moved from CURVED at its close (2026-10-01): the arm lives in
+`crates/step-export/src/writer.rs`, EXPORT's ground.

@@ -119,11 +119,11 @@ fn sans_epsilon(t: &str) -> String {
 /// `(document, both-direction name digest, persisted-text digest)`.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xb894_8d14_7ea8_f683, 0x103b_ff54_177b_cea8),
-    ("corner_table", 0x5049_8282_2abc_6576, 0x1d9b_9b04_66bf_23a9),
+    ("corner_table", 0xae89_51b3_a856_c32c, 0x1d9b_9b04_66bf_23a9),
     ("heat_sink", 0x3f75_2e44_c653_a195, 0xc121_bd20_aa40_3afb),
     (
         "crossing_slots",
-        0xda43_6c13_abf1_d594,
+        0xbedb_96b1_4112_b7c0,
         0x8699_30d6_d9f4_5832,
     ),
     (
@@ -146,7 +146,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x8d76_33c1_671d_4a60,
         0x70a2_f947_1ec9_50dc,
     ),
-    ("kitchen_sink", 0x90ac_7090_7b34_a265, 0x092c_cfed_118a_86d2),
+    ("kitchen_sink", 0xfa51_1eb7_98f6_c39d, 0x092c_cfed_118a_86d2),
     ("cut_cylinder", 0x834e_c919_bea5_e627, 0x031f_091f_86a3_bbf2),
     ("measured_web", 0x08a9_cca4_099a_f6eb, 0x0f41_ad3c_a6aa_7857),
     ("boss_union", 0x3ae1_d9ac_7a23_a219, 0x9ec6_3539_b5fa_b0ad),
@@ -168,7 +168,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xf33d_572d_3f14_cc11,
         0x53eb_2155_9ec9_d281,
     ),
-    ("plate_param", 0x6531_364f_7c5b_9574, 0x299b_671a_375b_e29f),
+    ("plate_param", 0xadaf_ce6c_9957_4112, 0x299b_671a_375b_e29f),
     ("kiss_carry", 0x31d0_3adb_a450_3576, 0x97c1_41bc_2508_3e86),
     ("tube_ring", 0xafab_a990_cf48_8327, 0xb556_1722_b63b_c370),
     ("tube_arc", 0x916d_ce74_bf3e_314d, 0x55a7_e98c_6d79_442d),

@@ -82,9 +82,11 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, R
 
 use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
 use crate::recourse::{Reading, Refused, RefusedArm};
-use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
+use crate::ssi::{
+    ChartSpeedRefusal, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale, certify_rung3,
+};
 
-/// What the plane × NURBS lane proved, in meters unless noted.
+/// What the plane × NURBS lane proved, in metres unless noted.
 #[derive(Clone, Copy, Debug)]
 pub struct PlaneNurbsLimbs<T: Real> {
     /// Limb 1: the largest on-locus residual over the schedule, over
@@ -94,8 +96,9 @@ pub struct PlaneNurbsLimbs<T: Real> {
     /// Limb 2: the certified sup-norm bound over the whole span, over
     /// both operands. This is the number that certifies.
     pub hull_sup: T,
-    /// Limb 3: the certified uniqueness-tube radius.
-    pub tube_radius: T,
+    /// Limb 3: the region the uniqueness tube proved — the chart tube's
+    /// per-axis pad in chart units, and the ladder rung it was tried at.
+    pub tube: SsiTube<T>,
     /// Limb 3: the smallest certified transversality margin over the
     /// box chain, in meters.
     pub tube_transversality: T,
@@ -183,9 +186,22 @@ pub enum PlaneNurbsRefusal {
         /// The classifier's diagnostic.
         cause: Indeterminate,
     },
-    /// A margin escalated inside the rung-3 certificate, or the
-    /// reported transversality was poisoned.
-    Escalated(Indeterminate),
+    /// A limb's margin escalated inside the rung-3 certificate.
+    Escalated {
+        /// Which limb.
+        limb: SsiLimb,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// The reported transversality — the minimum sine over interior
+    /// samples that each decided transverse — came out poisoned. No
+    /// geometry and no tolerance reaches it, so it is a kernel defect.
+    ReportedTransversalityPoisoned(Indeterminate),
+    /// The spline face's chart speed along a parameter direction is
+    /// zero (the face is constant along it) or has no finite bound (its
+    /// net is too large), so no length in metres crosses into its
+    /// parameters. A fact of the face, refused at the lane's door.
+    ChartSpeed(ChartSpeedRefusal),
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly. A routing boundary (C12.1), never a
     /// runtime fallback.
@@ -297,8 +313,8 @@ impl PlaneNurbsRefusal {
     ///
     /// The per-sample transversality and the uniqueness tube are the
     /// `Transversality` decision, whose band-decided arms end alike (D4
-    /// ¶1 (iv)); the certificate's limb and escalation refusals share
-    /// the certificate's ending.
+    /// ¶1 (iv)); a certificate limb's refusal, definite or escalated,
+    /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
         self.decision()
@@ -314,14 +330,24 @@ impl PlaneNurbsRefusal {
             Self::TransversalityEscalated { cause, .. } => {
                 (CertCheck::Transversality, RefusedArm::Undecided(cause))
             }
-            Self::Limb { .. } => (CertCheck::PlaneNurbsCertificate, RefusedArm::SignCertain),
+            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain),
             // The tube's margin is the lane's transversality over the
             // chain (`ssi_tube_transversality`), and this refusal is its
             // decided verdict.
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
-            Self::Escalated(diag) => (
-                CertCheck::PlaneNurbsCertificate,
-                RefusedArm::Undecided(diag),
+            Self::Escalated { limb, cause } => (limb.check(), RefusedArm::Undecided(cause)),
+            Self::ReportedTransversalityPoisoned(cause) => (
+                CertCheck::PlaneNurbsReportedTransversality,
+                RefusedArm::Undecided(cause),
+            ),
+            // The mint's verdict is exact: a speed bound that is zero or
+            // not finite, with no band between.
+            Self::ChartSpeed(ChartSpeedRefusal::Zero { .. }) => {
+                (CertCheck::PlaneNurbsChartSpeed, RefusedArm::SignCertain)
+            }
+            Self::ChartSpeed(ChartSpeedRefusal::NotFinite { .. }) => (
+                CertCheck::PlaneNurbsChartSpeedBound,
+                RefusedArm::SignCertain,
             ),
             Self::FootPointInconclusive { .. }
             | Self::PcurveFit
@@ -371,11 +397,16 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                  m, which is the bound it could prove and not the sliver's own extent",
                 verdict.margin()
             ),
-            Self::Escalated(diag) => write!(
+            Self::Escalated { limb, cause } => {
+                write!(f, "{} escalated: {}", limb.name(), cause.payload())
+            }
+            Self::ReportedTransversalityPoisoned(cause) => write!(
                 f,
-                "a plane × NURBS limb margin escalated: {}",
-                diag.payload()
+                "every interior sample decided the plane and the NURBS wall cross, yet \
+                 their reported minimum crossing angle is unreadable: {}",
+                cause.payload()
             ),
+            Self::ChartSpeed(r) => f.write_str(r.what()),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
         }
     }
@@ -467,6 +498,13 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             what: geom::PLACEHOLDER_SURFACE,
         });
     }
+    // The wall the tube localizes on, with its chart speeds minted at the
+    // door: a wall constant along an axis, or with no finite speed bound
+    // along one, has no chart a length in metres can cross into, and the
+    // schedule below would only meet that as a foot point or a sine that
+    // cannot be stated.
+    let localized = localized(wall);
+    let wall_op = SsiOperand::nurbs(&localized).map_err(refusal)?;
 
     // ---- The fixed schedule: foot points, and the normal angle. ----
     // The feet and the image are `chart_image`'s, which is also the
@@ -516,15 +554,14 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // no caller can tell from a measurement.
     let min_sin =
         geom_core::k_stats::gate_measured("plane_nurbs_transversality_reported", min_sin, band)
-            .map_err(PlaneNurbsRefusal::Escalated)?;
+            .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----
-    let localized = localized(wall);
     let cert = certify_rung3(
         carrier,
         Some(&pcurve),
         &SsiOperand::Analytic(plane),
-        &SsiOperand::Nurbs(&localized),
+        &wall_op,
         TubeScale::uniform(extent),
         band,
     )
@@ -532,7 +569,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     Ok(PlaneNurbsLimbs {
         on_locus_max: cert.on_locus_max,
         hull_sup: cert.hull_sup,
-        tube_radius: cert.tube_radius,
+        tube: cert.tube,
         tube_transversality: cert.tube_transversality,
         tube_boxes: cert.tube_boxes,
         min_sin_theta: min_sin,
@@ -785,7 +822,9 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
         SsiError::TubeStraddles { verdict, boxes } => {
             PlaneNurbsRefusal::TubeStraddles { verdict, boxes }
         }
-        SsiError::Escalated(diag) => PlaneNurbsRefusal::Escalated(diag),
+        SsiError::CertificateEscalated { limb, cause } => {
+            PlaneNurbsRefusal::Escalated { limb, cause }
+        }
         SsiError::FootPointInconclusive { t, last_distance } => {
             // The limb re-projects warm-started from the image; a
             // divergence there is the same class as the schedule's own,
@@ -797,6 +836,7 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
             }
         }
         SsiError::UnsupportedCertificate { what } => PlaneNurbsRefusal::Unsupported { what },
+        SsiError::ChartSpeed(r) => PlaneNurbsRefusal::ChartSpeed(r),
         _ => PlaneNurbsRefusal::Unsupported {
             what: "the rung-3 certificate refused for a reason outside this lane's vocabulary",
         },

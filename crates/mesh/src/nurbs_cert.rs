@@ -178,7 +178,7 @@
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchBoundError};
 use geom_core::Bounds;
-use geom_core::interval::Interval;
+use geom_core::interval::{Interval, norm_sq, sqrt_up};
 use topo::FaceKey;
 
 use crate::types::TessellateError;
@@ -206,11 +206,11 @@ fn face_err(fk: FaceKey, e: PatchBoundError) -> TessellateError {
 /// (issue 1006).
 fn cell_readings(c: &patch_bound::PatchCell) -> [Interval; 5] {
     [
-        patch_bound::sq_norm(c.s_uu),
-        patch_bound::sq_norm(c.s_uv),
-        patch_bound::sq_norm(c.s_vv),
-        patch_bound::sq_norm(c.s_u),
-        patch_bound::sq_norm(c.s_v),
+        norm_sq(&c.s_uu),
+        norm_sq(&c.s_uv),
+        norm_sq(&c.s_vv),
+        norm_sq(&c.s_u),
+        norm_sq(&c.s_v),
     ]
 }
 
@@ -513,13 +513,13 @@ pub(crate) struct CellBound {
 /// as subnormal dust.
 ///
 /// **The zero reaches here exact because interval arithmetic's arithmetic keeps
-/// it.** `patch_bound::sq_norm` folds `acc + c.sqr()` from
-/// `Interval::zero()`, and the backend pads only where an
+/// it.** [`norm_sq`] sums the three dependent squares, and the
+/// backend pads only where an
 /// operation was inexact: `0 · 0` is exact by the zero-factor corner
 /// convention and `0 + 0` by the TwoSum witness
 /// (`interval_transcendentals`' `mul_lo`/`mul_hi`, `add_lo`/`add_hi`),
 /// so a direction whose derivative net is the exact zero assembles to
-/// `[0, 0]` and takes the arm below. An enclosure that is merely
+/// `[0, 0]`, which [`sqrt_up`] returns unchanged. An enclosure that is merely
 /// NARROW does not, and must not: it is an enclosure of something the
 /// assembly could not prove zero.
 fn cell_component(sq: Interval) -> f64 {
@@ -529,8 +529,7 @@ fn cell_component(sq: Interval) -> f64 {
     if !sq.is_certified() {
         return f64::NAN;
     }
-    let hi = sq.hi();
-    if hi == 0.0 { 0.0 } else { hi.sqrt().next_up() }
+    sqrt_up(sq.hi())
 }
 
 /// **The per-cell bounds** (TESS-SPAN, promoted from the #320 sizing
@@ -1625,8 +1624,8 @@ pub(crate) mod tests {
     /// **`muu` and `mvv` are pinned at `== 0.0`, not under a ceiling.**
     /// They are the structural zeros of two degree-1 directions, and a
     /// ceiling cannot tell the zero from dust: this row reds if the
-    /// ring ever pads `0 + 0` or `0²` again, or if `sq_norm` stops
-    /// folding from the exact interval zero, either of which kills the
+    /// ring ever pads `0 + 0` or `0²` again, or if `norm_sq` stops
+    /// summing exact zeros exactly, either of which kills the
     /// `hi == 0.0` arm the split selection is decided on. `muv` keeps a
     /// ceiling because its zero is not structural — `S_uv = ΔΔP`
     /// vanishes here only because these coordinates' differences are
@@ -3963,31 +3962,11 @@ pub(crate) mod tests {
             assert_eq!(cells.len(), shipped.len());
             for (c, b) in cells.iter().zip(&shipped) {
                 for (what, got, want) in [
-                    (
-                        "muu",
-                        b.bound.muu,
-                        cell_component(patch_bound::sq_norm(c.s_uu)),
-                    ),
-                    (
-                        "muv",
-                        b.bound.muv,
-                        cell_component(patch_bound::sq_norm(c.s_uv)),
-                    ),
-                    (
-                        "mvv",
-                        b.bound.mvv,
-                        cell_component(patch_bound::sq_norm(c.s_vv)),
-                    ),
-                    (
-                        "mu1",
-                        b.bound.mu1,
-                        cell_component(patch_bound::sq_norm(c.s_u)),
-                    ),
-                    (
-                        "mv1",
-                        b.bound.mv1,
-                        cell_component(patch_bound::sq_norm(c.s_v)),
-                    ),
+                    ("muu", b.bound.muu, cell_component(norm_sq(&c.s_uu))),
+                    ("muv", b.bound.muv, cell_component(norm_sq(&c.s_uv))),
+                    ("mvv", b.bound.mvv, cell_component(norm_sq(&c.s_vv))),
+                    ("mu1", b.bound.mu1, cell_component(norm_sq(&c.s_u))),
+                    ("mv1", b.bound.mv1, cell_component(norm_sq(&c.s_v))),
                 ] {
                     assert!(
                         got == want,

@@ -78,7 +78,7 @@ use crate::generation::Generation;
 use crate::history::History;
 use crate::parts::{self, PartFiles};
 use crate::pickcache;
-use crate::props::{self, SlotDriver, SlotValue};
+use crate::props::{self, Notation, SlotDriver, SlotValue};
 use crate::sketch;
 use crate::tree::{self, TreeRow};
 
@@ -241,6 +241,7 @@ fn guard_driven(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     slot: SlotId,
+    notation: Notation,
 ) -> Result<(), Refusal> {
     let (driver, current) = driver_of(doc, node, slot)?;
     match driver {
@@ -250,6 +251,7 @@ fn guard_driven(
             slot,
             params,
             current,
+            notation,
         }),
     }
 }
@@ -283,6 +285,7 @@ fn carry_unmoved(
     current: &ProfileProgram,
     loops: Vec<LoopProgram>,
     ids: &[Vec<Option<StepId>>],
+    notation: Notation,
 ) -> Result<Vec<LoopProgram>, Refusal> {
     let was: std::collections::HashMap<StepId, (u32, u32)> = current
         .ids
@@ -337,7 +340,7 @@ fn carry_unmoved(
         match new.expr_mut(moved) {
             Some(held) if held.bit_eq(committed) => *held = committed.clone(),
             _ if committed.literal_value().is_some() => {}
-            _ => guard_driven(doc, node, slot)?,
+            _ => guard_driven(doc, node, slot, notation)?,
         }
     }
     let Node::Profile(program) = new else {
@@ -390,6 +393,11 @@ pub struct DocSession {
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
+    /// The working notation ([`props::Notation`]): what a value nobody
+    /// wrote reads in, here because the refusals this session answers
+    /// read such values. Per person and never in
+    /// the document, so no `Open` or new document resets it.
+    notation: Notation,
 }
 
 /// What the session knows because of the document under it: what is
@@ -764,6 +772,7 @@ impl DocSession {
             path: None,
             display: DisplayState::new(),
             resolver: None,
+            notation: Notation::DEFAULT,
         };
         session.request_eval();
         session
@@ -792,6 +801,18 @@ impl DocSession {
     /// The edit history.
     pub fn history(&self) -> &History {
         &self.history
+    }
+
+    /// The working notation a value nobody wrote reads in
+    /// ([`props::Notation`]), [`Notation::DEFAULT`] until one is set.
+    pub fn notation(&self) -> Notation {
+        self.notation
+    }
+
+    /// Read every value nobody wrote in `notation` from now on. Not an
+    /// edit: no document changes and nothing enters the history.
+    pub fn set_notation(&mut self, notation: Notation) {
+        self.notation = notation;
     }
 
     /// **What a delete of `node` would cost, said before it is paid.**
@@ -922,6 +943,17 @@ impl DocSession {
     pub fn landed_pair(&self) -> Option<(&Doc<ProfileProgram>, &Evaluation<f64>)> {
         let run = self.derived.landed.as_ref()?;
         Some((run.doc.as_ref(), run.evaluation.as_ref()))
+    }
+
+    /// The part files the landed run's resolver could name
+    /// ([`PartFiles`]): what the tree names an instance's part by.
+    /// Unscanned while nothing has landed.
+    pub fn part_files(&self) -> &PartFiles {
+        static UNSCANNED: PartFiles = PartFiles::Unscanned;
+        self.derived
+            .landed
+            .as_ref()
+            .map_or(&UNSCANNED, |run| &run.files)
     }
 
     /// Why the landed evaluation's product does not gather, if it does
@@ -1679,7 +1711,7 @@ impl DocSession {
     }
 
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
-        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot) {
+        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation) {
             return OpOutcome::refused(refusal);
         }
         let unit = props::slot_unit(self.committed_doc(), node, slot);
@@ -1703,7 +1735,7 @@ impl DocSession {
         // parameters to probe instead. A parameter has no driver and
         // reaches this door unguarded.
         if let BoundsTarget::Slot { node, slot } = target
-            && let Err(refusal) = guard_driven(self.committed_doc(), node, slot)
+            && let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation)
         {
             return OpOutcome::refused(refusal);
         }
@@ -1912,8 +1944,9 @@ impl DocSession {
     /// [`Self::start`]'s closure, so it answers only for a gesture
     /// that is actually being opened.
     fn begin_gesture(&mut self, node: RecipeNodeId, slot: SlotId) -> OpOutcome {
+        let notation = self.notation;
         self.start(move |doc| {
-            guard_driven(doc, node, slot)?;
+            guard_driven(doc, node, slot, notation)?;
             Ok(GestureTarget::Slot {
                 node,
                 slot,
@@ -2000,10 +2033,10 @@ impl DocSession {
                 // Applied to the gesture's BASE, so previews replace
                 // one another instead of composing, and the history
                 // never sees any of them. The reach is the session's
-                // own seam: a gesture that moved a gauge would mint a
+                // own seam: a gesture that moved a root would mint a
                 // frame from the parts' extent, and with no directory
                 // to resolve against it refuses typed. Built per tick,
-                // and lazy — a slot gesture moves no gauge, so what a
+                // and lazy — a slot gesture moves no root, so what a
                 // tick pays for it is the construction and nothing
                 // more.
                 let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
@@ -2392,7 +2425,7 @@ impl DocSession {
         self.require_kind(node, NodeKindWanted::Profile)?;
         let doc = self.committed_doc();
         let Some(Node::Profile(current)) = doc.node(node) else {
-            unreachable!("`require_kind` admitted feature {} as a profile", node.0)
+            unreachable!("`require_kind` admitted node {} as a profile", node)
         };
         // The editor's program is an edit OF the program it loaded;
         // over any other program it would be a guess about what the
@@ -2401,7 +2434,7 @@ impl DocSession {
         if current != base {
             return Err(Refusal::ProfileEditStale { node });
         }
-        let loops = carry_unmoved(doc, node, current, loops, &ids)?;
+        let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
         let unchanged = sketch::is_committed(current, &loops, &ids);
         Ok((!unchanged).then_some(DocEdit::SetProgram { node, loops, ids }))
     }
@@ -2889,7 +2922,7 @@ impl DocSession {
     {
         // ONE reach for the whole action, over the session's own seam
         // (the directory rule; `None` refuses typed): each edit's
-        // maintenance asks it only when a cluster's gauge moves, and
+        // maintenance asks it only when a group's root moves, and
         // what it decided rides the logged entry into the history.
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
@@ -3114,6 +3147,7 @@ impl core::fmt::Debug for DocSession {
             path,
             display: _,
             resolver,
+            notation,
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)
@@ -3128,6 +3162,7 @@ impl core::fmt::Debug for DocSession {
                 &resolver.as_ref().map(|_| format_args!("<DirResolver>")),
             )
             .field("derived", derived)
+            .field("notation", notation)
             .finish_non_exhaustive()
     }
 }

@@ -3580,11 +3580,7 @@ fn asm_r2a_mated_assembly(
             .into(),
         }],
     };
-    let axis = |origin: [f64; 3]| MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let axis = |origin: [f64; 3]| MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     // A mate head is a `SitedFace`: the fixture's claim that the name
     // it just built is a face is made where the name is built.
     let face_head = |name: pncad::prelude::StableName| {
@@ -3697,7 +3693,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// The crossing record is authored through `Node::instantiate_part_with`
 /// rather than harvested from the split, and deliberately so: for a
 /// PROPER mate edge no accepted cut can produce a crossing (the
-/// whole-cluster precondition — see editor-core's `row5_a`), and the
+/// whole-group precondition — see editor-core's `row5_a`), and the
 /// one shape that does mint one today has semantics pending Ev's
 /// AQ8 ruling. Authoring the record keeps this row about D9 — the
 /// same bits from the same recipe — rather than about a semantics
@@ -3754,7 +3750,7 @@ fn asm_r2b_child_crossing_probe() {
     .expect("the crossing-bearing instance inserts")
     .doc;
 
-    // The whole cluster split out — accepted, and the remainder is
+    // The whole group split out — accepted, and the remainder is
     // itself a crossing-bearing document.
     let store: std::sync::Arc<dyn pncad::document::PartResolver> = std::sync::Arc::new(ws.clone());
     let split = pncad::document::split(
@@ -3764,7 +3760,7 @@ fn asm_r2b_child_crossing_probe() {
         Tol::witness(),
         Some(&store),
     )
-    .expect("a whole-cluster cut splits");
+    .expect("a whole-group cut splits");
     let text =
         pncad::document::save(&split.remainder, &[], Tol::witness()).expect("the remainder saves");
     dir.write(
@@ -4148,8 +4144,8 @@ fn asm4_row6_split_bytes_agree_across_two_fresh_processes() {
 
 const ASM4_PROBE_OUT: &str = "ASM4_PROBE_OUT";
 
-/// The child half of row 6: build the deterministic two-cluster
-/// assembly, split its second cluster out, and write both documents'
+/// The child half of row 6: build the deterministic two-group
+/// assembly, split its second group out, and write both documents'
 /// save bytes.
 #[test]
 fn asm4_child_split_probe() {

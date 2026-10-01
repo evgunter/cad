@@ -73,13 +73,19 @@ and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
 bound. (3) The uniqueness tube: over a chain of boxes of certified radius
-around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` (or the chart form
-for plane×NURBS) excludes zero, so by a mean-value argument each slice
-holds at most one solution and the solution set in the chain is one arc.
+around the carrier, the enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so
+by a mean-value argument each slice holds at most one solution and the
+solution set in the chain is one arc. For plane×NURBS the chain is the
+wall pcurve's per-span windows, padded along each chart axis by the
+radius over that axis's chart speed (minted once over the wall's domain,
+refusing a zero or non-finite axis by name), and the enclosure is the
+chart form `∇φ·e⊥ / ‖chart stretch‖`. The certificate records the tube
+by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
+the exhaustiveness accounting banks exactly the region it records.
 The tube says nothing about a disjoint component at other `e`-levels;
 that is C3's exhaustiveness obligation, a separate theorem. A straddling
 enclosure is a genuine sliver of the operand pair and escalates
-(`ssi_tube_transversality`, `SsiError::TransversalityBand`), never a
+(`ssi_tube_transversality`, `SsiError::TubeStraddles`), never a
 retry. Hull bounds are an entry requirement: no schedule-max-only
 certificate ever reaches an at-rest body, and the tube is required for
 every fitted `Intersection`, not only where several branches were found.
