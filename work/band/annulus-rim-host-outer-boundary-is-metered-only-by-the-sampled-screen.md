@@ -65,14 +65,16 @@ support a NURBS one.
 
 ## Closed by (`band/annulus-host-outer-metered`)
 
-`ring_clearance_pass`'s arm (b) walks every distinct host AND mate face
-of every closed rim, ladder or annulus, and meters each outer-cycle
-edge the carve does not replace (the rim's arcs, and the seam or
-meridian each support drops into a rim vertex) against that face's trim
-under `fillet3_ring_clearance`: the distance from the trim centre on a
-plane, the height along the axis on a cylinder, cone or sphere, decided
-on the trim's far side from the rim. Lines and circles go through
-`piece_distance` / `piece_along`; any other carrier through
-`whole_carrier_reach` (sound, can only refuse more —
-`support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`);
+`ring_clearance_pass`'s arm (b) calls `support_boundary_clearance`,
+which walks every distinct host AND mate face of every closed rim,
+ladder or annulus, and meters each outer-cycle edge the carve does not
+replace (the rim's arcs, and the seam or meridian each support drops
+into a rim vertex) against that face's trim under
+`fillet3_ring_clearance`: the distance from the trim centre on a plane,
+the height along the axis on a cylinder, cone or sphere, decided on the
+trim's far side from the rim. Lines and circles go through
+`piece_distance` / `piece_along`; an ellipse, spiric or NURBS edge
+through `boxed_reach`, the certified box of the piece, and a refusal it
+decides carries `bounded: true`
+(`support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`);
 an uncertified edge refuses typed. Nothing is skipped.

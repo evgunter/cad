@@ -1464,8 +1464,15 @@ pub enum BlendError {
         /// classified it — of the ring from the trimline on a support,
         /// of the edge from the region enclosing the sliver on a cap:
         /// definitely negative, or decided Zero — which is the ring or
-        /// edge touching it, never "no clearance was certified".
+        /// edge touching it, unless `bounded` says otherwise.
         margin: ClassifiedMargin,
+        /// Whether `margin` is a BOUND rather than a measurement: the
+        /// edge's carrier has no exact closed form here (an ellipse, a
+        /// spiric oval, a NURBS curve), so its reach is read off a
+        /// certified box over it, and a refusal says only that the edge
+        /// could not be certified clear — not that it reaches the part
+        /// the blend replaces.
+        bounded: bool,
     },
     /// **The result's pcurve caches could not be re-minted** after the
     /// surgery — a chart image outside a derivation route, a loop that
@@ -1649,14 +1656,29 @@ impl fmt::Display for BlendError {
                 "{detail} — at {at}: the blend surgery contradicted its own earlier \
                  steps (a kernel bug); nothing about the body needs changing"
             ),
-            Self::RingClearance { margin, chain, .. } => {
+            Self::RingClearance {
+                margin,
+                chain,
+                bounded,
+                ..
+            } => {
                 let fate = match chain {
                     Convexity::Convex => "cuts away with the material it removes",
                     Convexity::Concave => "buries under the material it adds",
                 };
+                let what = if *bounded {
+                    "an edge cannot be certified clear of"
+                } else {
+                    "a ring or edge lies in"
+                };
+                let how = if *bounded {
+                    " — a bound over the edge, whose carrier has no exact clearance here"
+                } else {
+                    ""
+                };
                 write!(
                     f,
-                    "a ring or edge lies in the part of a face the blend {fate} ({margin}). {}",
+                    "{what} the part of a face the blend {fate} ({margin}{how}). {}",
                     BlendDecision::RingClearance.recourse(margin.arm())
                 )
             }
@@ -1922,11 +1944,13 @@ mod recourse_tests {
                 face: FaceKey::default(),
                 chain: Convexity::Convex,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+                bounded: false,
             },
             BlendError::RingClearance {
                 face: FaceKey::default(),
                 chain: Convexity::Concave,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+                bounded: false,
             },
             BlendError::Certify {
                 site: "blend face pcurves",
@@ -2060,6 +2084,7 @@ mod recourse_tests {
                     band: Band::new(1e-9, 1e-6).expect("a band"),
                     sign: Sign::Negative,
                 },
+                bounded: false,
             }
             .to_string();
             assert!(text.contains(says), "{chain}: {text}");

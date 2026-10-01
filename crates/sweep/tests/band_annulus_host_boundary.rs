@@ -92,23 +92,22 @@ fn notched_washer(from: f64, to: f64) -> Body<f64> {
     )
 }
 
-/// The definite clearance refusal a request reads, as
-/// `(predicate, reading)`.
-fn refusal(err: BlendError) -> (&'static str, f64) {
-    let margin = match err {
-        BlendError::RingClearance { margin, .. }
-        | BlendError::FaceClearanceUncertified { margin, .. } => margin,
-        other => panic!("expected a clearance refusal, got {other:?}"),
+/// The definite `fillet3_ring_clearance` refusal a request reads, as
+/// `(reading, bounded)`.
+fn refusal(name: &str, err: BlendError) -> (f64, bool) {
+    let BlendError::RingClearance {
+        margin, bounded, ..
+    } = err
+    else {
+        panic!("{name}: the support-boundary meter answers, not the sampled screen; got {err:?}")
     };
-    assert_eq!(margin.sign, Sign::Negative, "a definite refusal");
-    (
-        margin.predicate,
-        margin
-            .reading
-            .diagnostic_f64_for_error_text()
-            .value()
-            .expect("a definite reading"),
-    )
+    assert_eq!(margin.sign, Sign::Negative, "{name}: a definite refusal");
+    let read = margin
+        .reading
+        .diagnostic_f64_for_error_text()
+        .value()
+        .expect("a definite reading");
+    (read, bounded)
 }
 
 fn carves(name: &str, body: &Body<f64>, rim: (f64, f64), r: f64) {
@@ -120,14 +119,16 @@ fn carves(name: &str, body: &Body<f64>, rim: (f64, f64), r: f64) {
     assert_eq!(out.band_faces.len(), 1, "{name}: one band");
 }
 
-fn refuses(name: &str, body: &Body<f64>, rim: (f64, f64), r: f64) -> f64 {
+/// The reading of a refusal, and whether it was a bound (an ellipse
+/// edge's certified box) rather than a measurement (a line or circle).
+fn refuses(name: &str, body: &Body<f64>, rim: (f64, f64), r: f64, bounded: bool) -> f64 {
     validate_geometric(body, tol()).expect("the fixture is tier-3 valid");
     let arcs = rim_arcs_at(body, rim.0, rim.1);
     let err = fillet_edges(body, &arcs, r, tol()).expect_err(name).error;
-    let (predicate, read) = refusal(err);
+    let (read, was) = refusal(name, err);
     assert_eq!(
-        predicate, "fillet3_ring_clearance",
-        "{name}: the exact host-boundary meter answers, not the sampled screen"
+        was, bounded,
+        "{name}: the refusal says whether it measured or bounded"
     );
     read
 }
@@ -146,6 +147,7 @@ fn a_notch_reaching_past_the_outer_rims_trim_between_samples_refuses() {
         &notched_washer(0.6, 1.85),
         (2.0, 0.0),
         0.2,
+        false,
     );
     let want = 1.8 - 1.85f64.hypot(HALF);
     assert!(
@@ -174,6 +176,7 @@ fn a_notch_reaching_inside_the_bore_rims_trim_between_samples_refuses() {
         &notched_washer(1.15, 2.5),
         (1.0, 0.0),
         0.2,
+        false,
     );
     let side = 1.15f64.hypot(HALF) - 1.2;
     let inner = 1.15 - 1.2;
@@ -289,6 +292,7 @@ fn a_tilted_cut_reaching_a_cylinder_hosts_trim_between_samples_refuses() {
         &tilted_cut_shaft(Cut::HostFromAbove, 0.535, 191.25),
         (1.0, 0.5),
         0.1,
+        true,
     );
     let want = (0.535 - 0.5) - 0.1 * core::f64::consts::FRAC_PI_8.tan();
     assert!(
@@ -316,6 +320,7 @@ fn a_tilted_cut_reaching_a_cylinder_mates_trim_between_samples_refuses() {
         &tilted_cut_shaft(Cut::MateFromBelow, 0.465, 191.25),
         (1.0, 0.5),
         0.1,
+        true,
     );
     let want = (0.5 - 0.1 * core::f64::consts::FRAC_PI_8.tan()) - 0.465;
     assert!(

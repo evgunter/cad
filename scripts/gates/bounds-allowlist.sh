@@ -553,7 +553,14 @@ BOUNDS_ALLOWLIST=(
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/surgery.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
+  # carry-through pass's support-boundary arm split into its own
+  # function — the same edge-blend seam, reading brackets only where
+  # `ring_clearance` and the piece meters already do, plus one
+  # selection definite by a setback (which side of the trim the rim
+  # lies on; DL5(b), as `CircleFrame::misses`), the precedent
+  # `seam_split_param` set in this file.
+  'crates/sweep/src/blend/surgery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/planar.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/ruled.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
