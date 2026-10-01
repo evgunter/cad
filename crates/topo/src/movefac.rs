@@ -28,7 +28,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, LoopKey, Shell, ShellKey, Solid, SolidKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::{EulerOpError, RunExtent, require_halves};
+use crate::euler::{EulerOpError, RunExtent};
 use crate::live::require_key;
 use crate::provenance::Provenance;
 
@@ -152,16 +152,7 @@ impl<T: Decide> Body<T> {
                         return Err(broken());
                     }
                     for member in cycle {
-                        let edge = self.resolve_half_edge(member)?.edge;
-                        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-                            key: EntityId::Edge(edge),
-                        })?;
-                        let mate = edge_data
-                            .claim(member)
-                            .ok_or(EulerOpError::UnclaimedHalfEdge { he: member, edge })?
-                            .mate;
-                        let mate_data = self.resolve_half_edge(mate)?;
-                        require_halves(edge, edge_data, member, (mate, mate_data.edge))?;
+                        let mate_data = self.proven_mate(member)?.mate_data;
                         let mate_loop =
                             self.get_loop(mate_data.parent_loop)
                                 .ok_or(EulerOpError::StaleKey {
@@ -697,6 +688,30 @@ mod tests {
         }
     }
 
+    /// [`assert_refuses_torn`] for [`EulerOpError::NotOwned`], with the
+    /// rendered refusal read for its subject: `child` taken as `owner`'s,
+    /// and both directions the ownership can fail in, at every raise
+    /// site whichever direction failed there.
+    fn assert_refuses_not_owned(
+        body: &mut Body<f64>,
+        shell: ShellKey,
+        child: EntityId,
+        owner: EntityId,
+    ) {
+        let expected = EulerOpError::NotOwned { child, owner };
+        assert_refuses_torn(body, shell, &expected);
+        let text = expected.to_string();
+        for subject in [
+            format!("movefac took {child} as {owner}'s"),
+            format!("{owner} does not list {child}, or {child} does not name {owner}"),
+        ] {
+            assert!(
+                text.contains(&subject),
+                "NotOwned renders `{subject}`: {text}"
+            );
+        }
+    }
+
     /// The first member of `l`'s cycle.
     fn first_of(body: &Body<f64>, l: LoopKey) -> crate::entity::HalfEdgeKey {
         match body.get_loop(l).unwrap().boundary {
@@ -884,13 +899,11 @@ mod tests {
                     body.get_face_mut(face).unwrap().shell = shell;
                 }
             }
-            assert_refuses_torn(
+            assert_refuses_not_owned(
                 &mut body,
                 shell,
-                &EulerOpError::NotOwned {
-                    child: EntityId::Face(reached),
-                    owner: EntityId::Shell(shell),
-                },
+                EntityId::Face(reached),
+                EntityId::Shell(shell),
             );
         }
     }
@@ -908,13 +921,11 @@ mod tests {
         let neighbour = body.get_loop(l).unwrap().face;
         assert_ne!(neighbour, seed_face);
         body.get_face_mut(neighbour).unwrap().shell = other.shell;
-        assert_refuses_torn(
+        assert_refuses_not_owned(
             &mut body,
             shell,
-            &EulerOpError::NotOwned {
-                child: EntityId::Face(neighbour),
-                owner: EntityId::Shell(shell),
-            },
+            EntityId::Face(neighbour),
+            EntityId::Shell(shell),
         );
     }
 
@@ -928,13 +939,11 @@ mod tests {
         let foreign = body.get_face(promoted[0]).unwrap().outer;
         body.get_face_mut(seed_face).unwrap().rings.push(foreign);
         assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
-        assert_refuses_torn(
+        assert_refuses_not_owned(
             &mut body,
             shell,
-            &EulerOpError::NotOwned {
-                child: EntityId::Loop(foreign),
-                owner: EntityId::Face(seed_face),
-            },
+            EntityId::Loop(foreign),
+            EntityId::Face(seed_face),
         );
     }
 

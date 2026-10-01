@@ -52,7 +52,7 @@ shell. The fix can call those helpers with the dropped sets as the
 clearing, once per record kind rather than per record, since `carve`
 removes many.
 
-TOPO PR 3592 adds the half-edge side: `Body::require_halves_unnamed`
+TOPO PR 3592 adds the half-edge side: `Body::require_killed_halves_unnamed`
 proves that no kept half-edge's `next`/`prev`, loop's `first`,
 vertex's `emanating` or edge's slot names a half-edge a kill removes.
 `carve` removes the dropped shells' half-edges with the same four

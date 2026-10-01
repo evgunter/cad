@@ -104,8 +104,12 @@
 #     a closure is not an item and the reader has no name for it. That
 #     is what `<fragment>` is for.
 #   * `macro_rules!` BODIES AND `include!`d TEXT, which `lib.sh`'s
-#     reader does not expand. `#[cfg(test)]` items are skipped, so a
-#     discard reachable only from a test module is not counted.
+#     reader does not expand. `#[cfg(test)]` items INSIDE a scanned
+#     file are skipped, so a discard in an inline test module is not
+#     counted. A whole FILE mounted only under `#[cfg(test)]`
+#     (`review_d18.rs`) is still scanned, because the gate reads every
+#     crate source rather than `gate_production_sources`' narrowed list,
+#     and a discard there is registered like any other.
 #   * `Self::(Cycle|Empty) { … }` IS MATCHED, for an `impl LoopBoundary`
 #     that writes its own variants that way. The cost is the one
 #     OVER-count here: another enum with a struct variant named `Cycle`

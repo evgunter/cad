@@ -565,7 +565,7 @@ impl<T: Decide> Body<T> {
             .flatten()
             .map(|(first, last)| (last, first))
             .collect();
-        self.require_halves_unnamed(
+        self.require_killed_halves_unnamed(
             [he1, he2],
             Clearing {
                 removed: Records {

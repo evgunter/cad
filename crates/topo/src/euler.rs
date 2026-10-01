@@ -142,7 +142,8 @@
 //!
 //!   The D9 taxonomy consequence therefore holds **for every door but
 //!   that one**: these debug panics are
-//!   **unreachable by input** through the public API — reaching one
+//!   **unreachable by input** through the public API as it stands —
+//!   no public path builds a `Body` from bytes, so reaching one
 //!   requires in-crate raw corruption (which is what the validator's
 //!   own tests do deliberately) or a discarded graft refusal. Release
 //!   builds carry no postcondition either way: on corruption the plan
@@ -151,6 +152,13 @@
 //!   discards the D2 addendum superseded are gone from these three
 //!   modules, the shared write helper
 //!   ([`Body::link_half_edges`]) included.
+//!
+//!   **The plan phases' typed refusals of a torn arena do not rest on
+//!   that reachability claim.** They rest on the D2 addendum's row-4
+//!   rule: the body's tier-1 validity is a whole-body property no
+//!   single call establishes, so it never stands in for a check. What
+//!   a plan reads and cannot prove from its own reads is refused
+//!   typed, however the body came to be torn.
 //!
 //! # Geometry policy at M2 (PR 3 — the M0 placeholders retired)
 //!
@@ -813,10 +821,7 @@ pub enum EulerOpError {
     /// half-edge; or the loop is `Empty` at a vertex [`Body::kvfs`] or
     /// [`Body::kev`] removes (the crate-internal
     /// `Body::require_vertex_unnamed`), which another loop holds or a
-    /// half-edge starts at; or a half-edge that claims the loop, or the
-    /// loop's `first`, names a half-edge [`Body::kef`], [`Body::kev`] or
-    /// [`Body::kemr`] removes, and the kill does not rewrite that link
-    /// (the crate-internal `Body::require_halves_unnamed`).
+    /// half-edge starts at.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
@@ -855,10 +860,11 @@ pub enum EulerOpError {
     /// mate cannot be resolved — a corrupt edge ↔ half-edge bijection,
     /// tier-1-invalid input. Fired by the single-half-edge kill
     /// operators ([`Body::kev`], [`Body::kef`]) for their argument, whose
-    /// mate is computed rather than passed, and by them and
-    /// [`Body::kemr`] for a half-edge outside the removed pair that
-    /// names the edge the kill removes (the crate-internal
-    /// `Body::require_edge_unnamed`).
+    /// mate is computed rather than passed, by [`Body::movefac`] for a
+    /// cycle member whose mate its labelling reads the same way, and by
+    /// the two kills and [`Body::kemr`] for a half-edge outside the
+    /// removed pair that names the edge the kill removes (the
+    /// crate-internal `Body::require_edge_unnamed`).
     UnclaimedHalfEdge {
         /// The half-edge its own edge does not claim.
         he: HalfEdgeKey,
@@ -925,13 +931,14 @@ pub enum EulerOpError {
     /// face other than the ring's listing the ring), [`Body::kfmrh`] and
     /// [`Body::kfmrh_minting`] (a loop or shell naming `f2`, a face or
     /// solid naming the shell the fusion form removes), and
-    /// [`Body::kef`], [`Body::kev`] and [`Body::kemr`] for a vertex's
-    /// `emanating` or another edge's slot naming a half-edge they remove.
+    /// [`Body::kef`], [`Body::kev`] and [`Body::kemr`] for a half-edge's
+    /// `next` or `prev`, a loop's `first`, a vertex's `emanating` or
+    /// another edge's slot naming a half-edge they remove (the
+    /// crate-internal `Body::require_killed_halves_unnamed`).
     ///
-    /// The half-edge graph's own references have the variants that
-    /// already name them: a half-edge claiming a removed loop, or a
-    /// half-edge's `next`/`prev` or a loop's `first` naming a removed
-    /// half-edge, is [`EulerOpError::LoopCycleBroken`], one starting at a
+    /// A half-edge naming a removed loop, vertex or edge has the variant
+    /// that already decides that field: a half-edge claiming a removed
+    /// loop is [`EulerOpError::LoopCycleBroken`], one starting at a
     /// removed vertex [`EulerOpError::OrbitBroken`], one naming a removed
     /// edge [`EulerOpError::UnclaimedHalfEdge`].
     KillLeavesDangling {
@@ -940,16 +947,18 @@ pub enum EulerOpError {
         /// The record the kill removes.
         to: EntityId,
     },
-    /// [`Body::movefac`]'s labelling reached `child` from `owner`, and
-    /// the two do not name each other — tier-1-invalid input: a face
-    /// lists a loop whose `face` is another, or the walk glues on a face
-    /// across an edge that is not the shell's (its `shell` is another,
-    /// or the shell does not list it). The labelling would join
-    /// components through a record the partition does not move.
+    /// [`Body::movefac`]'s labelling took `child` as `owner`'s, and the
+    /// ownership does not hold in both directions — tier-1-invalid
+    /// input: `owner` does not list `child`, or `child` does not name
+    /// `owner`, or neither. Raised for a face the labelling labels,
+    /// whether a seed from the shell's list or a neighbour reached
+    /// across an edge, that the shell does not list or whose `shell` is
+    /// another (`owner` is the shell), and for a loop a face lists
+    /// whose `face` is another (`owner` is the face).
     NotOwned {
-        /// The record the labelling reached.
+        /// The record the labelling took as `owner`'s.
         child: EntityId,
-        /// The record it was reached from, which does not own it.
+        /// The record that does not own it in both directions.
         owner: EntityId,
     },
     /// Two distinct loops are required but one loop was found:
@@ -1244,10 +1253,8 @@ impl EulerOpError {
             Self::LoopCycleBroken { r#loop } => format!(
                 "loop {loop:?}'s next cycle disagrees with the half-edges that \
                  claim it: a walk of it fails to close, strays into another \
-                 loop or misses one of its members, it is empty at a vertex \
-                 another loop also holds or a half-edge starts at, or its first \
-                 or a member's link names a half-edge a kill removes (malformed \
-                 body)",
+                 loop or misses one of its members, or it is empty at a vertex \
+                 another loop also holds or a half-edge starts at (malformed body)",
                 loop = r#loop
             ),
             Self::LoopNotEmpty { r#loop } => format!(
@@ -1290,9 +1297,9 @@ impl EulerOpError {
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::NotOwned { child, owner } => format!(
-                "movefac reached {child} from {owner}, which does not own it: one \
-                 does not name the other back, so the partition would join \
-                 components through a record it does not move. {}",
+                "movefac took {child} as {owner}'s, but the two do not own each \
+                 other both ways: {owner} does not list {child}, or {child} does \
+                 not name {owner}. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::SameLoop { r#loop } => format!(
@@ -1604,8 +1611,8 @@ impl EulerOpError {
             // "Believed unreachable through valid operator sequences
             // (the offending inputs are already tier-1-invalid)".
             Self::EmptyAnchorsCollide { .. } => true,
-            // A record a kill keeps naming one it removes, and two
-            // records `movefac` reaches that do not name each other.
+            // A record a kill keeps naming one it removes, and a record
+            // `movefac` takes as another's that does not own it both ways.
             Self::KillLeavesDangling { .. } | Self::NotOwned { .. } => true,
             // A row the operator could not mint: a fact about the
             // operation, except where the derivation met a key that
@@ -3197,6 +3204,35 @@ impl<T: Decide> Body<T> {
         }
     }
 
+    /// `he`'s mate, read from `he`'s own edge and proven its pair: `he`
+    /// resolves, its edge resolves ([`EulerOpError::StaleKey`]), the
+    /// edge claims `he` ([`EulerOpError::UnclaimedHalfEdge`]), the mate
+    /// the claim gives resolves (`StaleKey`), and the two are the edge's
+    /// halves ([`require_halves`]: [`EulerOpError::NotSameEdge`]), in
+    /// that order. The one hop from a half-edge to its mate a plan may
+    /// read without proving more; [`Body::mate`] answers `None` for
+    /// every one of these faults alike and proves no pair.
+    pub(crate) fn proven_mate(&self, he: HalfEdgeKey) -> Result<ProvenMate<'_>, EulerOpError> {
+        let he_data = self.resolve_half_edge(he)?;
+        let edge = he_data.edge;
+        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Edge(edge),
+        })?;
+        let mate = edge_data
+            .claim(he)
+            .ok_or(EulerOpError::UnclaimedHalfEdge { he, edge })?
+            .mate;
+        let mate_data = self.resolve_half_edge(mate)?;
+        require_halves(edge, edge_data, he, (mate, mate_data.edge))?;
+        Ok(ProvenMate {
+            he_data,
+            edge,
+            edge_data,
+            mate,
+            mate_data,
+        })
+    }
+
     /// Proves that no half-edge but `halves`, the two a kill removes with
     /// it, names the edge `edge`, refusing
     /// [`EulerOpError::UnclaimedHalfEdge`] naming the first that does in
@@ -3222,12 +3258,10 @@ impl<T: Decide> Body<T> {
     /// Proves that no record a kill keeps names either of the two
     /// half-edges `halves` it removes, once it has written what
     /// `clearing` says: no half-edge's `next` or `prev`, as the kill's
-    /// links leave it, then no loop's `first` but those `clearing`
-    /// clears, refusing [`EulerOpError::LoopCycleBroken`] naming the
-    /// half-edge's parent loop or the loop; then no vertex's `emanating`
-    /// and no slot of an edge but those `clearing` clears, refusing
-    /// [`EulerOpError::KillLeavesDangling`] naming the record. Each
-    /// first in arena order.
+    /// links leave it, then no loop's `first`, no vertex's `emanating`
+    /// and no slot of an edge but those `clearing` clears. Refuses
+    /// [`EulerOpError::KillLeavesDangling`] naming the first record that
+    /// does, in that order and in arena order within each arena.
     ///
     /// A plan reads a killed half's neighbours from its own `next` and
     /// `prev`, the loops it re-anchors from the halves' `parent_loop`,
@@ -3238,32 +3272,38 @@ impl<T: Decide> Body<T> {
     /// [`Body::require_kill_anchors`] proves. The proof reads every
     /// half-edge, loop, vertex and edge once, bounded as
     /// [`Body::require_run_of`]'s `Whole` proof is.
-    pub(crate) fn require_halves_unnamed(
+    pub(crate) fn require_killed_halves_unnamed(
         &self,
         halves: [HalfEdgeKey; 2],
         clearing: Clearing<'_>,
     ) -> Result<(), EulerOpError> {
         let killed = |he: HalfEdgeKey| halves.contains(&he);
-        if let Some((_, data)) = self
+        let by_link = self
             .half_edges
             .iter()
-            .find(|&(he, data)| !killed(he) && clearing.links_of(he, data).into_iter().any(killed))
-        {
-            return Err(EulerOpError::LoopCycleBroken {
-                r#loop: data.parent_loop,
+            .filter(|&(h, _)| !killed(h))
+            .find_map(|(h, data)| {
+                clearing
+                    .links_of(h, data)
+                    .into_iter()
+                    .find(|&he| killed(he))
+                    .map(|he| (EntityId::HalfEdge(h), he))
             });
-        }
-        if let Some((r#loop, _)) = self.loops.iter().find(|&(l, data)| {
-            matches!(data.boundary, LoopBoundary::Cycle { first } if killed(first))
-                && !clearing.clears_loop(l)
-        }) {
-            return Err(EulerOpError::LoopCycleBroken { r#loop });
-        }
-        let by_vertex = self.vertices.iter().find_map(|(v, data)| {
-            data.emanating
-                .filter(|&he| killed(he) && !clearing.clears_vertex(v))
-                .map(|he| (EntityId::Vertex(v), he))
-        });
+        let by_loop = || {
+            self.loops.iter().find_map(|(l, data)| match data.boundary {
+                LoopBoundary::Cycle { first } if killed(first) && !clearing.clears_loop(l) => {
+                    Some((EntityId::Loop(l), first))
+                }
+                _ => None,
+            })
+        };
+        let by_vertex = || {
+            self.vertices.iter().find_map(|(v, data)| {
+                data.emanating
+                    .filter(|&he| killed(he) && !clearing.clears_vertex(v))
+                    .map(|he| (EntityId::Vertex(v), he))
+            })
+        };
         let by_edge = || {
             self.edges.iter().find_map(|(e, data)| {
                 [data.he_plus, data.he_minus]
@@ -3272,7 +3312,7 @@ impl<T: Decide> Body<T> {
                     .map(|he| (EntityId::Edge(e), he))
             })
         };
-        match by_vertex.or_else(by_edge) {
+        match by_link.or_else(by_loop).or_else(by_vertex).or_else(by_edge) {
             Some((from, he)) => Err(EulerOpError::KillLeavesDangling {
                 from,
                 to: EntityId::HalfEdge(he),
@@ -4160,7 +4200,7 @@ pub(crate) struct KillRun<'a> {
 /// The records a kill's removal proofs
 /// ([`Body::require_loop_unlisted`], [`Body::require_face_unnamed`],
 /// [`Body::require_shell_unnamed`], [`Body::require_solid_unnamed`],
-/// [`Body::require_halves_unnamed`]) pass over, since the kill leaves
+/// [`Body::require_killed_halves_unnamed`]) pass over, since the kill leaves
 /// none of them naming the record it removes: those it removes beside
 /// it, those it keeps and rewrites the proof's field of, and the
 /// `next` links it writes. Each proof reads one field per arena, so a
@@ -4170,8 +4210,12 @@ pub(crate) struct Clearing<'a> {
     /// The records the kill removes.
     pub(crate) removed: Records<'a>,
     /// The records the kill keeps and rewrites the field of: `kef`'s
-    /// shell, which drops the dying face, `mekr`'s face, which drops
-    /// the ring, and a kill's re-anchored loops and endpoints.
+    /// shell and `kfmrh`'s same-shell form's, which drop the dying
+    /// face, `mekr`'s face, which drops
+    /// the ring, `kfmrh`'s demoted ring, which re-homes onto `f1`, and
+    /// in its fusion form the faces that move to `f1`'s shell and the
+    /// solid that drops the dying shell, and a kill's re-anchored loops
+    /// and endpoints.
     pub(crate) edited: Records<'a>,
     /// The links the kill writes, in write order: each `(a, b)` sets
     /// `a.next = b` and `b.prev = a` ([`Body::link_half_edges`]).
@@ -4281,6 +4325,21 @@ impl KillAnchor {
 /// torn `next` that reads two loops' halves as adjacent).
 pub(crate) fn shared_loop(a: &HalfEdge, b: &HalfEdge) -> Option<LoopKey> {
     (a.parent_loop == b.parent_loop).then_some(a.parent_loop)
+}
+
+/// A half-edge, its edge and its mate, as [`Body::proven_mate`] proves
+/// them.
+pub(crate) struct ProvenMate<'a> {
+    /// The half-edge the hop starts from.
+    pub(crate) he_data: HalfEdge,
+    /// Its edge.
+    pub(crate) edge: EdgeKey,
+    /// The edge's record, which claims both halves.
+    pub(crate) edge_data: &'a Edge,
+    /// The other half the edge claims.
+    pub(crate) mate: HalfEdgeKey,
+    /// The mate's record, which names `edge`.
+    pub(crate) mate_data: HalfEdge,
 }
 
 /// Proves that `he1` and `he2` are the two halves of `edge`, the edge
@@ -6693,7 +6752,7 @@ mod removal_census {
         (
             "DanglingTopology: Loop -> HalfEdge",
             Read(
-                "require_halves_unnamed",
+                "require_killed_halves_unnamed",
                 &["LoopBoundary::Cycle { first } if killed(first)"],
             ),
         ),
@@ -6715,11 +6774,14 @@ mod removal_census {
         ),
         (
             "DanglingTopology: HalfEdge -> HalfEdge",
-            Read("links_of", &["data.next", "data.prev"]),
+            Read("require_killed_halves_unnamed", &[".links_of(h, data)"]),
         ),
         (
             "DanglingTopology: Edge -> HalfEdge",
-            Read("require_halves_unnamed", &["data.he_plus, data.he_minus"]),
+            Read(
+                "require_killed_halves_unnamed",
+                &["data.he_plus, data.he_minus"],
+            ),
         ),
         (
             "DanglingGeometry: Edge -> Curve",
@@ -6735,7 +6797,7 @@ mod removal_census {
         ),
         (
             "DanglingTopology: Vertex -> HalfEdge",
-            Read("require_halves_unnamed", &["data.emanating"]),
+            Read("require_killed_halves_unnamed", &["data.emanating"]),
         ),
         ("StaleNullFaceLoop: face, named_loop", Filed(NULL_FACES)),
     ];

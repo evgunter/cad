@@ -315,8 +315,8 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{
-    Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, Records,
-    RunExtent, require_halves, shared_loop,
+    Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, ProvenMate,
+    Records, RunExtent, shared_loop,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
@@ -1000,7 +1000,7 @@ impl<T: Decide> Body<T> {
     /// ([`Body::require_kill_anchors`]), and that nothing the kill keeps
     /// names the edge, the vertex or the half-edges it removes
     /// ([`Body::require_edge_unnamed`], [`Body::require_vertex_unnamed`],
-    /// [`Body::require_halves_unnamed`]). The first is
+    /// [`Body::require_killed_halves_unnamed`]). The first is
     /// what keeps the killed edge out of its own merged members: its
     /// halves are `he`, which starts at the survivor, and the mate, which
     /// heads the orbit walk and so is not in the fan. The walk steps
@@ -1008,18 +1008,14 @@ impl<T: Decide> Body<T> {
     /// `next` can put a foreign half-edge — the killed half among
     /// them — on it, and only this check sees one.
     fn kev_plan(&self, he: HalfEdgeKey) -> Result<KevPlan, EulerOpError> {
-        let he_data = self.resolve_half_edge(he)?;
-        let edge = he_data.edge;
-        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
+        let ProvenMate {
+            he_data,
+            edge,
+            edge_data,
+            mate: m,
+            mate_data: m_data,
+        } = self.proven_mate(he)?;
         let (he_plus, he_minus, curve) = (edge_data.he_plus, edge_data.he_minus, edge_data.curve);
-        let m = edge_data
-            .claim(he)
-            .ok_or(EulerOpError::UnclaimedHalfEdge { he, edge })?
-            .mate;
-        let m_data = self.resolve_half_edge(m)?;
-        require_halves(edge, edge_data, he, (m, m_data.edge))?;
         let v = he_data.start; // survives
         let w = m_data.start; // dies (= end(he))
         if v == w {
@@ -1094,7 +1090,7 @@ impl<T: Decide> Body<T> {
         self.require_edge_unnamed(edge, [he, m])?;
         self.require_vertex_unnamed(w, &orbit_w, &[])?;
         let rewritten: Vec<LoopKey> = loop_writes.iter().map(|&(l, _)| l).collect();
-        self.require_halves_unnamed(
+        self.require_killed_halves_unnamed(
             [he, m],
             Clearing {
                 removed: Records {
@@ -1436,17 +1432,15 @@ impl<T: Decide> Body<T> {
     /// declares the postcondition.
     fn kef_with(&mut self, he: HalfEdgeKey, tol: Option<Tol>) -> Result<KefResult, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
-        let he_data = self.resolve_half_edge(he)?;
-        let edge = he_data.edge;
-        let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let m = edge_data
-            .claim(he)
-            .ok_or(EulerOpError::UnclaimedHalfEdge { he, edge })?
-            .mate;
-        let m_data = self.resolve_half_edge(m)?;
-        require_halves(edge, &edge_data, he, (m, m_data.edge))?;
+        let ProvenMate {
+            he_data,
+            edge,
+            edge_data,
+            mate: m,
+            mate_data: m_data,
+        } = self.proven_mate(he)?;
+        let (curve, killed_he_plus, killed_he_minus) =
+            (edge_data.curve, edge_data.he_plus, edge_data.he_minus);
         let l1 = he_data.parent_loop; // dies with its face
         let l2 = m_data.parent_loop; // survives, absorbs the remnant
         if l1 == l2 {
@@ -1585,7 +1579,7 @@ impl<T: Decide> Body<T> {
         self.require_loop_unlisted(l1, clearing)?;
         self.require_face_unnamed(f1, clearing)?;
         self.require_edge_unnamed(edge, [he, m])?;
-        self.require_halves_unnamed(
+        self.require_killed_halves_unnamed(
             [he, m],
             Clearing {
                 removed: Records {
@@ -1693,9 +1687,7 @@ impl<T: Decide> Body<T> {
             unreachable!("kef: the shell resolved in the plan phase; only `f1` is reaped above")
         };
         shell_data.faces.retain(|&face| face != f1);
-        let killed_curve = self
-            .remove_curve_if_orphaned(edge_data.curve)
-            .then_some(edge_data.curve);
+        let killed_curve = self.remove_curve_if_orphaned(curve).then_some(curve);
         // The curve hygiene above can itself reap f1's surface (a
         // killed curve's `Intersection`/`Seam` description can hold
         // the last reference — the issue #86 cascade); `f1_data`
@@ -1708,8 +1700,8 @@ impl<T: Decide> Body<T> {
 
         Ok(KefResult {
             killed_edge: edge,
-            killed_he_plus: edge_data.he_plus,
-            killed_he_minus: edge_data.he_minus,
+            killed_he_plus,
+            killed_he_minus,
             killed_face: f1,
             killed_loop: l1,
             killed_curve,

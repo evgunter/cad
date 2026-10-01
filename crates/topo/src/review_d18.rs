@@ -2012,7 +2012,8 @@ fn kill_anchors_on_a_few_torn_bodies() {
 #[ignore = "evidence: the anchor proofs' tear measurement, run by hand"]
 #[cfg(not(debug_assertions))]
 fn kill_anchors_on_torn_bodies() {
-    let seeds: Vec<u64> = (1..=2000).collect();
+    let range = 1..=2000_u64;
+    let seeds: Vec<u64> = range.clone().collect();
     // Two tear kinds at a time, one thread each.
     let mut table: AnchorTable =
         [[[0usize; 2 + ANCHOR_COLUMNS.len()]; ANCHOR_OPS.len()]; ANCHOR_TEARS.len()];
@@ -2041,7 +2042,7 @@ fn kill_anchors_on_torn_bodies() {
             println!("| `{tear:?}` | `{op}` | {} |", cells.join(" | "));
         }
     }
-    assert_no_anchor_written(&table, "seeds 1..=2000");
+    assert_no_anchor_written(&table, &format!("seeds {range:?}"));
 }
 
 /// The valid bodies [`revert_anchor_rows`] and [`revert_rename_rows`]
@@ -2892,7 +2893,6 @@ fn half_edge_tears(body: &Body<f64>, [he, m]: [HalfEdgeKey; 2]) -> [(Body<f64>, 
     let start = |h| body.get_half_edge(h).unwrap().start;
     let (l, x) = far_loop(body, &[start(he), start(m)]);
     let (v, e) = (start(x), body.get_half_edge(x).unwrap().edge);
-    let broken = EulerOpError::LoopCycleBroken { r#loop: l };
     let torn = |tear: &dyn Fn(&mut Body<f64>)| {
         let mut copy = body.clone();
         tear(&mut copy);
@@ -2901,15 +2901,15 @@ fn half_edge_tears(body: &Body<f64>, [he, m]: [HalfEdgeKey; 2]) -> [(Body<f64>, 
     [
         (
             torn(&|b| b.get_half_edge_mut(x).unwrap().next = he),
-            broken.clone(),
+            dangling(EntityId::HalfEdge(x), EntityId::HalfEdge(he)),
         ),
         (
             torn(&|b| b.get_half_edge_mut(x).unwrap().prev = m),
-            broken.clone(),
+            dangling(EntityId::HalfEdge(x), EntityId::HalfEdge(m)),
         ),
         (
             torn(&|b| b.get_loop_mut(l).unwrap().boundary = LoopBoundary::Cycle { first: he }),
-            broken,
+            dangling(EntityId::Loop(l), EntityId::HalfEdge(he)),
         ),
         (
             torn(&|b| b.get_vertex_mut(v).unwrap().emanating = Some(m)),
