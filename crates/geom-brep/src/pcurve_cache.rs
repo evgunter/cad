@@ -721,8 +721,11 @@ impl<T: Real> Pcurve<T> {
     /// [`crate::EdgeCurve::with_chart_v_mirrored`]) point back rather
     /// than restate. A certificate is a record of metred NORMS —
     /// sampled residuals `|S(P(tᵢ)) − C(tᵢ)|`, an envelope over the
-    /// span, a hull sup-norm and a tube radius on the fitted lane —
-    /// and stores nothing in chart coordinates. On the mirrored chart
+    /// span, a hull sup-norm and a uniqueness tube on the fitted lane —
+    /// and stores nothing in a plane chart's coordinates: the one chart
+    /// quantity it can hold, the chart tube's pad
+    /// ([`crate::ssi::SsiTube::Chart`]), is a NURBS chart's, and the one
+    /// caller (`topo::revert`) reflects plane charts only. On the mirrored chart
     /// the mirrored image evaluates to the same 3-D point at every
     /// parameter: `S'(u, −v) = origin + u_ref·u + (−v_ref)·(−v)`, and
     /// `(−a)·(−b)` is `a·b` exactly in IEEE arithmetic, so every
@@ -1691,19 +1694,21 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     mate: &Surface<T>,
     band: Band,
 ) -> Result<SsiCertificate<T>, PcurveCertifyError> {
-    fn operand<T: Real>(s: &Surface<T>) -> SsiOperand<'_, T> {
+    fn operand<T: geom_core::CertifiedBounds>(
+        s: &Surface<T>,
+    ) -> Result<SsiOperand<'_, T>, PcurveCertifyError> {
         // The catch-all is SPLIT: an approximating surface's chart is
         // its fit's, so the spline operand is the one that describes
         // its geometry — routing it to `Analytic` would hand the SSI
         // limbs an implicit form that does not exist.
         match s {
-            Surface::Nurbs(n) => SsiOperand::Nurbs(n),
-            Surface::Approx(a) => SsiOperand::Nurbs(a.fit()),
+            Surface::Nurbs(n) => SsiOperand::nurbs(n).map_err(ssi_refusal),
+            Surface::Approx(a) => SsiOperand::nurbs(a.fit()).map_err(ssi_refusal),
             other @ (Surface::Plane { .. }
             | Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. }) => SsiOperand::Analytic(other),
+            | Surface::Torus { .. }) => Ok(SsiOperand::Analytic(other)),
         }
     }
     // The certificate's carrier spline: a rung-3 carrier IS one; an
@@ -1765,8 +1770,8 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     crate::ssi::certify_rung3(
         carrier,
         Some(image),
-        &operand(mate),
-        &operand(surface),
+        &operand(mate)?,
+        &operand(surface)?,
         crate::ssi::TubeScale::uniform(arm),
         band,
     )
@@ -1912,6 +1917,11 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             None,
         ),
         E::UnsupportedCertificate { what } => (None, what, None),
+        E::ChartSpeed(r) => {
+            let limb = matches!(r, crate::ssi::ChartSpeedRefusal::ZeroAcrossLocus)
+                .then_some(SsiLimb::Tube);
+            (limb, r.what(), None)
+        }
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. These are the structural

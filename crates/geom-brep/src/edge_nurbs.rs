@@ -82,9 +82,9 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, R
 
 use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
 use crate::recourse::{Reading, Refused, RefusedArm};
-use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
+use crate::ssi::{SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale, certify_rung3};
 
-/// What the plane × NURBS lane proved, in meters unless noted.
+/// What the plane × NURBS lane proved, in metres unless noted.
 #[derive(Clone, Copy, Debug)]
 pub struct PlaneNurbsLimbs<T: Real> {
     /// Limb 1: the largest on-locus residual over the schedule, over
@@ -94,8 +94,9 @@ pub struct PlaneNurbsLimbs<T: Real> {
     /// Limb 2: the certified sup-norm bound over the whole span, over
     /// both operands. This is the number that certifies.
     pub hull_sup: T,
-    /// Limb 3: the certified uniqueness-tube radius.
-    pub tube_radius: T,
+    /// Limb 3: the region the uniqueness tube proved — the chart tube's
+    /// per-axis pad in chart units, and the ladder rung it was tried at.
+    pub tube: SsiTube<T>,
     /// Limb 3: the smallest certified transversality margin over the
     /// box chain, in meters.
     pub tube_transversality: T,
@@ -480,6 +481,13 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             what: geom::PLACEHOLDER_SURFACE,
         });
     }
+    // The wall the tube localizes on, with its chart speeds minted at the
+    // door: a wall constant along an axis, or with no finite speed bound
+    // along one, has no chart a length in metres can cross into, and the
+    // schedule below would only meet that as a foot point or a sine that
+    // cannot be stated.
+    let localized = localized(wall);
+    let wall_op = SsiOperand::nurbs(&localized).map_err(refusal)?;
 
     // ---- The fixed schedule: foot points, and the normal angle. ----
     // The feet and the image are `chart_image`'s, which is also the
@@ -532,12 +540,11 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----
-    let localized = localized(wall);
     let cert = certify_rung3(
         carrier,
         Some(&pcurve),
         &SsiOperand::Analytic(plane),
-        &SsiOperand::Nurbs(&localized),
+        &wall_op,
         TubeScale::uniform(extent),
         band,
     )
@@ -545,7 +552,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     Ok(PlaneNurbsLimbs {
         on_locus_max: cert.on_locus_max,
         hull_sup: cert.hull_sup,
-        tube_radius: cert.tube_radius,
+        tube: cert.tube,
         tube_transversality: cert.tube_transversality,
         tube_boxes: cert.tube_boxes,
         min_sin_theta: min_sin,
@@ -812,6 +819,7 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
             }
         }
         SsiError::UnsupportedCertificate { what } => PlaneNurbsRefusal::Unsupported { what },
+        SsiError::ChartSpeed(r) => PlaneNurbsRefusal::Unsupported { what: r.what() },
         _ => PlaneNurbsRefusal::Unsupported {
             what: "the rung-3 certificate refused for a reason outside this lane's vocabulary",
         },
