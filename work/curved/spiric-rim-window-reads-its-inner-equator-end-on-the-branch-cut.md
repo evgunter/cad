@@ -15,9 +15,10 @@ Measured on `curved/equator-seam` once the elbow's equator seams
 re-author: the klein elbow's hollow now passes every decision of
 `offset_charts_together` and refuses at the attach layer, on a RIM:
 
-`ShellError::Face { face: FaceKey(1v1), error: Op { edge:
-Some(EdgeKey(2v1)), error: Certification { error: IntervalNotForward {
-verdict: Negative { margin: -0.7068583470577036 } } } } }` — the
+`ShellError::Face { face: FaceKey(1v1), error: Op { edge: None,
+error: RechartFalsifies { edge: EdgeKey(2v1), error:
+IntervalNotForward { verdict: Negative { margin: -0.7068583470577036
+} } } } }` — the
 margin is `−π·r′` (`r′ = 0.225`) to the last digit; the partial
 two-arc torus (`shell7_seam_corner`, `r′ = 0.45`) reads
 `−1.413716694115407` on `EdgeKey(1v1)`, again `−π·r′`.

@@ -354,9 +354,10 @@ fn interval_the_klein_elbow_seams_re_author_and_its_rim_window_runs_backwards() 
             if matches!(
                 **error,
                 topo::ReplaceFaceError::Op {
-                    edge: Some(_),
-                    error: topo::EulerOpError::Certification {
-                        error: geom_brep::CertifyError::IntervalNotForward { .. }
+                    edge: None,
+                    error: topo::EulerOpError::RechartFalsifies {
+                        error: geom_brep::CertifyError::IntervalNotForward { .. },
+                        ..
                     }
                 }
             ) => {}

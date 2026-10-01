@@ -185,9 +185,10 @@ pub fn rim_window_reversed(e: &ShellError<f64>) -> Option<(FaceKey, EdgeKey, f64
         return None;
     };
     let topo::ReplaceFaceError::Op {
-        edge: Some(edge),
+        edge: None,
         error:
-            topo::EulerOpError::Certification {
+            topo::EulerOpError::RechartFalsifies {
+                edge,
                 error: geom_brep::CertifyError::IntervalNotForward { verdict },
             },
     } = &**error
