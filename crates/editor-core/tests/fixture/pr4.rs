@@ -126,10 +126,7 @@ where
         .find_map(|(n, e)| {
             let hit = n.kind == EntityKind::Edge
                 && matches!(n.path.first(), Some(RoleSeg::FromA(_)))
-                && matches!(
-                    n.path.last(),
-                    Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
-                );
+                && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
             (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
         .expect("ranked rim fragment exists");

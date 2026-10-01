@@ -204,7 +204,7 @@ fn the_orderalong_vanish_is_diagnosed_as_its_group_resizing() {
     assert!(
         matches!(
             name.path.last(),
-            Some(RoleSeg::Fragment(Qualifier::OrderAlong { of: 2, .. }))
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
         ),
         "the row is about a ranked fragment: {name:?}"
     );
@@ -453,10 +453,7 @@ fn a_collapsed_orderalong_edge_group_at_the_cut_is_diagnosed_group_resized() {
             .name_table
             .iter()
             .filter_map(|(n, e)| {
-                let hit = matches!(
-                    n.path.last(),
-                    Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
-                );
+                let hit = matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
                 (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
             })
             .collect();
