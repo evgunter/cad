@@ -2710,7 +2710,9 @@ mod tests {
         assert_eq!(
             body.kev_describing(strut.he_minus, &[(seg.edge, spec)], Tol::witness())
                 .map(|_| ()),
-            Err(EulerOpError::DescriptionNotAdjacent { edge: Some(seg.edge) })
+            Err(EulerOpError::DescriptionNotAdjacent {
+                edge: Some(seg.edge)
+            })
         );
         assert_eq!(deep_snapshot(&body), before);
     }
