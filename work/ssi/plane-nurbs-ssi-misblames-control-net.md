@@ -2,12 +2,15 @@
 id: plane-nurbs-ssi-misblames-control-net
 kind: issue
 title: ssi - plane_nurbs_ssi blames the wall's control net for the PLANE's own non-finite origin
-status: open
+status: closed
 opened: 2026-08-29
 github: 1218
 refs: [762]
 priority: P1
 cost: E
+closed: 2026-10-01
+pr: 3651
+branch: ssi/diagnoses
 ---
 
 ## From GitHub issue 1218
@@ -57,3 +60,7 @@ Note the D2-addendum row-0 question is live here: `Surface::Plane` admits a non-
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Closed (2026-10-01, PR 3651)
+
+Landed in `ssi/diagnoses`. Every SSI refusal now names its operand and decision, and ends by `certify::recourse`. The PR body records each decision; review was a single FULL review with one fix pass.

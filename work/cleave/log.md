@@ -59,3 +59,36 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   parameters reach the generic sites as non-point intervals, and the
   sum spelling keeps the enclosure tight. `chart_region::midpoint` is
   retired into it. Filed `work/reach/split-section-boundary-curved-arm-untested-past-the-edge-gate`.
+- Interior witness, PR 3655 (green), now in full review. Measured: both
+  probes are reachable (`ops.rs` on `(a∪c)∪b`, `finish.rs` on
+  `(a∪c)∪(b∪x)`), and the `solid_contain.rs` schedule walk never fired.
+  Decided: it lands even though the two newly fused `r4tri` orders
+  publish without `b`'s names (the fold discards `b` whole). The
+  geometry is right in every order, and no name denotes different
+  geometry in two orders. The naming question is EMIT's, filed as
+  `work/emit/a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush.md`.
+  The alternative was to hold a P0 wrong refusal until that row is
+  settled.
+- `rehome_rings` reproduced: a bore in the lune refuses `TornComponent`
+  on a split and on `BoolPlanar` booleans. It is a wrong refusal, not a
+  silent misplacement. Moved to P0. Fixed in PR 3660 (green), which is
+  in full review.
+- Graft reachability: no boolean reaches the plain certify, but the
+  public `insert_void` door does. The measurement is in the row, which
+  is back to `open` with `design: true`. Its question is the same as
+  SHELL's `plain-transform-rigid-still-refuses-the-m7-8-class`, so one
+  designer pair is weighing the class across both doors. (SHELL has no
+  orchestrator; I will note this on its log when the weighing returns.)
+- Graft/transform lane fork. The designers converged after one
+  reconciliation round: the right is the scalar's, so the lane is
+  sealed and `AtRestPolicy::nurbs_lane()` holds it; the transform reads
+  it; the void graft carries certificates through `RemapKeys`; a scalar
+  without the lane gets its own refusal variant. This is not a fork for
+  Ev: it applies H5 ruling 3 and changes only agent-written text, so
+  there is no `[ev]` PR and no fork-log row. Ev hears about it in chat.
+  SHELL's `plain-transform-rigid-...` row was claimed (git mv) under
+  the graft row, as was the forgery row. The `cleave/nurbs-lane` lane
+  is dispatched for the transform, void, sealing and variant parts.
+  Review: **dual**, because it reshapes a certification surface shared
+  crate-wide. The mint-door collapse (`set_edge_curve` reading the
+  policy, 46 call sites) follows as a second unit.
