@@ -117,7 +117,7 @@ use crate::euler::{EulerOpError, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::fixtures::{
     KillAnchorFault, assert_kill_refuses, deep_snapshot, kill_anchor_faults, ops_genus2,
-    ops_holed_box, ops_ring_bridge, ops_strut_cube, ops_two_ring_face,
+    ops_holed_box, ops_ring_bridge, ops_strut_cube, ops_two_ring_face, through_the_scalpel,
 };
 use crate::null::NullFacePair;
 use crate::test_support_fixtures::declined_cube;
@@ -2027,7 +2027,9 @@ type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 /// [`kill_anchor_faults`] fault the tear did not plant, which is one the
 /// operator wrote. Each call runs inside a surgery scope, so a debug
 /// build's tier-1 postcondition, which a torn input fails whatever the
-/// operator writes, does not answer first.
+/// operator writes, does not answer first; under the scalpel, whose
+/// sweep answers after the operator's last write, a fired sweep counts
+/// as the `Ok` it stood in front of ([`through_the_scalpel`]).
 fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
     use test_utils::fuzz::Rng;
     let tol = Tol::witness();
@@ -2058,8 +2060,13 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
                 for call in anchor_calls(&body) {
                     let cells = &mut table[call.op()];
                     let mut trial = body.clone();
+                    let doors: &[&str] = match call {
+                        AnchorCall::Kev(_) => &["kev", "kev_describing"],
+                        _ => &ANCHOR_OPS[call.op()..=call.op()],
+                    };
                     let mut scope = trial.begin_surgery();
-                    let outcome = call.run(&mut scope, tol);
+                    let outcome =
+                        through_the_scalpel(doors, || call.run(&mut scope, tol)).unwrap_or(Ok(()));
                     drop(scope);
                     cells[0] += 1;
                     if outcome.is_err() {
