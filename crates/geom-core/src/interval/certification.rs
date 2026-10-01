@@ -150,6 +150,20 @@ pub trait Certification: sealed::Sealed + Copy {
     #[must_use]
     fn clamped_to(self, lo: f64, hi: f64) -> Self;
 
+    /// The intersection with `other`, where both enclose the SAME true
+    /// value by independent arguments — each is sound, so whatever lies
+    /// outside either is not the value, and the meet is the tighter
+    /// enclosure of the two.
+    ///
+    /// Refusal first: a refused argument makes the meet NaI, and so does
+    /// an empty meet, because two sound enclosures of one value cannot
+    /// be disjoint — an empty one says an argument behind either was
+    /// wrong. The endpoints are the backend's `intersection`'s, as in
+    /// [`Certification::clamped_to`], and the decoration the weaker of
+    /// the two arguments', since the meet rests on both.
+    #[must_use]
+    fn meet(self, other: Self) -> Self;
+
     /// Whether `x` lies in the enclosure. False for a refusal (nothing is
     /// known to lie in a bracket that may not certify) and for an `x` that
     /// is not a real number — NaN, or `±inf` even on an unbounded side.
@@ -222,6 +236,20 @@ impl Certification for Interval {
         let meet = self.0.intersection(DInterval::from_bounds(lo, hi));
         let narrowed = DInterval::from_bounds(meet.lo(), meet.hi());
         Self(narrowed.with_dec_capped(self.0.decoration()))
+    }
+
+    fn meet(self, other: Self) -> Self {
+        if !self.is_certified() || !other.is_certified() {
+            return Self::refused();
+        }
+        let meet = self.0.intersection(other.0);
+        let narrowed = DInterval::from_bounds(meet.lo(), meet.hi());
+        let weaker = if other.0.decoration() < self.0.decoration() {
+            other.0.decoration()
+        } else {
+            self.0.decoration()
+        };
+        Self(narrowed.with_dec_capped(weaker))
     }
 
     fn contains(self, x: f64) -> bool {

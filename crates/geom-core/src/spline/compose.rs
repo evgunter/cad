@@ -25,7 +25,8 @@
 //!    formed as ring quotients of knot enclosures (an `f64`-rounded
 //!    ratio would silently drop its rounding error, and the lerp form
 //!    `c_{i−1} + (c_i − c_{i−1})·α` would read `c_{i−1}` twice and
-//!    multiply its dust up once per insertion).
+//!    multiply its dust up once per insertion), met with the hull of
+//!    `c_{i−1}` and `c_i` so a constant channel stays exact.
 //! 3. Per span, exact Bernstein products: degree `da × db → da + db`
 //!    with the binomial weights `C(da,i)·C(db,j)/C(da+db,k)` computed
 //!    as ring quotients (several are not `f64`-representable).
@@ -53,6 +54,7 @@
 //! axis, degenerate weights) refuses the bound, which fails every
 //! `≤ ε` comparison (D4 ¶2).
 
+use super::algebra::convex_step;
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::interval::Interval;
 use crate::interval::certification::Certification;
@@ -288,12 +290,11 @@ impl BernsteinSpans {
 /// **The argument for this form — why `β` comes from the knots and not
 /// from `1 − α`, why the combination still encloses the true refined
 /// coefficient, why reading each coefficient once is the whole width
-/// saving, and why the result nevertheless reaches a little past the
-/// hull of its two sources — has one home in this crate and it is
-/// [`super::algebra::CurvePlan::apply_certified`]'s docs.** That method
-/// combines identically; restating its reasoning here is the very
-/// duplication this form exists to remove. What belongs here is only
-/// what is local:
+/// saving, and why the step is met with the hull of its two sources —
+/// has one home in this crate and it is
+/// [`super::algebra::CurvePlan::apply_certified`]'s docs.** Both
+/// combine through the one `algebra::convex_step`. What belongs here
+/// is only what is local:
 ///
 /// - `Δ_i > 0` because `U_i < u` (`i ≤ k − s`, below the copy run) and
 ///   `U_{i+p} ≥ U_{k+1} > u` (span `k` is nonempty), so neither
@@ -302,8 +303,7 @@ impl BernsteinSpans {
 ///   rational arithmetic, is
 ///   this module's `the_ring_fold_encloses_the_exact_refined_net`; the
 ///   width the fold accumulates is
-///   `the_convex_form_does_not_inflate_the_fold`, which also witnesses
-///   the bulge at this function rather than at `apply_certified`.
+///   `the_convex_form_does_not_inflate_the_fold`.
 ///   (Both are `#[cfg(test)]`, so these are names and not links —
 ///   rustdoc does not document a test module.)
 /// - [`to_bezier_spans_extra`] inserts each interior knot to full
@@ -342,22 +342,13 @@ fn insert_once_ring(
     let k = find_span_in(knots, p, u);
     let n_old = coeffs.len();
     let mut out = Vec::with_capacity(n_old + 1);
-    let up = Interval::point(u);
     for i in 0..=n_old {
         if i + p <= k {
             // Q_i = c_i (carry below the affected window).
             out.push(coeffs[i]);
         } else if i + s <= k {
             // Window k−p+1 ..= k−s: interval arithmetic combination.
-            // `Δ > 0` because U_i < u (i ≤ k − s, below the copy run)
-            // and U_{i+p} ≥ U_{k+1} > u (span k is nonempty), so
-            // neither quotient refuses. Fixed association (D9):
-            // `β·c_{i−1} + α·c_i`.
-            let (lo, hi) = (Interval::point(knots[i]), Interval::point(knots[i + p]));
-            let span = hi - lo;
-            let alpha = (up - lo) / span;
-            let beta = (hi - up) / span;
-            out.push(coeffs[i - 1] * beta + coeffs[i] * alpha);
+            out.push(convex_step(coeffs[i - 1], coeffs[i], knots[i], knots[i + p], u));
         } else {
             // Q_i = c_{i−1} (carry above the window; i ≥ 1 here because
             // k ≥ s for an interior u with multiplicity s).
@@ -1755,18 +1746,16 @@ mod tests {
                 assert!(r.is_certified(), "p={p}: refused slot in the fold");
                 a.max(r.hi() - r.lo())
             });
-            // The bulge, witnessed AT THIS FUNCTION rather than at
-            // `apply_certified`: the inputs are points, so in ℝ every
-            // refined coefficient is a convex combination of points and
-            // the answer would be a point too. `α` and `β` round
-            // outward independently, so it is a bracket. A fold that
-            // held the points exactly would be reporting a tighter
-            // enclosure than its own rounding licenses.
+            // The inputs are points, but the refined coefficients are
+            // combinations at non-dyadic ratios of neighbours that
+            // differ, so their true values are not `f64`s and no slot
+            // may come out a point: a fold that held every slot exactly
+            // would be reporting a tighter enclosure than its own
+            // rounding licenses.
             assert!(
                 worst > 0.0,
-                "p={p}: every slot of a {insertions}-insertion fold held its point exactly, \
-                 so either the ratios stopped rounding outward or something clamped the \
-                 result"
+                "p={p}: every slot of a {insertions}-insertion fold held a point, so the \
+                 ratios stopped rounding outward"
             );
             let ulps = worst / (scale * f64::EPSILON);
             #[allow(clippy::cast_precision_loss)]
