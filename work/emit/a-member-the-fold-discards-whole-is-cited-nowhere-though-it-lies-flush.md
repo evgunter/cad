@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-01
 priority: P1
 cost: M
+design: true
 ---
 
 
@@ -66,3 +67,52 @@ it whole. `KNOWN_ABSENT` pins both the counts and an FNV digest of the
 absent (order, name) set. The same row asserts that every fused order of
 the two cases publishes one multiset of entity geometries, and that
 assertion holds.
+
+## Root cause (emit lane, 2026-10-01, origin/main `a153d1826`)
+
+The fallback is one instance, not the cause. A union's parents are
+the member faces a finished face descends from (`emit_union::Fold::step`,
+reading `BooleanNaming`'s merge groups and result-face descent). Where
+a member's flush face is wholly covered by a coplanar kept face, the
+kernel keeps only one copy of the coincident region, and which copy
+depends on which side is operand A. The covered face is cited when
+its member is operand A and dropped when it is operand B, with or
+without the containment fallback. A scratch probe over two declared
+unions shows it with only two members:
+
+- `a` = x 0..2, `b` = x 0.5..1.5, both y 0..1, z 0..1, all four
+  families declared (`b` inside `a`). Order `[a, b]` publishes all
+  six faces as `a`'s, and `b` is cited nowhere. Order `[b, a]`
+  publishes both caps and both y-walls as `Merged([a, b])`.
+- `a` as above, `b` = x 0.5..1.5, y 0..1, z 0..2, declared on the
+  two y-walls and the bottom cap only. `b` pokes out of the top, so
+  no fallback is involved. Its bottom face is wholly covered by `a`'s.
+  Order `[a, b]` names the bottom `a`'s alone. Order `[b, a]` names
+  it `Merged([a, b])`. The y-walls, where `b` contributes surface,
+  are `Merged([a, b])` in both orders.
+
+Neither two-member case is in `emit_union_rim_piece_ranks`'s corpus,
+so `KNOWN_ABSENT` measures only the three-member face of the class.
+
+## The fork
+
+Making the table order-free means choosing what a merged face cites:
+
+1. **Every declared-flush member face lying on the kept face**,
+   whether or not it contributes surface. `b` is cited in every order
+   of all four cases above. The kernel's coincident-copy discard (and
+   the fallback, whose finish drops cross-operand declared pairs as
+   "inapplicable") would have to record the dropped copy as a merge
+   constituent, or the union would have to link it from the declared
+   pairs it holds.
+2. **Only member faces that contribute surface to the finished face.**
+   `b` is cited in no order of `r4tri` (its cap is covered by
+   `a ∪ c`) and in neither two-member case. That needs a rule for
+   faces that cover each other exactly (two coincident placements),
+   where "contributes" picks no side.
+
+Each one changes which members a merged face cites, and so the names
+published in some orders today. That is a change to N3's reading of
+"declared-coincident faces merge", so it is weighed before a lane
+builds it.
+
