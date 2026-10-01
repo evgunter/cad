@@ -111,8 +111,8 @@ impl ContactClass {
 ///
 /// - [`Contact`](Self::Contact) — the pair touches, of that class.
 /// - [`Continuation`](Self::Continuation) — the pair lies on ONE
-///   carrier with its senses ALIGNED, interiors disjoint, sharing only
-///   a boundary curve: one surface carried on across the seam. It is
+///   carrier with its senses ALIGNED: one surface carried on, whether
+///   the two abut along a boundary curve or overlap on a patch. It is
 ///   verified by `Rest`'s carrier rung with the sense bit reversed
 ///   (opposed senses contradict it), and a union merges it.
 ///
@@ -123,7 +123,7 @@ impl ContactClass {
 pub enum BooleanCoincidence {
     /// The pair is in contact, of this class.
     Contact(ContactClass),
-    /// The pair is one surface carried on across a shared boundary:
+    /// The pair is one surface carried on, abutting or overlapping:
     /// one carrier, aligned senses.
     Continuation,
 }

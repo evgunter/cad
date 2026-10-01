@@ -1416,8 +1416,8 @@ mod tests {
     }
 
     /// **`recl`'s plane door offers the declaration that settles it**:
-    /// two planar faces read on one another whose planes part by an
-    /// in-band angle at the door's arm. Undeclared, the parallelism rung
+    /// two planar faces of opposed senses read on one another whose
+    /// planes part by an in-band angle at the door's arm. Undeclared, the parallelism rung
     /// escalates through the door the lookup read (`on_pair_door`):
     /// `Rest`, which the door admits for two planar faces, would bridge
     /// it, and no nonzero sign passes there, so it ends in the
@@ -1445,8 +1445,10 @@ mod tests {
         let plane =
             |n: Vec3<f64>| crate::test_support_fixtures::plane(&[o, o + x, o + n.cross(x)], tol);
         let (b1, f1) = face_on(plane(z));
-        let (b2, f2) = face_on(plane(tilted));
-        let sector = |face, normal: Vec3<f64>| BoolSector {
+        // Opposed senses: the pair a `Rest` declaration describes.
+        let (mut b2, f2) = face_on(plane(tilted));
+        b2.set_face_sense(f2, false).expect("a live face");
+        let sector = |face, normal: Vec3<f64>, sense| BoolSector {
             he: crate::entity::HalfEdgeKey::default(),
             start: x,
             end: y,
@@ -1459,10 +1461,10 @@ mod tests {
                 far: o + y,
             },
             face,
-            normal: OutwardNormal::from_chart(normal, true),
+            normal: OutwardNormal::from_chart(normal, sense),
             arm: 1.0,
         };
-        let (s1, s2) = (sector(f1, z), sector(f2, tilted));
+        let (s1, s2) = (sector(f1, z, true), sector(f2, tilted, false));
         let run = |class: Option<ContactClass>| {
             let decls = BooleanDeclarations {
                 coincident_faces: class

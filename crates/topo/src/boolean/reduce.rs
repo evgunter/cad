@@ -646,9 +646,9 @@ pub(super) fn gate_maximal_faces<T: Decide>(
 /// **An undeclared continuation refuses at the reduction, on every
 /// carrier kind** (C4's continuation clause).
 ///
-/// A cross-operand face pair on one carrier with ALIGNED senses that
-/// meets along its boundary is one surface carried on across the seam.
-/// Without a declaration the op has no licence to treat the two as one
+/// A cross-operand face pair on one carrier with ALIGNED senses is one
+/// surface carried on, whether it abuts or overlaps; this scan finds
+/// the pairs that meet along their boundary. Without a declaration the op has no licence to treat the two as one
 /// carrier, and no licence to merge them, so its output would carry two
 /// cosurface faces side by side, which the next boolean refuses as an
 /// operand. So the pair refuses here, before the sweep, naming the pair
@@ -3311,14 +3311,16 @@ mod declaration_order_rows {
     /// carrier-identity rung. Declared `Rest`, which the door verifies,
     /// with the door calling the two one carrier, the rung reads the
     /// clearance zero, and the covered arm's endpoint sides refuse the
-    /// same in-band pose; not called one carrier, or declared `Tangent`,
-    /// the covered clearance refuses. No posture passes, so no refusal
-    /// offers a declaration, and each states what its door read.
+    /// same in-band pose. Not called one carrier, or declared `Tangent`
+    /// the door does not verify, the pair carries no certificate, so the
+    /// circle is uncovered and its clearance refuses as the undeclared
+    /// one's does. No posture passes, so no refusal offers a
+    /// declaration, and each states what its door read.
     #[test]
     fn an_uncovered_circle_clearance_offers_no_declaration() {
         let b = Band::linear(Tol::witness()).expect("the witness band");
         let frame = CylFrame::canonical(1.0 + (b.zero() + b.escalate()) / 2.0);
-        let covered = Coincide::ArcOnCoveredFace;
+        let uncovered = Coincide::ArcClearsCurvedFace;
         let postures = [
             (
                 None,
@@ -3338,14 +3340,14 @@ mod declaration_order_rows {
                 Some(ContactClass::Rest),
                 false,
                 Some(true),
-                covered,
+                uncovered,
                 DeclarationRead::Spent(BooleanCoincidence::REST),
             ),
             (
                 Some(ContactClass::Tangent),
                 false,
                 Some(false),
-                covered,
+                uncovered,
                 DeclarationRead::Spent(BooleanCoincidence::TANGENT),
             ),
         ];

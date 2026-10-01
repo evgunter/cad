@@ -2261,7 +2261,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "curved_face_arm",
         "Coincide::VertexOnCoveredFace",
-        2,
+        1,
     ),
     (
         "reduce.rs",
@@ -2307,7 +2307,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 4),
+    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
     (
         "reduce.rs",
         "vertex_on_curved_face",
