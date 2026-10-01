@@ -201,3 +201,91 @@ fn place(text: &str) -> String {
     let at = text.rfind("ENDSEC;").unwrap();
     format!("{}{block}{}", &text[..at], &text[at..])
 }
+
+/// Reviewer e2e (PR 3720): every door the PR body's measurement table
+/// names, on the imported, placed M7-8 instance at `f64`.
+#[test]
+fn review_placed_m7_8_doors_e2e() {
+    let tol = Tol::witness();
+    let body = m7_8_cube();
+    let text = step_export::step_string(&body, &step_export::StepOptions::default(), tol).unwrap();
+    let placed = match import_step(&place(&text), &ImportOptions::default(), tol) {
+        Ok(StepImport::Solid { body, .. }) => body,
+        other => panic!("{:?}", other.map(|_| ())),
+    };
+    let is_class = |b: &topo::Body<f64>, e: topo::EdgeKey| {
+        matches!(b.get_curve_geom(b.get_edge(e).unwrap().curve),
+            Some(topo::CurveGeom::Certified(c))
+                if matches!(c.description(), geom_brep::EdgeDescription::Intersection { .. })
+                    && matches!(c.carrier(), geom::Curve3::Nurbs(_)))
+    };
+    let faces_of = |b: &topo::Body<f64>, e: topo::EdgeKey| {
+        let ed = b.get_edge(e).unwrap();
+        [b.face_of_half_edge(ed.he_plus).unwrap(), b.face_of_half_edge(ed.he_minus).unwrap()]
+    };
+    let wall = placed
+        .faces()
+        .find(|(_, f)| matches!(placed.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .map(|(k, _)| k)
+        .unwrap();
+    let class: Vec<_> = placed.edges().map(|(k, _)| k).filter(|&e| is_class(&placed, e)).collect();
+    let beside: Vec<_> = class.iter().map(|&e| faces_of(&placed, e).into_iter().find(|&f| f != wall).unwrap()).collect();
+    let far = placed
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&f| f != wall && !beside.contains(&f))
+        .unwrap();
+    eprintln!("class edges {}, beside {}", class.len(), beside.len());
+
+    // A re-chart of a face beside the wall onto a copy of its own plane.
+    let mut b = placed.clone();
+    let face = b.get_face(beside[0]).unwrap().clone();
+    let plane = b.get_surface(face.surface).unwrap().clone();
+    let specs: Vec<_> = b
+        .edges()
+        .filter(|(k, _)| faces_of(&b, *k).contains(&beside[0]))
+        .map(|(k, e)| match b.get_curve_geom(e.curve) {
+            Some(topo::CurveGeom::Certified(c)) => (k, c.restated_spec()),
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    let r = b.set_face_surfaces_describing(vec![topo::Rechart::new(plane, beside[0], face.sense)], &specs, tol);
+    eprintln!("rechart beside the wall: {:?}", r.as_ref().map(|_| ()));
+    assert!(r.is_ok());
+
+    // A fan mev at a class edge's start vertex, at the old point.
+    let mut b = placed.clone();
+    let hp = b.get_edge(class[0]).unwrap().he_plus;
+    let v = b.get_half_edge(hp).unwrap().start;
+    let here = *b.get_point(b.get_vertex(v).unwrap().point).unwrap();
+    let orbit = b.vertex_orbit(hp).unwrap();
+    let r = b.mev(
+        topo::MevSite::Fan { he1: hp, he2: orbit[1] },
+        here,
+        geom_brep::EdgeCurveSpec::self_loop_circle_at(here),
+        tol,
+    );
+    eprintln!("fan mev at the old point: {:?}", r.as_ref().map(|_| ()));
+
+    for (name, f) in [("beside", beside[0]), ("far", far)] {
+        let mut b = placed.clone();
+        let r = topo::replace_face_offset(&mut b, f, 0.25, tol);
+        eprintln!("replace_face_offset({name}, +0.25): {:?}", r.as_ref().map(|_| ()));
+    }
+    let mut b = placed.clone();
+    let r = topo::replace_face_offset(&mut b, wall, 0.1, tol);
+    eprintln!("replace_face_offset(wall, +0.1): {:?}", r.as_ref().map(|_| ()));
+    let r = topo::shell(&placed, 0.1, tol);
+    eprintln!("shell(0.1): {:?}", r.as_ref().map(|_| ()).map_err(|e| format!("{e:?}").chars().take(300).collect::<String>()));
+    let r = sweep::blend::fillet_edges(&placed, &[class[0]], 0.1, tol);
+    eprintln!("fillet(class edge): {:?}", r.as_ref().map(|_| ()));
+    let r = sweep::blend::chamfer_edges(&placed, &[class[0]], 0.1, tol);
+    eprintln!("chamfer(class edge): {:?}", r.as_ref().map(|_| ()));
+    let plain = placed
+        .edges()
+        .map(|(k, _)| k)
+        .find(|&e| !is_class(&placed, e) && !faces_of(&placed, e).contains(&wall))
+        .unwrap();
+    let r = sweep::blend::fillet_edges(&placed, &[plain], 0.1, tol);
+    eprintln!("fillet(an edge away from the wall): {:?}", r.as_ref().map(|_| ()));
+}
