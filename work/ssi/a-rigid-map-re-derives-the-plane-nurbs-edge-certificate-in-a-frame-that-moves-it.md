@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-28
 priority: P3
 cost: M
+pr: 3668
 branch: ssi/probes
 ---
 

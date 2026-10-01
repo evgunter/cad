@@ -7,6 +7,7 @@ opened: 2026-09-28
 priority: P4
 cost: E
 closed: 2026-10-01
+pr: 3668
 branch: ssi/probes
 ---
 
@@ -48,7 +49,7 @@ operands' knots before the call (SSI ground). First step: a probe with
 a carrier knot at `1/16 + 1 ulp` measuring `hull_sup` against the same
 carrier with the knot at `1/16`.
 
-## Closed (2026-10-01, branch `ssi/probes`)
+## Closed (2026-10-01, PR 3668)
 
 **Measured.** The fixture is the `z = 1/2` plane against the rational
 quarter-cylinder wall, with the carrier the exact rational arc (radius
