@@ -172,3 +172,12 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   ledger. The schedule now assigns its ½ station from `mid_param`, and
   the ledger is back to PR 3652's counts (the slab's Plain/Decision is
   9426, and the plate's frozen counts are 672 and 372).
+- Section rings merged (PR 3658) after a dual review (DR-30), a fix
+  pass, delta reviews by both original reviewers, and a second fix
+  pass. Splits now pair each planar face's crossings along that face's
+  own line, and holed sections are one face with rings wherever
+  disjointness is decided. DR-30 brings the dual experiment's count to
+  twelve fair pairs that found a MAJOR, its readout point, so Ev is
+  asked in an `[ev]` PR. One naming change is recorded in the PR body
+  and judged acceptable: SectionFace 0 on a holed section now names
+  the holed outline face.
