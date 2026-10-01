@@ -845,3 +845,86 @@ fn every_refuted_predicate_reads_in_words() {
         );
     }
 }
+
+// ---- the box driver ----
+
+/// **What a box run meets on a document whose mate escalates, as the
+/// driver stands today.** The mate's escalation is on its own log now,
+/// so `drive::classify_replay` would meet it at read (2), the log,
+/// where before it fell to read (3)'s `_ => Bisect`. The driver never
+/// gets there: its evaluations carry no resolver (`drive::lane_opts`),
+/// so at the nominal witness every mated part is out of hand, the mate
+/// refuses `Unleverable` before the fold decides anything, and the run
+/// refuses up front with `WitnessDoesNotBuild`. The same document under
+/// a resolver escalates, on the added mate's log. Measured for
+/// `work/msolve/a-box-independent-mate-fault-bisects-the-whole-leaf-budget.md`.
+#[test]
+fn a_box_run_over_an_escalating_mate_refuses_at_its_witness() {
+    use editor_core::analysis::{AnalysisPolicy, analyzed_box};
+    use editor_core::drive::{DriveConfig, DriveRefusal};
+    use editor_core::range::{RangeField, RangeSeed, derive};
+    use editor_core::{Dimension, DocParam, ParamName};
+    let mut s = scene("msolve11-drive");
+    let eps = Tol::witness().get().eps;
+    // A tilt whose levered sine lands in the band over this pair's arm.
+    let tilt = 3.0 * eps / 18.216_635_077_586_883;
+    let mut mates = Vec::new();
+    for axis in [[0.0, 0.0, 1.0], [tilt, 0.0, 1.0]] {
+        let node = Node::Mate {
+            a: s.base_top(),
+            b: s.other_bottom(),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: MateFrame::authored([2.0, 2.0, BASE_HEIGHT], axis, [0.0, 1.0, 0.0]),
+                b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+                primitive: MatePrimitive::PlanarRest { offset: 0.0 },
+                sense: AxisSense::Opposed,
+                clocking: None,
+            },
+        };
+        mates.push(s.add(node));
+    }
+    let w = ParamName::from_static("w");
+    let (doc, _) = fixture::step(
+        s.doc.clone(),
+        DocEdit::SetDocParam {
+            name: w.clone(),
+            value: DocParam::continuous(Dimension::Length, 1.0),
+        },
+    );
+    let derived = derive(
+        &doc,
+        &RangeField::Param(w),
+        RangeSeed::symmetric(0.1),
+        Tol::witness(),
+    )
+    .expect("the parameter boxes");
+    let ev = fixture::run(&derived.doc, &s.opts);
+    let Some(NodeResult::Failed(added)) = ev.result(mates[1]) else {
+        panic!("the added mate refuses: {:?}", ev.result(mates[1]));
+    };
+    assert!(
+        matches!(
+            &added.kind,
+            editor_core::NodeErrorKind::Mate(fault)
+                if matches!(**fault, editor_core::MateFault::Indeterminate { .. })
+        ) && !added.escalations.is_empty(),
+        "under a resolver the mate escalates, on its own log: {:?}",
+        added.kind
+    );
+    let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
+    let config = DriveConfig {
+        max_depth: 3,
+        max_leaves: 8,
+        ..DriveConfig::default()
+    };
+    let refusal = editor_core::drive::drive(&derived.doc, &analyzed, &config, Tol::witness())
+        .expect_err("the witness does not build");
+    let DriveRefusal::WitnessDoesNotBuild { cause, .. } = &refusal else {
+        panic!("expected WitnessDoesNotBuild, got {refusal:?}");
+    };
+    assert!(
+        cause.contains("no part resolver"),
+        "the driver's evaluation has no resolver, so the mate cannot lever: {cause}"
+    );
+}
