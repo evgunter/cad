@@ -253,7 +253,7 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
 ///
 /// Adopted from the review's `probe_naming_is_deterministic_across_runs`.
 #[test]
-fn tie_bearing_name_tables_are_identical_across_evaluations() {
+fn tied_and_end_qualified_name_tables_are_identical_across_evaluations() {
     let builds: [fn() -> (ProfileDoc, RecipeNodeId); 2] = [
         || {
             let (doc, _, n) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));

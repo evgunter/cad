@@ -27,8 +27,9 @@
 //! form by `names::canonical`, the one list of a path's name-ordered
 //! positions, which the pair emitter's mint and every rewrite of a
 //! published name also end in: a `Merged` set and a `Borders` set
-//! are sorted, a junction's run of lines is sorted, and a `Seam`'s two
-//! sides are put in name order, because a union has no A and B.
+//! are sorted, an `Ends` pair is sorted, a junction's run of lines is
+//! sorted, and a `Seam`'s two sides are put in name order, because a
+//! union has no A and B.
 //!
 //! Putting a `Seam`'s sides in name order can also rewrite a VALUE in
 //! the tail. A seam-vertex group ranked along a seam edge is ranked as
@@ -78,7 +79,7 @@
 //! qualifiers. Neither may carry a fold-qualified member-edge piece: the
 //! declaration door admits no edge (`DeclareUnsupportedPair`), and a
 //! refusal that would carry one refuses as an emission bug instead
-//! ([`is_fold_ranked_member_edge`]).
+//! ([`is_fold_qualified_member_edge`]).
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -826,7 +827,7 @@ fn cite_member_edges<T: geom_core::Decide>(
             put_entry(&mut out, if moved { base } else { name.clone() }, entry)?;
             continue;
         }
-        let whole = |n: &StableName| member_edge_piece(n).filter(|(_, _, ranked)| !ranked);
+        let whole = |n: &StableName| member_edge_piece(n).filter(|(_, _, qualified)| !qualified);
         let carrier = match base.path.as_slice() {
             [RoleSeg::Seam { a, b }] => match (whole(a), whole(b)) {
                 (Some(m), None) | (None, Some(m)) => Some(m),
@@ -968,11 +969,11 @@ const CITED_GROUP_NO_MEMBER_EDGE: &str = "several vertices of a union share one 
 /// collapsed out of a fold that did not finish — a refusal's — that
 /// qualifier is the fold's, over vertices no published table names, so
 /// such a name cannot be handed out.
-pub(crate) fn is_fold_ranked_member_edge(name: &StableName) -> bool {
-    member_edge_piece(name).is_some_and(|(_, _, ranked)| ranked)
+pub(crate) fn is_fold_qualified_member_edge(name: &StableName) -> bool {
+    member_edge_piece(name).is_some_and(|(_, _, qualified)| qualified)
 }
 
-/// The [`SegRewrite`] of [`cite_member_edges`]: an embedded ranked piece
+/// The [`SegRewrite`] of [`cite_member_edges`]: an embedded qualified piece
 /// of a member edge becomes the member edge. Only names the UNION
 /// minted are rewritten or entered: the name a `FromMember` carries is
 /// the member's own, final in the member.

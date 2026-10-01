@@ -3484,9 +3484,9 @@ const UNION_FOLD_CONTACT_VERDICT: &str =
 /// no published table holds. Every name the refusal carries is
 /// therefore put through [`names::collapse_name`], the collapse the
 /// node's own table gets from `name_union`. A member-EDGE piece would
-/// still carry the fold's rank, which `name_union` renumbers over the
+/// still carry the fold's `Ends`, which `name_union` re-reads over the
 /// finished body, so one refuses as an emission bug
-/// ([`UNION_REFUSAL_FOLD_RANKED_EDGE`]); a flush finding names faces.
+/// ([`UNION_REFUSAL_FOLD_QUALIFIED_EDGE`]); a flush finding names faces.
 ///
 /// The recourse offered is the pair boolean's: a `Declare` on the
 /// union's own input, each side SITED at the member that carries it
@@ -3533,9 +3533,9 @@ fn union_refusal<T: geom_core::Bounds>(
     // refusal that has one has no pair to offer.
     for subject in [&a, &b] {
         if let DeclarationSubject::FoldMinted(row) = subject {
-            if names::is_fold_ranked_member_edge(row) {
+            if names::is_fold_qualified_member_edge(row) {
                 return NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_REFUSAL_FOLD_RANKED_EDGE,
+                    what: UNION_REFUSAL_FOLD_QUALIFIED_EDGE,
                 });
             }
             return NodeErrorKind::UndeclarableContact {
@@ -3646,9 +3646,9 @@ fn sited_member(
     })
 }
 
-/// A union's refusal named a piece of a member edge by the fold's rank.
-const UNION_REFUSAL_FOLD_RANKED_EDGE: &str = "a union fold's refusal names a piece of a member \
-     edge by the fold's rank, which no published table holds";
+/// A union's refusal named a piece of a member edge by the fold's qualifier.
+const UNION_REFUSAL_FOLD_QUALIFIED_EDGE: &str = "a union fold's refusal names a piece of a member \
+     edge by the fold's qualifier, which no published table holds";
 
 /// A union's refusal named a row its own fold table cannot collapse.
 const UNION_REFUSAL_FOREIGN: &str =
