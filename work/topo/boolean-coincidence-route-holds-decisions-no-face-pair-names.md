@@ -2,12 +2,13 @@
 id: boolean-coincidence-route-holds-decisions-no-face-pair-names
 kind: issue
 title: topo: the Boolean's coincidence route still carries lever-arm, operand-radius and frontier decisions a face-pair declaration cannot name
-status: review
+status: closed
 priority: P2
 cost: M
 pr: 3513
 branch: topo/every-escalation-names-its-decision
 opened: 2026-09-29
+closed: 2026-10-01
 ---
 
 (TOPO, the §5 second pass of PR 3493.)
