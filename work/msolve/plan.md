@@ -244,6 +244,11 @@ and CHROME; triaged 2026-10-01:**
     instance. Re-priced M with a design question (which layer owns the
     refusal, and whether the solve should ask the gather's predicate),
     specced after MSOLVE-11.
+    Weighed 2026-10-01: both designers say the solve should not refuse.
+    Two verdicts on two questions: the gather owns whether a product
+    exists, and the unmated twin fails it identically. Asked on `[ev]`
+    PR 3695 (fork-log row 36) as one sentence in A11 (4). The gather
+    refusal's recourse gets reworded in the unit that lands it.
 
 **Filed by MSOLVE-9's fix pass, triaged 2026-10-01:**
 
@@ -264,7 +269,25 @@ and CHROME; triaged 2026-10-01:**
     hard-codes `clocking: None`). The planar zero went to a note under
     LINALG's `interval-orthonormal-basis-sign-hull`.
 
-The exit walk waits on 10–12, 14–16 and 17–22: the program closes when the
+**Routed 2026-09-20 by the P0 scoring pass and left untriaged until
+2026-10-01 (a miss, logged):**
+
+23. **`MSOLVE-12`**. One P1 row and two P0 rows:
+    - `near-parallel-planes-refuse-under-a-false-predicate` (P0, H): a
+      decidably non-parallel pair refuses under a predicate that
+      measured nothing;
+    - `mate-band-fault-unreachable-on-a-mate` (P0, E): the row reaches
+      the arm by a loaded snapshot;
+    - `mate-solve-carries-the-cluster-maintenance-half` (P1, M):
+      `mate/maintain.rs`.
+
+    Spec `docs/MSOLVE-12-SPEC.md` is on the unit branch. Review tier:
+    single, full.
+24. **`mate-primitive-unit-variants-load-from-a-null-payload`** (P0,
+    E): blocked on item 22. Under `[ev]` PR 3681's answer no unit
+    variant remains; under its fallback the row is owed.
+
+The exit walk waits on 10–12, 14–16 and 17–24: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
 (with the witness and the `MateFault` note), the face-resolved frame
 and the static clocking refusal are in.
