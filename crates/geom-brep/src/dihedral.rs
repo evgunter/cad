@@ -101,8 +101,9 @@ use crate::recourse::{SizedDecision, SizedPass, StoredDefinite};
 /// a smaller tolerance decides. Every door that reads the dihedral's
 /// [`crate::LeverRung::Arm`] ends it here, since the arm is a length and
 /// the wedge an angle. Its margin is the wedge the arm meters,
-/// `sin θ · arm` (the arm's own where that is exactly zero), so the
-/// tolerance it offers decides the arm and the wedge both.
+/// `sin θ · arm` (the arm's own where that wedge reads zero at the
+/// tolerance deciding the arm), so the tolerance it offers decides the
+/// arm and the wedge both.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
     lever: "move the geometry so that edge is clearly longer, and its faces curve less tightly \
             there",
@@ -236,7 +237,7 @@ pub(crate) fn wedge_decided<T: Decide>(
     // Negative one as Invalid, and an in-band or poisoned arm as the
     // funnel's own escalation.
     crate::enters::decide_arm("dihedral_arm", Margin::of(arm), band)
-        .map_err(|diag| LeverEscalation::arm(at_wedge(diag, arm, sin_theta * arm, band)))?;
+        .map_err(|diag| LeverEscalation::arm(at_wedge(diag, arm, sin_theta, band)))?;
     let margin = Margin::levered(sin_theta, arm);
     let Decided { sign, margin } =
         decide_reported("dihedral_wedge", margin, band).map_err(LeverEscalation::reading)?;
@@ -259,13 +260,20 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// arm but leaves that wedge in band reads no class, so the escalation
 /// carries the wedge's own margin, through the arm gate's funnel
 /// (`"dihedral_arm_wedge"`), and the tolerance it offers decides both.
-/// An exactly zero wedge reads smooth at every tolerance that decides the
-/// arm, so there the arm binds and keeps its own margin, as does a
-/// poisoned arm.
-fn at_wedge<T: Decide>(gate: Indeterminate, arm: T, wedge: T, band: Band) -> Indeterminate {
+/// Where the wedge reads zero at the tolerance that decides the arm
+/// ([`wedge_reads_zero_at_the_arm`]), it reads smooth at every tolerance
+/// from there down to its own, so the arm binds and keeps its own margin:
+/// an exactly zero wedge, and one that is only rounding on a tangent
+/// seam, whose own value would offer a tolerance many decades below the
+/// one that already decides the seam. A poisoned arm keeps its own too.
+fn at_wedge<T: Decide>(gate: Indeterminate, arm: T, sin_theta: T, band: Band) -> Indeterminate {
+    let wedge = sin_theta * arm;
     // `arm / wedge` is finite unless the wedge is exactly zero, or poison
     // (a gradient the arm's decided zero leaves unread, at a cone's apex).
-    if gate.margin.is_invalid() || !geom_core::is_finite_length(arm / wedge) {
+    if gate.margin.is_invalid()
+        || !geom_core::is_finite_length(arm / wedge)
+        || wedge_reads_zero_at_the_arm(sin_theta, band)
+    {
         return gate;
     }
     match geom_core::k_stats::decide_positive_reported(
@@ -278,6 +286,27 @@ fn at_wedge<T: Decide>(gate: Indeterminate, arm: T, wedge: T, band: Band) -> Ind
         // read positive.
         Ok(()) => gate,
     }
+}
+
+/// **Whether the wedge reads zero at the arm's own tolerance**: the
+/// tolerance that decides the arm, `arm/K`, is the one whose band
+/// escalates at the arm, and in that band the wedge `sin θ · arm` reads
+/// as `sin θ · escalate` does in `band` (both scaled by `escalate/arm`).
+/// So the reading is the wedge levered over `band`'s own escalation
+/// edge, decided in `band` (`"dihedral_wedge_at_arm"`): zero exactly
+/// where `sin θ · arm ≤ arm/K`, with no threshold of its own.
+fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
+    matches!(
+        decide_reported(
+            "dihedral_wedge_at_arm",
+            Margin::levered(sin_theta, T::from_f64(band.escalate())),
+            band,
+        ),
+        Ok(Decided {
+            sign: Sign::Zero,
+            ..
+        })
+    )
 }
 
 /// **The folded lever arm** of a surface pair at `p` (module docs):
@@ -815,6 +844,98 @@ mod tests {
         assert_eq!(
             err.diag.margin.diagnostic_f64_for_error_text(),
             geom_core::ErrorTextReading::Value(mid)
+        );
+    }
+
+    /// The band `b`'s `K` puts at the tolerance `0.9 ×` what `margin`
+    /// offers: the first rung below the offer, as the offer rows run it.
+    fn just_below_the_offer(b: Band, margin: f64) -> Band {
+        let eps = 0.9 * b.tolerance_deciding(margin);
+        Band::new(eps, eps * (b.escalate() / b.zero())).unwrap()
+    }
+
+    /// **A wedge that reads zero at the arm's own tolerance leaves the arm
+    /// binding** (`wedge_reads_zero_at_the_arm`; the coincv5 review's
+    /// NF-1, whose poses these are): over an in-band arm, a tangent
+    /// cylinder and plane turned generically (`sin θ` is rounding, about
+    /// `1.5e-16`), and plane pairs at 3e-3, 1e-7 and 1e-9 rad, quote the
+    /// arm, and a tolerance just below its offer classifies them smooth.
+    /// Quoting the wedge offered `1.05e-25 m` on the tangent pair at
+    /// `ε = 1e-9`. Past `sin θ = 1/K` the wedge is quoted, and just below
+    /// its offer it classifies transverse.
+    #[test]
+    fn a_wedge_in_the_zero_band_at_the_arms_tolerance_leaves_the_arm_binding() {
+        let b = band();
+        let extent = 7.0 * eps();
+        let quoted = |s1: &Surface<f64>, s2: &Surface<f64>, p: Point3<f64>| {
+            let err = classify_dihedral(s1, s2, p, extent, b).unwrap_err();
+            let geom_core::ErrorTextReading::Value(m) =
+                err.diag.margin.diagnostic_f64_for_error_text()
+            else {
+                panic!("a point margin: {err:?}");
+            };
+            assert_eq!(err.rung, LeverRung::Arm, "{err:?}");
+            (err.diag.predicate, m)
+        };
+        // The coincv5 review's tangent pose (`seam_tangent_noise`).
+        let k = Vec3::new(0.37, -0.81, 0.45).normalize();
+        let a = 0.913_f64;
+        let r =
+            |v: Vec3<f64>| v * a.cos() + k.cross(v) * a.sin() + k * (k.dot(v) * (1.0 - a.cos()));
+        let c0 = Point3::new(0.4, -1.3, 2.2);
+        let cyl = Surface::Cylinder {
+            origin: c0 + r(Vec3::new(0.0, 1.0, 0.0)),
+            axis: r(Vec3::unit_z()),
+            radius: 1.0,
+            u_ref: r(Vec3::unit_x()),
+        };
+        let pl = Surface::Plane {
+            origin: c0,
+            normal: r(Vec3::new(0.0, -1.0, 0.0)),
+            u_ref: r(Vec3::unit_x()),
+        };
+        let p = c0 + r(Vec3::new(0.0, 0.0, 0.3));
+        assert_eq!(quoted(&cyl, &pl, p), (Some("dihedral_arm"), extent));
+        assert_eq!(
+            classify_dihedral(&cyl, &pl, p, extent, just_below_the_offer(b, extent)).unwrap(),
+            DihedralClass::Smooth
+        );
+        let floor = plane(Vec3::unit_z(), Vec3::unit_x());
+        let at = |theta: f64| plane(Vec3::new(0.0, theta.sin(), theta.cos()), Vec3::unit_x());
+        for theta in [3e-3, 1e-7, 1e-9] {
+            let o = Point3::origin();
+            assert_eq!(
+                quoted(&floor, &at(theta), o),
+                (Some("dihedral_arm"), extent),
+                "{theta:e}"
+            );
+            let below = just_below_the_offer(b, extent);
+            assert_eq!(
+                classify_dihedral(&floor, &at(theta), o, extent, below).unwrap(),
+                DihedralClass::Smooth,
+                "{theta:e}"
+            );
+        }
+        // Past 1/K, the wedge binds: just below the arm's offer it would
+        // still be in band.
+        let theta = 0.15_f64;
+        let (predicate, m) = quoted(&floor, &at(theta), Point3::origin());
+        assert_eq!(predicate, Some("dihedral_arm_wedge"));
+        assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
+        let o = Point3::origin();
+        assert!(
+            classify_dihedral(
+                &floor,
+                &at(theta),
+                o,
+                extent,
+                just_below_the_offer(b, extent)
+            )
+            .is_err()
+        );
+        assert_eq!(
+            classify_dihedral(&floor, &at(theta), o, extent, just_below_the_offer(b, m)).unwrap(),
+            DihedralClass::Transverse
         );
     }
 

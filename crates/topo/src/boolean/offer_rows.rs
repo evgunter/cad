@@ -370,12 +370,31 @@ cases! {
     // re-run meets the containment (CONTACT's row).
     neighbours_bent_in_a_union: "Neighbours(Parallel)", D, Public, Valued =>
         bent_neighbours_in_a_union(D);
-    neighbours_offset_above: "CoplanarNeighbours", -D, GATE_SITE, Valued =>
-        offset_neighbours(D);
-    neighbours_offset_below: "CoplanarNeighbours", D, GATE_SITE, Valued =>
-        offset_neighbours(-D);
-    neighbours_offset_within_the_zero_band: "CoplanarNeighbours", -Z, GATE_SITE, Valued =>
-        offset_neighbours(Z);
+    // Valid bodies only (the coincv5 review's NF-2 poses): on one, the
+    // offset the gate reads is the bend `Neighbours(Parallel)` reads
+    // first, so it is offered from the zero band. A prism whose wall
+    // turns by a zero-band angle at a short edge, beside a far brick and
+    // crossed by one through each public op; and a split top bent about
+    // its diagonal, its plane's origin far along the plane.
+    neighbours_kinked_beside_a_far_brick: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
+        Valued => kinked_prism(None, KINK);
+    neighbours_kinked_crossed_union: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
+        Valued => kinked_prism(Some(0), KINK);
+    neighbours_kinked_crossed_subtract: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
+        Valued => kinked_prism(Some(1), KINK);
+    neighbours_kinked_crossed_intersect: "CoplanarNeighbours", -KINK * KINK_HEIGHT, Public,
+        Valued => kinked_prism(Some(2), KINK);
+    neighbours_kinked_twice_as_far_beside_a_far_brick: "CoplanarNeighbours",
+        -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(None, 2.0 * KINK);
+    neighbours_kinked_twice_as_far_crossed_union: "CoplanarNeighbours",
+        -2.0 * KINK * KINK_HEIGHT, Public, Valued => kinked_prism(Some(0), 2.0 * KINK);
+    neighbours_bent_far_origin_beside_a_far_brick: "CoplanarNeighbours",
+        KINK * FRAC_1_SQRT_2, Public, Valued => bent_split_far_origin(None, 10.0);
+    // Its re-run meets a corner's side of a face, whose own offer is true.
+    neighbours_bent_far_origin_crossed_union: "CoplanarNeighbours", KINK * FRAC_1_SQRT_2,
+        Public, Valued => bent_split_far_origin(Some(0), 10.0);
+    neighbours_bent_far_origin_crossed_subtract: "CoplanarNeighbours", KINK * FRAC_1_SQRT_2,
+        Public, Valued => bent_split_far_origin(Some(1), -10.0);
     rim_just_above_a_face: "Coincidence(EdgeOnPlane)", D, RIM_PLANE_SITE, Valued =>
         rim_over_a_brick(1.0 - D);
     rim_just_below_a_face: "Coincidence(EdgeOnPlane)", -D, RIM_PLANE_SITE, Valued =>
@@ -392,6 +411,18 @@ cases! {
     // The coincfr4 review's off-axis seam, whose arm offer met the wedge.
     seam_over_a_short_edge_off_axis: "LeverArm(Seam)", 7e-9 * 1.0_f64.sin(), SEAM_SITE,
         Valued => seam(1.0, 7e-9, Vec3::new(0.3, 1.0, 0.2));
+    // A wedge that reads zero at the arm's own tolerance leaves the arm
+    // binding (the coincv5 review's NF-1 poses): a tangent cylinder and
+    // plane, whose `sin θ` is rounding, and planes at 3e-3, 1e-7 and
+    // 1e-9 rad, each over an arm of 7e-9.
+    seam_tangent_over_a_short_edge: "LeverArm(Seam)", 7e-9, SEAM_SITE, Valued =>
+        seam_tangent(7e-9);
+    seam_with_a_wedge_in_the_zero_band: "LeverArm(Seam)", 7e-9, SEAM_SITE, Valued =>
+        seam(3e-3, 7e-9, Vec3::new(0.3, 1.0, 0.2));
+    seam_nearly_flat_over_a_short_edge: "LeverArm(Seam)", 7e-9, SEAM_SITE, Valued =>
+        seam(1e-7, 7e-9, Vec3::new(0.3, 1.0, 0.2));
+    seam_flatter_still_over_a_short_edge: "LeverArm(Seam)", 7e-9, SEAM_SITE, Valued =>
+        seam(1e-9, 7e-9, Vec3::new(0.3, 1.0, 0.2));
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
@@ -989,6 +1020,30 @@ fn rim_over_a_brick(top: f64) -> Result<(), BooleanError> {
     sweep(&split_sheet().0, &brick_under(top).0).map(|_| ())
 }
 
+/// A cylinder of radius 1 and the plane tangent to it along a ruling,
+/// the pair turned generically so the two normals agree only to rounding,
+/// read as a seam of the result at a point of the ruling over `extent`
+/// (the coincv5 review's `seam_tangent_noise`).
+fn seam_tangent(extent: f64) -> Result<(), BooleanError> {
+    let k = Vec3::new(0.37, -0.81, 0.45).normalize();
+    let a = 0.913_f64;
+    let r = |v: Vec3<f64>| v * a.cos() + k.cross(v) * a.sin() + k * (k.dot(v) * (1.0 - a.cos()));
+    let c0 = Point3::new(0.4, -1.3, 2.2);
+    let cylinder = geom::Surface::Cylinder {
+        origin: c0 + r(Vec3::new(0.0, 1.0, 0.0)),
+        axis: r(Vec3::new(0.0, 0.0, 1.0)),
+        radius: 1.0,
+        u_ref: r(Vec3::new(1.0, 0.0, 0.0)),
+    };
+    let plane = plane_through(
+        c0,
+        r(Vec3::new(1.0, 0.0, 0.0)),
+        r(Vec3::new(0.0, -1.0, 0.0)),
+    );
+    let p = c0 + r(Vec3::new(0.0, 0.0, 0.3));
+    super::super::ops::seam_class(&cylinder, &plane, p, extent, band()).map(|_| ())
+}
+
 /// Two planes through a line along `axis` at `angle` to one another,
 /// read as a seam of the result over `extent` (the coincfr4 review's
 /// `seam_site`, off the origin).
@@ -1331,14 +1386,106 @@ fn corner_on_a_corner(axis: Vec3<f64>, theta: f64) -> Result<(), BooleanError> {
     public_op(0, &a, &b, &BooleanDeclarations::none())
 }
 
-/// The same, the half re-described on the parallel plane `offset`
-/// above.
-fn offset_neighbours(offset: f64) -> Result<(), BooleanError> {
+/// The zero-band angle the neighbour cases turn by.
+const KINK: f64 = 5.5e-10;
+
+/// The height of [`kinked_prism`], the length of its kinked edge.
+const KINK_HEIGHT: f64 = 0.1;
+
+/// The public op `k` of `body` and the brick `cross`, or, where `k` is
+/// `None`, the union of `body` and a far brick.
+fn beside_or_crossed(
+    body: &crate::body::Body<f64>,
+    k: Option<u8>,
+    cross: &crate::body::Body<f64>,
+) -> Result<(), BooleanError> {
+    match k {
+        None => {
+            let far = crate::test_support_fixtures::brick::<f64>(
+                (20.0, 21.0),
+                (0.0, 1.0),
+                (0.0, 1.0),
+                Tol::witness(),
+            );
+            public_op(0, body, &far, &BooleanDeclarations::none())
+        }
+        Some(k) => public_op(k, body, cross, &BooleanDeclarations::none()),
+    }
+}
+
+/// A valid prism of height [`KINK_HEIGHT`] whose profile turns by `theta`
+/// at `(0.1, 0)`: the wall along `y = 0` and the one tilted by `theta` out
+/// to `x = 10.1` share the vertical edge there. Beside a far brick (`k`
+/// `None`) or crossed on its long wall by the public op `k` (the coincv5
+/// review's `kinked_prism`).
+fn kinked_prism(k: Option<u8>, theta: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let h = KINK_HEIGHT;
+    let profile = [
+        (0.0, 0.0),
+        (0.1, 0.0),
+        (10.1, 10.0 * theta.tan()),
+        (10.1, 1.0),
+        (0.0, 1.0),
+    ];
+    let body = prism_z::<f64>(&profile, 0.0, h, tol).body;
+    let cross = crate::test_support_fixtures::brick::<f64>(
+        (4.0, 5.0),
+        (-0.5, 0.5),
+        (0.02, 0.5 * h + 0.3),
+        tol,
+    );
+    beside_or_crossed(&body, k, &cross)
+}
+
+/// The brick that crosses a split top.
+fn split_top_crossing() -> crate::body::Body<f64> {
+    crate::test_support_fixtures::brick::<f64>((0.3, 2.0), (0.2, 0.7), (0.5, 1.5), Tol::witness())
+}
+
+/// A valid split top: the re-described half bent by [`KINK`] about the
+/// diagonal (its edges stay on it), its plane's origin `l` from the
+/// diagonal within the plane. Beside a far brick (`k` `None`) or crossed
+/// by the public op `k` (the coincv5 review's `split_bent_far_origin`).
+fn bent_split_far_origin(k: Option<u8>, l: f64) -> Result<(), BooleanError> {
+    let body = super::tests::top_split_redescribed(|p0, along, _| {
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        let n = up * KINK.cos() + along.cross(up) * KINK.sin();
+        plane_through(p0 + n.cross(along) * l, along, n)
+    });
+    beside_or_crossed(&body, k, &split_top_crossing())
+}
+
+/// **A stranded split top, crossed by a brick, reaches the classification
+/// invariant, at a clear offset, through each public op**: the half
+/// re-described on the parallel plane `1000 ε` above leaves its own edges
+/// `1000 ε` off it, which no valid body does, and the operation ends on a
+/// kernel invariant rather than a typed refusal. The offset is far past
+/// the band at every tolerance, so the invariant is the stranded body's,
+/// not any offer's (the coincv5 review's NF-2; filed as
+/// `work/hone/a-stranded-operand-reaches-the-classification-invariant.md`).
+/// The `CoplanarNeighbours` offers run on valid bodies, in the cases.
+#[test]
+fn a_stranded_split_top_crossed_by_a_brick_reaches_the_classification_invariant() {
     let up = Vec3::new(0.0, 0.0, 1.0);
+    let offset = 1e3 * Tol::witness().get().eps;
     let body = super::tests::top_split_redescribed(|p0, along, _| {
         plane_through(p0 + up * offset, along, up)
     });
-    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+    for k in 0..3 {
+        let err = public_op(
+            k,
+            &body,
+            &split_top_crossing(),
+            &BooleanDeclarations::none(),
+        )
+        .expect_err("a stranded operand does not pass");
+        assert_eq!(
+            err.kind(),
+            BooleanErrorKind::ClassificationInvariant,
+            "op {k}: {err}"
+        );
+    }
 }
 
 /// The plane through `p` with unit normal `n`, containing the unit
