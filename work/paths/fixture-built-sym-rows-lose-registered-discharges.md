@@ -23,8 +23,10 @@ register unconditionally are gone.
 **The instance.** `crates/sweep/tests/sym11_far_placement_rows.rs`,
 the certified lane's stadium (`stadium_extrude`, built with
 `test_support::bulge_loop`): built → `EndpointEnd` at `(1e-6, 1e9)` and
-`MappedSource` at `(1e-9, 1e6)`, and `Surface1Residual` →
-`EndpointStart` at the five cells that refused already. Every one is a typed refusal; no cell
+`MappedSource` at `(1e-9, 1e6)`, and built → `EndpointStart` at the
+five cells rule G (`SymRules::canonical_root`) builds on main
+(`(1e-9, 3.7e7)`, `(1e-9, 1e9)` and the three off-origin placements at
+`1e-12`). Every one is a typed refusal; no cell
 contradicts and none answers wrongly. The row asserts the refusals.
 
 **Why neither obvious repair is in 5a.**

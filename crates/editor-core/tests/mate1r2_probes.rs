@@ -2,10 +2,10 @@
 //!
 //! These rows attack the PR #1400 claims by execution:
 //! - P1: the frame conjugation `F⁻¹·O_c⁻¹·O_p·F` at a NON-IDENTITY
-//!   cluster frame, against a pose composed by hand (Rodrigues written
+//!   group frame, against a pose composed by hand (Rodrigues written
 //!   in this file, never read back from the solver);
 //! - P1b: the same conjugation with the GATE as the independent oracle
-//!   (a consistent sibling loop under a rotated+translated cluster
+//!   (a consistent sibling loop under a rotated+translated group
 //!   frame must still verify against the evaluated geometry);
 //! - P2: a tree edge whose members are copies of TWO different
 //!   patterns — the `(Some, Some)` arm of the pair's left factor;
@@ -200,10 +200,10 @@ impl Rigid {
     }
 }
 
-/// The cluster frame used by the placed probes: a quarter turn about z
+/// The group frame used by the placed probes: a quarter turn about z
 /// plus a translation — rotation AND translation, so a conjugation
 /// written in either direction (or skipped) computes a DIFFERENT pose.
-fn cluster_frame() -> Frame {
+fn group_frame() -> Frame {
     Rigid {
         r: [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
         t: [1.0, 2.0, 3.0],
@@ -214,13 +214,13 @@ fn cluster_frame() -> Frame {
 // ---- P1: hand-derived conjugation at F ≠ identity, oblique axis ----
 
 /// PROBE (claim 1): a CIRCULAR pattern about an OBLIQUE axis (direction
-/// (1,1,1), origin (1,0,0), step 2π/5), with the cluster's recorded
+/// (1,1,1), origin (1,0,0), step 2π/5), with the group's recorded
 /// frame a rotation+translation. Expected relative pose composed by
 /// hand in this file: `F⁻¹ ∘ O₁ ∘ F ∘ A` with `O₁` this file's own
 /// Rodrigues and `A` the seat translation. The solver's output is
 /// never read into the expectation.
 #[test]
-fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
+fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-obl-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("r2-obl-top"), Tol::witness());
@@ -230,7 +230,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
         doc,
         DocEdit::SetPlacement {
             node: leg,
-            frame: cluster_frame(),
+            frame: group_frame(),
         },
     );
     let (doc, axis) = insert(
@@ -276,7 +276,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
     );
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
 
-    let f = Rigid::from_frame(cluster_frame());
+    let f = Rigid::from_frame(group_frame());
     let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
     let a = Rigid::translation([0.0, 0.0, 1.0]);
     let expected = f.inverse().compose(o1).compose(f).compose(a).as_frame();
@@ -290,14 +290,14 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
 
 // ---- P1b: the gate as the oracle at F ≠ identity ----
 
-/// PROBE (claims 1+3): the consistent sibling loop, with the cluster
+/// PROBE (claims 1+3): the consistent sibling loop, with the group
 /// frame rotated AND translated. The declared sibling seat is verified
 /// by the gate against the EVALUATION's geometry, so a solve-side
 /// conjugation error (either direction, or a skipped conjugation)
 /// would put the top in the wrong place and the gate would refute —
 /// an oracle independent of this reviewer's own algebra.
 #[test]
-fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
+fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-loopf-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(
@@ -310,7 +310,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
         doc,
         DocEdit::SetPlacement {
             node: leg,
-            frame: cluster_frame(),
+            frame: group_frame(),
         },
     );
     let (doc, pattern) = insert(
@@ -319,7 +319,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
             input: leg,
             count: Expr::count(2),
             kind: PatternKind::Linear {
-                // Document ŷ: the placed cluster frame turns the leg
+                // Document ŷ: the placed group frame turns the leg
                 // and top a quarter turn about z, so the top's long
                 // local-x side lies along WORLD ŷ — the copies must
                 // march there for the loop to be consistent. (A first
@@ -434,7 +434,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "{:?}", poses.fault(mate));
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
-    assert_eq!(poses.gauge(leg2), Some(leg1), "leg1 is document-first");
+    assert_eq!(poses.root(leg2), Some(leg1), "leg1 is document-first");
 
     // O_p = T(3·x̂) (parent = leg1's copy 1), O_c = T(5·ŷ) (child =
     // leg2's copy 1); F = identity. rel(leg2) = O_c⁻¹∘O_p∘T([0,0,1]).
@@ -452,7 +452,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
 
 // ---- P3: the patterned member as the tree CHILD ----
 
-/// PROBE (claims 1+8): the top is document-FIRST, so it is the gauge
+/// PROBE (claims 1+8): the top is document-FIRST, so it is the root
 /// and the patterned member is the tree CHILD — the `O_c⁻¹` arm alone.
 /// Hand-derived: rep = B∘A⁻¹ = T([0,0,−1]) (the mate reads a = copy,
 /// b = top, and the child member's frame must land on the parent's),
@@ -492,7 +492,7 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "{:?}", poses.fault(mate));
-    assert_eq!(poses.gauge(leg), Some(top), "the top is document-first");
+    assert_eq!(poses.root(leg), Some(top), "the top is document-first");
 
     let expected = Frame {
         columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],

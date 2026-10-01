@@ -423,7 +423,7 @@ fn a3_a_10m_part_tilted_1e_8_is_refused_at_its_scale() {
 /// **A part that does not resolve faults the mate `Unleverable`,
 /// carrying the `PartFault` unaltered** — and the blast radius is
 /// pinned: the mate faults (it used to stay `Determining`), and its
-/// cluster's instances carry the mate fault, in the resolver's voice.
+/// group's instances carry the mate fault, in the resolver's voice.
 #[test]
 fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
     // The part lives in ANOTHER store: the reference is well formed
@@ -459,10 +459,11 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
         panic!("expected UNLEVERABLE, got {fault:?}");
     };
     assert_eq!(*named, mate);
-    let LeverRefusal::PartUnresolved {
+    let LeverRefusal::Reach {
         instance,
-        fault: part,
-    } = refusal
+        refusal: ReachRefusal::PartUnresolved { fault: part },
+        ..
+    } = refusal.as_ref()
     else {
         panic!("expected the part's own fault, got {refusal:?}");
     };
@@ -478,7 +479,7 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
         "the resolver's own classification, unaltered: {part:?}"
     );
     assert_eq!(poses.role(mate), Some(MateRole::Refused));
-    // The blast radius: every instance in the cluster carries the
+    // The blast radius: every instance in the group carries the
     // fault, and the evaluation fails them in the mate's voice.
     assert_eq!(poses.fault(ids[0]), Some(fault));
     assert_eq!(poses.fault(lost), Some(fault));
@@ -503,13 +504,15 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
     assert!(
         matches!(
             fault,
-            MateFault::Unleverable {
-                refusal: LeverRefusal::PartUnresolved {
-                    fault: PartFault::NoResolver,
+            MateFault::Unleverable { ref refusal, .. } if matches!(
+                refusal.as_ref(),
+                LeverRefusal::Reach {
+                    refusal: ReachRefusal::PartUnresolved {
+                        fault: PartFault::NoResolver,
+                    },
                     ..
-                },
-                ..
-            }
+                }
+            )
         ),
         "{fault:?}"
     );
@@ -540,36 +543,6 @@ fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
     assert_eq!(
         editor_core::mate::part_reach(&body).err(),
         Some(refusal.clone())
-    );
-    let instance = RecipeNodeId(7);
-    let part = editor_core::DocRef {
-        id: DocumentId::derive("msolve6-a4-unbounded"),
-        pin: content_pin(&box_part("msolve6-a4-unbounded", 0.5, 1.0), Tol::witness()).unwrap(),
-    };
-    assert_eq!(
-        LeverRefusal::of(refusal, instance, part),
-        LeverRefusal::FaceUnbounded {
-            instance,
-            part,
-            face: made.face,
-            kind: SurfaceKind::Nurbs,
-        }
-    );
-    // A face whose surface key resolves to nothing is a malformed
-    // body, not an unboundable face: its own arm, named the same way.
-    // (No door builds one — `Body` mints a face's surface with the
-    // face — so the arm is pinned at the wrap.)
-    assert_eq!(
-        LeverRefusal::of(
-            ReachRefusal::MalformedBody { face: made.face },
-            instance,
-            part
-        ),
-        LeverRefusal::MalformedBody {
-            instance,
-            part,
-            face: made.face,
-        }
     );
 }
 
@@ -876,10 +849,14 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
     assert!(
         matches!(
             fault.as_deref(),
-            Some(MateFault::Unleverable {
-                refusal: LeverRefusal::PartUnresolved { instance, .. },
-                ..
-            }) if *instance == lost
+            Some(MateFault::Unleverable { refusal, .. }) if matches!(
+                refusal.as_ref(),
+                LeverRefusal::Reach {
+                    instance,
+                    refusal: ReachRefusal::PartUnresolved { .. },
+                    ..
+                } if *instance == lost
+            )
         ),
         "the resolver's own voice: {fault:?}"
     );
@@ -1805,10 +1782,13 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     assert!(matches!(
         &err,
         EditError::MaintenanceRefused { gauge, fault: Some(f) }
-            if *gauge == c && matches!(**f, MateFault::Unleverable {
-                refusal: LeverRefusal::PartUnresolved { fault: PartFault::NoResolver, .. },
-                ..
-            })
+            if *gauge == c && matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
+                refusal.as_ref(),
+                LeverRefusal::Reach {
+                    refusal: ReachRefusal::PartUnresolved { fault: PartFault::NoResolver },
+                    ..
+                }
+            ))
     ));
 }
 
@@ -1849,7 +1829,7 @@ fn a6_a_logged_edit_has_one_wire_shape_and_its_rows_round_trip() {
     assert_eq!(back, with);
 }
 
-/// **A whole-cluster split levers through the part it is minting**
+/// **A whole-group split levers through the part it is minting**
 /// (the `WithPart` resolver composed with the caller's), and with no
 /// resolver at all refuses typed — `Unresolved` on the new instance,
 /// in the resolver's own voice, never a frame nothing decided.
@@ -1874,7 +1854,7 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         Tol::witness(),
         opts.resolver.as_ref(),
     )
-    .expect("a whole-cluster cut splits through the part in hand");
+    .expect("a whole-group cut splits through the part in hand");
     let none = split(
         &doc,
         &cut,
@@ -1900,13 +1880,18 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
             matches!(
                 *error,
                 EditError::MaintenanceRefused { fault: Some(ref f), .. }
-                    if matches!(**f, MateFault::Unleverable {
-                        refusal: LeverRefusal::PartUnresolved {
-                            fault: PartFault::Unresolved { fault: ResolveFault::Unresolved, .. },
+                    if matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
+                        refusal.as_ref(),
+                        LeverRefusal::Reach {
+                            refusal: ReachRefusal::PartUnresolved {
+                                fault: PartFault::Unresolved {
+                                    fault: ResolveFault::Unresolved,
+                                    ..
+                                },
+                            },
                             ..
-                        },
-                        ..
-                    })
+                        }
+                    ))
             ),
             "typed Unresolved expected, got {error:?}"
         ),

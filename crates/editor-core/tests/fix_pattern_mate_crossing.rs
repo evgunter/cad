@@ -3,11 +3,11 @@
 //!
 //! The collector that fills an instance's [`InterfaceRecord`] asks ONE
 //! predicate for "is this reference a member reference" — the same one
-//! A12's reading edges and A11's clusters ask. These rows pin what that
+//! A12's reading edges and A11's groups ask. These rows pin what that
 //! identity buys, on the two shapes a pattern brings:
 //!
 //! - a mate whose end is a pattern-placed instance IS an edge, so it
-//!   welds a cluster and AQ8's unreachability covers it — asserted in
+//!   welds a group and AQ8's unreachability covers it — asserted in
 //!   both directions, exactly as `asm_r2b_assembly::row5_a` does for a
 //!   plain edge;
 //! - a mate whose end is a pattern head its name UNDERQUALIFIES — one
@@ -25,7 +25,7 @@
 //!
 //! That SKIP ruling is `crates/editor-core/ASSEMBLY.md`'s AQ8 clause.
 //!
-//! The whole-cluster cut also pins A4's recorded map over an
+//! The whole-group cut also pins A4's recorded map over an
 //! `Instance(i)` head: the node ids remap, the STRUCTURAL INDEX does
 //! not.
 
@@ -72,7 +72,7 @@ fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
 
 /// The reach a cut of the four-legs document levers through: a store
 /// holding both blocks, since cutting the shelf off the legs moves the
-/// remainder's gauge and mints its frame from the solved pose.
+/// remainder's root and mints its frame from the solved pose.
 fn legs_reach() -> EvalOptions {
     let mut store = fixture::resolver::PartStore::new();
     store.insert(block("fix-xs-leg").0, Tol::witness());
@@ -115,7 +115,7 @@ const COPY: u32 = 2;
 /// Returns `(doc, leg, pattern, top, mate, leg_body)`, the last the
 /// leg part's body.
 ///
-/// A bare datum sits AHEAD of the cluster and is never cut, so the part
+/// A bare datum sits AHEAD of the group and is never cut, so the part
 /// document's id space is offset from the host's — which is what makes
 /// the recorded map's rewrite observable rather than an identity.
 fn four_legs(
@@ -181,29 +181,29 @@ fn a_pattern_headed_mate_is_an_edge_and_welds_the_pattern_input_instance() {
         "the pattern-placed head reads through the pattern's input instance"
     );
     assert_eq!(
-        editor_core::clusters(&doc),
+        editor_core::groups(&doc),
         vec![vec![leg, top]],
-        "the mate welds both members into ONE placement cluster"
+        "the mate welds both members into ONE placement group"
     );
 }
 
 /// INVARIANT (AQ8, for a PATTERN-HEADED edge — the row5_a argument,
 /// re-run on the member vocabulary): cutting either member of a
-/// pattern-headed mate alone refuses `TornCluster`, and the
-/// whole-cluster cut that IS accepted carries both ends, so its record
+/// pattern-headed mate alone refuses `TornGroup`, and the
+/// whole-group cut that IS accepted carries both ends, so its record
 /// is empty. No accepted cut severs a pattern-headed mate edge.
 #[test]
 fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let (doc, leg, pattern, top, mate, _) = four_legs("fix-xs-torn");
     let o = legs_reach();
 
-    // The gauge is the cluster's document-order-first instance and the
+    // The root is the group's document-order-first instance and the
     // named instance is the first member on the far side of the tear,
     // so BOTH payload fields are asserted: a refusal that named the
-    // wrong pair would still be a `TornCluster`, and the repair it
-    // tells the caller to make ("widen the cut to the whole cluster")
+    // wrong pair would still be a `TornGroup`, and the repair it
+    // tells the caller to make ("widen the cut to the whole group")
     // is only actionable if the pair is right.
-    for (what, ids, gauge_is_cut) in [
+    for (what, ids, root_is_cut) in [
         ("the pattern side", cut([leg, pattern]), true),
         (
             "the pattern side with its mate",
@@ -220,25 +220,25 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
             Tol::witness(),
             o.resolver.as_ref(),
         )
-        .expect_err("a torn cluster refuses");
-        let editor_core::SplitError::TornCluster {
-            gauge,
+        .expect_err("a torn group refuses");
+        let editor_core::SplitError::TornGroup {
+            root,
             instance,
-            gauge_is_cut: cut_side,
+            root_is_cut: cut_side,
         } = refused
         else {
-            panic!("cutting {what} tears the cluster the mate welds: {refused:?}");
+            panic!("cutting {what} tears the group the mate welds: {refused:?}");
         };
         assert_eq!(
-            (gauge, instance, cut_side),
-            (leg, top, gauge_is_cut),
-            "cutting {what} names the gauge, the instance across the tear, \
-             and which side the gauge is on"
+            (root, instance, cut_side),
+            (leg, top, root_is_cut),
+            "cutting {what} names the root, the instance across the tear, \
+             and which side the root is on"
         );
     }
 
     // The pattern WITHOUT its input is a severed recipe edge, refused
-    // before the cluster rule is ever reached — D-2 closure, and the
+    // before the group rule is ever reached — D-2 closure, and the
     // premise that keeps a pattern head's derivation nodes on the same
     // side as the member it resolves to.
     let severed = split(
@@ -263,7 +263,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         "the pattern is the cut-side consumer and its instance input is the severed end"
     );
 
-    // The whole cluster: accepted, and nothing crosses.
+    // The whole group: accepted, and nothing crosses.
     let out = split(
         &doc,
         &cut([leg, pattern, top, mate]),
@@ -271,7 +271,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         Tol::witness(),
         o.resolver.as_ref(),
     )
-    .expect("a whole-cluster cut splits");
+    .expect("a whole-group cut splits");
     assert!(
         crossings(&out.remainder, out.instance).is_empty(),
         "both ends moved with the cut, so the mate says nothing about the seam"
@@ -295,7 +295,7 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
         Tol::witness(),
         o.resolver.as_ref(),
     )
-    .expect("a whole-cluster cut splits");
+    .expect("a whole-group cut splits");
 
     let (new_leg, new_pattern, new_mate) = (
         out.node_map[&leg],
@@ -341,7 +341,7 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
 /// trusted-at-rest state. This is the
 /// row that separates a gate asking the member vocabulary from one
 /// matching a head's SPELLING: admitting `Node::Pattern` by shape mints
-/// a record here, for a mate the cluster graph never welded.
+/// a record here, for a mate the group graph never welded.
 #[test]
 fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-nested"), Tol::witness());
@@ -380,9 +380,9 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
     );
 
     // Not an edge: no reading edge at the nested head, and the two
-    // members stay singleton clusters.
+    // members stay singleton groups.
     assert_eq!(
-        editor_core::clusters(&doc),
+        editor_core::groups(&doc),
         vec![vec![leg], vec![top]],
         "an underqualified head welds nothing, which is what makes the cut below legal"
     );
@@ -396,7 +396,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         Tol::witness(),
         None,
     )
-    .expect("nothing tears: the cut is a union of whole clusters");
+    .expect("nothing tears: the cut is a union of whole groups");
     assert!(
         crossings(&out.remainder, out.instance).is_empty(),
         "a mate that is not an edge says nothing about the seam (AQ8 SKIP)"

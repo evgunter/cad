@@ -75,7 +75,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 7.811e2,
             refuses_at: 7.814e2,
             registered: 140,
-            symbolic_zero: 803,
+            // DECIDE-3: eight more THEOREMS (803 -> 811) out of
+            // `numeric` (470 -> 462) — comparisons of two rational
+            // constants A0 now decides exactly. `registered` unmoved.
+            symbolic_zero: 811,
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -90,18 +93,24 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r2_link",
             certifies_at: 4.930e2,
             refuses_at: 4.934e2,
-            // 90 / 515 until the carrier's span was spelled as the
-            // stored sweep signed by the decided turn (`swept::arc_span`)
-            // instead of `4·atan|b|`: the span then shares the
-            // pushforward's `atan b` atom, and of the link's 1102
-            // decisions 20 move INTO the door — 10 out of `numeric` and
-            // TEN out of `symbolic_zero` (505 now). Those ten are the
-            // same class as the pad's four above (a residual the early
-            // walk was cancelling over reshaped, then re-taken by the
-            // registry). `frozen` is 1060 either way, nothing is
-            // refused or contradicted, and no ceiling moves.
+            // DECIDE-3: rule G re-keys the link's roots on their value
+            // class, so six more of the rim identity's samples meet
+            // the registrant's forms (90 -> 96) and twenty-six more
+            // residuals are theorems outright (515 -> 541). Both move
+            // UP; nothing was traded. The carrier's span spelled as
+            // the stored sweep signed by the decided turn
+            // (`swept::arc_span`) shares the pushforward's `atan b`
+            // atom, and both move up again, 96 -> 108 and 541 -> 545.
+            // On the tier without rule G the same span read 110 / 505
+            // (20 decisions into the door, ten of them out of
+            // `symbolic_zero`); with rule G in, none of that trade
+            // shows. 108 -> 110, out of `numeric` (509 -> 507), when
+            // the certification schedule began assigning its end samples
+            // exactly (`geom_brep::schedule_param`): two end residuals
+            // the door now recognises. Measured by restoring the old end
+            // samples on a probe, which restores 108.
             registered: 110,
-            symbolic_zero: 505,
+            symbolic_zero: 545,
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -110,14 +119,20 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refuses_at: 3.873e2,
             // 144 until the certification schedule assigned its last
             // sample `t₁` itself (`geom_brep::schedule_param`) rather
-            // than `t₀ + (t₁ − t₀)·1`: two numeric decisions reach the
-            // door (numeric 825 → 823, frozen 1767 → 1755), verdicts
-            // unchanged.
+            // than `t₀ + (t₁ − t₀)·1` over the copied arc carriers: two
+            // numeric decisions reach the door, verdicts unchanged.
             registered: 146,
-            // One of these is the bracket's fillet run out read against
-            // its arrival carrier (`path_run_out_carrier`), a margin the
-            // tier proves zero rather than measuring it.
-            symbolic_zero: 1084,
+            // DECIDE-3: more theorems from A0's constant fold
+            // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
+            // and rule G, and decisions the read answers; `registered`
+            // is unmoved. With the read shut this replay reads 1121
+            // theorems; with it on, 16 of those are answered by the read
+            // before their form reduces and count `sign_gated` (21 in
+            // all) — the class the pad's note names. One of the 1105 is
+            // the bracket's fillet run out read against its arrival
+            // carrier (`path_run_out_carrier`), a margin the tier proves
+            // zero rather than measuring it.
+            symbolic_zero: 1105,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -174,25 +189,34 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // five reads `JetDeterminate` with the gate and without,
             // so the document the replay builds is the same one.
             //
-            // 128 (numeric 1066) until PATHS 5a copied the reversed
-            // arc's carrier instead of re-lowering it. Main's
-            // reversed-chord centre.x hit `Poly::mul`'s 4096-pair cap
-            // (5088) and froze to an atom the rim registration reached;
-            // the copied centre stays live (3552), so the freeze lands
-            // on carrier(0).x and six Zero decisions go from registered
-            // to numeric (numeric 1072), verdicts unchanged
-            // (`work/sym/registrations-sealed-inside-frozen-compounds`).
+            // DECIDE-3 (rule G and the decision read): `registered`
+            // 128 -> 150, and with the read shut this replay reads
+            // 925 theorems, 0 `sign_gated`, 1004 `numeric` — every
+            // column up. With the read on, 32 of those 925 are answered
+            // by the read before their form reduces, so they count
+            // `sign_gated` (34) and not `symbolic_zero` (893). The tree
+            // without the must-carry gate's stations reads 4 such (894
+            // with the read shut, 890 with it on), so 28 of the 32 are
+            // INFERRED to be the stations' — 925 − 894 = 31 = 28
+            // station theorems + 3 run-outs — not read off a split,
+            // which was not taken. The decisions stay discharged; the claim on
+            // those 32 is the read's, not a theorem
+            // (`work/decide/the-decision-read-answers-theorems-the-must-carry-stations-would-prove`).
             //
-            // 122 until the certification schedule assigned its last
-            // sample `t₁` itself (`geom_brep::schedule_param`): four
-            // numeric decisions reach the door (numeric 1072 → 1068,
-            // frozen 2543 → 2495), verdicts unchanged — the bracket's
-            // two above are the same cause.
-            registered: 126,
+            // Over copied arc carriers (a lift carries the stored
+            // carrier rather than re-lowering it) 150 → 148, numeric
+            // 1002 → 1004, verdicts unchanged: six registered decisions
+            // go numeric where the reversed chord's re-lowered centre
+            // used to freeze to an atom the rim registration reached
+            // (`work/sym/registrations-sealed-inside-frozen-compounds`),
+            // and four numeric ones reach the door at the schedule's
+            // assigned end sample (`geom_brep::schedule_param`), as the
+            // bracket's two above do.
+            registered: 148,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
-            symbolic_zero: 885,
+            symbolic_zero: 893,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -504,34 +528,25 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
     }
 }
 
-/// **THE PAD'S FOUR, AT BOTH DIALS** (adopted from SYM-8's review R2,
+/// **THE PAD AT BOTH RULE-F DIALS** (adopted from SYM-8's review R2,
 /// `sym8_r2_the_pads_four_re_taken`). The row above pins the shipped
-/// side; this one is the DIFFERENTIAL that says what rule F
-/// (`SymRules::manifest_sign`) did to it. At the scale the pad
-/// certifies whole at, over its analyzed box, rule F off → on:
-/// `symbolic_zero` 889 → 885, `registered` 104 → 128, `numeric`
-/// 1078 → 1058, `frozen` 2750 either way — the same 2071 decisions, 24
-/// of them moving into the door, twenty out of `numeric` and FOUR out
-/// of `symbolic_zero`. Those are the STORED tuples; the replay
-/// currently measures `numeric` 8 higher and `frozen` 2722 at both
-/// dials, a drift that predates the stored values and is not yet
-/// attributed
-/// (`work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`),
-/// so this row is red until it is.
-///
-/// No decision is lost and the document certifies whole at both dials,
-/// which is asserted here; what moved is the STRENGTH of four claims.
-/// The spec's Phase-1.3 stop clause reads on that, and shipping rule F
-/// on anyway is a ratified spec deviation, not a disclosure
-/// (`work/decide/SYM-8.md`).
+/// side; this one is the DIFFERENTIAL for rule F alone
+/// (`SymRules::without_rule_f`: both arms shut, every other rule as
+/// shipped). On Duff's basis rule F moved four of the pad's theorems
+/// into the door. The axis-order basis mints no `copysign` for rule F
+/// to fold, and at the scale the pad certifies whole at, over its
+/// analyzed box, the two dials now read the same receipt —
+/// `symbolic_zero` 893, `sign_gated` 34, `registered` 150, `numeric`
+/// 1002, `frozen` 2577 — and both certify
+/// (`work/sym/the-negative-arm-lost-its-document-consumer`).
 ///
 /// `#[ignore]`d: it is two whole-box replays of the heaviest of the
-/// five documents (~2 min locally), on top of the one the gating row
-/// above already pays, and the shipped side of it is now pinned there
-/// by `Study::symbolic_zero`. Re-take it by running this row.
+/// five documents, on top of the one the gating row above already
+/// pays, and the shipped side of it is pinned there by
+/// `Study::symbolic_zero`. Re-take it by running this row.
 #[test]
 #[ignore = "evidence-only: two whole-box pad replays; the shipped side is pinned by the row above"]
-fn m10_9_the_pads_four_at_both_dials() {
+fn m10_9_the_pad_at_both_rule_f_dials() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let study = measured_studies(tol)
@@ -543,8 +558,8 @@ fn m10_9_the_pads_four_at_both_dials() {
     let box_ = ParamBox::of(&analyzed);
     let mut got = Vec::new();
     for (label, rules) in [
-        ("F-off", SymRules::without_rule_f()),
-        ("F-on ", SymRules::shipped()),
+        ("rule F shut", SymRules::without_rule_f()),
+        ("shipped    ", SymRules::shipped()),
     ] {
         let t0 = std::time::Instant::now();
         let (refusal, c) = replay_counts(&doc, &box_, rules, tol);
@@ -556,16 +571,21 @@ fn m10_9_the_pads_four_at_both_dials() {
             refusal.is_none(),
             "{label}: the pad certifies whole at this scale: {refusal:?}"
         );
-        got.push((c.symbolic_zero, c.registered, c.numeric, c.frozen));
+        got.push((
+            c.symbolic_zero,
+            c.sign_gated,
+            c.registered,
+            c.numeric,
+            c.frozen,
+        ));
     }
-    // Each side carries +28 `symbolic_zero` and +84 `numeric` from the
-    // must-carry rule's per-station dihedral gate, and +3 of each from
-    // the fillet run outs' carrier decision (`path_run_out_carrier`).
-    assert_eq!(got[0], (889, 104, 1078, 2750), "rule F off");
-    assert_eq!(got[1], (885, 128, 1058, 2750), "rule F on");
     assert_eq!(
-        got[0].0 + got[0].1 + got[0].2,
-        got[1].0 + got[1].1 + got[1].2,
-        "the same decisions, re-attributed: no decision is lost"
+        got[0],
+        (893, 34, 150, 1002, 2577),
+        "rule F shut: the pad's receipt"
+    );
+    assert_eq!(
+        got[1], got[0],
+        "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
     );
 }

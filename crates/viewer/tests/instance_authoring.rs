@@ -62,7 +62,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // What the door authored: the store's CURRENT version of each
     // part, an empty interface record (an authored instance crosses no
-    // split seam), and no placement — A11 puts that on the cluster.
+    // split seam), and no placement — A11 puts that on the group.
     let (post_ref, post_interface) = instance_of(&session, post_i);
     assert_eq!(
         post_ref, bench.post,

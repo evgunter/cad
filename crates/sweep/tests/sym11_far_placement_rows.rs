@@ -177,10 +177,12 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   so registers none of the lowering's endpoint facts, and the sweep
 ///   registers only rigidity: the far placements it once built on the
 ///   sweep's own rim and span registrations are typed refusals now —
-///   `EndpointEnd` at `(1e-6, 1e9)` and `MappedSource` at `(1e-9, 1e6)`,
-///   `EndpointStart` where it refused already. Never a contradiction,
-///   never a wrong
-///   answer (`work/paths/fixture-built-sym-rows-lose-registered-discharges.md`).
+///   `EndpointEnd` at `(1e-6, 1e9)`, `MappedSource` at `(1e-9, 1e6)`,
+///   and `EndpointStart` from `3.7e7` out at `1e-9` and at every
+///   placement off the origin at `1e-12`, cells where rule G
+///   (`SymRules::canonical_root`) alone builds it over the sweep's
+///   registrations. Never a contradiction, never a wrong answer
+///   (`work/paths/fixture-built-sym-rows-lose-registered-discharges.md`).
 /// - **The certified lane is not a superset or a subset of either.**
 ///   It refuses the washer at `(1e-6, 1e9)` and `(1e-9, 1e6)` where
 ///   every point lane builds it (the enclosure straddles the band where

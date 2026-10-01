@@ -27,8 +27,8 @@ use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocumentId, EvalOptions, Expr, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, MintRefusal, Node, ParamName, PartSelect, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName,
-    clusters, member_of, product,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName, groups,
+    member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
@@ -210,28 +210,28 @@ fn circular(
 const Q: f64 = std::f64::consts::FRAC_PI_2;
 
 /// **The partition the registry is keyed by and the partition the
-/// solve folds over are ONE partition.** `clusters` and
+/// solve folds over are ONE partition.** `groups` and
 /// `solve_document` read which mates weld through one door
-/// (`read_mates`), so a document's cluster membership and its solved
-/// gauges cannot disagree; this asserts that on whatever document it
+/// (`read_mates`), so a document's group membership and its solved
+/// roots cannot disagree; this asserts that on whatever document it
 /// is handed.
 fn assert_partition_agrees(doc: &editor_core::ProfileDoc, opts: &EvalOptions, what: &str) {
     let poses = solve(doc, opts, Tol::witness());
     let mut from_solve: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
-    for c in clusters(doc) {
+    for c in groups(doc) {
         for &i in &c {
-            let g = poses.gauge(i).expect("every live instance has a gauge");
+            let g = poses.root(i).expect("every live instance has a root");
             from_solve.entry(g).or_default().push(i);
         }
     }
     let mut from_solve: Vec<Vec<RecipeNodeId>> = from_solve.into_values().collect();
-    let mut from_clusters = clusters(doc);
-    for c in from_solve.iter_mut().chain(from_clusters.iter_mut()) {
+    let mut from_groups = groups(doc);
+    for c in from_solve.iter_mut().chain(from_groups.iter_mut()) {
         c.sort();
     }
     from_solve.sort();
-    from_clusters.sort();
-    assert_eq!(from_solve, from_clusters, "{what}: the partitions disagree");
+    from_groups.sort();
+    assert_eq!(from_solve, from_groups, "{what}: the partitions disagree");
 }
 
 // ---- A1: a nested copy seats at the composed pose ----
@@ -329,7 +329,7 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
 
 /// **The loop-closure shape, asserted.** Two mates from one base to
 /// two DIFFERENT members over the same instance key as two pairs, so
-/// the first is the cluster's tree edge and the second closes a loop:
+/// the first is the group's tree edge and the second closes a loop:
 /// it determines nothing and is carried to the at-rest gate as a pure
 /// declaration. The gate is therefore where a loop is verified — a
 /// consistent pair passes it, an inconsistent one is refused there

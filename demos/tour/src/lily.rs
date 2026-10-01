@@ -2184,10 +2184,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    clears the ball's, so no unsupported KIND can enter the
     //    operation. The F7 door used to answer next; it no longer
     //    does, because the scene REPAIRS the operand first (below) and
-    //    a repaired lantern is maximal-faced. What answers now is the
-    //    reduction's curved PIERCE arm — wall 12's door — and the
-    //    payload is quoted rather than described, the wall-7 lesson
-    //    about reading a locus off a comment instead of a dump.
+    //    a repaired lantern is maximal-faced. The crossing layer has
+    //    circle × sphere roots now, so the sweep gets through and the
+    //    JOIN answers: the sphere pair's chord rides the two spheres'
+    //    radical plane, and this ball sits off the lantern's axis, so
+    //    that plane is tilted against the lantern's polar axis and the
+    //    arc-side rule refuses it typed
+    //    (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
+    //    The payload is quoted rather than described, the wall-7
+    //    lesson about reading a locus off a comment instead of a dump.
     //
     //    **#1031's POLE HALF has landed, and this is what it bought.**
     //    The lantern's two axis-touching caps were each two half-faces
@@ -2213,10 +2218,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    VERBS-PLAN Wave 2 items 6 (VERBS-GATE, the per-face-kind gate
     //    re-scope) and 9 (VERBS-SPHSPH, the sphere × sphere germ lane)
     //    — the ruling that put it there is M9-5's, and the demand
-    //    signal is this probe. NOTE for those items: on this
-    //    measurement a sphere × sphere germ arm alone does not flip
-    //    this wall, because the F7 refusal happens first and is about
-    //    the caps.
+    //    signal is this probe.
     wall(
         7,
         "carve a tepal seam into the lantern (sphere x sphere by geometry; the \
@@ -2229,10 +2231,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedPierceUnsupported {
-                    operand: Operand::A,
-                    ..
-                }
+                BooleanError::Join(pncad::topo::SplitJoinError::SectionNotPolar { .. })
             )
         },
         "give the lanterns their three tepal seams",
@@ -3937,18 +3936,23 @@ mod verbs_gate_r1_probes {
         // same-key CURVED adjacency is the canonical maximal form —
         // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
         //
-        // So the sphere×sphere germ arm is not even reached. This
-        // wall's dependency is #1031's pole half (the repair op), and
-        // only THEN row 9.
+        // With the repair landed and the crossing layer's circle ×
+        // sphere roots, the pair reaches the join: the section rides the
+        // radical plane, tilted against the lantern's polar axis, and the
+        // arc-side rule's polar gate refuses it
+        // (`work/reach/tilted-sphere-pair-section-refuses-at-the-polar-gate.md`).
         assert!(
             tightest < 0.0,
             "the pucker's box must clear the ball's for the gate to admit; it does \
              not, so this row's reading of the refusal below is wrong"
         );
         assert!(
-            matches!(refusal, BooleanError::CurvedPierceUnsupported { .. }),
-            "the gate admits and the REPAIRED lantern is maximal-faced, so what \
-             refuses is the curved pierce arm — got {refusal:?}"
+            matches!(
+                &refusal,
+                BooleanError::Join(pncad::topo::SplitJoinError::SectionNotPolar { .. })
+            ),
+            "the gate admits, the REPAIRED lantern is maximal-faced and the crossing \
+             layer pierces, so what refuses is the join's polar gate — got {refusal:?}"
         );
     }
 

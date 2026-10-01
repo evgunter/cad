@@ -68,12 +68,18 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
         "rule D, rules A/B per node and rule E ship: {s:?}"
     );
     assert!(
+        s.canonical_root && s.decision_read,
+        "rule G and the decision read ship: {s:?}"
+    );
+    assert!(
         s.early && s.const_fold && s.registered,
         "on top of the early walk, A0 and the door: {s:?}"
     );
     assert!(
         !s.signed_root,
-        "rule C stays dial-off: no rule here reads a value"
+        "rule C's own fold at `sqrt`/`abs` stays dial-off: it is inert at the shipped ring \
+         width and costs ~2x. The decision read is the value read that DOES ship, at the \
+         ops rule C never reached, and it has a dial of its own"
     );
     let off = SymRules::without_the_algebra();
     assert!(
@@ -82,29 +88,85 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             && !off.sqrt_square
             && !off.pythagoras
             && !off.common_factor
-            && !off.manifest_sign,
+            && !off.manifest_sign
+            && !off.canonical_root
+            && !off.abs_square
+            && !off.root_magnitude
+            && !off.root_quotient
+            && !off.decision_read,
         "the algebra off: {off:?}"
     );
-    // SIX dials since SYM-8: rule E (the quotient's common factor,
-    // SYM-5) and rule F (the manifest sign, SYM-8) are form-level
-    // algebra in the early walk like the other four, and
-    // `without_the_algebra` is M10-9's tier bit for bit, which had
-    // neither. `m10_9_pins_interval` holds M10-9's rows under it. A
+    // ELEVEN dials, and the last three are rule G's own conjuncts.
+    // Eight of them have been the list since DECIDE-3: rule E
+    // (the quotient's common factor, SYM-5), rule F (the manifest sign,
+    // SYM-8), rule G (the canonical root) and the decision read are
+    // form-level algebra in the early walk like the other four, and
+    // `without_the_algebra` is M10-9's tier bit for bit, which had none
+    // of them. `m10_9_pins_interval` holds M10-9's rows under it. A
     // dial left out of this list makes the differential one against a
     // tier that never existed — SYM-8's review found exactly that, with
     // rule F on BOTH sides of it.
+    //
+    // **`abs_square` and `root_magnitude` are the ninth and tenth**
+    // (SYM-9): rule G's companion rewrite `|X|² = X²` and its magnitude
+    // door `sqrt(R²) = |R|`, each read as a conjunction with
+    // `canonical_root`, so neither can turn a step ON in a tier that
+    // has rule G shut and `without_the_algebra` is the same TIER it was
+    // before they existed. They are here because they must be the same
+    // VALUE too: a tier shut two ways is one `SymRules` and rows
+    // compare them (`m10_8_pins_interval`'s `a0_alone`).
+    //
+    // **`root_quotient` is the eleventh**: rule G's exact quotient — a
+    // root over `N/D` with `D | N` minted over the polynomial quotient
+    // — read as a conjunction with `canonical_root` for the same reason.
+    //
+    // **Both sets are written out WHOLE, field by field**, with no
+    // rest pattern: a dial added to `SymRules` is then a compile error
+    // here until this row says which side it is on, and a dial left
+    // ON in `without_the_algebra` reds the first assertion rather than
+    // hiding behind a `..` the second one filled from it.
     assert_eq!(
+        off,
         SymRules {
-            trig_of_atan: true,
-            early_ab: true,
+            sqrt_square: false,
+            pythagoras: false,
+            const_fold: true,
+            early: true,
+            early_ab: false,
+            trig_of_atan: false,
+            signed_root: false,
+            common_factor: false,
+            manifest_sign: false,
+            canonical_root: false,
+            abs_square: false,
+            root_magnitude: false,
+            root_quotient: false,
+            decision_read: false,
+            registered: true,
+        },
+        "`without_the_algebra` is M10-9's tier: A0 and the early walk and the door, and \
+         nothing of the algebra"
+    );
+    assert_eq!(
+        s,
+        SymRules {
             sqrt_square: true,
             pythagoras: true,
+            const_fold: true,
+            early: true,
+            early_ab: true,
+            trig_of_atan: true,
+            signed_root: false,
             common_factor: true,
             manifest_sign: true,
-            ..off
+            canonical_root: true,
+            abs_square: true,
+            root_magnitude: true,
+            root_quotient: true,
+            decision_read: true,
+            registered: true,
         },
-        s,
-        "`without_the_algebra` differs from `shipped` in the six algebra dials and nothing else"
+        "`shipped` is `without_the_algebra` with the eleven algebra dials on, and nothing else"
     );
 }
 
@@ -166,12 +228,20 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
          on the negative frame to −1; the rim identity the door states closes the rest, \
          so every one of the 36 is REGISTERED"
     );
+    assert_eq!(
+        row(&on, "line_span"),
+        [8, 0, 0, 0],
+        "the plate's eight `line_span` comparisons are between two rational CONSTANTS, \
+         which A0 decides exactly — THEOREMS, no value read \
+         (`work/decide/a0-leaves-max-and-min-of-constants-opaque`'s fix)"
+    );
     for (p, before) in &off {
         let after = row(&on, p);
+        let discharged = |s: [u64; 4]| s[0] + s[1] + s[2];
         assert!(
-            after[0] >= before[0] && after[1] == 0 && before[1] == 0,
-            "{p}: the plain form is asked first, so `symbolic_zero` never falls and \
-             nothing is sign-gated: {before:?} -> {after:?}"
+            after[0] >= before[0] && discharged(after) >= discharged(*before),
+            "{p}: the plain form is asked first, so `symbolic_zero` never falls, and no \
+             decision is LOST — what the algebra discharges it keeps: {before:?} -> {after:?}"
         );
     }
 }

@@ -146,10 +146,7 @@ REGISTER=(
   "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
-  "crates/topo/src/boolean/finish.rs|classify_shell||1|unaudited"
-  "crates/topo/src/boolean/join.rs|face_vertex_points||1|unaudited"
   "crates/topo/src/boolean/join.rs|resolve_roles_geometric||2|unaudited"
-  "crates/topo/src/boolean/ops.rs|classify_shells||1|unaudited"
   "crates/topo/src/boolean/ops.rs|describe_minted_edges||1|unaudited"
   "crates/topo/src/boolean/ops.rs|sphere_extent_scan||1|unaudited"
   "crates/topo/src/boolean/rest.rs|bfs_order||1|unaudited"
@@ -160,6 +157,7 @@ REGISTER=(
   "crates/topo/src/boolean/rest.rs|slit_zip||1|unaudited"
   "crates/topo/src/boolean/rest.rs|zip_folded||1|unaudited"
   "crates/topo/src/boolean/rim_wedge.rs|face_boundary_circles||1|unaudited"
+  "crates/topo/src/boolean/shell_witness.rs|face_loops||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|cone_slant_window||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|cylinder_chart_trim||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"
@@ -192,7 +190,7 @@ REGISTER=(
   # the question it asks.
   "crates/topo/src/merge_faces.rs|outermost_survivor||1|audited: the discarded variant is a lone-vertex ring, which has no half-edge and so borders no face; the question the walk asks (which member sits in this ring) has the answer none for it"
   "crates/topo/src/merge_faces.rs|merge_group||1|audited: the discarded variant is refused, not passed over — an empty outline has no half-edge to bridge from, and the arm returns LoopNotCycle naming the outline"
-  "crates/topo/src/movefac.rs|movefac||1|unaudited"
+  "crates/topo/src/movefac.rs|movefac||1|audited: the discarded variant is an empty loop that movefac's empty-loop proof (an Empty loop the claims map holds is LoopCycleBroken) shows no half-edge claims, so it has no member to walk and no mate to hop to; it glues only its vertex"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
   # The ONE per-loop rows walk: which half-edges of a loop a pcurve row
@@ -211,10 +209,11 @@ REGISTER=(
   # The generator's copy of the per-shell glue walk. Its arm is
   # movefac's arm above, deliberately: the row enumerates the sites
   # that operator will partition, so it must partition them the same
-  # way. Left `unaudited` because the arm it mirrors is — inheriting a
-  # disposition that does not exist would be the register's own
+  # way. Left `unaudited` because it does not carry the proof that
+  # audits movefac's (no half-edge claims the empty loop) — inheriting
+  # a disposition it has not earned would be the register's own
   # failure mode — and because the duplication is the open question,
-  # filed as work/topo/shell-glue-relation-has-three-implementations.md.
+  # filed as work/walks/shell-glue-relation-has-three-implementations.md.
   "crates/topo/src/seqgen.rs|shell_components||1|unaudited"
   "crates/topo/src/shell.rs|duplicate_in_loop||1|unaudited"
   "crates/topo/src/shell.rs|face_boundary_points||1|unaudited"
