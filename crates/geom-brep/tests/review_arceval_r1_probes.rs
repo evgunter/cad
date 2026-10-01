@@ -57,7 +57,7 @@ fn eval_center_anchored(seg: &SketchSegment<Interval>, s: Interval) -> Point2<In
     let SketchSegment::Arc {
         a,
         arc: Arc2 {
-            centre: center,
+            centre,
             sweep: theta,
             ..
         },
@@ -67,8 +67,8 @@ fn eval_center_anchored(seg: &SketchSegment<Interval>, s: Interval) -> Point2<In
         panic!("comparator is arc-only");
     };
     let (sin, cos) = (s * theta).sin_cos();
-    let v = a - center;
-    center + Vec2::new(v.x * cos - v.y * sin, v.x * sin + v.y * cos)
+    let v = a - centre;
+    centre + Vec2::new(v.x * cos - v.y * sin, v.x * sin + v.y * cos)
 }
 
 /// Endpoint-width of the arc's stored data (the scale the evaluation

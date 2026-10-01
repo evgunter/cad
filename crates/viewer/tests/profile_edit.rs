@@ -571,7 +571,7 @@ fn an_invalid_program_refuses_as_itself() {
     ));
     match out.refusal {
         Some(Refusal::Edit(error)) => assert!(
-            matches!(*error, EditError::ProfileProgramRefused { node, .. } if node == profile),
+            matches!(&*error, EditError::ProfileProgramRefused { node, .. } if node.id() == profile),
             "{error:?}"
         ),
         other => panic!("{other:?}"),

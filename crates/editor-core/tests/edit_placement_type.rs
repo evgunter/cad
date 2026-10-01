@@ -79,14 +79,11 @@ fn point_bits<T: geom_core::Decide>(
 }
 
 fn f64_bits(p: &Point3<f64>) -> [u64; 3] {
-    [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
+    p.to_array().map(f64::to_bits)
 }
 
-fn affine_bits(a: &Affine3<f64>) -> Vec<u64> {
-    [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .flat_map(|c| [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()])
-        .collect()
+fn affine_bits(a: &Affine3<f64>) -> [u64; 12] {
+    a.components().map(f64::to_bits)
 }
 
 fn motion(p: &Placement) -> Affine3<f64> {
@@ -95,7 +92,7 @@ fn motion(p: &Placement) -> Affine3<f64> {
 }
 
 fn lands(p: &Placement, at: [f64; 3]) -> Point3<f64> {
-    motion(p).transform_point(Point3::new(at[0], at[1], at[2]))
+    motion(p).transform_point(Point3::from_array(at))
 }
 
 fn near(p: Point3<f64>, q: [f64; 3]) -> bool {
@@ -191,7 +188,7 @@ fn compose_is_frame_composes_order_and_its_inner_placement_acts_first() {
         .affine::<f64>()
         .transform_point(Point3::new(1.0, 0.0, 0.0));
     assert!(
-        near(lands(&by_chain, [1.0, 0.0, 0.0]), [want.x, want.y, want.z]),
+        near(lands(&by_chain, [1.0, 0.0, 0.0]), want.to_array()),
         "a shift composed over a turn is rotate_then_translate"
     );
 }
@@ -310,7 +307,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
         }
         let text = error.to_string();
         assert!(
-            text.contains("step 2 of node") && text.contains("Recourse:"),
+            text.contains("step 2 of Transform ") && text.contains("Recourse:"),
             "the {what} refusal names the step and its recourse: {text}"
         );
     }
@@ -337,7 +334,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
             at,
             determinant,
         })) => {
-            assert_eq!((node, at), (placed, second));
+            assert_eq!((node.id(), at), (placed, second));
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
         other => panic!("a mirrored step must refuse typed at load, got {other:?}"),
@@ -348,7 +345,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
             else {
                 unreachable!("matched above")
             };
-            assert_eq!((*node, *at), (placed, second));
+            assert_eq!((node.id(), *at), (placed, second));
             assert!(
                 error.to_string().ends_with(REGENERATE_RECOURSE),
                 "with the regenerate recourse: {error}"

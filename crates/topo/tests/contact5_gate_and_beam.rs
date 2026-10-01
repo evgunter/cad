@@ -527,7 +527,7 @@ fn rest_patches(body: &Body<f64>) -> Vec<PatchContact> {
             let p = body
                 .get_point(body.get_vertex(he.start).unwrap().point)
                 .unwrap();
-            for (i, c) in [p.x, p.y, p.z].into_iter().enumerate() {
+            for (i, c) in p.to_array().into_iter().enumerate() {
                 b.0[i] = b.0[i].min(c);
                 b.1[i] = b.1[i].max(c);
             }

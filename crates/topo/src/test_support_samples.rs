@@ -278,8 +278,8 @@ fn certify_errors() -> Vec<CertifyError> {
     let key = geom_brep::SurfaceKey::default();
     let mut v = vec![
         CertifyError::ChartImageUnavailable {
-            chart: "cone",
-            carrier: "ellipse",
+            chart: geom_brep::SurfaceKind::Cone,
+            carrier: geom_brep::CurveKind::Ellipse,
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
@@ -334,8 +334,23 @@ fn certify_errors() -> Vec<CertifyError> {
 
 fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
     let mut v = vec![
-        PcurveCertifyError::UnsupportedChart { chart: "torus" },
-        PcurveCertifyError::UnsupportedCarrier,
+        PcurveCertifyError::UnsupportedChart {
+            chart: geom_brep::SurfaceKind::Torus,
+        },
+        PcurveCertifyError::UnsupportedCarrier {
+            chart: geom_brep::SurfaceKind::Torus,
+            carrier: geom_brep::CurveKind::Circle,
+            class: geom_brep::UncoveredClass::TorusGeneralCircle,
+        },
+        PcurveCertifyError::CarrierOffChart {
+            chart: geom_brep::SurfaceKind::Sphere,
+            carrier: geom_brep::CurveKind::Line,
+            why: "a sphere holds no line",
+        },
+        PcurveCertifyError::ImageMismatch {
+            image: geom_brep::PcurveKind::General,
+            why: "a fitted-grade image at the closed-form door",
+        },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
         PcurveCertifyError::IsoUnsupported {
@@ -389,6 +404,7 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::UncertifiedImage { half_edge },
         PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,
@@ -951,6 +967,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             s.push((format!("{arm}{m}"), e));
         }
         for check in [
+            WedgeCheck::Arm,
             WedgeCheck::Dihedral,
             WedgeCheck::SecondOrder,
             WedgeCheck::MaterialSide,

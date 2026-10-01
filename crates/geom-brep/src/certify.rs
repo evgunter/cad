@@ -126,6 +126,11 @@ pub enum CertCheck {
     /// (the dihedral displacement margin — must be definitely
     /// transverse).
     Transversality,
+    /// Intersection: the folded lever arm the transversality margin is
+    /// metered over at an interior sample, which must be definitely
+    /// positive before any angle is read there
+    /// ([`crate::DIHEDRAL_ARM`]).
+    TransversalityArm,
     /// TangentIntersection: the normal-parallelism defect at an
     /// interior sample — `sin θ` metered at the lever arm `1/κ_rel`
     /// (D2's derived angular threshold ε·κ_rel; C7 jet schedule), or,
@@ -244,6 +249,7 @@ impl core::fmt::Display for CertCheck {
             Self::WitnessSurface2 => "the witness point's residual against surface 2",
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
+            Self::TransversalityArm => "the transversality margin's lever arm",
             Self::TangentParallel => "the normal-parallelism defect",
             Self::TangentSecondOrder => "the second-order margin",
             Self::TangentHull => "the between-samples sag bound",
@@ -302,9 +308,9 @@ pub enum CertifyError {
     /// whose description is simply wrong.
     ChartImageUnavailable {
         /// The chart kind the description named.
-        chart: &'static str,
+        chart: crate::SurfaceKind,
         /// The carrier kind offered against it.
-        carrier: &'static str,
+        carrier: crate::CurveKind,
     },
     /// A surface key in the description did not resolve in the owning
     /// body (stale, or the surface does not exist yet — attach the
@@ -466,9 +472,11 @@ impl core::fmt::Display for CertifyError {
             }
             Self::ChartImageUnavailable { chart, carrier } => write!(
                 f,
-                "a conventional description on a {chart} chart has no \
-                 certified chart image for a {carrier} carrier — the locus this \
-                 description claims is not one this chart can state"
+                "a conventional description on a {} chart has no \
+                 certified chart image for a {} carrier — the locus this \
+                 description claims is not one this chart can state",
+                chart.name(),
+                carrier.name()
             ),
             Self::Unimplemented => write!(
                 f,
@@ -684,12 +692,13 @@ impl CertCheck {
                 at_zero: None,
             }),
             Self::Transversality => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the faces cross at a clearer angle",
+                lever: "move the geometry so the surfaces cross at a clearer angle",
                 size: "angle",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
                 at_zero: None,
             }),
+            Self::TransversalityArm => Ending::Sized(crate::DIHEDRAL_ARM),
             Self::TangentSecondOrder => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the faces curve apart more clearly where they touch",
                 size: "curvature difference",
@@ -1864,18 +1873,6 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     }
 }
 
-/// The carrier's kind, for a refusal that has to name the pair it
-/// could not state (the chart side is `chart_name`'s).
-fn carrier_kind<T: Real>(carrier: &Curve3<T>) -> &'static str {
-    match carrier {
-        Curve3::Line { .. } => "line",
-        Curve3::Circle { .. } => "circle",
-        Curve3::Ellipse { .. } => "ellipse",
-        Curve3::Spiric { .. } => "spiric",
-        Curve3::Nurbs(_) => "Nurbs",
-    }
-}
-
 /// Folds a residual into the running max and classifies it: must be
 /// coincident with zero (|r| ≤ ε). Positive/Negative beyond the band ⇒
 /// [`CertifyError::ResidualExceeded`]; in-band or poisoned ⇒
@@ -2306,8 +2303,8 @@ fn run_checks<T: Decide>(
                     // would send the caller looking for a missing
                     // feature instead of a wrong locus.
                     _ => CertifyError::ChartImageUnavailable {
-                        chart: crate::pcurve_cache::chart_name(surface),
-                        carrier: carrier_kind(&spec.carrier),
+                        chart: crate::SurfaceKind::of(surface),
+                        carrier: crate::CurveKind::of(&spec.carrier),
                     },
                 })?,
             };
@@ -2364,9 +2361,12 @@ fn run_checks<T: Decide>(
                             let verdict = Refused::Zero(Classified { margin, band });
                             return Err(CertifyError::NotTransverse { sample: i, verdict });
                         }
-                        Err(cause) => {
+                        Err(crate::LeverEscalation { rung, diag: cause }) => {
                             return Err(CertifyError::Escalated {
-                                check: CertCheck::Transversality,
+                                check: match rung {
+                                    crate::LeverRung::Arm => CertCheck::TransversalityArm,
+                                    crate::LeverRung::Reading => CertCheck::Transversality,
+                                },
                                 sample: i,
                                 cause,
                             });
@@ -2964,7 +2964,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    const ALL_CHECKS: [CertCheck; 24] = [
+    const ALL_CHECKS: [CertCheck; 25] = [
         CertCheck::ParamSpan,
         CertCheck::ParamWinding,
         CertCheck::EndpointStart,
@@ -2975,6 +2975,7 @@ mod tests {
         CertCheck::WitnessSurface2,
         CertCheck::WitnessMidpoint,
         CertCheck::Transversality,
+        CertCheck::TransversalityArm,
         CertCheck::TangentParallel,
         CertCheck::TangentSecondOrder,
         CertCheck::TangentHull,
@@ -3006,30 +3007,31 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 24,
-            CertCheck::ParamWinding => 24,
-            CertCheck::EndpointStart => 24,
-            CertCheck::EndpointEnd => 24,
-            CertCheck::Surface1Residual => 24,
-            CertCheck::Surface2Residual => 24,
-            CertCheck::WitnessSurface1 => 24,
-            CertCheck::WitnessSurface2 => 24,
-            CertCheck::WitnessMidpoint => 24,
-            CertCheck::Transversality => 24,
-            CertCheck::TangentParallel => 24,
-            CertCheck::TangentSecondOrder => 24,
-            CertCheck::TangentHull => 24,
-            CertCheck::TangentTube => 24,
-            CertCheck::MappedSource => 24,
-            CertCheck::SeamHalfplane => 24,
-            CertCheck::SeamSide => 24,
-            CertCheck::ChartImage => 24,
-            CertCheck::ChartResidual => 24,
-            CertCheck::PlaneNurbsOnLocus => 24,
-            CertCheck::PlaneNurbsHull => 24,
-            CertCheck::PlaneNurbsReportedTransversality => 24,
-            CertCheck::PlaneNurbsChartSpeed => 24,
-            CertCheck::PlaneNurbsChartSpeedBound => 24,
+            CertCheck::ParamSpan => 25,
+            CertCheck::ParamWinding => 25,
+            CertCheck::EndpointStart => 25,
+            CertCheck::EndpointEnd => 25,
+            CertCheck::Surface1Residual => 25,
+            CertCheck::Surface2Residual => 25,
+            CertCheck::WitnessSurface1 => 25,
+            CertCheck::WitnessSurface2 => 25,
+            CertCheck::WitnessMidpoint => 25,
+            CertCheck::Transversality => 25,
+            CertCheck::TransversalityArm => 25,
+            CertCheck::TangentParallel => 25,
+            CertCheck::TangentSecondOrder => 25,
+            CertCheck::TangentHull => 25,
+            CertCheck::TangentTube => 25,
+            CertCheck::MappedSource => 25,
+            CertCheck::SeamHalfplane => 25,
+            CertCheck::SeamSide => 25,
+            CertCheck::ChartImage => 25,
+            CertCheck::ChartResidual => 25,
+            CertCheck::PlaneNurbsOnLocus => 25,
+            CertCheck::PlaneNurbsHull => 25,
+            CertCheck::PlaneNurbsReportedTransversality => 25,
+            CertCheck::PlaneNurbsChartSpeed => 25,
+            CertCheck::PlaneNurbsChartSpeedBound => 25,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -3051,7 +3053,7 @@ mod tests {
     ///
     /// The `Display` arms are an exhaustive match, so the words cannot
     /// fall BEHIND the taxonomy — a check without a word does not
-    /// compile. What twenty-one hand-written phrases CAN do is collide,
+    /// compile. What hand-written phrases CAN do is collide,
     /// and several of these are one token apart by design (surface 1
     /// against surface 2, the carrier's residual against the witness
     /// point's), so a literal copied onto a neighbouring row is the
@@ -4263,7 +4265,7 @@ mod tests {
             margin: MarginDiag::value(5e-10),
             band,
         });
-        let cross = "Recourse: move the geometry so the faces cross at a clearer angle";
+        let cross = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
         let escalated = |check| CertifyError::Escalated {
@@ -4423,7 +4425,7 @@ mod tests {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let span = "Recourse: move the geometry so this edge is not vanishingly short";
         let winding = "Recourse: move the geometry so this arc stays clearly short of a full turn";
-        let cross = "Recourse: move the geometry so the faces cross at a clearer angle";
+        let cross = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
         let tube = |verdict| CertifyError::PlaneNurbs(P::TubeStraddles { verdict, boxes: 4 });
@@ -4517,8 +4519,8 @@ mod tests {
             value: 2e-8,
         };
         let unavailable = CertifyError::ChartImageUnavailable {
-            chart: "cone",
-            carrier: "ellipse",
+            chart: crate::SurfaceKind::Cone,
+            carrier: crate::CurveKind::Ellipse,
         };
         let chart = CertifyError::Escalated {
             check: CertCheck::ChartImage,
@@ -4580,7 +4582,7 @@ mod tests {
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
-        let tube = "Recourse: move the geometry so the faces cross at a clearer angle, or, if \
+        let tube = "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if \
                     this angle is intended, tighten the tolerance below 5e-10 m";
         for (refusal, check, want) in [
             (
@@ -4692,11 +4694,11 @@ mod tests {
             ),
             (
                 undecided(CertCheck::Transversality, straddle),
-                "Recourse: move the geometry so the faces cross at a clearer angle",
+                "Recourse: move the geometry so the surfaces cross at a clearer angle",
             ),
             (
                 undecided(CertCheck::Transversality, MarginDiag::INVALID),
-                "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable \
+                "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable \
                  or collapsed margin may indicate a kernel bug worth reporting",
             ),
             (
@@ -4882,6 +4884,101 @@ mod tests {
         );
     }
 
+    /// **An intersection edge through a cone's apex escalates the
+    /// transversality's arm, not its wedge**: the plane `x = 0` cuts the
+    /// cone along a generator, and the edge runs along it through the
+    /// apex, where the cone's radius of curvature, and with it the arm
+    /// the wedge is metered over, is zero. The middle sample lands on the
+    /// apex, so certification escalates there as
+    /// [`CertCheck::TransversalityArm`] (the samples before it are
+    /// transverse). PR 3513's second fix pass: the rung-to-check mapping
+    /// had no raise, so reading the arm as `Transversality` survived.
+    #[test]
+    fn an_intersection_through_a_cone_apex_escalates_the_arm() {
+        let half = std::f64::consts::FRAC_PI_6;
+        let (keys, lookup) = table(vec![
+            Surface::Cone {
+                apex: Point3::origin(),
+                axis: Vec3::unit_z(),
+                half_angle: half,
+                u_ref: Vec3::unit_x(),
+            },
+            Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_x(),
+                u_ref: Vec3::unit_y(),
+            },
+        ]);
+        let dir = Vec3::new(0.0, half.sin(), half.cos());
+        let reach = 1.0 / half.cos();
+        let p0 = Point3::origin() - dir * reach;
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: keys[0],
+                s2: keys[1],
+                witness: p0 + dir * (reach / 2.0),
+            },
+            carrier: Curve3::Line { origin: p0, dir },
+            param_start: 0.0,
+            param_end: 2.0 * reach,
+        };
+        let p1 = spec.carrier.eval(2.0 * reach);
+        let err = EdgeCurve::certify(spec, p0, p1, &lookup, band()).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CertifyError::Escalated {
+                    check: CertCheck::TransversalityArm,
+                    sample: 4,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+    }
+
+    /// **The transversality margin's lever arm ends as a length, not an
+    /// angle**: an escalation of the arm the wedge is metered over names
+    /// that edge's length and its faces' bend, and offers the tolerance
+    /// the arm gives, in band and in the zero band alike; the wedge's own
+    /// escalation keeps the angle. (The review of PR 3513's fix pass
+    /// rendered the arm under `Transversality`: "if this angle is
+    /// intended, tighten the tolerance below 5e-11 m".)
+    #[test]
+    fn the_transversality_arm_ends_as_a_length_not_an_angle() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (margin, below) in [(5e-9, "5e-10"), (5e-10, "5e-11")] {
+            let cause = Indeterminate {
+                margin: MarginDiag::value(margin),
+                band,
+                predicate: Some("dihedral_arm"),
+                terminal_sliver: false,
+            };
+            let render = |check| {
+                CertifyError::Escalated {
+                    check,
+                    sample: 1,
+                    cause,
+                }
+                .render(Reading::Build)
+            };
+            let arm = render(CertCheck::TransversalityArm);
+            assert!(
+                arm.contains("the transversality margin's lever arm")
+                    && arm.ends_with(&format!(
+                        "Recourse: move the geometry so that edge is clearly longer, and its \
+                         faces curve less tightly there, or, if this length or the gap its faces \
+                         open is intended, tighten the tolerance below {below} m"
+                    )),
+                "{arm}"
+            );
+            assert!(
+                render(CertCheck::Transversality).contains("if this angle is intended"),
+                "the wedge keeps its angle"
+            );
+        }
+    }
+
     /// Every decision's class, pinned against a table written out by
     /// hand (D4 ¶1 (i)): a decision that passes on a nonzero sign is
     /// sized, with its pass set; an exact construction ends as a defect;
@@ -4908,6 +5005,7 @@ mod tests {
             (CertCheck::WitnessSurface2, Defect),
             (CertCheck::WitnessMidpoint, Defect),
             (CertCheck::Transversality, Sized(Positive)),
+            (CertCheck::TransversalityArm, Sized(Positive)),
             (CertCheck::TangentSecondOrder, Sized(Positive)),
             (CertCheck::TangentParallel, Defect),
             (CertCheck::TangentHull, LastResort),

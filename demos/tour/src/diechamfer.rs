@@ -61,7 +61,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{CurveKind, CurveKindSet, EdgeKey, chamfer_edges, fillet_edges, query};
 use pncad::topo::Body;
 
@@ -88,50 +88,42 @@ fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
         .collect()
 }
 
-/// Every vertex point of a body in one deterministic order, so two
-/// bodies' vertex sets can be compared point for point.
+/// Every vertex point of a body.
 ///
-/// `crates/sweep/tests/verbs_chamfer.rs` carries the same helper and
-/// the same proximity match. The copy is deliberate: the only shared
+/// `crates/sweep/tests/verbs_chamfer.rs` carries the same vertex-point
+/// chain. Its chamfer side matches by proximity too (a count of feet
+/// within `1e-15`), and its fillet side still sorts both sets and
+/// compares them exactly. The copy is deliberate: the only shared
 /// home available is `sweep::test_support`, which is gated behind a
 /// test-support feature — a demo that linked test scaffolding to save
 /// twenty lines would stop being an outside consumer, which is the
 /// one property these scenes exist to have.
-fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
-    let mut pts: Vec<(f64, f64, f64)> = body
-        .vertices()
+fn vertex_points(body: &Body<f64>) -> Vec<Point3<f64>> {
+    body.vertices()
         .filter_map(|(k, _)| body.get_vertex(k))
         .filter_map(|v| body.get_point(v.point))
-        .map(|p| (p.x, p.y, p.z))
-        .collect();
-    pts.sort_by(|a, b| a.partial_cmp(b).expect("finite coordinates"));
-    pts
+        .copied()
+        .collect()
 }
 
 /// How far apart the two blanks' feet actually land, and how many of
-/// the 24 land on the same `f64` in all three coordinates. Matched by
-/// PROXIMITY, not by sort order: an ulp of difference moves a
-/// coordinate across the sort key, and the claim is about the points.
+/// the 24 land on the same `f64` in all three coordinates. Each foot
+/// is matched to its nearest under the sup norm: a point set has no
+/// order to zip by.
 fn feet_agreement(filleted: &Body<f64>, chamfered: &Body<f64>) -> (f64, usize) {
-    let want = sorted_points(filleted);
-    let got = sorted_points(chamfered);
+    let want = vertex_points(filleted);
+    let got = vertex_points(chamfered);
     assert_eq!(want.len(), got.len(), "the two blanks have the same feet");
     let mut worst: f64 = 0.0;
     let mut identical = 0usize;
     for w in &want {
-        let (near, gap) = got
+        let gap = got
             .iter()
-            .map(|g| {
-                let d = (g.0 - w.0)
-                    .abs()
-                    .max((g.1 - w.1).abs())
-                    .max((g.2 - w.2).abs());
-                (g, d)
-            })
-            .min_by(|a, b| a.1.partial_cmp(&b.1).expect("finite"))
+            .map(|g| (*g - *w).norm_inf())
+            .min_by(|a, b| a.partial_cmp(b).expect("finite"))
             .expect("a nearest foot");
         worst = worst.max(gap);
-        if near == w {
+        if gap == 0.0 {
             identical += 1;
         }
     }

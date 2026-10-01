@@ -94,7 +94,8 @@
 //!
 //! The recipe IS the save: the document id, nodes, parameters,
 //! expressions, witness bytes (hex, bit-exact), the appearance store
-//! (records incl. D7 metadata), recorded ε, and the edit log.
+//! (records incl. D7 metadata), node labels, recorded ε, and the edit
+//! log.
 //! Deliberately NOT persisted: evaluations, name tables,
 //! memo/content/naming keys, arena anything — and the profile
 //! programs' REPLAYED SEGMENTS (vertices/bulges/joints are replay
@@ -223,8 +224,9 @@ pub enum PersistError {
     /// same corruption. Shared-validator check: save refuses before a
     /// byte is written, load refuses with the SAME diagnostics.
     ProfileProgram {
-        /// The profile node carrying the fault.
-        node: crate::node::RecipeNodeId,
+        /// The profile node carrying the fault, spoken from the
+        /// document the validator judges.
+        node: crate::SpokenNode,
         /// The typed fault.
         fault: check::ProgramFault,
     },
@@ -441,7 +443,7 @@ impl Staged for PersistError {
         match self {
             Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
             Self::ProfileProgram { node, fault } => {
-                write!(f, "profile program fault at node {}: {fault}", node)
+                write!(f, "{node}'s program: {fault}")
             }
             Self::Distribution { name, fault } => {
                 write!(f, "document parameter {name}: {fault}")

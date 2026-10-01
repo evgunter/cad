@@ -395,7 +395,7 @@ impl MateToolState {
         crate::seats::picks_line([(MateSide::A, a), (MateSide::B, b)].map(|(side, pick)| {
             (
                 format!("pick {}", side.name()),
-                pick.map(|pick| face_of(doc.spoken(pick.node))),
+                pick.map(|pick| face_of(&doc.spoken(pick.node))),
             )
         }))
     }
@@ -410,7 +410,7 @@ impl MateToolState {
 /// frame, so they read it here rather than each spelling it: two
 /// copies of one phrase is how a panel and its notice come to call
 /// one pick two things.
-fn face_of(node: SpokenNode) -> String {
+fn face_of(node: &SpokenNode) -> String {
     format!("face of {node}")
 }
 
@@ -448,7 +448,7 @@ impl core::fmt::Display for MateToolEvent {
                 f,
                 "pick {} (a {}) no longer resolves; the tool dropped it",
                 side.name(),
-                face_of(*node)
+                face_of(node)
             ),
         }
     }
@@ -550,7 +550,7 @@ impl MateTool {
         eval: &Evaluation<f64>,
     ) -> Vec<MateToolEvent> {
         let mut events = Vec::new();
-        let [said_a, said_b] = self.said;
+        let [said_a, said_b] = std::mem::take(&mut self.said);
         let mut lost = |side: MateSide, pick: &FaceSelection| -> bool {
             let verdict =
                 crate::tree::resolution_as_drawn(resolve(RunCtx { doc, eval }, &pick.name), eval);
@@ -560,8 +560,8 @@ impl MateTool {
                 events.push(MateToolEvent::PickLost {
                     side,
                     node: match side {
-                        MateSide::A => said_a,
-                        MateSide::B => said_b,
+                        MateSide::A => said_a.clone(),
+                        MateSide::B => said_b.clone(),
                     }
                     .unwrap_or_else(|| doc.spoken(pick.node)),
                     pick: pick.clone(),

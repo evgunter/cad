@@ -1317,3 +1317,99 @@ Implements the ruling on PR 3553.
 **PR 3684** (unblocked main, cleave's row): #3645's `geom::mid_param` changed which forms the m10 sym walks build (same points, different forms); re-baselined slab and plate after confirming the old formula restores the pins exactly.
 
 **PR 3594** merged: node ids mint from the document's one `Mint` shared with step ids; the tag switched to the id's high 48 bits (a 12-hex prefix, the `DocRef` rule). Merged main twice; evidence on the merged tree: 359/359 value channels bit-identical, 353/359 name tables identical (6 reorder `Borders` walls), 966 `FromMember` segments identical. One diagnosis probe's edge key moved (`9v1`→`15v1`, same group, same diagnosis). Next: the labels unit (dispatched).
+
+## 2026-10-01 — node labels are document data (PR 3713, PR 1 of 2)
+
+Implements the ruling on PR 3565:
+- `Label` and `Doc.labels`, kept outside `Node`.
+- One `SetLabel { node, label: Option<Label> }` edit.
+- The spoken form `Extrude "base plate" (tag)`.
+- Python `Doc.label` / `DocEdit.set_label` / `insert(label=)`.
+- Viewer rename, a labelled tree headline, and an editable "Kind N" proposal on every creation form.
+- Python `Doc(label=)` renamed `Doc(seed=)`.
+- Unlabelled files keep their bytes. `kitchen_sink`'s persisted-text hash moved because the corpus now authors a `SetLabel`; its name table did not move.
+
+**Review.** One blocking finding, fixed: a labelled Boolean lost its label silently, because the label rode a session field that only `commit_run` read. The label is now applied after whichever commit door the creation takes, by extending that recorded state (`History::extend_current`). A test runs every `creates_a_node` op labelled, each as one undo.
+
+**Rulings.** "Kind N" counts the kind's live nodes plus one, then steps past a taken N. A refused creation keeps its typed label. A quoted label escapes `"` and `\`.
+
+**Seams filed.**
+- PR 2 is `refusal-values-speak-the-node-with-its-label`: refusal values and the memoized `NodeError`.
+- Other rows:
+  - a bad label in a file gets the regenerate recourse;
+  - the part chooser has no label field;
+  - the seated-tool nouns are unpinned;
+  - invisible or bidi-only labels are admitted;
+  - `Attr::Label` has no reader;
+  - "label" has other meanings.
+
+Next: PR 2 (dispatched).
+
+## 2026-10-01 — edit refusals speak the node (PR 3728, labels PR 2)
+
+Every `EditError` node field is a `SpokenNode`, built at the edit door:
+- a held node is spoken from the pre-edit document;
+- a minting node by kind alone (`entering`);
+- a gauge from after the edit, falling back to before;
+- an absent id by tag (`absent`).
+
+The rule is stated on `edit::written`.
+
+**Memoized `NodeError`.** It keeps a bare id and is spoken by the frame that hands it out (`NodeError::spoken`, `CarriedLevel::line_in`). A level inside a part stays a tag.
+
+**Python.** Payloads keep the full id. Exception text is spoken from the evaluated document.
+
+**`PathOffTree` and `LabelUnchanged`.** Each now holds its fact once.
+
+**Review.** Nothing blocking. Folded:
+- three doubled nouns, now held by a display-contract test;
+- the size comment, now a 64-bit const assert;
+- the concision fixture, which now speaks each node by its real kind;
+- tests for the dropped-gauge arm, a labelled `SetMembers` input, and a frame's `Evaluation` drawn across a rename.
+
+**A test assertion that would have been false.** The asked-for "recomputed == 0" does not hold: the memo reuses only `Ok` values, so a failed node recomputes every run. The test pins the frame-held evaluation instead.
+
+**Closed** chrome's `kernel-refusals-say-node-where-the-tree-says-feature`. Ev ruled kind + label/tag everywhere. The inner `node <tag>` is a leftover on the memoized row.
+
+**Filed** (parent: the labels unit):
+- `kernel-door-refusals-beyond-edit-speak-the-node`, which includes `StableName`'s minting node inside about 14 `EditError` sentences;
+- `viewer-refusals-speak-the-node`, which notes that a kept `Refusal::Edit` freezes its label;
+- `memoized-refusals-speak-inner-nodes-through-the-frame`.
+
+## 2026-10-01 — kernel refusals at every door speak the node (PR 3735)
+
+**`RootFault`.** It speaks at all three doors. The edit door uses `spoken_before_else_after`. The load and save doors speak from the document they validate.
+
+**Names.** A forwarded name speaks its minting node through `SpokenName` in the 15 `EditError` name arms.
+
+**Maintenance rows.** The strand and orphan rows speak from the document as it stood before the edit, so a strand says the label of the node it lost.
+
+**Articles.** A first-letter `sentence::article` fixes "a edge", "a arc", "a empty" and similar across editor-core.
+
+**Load-door ruling, mine, on review.** The lane first kept the bare tag at the load door, but both of its premises were false:
+- the validator judges a parsed `Doc`;
+- labels pass `Label::new` at the parse, and `LabelOnMissingNode` runs first.
+
+Also, save runs the same validator, and `EditReplay` already spoke labels at load. DESIGN.md Band 1 makes no exception for load or save. The `spoken.rs` sentence the lane cited was an agent's own wording, never ratified, and is now corrected.
+
+**Filed**, each with parent the labels unit:
+- `split-and-inline-refusals-speak-the-node` (also records `SplitError` printing decimal `u64`s);
+- `analysis-door-refusals-speak-the-node`;
+- `selection-door-refusals-speak-the-node`;
+- `persist-door-refusals-speak-the-node`;
+- the issue `a-cluster-act-speaks-its-gauges-by-tag`.
+
+**Also today:** `[ev]` PR 3734 is open. It asks how a union decides which member faces a merged face cites. The designers converged on linking in member space; fork-log row 37.
+
+## 2026-10-01 — union parents link in member space (PR 3734, ruled)
+
+**Ruling.** Ev approved the fork-log row 37 recommendation:
+- A union links two member faces when their pair is declared coincident (or shares a source), same-oriented, and consumed by that pair's own judgement.
+- Linking is transitive.
+- A finished face takes the parent of the member faces it descends from, whatever the fold kept.
+
+**Effect.** This replaces N2's union-parent sentences from PR 3222.
+
+**Designers.** A started from a per-step kernel record and moved to B's siting, adding the "consumed" condition. B took that condition in round 2.
+
+**Next.** The build has been dispatched, on the row `a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush`.

@@ -34,6 +34,7 @@ pub mod eval;
 pub mod expr;
 mod finding;
 pub mod ident;
+pub mod label;
 pub mod mate;
 /// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
 /// replay over samples drawn from the document's own distributions.
@@ -132,7 +133,7 @@ pub use eval::{
     mate_reach,
 };
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
-pub use spoken::{FullId, SpokenNode, node_kind_noun};
+pub use spoken::{FullId, SpokenName, SpokenNode, node_kind_noun};
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
 // than through the module path.
@@ -142,6 +143,7 @@ pub use expr::{
     eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
+pub use label::{Label, LabelFault};
 pub use mate::{
     Alignment, AuthoredFrame, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash,
     ClassAdmission, ClusterMaintenance, Coset, FaceFrame, FacePoseRefusal, FaceRefusal, Lever,
@@ -176,9 +178,9 @@ pub use names::{
     select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
-    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef,
-    SlotId, StepArg, StepId, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, ListFault,
+    MeasureNodeFault, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg,
+    SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow, VectorSlot,
 };
 pub use parse::{ParamNameFault, ParamNameReason, ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};

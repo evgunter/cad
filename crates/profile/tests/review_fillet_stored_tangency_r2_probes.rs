@@ -59,7 +59,7 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 fn line_arc_centre(theta: f64) -> Point2<f64> {
@@ -81,7 +81,7 @@ fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
@@ -100,7 +100,7 @@ fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> 
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 type Corner = (
@@ -143,7 +143,7 @@ fn two_fillets_with_a_leg_of(gap: f64, radius: f64) -> Result<ProfileLoop<f64>, 
         .angle(phi + std::f64::consts::PI, tol())?
         .line(3.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// The item's bend with its corner AT THE SEAM: the loop enters at
@@ -161,7 +161,7 @@ fn seam_fillet(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f6
         .angle(theta, tol())?
         .fillet(radius, tol())?
         .to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// A FUSED-incoming fillet at a small turn: the radius-2 circle about
@@ -184,7 +184,7 @@ fn fused_incoming(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError
     .line_to(Point2::new(-4.0, 3.0), tol())?
     .line_to(Point2::new(3.0, 3.0), tol())?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 // ------------------------------------------------------------------
@@ -484,7 +484,7 @@ fn scaled_line_line(
         .angle(theta, tol())?
         .line(scale, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **The other way a stored fillet loses its carrier: radius, not

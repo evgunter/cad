@@ -50,7 +50,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let Some(NodeResult::Failed(error)) = evaluation.result(extrude) else {
         panic!("the evaluation should report the extrude as failed");
     };
-    assert_eq!(message, &error.to_string());
+    assert_eq!(message, &error.spoken(session.committed_doc()));
 
     let poisoned = rows
         .iter()
@@ -1101,7 +1101,7 @@ fn child_band_refusal_rows() {
         };
         assert_eq!(
             status.message(),
-            Some(error.to_string().as_str()),
+            Some(error.spoken(&asm).as_str()),
             "{id:?} must carry the payload's own rendering, not a sentence this crate wrote"
         );
     }
@@ -1285,7 +1285,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
         "{rows:?}"
     );
     assert_eq!(
-        row(profile).repair_at.map(|at| at.id()),
+        row(profile).repair_at.as_ref().map(|at| at.id()),
         Some(frame),
         "the profile's row links to the frame whose slot refused"
     );

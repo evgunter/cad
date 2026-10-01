@@ -175,6 +175,19 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   belong to one section, and are named by that section's own locators. If a
   value edit changes which pieces pair, the old wall's name vanishes. It
   does not follow `k` to the new pairing.
+- **Swept walls over a run.** Extrude and revolve build one wall per run of
+  profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
+  wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds
+  the run: its piece locators in authored order, a one-piece run spelled as
+  one locator; a run that wraps through the loop's start begins at its first
+  piece after the start vertex. `LateralEdge` and `BandRim` are minted only
+  where an entity exists, so a station inside a run has none; rims and cap
+  vertices stay per piece. A run wall is not a merge and never `Merged`.
+  Covers and offers (N3) read one constituents view shared by every role
+  that holds a set (`Merged`, `LoftWall`, a run wall): `Lateral([p0, p1])`
+  covers `Lateral([p0])`, so a selection made before a station was inserted
+  is offered the run wall, and an edit that breaks a run offers its pieces'
+  walls.
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:
@@ -216,11 +229,20 @@ such an edge whole, `FromMember(m, e)`, never a piece; a vertex at a
 member vertex is that vertex, and one where a single face crosses a
 member edge is `Seam` of that edge and that face.
 
-A union's face is named for its PARENT, read off the finished body.
-Each merged face links the member faces it lists, and linking is
-transitive; the member faces so linked are one parent, named
-`Merged` of all of them, and a member face no merge links is its own
-parent. A parent is a set of member-face entities, never a name: the
+A union's face is named for its PARENT. Two member faces are linked
+when their members are declared coincident on them, or share a recipe
+source (N6), with the same orientation, the pairwise judgement
+certifies the pair (DM4), and that judgement consumed the pair: its
+two-member union merged the faces or held either face's region
+through the other (`BooleanNaming::merge_groups`,
+`BooleanNaming::covered`). A certified pair the judgement never
+brought together links nothing. Linking is transitive. The member
+faces so linked are one parent, named `Merged` of all of them, and a
+member face nothing links is its own parent. A finished face takes
+the parent of the member faces it descends from; which faces a fold
+step merged, kept or discarded does not enter. So a member face
+another member's coplanar face covers, and one a later member
+swallows after it merged, are cited alike in every member order. A parent is a set of member-face entities, never a name: the
 candidates of a tied row are separate parents that happen to be
 spelled alike. A parent the finished body holds as one face is that
 face's name. A parent it holds as several faces qualifies each with
@@ -232,7 +254,7 @@ over both members' walls, whether one fold step cut it or two. The
 fold's spellings are replaced, not refined: which step cut a face,
 and whether it met the cut or the merge first, depend on member
 order, and the parent and its seam partners depend only on the
-finished body.
+members' consumed pairs and the finished body.
 
 The verdicts run through `k_stats`,
 so fragment identity changes only at a recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a

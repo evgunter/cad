@@ -59,8 +59,8 @@
 
 use geom_core::{Band, Decide, Margin, Sign};
 
-use super::BooleanError;
 use super::circle_torus::rounding_charge;
+use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
 
 /// What the certified circle × sphere roots say about a whole carrier.
@@ -121,7 +121,12 @@ pub(super) fn circle_sphere_roots<T: Decide>(
                    or a surface that is not a sphere",
         });
     };
-    let decide = |row, m, band| decide(row, m, band).map_err(BooleanError::coincidence);
+    let decide = |row, m, band| {
+        decide(row, m, band).map_err(|diag| BooleanError::Escalated {
+            decision: BooleanDecision::ArcSphereRoots,
+            diag,
+        })
+    };
     let geom_brep::CircleSphereHarmonic {
         c0,
         a1,
@@ -223,7 +228,7 @@ mod tests {
     }
 
     fn off_sphere(theta: f64, c: [f64; 3], r: f64) -> f64 {
-        (on_circle(theta) - Point3::new(c[0], c[1], c[2])).norm() - r
+        (on_circle(theta) - Point3::from_array(c)).norm() - r
     }
 
     /// The default band, for the rows whose poses are sized to it.

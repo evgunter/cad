@@ -194,7 +194,10 @@ from the record instead of re-running the orientation decide (and
 the containment representative instead of re-running `lex_min`) (ulp-wide bands: total at f64, indeterminate at `Interval` on
 essentially every input); it verifies the value channel they induce (segment
 shapes, declared joints) and re-runs the containment forest, an ordinary
-decided predicate, against the record.
+decided predicate, against the record. Neither pass decides an arc's
+consistency checks: both validate a `profile::ConstructedProfile` of the loops
+`replay_recording` and `replay_guided` mint, whose arcs were verified at their
+construction at that scalar (D1).
 
 **PP4 — Naming stays f64.** `derive_naming` runs on pass 1 only; names are
 canonical indices and the lane pass takes them verbatim. `T`-valued

@@ -467,7 +467,8 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
         j: usize,
         x: T,
         y: T,
-        bulge: T,
+        /// The leaving segment's stored sweep; zero for a line.
+        sweep: T,
     },
     /// Fixture program `i` refused at this scalar.
     FixtureRefused(usize),
@@ -576,10 +577,10 @@ where
             d.text("ok");
             d.u64(vertices as u64);
         }
-        Seen::FixtureVertex { x, y, bulge, .. } => {
+        Seen::FixtureVertex { x, y, sweep, .. } => {
             scalar(&mut d, x);
             scalar(&mut d, y);
-            scalar(&mut d, bulge);
+            scalar(&mut d, sweep);
         }
         Seen::FixtureRefused(_) => d.text("refused"),
         Seen::Document(name) => d.text(name),
@@ -665,17 +666,22 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
             .collect();
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
+                let lp = lp.as_loop();
                 seen(Seen::FixtureLoop {
                     i,
                     vertices: lp.vertices().len(),
                 });
-                for (j, (v, &bulge)) in lp.vertices().iter().zip(lp.bulges()).enumerate() {
+                for (j, (v, s)) in lp.vertices().iter().zip(lp.segments()).enumerate() {
+                    let sweep = match s {
+                        profile::Segment::Line => T::zero(),
+                        profile::Segment::Arc(arc) => arc.sweep,
+                    };
                     seen(Seen::FixtureVertex {
                         i,
                         j,
                         x: v.x,
                         y: v.y,
-                        bulge,
+                        sweep,
                     });
                 }
             }
@@ -687,7 +693,7 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
 }
 
 fn f64_bits(d: &mut Digest, p: &geom_core::Point3<f64>) {
-    for c in [p.x, p.y, p.z] {
+    for c in p.to_array() {
         d.u64(c.to_bits());
     }
 }
@@ -700,7 +706,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x03ed_ec6c_61ec_2cb6, 0xc6a4_846c_14c7_91b2),
+        (0x878a_0902_5cea_b61a, 0x9a41_6437_2c4f_8eee),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -713,7 +719,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
     let got = corpus_digest::<Interval, _, _>(
         |d, p| {
-            for c in [p.x, p.y, p.z] {
+            for c in p.to_array() {
                 d.u64(c.lo().to_bits());
                 d.u64(c.hi().to_bits());
             }
@@ -726,7 +732,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x138c_1b51_5b38_f8ea, 0x0017_3037_8057_553e),
+        (0x9224_8bd0_be1e_7d68, 0x2921_a5ca_5a26_b4d4),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -738,7 +744,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     use geom_core::Probe;
     let got = corpus_digest::<Probe, _, _>(
         |d, p| {
-            for c in [p.x, p.y, p.z] {
+            for c in p.to_array() {
                 d.u64(c.0.to_bits());
             }
         },
@@ -750,7 +756,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x03ed_ec6c_61ec_2cb6, 0xc6a4_846c_14c7_91b2),
+        (0x878a_0902_5cea_b61a, 0x9a41_6437_2c4f_8eee),
         "the corpus's Probe evaluation moved"
     );
 }

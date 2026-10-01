@@ -39,8 +39,10 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// parameter's alike on every row but one — asserted on both, so the
 /// equality is a pinned fact and not a copy, and the one row that
 /// PARTS is supplied per document by [`d_tab_table`]. What stands:
-/// `carrier_matches_mapped_source` 12 of 180 on the literal and 16 on
-/// the parameter (it was 18 on both until SYM-5's rule E).
+/// `carrier_matches_mapped_source` 10 of 180 on the literal and 14 on
+/// the parameter (it was 18 on both until SYM-5's rule E; two more
+/// reach the door since the certification schedule assigns its last
+/// sample `t₁` itself, `geom_brep::schedule_param`).
 /// `carrier_endpoint_start`'s last 4 of 36 went with SYM-5's
 /// rule E (the quotient's common factor): they are 24/0/12/0 now, the
 /// rim identity `‖q − c‖ = r` through the DOOR at every sample — the
@@ -212,8 +214,9 @@ fn d_tab_table(mapped_source: [u64; 4]) -> Vec<(&'static str, [u64; 4])> {
 }
 
 /// The D-tab with its bulge a literal `0.4`: [`D_TAB_AT_THE_NOMINAL`],
-/// with `carrier_matches_mapped_source` 126/0/42/12 — six of the
-/// eighteen that used to stand went to the DOOR with SYM-5's rule E.
+/// with `carrier_matches_mapped_source` 126/0/44/10 — six of the
+/// eighteen that used to stand went to the DOOR with SYM-5's rule E,
+/// and two more with the schedule's assigned last sample.
 #[test]
 fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -221,7 +224,7 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 42, 12]),
+        &d_tab_table([126, 0, 44, 10]),
     );
 }
 
@@ -229,8 +232,8 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
 /// the literal's ([`D_TAB_AT_THE_NOMINAL`]) except on ONE row. At the
 /// nominal the bulge's sign is not what blocks on any of the shared
 /// rows, the ring is, on the same nodes — but with SYM-5's rule E the
-/// two part on `carrier_matches_mapped_source`: 126/0/42/12 on the
-/// literal against 126/0/38/16 here, so four of the six the rule takes
+/// two part on `carrier_matches_mapped_source`: 126/0/44/10 on the
+/// literal against 126/0/40/14 here, so four of the six the rule takes
 /// on the literal it does not take when the bulge is a parameter. The
 /// sign
 /// entered, where the dyadic control showed it, through the carrier's
@@ -247,6 +250,6 @@ fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a parameter)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([126, 0, 38, 16]),
+        &d_tab_table([126, 0, 40, 14]),
     );
 }

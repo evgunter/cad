@@ -582,7 +582,7 @@ fn rebind_appearance_collision_is_refused_typed() {
         )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
-            name: target.clone(),
+            name: doc.spoken_name(&target),
             kind: AttrKind::Color,
         }
     );
@@ -595,7 +595,11 @@ fn rebind_appearance_collision_is_refused_typed() {
             kind: AttrKind::Color,
         },
     );
-    let doc = set(doc, cap.clone(), Attr::Label("lid".into()));
+    let doc = set(
+        doc,
+        cap.clone(),
+        Attr::Label(editor_core::Label::new("lid").unwrap()),
+    );
     let applied = doc
         .apply(
             &DocEdit::Rebind {
@@ -608,7 +612,10 @@ fn rebind_appearance_collision_is_refused_typed() {
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(&target).unwrap();
     assert_eq!(merged.attrs.len(), 2);
-    assert_eq!(merged.attrs[&AttrKind::Label], Attr::Label("lid".into()));
+    assert_eq!(
+        merged.attrs[&AttrKind::Label],
+        Attr::Label(editor_core::Label::new("lid").unwrap())
+    );
 }
 
 #[test]
