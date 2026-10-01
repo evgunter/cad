@@ -50,6 +50,15 @@ fn band() -> Band {
     Band::linear(tol()).unwrap()
 }
 
+/// **A face a door left rowless reads loud at rest.** Tier 3 re-derives
+/// it and reports the refusal the minting pass, run next, raises — one
+/// finding, the mint's own.
+fn loud_at_rest(body: &mut Body<f64>) {
+    let findings = validate_pcurves(body, band());
+    let refused = topo::mint_pcurves(body, tol()).unwrap_err();
+    assert_eq!(findings, vec![refused], "tier 3 reads the mint's refusal");
+}
+
 const U0: f64 = 0.2;
 const U1: f64 = 1.4;
 const V0: f64 = -0.5;
@@ -646,20 +655,18 @@ fn mfkrh_inheriting_the_chart_carries_every_row() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-/// **The loud-to-silent trade, door one of three.** A target face that
-/// is CURVED and carries no rows of its own reads, after the drop, as
-/// a face the minting pass has not run on — and that pass says nothing
-/// about such a face, so the findings go from one `Certify` per moved
-/// row to nothing at all. That is not one direction of one door: it is
-/// every rowless curved target through every door here, and the two
-/// rows below are the other two doors. What the trade buys is that the
+/// **A rowless curved target, door one of three.** A target face that
+/// is CURVED and carries no rows of its own stores none after the drop.
+/// That is not one direction of one door: it is every rowless curved
+/// target through every door here, and the two rows below are the
+/// other two doors. What the drop buys is that the
 /// body no longer HOLDS a row about another surface for `props`, the
 /// tessellator and `chart_boundary` to read; the caller's re-mint is
-/// what restores the face. That `validate_pcurves` cannot tell a
-/// never-minted face from one a door emptied is filed as
-/// `work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+/// what restores the face, and at rest without it tier 3 re-derives
+/// the rowless face and names why its rows are missing — the moved
+/// loop refused in the destination's chart, the mint's own refusal.
 #[test]
-fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
+fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
     let mut s = sheet();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
@@ -681,7 +688,7 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
         )
         .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    loud_at_rest(&mut s.body);
 }
 
 /// Every stored row of `face`, with its interval, its image and its
@@ -1015,21 +1022,26 @@ fn mfkrh_onto_a_second_key_sharing_a_recipe_mints_the_promoted_face_in_its_chart
     assert_eq!(rows_of(&s.body, made.face), (4, 0));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_rows_are_the_pass(&s.body, made.face);
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    // The back wears the second key only to hold it, and is left
+    // rowless: tier 3 names it, and nothing else.
+    assert_eq!(
+        validate_pcurves(&s.body, band()),
+        vec![PcurveMintError::Unminted { face: s.plane }]
+    );
 }
 
 // ---------------------------------------------------------------
-// The loud-to-silent trade, doors two and three: every rowless
+// A rowless curved target, doors two and three: every rowless
 // CURVED target, not one direction of one door.
 // ---------------------------------------------------------------
 
 /// **Door two** (`kfmrh`). The sheet's back is put on a chart of its
 /// own and left rowless; the curved panel's four rows demote into it
-/// and are dropped, and the pass — which says nothing about a face it
-/// has not minted — reports nothing. Without the drop those four rows
-/// would be measured against the target's chart and refused.
+/// and are dropped. At rest, tier 3 re-derives the rowless face and
+/// refuses the demoted loop in the target's chart — the refusal the
+/// stored rows would have met, read from the derivation instead.
 #[test]
-fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
+fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
     let mut s = sheet();
     // Lifts RechartUnvouched: the back on a rowless curved chart of its own is the row's premise.
     s.body
@@ -1045,13 +1057,14 @@ fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
 
     s.body.kfmrh(s.plane, s.low).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    loud_at_rest(&mut s.body);
 }
 
 /// **Door three** (`ring_move`), the same class again: a ring of four
-/// rows onto a rowless curved face leaves it rowless, and quiet.
+/// rows onto a rowless curved face leaves it rowless, and tier 3 names
+/// why.
 #[test]
-fn ring_move_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
+fn ring_move_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
     let mut s = sheet();
     // Lifts RechartUnvouched: the back on a rowless curved chart of its own is the row's premise.
     s.body
@@ -1068,7 +1081,7 @@ fn ring_move_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet()
     s.body.ring_move(ring, s.plane).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    loud_at_rest(&mut s.body);
 }
 
 // ---------------------------------------------------------------
@@ -1219,18 +1232,14 @@ fn mef_onto_a_chart_that_mints_nothing_drops_the_moved_runs_rows() {
     assert_eq!(rows_of(&s.body, s.up), (5, 0));
 }
 
-/// **The loud-to-silent trade, through this door.** Onto a rowless
-/// CURVED chart the moved rows used to leave the new face half-minted —
-/// its own minted half rowless beside them — and the pass reported
-/// that half; dropped, the new face stores no row at all and reads as
-/// one the pass has not minted, about which it says nothing
-/// (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
-/// Its minted half stays rowless with them: an unminted face is the
-/// minting pass's. What the trade buys is the same as at the loop
+/// **Through this door.** Onto a rowless CURVED chart the moved rows
+/// are dropped and the new face stores no row at all, its minted half
+/// rowless with them: an unminted face is the closing mint's. At rest,
+/// tier 3 re-derives it and names the run's refusal in that chart. What the trade buys is the same as at the loop
 /// doors: the body no longer holds curves stated in a chart the face
 /// is not on.
 #[test]
-fn mef_onto_a_rowless_curved_chart_drops_the_runs_rows_and_the_pass_goes_quiet() {
+fn mef_onto_a_rowless_curved_chart_drops_the_runs_rows_and_tier_3_names_why() {
     let mut s = sheet();
     let made = split_low(
         &mut s,
@@ -1242,7 +1251,7 @@ fn mef_onto_a_rowless_curved_chart_drops_the_runs_rows_and_the_pass_goes_quiet()
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert!(s.body.pcurve(made.he_minus).is_none());
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    loud_at_rest(&mut s.body);
 }
 
 /// **The controls: the same chart carries the run's rows byte for
@@ -1335,9 +1344,11 @@ fn mef_onto_a_second_key_holding_one_surface_mints_the_new_face_in_its_chart() {
         assert_eq!(rows_of(&s.body, made.face), (4, 0), "stamped: {stamped}");
         assert_eq!(rows_of(&s.body, s.low), (4, 0), "stamped: {stamped}");
         assert_rows_are_the_pass(&s.body, made.face);
+        // The back wears the second key only to hold it, and is left
+        // rowless: tier 3 names it, and nothing else.
         assert_eq!(
             validate_pcurves(&s.body, band()),
-            vec![],
+            vec![PcurveMintError::Unminted { face: s.plane }],
             "stamped: {stamped}"
         );
     }
@@ -1350,8 +1361,8 @@ fn mef_onto_a_second_key_holding_one_surface_mints_the_new_face_in_its_chart() {
 /// meets its loop on no branch of the chart. The operator does not
 /// refuse — it is called mid-surgery on states a later door finishes
 /// describing — and it does not return a panel half-minted either: both
-/// pieces store nothing. The loud reading is the pass's, run over the
-/// result.
+/// pieces store nothing. At rest, tier 3 re-derives each and names its
+/// discontinuity, and the pass, run over the result, refuses the first.
 #[test]
 fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
     let mut s = sheet();
@@ -1370,10 +1381,23 @@ fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
     assert_eq!(rows_of(&s.body, s.low), (0, 3));
     assert_eq!(rows_of(&s.body, made.face), (0, 3));
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    let findings = validate_pcurves(&s.body, band());
+    assert_eq!(
+        findings.len(),
+        2,
+        "tier 3 re-derives both rowless pieces and names each one's refusal: {findings:?}"
+    );
     assert!(
-        topo::mint_pcurves(&mut s.body, tol()).is_err(),
-        "the pass refuses a panel whose chord leaves its chart"
+        findings
+            .iter()
+            .all(|f| matches!(f, PcurveMintError::LoopDiscontinuity { .. })),
+        "the chord's image meets its loop on no branch: {findings:?}"
+    );
+    let refused = topo::mint_pcurves(&mut s.body, tol())
+        .expect_err("the pass refuses a panel whose chord leaves its chart");
+    assert_eq!(
+        refused, findings[0],
+        "the pass refuses the first piece as tier 3 does"
     );
 }
 
@@ -1539,12 +1563,11 @@ fn kef_into_a_face_on_a_chart_that_mints_nothing_drops_the_remnants_rows() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-/// The trade through the other run door: into a rowless CURVED face
-/// the three rows used to arrive beside five rowless halves and the
-/// pass reported those five; dropped, the face reads as never minted
-/// and the pass goes quiet.
+/// The other run door: into a rowless CURVED face the three rows are
+/// dropped and the face stores none; at rest, tier 3 re-derives it and
+/// names the remnant's refusal in that chart.
 #[test]
-fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_the_pass_goes_quiet() {
+fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_tier_3_names_why() {
     let mut s = sheet();
     // Lifts RechartUnvouched: the back on a rowless curved chart of its own is the row's premise.
     s.body
@@ -1559,7 +1582,7 @@ fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_the_pass_goes_quie
     let he = he_at(&s.body, s.low, at(U0, V0));
     s.body.kef(he).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    loud_at_rest(&mut s.body);
 }
 
 /// **The control: two faces on one chart carry the remnant's rows
@@ -1712,20 +1735,15 @@ fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-/// The loud direction loses its noise and keeps its meaning: onto
-/// ANOTHER minting chart the four rows used to survive and be refused
-/// one by one, and now they are gone and there is nothing to refuse.
-/// What the trade buys is the same thing it buys at the loop doors —
-/// the body no longer HOLDS a row about a surface the face is not on.
+/// Onto ANOTHER minting chart the four rows are dropped: the body no
+/// longer HOLDS a row about a surface the face is not on.
 ///
-/// **And the loudness is not lost, it moves to where it belongs.** A
-/// face swapped onto a cylinder its own boundary does not lie on is
-/// geometrically wrong, not merely unminted, and the caller's re-mint
-/// is what says so: the pass refuses the face by name rather than
-/// deriving a row for it. The stored rows were never the thing that
-/// reported this.
+/// **The loudness moves to where it belongs.** A face swapped onto a
+/// cylinder its own boundary does not lie on is geometrically wrong,
+/// not merely unminted: tier 3 re-derives the rowless face and refuses
+/// it by name, and so does the caller's re-mint, with one refusal.
 #[test]
-fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them() {
+fn a_swap_onto_another_minting_chart_drops_the_rows_and_tier_3_names_the_face() {
     let mut s = sheet();
     // Lifts both refusals: a face on a cylinder its boundary misses is the row.
     s.body
@@ -1738,7 +1756,7 @@ fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them()
         )
         .unwrap();
     assert_eq!(rows_of(&s.body, s.low), (0, 4));
-    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    let findings = validate_pcurves(&s.body, band());
 
     let refused = topo::mint_pcurves(&mut s.body, tol())
         .expect_err("a rim arc of radius 1 is not a curve of the radius-2 chart");
@@ -1754,6 +1772,11 @@ fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them()
         "the refusal names a half-edge of the re-charted face"
     );
     assert_eq!(half_edge, cycle[0]);
+    assert_eq!(
+        findings,
+        vec![refused],
+        "tier 3 re-derives the rowless face and names the mint's refusal"
+    );
 }
 
 /// **A face's rows are its loops' rows, rings included.** A setter that
@@ -1904,24 +1927,19 @@ fn outer_cycle(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
     body.loop_cycle(first).unwrap()
 }
 
-/// **The sibling setter's loudness is the pcurve pass's, and the pass
-/// is silent on a half-minted face.** `validate_pcurves` runs its
-/// re-certification only where a face's row set is COMPLETE
-/// (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`):
-/// one rowless half-edge and the whole face is reported `MissingCache`
-/// and measured no further. So the same carrier swap the row above
-/// reads two refusals for is refused ONCE here — by the mate face,
-/// which is still complete — and the staled row on the half-minted face
-/// is accepted unmeasured.
+/// **The sibling setter's loudness is the pcurve pass's, on a
+/// half-minted face too.** `validate_pcurves` re-certifies every row a
+/// face stores, whether or not the set is complete, so the carrier swap
+/// the row above reads two refusals for is refused twice here as well —
+/// by the half-minted face's staled row and by the mate face's — beside
+/// the half-minted face's gap and the refusal its re-derivation meets
+/// with the new carrier in its loop.
 ///
-/// That is a property of the pass rather than of the door, and it is
-/// why `set_edge_curve` keeps the rows it finds with the blind spot
-/// named — re-minting only where a null edge gets its first carrier —
-/// rather than dropping rows to convert it into a `MissingCache`:
-/// every content staleness in the tree meets the same silence, and the
-/// row that closes it closes them all.
+/// So `set_edge_curve` keeps the rows it finds — re-minting only where
+/// a null edge gets its first carrier — and a row it stales is measured
+/// wherever it is stored.
 #[test]
-fn a_carrier_swap_on_a_half_minted_face_is_refused_only_by_the_complete_side() {
+fn a_carrier_swap_on_a_half_minted_face_is_refused_on_both_sides() {
     let mut s = sheet();
     let he = first_he(&s.body, s.low);
     let edge = s.body.get_half_edge(he).unwrap().edge;
@@ -1967,15 +1985,20 @@ fn a_carrier_swap_on_a_half_minted_face_is_refused_only_by_the_complete_side() {
             _ => None,
         })
         .collect();
-    assert_eq!(absent, vec![victim]);
+    assert_eq!(absent, vec![victim], "{findings:?}");
     assert_eq!(
         refused,
-        vec![mate],
-        "only the mate face re-certifies; `low`'s staled row is measured by nothing"
+        vec![he, mate],
+        "both stored rows of the swapped edge re-certify, and refuse: {findings:?}"
+    );
+    assert_eq!(
+        findings.len(),
+        4,
+        "beside them, only the half-minted face's re-derivation refusal: {findings:?}"
     );
     assert!(
         s.body.pcurve(he).is_some(),
-        "the staled row is still there — unmeasured, not removed"
+        "the staled row is still there — measured, not removed"
     );
 }
 

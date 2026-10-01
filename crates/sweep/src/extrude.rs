@@ -297,6 +297,9 @@ pub enum ExtrudeError {
         /// The operator-layer failure.
         source: EulerOpError,
     },
+    /// The final whole-body pcurve mint refused: every curved wall
+    /// leaves the door storing its certified rows (C4).
+    Pcurve(topo::PcurveMintError),
 }
 
 impl fmt::Display for ExtrudeError {
@@ -361,6 +364,7 @@ impl fmt::Display for ExtrudeError {
                 "the wall of loop {loop_index} segment {segment_index} is not planar: {source}"
             ),
             Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
+            Self::Pcurve(source) => write!(f, "{source}"),
         }
     }
 }
@@ -513,8 +517,10 @@ struct LoopBase {
 /// tier-2 debug assertion on the finished body, which subsumes it, is
 /// what this door pays — and passes tier 3
 /// (`topo::validate_geometric`) except at the smooth cap rim
-/// [`Extruded::body`] names. The caller re-validates at rest per the
-/// workspace convention.
+/// [`Extruded::body`] names. It closes with the whole-body pcurve mint
+/// (`topo::mint_pcurves`), so every curved wall stores its certified
+/// rows at rest. The caller re-validates at rest per the workspace
+/// convention.
 ///
 /// # Errors
 ///
@@ -523,7 +529,7 @@ struct LoopBase {
 /// decisions, Newell failures, and every operator/certification
 /// refusal (D4 ¶2 reports surface inside
 /// [`EulerOpError::Certification`]).
-pub fn extrude<T: Decide>(
+pub fn extrude<T: Decide + topo::AtRestPolicy>(
     profile: &ValidatedProfile<T>,
     extrusion: Extrusion<T>,
     tol: Tol,
@@ -795,6 +801,7 @@ pub fn extrude<T: Decide>(
         Ok(()),
         "extrude postcondition: result is not tier-2 valid (kernel bug)",
     );
+    topo::mint_pcurves(&mut built, tol).map_err(ExtrudeError::Pcurve)?;
 
     Ok(Extruded {
         body: built,

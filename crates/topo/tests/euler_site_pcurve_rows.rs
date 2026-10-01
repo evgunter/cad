@@ -36,6 +36,15 @@ fn band() -> Band {
     Band::linear(tol()).unwrap()
 }
 
+/// **A face a site mint left rowless reads loud at rest.** Tier 3
+/// re-derives it and reports the refusal the minting pass, run next,
+/// raises — one finding, the mint's own.
+fn loud_at_rest(body: &mut Body<f64>) {
+    let findings = validate_pcurves(body, band());
+    let refused = topo::mint_pcurves(body, tol()).unwrap_err();
+    assert_eq!(findings, vec![refused], "tier 3 reads the mint's refusal");
+}
+
 /// The ruling the struts grow along.
 const UM: f64 = 0.8;
 
@@ -298,7 +307,8 @@ fn a_strut_at_the_loops_first_half_edge_is_minted() {
 /// between its ends, so the branch walk accepts it, and the
 /// certification — the image mapped back through the cylinder against
 /// the arc — refuses it. The face is left storing nothing, as for a
-/// carrier the walk refuses, and never half-minted.
+/// carrier the walk refuses, and never half-minted; at rest, tier 3
+/// re-derives it and reads the mint's refusal.
 #[test]
 fn a_strut_that_bows_off_the_chart_between_its_ends_leaves_the_face_unminted() {
     let (mut body, face, m) = wall();
@@ -323,8 +333,7 @@ fn a_strut_that_bows_off_the_chart_between_its_ends_leaves_the_face_unminted() {
     body.mev(MevSite::Fan { he1: he, he2: he }, end, spec, tol())
         .unwrap();
     assert_eq!(rows_of(&body, face), (0, 7));
-    assert_eq!(validate_pcurves(&body, band()), vec![]);
-    assert!(topo::mint_pcurves(&mut body, tol()).is_err());
+    loud_at_rest(&mut body);
 }
 
 /// **A half-minted face is left as found.** It is already the defect
@@ -356,8 +365,9 @@ fn a_half_minted_face_is_left_as_found() {
 /// **A carrier off the chart leaves the face unminted, never
 /// half-minted.** A strut whose straight line leaves the cylinder has
 /// no chart image that certifies on the wall, so the wall as the op
-/// leaves it has no closed-form row set: it stores nothing, and the
-/// pass, re-run over the result, refuses it loudly.
+/// leaves it has no closed-form row set: it stores nothing, and at
+/// rest tier 3 and the pass, re-run over the result, both refuse it
+/// loudly, with one refusal.
 #[test]
 fn a_mev_whose_carrier_leaves_the_chart_leaves_the_face_unminted() {
     let (mut body, face, m) = wall();
@@ -365,8 +375,7 @@ fn a_mev_whose_carrier_leaves_the_chart_leaves_the_face_unminted() {
     body.mev_line(MevSite::Fan { he1: he, he2: he }, at(1.2, 0.5), tol())
         .unwrap();
     assert_eq!(rows_of(&body, face), (0, 7));
-    assert_eq!(validate_pcurves(&body, band()), vec![]);
-    assert!(topo::mint_pcurves(&mut body, tol()).is_err());
+    loud_at_rest(&mut body);
 }
 
 /// A lone vertex inside the minted wall: a strut up the ruling cut free
@@ -522,7 +531,8 @@ fn a_strut_beside_a_ring_keeps_the_rings_rows() {
 /// **A face the op clears is cleared whole, rings included.** A secant
 /// strut on the outer loop of a wall carrying a two-half ring leaves the
 /// wall with no closed-form row set: every row goes, the ring's with the
-/// outer loop's, and the face is unminted rather than half-minted.
+/// outer loop's, and the face is unminted rather than half-minted — and
+/// loud at rest.
 #[test]
 fn a_secant_strut_beside_a_ring_clears_the_ring_too() {
     let (mut body, face, m) = wall();
@@ -538,7 +548,7 @@ fn a_secant_strut_beside_a_ring_clears_the_ring_too() {
     )
     .unwrap();
     assert_eq!(rows_of(&body, face), (0, 9));
-    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    loud_at_rest(&mut body);
 }
 
 /// **`mekr` across the chart's principal azimuth cut.** The wall sheet
@@ -621,9 +631,9 @@ fn a_mekr_across_the_principal_azimuth_cut_mints_the_passs_rows() {
 /// closed-form row set with the strut in it — and killing the strut,
 /// by `kemr` or by `kev`, does not bring the rows back: no operator
 /// re-mints a face that stores nothing. While the strut stands, the
-/// pcurve pass says nothing about the rowless wall, and the at-rest
-/// validation names the strut by its tip. The producer's closing mint
-/// is what restores the rows once the strut is gone.
+/// at-rest validation names the strut by its tip; once it is gone,
+/// tier 3 names the rowless wall `Unminted`, its rows derivable. The
+/// producer's closing mint is what restores them.
 #[test]
 fn a_secant_strut_then_killed_leaves_the_wall_unminted_until_the_pass() {
     for kill in ["kemr", "kev"] {
@@ -647,7 +657,11 @@ fn a_secant_strut_then_killed_leaves_the_wall_unminted_until_the_pass() {
             body.kev(s.he_plus).unwrap();
         }
         assert_eq!(rows_of(&body, face), (0, 5), "{kill}");
-        assert_eq!(validate_pcurves(&body, band()), vec![], "{kill}");
+        assert_eq!(
+            validate_pcurves(&body, band()),
+            vec![PcurveMintError::Unminted { face }],
+            "{kill}: at rest, the rowless wall's rows derive"
+        );
         topo::mint_pcurves(&mut body, tol()).unwrap();
         assert_eq!(rows_of(&body, face), (5, 0), "{kill}");
     }
@@ -714,7 +728,10 @@ fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
     for &he in &unminted {
         body.detach_pcurve(he).unwrap();
     }
-    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert_eq!(
+        validate_pcurves(&body, band()),
+        vec![PcurveMintError::Unminted { face: made.face }]
+    );
     body.kef(made.he_plus).unwrap();
     let mut want: Vec<HalfEdgeKey> = unminted
         .into_iter()
@@ -827,7 +844,7 @@ fn a_null_edge_described_off_the_chart_leaves_the_wall_rowless() {
     )
     .unwrap();
     assert_eq!(rows_of(&body, face), (0, 9));
-    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    loud_at_rest(&mut body);
 }
 
 /// **Only a null edge's description re-mints.** Re-describing the edge

@@ -5498,13 +5498,22 @@ mod tests {
                 )
             })
             .unwrap();
-        expected.extend([
-            crate::ValidationError::ScaffoldAtRest { edge: created.edge },
-            crate::ValidationError::PlanarBoundaryResidual {
-                face: plane_face,
-                edge: created.edge,
-            },
-        ]);
+        // Both checks run before the pcurve pass (check 8), whose
+        // reading of the pillow's rowless spline face comes last.
+        let at = expected
+            .iter()
+            .position(|e| matches!(e, crate::ValidationError::Pcurve { .. }))
+            .unwrap_or(expected.len());
+        expected.splice(
+            at..at,
+            [
+                crate::ValidationError::ScaffoldAtRest { edge: created.edge },
+                crate::ValidationError::PlanarBoundaryResidual {
+                    face: plane_face,
+                    edge: created.edge,
+                },
+            ],
+        );
         assert_eq!(
             crate::validate::validate_geometric(&body, tol),
             Err(expected)

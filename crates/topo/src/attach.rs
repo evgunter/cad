@@ -804,23 +804,11 @@ impl<T: Decide> Body<T> {
     /// neither, so no row changes what it is ABOUT. What it does change
     /// is what the row must agree WITH, and the tier-3 pcurve pass
     /// re-derives that agreement from the edge's CURRENT curve on every
-    /// run — so on a COMPLETE face a row left saying the old carrier's
-    /// image is refused per half-edge, loud, which is where the surface
-    /// setter was silent.
-    ///
-    /// **Two faces of the pass are silent, and neither is this door's
-    /// to close.** A face whose chart mints nothing holds no minted row
-    /// for a carrier swap to stale at all. A HALF-MINTED face does hold
-    /// them, and the pass skips its re-certification entirely — it
-    /// reports the missing rows and then measures nothing else about
-    /// that face
-    /// (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`),
-    /// so a row this door stales there is accepted unmeasured. That is
-    /// the pass's property for every content staleness in the tree, not
-    /// a fact about carrier swaps, and dropping rows here would buy a
-    /// `MissingCache` on that one face at the price of a re-mint on
-    /// every swap that certifies — including the upgrades this door
-    /// exists for, whose rows stay true within band.
+    /// run — so a row left saying the old carrier's image is refused
+    /// per half-edge, loud, on a complete face and on the rows a
+    /// half-minted one stores alike, which is where the surface setter
+    /// was silent. A face whose chart mints nothing holds no minted row
+    /// for a carrier swap to stale at all.
     ///
     /// **A null edge's first description re-mints its loops.**
     /// [`Body::mev_null`] adds two halves with no carrier to derive a

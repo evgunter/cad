@@ -1572,10 +1572,12 @@ impl<T: Real> Body<T> {
     /// All stored pcurve caches (C4 — see [`crate::pcurves`]), in
     /// half-edge-slot order (deterministic per D9).
     ///
-    /// Emptiness is the normal state: planar faces keep M2's
-    /// derive-on-demand status and store nothing, and only the charts
-    /// with a certified closed-form image mint caches at M5, so a
-    /// prism, a box, or any all-planar body yields zero rows here.
+    /// Planar faces keep derive-on-demand status and store nothing, so
+    /// a prism, a box, or any all-planar body yields zero rows here. On
+    /// every other chart the row is mandatory at rest: every half-edge
+    /// of the face stores its certified row once its producer has
+    /// returned, and the tier-3 pcurve pass reports one that does not
+    /// ([`crate::pcurves::validate_pcurves`]).
     pub fn pcurves(&self) -> impl Iterator<Item = (HalfEdgeKey, &PcurveCache<T>)> {
         self.pcurves.iter()
     }
@@ -1613,8 +1615,8 @@ impl<T: Real> Body<T> {
 
     /// Removes and returns `half_edge`'s stored pcurve cache —
     /// [`Body::attach_pcurve`]'s inverse (same trust posture: the
-    /// tier-3 pcurve pass owns coherence, and a face left HALF-minted
-    /// fails it loudly as `MissingCache`). Consumers of caches refuse
+    /// tier-3 pcurve pass owns coherence, and a curved face left
+    /// missing a row fails it loudly). Consumers of caches refuse
     /// typed on absence; nothing re-derives a branch silently.
     pub fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
         self.pcurves.remove(half_edge)
