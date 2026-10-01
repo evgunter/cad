@@ -2,10 +2,11 @@
 id: how-a-person-sees-a-node
 kind: ruling
 title: How a person sees a node once node ids are digests, and whether a node's human label is document data the kernel speaks
-status: open
+status: closed
+closed: 2026-10-01
+pr: 3565
 opened: 2026-09-30
 priority: P1
-needs_ev: true
 ---
 
 
@@ -70,3 +71,11 @@ pair weighed that (fork-log row 24) and converged:
   when the person commits it. The kernel mints no default.
 - The term is "label", the word `Attr::Label` already uses for faces
   and bodies, and the two share one validated `Label` type.
+
+## Ruled (2026-10-01, PR 3565)
+
+Ev: "this looks great! including the sub-choice you called out". The
+rule is DESIGN.md Band 1's "Node labels" item. It is built by
+`node-labels-are-document-data`, and unit 3 of
+`sibling-branches-mint-one-node-id-for-different-nodes` spells
+unlabelled nodes by kind and 12-hex tag.
