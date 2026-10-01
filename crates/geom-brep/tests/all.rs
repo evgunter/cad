@@ -246,5 +246,7 @@ mod mesh12_saturated_span;
 mod pcurve_mirror_v;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
+#[path = "review_chartbox_probes.rs"]
+mod review_chartbox_probes;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
