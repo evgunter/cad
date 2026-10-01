@@ -5143,3 +5143,18 @@ The brief carries two more items:
 - the PR 3570 `require_vertex_unnamed` Empty-loop → `LoopCycleBroken`
   route, now unified under `KillLeavesDangling`;
 - `MergeRebasesCarriers`' lever, if its row is on main.
+
+## PR 3598 merged (2026-10-01)
+
+PR 3598 merged at `c057920ffe` after CI run 36812370107 went green on
+`7977a0974d`, where the off-boundary row is closed. `set_face_surface`
+now refuses a swap no certified edge vouches for (`RechartUnvouched`),
+and both keys-only refusals carry a chart lever.
+
+`mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move` is
+unblocked, and carries PR 3598's receipt evidence. It waits for a free
+target, and for the null-face and corruption-ending lanes to leave the
+Euler files.
+
+Disk fell to 3.9 GB. Clearing merged units' scratch brought it back to
+4.4 GB, with no lane's target touched.
