@@ -5,7 +5,8 @@ title: A face frame fixes its roll by the carrier's u_ref, so a FromFace mate ca
 status: open
 opened: 2026-09-24
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 

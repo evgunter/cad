@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-29
 priority: P2
 cost: M
+parent: MSOLVE-11
 ---
 
 (CHROME `refusal-residue`, from the shape guard's zero-recourse check.)
