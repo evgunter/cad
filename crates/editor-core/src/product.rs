@@ -861,7 +861,13 @@ pub fn own_spaces<P, T: Decide + AtRestPolicy>(
         .map(|(group, cause)| OwnSpace {
             group,
             cause,
-            gather: product_in(doc, evaluation, tol, Some(group)).map(Box::new),
+            gather: product_in(
+                doc,
+                evaluation,
+                tol,
+                crate::mate::Space::Own { group, cause },
+            )
+            .map(Box::new),
         })
         .collect()
 }
@@ -948,14 +954,14 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
-    product_in(doc, evaluation, tol, None)
+    product_in(doc, evaluation, tol, crate::mate::Space::World)
 }
 
-/// **The gather of one space** (A9, A11 (2)): the world's when `space`
-/// is `None` — the document's product — and otherwise the own space of
-/// the unplaced group `space` names, which the at-rest gate checks by
-/// itself ([`crate::assemble`]). A root gathers into the space its
-/// value lives in ([`Evaluation::unplaced`]), and only the mates whose
+/// **The gather of one space** (A9, A11 (2)): the world's — the
+/// document's product — or the own space of an unplaced group, which
+/// the at-rest gate checks by itself ([`crate::assemble_gathered`]). A
+/// root gathers into the space its value lives in
+/// ([`Evaluation::space`]), and only the mates whose
 /// two members both live in this space are minted: nothing outside an
 /// unplaced group is compared with it.
 ///
@@ -966,7 +972,7 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
-    space: Option<RecipeNodeId>,
+    space: crate::mate::Space,
 ) -> Result<Product<T>, ProductError> {
     #[cfg(debug_assertions)]
     GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
@@ -991,7 +997,7 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
     let mut sources: Vec<Source<T>> = Vec::new();
     let mut any_body_denoting = false;
     for &node in doc.roots() {
-        if evaluation.unplaced.get(&node).map(|(group, _)| *group) != space {
+        if evaluation.space(node) != space {
             continue;
         }
         let value = evaluation.usable(node).map_err(ProductError::Root)?;
@@ -1012,11 +1018,13 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
     }
     if !any_body_denoting {
         let groups = unplaced_groups(evaluation);
-        return Err(if space.is_none() && !groups.is_empty() {
-            ProductError::Unplaced { groups }
-        } else {
-            ProductError::NoBodyRoots
-        });
+        return Err(
+            if space == crate::mate::Space::World && !groups.is_empty() {
+                ProductError::Unplaced { groups }
+            } else {
+                ProductError::NoBodyRoots
+            },
+        );
     }
 
     // Pass 2: the graft, one call per SOURCE BODY, in list order. A
@@ -1112,8 +1120,8 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
     // refuses before any mate is read.
     let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts, space);
     let spaces = match space {
-        None => own_spaces(doc, evaluation, tol),
-        Some(_) => Vec::new(),
+        crate::mate::Space::World => own_spaces(doc, evaluation, tol),
+        crate::mate::Space::Own { .. } => Vec::new(),
     };
     Ok(Product {
         document: doc.id(),

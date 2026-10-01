@@ -535,7 +535,7 @@ fn row3_instance_qualified_names_round_trip_persistence() {
 /// an improper frame refuses typed NAMING the R4 prerequisite; a
 /// non-instance target refuses typed.
 #[test]
-fn row4_set_placement_moves_undoes_and_refuses() {
+fn row4_set_offset_moves_undoes_and_refuses() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r4-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
@@ -731,7 +731,7 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
 
 // ---- Row 6: pin semantics ----
 
-/// Row 6 — the assembly's own pin moves on `SetPlacement` and on a
+/// Row 6 — the assembly's own pin moves on `SetOffset` and on a
 /// pin-bump of a reference, and an untouched-content re-save leaves it
 /// fixed.
 #[test]

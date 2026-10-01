@@ -1399,11 +1399,10 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// payload name, a stranded appearance key, and a declaration left
 /// with no consumer.
 ///
-/// **A cluster act is not**: it re-keys the mate graph's placement
-/// registry — a gauge instance and a frame, bookkeeping the chrome
-/// names nowhere — and what it decided about where the parts sit is
-/// what the picture draws. It still rides [`OpOutcome::maintenance`],
-/// where a reader of the API sees it.
+/// **The mate door's offset clear is not**: it is what inserting the
+/// mate means, and where the joined group now sits is what the picture
+/// draws. It still rides [`OpOutcome::maintenance`], where a reader of
+/// the API sees it.
 ///
 /// **Each worded arm answers [`Retold`] for itself**, and all three
 /// answer [`Retold::Never`]: none can show a retelling.

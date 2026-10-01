@@ -1440,8 +1440,8 @@ pub struct OpOutcome {
     /// every edit the action applied, in the order they applied and
     /// each edit's rows in the door's own order.
     ///
-    /// The log keeps only the cluster acts (replay re-applies them and
-    /// re-derives the rest), so this is the one place the other rows —
+    /// The log keeps the edits alone (replay re-applies them, and each
+    /// re-derives its rows), so this is the one place the rows —
     /// a name stranded or rewritten in place, an appearance key
     /// stranded, a declaration left with no consumer — leave the
     /// session. The chrome words them through

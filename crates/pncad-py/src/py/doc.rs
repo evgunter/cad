@@ -908,7 +908,8 @@ impl Doc {
     /// The declare doors' shared body: the kernel's own declare sugar
     /// (`pncad::select::declare_all`), whose acceptance — the new
     /// document, its record and the maintenance the insert performed
-    /// (an insert strands nothing, so that is cluster acts alone) — is
+    /// (a declaration's insert strands nothing and joins no groups, so
+    /// it is empty) — is
     /// taken up whole through the swap point. The id comes back
     /// beside it already checked, so the `NoMintedId` arm is the
     /// sugar's to raise; every `DeclareError` arm reaches Python
@@ -1060,7 +1061,7 @@ impl Doc {
     }
 
     /// The maintenance the LAST accepted edit performed, in the order
-    /// it was performed: the offset a mate insert cleared
+    /// it was performed: the offsets a mate insert cleared
     /// (`offset_cleared`), and the payload names a delete or a
     /// reshaping stranded — so a caller reads an entry's `variant`,
     /// never its position.

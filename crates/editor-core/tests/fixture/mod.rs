@@ -358,12 +358,6 @@ pub fn band() -> geom_core::Band {
 /// imports them from here beside the rest of its authoring doors.
 pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 
-/// Applies an edit, returning the new doc and any minted id.
-///
-/// Through the REFUSING reach: an edit that moves a group's root
-/// on a mated document mints a frame from the parts' extent and
-/// refuses here — a row that deletes a mate or an instance of a mated
-/// document steps through [`step_with`] and the store's own reach.
 /// Whether two instances carry the same offset, bit for bit (or both
 /// none).
 pub fn same_offset(a: &ProfileDoc, ai: RecipeNodeId, b: &ProfileDoc, bi: RecipeNodeId) -> bool {
@@ -374,7 +368,6 @@ pub fn same_offset(a: &ProfileDoc, ai: RecipeNodeId, b: &ProfileDoc, bi: RecipeN
     }
 }
 
-/// An instance's offset (A11 (2)); panics on a node that is not one.
 /// **An instance that sits where its mates put it**: on the world, with
 /// no offset. A placing mate to an instance that carries one roots the
 /// joined group there, whichever operand this instance is, and clears
@@ -383,6 +376,7 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> Node<ProfileProgram> {
     Node::instantiate_part_with(doc_ref, editor_core::InterfaceRecord::default(), None, None)
 }
 
+/// An instance's offset (A11 (2)); panics on a node that is not one.
 pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Placement> {
     match doc.node(id) {
         Some(Node::InstantiatePart { offset, .. }) => offset.clone(),
@@ -390,6 +384,9 @@ pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Plac
     }
 }
 
+/// Applies an edit, returning the new doc and any minted id, through
+/// the REFUSING reach: a mate insert whose clocking rider needs its
+/// parts' extent steps through [`step_with`] and the store's reach.
 pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
     step_with(doc, edit, &RefusingReach)
 }

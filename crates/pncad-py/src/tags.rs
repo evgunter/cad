@@ -64,8 +64,8 @@
 //! may speak one word for two unrelated things and neither has to
 //! remark on it: `band` is minted by sixteen maps and `escalated` by
 //! ten, for refusals with nothing in common but the English word;
-//! `join` is a phase of a boolean, a phase of a split op AND an act
-//! of cluster maintenance; `empty` is a band with no width and the
+//! `join` is a phase of a boolean and a phase of a split op; `empty`
+//! is a band with no width and the
 //! residual subgroup that no motion satisfies. A caller reads a word
 //! off ONE attribute of one type, never off this file, so a
 //! coincidence between two attributes is not a collision and pinning

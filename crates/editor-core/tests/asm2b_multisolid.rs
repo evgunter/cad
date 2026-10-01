@@ -284,7 +284,7 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
 
 // ---- Row 4: placements over a multi-solid instance ----
 
-/// Row 4 — `SetPlacement` on a multi-solid instance moves ALL of its
+/// Row 4 — `SetOffset` on a multi-solid instance moves ALL of its
 /// solids rigidly (every vertex x by exactly the translation, volume
 /// unchanged bit for bit), and the document's content pin moves with
 /// the edit.

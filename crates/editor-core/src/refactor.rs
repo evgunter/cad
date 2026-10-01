@@ -767,6 +767,19 @@ impl core::fmt::Display for SplitError {
 
 impl core::error::Error for SplitError {}
 
+/// **A4's frame rule, the one predicate split and inline both ask**: a
+/// mate side keeps its coordinates across the seam only when the
+/// member it reads is read at its own instance — no pattern copy, no
+/// placer between — and that instance is, in the part, its group's
+/// root at the empty chain on the part's world (`root_at_empty`, which
+/// each door answers from the part it holds or builds).
+fn frame_survives(
+    read: &crate::mate::Member,
+    root_at_empty: impl Fn(RecipeNodeId) -> bool,
+) -> bool {
+    read.copy.is_empty() && read.at == read.instance && root_at_empty(read.instance)
+}
+
 /// A gauge reference as a sentence names it.
 fn anchor_name(gauge: Option<RecipeNodeId>) -> String {
     match gauge {
@@ -2084,10 +2097,12 @@ pub fn split(
         }
     }
     let spaces = crate::mate::solve::spaces_with(doc, |instance| {
-        cut_groups
-            .iter()
-            .find(|(members, _, _)| members.contains(&instance))
-            .and_then(|&(_, root, cause)| Some((root, cause?)))
+        crate::mate::Space::of(
+            cut_groups
+                .iter()
+                .find(|(members, _, _)| members.contains(&instance))
+                .and_then(|&(_, root, cause)| Some((root, cause?))),
+        )
     });
     // The anchor vote (A4): every reference leaving the cut votes. A
     // cut instance votes its gauge, unless its group is unplaced for
@@ -2098,12 +2113,18 @@ pub fn split(
     for &node in doc.order().iter().filter(|id| cut.contains(id)) {
         let vote = match doc.node(node) {
             Some(Node::InstantiatePart { gauge, .. }) => {
-                if matches!(spaces.space.get(&node), Some(Some(_))) {
+                if matches!(
+                    spaces.space.get(&node),
+                    Some(crate::mate::Space::Own { .. })
+                ) {
                     continue;
                 }
                 *gauge
             }
-            Some(_) if doc.roots().contains(&node) && spaces.space.get(&node) == Some(&None) => {
+            Some(_)
+                if doc.roots().contains(&node)
+                    && spaces.space.get(&node) == Some(&crate::mate::Space::World) =>
+            {
                 None
             }
             _ => continue,
@@ -2127,8 +2148,8 @@ pub fn split(
     let mut first_own = None;
     for &id in cut {
         match spaces.space.get(&id) {
-            Some(None) => in_world = true,
-            Some(Some((group, _))) => {
+            Some(crate::mate::Space::World) => in_world = true,
+            Some(crate::mate::Space::Own { group, .. }) => {
                 first_own.get_or_insert(*group);
             }
             None => {}
@@ -2209,9 +2230,7 @@ pub fn split(
                 return Err(SplitError::WouldStartPlacing { mate });
             }
             if let Some(read) = crate::mate::member_of(doc, inner)
-                && (!read.copy.is_empty()
-                    || read.at != read.instance
-                    || !root_lands_empty(read.instance))
+                && !frame_survives(&read, root_lands_empty)
             {
                 return Err(SplitError::MateFrameCrosses { mate, side });
             }
@@ -2837,9 +2856,7 @@ pub fn inline(
             let inner = FaceName::new((**of).clone()).ok().and_then(|face| {
                 crate::mate::member_of(&part, &crate::node::SitedFace::at_mint(face))
             });
-            let Some(inner) = inner.filter(|m| {
-                m.copy.is_empty() && m.at == m.instance && part_root_at_empty(m.instance)
-            }) else {
+            let Some(inner) = inner.filter(|m| frame_survives(m, part_root_at_empty)) else {
                 return Err(InlineError::MateFrameCrosses { mate, side });
             };
             if frame.face().is_some() {

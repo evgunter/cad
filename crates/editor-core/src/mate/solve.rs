@@ -66,8 +66,9 @@ pub enum MateRole {
     Refused,
 }
 
-/// **Which space an instance lives in** (A9, A11 (2)): the world,
-/// or the own space of a group nothing places.
+/// **Which space a value lives in** (A9, A11 (2)): the world, or the
+/// own space of a group nothing places — the one spelling of that fact
+/// every reader of it is handed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Space {
     /// The world: the group is placed, by its root's offset on a live
@@ -78,12 +79,29 @@ pub enum Space {
     Own {
         /// The group's earliest instance.
         group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: Unplaced,
     },
+}
+
+impl Space {
+    /// The unplaced group and its cause, `None` for the world.
+    pub fn own(self) -> Option<(RecipeNodeId, Unplaced)> {
+        match self {
+            Self::World => None,
+            Self::Own { group, cause } => Some((group, cause)),
+        }
+    }
+
+    /// The space `own` names: the world for `None`.
+    pub fn of(own: Option<(RecipeNodeId, Unplaced)>) -> Self {
+        own.map_or(Self::World, |(group, cause)| Self::Own { group, cause })
+    }
 }
 
 /// **Why a group is unplaced** (A11 (2)): what a placement would have
 /// come from, and is missing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Unplaced {
     /// No member carries an offset: the group's placed member or the
     /// placing mate that tied it to one was deleted, or its offset
@@ -300,7 +318,7 @@ impl SolvedPoses {
         let root = self.root(instance)?;
         Some(match self.unplaced.get(&root) {
             None => Space::World,
-            Some(_) => Space::Own { group: root },
+            Some(&cause) => Space::Own { group: root, cause },
         })
     }
 
@@ -399,10 +417,8 @@ impl Pose {
 /// lives in none and constrains nothing.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Spaces {
-    /// Every node that lives in a space: `None` the world, `Some` an
-    /// unplaced group's own — the group, by its root, and why it is
-    /// unplaced.
-    pub(crate) space: BTreeMap<RecipeNodeId, Option<(RecipeNodeId, Unplaced)>>,
+    /// Every node that lives in a space, and which.
+    pub(crate) space: BTreeMap<RecipeNodeId, Space>,
     /// The nodes of `space` that live in an unplaced group's own.
     pub(crate) own: BTreeMap<RecipeNodeId, (RecipeNodeId, Unplaced)>,
     /// Every node whose inputs lie in two spaces — one of them an
@@ -414,47 +430,45 @@ pub(crate) struct Spaces {
 /// [`Spaces`] for `doc` under `poses`.
 pub(crate) fn spaces_of<P: crate::ProfilePayload>(doc: &Doc<P>, poses: &SolvedPoses) -> Spaces {
     spaces_with(doc, |instance| {
-        let root = poses.root(instance)?;
-        Some((root, *poses.unplaced.get(&root)?))
+        poses.space(instance).unwrap_or(Space::World)
     })
 }
 
-/// [`Spaces`] for `doc`, given each instance's own space (`None` the
-/// world), in one pass in document order, which puts every input
-/// before its consumer.
+/// [`Spaces`] for `doc`, given each instance's space, in one pass in
+/// document order, which puts every input before its consumer.
 pub(crate) fn spaces_with<P: crate::ProfilePayload>(
     doc: &Doc<P>,
-    own_of: impl Fn(RecipeNodeId) -> Option<(RecipeNodeId, Unplaced)>,
+    space_of: impl Fn(RecipeNodeId) -> Space,
 ) -> Spaces {
     let mut out = Spaces::default();
     for &id in doc.order() {
         let Some(node) = doc.node(id) else { continue };
         let here = match node {
             Node::Gauge { .. } | Node::Mate { .. } | Node::Declare { .. } => continue,
-            Node::InstantiatePart { .. } => own_of(id),
+            Node::InstantiatePart { .. } => space_of(id),
             _ => {
-                let mut distinct: Vec<Option<(RecipeNodeId, Unplaced)>> = Vec::new();
+                let mut distinct: Vec<Space> = Vec::new();
                 for input in node.inputs() {
                     if let Some(&s) = out.space.get(&input)
-                        && !distinct.iter().any(|d| d.map(|x| x.0) == s.map(|x| x.0))
+                        && !distinct.contains(&s)
                     {
                         distinct.push(s);
                     }
                 }
                 if distinct.len() > 1
-                    && let Some(&group) = distinct.iter().flatten().next()
+                    && let Some(own) = distinct.iter().find_map(|s| s.own())
                 {
-                    out.across.insert(id, group);
+                    out.across.insert(id, own);
                 }
                 // A measure and an assertion read geometry and answer
                 // a number, which lives in no space.
                 if matches!(node, Node::Measure { .. } | Node::Assertion { .. }) {
                     continue;
                 }
-                distinct.first().copied().flatten()
+                distinct.first().copied().unwrap_or(Space::World)
             }
         };
-        if let Some(own) = here {
+        if let Some(own) = here.own() {
             out.own.insert(id, own);
         }
         out.space.insert(id, here);
@@ -1307,10 +1321,10 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     let wb = walk_of(doc, mate, MateSide::B, b).map_err(Box::new)?;
     check_references(doc, env, mate, &wa, &wb).map_err(Box::new)?;
     admit_class(mate, *class)?;
-    // The two parts are asked in DOCUMENT order, which is the order
-    // the fold asks a pair that is a group of its own: its root is
-    // the earlier instance and the tree's parent, so a refusal that
-    // names the first part not in hand names the same part here.
+    // The two parts are asked in DOCUMENT order. The fold asks the
+    // tree's parent first, and the parent is wherever the root rule
+    // put the root, so where both parts are missing the two doors may
+    // name different ones; each names a part the mate needs.
     let (first, second) = if wa.member.instance <= wb.member.instance {
         (&wa.member, &wb.member)
     } else {

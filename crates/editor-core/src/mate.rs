@@ -482,8 +482,8 @@ impl Alignment {
     }
 
     /// Whether every authored coordinate is finite — the edit door's
-    /// admission test, the placement registry's rule applied one level
-    /// out (a non-finite alignment could never decide anything). A
+    /// admission test, as a placement's (a non-finite alignment could
+    /// never decide anything). A
     /// `FromFace` side authors no number; its face's pose is the
     /// part's, read at the solve, and is not a number this door can
     /// see.

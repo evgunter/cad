@@ -453,6 +453,10 @@ mod name_depth;
 mod names_verbatim_edge_evaluator;
 #[path = "node_standing.rs"]
 mod node_standing;
+#[path = "p2_gauge_offsets_and_spaces.rs"]
+mod p2_gauge_offsets_and_spaces;
+#[path = "p2_gauge_poses_and_doors.rs"]
+mod p2_gauge_poses_and_doors;
 #[path = "p2_gauges.rs"]
 mod p2_gauges;
 #[path = "parallel_node_map_interval.rs"]

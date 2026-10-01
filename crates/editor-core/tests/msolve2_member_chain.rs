@@ -218,7 +218,7 @@ fn circular(
 /// A quarter turn — the step every rotating rule here takes.
 const Q: f64 = std::f64::consts::FRAC_PI_2;
 
-/// **The partition the registry is keyed by and the partition the
+/// **The partition the roots are read off and the partition the
 /// solve folds over are ONE partition.** `groups` and
 /// `solve_document` read which mates weld through one door
 /// (`read_mates`), so a document's group membership and its solved

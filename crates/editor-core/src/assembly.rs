@@ -864,11 +864,18 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
 ) -> Result<Assembly<T>, AssemblyError> {
     match product_recorded(doc, evaluation, tol) {
         Ok(product) => assemble_gathered(product, tol),
-        // The own spaces check whatever the world's gather answered: a
-        // document whose material is all unplaced has no world product,
-        // and its groups still check inside their own spaces.
+        // A world with no body is no verdict on the spaces beside it: a
+        // document whose material is all unplaced still checks its
+        // groups inside their own spaces before the gather's refusal is
+        // raised. A world that refused for a fault of its own is
+        // answered first, as its verdict is when it gathers.
         Err(refusal) => {
-            gate_spaces(crate::product::own_spaces(doc, evaluation, tol), tol)?;
+            if matches!(
+                refusal.kind(),
+                crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::NoBodyRoots
+            ) {
+                gate_spaces(crate::product::own_spaces(doc, evaluation, tol), tol)?;
+            }
             Err(AssemblyError::Product(Box::new(refusal)))
         }
     }
@@ -1034,18 +1041,13 @@ pub(crate) fn mint<P, T: Decide>(
     evaluation: &Evaluation<T>,
     names: &NameTable,
     contacts: &mut ContactRecords,
-    space: Option<RecipeNodeId>,
+    space: crate::mate::Space,
 ) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
     let mut unminted = Vec::new();
     // The space a member lives in: its instance's.
     let space_of = |r: &crate::node::SitedFace| {
-        crate::mate::member_of(doc, r).map(|m| {
-            evaluation
-                .unplaced
-                .get(&m.instance)
-                .map(|(group, _)| *group)
-        })
+        crate::mate::member_of(doc, r).map(|m| evaluation.space(m.instance))
     };
     for &id in doc.order() {
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
@@ -1058,7 +1060,7 @@ pub(crate) fn mint<P, T: Decide>(
         // asked, so its refusal is the gather's to raise, in the world.
         match (space_of(a), space_of(b)) {
             (Some(sa), Some(sb)) if sa == space && sb == space => {}
-            (None, _) | (_, None) if space.is_none() => {}
+            (None, _) | (_, None) if space == crate::mate::Space::World => {}
             _ => continue,
         }
         // A mate that is not a live value of this evaluation declares

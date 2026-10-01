@@ -1268,7 +1268,7 @@ BOUND_AS = {
     # fault is the GROUP BOOLEAN's placement-rule fault, not the
     # assembly registry's, and `Node.placed_union_at` has reached it
     # since LIB-PYPU (an improper frame raises `improper_placement`
-    # today). `DocEdit.set_placement`'s own refusals are separate
+    # today). `DocEdit.set_offset`'s own refusals are separate
     # `EditError` arms that share the tag namespace, so binding it
     # changed nothing about this entry except who noticed.
     #
@@ -1853,10 +1853,10 @@ FAMILIES: dict[str, str] = {
 #: can produce reaches one — a placement is set by an edit Python
 #: cannot author". That was measured against the wrong door. The fault
 #: is the GROUP BOOLEAN's placement-rule fault, and
-#: `Node.placed_union_at` has reached it since LIB-PYPU; binding
-#: `DocEdit.set_placement` changed nothing about it, because that
-#: edit's own refusals are separate `EditError` arms sharing the tag
-#: namespace.
+#: `Node.placed_union_at` has reached it since LIB-PYPU; the
+#: instance-offset edit, `DocEdit.set_offset`, changes nothing about
+#: it, because that edit's own refusals are separate `EditError` arms
+#: sharing the tag namespace.
 #: **B-CHECKS is CLOSED and no longer a `gap` id here**
 #: (LIB-B-CHECKS). It held thirteen names, the largest census-owned
 #: family: `run_checks`, `enforce_checks`, `subject_body`,
@@ -2576,8 +2576,12 @@ NOT_BOUND = {
     # `AssemblyError` with `variant == "carried_mint_refusal"` and
     # `Assembly.carried`'s rows. `CarriedDeclarations` is the
     # evaluation VALUE channel's bundle, behind `Product` and
-    # `NodeValue`, both interior.
+    # `NodeValue`, both interior. `CarriedUnplaced` is that channel's
+    # unplaced group below, which Python reads where a door refuses
+    # over it: `ExportError` with `variant == "unplaced_below"`, its
+    # `parts` the instance, the group's root and the cause.
     "CarriedDeclarations": INTERIOR,
+    "CarriedUnplaced": INTERIOR,
     "Relation": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
@@ -2869,6 +2873,11 @@ NOT_BOUND = {
     # 160-fin point. An ownership order still does not cross this
     # boundary; nothing has to cross it any more.
     "Product": INTERIOR,
+    # A product's own spaces, which the gate checks behind `assemble`:
+    # Python reads the verdict (`AssemblyError` with `variant ==
+    # "own_space"`), never the spaces themselves.
+    "OwnSpace": INTERIOR,
+    "own_spaces": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
     "product_recorded": INTERIOR,
@@ -3318,6 +3327,7 @@ MEMBERS_BOUND_AS = {
     # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
     "AssemblyError::Product": "AssemblyError.variant",
+    "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
@@ -3445,6 +3455,7 @@ MEMBERS_BOUND_AS = {
     "EditError::GaugeNotLive": "EditError.variant",
     "EditError::NotAGauge": "EditError.variant",
     "EditError::GaugeCycle": "EditError.variant",
+    "EditError::WouldStartPlacing": "EditError.variant",
     "EditError::PlacementRuleMismatch": "EditError.variant",
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
@@ -3466,6 +3477,7 @@ MEMBERS_BOUND_AS = {
     "HitTestError::Standing": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
     "HitTestError::Ambiguous": "HitTestError.variant",
+    "HitTestError::AcrossSpaces": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",
@@ -3575,6 +3587,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::PlacedUnderTwoRoots": "ProductError.variant",
     "ProductError::Naming": "ProductError.variant",
     "ProductError::NoBodyRoots": "ProductError.variant",
+    "ProductError::Unplaced": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
@@ -3596,6 +3609,7 @@ MEMBERS_BOUND_AS = {
     # `reason` rather than `variant`, the word this door has always
     # carried.
     "SelectRefusal::InBand": "SelectRefusal.reason",
+    "SelectRefusal::AcrossSpaces": "SelectRefusal.reason",
     "SelectRefusal::TiedDisagrees": "SelectRefusal.reason",
     "SelectRefusal::Unreadable": "SelectRefusal.reason",
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
@@ -3616,6 +3630,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::DeadGaugeReference": "SplitError.variant",
     "SplitError::UnplacedAlone": "SplitError.variant",
     "SplitError::WouldStartPlacing": "SplitError.variant",
+    "SplitError::PlacingMateLeft": "SplitError.variant",
     "SplitError::MateFrameCrosses": "SplitError.variant",
     "SplitError::MateFaceFrameCrosses": "SplitError.variant",
     "SplitError::HoistedMemberOffset": "SplitError.variant",
@@ -4001,6 +4016,10 @@ MEMBERS_NOT_BOUND = {
     # `EvalOptions`'s own sentence one rung in. The appearance
     # resolution is the appearance family the façade leaves out (see the
     # `DocEdit` rows).
+    # The groups a part below leaves out of its world: Python reads
+    # them where a door refuses over them, `ExportError` with
+    # `variant == "unplaced_below"`, its `parts` naming each.
+    "Evaluation::unplaced_below": INTERIOR,
     "Evaluation::epoch": INTERIOR,
     "Evaluation::appearance": SHAPE,
     # `EditRecord` is `different-shape`: `Doc.apply` mutates in place and

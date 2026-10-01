@@ -183,11 +183,17 @@ impl<T: Decide> Evaluation<T> {
         a: RecipeNodeId,
         b: RecipeNodeId,
     ) -> Option<(RecipeNodeId, crate::mate::Unplaced)> {
-        let (sa, sb) = (self.unplaced.get(&a), self.unplaced.get(&b));
-        if sa.map(|s| s.0) == sb.map(|s| s.0) {
+        let (sa, sb) = (self.space(a), self.space(b));
+        if sa == sb {
             return None;
         }
-        sa.or(sb).copied()
+        sa.own().or(sb.own())
+    }
+
+    /// **The space `node`'s value lives in** (A9, A11 (2)), read off
+    /// [`Evaluation::unplaced`]: the world for a node absent there.
+    pub fn space(&self, node: RecipeNodeId) -> crate::mate::Space {
+        crate::mate::Space::of(self.unplaced.get(&node).copied())
     }
 
     /// **Every unplaced group in a document below this one** (A9,

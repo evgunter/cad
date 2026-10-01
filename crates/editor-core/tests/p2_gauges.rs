@@ -573,9 +573,12 @@ fn an_unplaced_group_is_gathered_minted_and_measured_against_nothing_outside_it(
         world(base).to_bits(),
         "the product is the world's material alone"
     );
-    let minted = editor_core::assemble(&doc, &ev, Tol::witness())
-        .map(|a| a.minted.iter().map(|d| d.mate).collect::<Vec<_>>())
-        .unwrap_or_default();
+    let minted: Vec<RecipeNodeId> = editor_core::assemble(&doc, &ev, Tol::witness())
+        .expect("the gate certifies the world and the top's own space")
+        .minted
+        .iter()
+        .map(|d| d.mate)
+        .collect();
     assert!(
         !minted.contains(&mate),
         "the gate mints no pair across spaces: {minted:?}"

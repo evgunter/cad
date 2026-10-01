@@ -3806,12 +3806,22 @@ fn asm_r2b_child_crossing_probe() {
     .expect("the crossing-bearing instance inserts")
     .doc;
 
-    // The whole group split out — accepted, and the remainder is
-    // itself a crossing-bearing document.
+    // The whole group split out, with the mate placing it — accepted,
+    // and the remainder is itself a crossing-bearing document.
     let store: std::sync::Arc<dyn pncad::document::PartResolver> = std::sync::Arc::new(ws.clone());
+    let group_and_mate = ids
+        .iter()
+        .copied()
+        .chain(
+            doc.order()
+                .iter()
+                .copied()
+                .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. }))),
+        )
+        .collect();
     let split = pncad::document::split(
         &doc,
-        &ids.iter().copied().collect(),
+        &group_and_mate,
         pncad::document::DocumentId::derive("asm-r2b-probe-split"),
         Tol::witness(),
         Some(&store),
@@ -6483,5 +6493,72 @@ mod the_hollowed_box_through_the_facade {
             ),
             "the interval hollow is a body"
         );
+    }
+}
+
+/// **STEP export refuses an unplaced group anywhere in the part tree**:
+/// a sub-assembly holding an unplaced instance refuses `Unplaced` on its
+/// own, and the outer document instancing it refuses `UnplacedBelow`
+/// naming the group, the route it arrived by and its cause — rather
+/// than write the sub-assembly's world without it.
+#[test]
+fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
+    use pncad::document::DocEdit;
+    let dir = WsDir::new("r2-step-sub");
+    let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "r2-step-sub-part");
+    let (sub, ids) = asm2a_assembly("r2-step-sub-asm", doc_ref, 2);
+    let sub = pncad::document::apply(
+        &sub,
+        &DocEdit::SetOffset {
+            instance: ids[1],
+            offset: None,
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("an offset clears")
+    .doc;
+    let text = pncad::document::save(&sub, &[], Tol::witness()).expect("saves");
+    dir.write("sub.pncad", &text);
+    let sub_ref = pncad::document::DocRef {
+        id: sub.id(),
+        pin: pncad::document::content_pin(&sub, Tol::witness()).expect("pin"),
+    };
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let opts = StepOptions::default();
+    let ev_sub = asm2a_eval(&sub, &ws);
+    let sub_err = pncad::export::export_document_step(&ev_sub, &sub, &opts, Tol::witness());
+    assert!(
+        matches!(sub_err, Err(pncad::export::ExportError::Unplaced { .. })),
+        "the sub-assembly alone refuses: {sub_err:?}"
+    );
+    let (outer, outer_ids) = asm2a_assembly("r2-step-sub-outer", sub_ref, 1);
+    let ev = asm2a_eval(&outer, &ws);
+    let expected = pncad::document::CarriedUnplaced {
+        route: pncad::document::Route {
+            through: outer_ids[0],
+            of: sub.id(),
+            via: Vec::new(),
+        },
+        group: ids[1],
+        cause: pncad::document::Unplaced::NoOffset,
+    };
+    match pncad::export::export_document_step(&ev, &outer, &opts, Tol::witness()) {
+        Err(e @ pncad::export::ExportError::UnplacedBelow { .. }) => {
+            let said = e.to_string();
+            let pncad::export::ExportError::UnplacedBelow { groups } = e else {
+                unreachable!()
+            };
+            assert_eq!(groups, vec![expected]);
+            assert!(
+                said.contains("Recourse:") && said.contains("through instance"),
+                "{said}"
+            );
+        }
+        other => panic!("the outer document refuses naming the group below: {other:?}"),
+    }
+    match pncad::export::step_for_node(&ev, outer_ids[0], &opts, Tol::witness()) {
+        Err(pncad::export::ExportError::UnplacedBelow { groups }) => assert_eq!(groups.len(), 1),
+        other => panic!("the instance alone refuses too: {other:?}"),
     }
 }

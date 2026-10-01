@@ -4351,9 +4351,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # to leave — it never existed to be absent — which is why the
         # positive row above names both.
         #
-        # `instantiate_part` and `mate` LEFT this list at LIB-G18b,
-        # and `set_placement` with them — it was never a `Node` at
-        # all; the placement it set now lives on a gauge and an
+        # `instantiate_part` and `mate` LEFT this list at LIB-G18b.
+        # Placement was never a `Node`: it lives on a gauge and an
         # instance's offset (`Node.gauge`, `DocEdit.set_offset`).
         #
         # `shell` LEFT this list at LIB-G17: `Node::Shell` landed and
