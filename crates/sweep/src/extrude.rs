@@ -1226,12 +1226,7 @@ fn upgrade_rim<T: Decide>(
         .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
     let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
-    // The mid-parameter point — the same association the certification
-    // schedule's middle sample uses (t₀ + (t₁ − t₀)·½, exact dyadic
-    // fraction), so the WitnessMidpoint residual is zero by
-    // construction.
-    let t_mid = t0 + (t1 - t0) * T::from_f64(0.5);
-    let witness = carrier.eval(t_mid);
+    let witness = carrier.mid_point(t0, t1);
     let extent = geom_brep::edge_extent(&carrier, t0, t1, q_from.distance(q_to));
     let s_cap = body
         .get_surface(cap)

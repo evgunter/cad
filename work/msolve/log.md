@@ -797,4 +797,102 @@ That arm skews every levered predicate silently, so the fix is a
 finite arm by construction at its one formation door, and the minted
 `Indeterminate` becomes unreachable rather than re-routed. Review
 tier: single, full.
+
+## MSOLVE-9 dual review adjudicated; fix pass to the lane (2026-09-24)
+
+PR 2934 frozen at `7cf04d8ee` (run 35955846813 green, the full
+matrix). Dual review under `docs/DUAL-REVIEW-PROTOCOL.md`, run
+sequentially under its late-trigger fallback: about 4.7 GB free holds
+one build at a time, and one worktree shared by two concurrent
+reviewers would let one's broken probe break the other's build. Same
+frozen head, identical briefs. Both returned APPROVE-WITH-FIXES; both
+executed C1, C2, C3 and notes (a) and (b) as holding. The one MAJOR
+(R1) was raised by R2 at NOTE: a face frame refuses `Unpinned` on
+every analysis lane while the viewer now authors only face frames.
+Ruled honest — the pose follows the part's parameters and the solve
+decides at nominal, so a Dual's real part would drop the pose's
+sensitivity and a pinned Interval would certify a face that moves —
+and owed disclosure at every door plus a P1 row. Bilateral MINORs:
+the memo key's "iff" is an over-approximation (sound; the claims
+re-worded, a row pins it); `FaceFrame::reference` has no admitted
+value (ruled dropped, with its two refusal arms; the roll residue
+filed, since a face frame does not turn a mate's roll as `plan.md`
+item 16 assumed); `PartUnresolved` drops the part and the face;
+prose the change invalidated, A11 rule 5's clause included (it lands
+with the change). One home each for the name-table ladder, the face
+side's part, the `InPart` unwrapping and the replay's static order.
+Tally candidates: none. The pre-note is in the lane's scratch and
+goes into `docs/DUAL-REVIEW-LOG.md` at state-sync.
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## Resumed after the weekly usage limit (2026-10-01)
+
+The MSOLVE-9 lane stopped on the weekly limit on 2026-09-24, after it
+merged main at `7cceee566` and before handing back. The fix pass at
+`4f7e073d8` was verified (every ruling in, run 35970616129 green)
+and the dual review is coded (DR-2 drafted; blinded coding, byte 35,
+tally 0). Main has since moved 3,721 commits, and PR 2934 is
+conflicting in 18 files: EDIT's node standing and carried refusals,
+CHROME's and VNEWS's seat line and mate panel, AUTH's held face pick,
+and names' pinned candidates all touched the files this unit
+rewrote. The state-sync is saved as a patch and lands after the
+merge goes green.
+
+Triage of five rows filed here while the session was stopped
+(`plan.md` items 19–21): the analysis-lane nominal solve becomes one
+design row (the face frame's `Unpinned` and EDIT's parametric-placer
+finding are the same question); three refusal and reporting rows
+ride MSOLVE-11; GATHER's two-roots disagreement is re-priced M with a
+design question and specced after MSOLVE-11.
+
+Friction, recorded as a finding: the session's disk allowance holds
+one build. The shared target directory is 16 GB, and 2.8 GB is free,
+so the week-late rebuild this merge needs cannot run until the stale
+cache is cleared. Clearing it was refused by the session's permission
+check and is put to Ev.
+## MSOLVE-9 MERGED (2026-09-24, PR 2934)
+
+`MateFrame` is `Authored(AuthoredFrame) | FromFace(FaceFrame { face })`,
+externally tagged on the wire, with each inner struct closed. A face
+side resolves at the solve through `MateReach::face_pose`, off the
+mated part's own cached product in the part's own coordinates. Its
+roll reference is the carrier's own `u_ref`. It resolves at the
+nominal value only, so on an analysis lane it refuses `Unpinned`,
+typed. A11 rule 5's inputs sentence (Ev, #2895) is the ratified text,
+and its clause on an unresolved part was re-worded because this
+change moved which fault names one. The viewer authors face frames;
+the tour's posts seat on their caps, and its update walk now shows
+the shelf following a shortened post where it used to show the gate
+refuting the stale mates.
+
+Dual review on `7cf04d8ee` (row DR-28 in `docs/DUAL-REVIEW-LOG.md`):
+both reviewers APPROVE-WITH-FIXES, no unilateral MAJOR, tally +0.
+The seven-ruling fix pass landed in one push at `4f7e073d8`, green;
+orchestrator check of the diff: every ruling in. Process note: the
+lane amended an unpushed local merge commit to add its trailers.
+No pushed history moved, but merge-only means no amend at all.
+
+Closes MSOLVE-9, `mate-frames-resolve-from-a-face-at-evaluation`,
+`msolve-9-spec-prescribes-an-untagged-wire`,
+`a11-rule-5-names-unleverable-where-a-face-side-faults-face-unresolved`,
+and LIB's `no-door-mints-mate-frame-from-face`. Filed:
+`a-face-frame-cannot-turn-its-roll` (P1) and
+`from-face-frame-under-an-analysis-lane-refuses-unpinned` (P1), placed
+on the plan by the orchestrator branch, and a second instance
+appended to `lever-refusal-respells-reach-refusal`. Main was merged
+three more times after the fix pass (the last at `a9c620d94`, which
+carries REACH's eps-scaled rows, `889b7f043`); every ruling survived
+the merge, checked against the diff.
+Spec deleted with a note in `docs/doc-ledger/msolve-9-spec.md`.
+Next: MSOLVE-11 dispatches from main.
+
+## 2026-10-01 — MSOLVE-9 merged; roll row placed; MSOLVE-11 dispatches
+
+PR 2934 merged at `9ccc89346`. The state-sync commit `1ab031f9a`
+touched only docs, the tracker and one test-file comment, on the green
+head `a9c620d94`, so it merged without a fresh run. The lane that had
+merged a week of main had finished its work (`a9c620d94`) and was
+stopped. `a-face-frame-cannot-turn-its-roll` is now plan item 22, and
+its legacy `D` is re-priced M with `design: true`: two designers weigh
+how a face frame's roll is turned before any lane builds it. Next:
+MSOLVE-11 from main with item 20's three riders, single full review.

@@ -300,14 +300,13 @@ const PLATE_MAX_TERMS: usize = 288;
 /// plate's nominal reads no ε (its dimensions are literals, not
 /// multiples of ε) and the captures at the three rows agree.
 ///
-/// The walks meet the plate's arcs through the stored carrier and sweep
-/// the sketch pushforward reads, each cap's apex (`Arc2::apex`), the
-/// diameter clearance validation decides on the carrier, and the
-/// registrations the lowering (`Arc2::register_endpoints`) and the
-/// sweep (`register_rigidity`, `register_placed_carrier_end`) state, so
-/// a change to any of those spellings moves the forms and digests here.
-/// The door's calls include the lowering's endpoint registrations: 16
-/// decisions and 16 assertions.
+/// What moves it: any change to the forms the walks meet, or the order
+/// they meet them in — a loop's start vertex, how a sketch segment or
+/// an arc apex is pushed forward, where a curve is sampled. A change
+/// that moves only digests reorders the forms; one that moves counts
+/// changes what is built.
+/// The door's calls include the lowering's endpoint registrations
+/// (`Arc2::register_endpoints`): 16 decisions and 16 assertions.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 951 forms 14653 frozen 672 digest 80e1e6f05a0bccd518da4df030788582\n\
      Plain/Assertion calls 462 forms 2525 frozen 372 digest 2e14336f6eaba7e011317ac4ab863fac\n\

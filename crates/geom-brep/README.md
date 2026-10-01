@@ -79,7 +79,7 @@ holds at most one solution and the solution set in the chain is one arc.
 The tube says nothing about a disjoint component at other `e`-levels;
 that is C3's exhaustiveness obligation, a separate theorem. A straddling
 enclosure is a genuine sliver of the operand pair and escalates
-(`ssi_tube_transversality`, `SsiError::TransversalityBand`), never a
+(`ssi_tube_transversality`, `SsiError::TubeStraddles`), never a
 retry. Hull bounds are an entry requirement: no schedule-max-only
 certificate ever reaches an at-rest body, and the tube is required for
 every fitted `Intersection`, not only where several branches were found.
