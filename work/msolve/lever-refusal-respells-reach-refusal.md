@@ -2,10 +2,12 @@
 id: lever-refusal-respells-reach-refusal
 kind: issue
 title: LeverRefusal re-spells ReachRefusal's arms plus instance/part by hand in of(): two parallel enums that drift when one grows an arm
-status: open
+status: closed
 opened: 2026-09-20
 priority: P1
 cost: E
+parent: MSOLVE-11
+closed: 2026-10-01
 ---
 
 
@@ -54,3 +56,37 @@ projection (`crates/pncad-py/src/mate_payload.rs`) and four tag words
 pinned as one fact
 (`crates/pncad-py/src/tests.rs`'s
 `a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do`).
+
+## Closed — one carrier each (PR 3680)
+
+The two carriers now wrap the reach's own refusal:
+
+- `LeverRefusal::Reach { instance, part, refusal: ReachRefusal }`,
+  beside `NotAnInstance` and the new `OutOfRange`;
+- `FaceRefusal::Reach { instance, part, face, refusal: FacePoseRefusal }`,
+  beside `NotAnInstance`.
+
+`ReachRefusal` and `FacePoseRefusal` hold the reach's words (their own
+`Display`). `of()` is gone.
+
+`PartUnresolved` is the reach's arm, not a twin beside the carrier.
+Keeping it as both would have kept the by-hand projection this item
+retires.
+
+On the Python side:
+
+- `lever_refusal_tag` and `face_refusal_tag` delegate to two new maps,
+  `reach_refusal_tag` and `face_pose_refusal_tag`. Every word published
+  before is published still, and `out_of_range` is new.
+- The `instance` projection in `mate_payload.rs` and the four shared
+  words test moved, and the census rows moved with them.
+- Announced on `work/lib/log.md`.
+
+`MateFault::Unleverable`'s refusal is boxed, as `FaceUnresolved`'s is.
+
+Rows:
+
+- `pncad-py` `tests::a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do`
+- the tag census
+- `display_contract::a_lever_refusal_names_the_instance_and_why`
+- `msolve6_part_extent`, `msolve9_from_face`
