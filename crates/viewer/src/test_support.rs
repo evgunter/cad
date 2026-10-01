@@ -72,7 +72,7 @@ pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
 //
 // Authored through `apply`, in the order a user would: a fixture that
 // reached past it would be testing a document the edit vocabulary
-// cannot produce. The fixtures are part-less — no mate, no cluster — so
+// cannot produce. The fixtures are part-less — no mate, no group — so
 // the reach is the refusing one and is never asked.
 
 /// Apply one edit, answering the new document and any minted id.

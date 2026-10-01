@@ -2,7 +2,7 @@
 //!
 //! These rows exist to attack the claims, not to re-state them. The
 //! headline probe is the one the committed suite has no analogue of: a
-//! cluster whose recorded frame `F` is NOT the identity, which is the
+//! group whose recorded frame `F` is NOT the identity, which is the
 //! only condition under which the solve's `F⁻¹ · O_c⁻¹ · O_p · F`
 //! conjugation is distinguishable from the bare `O_c⁻¹ · O_p` middle.
 //! Every row in `mate1_member_vocab.rs` leaves every placement unset,
@@ -14,7 +14,7 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Expr, Frame, MateFrame,
-    MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, clusters,
+    MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, groups,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
@@ -84,11 +84,11 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
 }
 
 // ---------------------------------------------------------------
-// PROBE 1 — the conjugation, on a cluster frame that is not the
+// PROBE 1 — the conjugation, on a group frame that is not the
 // identity. Hand-derived end to end; nothing read back from the solve.
 // ---------------------------------------------------------------
 
-/// The gauge (the leg) carries a recorded cluster frame `F` = rotate
+/// The root (the leg) carries a recorded group frame `F` = rotate
 /// +90° about z, then translate `(5, 7, 11)`. The leg is patterned
 /// linearly along the master's own +x at spacing 2; the top seats onto
 /// copy 2, ALIGNED, with the a-frame at the master's `[0, 0, 1]` and
@@ -110,7 +110,7 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
 /// suite's fixtures `F = I`, so those two are the SAME frame and no
 /// committed row can tell them apart.
 #[test]
-fn r1_conjugation_through_a_non_identity_cluster_frame() {
+fn r1_conjugation_through_a_non_identity_group_frame() {
     let spacing = 2.0;
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r1-conj-leg"), Tol::witness());
@@ -142,7 +142,7 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
     );
     let mate = mate.expect("the mate mints");
 
-    // The cluster frame: rotate +90° about z, then translate.
+    // The group frame: rotate +90° about z, then translate.
     let f = Frame {
         columns: [[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [5.0, 7.0, 11.0],
@@ -156,16 +156,16 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
     );
 
     assert_eq!(
-        clusters(&doc),
+        groups(&doc),
         vec![vec![leg, top]],
-        "the top joins the pattern's cluster; the leg is the gauge"
+        "the top joins the pattern's group; the leg is the root"
     );
 
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
-    assert_eq!(poses.gauge(top), Some(leg));
+    assert_eq!(poses.root(top), Some(leg));
 
     let got = poses.relative(top).expect("the top has a pose");
 
@@ -184,7 +184,7 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
     );
     assert!(
         near(got, expected, 1e-12),
-        "the derived offset must conjugate through the cluster frame:\n\
+        "the derived offset must conjugate through the group frame:\n\
          got          {got:?}\n expected     {expected:?}\n \
          (unconjugated would be {unconjugated:?})"
     );
@@ -210,7 +210,7 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
 
 // ---------------------------------------------------------------
 // PROBE 2 — an OBLIQUE circular datum axis, off the origin, with a
-// non-identity cluster frame. The expected offset is recomputed in the
+// non-identity group frame. The expected offset is recomputed in the
 // test by Rodrigues, independently of `derived_offset`.
 // ---------------------------------------------------------------
 
@@ -252,7 +252,7 @@ fn apply(f: Frame, p: [f64; 3]) -> [f64; 3] {
 /// origin. This is the composition-order attack: `O_i ∘ F` and
 /// `F ∘ O_i` differ badly for this pair, as the row asserts.
 #[test]
-fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
+fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r1-obl-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("r1-obl-top"), Tol::witness());
@@ -352,7 +352,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
 
 /// Claim 4's last clause: NO mate can give one pattern copy a pose
 /// apart from its siblings. The attack: mate a plain top to copy 1,
-/// then read the whole cluster's poses — the pattern's copies have no
+/// then read the whole group's poses — the pattern's copies have no
 /// entry of their own anywhere in the solve, and the only instance
 /// that moved is the top. A pattern copy is not a keyed vertex, so
 /// there is no representation in which one copy could hold a pose.
@@ -391,11 +391,11 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None);
 
-    // The pattern node holds no pose and no gauge: copies are not
+    // The pattern node holds no pose and no root: copies are not
     // vertices, so per-instance freedom is unrepresentable.
     assert_eq!(poses.relative(pattern), None, "a pattern holds no pose");
-    assert_eq!(poses.gauge(pattern), None, "a pattern has no gauge");
-    // The master stays the gauge at the identity — the mate moved the
+    assert_eq!(poses.root(pattern), None, "a pattern has no root");
+    // The master stays the root at the identity — the mate moved the
     // OTHER member, exactly as rule 2 says.
     assert_eq!(poses.relative(leg), Some(Frame::IDENTITY));
 
@@ -434,7 +434,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
     let mut lines: Vec<String> = Vec::new();
 
     // Three shapes: a plain seat, an OPPOSED seat, and a three-instance
-    // chain — each with a non-identity cluster frame so `F` is live.
+    // chain — each with a non-identity group frame so `F` is live.
     for (tag, sense, chain, fr) in [
         ("seat-aligned", AxisSense::Aligned, false, Frame::IDENTITY),
         (
@@ -762,7 +762,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
 /// refuses in either position.
 ///
 /// It used to live in `derived_offset`, which is reached only from
-/// `pair_left_factor`, which `solve_cluster` calls only on TREE
+/// `pair_left_factor`, which `solve_group` calls only on TREE
 /// edges: the same malformed head that refused `DanglingHead` as a
 /// document's only mate went unrefused when a well-formed sibling
 /// took the tree edge first. The committed row
