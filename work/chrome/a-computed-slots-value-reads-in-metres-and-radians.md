@@ -2,11 +2,11 @@
 id: a-computed-slots-value-reads-in-metres-and-radians
 kind: issue
 title: viewer: a computed slot's value reads in metres and radians, whatever the document is written in
-status: open
+status: dispatched
 opened: 2026-09-29
 priority: P3
 cost: M
-design: true
+branch: chrome/working-notation
 refs: [a-driven-slots-field-draws-its-expression-source-at-any-width, the-gui-shows-no-measure-value-and-no-clearance]
 ---
 
