@@ -94,9 +94,9 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     ("Check/", "check separation"),
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
-    ("Check/", "root 4 output 0"),
+    ("Check/", "root 000000000004 output 0"),
     // The mate solve names the mate it refused (`mate 9: …`).
-    ("Mate/", "mate 9"),
+    ("Mate/", "mate 000000000009"),
     // A pair's corner list names each corner it could not fillet.
     ("ProfileReplay/Path/NoCornerOfPair(", "at corner"),
 ];
@@ -734,7 +734,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
     };
     let inner_text = drawn_lines(inner()).remove(0);
     let inner_sentence = inner_text
-        .strip_prefix("node 5 failed: ")
+        .strip_prefix("node 000000000005 failed: ")
         .expect("a node line opens with its node")
         .to_owned();
     let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
@@ -1659,7 +1659,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
         if route == "transversality" {
             assert_eq!(
                 text,
-                "node 5 failed: the transform op refused: an edge the map moved failed \
+                "node 000000000005 failed: the transform op refused: an edge the map moved failed \
                  re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
                  lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the faces cross at a clearer \
                  angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
@@ -3810,7 +3810,8 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         }
         .to_string()
     };
-    let head = "check connectedness: root 4 output 0: the component count is unknowable: ";
+    let head =
+        "check connectedness: root 000000000004 output 0: the component count is unknowable: ";
     let sign = "the sign of a shell's volume is too close to call: ";
     let in_band =
         |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");

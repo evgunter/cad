@@ -682,12 +682,12 @@ impl core::fmt::Display for LeverRefusal {
         match self {
             Self::Reach {
                 instance, refusal, ..
-            } => write!(f, "instance {}'s part {refusal}", instance.0),
+            } => write!(f, "instance {}'s part {refusal}", instance),
             Self::NotAnInstance { node } => write!(
                 f,
                 "node {} is not a live instantiate node, so it has no part whose extent \
                  could lever a verdict. {}",
-                node.0,
+                node,
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::OutOfRange { parts, datum } => write!(
@@ -751,13 +751,13 @@ impl core::fmt::Display for FaceRefusal {
             } => write!(
                 f,
                 "instance {}'s part answers none for the {face}: {refusal}",
-                instance.0
+                instance
             ),
             Self::NotAnInstance { node } => write!(
                 f,
                 "node {} is not a live instantiate node, so it has no part whose face could \
                  be read. {}",
-                node.0,
+                node,
                 geom_core::KERNEL_DEFECT_ENDING
             ),
         }
@@ -1245,14 +1245,14 @@ impl core::fmt::Display for MateFault {
             Self::Frame { mate, side, error } => write!(
                 f,
                 "mate {}'s {} frame has no definite placement: {error}",
-                mate.0,
+                mate,
                 side.name()
             ),
             Self::ClassNotAdmitted { mate } => write!(
                 f,
                 "mate {}'s contact class is not admitted in v1 — {}. Recourse: declare the \
                  contact a Rest, or delete the mate",
-                mate.0,
+                mate,
                 topo::FIT_DEFERRAL
             ),
             Self::TableLacks { mate, what } => write!(
@@ -1260,13 +1260,13 @@ impl core::fmt::Display for MateFault {
                 "mate {}: the coset table has no entry for {what}, and refuses rather than \
                  invent one. Recourse: carry the clocking as a rider on a coaxial mate, or \
                  delete it",
-                mate.0
+                mate
             ),
             Self::Indeterminate { mate, diag } => write!(
                 f,
                 "mate {}: a case split could not be decided — {}. Recourse: move the \
                  geometry, or lower the tolerance",
-                mate.0,
+                mate,
                 diag.payload()
             ),
             Self::Band { error } => write!(f, "the mate solve could not build a band: {error}"),
@@ -1284,10 +1284,10 @@ impl core::fmt::Display for MateFault {
                         f,
                         "mate {} contradicts itself — the constraints it declares admit no \
                          common pose",
-                        held.0
+                        held
                     )?;
                 } else {
-                    write!(f, "mates {} and {} cannot both hold", held.0, added.0)?;
+                    write!(f, "mates {} and {} cannot both hold", held, added)?;
                 }
                 // The predicate's name is routing and rides the
                 // payload; the sentence says what it found in words.
@@ -1344,9 +1344,9 @@ impl core::fmt::Display for MateFault {
                 f,
                 "mate {} does not determine instance {} from instance {}: {} survives. \
                  Recourse: {UNDER_RECOURSE}",
-                mate.0,
-                child.0,
-                parent.0,
+                mate,
+                child,
+                parent,
                 residual.describe()
             ),
             Self::DanglingHead { mate, side, head } => write!(
@@ -1354,9 +1354,9 @@ impl core::fmt::Display for MateFault {
                 "mate {}'s {} reference resolves through node {}, which does not resolve to a \
                  live member (an instance, or a pattern-placed instance). Recourse: rebind the \
                  reference, or delete the mate",
-                mate.0,
+                mate,
                 side.name(),
-                head.0
+                head
             ),
             // `error` is the placer's own refusal, drawn on a line of its
             // own — the placer's row, or the mate's carried line — so
@@ -1367,9 +1367,9 @@ impl core::fmt::Display for MateFault {
                 f,
                 "mate {}'s {} reference has no derived pose: node {p}, on its derivation, \
                  refuses. Recourse: repair node {p}",
-                mate.0,
+                mate,
                 side.name(),
-                p = placer.0
+                p = placer
             ),
             Self::PartSelectsAnotherCopy {
                 mate,
@@ -1383,19 +1383,19 @@ impl core::fmt::Display for MateFault {
                  copy {selected}, and a document may not place one copy and gather another. \
                  Recourse: set part node {p}'s index to copy {named}, or rebind the reference \
                  to copy {selected}",
-                mate.0,
+                mate,
                 side.name(),
-                p = part.0
+                p = part
             ),
             Self::SelfMate { mate, instance } => write!(
                 f,
                 "mate {} names one member on both sides (it stands on instance {}); a mate \
                  relates a PAIR. Recourse: rebind one side to another member, or delete the \
                  mate",
-                mate.0, instance.0
+                mate, instance
             ),
             Self::Unleverable { mate, refusal } => {
-                write!(f, "mate {}: {refusal}", mate.0)
+                write!(f, "mate {}: {refusal}", mate)
             }
             Self::FaceUnresolved {
                 mate,
@@ -1404,7 +1404,7 @@ impl core::fmt::Display for MateFault {
             } => write!(
                 f,
                 "mate {}'s {} frame names a face that did not resolve to a pose: {refusal}",
-                mate.0,
+                mate,
                 side.name()
             ),
         }

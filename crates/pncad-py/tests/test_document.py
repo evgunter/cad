@@ -47,6 +47,7 @@ from pncad import (
     m,
     rad,
 )
+from spoken import tag
 
 
 def unit_box(doc, width, depth, height):
@@ -859,7 +860,7 @@ class TestStepExport(unittest.TestCase):
             ev.step_string(profile_node)
         message = str(caught.exception)
         self.assertNotIn("RecipeNodeId", message)
-        self.assertRegex(message, r"node \d+ ")
+        self.assertIn(f"node {tag(profile_node)} ", message)
 
     def test_every_step_option_reaches_the_written_file(self):
         """The whole `StepOptions` record is the door's keywords.

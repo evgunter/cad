@@ -105,6 +105,10 @@ pub use editor_core::{
     PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
 };
 
+// How a sentence names a node: the kind noun and tag a person reads, and
+// the full-width id a machine channel prints.
+pub use editor_core::{FullId, SpokenNode, node_kind_noun};
+
 // Placement: the chain a `Node::Transform` holds — rigid steps of
 // expressions and literal frames — and its steps.
 pub use editor_core::{Placement, Step};

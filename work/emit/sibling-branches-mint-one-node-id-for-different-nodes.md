@@ -141,12 +141,13 @@ and substitute:
    `sibling_versions_mint_one_node_id_for_different_nodes` turns here.
    Unit 2 waits on unit 1 and on
    `work/emit/part-suites-name-every-parts-body-by-one-constant.md`.
-3. **How a node is shown.** The viewer labels a node "feature {id}",
-   refusals say "node {id}", and Python prints `NodeId({id})`. With
-   digest ids all of these print 20-digit numbers. The question is with
-   Ev as [ev] #3565 (ruling item `work/emit/how-a-person-sees-a-node.md`).
-   Unit 3 waits on it. Unit 2 should not land before it, or the GUI
-   shows raw ids in between.
+3. **How a node is shown.** Ruled on PR 3565; PR 3631 landed the
+   unlabelled slice (a node speaks as its kind and a 12-hex tag, Python
+   prints the full id), so unit 2 no longer shows raw ids. The rest is
+   `work/emit/node-labels-are-document-data.md`. **Unit 2 owes one
+   switch:** the tag is the id's low 48 bits while ids are a counter;
+   with digest ids it becomes the HIGH 48 bits (that row's "Carried
+   from PR 3631" names the two homes).
 
 ### Left for unit 2
 

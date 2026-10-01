@@ -914,7 +914,10 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
         alignment,
     } = node
     else {
-        unreachable!("admit_mate is asked of a mate; node {} is not one", mate.0)
+        unreachable!(
+            "admit_mate is asked of a mate; {} is not one",
+            doc.spoken(mate)
+        )
     };
     let band = Band::linear(tol).map_err(|error| Box::new(MateFault::Band { error }))?;
     let wa = walk_of(doc, mate, MateSide::A, a).map_err(Box::new)?;
@@ -1621,23 +1624,23 @@ impl core::fmt::Display for ClusterMaintenance {
             } => write!(
                 f,
                 "the cluster gauged by node {} was absorbed into the one gauged by node {}",
-                absorbed.0, survived.0
+                absorbed, survived
             ),
             Self::Split { from, to, .. } => write!(
                 f,
                 "a cluster separated from the one gauged by node {} and is now gauged by node {}",
-                from.0, to.0
+                from, to
             ),
             Self::GaugeRewrite { from, to, .. } => write!(
                 f,
                 "the cluster gauged by node {} lost that instance and is now gauged by node {}",
-                from.0, to.0
+                from, to
             ),
             Self::Drop { gauge, .. } => write!(
                 f,
                 "the cluster gauged by node {} lost its last instance, and its placement record \
                  went with it",
-                gauge.0
+                gauge
             ),
         }
     }

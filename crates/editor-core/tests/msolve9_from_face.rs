@@ -823,7 +823,9 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     };
     assert_eq!(part, doc_ref);
     assert!(
-        fault.to_string().contains("face name minted by node 99"),
+        fault
+            .to_string()
+            .contains("face name minted by node 000000000063"),
         "the badge names the face: {fault}"
     );
 
@@ -972,7 +974,7 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
     let text = refusal.to_string();
     assert!(
         text.contains(&cap(s.post_body, CapEnd::End).to_string())
-            && text.contains(&format!("instance {}'s part", s.post_i.0)),
+            && text.contains(&format!("instance {}'s part", s.post_i)),
         "the message names the face and the instance whose part it is: {text}"
     );
     assert!(
