@@ -424,6 +424,6 @@ mod tests {
             .to_string()
         });
         assert_eq!(shown.matches("FromA").count(), 2 * DEEP, "both paths whole");
-        assert_eq!(shown.matches("face name minted by node 2").count(), 2);
+        assert_eq!(shown.matches("face name minted by node 000000000002").count(), 2);
     }
 }

@@ -946,7 +946,7 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
     assert_eq!(
         tree::product_refusal_wording(&failed, &ev),
         format!(
-            "product: root node {} failed, so it has no value — fix the node's own failure",
+            "product: root node {:012x} failed, so it has no value — fix the node's own failure",
             extrude.0
         ),
         "a root that is its own cause keeps the gather's sentence"
@@ -968,8 +968,8 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
     assert_eq!(
         tree::product_refusal_wording(&poisoned, &ev),
         format!(
-            "product: root node {} is poisoned by the failure at node {}, so it has no value — \
-             the repair is upstream, at node {}",
+            "product: root node {:012x} is poisoned by the failure at node {:012x}, so it has no value — \
+             the repair is upstream, at node {:012x}",
             moved.0, extrude.0, extrude.0
         ),
         "a root poisoned through the row the tree names keeps the gather's sentence"

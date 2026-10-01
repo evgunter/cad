@@ -3899,7 +3899,7 @@ mod properties_pane_tests {
         // reader gets for this row.
         assert_eq!(
             said,
-            "the distance slot on node 2 is computed, so it has no written unit to change — \
+            "the distance slot on node 000000000002 is computed, so it has no written unit to change — \
              set an expression to change what it says"
         );
         pane.click("computed");
@@ -4077,7 +4077,7 @@ mod properties_pane_tests {
         );
         assert_eq!(
             said,
-            "the origin z slot on node 0 is computed, so it has no written unit to change — \
+            "the origin z slot on node 000000000000 is computed, so it has no written unit to change — \
              set an expression to change what it says"
         );
         pane.click("mm");
@@ -4215,9 +4215,9 @@ mod properties_pane_tests {
         assert_eq!(gained, vec![said.join("\n")]);
         assert!(
             gained[0].starts_with(
-                "the origin x slot on node 0 is computed, so it has no written unit to change"
-            ) && gained[0].contains("\nthe origin y slot on node 0 is computed")
-                && gained[0].contains("\nthe origin z slot on node 0 is computed"),
+                "the origin x slot on node 000000000000 is computed, so it has no written unit to change"
+            ) && gained[0].contains("\nthe origin y slot on node 000000000000 is computed")
+                && gained[0].contains("\nthe origin z slot on node 000000000000 is computed"),
             "{gained:?}"
         );
         pane.click("computed");

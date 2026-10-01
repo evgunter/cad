@@ -511,7 +511,9 @@ mod tests {
             row_label(ui, &row, false);
         });
         assert!(
-            drawn.contains(&format!("Datum frame — yz at (0, 0, 0) m {GLYPH_ROOT}")),
+            drawn.contains(&format!(
+                "Datum frame 000000000002 — yz at (0, 0, 0) m {GLYPH_ROOT}"
+            )),
             "{drawn}"
         );
     }
@@ -543,8 +545,8 @@ mod tests {
     #[test]
     fn a_failed_rows_carried_refusals_draw_under_it_one_step_in_per_level() {
         let carried = [
-            ("bracket.pncad", "node 7 failed: the first level"),
-            ("boss.pncad", "node 3 failed: the second level"),
+            ("bracket.pncad", "node 000000000007 failed: the first level"),
+            ("boss.pncad", "node 000000000003 failed: the second level"),
         ];
         let row = TreeRow {
             status: RowStatus::Failed {
@@ -823,7 +825,10 @@ mod tests {
         let fixture = measure_fixture();
         let painted = landed(|ui| feature_row_drawn(ui, &fixture.row(fixture.distance)));
         let value = find(&painted, "0.0125 m");
-        let kind = find(&painted, &format!("Measure {GLYPH_ROOT}"));
+        let kind = find(
+            &painted,
+            &format!("Measure {:012x} {GLYPH_ROOT}", fixture.distance.0),
+        );
         assert!(
             (value.rows[0].center().y - kind.rows[0].center().y).abs() <= SLACK
                 && value.rows[0].left() > kind.rows[0].right(),
@@ -874,7 +879,10 @@ mod tests {
         let row = fixture.row(fixture.clearance);
         let (painted, voices) = landed_voiced(|ui| feature_row_drawn(ui, &row));
         let line = find(&painted, &reason);
-        assert_under(find(&painted, "Measure"), line);
+        assert_under(
+            find(&painted, &format!("Measure {:012x}", fixture.clearance.0)),
+            line,
+        );
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
         assert_eq!(
             painted.len(),
@@ -896,7 +904,11 @@ mod tests {
         let drawn = painted(|ui| feature_row_drawn(ui, &row));
         assert_eq!(
             drawn,
-            vec!["Measure".to_owned(), "FAILED".to_owned(), message.clone()],
+            vec![
+                format!("Measure {:012x}", fixture.failed.0),
+                "FAILED".to_owned(),
+                message.clone()
+            ],
             "the kind, the badge, the words, and nothing measured"
         );
     }
@@ -923,7 +935,7 @@ mod tests {
         };
         let (painted, voices) = landed_voiced(|ui| feature_row_drawn(ui, &row));
         let line = find(&painted, note);
-        assert_under(find(&painted, "Mate"), line);
+        assert_under(find(&painted, "Mate 000000000007"), line);
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
     }
 
@@ -973,7 +985,10 @@ mod tests {
         );
         let (painted, voices) =
             landed_voiced(|ui| feature_row_drawn(ui, &fixture.row(fixture.holds)));
-        let kind = find(&painted, &format!("Assertion {GLYPH_ROOT}"));
+        let kind = find(
+            &painted,
+            &format!("Assertion {:012x} {GLYPH_ROOT}", fixture.holds.0),
+        );
         let state = find(&painted, state_of(&fixture, fixture.holds));
         let comparison = find(
             &painted,
@@ -1023,7 +1038,7 @@ mod tests {
         assert_eq!(
             texts(&painted),
             vec![
-                format!("Assertion {GLYPH_ROOT}").as_str(),
+                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.violated.0).as_str(),
                 state,
                 &compared(&fixture, fixture.violated, "0.0125 m", "0.02 m"),
             ],
@@ -1069,7 +1084,7 @@ mod tests {
         assert_eq!(
             texts(&painted),
             vec![
-                format!("Assertion {GLYPH_ROOT}").as_str(),
+                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.indeterminate.0).as_str(),
                 state,
                 reason.as_str()
             ],
@@ -1182,7 +1197,7 @@ mod tests {
     #[test]
     fn clicking_a_rows_label_selects_its_node() {
         let row = instance_row();
-        let label = format!("InstantiatePart — {}", crate::test_support::PART_FILE);
+        let label = format!("InstantiatePart 000000000004 — {}", crate::test_support::PART_FILE);
         let clicks = row_clicked(&row, &label, false);
         assert_eq!(clicks.select, Some(row.id));
         assert_eq!(clicks.hide, None, "a label click toggles nothing");

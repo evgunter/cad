@@ -1527,7 +1527,7 @@ mod tests {
         // Planted, not compared with another reading of the fault.
         assert!(
             painted.contains(
-                "instance 0's geometry is fused into node 2 together with instance(s) 1 — \
+                "instance 000000000000's geometry is fused into node 000000000002 together with instance(s) 000000000001 — \
                  a display operation cannot address it separately"
             ),
             "{painted}"

@@ -3335,7 +3335,7 @@ mod tests {
         // line instead of to the notices is erased by its own cause.
         let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
         assert!(
-            notice.contains("instance 7"),
+            notice.contains("instance 000000000007"),
             "the notice names which of the user's placements went — here in \
              the part-instance vocabulary, because the MateConstrained arm's \
              subject is an instance. That is `AdmissionFault`'s per-arm rule \
@@ -3400,7 +3400,7 @@ mod tests {
         .expect("news");
         assert_eq!(
             gone,
-            "free move: a committed placement was discarded — node 4 is not in the document"
+            "free move: a committed placement was discarded — node 000000000004 is not in the document"
         );
     }
 
@@ -3502,7 +3502,7 @@ mod tests {
         assert_eq!(
             dropped_hide_text(core::slice::from_ref(&gone)).expect("news"),
             "hide: a hide was dropped with the instance it was on — \
-             node 4 is not in the document"
+             node 000000000004 is not in the document"
         );
     }
 
@@ -3516,7 +3516,7 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             instance 3 is mate-constrained (mate node(s) 5): its pose is \
+             instance 000000000003 is mate-constrained (mate node(s) 000000000005): its pose is \
              mate-derived, so the free-move probe refuses — delete the mate(s) if \
              free relative motion is intended"
         );

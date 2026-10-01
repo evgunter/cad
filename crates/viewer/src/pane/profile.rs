@@ -1294,7 +1294,7 @@ mod tests {
                 super::edit_door_ui(ui, &session, Theme::DEFAULT, written, edit, None);
         });
         assert!(
-            hovered.contains(&format!("node {} carries a {wall}", carrier.0)),
+            hovered.contains(&format!("node {:012x} carries a {wall}", carrier.0)),
             "the hover names the carrier and the name: {hovered}"
         );
         // Another step dropped instead strands nothing — what Apply

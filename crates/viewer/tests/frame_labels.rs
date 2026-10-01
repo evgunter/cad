@@ -122,7 +122,16 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
     });
-    let (shown, _) = label(node);
+    let tol = Tol::witness();
+    let (doc, _) = common::edited(
+        &Doc::empty_derived("frame-labels-driven", tol),
+        DocEdit::SetDocParam {
+            name: ParamName::from_static("height"),
+            value: DocParam::continuous(Dimension::Length, 0.001),
+        },
+        tol,
+    );
+    let (shown, _) = label_in(&doc, node);
     assert!(shown.contains("driven"), "{shown}");
     assert!(
         !shown.contains('('),

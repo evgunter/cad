@@ -2008,7 +2008,7 @@ mod tests {
     /// A stand-in labeller: the number alone, so a row asserting on
     /// the pose half is asserting on text this closure did not write.
     fn numbers(id: &RecipeNodeId) -> String {
-        format!("feature {}", id.0)
+        format!("node {:012x}", id.0)
     }
 
     /// The add-profile form's plane row, on an EMPTY document, offers
@@ -2055,8 +2055,8 @@ mod tests {
             drawn.contains(NEW_XY_LABEL),
             "the mint is on the open list beside the frames that exist: {drawn}"
         );
-        assert!(drawn.contains("feature 2"), "{drawn}");
-        assert!(drawn.contains("feature 5"), "{drawn}");
+        assert!(drawn.contains("node 000000000002"), "{drawn}");
+        assert!(drawn.contains("node 000000000005"), "{drawn}");
     }
 
     /// The mint's own name reaches the widget: with it picked, the
@@ -2078,12 +2078,12 @@ mod tests {
     #[test]
     fn the_plane_row_draws_the_name_it_is_handed() {
         let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(4)));
-        let names = |id: &RecipeNodeId| format!("feature {} — xy at (0, 0, 0) m", id.0);
+        let names = |id: &RecipeNodeId| format!("node {:012x} — xy at (0, 0, 0) m", id.0);
         let drawn = painted_text(|ui| {
             profile_plane_row(ui, &Theme::DEFAULT, &[RecipeNodeId(4)], &names, &mut picked)
         });
         assert!(
-            drawn.contains("feature 4 — xy at (0, 0, 0) m"),
+            drawn.contains("node 000000000004 — xy at (0, 0, 0) m"),
             "the closed combo says which frame, in the labeller's words: {drawn}"
         );
     }
@@ -2096,7 +2096,7 @@ mod tests {
         let drawn =
             painted_text(|ui| profile_plane_row(ui, &Theme::DEFAULT, &[], &numbers, &mut picked));
         assert!(
-            drawn.contains("feature 9"),
+            drawn.contains("node 000000000009"),
             "a pick outside the list is named, not silently drawn as unfilled: {drawn}"
         );
         assert!(!drawn.contains("pick one"), "{drawn}");
@@ -2173,7 +2173,7 @@ mod layout_tests {
                 "salt",
                 &[],
                 &mut picked,
-                |id| format!("feature {}", id.0),
+                |id| format!("node {:012x}", id.0),
             );
         });
         let empty = find(&painted, NO_FRAMES);
@@ -2435,7 +2435,7 @@ mod tone_tests {
             Some(voices.unresolved)
         );
         assert_eq!(
-            find_opening(&painted, "feature 4's value is several bodies").ink,
+            find_opening(&painted, "node 000000000004's value is several bodies").ink,
             Some(voices.unresolved)
         );
         assert_eq!(
