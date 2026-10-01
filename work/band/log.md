@@ -281,3 +281,11 @@ escalated. Filed: ENCL's `recourse-table-has-no-lever-only-ending` and
 BAND's `dependent-normals-refusal-carries-no-margin-for-its-ending`,
 `dependent-normals-names-a-run-out-policy-the-tag-says-cannot-help`.
 `blend-surgery-invariant-ends-in-a-tag` priced P4/E.
+
+## 2026-10-01 — continuation walls ruled: construct (PR 3647)
+
+Ev approved the designer pair's converged answer, superseding the
+2026-09-25 merge-stage ruling: sweeps build one wall per cosurface run;
+F7 is back to boolean outputs as the one op with a merge stage. The row
+`swept-continuation-walls-reach-the-boolean-unmerged` is now the
+implementation (fork-log row 36; A = Fable, B = Opus).
