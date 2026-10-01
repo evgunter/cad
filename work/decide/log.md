@@ -804,3 +804,25 @@ The orchestrator leans on the dial with B: close #3282 unmerged.
 | designer (Opus) | 122k | 3 min |
 | designer (Fable) | 165k | 9 min |
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-10-01 — Ev rules on #3283; DECIDE-8 closes at Phase 1
+
+Ev asked what "the dial" was. The PR description was rewritten to open
+with context: the tier's four classes, the six, the new rule, and what a
+dial is. Ev then ruled yes to all three decisions:
+1. the six are answered in the profile's pair pass;
+2. the certified-sign read does not ship, and #3282 is closed unmerged;
+3. the bracket's 28 get a structural look first.
+
+**Changes:**
+- `the-apothems-sign-is-a-value-read` closes on the ruling.
+- DECIDE-8 closes at Phase 1, and its spec is deleted with a ledger note.
+- Design-fork log row 33 is completed: both designers matched on the
+  layer and the fix, and B matched on the dial.
+
+**Next: the PATHS row is PATHS' to schedule.** That row is
+`an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`. PATHS is
+active and in the middle of the arc carrier (`store-constructed-carriers`,
+unit 5's split), in the same `seg.rs`. A DECIDE unit there would cross its
+in-flight work. When the row lands on `main`, DECIDE measures what it
+moves on the tier, on `props/sign-hull`.
