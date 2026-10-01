@@ -1646,18 +1646,20 @@ mod verdict_tests {
 
     /// What [`standing_verdict`] painted for `standing`.
     fn drawn(standing: &Standing) -> (Vec<Landed>, Voices) {
-        landed_voiced(|ui| standing_verdict(ui, &Theme::DEFAULT, standing))
+        landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            standing_verdict(ui, theme, standing)
+        })
     }
 
     /// **A name that no longer resolves is a verdict to act on**, so
-    /// it is drawn in the unresolved colour — and the rebind count
+    /// it is drawn in the actionable colour — and the rebind count
     /// under it is secondary text, weak.
     #[test]
     fn a_vanished_faces_verdict_is_drawn_loud_and_its_offer_count_weak() {
         let (painted, voices) = drawn(&face(Some(vanished(vec![name(EntityKind::Face)]))));
         assert_eq!(
             find_opening(&painted, "this face is gone: ").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
         assert_eq!(
             find(&painted, "1 rebind candidate(s) offered").ink,
@@ -1684,7 +1686,7 @@ mod verdict_tests {
         let (painted, voices) = drawn(&standing);
         assert_eq!(
             find_opening(&painted, "this edge cannot be resolved right now: ").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
     }
 
@@ -1706,7 +1708,7 @@ mod verdict_tests {
             node: RecipeNodeId(3),
             present: false,
         });
-        assert_eq!(find(&painted, "deleted").ink, Some(voices.unresolved));
+        assert_eq!(find(&painted, "deleted").ink, Some(voices.actionable));
     }
 
     /// **An undeclared parameter is said once, loud** — the only line
@@ -1719,7 +1721,7 @@ mod verdict_tests {
         });
         assert_eq!(
             find(&painted, "parameter width is no longer declared").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
     }
 

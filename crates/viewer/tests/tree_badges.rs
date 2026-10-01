@@ -510,8 +510,10 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
 /// is poisoned through `post_a`; the tree draws both downstream of the
 /// offending mate. The properties panel's verdict on a picked face, the
 /// mate tool's dropped pick, the sketch-on-face seat, the duplicate
-/// door, the blend loader and the product's gather refusal each carry a
-/// standing, and each must carry the TREE's.
+/// door and the blend loader each carry a standing, and each must
+/// carry the TREE's. The product's gather refusal is drawn by none of
+/// them: the tree badges the refused root at its row, and the at-rest
+/// badge takes no verdict on a product that did not gather.
 #[test]
 fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     use pncad::document::{NodeStanding, ProductError};
@@ -693,9 +695,9 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
         "the pick index's tooltip names the offending mate: {detail}"
     );
 
-    // The product gather: its value is the kernel's, and the at-rest
-    // badge draws it with the tree's pointer, never "ancestor" for a
-    // mate.
+    // The product gather: its value is the kernel's, the tree draws the
+    // refused root downstream of the mate, and the at-rest badge says
+    // nothing about it.
     let root = match session.product_fault() {
         Some(ProductError::Root(
             NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. },
@@ -706,20 +708,11 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
         matches!(common::status_of(&rows, root), RowStatus::Poisoned { through, .. } if through == offender),
         "the refused root is drawn downstream of the offending mate"
     );
-    match session.at_rest() {
-        Some(viewer::session::AtRestBadge::Refused { message }) => assert_eq!(
-            *message,
-            format!(
-                "product: root {}",
-                NodeStanding::Poisoned {
-                    node: root,
-                    through: offender
-                }
-            ),
-            "the at-rest badge points where the tree points"
-        ),
-        other => panic!("the at-rest badge refuses, got {other:?}"),
-    }
+    assert_eq!(
+        session.at_rest(),
+        None,
+        "the at-rest badge takes no verdict on a gather refusal; the tree's row carries it"
+    );
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
@@ -729,8 +722,8 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
 /// below by name with the reason it need not.
 ///
 /// A source census over the code view. A door call counts as read when
-/// it sits inside the argument list of a re-read (`*_as_drawn(…)`,
-/// `product_refusal_wording(…)`), or when a re-read appears in the rest
+/// it sits inside the argument list of a re-read (`*_as_drawn(…)`),
+/// or when a re-read appears in the rest
 /// of its own statement: from the call to the first `;` at the call's
 /// own brace depth, or to the end of the enclosing block. What it cannot
 /// see: a kernel door missing from `STANDING_DOORS`, and a door reached
@@ -760,7 +753,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         "resolution_as_drawn(",
         "interrogation_as_drawn(",
         "index_refusal_as_drawn(",
-        "product_refusal_wording(",
     ];
     /// `(file, door, reason)`: each admits exactly one unread call.
     const ADMITTED: &[(&str, &str, &str)] = &[
@@ -828,6 +820,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "product(",
             "runs only over a pair whose gather already succeeded (the A5 gate ate the \
              body), so no root refusal reaches it",
+        ),
+        (
+            "session.rs",
+            "product_recorded(",
+            "the landing keeps the typed refusal (`product_fault`), and `frame::badge_site` \
+             sends a root's refusal to the feature tree, so no surface draws its standing",
         ),
         (
             "session.rs",
@@ -910,69 +908,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         found, admitted,
         "every standing door reads through the tree's answer or is admitted by name; \
          unread calls: {unread:#?}"
-    );
-}
-
-/// **A root the tree does NOT redraw keeps the gather's own words** —
-/// `tree::product_refusal_wording`'s re-read, pinned by its literal
-/// text so it cannot re-point a root that is its own cause, or one
-/// poisoned through a real DAG ancestor.
-#[test]
-fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
-    use pncad::document::{Node, NodeStanding, ProductError};
-
-    let tol = Tol::witness();
-
-    // A failed root: the extrude alone.
-    let doc = pncad::document::Doc::empty_derived("gather-words-failed", tol);
-    let (mut doc, profile) = common::framed_square(&doc, 0.04, tol);
-    let extrude = common::insert_into(
-        &mut doc,
-        Node::Extrude {
-            profile,
-            distance: pncad::document::Expr::div(common::len(0.008), common::scl(0.0))
-                .expect("length / scalar is a length"),
-        },
-        tol,
-    );
-    let ev = evaluate(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let failed = ProductError::Root(NodeStanding::Failed { node: extrude });
-    assert_eq!(
-        tree::product_refusal_wording(&failed, &ev),
-        format!(
-            "product: root node {:012x} failed, so it has no value — fix the node's own failure",
-            extrude.0
-        ),
-        "a root that is its own cause keeps the gather's sentence"
-    );
-
-    // A root poisoned through a real DAG ancestor.
-    let (doc, extrude, moved) = common::broken_document(tol);
-    let ev = evaluate(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let poisoned = ProductError::Root(NodeStanding::Poisoned {
-        node: moved,
-        through: extrude,
-    });
-    assert_eq!(
-        tree::product_refusal_wording(&poisoned, &ev),
-        format!(
-            "product: root node {:012x} is poisoned by the failure at node {:012x}, so it has no value — \
-             the repair is upstream, at node {:012x}",
-            moved.0, extrude.0, extrude.0
-        ),
-        "a root poisoned through the row the tree names keeps the gather's sentence"
     );
 }
 

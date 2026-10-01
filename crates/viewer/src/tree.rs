@@ -60,9 +60,8 @@
 //! is.** Every other surface that says why a node has no value reads
 //! it off [`cause_row`]: a picked face's verdict, a tool's refusal and
 //! the pick index's tooltip hold the kernel's `NodeStanding` re-read by
-//! [`standing_as_drawn`], and the at-rest badge draws the product
-//! gather's refusal in [`product_refusal_wording`]. So no panel names
-//! a different row from the tree's. Every kernel door under
+//! [`standing_as_drawn`]. So no panel names a different row from the
+//! tree's. Every kernel door under
 //! `crates/viewer/src` that hands back a standing is censused by
 //! `tree_badges::every_standing_door_in_the_viewer_reads_the_trees_answer`.
 //!
@@ -174,11 +173,10 @@
 
 use std::collections::BTreeMap;
 
-use pncad::document::AssemblyError;
 use pncad::document::{
     AssertionDir, AssertionVerdict, CarriedIn, Datum, Doc, Evaluation, Expr, MateFault,
-    MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, ProductError,
-    ProfileProgram, RecipeNodeId, SpokenNode, ValuePayload,
+    MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram,
+    RecipeNodeId, SpokenNode, ValuePayload,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
@@ -932,30 +930,6 @@ pub fn resolution_as_drawn(resolution: Resolution, evaluation: &Evaluation<f64>)
             })
         }
         Resolution::Resolved(_) | Resolution::Failed(_) => resolution,
-    }
-}
-
-/// **The words a product-gather refusal is shown in**: the gather's
-/// own, with a root's standing re-read by [`standing_as_drawn`], so a
-/// root this tree draws downstream of a row the refusal does not name
-/// is refused as downstream of that row, in the standing's one sentence.
-///
-/// Words and not a re-attributed [`ProductError`]: the refusal's own
-/// value stays the gather's, and only what is drawn from it is the
-/// tree's.
-pub fn product_refusal_wording(fault: &ProductError, evaluation: &Evaluation<f64>) -> String {
-    match fault {
-        ProductError::Root(standing) => AssemblyError::product_refusal(&ProductError::Root(
-            standing_as_drawn(*standing, evaluation),
-        )),
-        ProductError::EvaluationOfAnotherDocument { .. }
-        | ProductError::PlacedUnderTwoRoots { .. }
-        | ProductError::Naming { .. }
-        | ProductError::NoBodyRoots
-        | ProductError::Graft { .. }
-        | ProductError::RootInvalid { .. }
-        | ProductError::ProductInvalid { .. }
-        | ProductError::ContactLineage { .. } => AssemblyError::product_refusal(fault),
     }
 }
 

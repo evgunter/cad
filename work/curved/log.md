@@ -469,3 +469,20 @@ is deleted with a ledger note; `docs/KERNEL-VERBS.md`'s shell row no
 longer points at it. CURVED's slate: the equator-seam unit (in flight),
 the C5 demo half, the ellipse escalation (riding the seam unit), and the
 two spiric/torus findings (the STEP bound; the C9 `[ev]`, PR #3517).
+
+## Equator-seam unit delivered; widened to the rim window (2026-10-01)
+
+PR #3626 (head 95a306612): the `RevolvedPoint` re-author turns the
+placement onto each moved corner's azimuth and reads the span from the
+moved ends; three named decides with audit rows; a two-arc lune with
+circle rims reaches its props door through the turned seams. The elbow
+does NOT reach props: one door later, a spiric rim's parameter window
+runs π → 0 because `param_on` reads the inner-equator end through
+`atan2(±0.0, ·)` — the sign of a zero picks the branch (PR-1a's code,
+hidden until now by the seam refusal), filed as
+`spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut`.
+Widened the unit to fix it on the same PR (same door, same suites, the
+exit's headline); one single FULL review of the combined head after.
+CI is red only on `reach_volume_backstop` at 1e-6/1e-12 — REACH's suite
+from #3611, which its own tolerance step never ran; REACH filed it
+(64a3eee23). This PR merges after REACH's fix lands.
