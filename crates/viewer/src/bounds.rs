@@ -296,7 +296,7 @@ impl Bounds {
     /// it is non-zero: a bound that IS zero reads `0`, and a sign is not
     /// a distance ([`crate::readout::reads_back`] measures how far a
     /// text reads FROM the value). This is what stops the rule being
-    /// [`crate::scene::DisplayTolerance::render_mm`] with the δ taken
+    /// [`crate::scene::DisplayTolerance::render_in`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.
     ///
     /// **And a bound may be one the NOTATION cannot name**, which is
