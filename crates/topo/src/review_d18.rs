@@ -2866,7 +2866,7 @@ fn mekr_refuses_a_ring_another_face_lists() {
 /// halves' loops or the orbits of their endpoints.
 fn far_loop(
     body: &Body<f64>,
-    ends: [crate::entity::VertexKey; 2],
+    ends: &[crate::entity::VertexKey],
 ) -> (crate::entity::LoopKey, HalfEdgeKey) {
     let touches = |h: HalfEdgeKey| {
         let start = body.get_half_edge(h).unwrap().start;
@@ -2890,7 +2890,7 @@ fn far_loop(
 /// `emanating`, and an edge's slot.
 fn half_edge_tears(body: &Body<f64>, [he, m]: [HalfEdgeKey; 2]) -> [(Body<f64>, EulerOpError); 5] {
     let start = |h| body.get_half_edge(h).unwrap().start;
-    let (l, x) = far_loop(body, [start(he), start(m)]);
+    let (l, x) = far_loop(body, &[start(he), start(m)]);
     let (v, e) = (start(x), body.get_half_edge(x).unwrap().edge);
     let broken = EulerOpError::LoopCycleBroken { r#loop: l };
     let torn = |tear: &dyn Fn(&mut Body<f64>)| {
