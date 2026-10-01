@@ -149,9 +149,8 @@
 //! this crate: the
 //! splitting lane (on each side it produces), the boolean pipeline (on
 //! the finished body), [`crate::Body::merge_coplanar_faces`] (on the
-//! staged result before commit, and only when the input carried
-//! caches), and [`crate::transform`] (which re-derives when the operand
-//! carried caches), and [`crate::shell`](mod@crate::shell) (on the
+//! staged result before commit), and [`crate::transform`] (on the
+//! mapped image), and [`crate::shell`](mod@crate::shell) (on the
 //! assembled thin solid). **Downstream crates hold the same posture and
 //! are part of the list**: `sweep`'s extrude, revolve and tube, loft,
 //! fillet build and fillet surgery, and `step_import`'s assembly all

@@ -525,6 +525,9 @@ fn pair_with_no_live_faces_mints_no_record() {
     );
     assert!(faces_on(&body, pk, pk).is_empty());
     assert_eq!(validate_closed(&body), Ok(()));
+    // At rest: the re-charted walls store their rows again, so the
+    // door's closing mint has nothing to change.
+    topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
     let before = format!("{body:?}");
     let outcome = body
         .merge_coplanar_faces_declared(&[(pk, pk)], Tol::witness())

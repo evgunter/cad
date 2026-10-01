@@ -1670,9 +1670,8 @@ impl<T: Decide> Body<T> {
         if let Err(errors) = validate_closed(&work) {
             return Err(MergeCoplanarError::ResultNotClosed { errors });
         }
-        // A body that carried stored pcurve caches RE-MINTS them on
-        // the staged result before commit (the `topo::pcurves` module
-        // docs' rule for ops that mutate minted bodies): the merge
+        // The staged result is RE-MINTED before commit, as every public
+        // producer's output is (C4: rows are mandatory at rest): the merge
         // rebuilds face loops, and two absorbed fragments' walks were
         // branch-anchored independently — the merged loop's one-branch
         // walk must be derived fresh, never stitched from the
@@ -1688,10 +1687,8 @@ impl<T: Decide> Body<T> {
         // UNCACHED, its fitted certificate silently dropped. What is
         // left of that item is `certify_fitted`'s own wiring, not the
         // bound; this site inherits the fix when that lands.
-        if !self.pcurves.is_empty() {
-            crate::pcurves::mint_pcurves(&mut work, tol)
-                .map_err(|source| MergeCoplanarError::Pcurve { source })?;
-        }
+        crate::pcurves::mint_pcurves(&mut work, tol)
+            .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         let mut skipped = declined_records(&work);
         skipped.append(&mut outcome.skipped);
         outcome.skipped = skipped;

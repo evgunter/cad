@@ -208,7 +208,10 @@ fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
 /// would mint them, and on a spline chart those rows derive only
 /// through the fitted lane, which `set_edge_curve` does not carry. The
 /// door describes the edge and leaves the rows as found: the two
-/// `MissingCache` findings stand, and no other row moves.
+/// `MissingCache` findings stand, beside the refusal the wall's
+/// re-derivation meets — the circle is no iso of the chart, so the
+/// minting pass could not state those rows either — and no other row
+/// moves.
 #[test]
 fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     let mut body = lofted_prism();
@@ -225,17 +228,28 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
     body.set_edge_curve(null.edge, EdgeCurveSpec::self_loop_circle_at(p), tol())
         .unwrap();
     assert_eq!(rows(&body), before, "no row moves");
-    let mut missing: Vec<HalfEdgeKey> = validate_pcurves(&body, band())
-        .into_iter()
-        .map(|f| match f {
-            topo::PcurveMintError::MissingCache { half_edge } => half_edge,
-            other => panic!("only missing rows are reported, got {other:?}"),
-        })
-        .collect();
+    let findings = validate_pcurves(&body, band());
+    let mut missing: Vec<HalfEdgeKey> = Vec::new();
+    let mut why = Vec::new();
+    for f in &findings {
+        match *f {
+            topo::PcurveMintError::MissingCache { half_edge } => missing.push(half_edge),
+            topo::PcurveMintError::Certify {
+                half_edge,
+                error: geom_brep::PcurveCertifyError::IsoUnsupported { .. },
+            } => why.push(half_edge),
+            ref other => panic!("only the gaps and why they are gaps, got {other:?}"),
+        }
+    }
     missing.sort();
     let mut want = vec![null.he_plus, null.he_minus];
     want.sort();
     assert_eq!(missing, want);
+    assert!(
+        matches!(why.as_slice(), [he] if want.contains(he)),
+        "the wall's re-derivation refuses the described circle, no iso of the chart: \
+         {findings:?}"
+    );
 }
 
 /// **An operator on a spline wall a null edge holds open leaves it as

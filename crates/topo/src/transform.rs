@@ -759,13 +759,11 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     // the chart frame with the surface, so chart coordinates are
     // invariant and the re-derived caches are the same numbers; running
     // the derivation anyway is what keeps the certificate honest (D4 ¶2)
-    // and costs a body that carried none exactly nothing — the pass only
-    // runs when the operand actually carried caches, so transform never
-    // MINTS caches a body did not have.
-    if out.pcurves().next().is_some() {
-        crate::pcurves::mint_pcurves(&mut out, tol)
-            .map_err(|source| TransformError::Pcurve { source })?;
-    }
+    // and costs an all-planar body nothing. Like every public producer,
+    // the door ends with the full mint, so the image stores every row
+    // its curved faces owe at rest.
+    crate::pcurves::mint_pcurves(&mut out, tol)
+        .map_err(|source| TransformError::Pcurve { source })?;
     Ok(out)
 }
 
