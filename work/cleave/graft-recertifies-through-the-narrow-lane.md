@@ -2,11 +2,11 @@
 id: graft-recertifies-through-the-narrow-lane
 kind: issue
 title: boolean graft re-certifies through the plain certify door, the second instance of the transform split
-status: open
+status: dispatched
 opened: 2026-09-12
 priority: P1
 cost: M
-design: true
+branch: cleave/nurbs-lane
 ---
 
 
@@ -110,3 +110,26 @@ established. The question is therefore live, and it is the same one as
 `work/shell/plain-transform-rigid-still-refuses-the-m7-8-class`: which
 door the capability is reached through, given that the bound cannot be
 raised on a chain `verbs::Verb` instantiates at `Dual64`.
+
+## Decided (CLEAVE designer pair, 2026-10-01)
+
+The two designers converged after one reconciliation round.
+- **The certification right belongs to the scalar.** The plane × NURBS
+  lane becomes a sealed value (`NurbsLane::certified()`, the shape
+  `FittedLane` has) held per scalar by `AtRestPolicy::nurbs_lane()`.
+- **The transform re-derives.** `transform_rigid` reads its lane from
+  that policy, and `transform_rigid_via` goes.
+- **The graft carries certificates.** The graft copies geometry bit for
+  bit, so `insert_void[s]` uses `Bridge::RemapKeys` and does not
+  re-certify.
+- **A scalar without the lane gets its own refusal.**
+  `CertifyError::NurbsLaneUnsupported` replaces `Unimplemented`, and
+  `needs_nurbs_lane` retires.
+
+This applies H5 ruling 3 (PR 2701) to the one lane that predates it. No
+ratified text changes. The `real.rs` M7-8 paragraph is agent-written,
+and it is re-worded to match the new code. The design pages count the
+policy's doors ("three doors, one policy"); they move to four in the
+same change. Collapsing the mint doors (`set_edge_curve` reading the
+policy) is a second unit, sized separately: the bound raise reaches 46
+call sites.

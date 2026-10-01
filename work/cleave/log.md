@@ -73,3 +73,16 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   SHELL's `plain-transform-rigid-still-refuses-the-m7-8-class`, so one
   designer pair is weighing the class across both doors. (SHELL has no
   orchestrator; I will note this on its log when the weighing returns.)
+- Graft/transform lane fork. The designers converged after one
+  reconciliation round: the right is the scalar's, so the lane is
+  sealed and `AtRestPolicy::nurbs_lane()` holds it; the transform reads
+  it; the void graft carries certificates through `RemapKeys`; a scalar
+  without the lane gets its own refusal variant. This is not a fork for
+  Ev: it applies H5 ruling 3 and changes only agent-written text, so
+  there is no `[ev]` PR and no fork-log row. Ev hears about it in chat.
+  SHELL's `plain-transform-rigid-...` row was claimed (git mv) under
+  the graft row, as was the forgery row. The `cleave/nurbs-lane` lane
+  is dispatched for the transform, void, sealing and variant parts.
+  Review: **dual**, because it reshapes a certification surface shared
+  crate-wide. The mint-door collapse (`set_edge_curve` reading the
+  policy, 46 call sites) follows as a second unit.

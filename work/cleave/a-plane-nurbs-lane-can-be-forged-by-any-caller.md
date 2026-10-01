@@ -2,11 +2,13 @@
 id: a-plane-nurbs-lane-can-be-forged-by-any-caller
 kind: issue
 title: NurbsLane is any closure and PlaneNurbsLimbs has public fields, so a caller at any scalar can hand certify_via limbs it never derived and mint a certified plane x NURBS carrier
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P3
 cost: M
 refs: [graft-recertifies-through-the-narrow-lane]
+parent: graft-recertifies-through-the-narrow-lane
+branch: cleave/nurbs-lane
 ---
 
 
