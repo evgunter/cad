@@ -40,8 +40,11 @@ const DISCS: [(&str, Loop); 2] = [
         ],
     ),
 ];
-/// Two lune bores, one per half, and a control inside the polygon.
-const HOLES: [(f64, f64); 3] = [(1.6, 0.8), (-1.6, 0.8), (0.8, 0.4)];
+/// Two lune bores, one per half; one whose anchor vertex `(1.2, 0.8)`
+/// lies ON the polygon's edge `x + y = 2` (the polygon walk's
+/// `OnBoundary`, though the anchor is in the half-disc's interior); and
+/// a control inside the polygon.
+const HOLES: [(f64, f64); 4] = [(1.6, 0.8), (-1.6, 0.8), (1.35, 0.8), (0.8, 0.4)];
 
 fn tol() -> Tol {
     Tol::witness()
@@ -61,8 +64,17 @@ fn extruded(plane: SketchPlane<f64>, loops: &[&[(f64, f64, f64)]], h: f64) -> Bo
 }
 
 fn bored_disc(outer: &[(f64, f64, f64)], (cx, cy): (f64, f64)) -> Body<f64> {
-    let hole = [(cx - BORE, cy, 1.0), (cx + BORE, cy, 1.0)];
-    extruded(SketchPlane::xy(), &[outer, &hole], 1.0)
+    bored_disc_n(outer, &[(cx, cy)])
+}
+
+fn bored_disc_n(outer: &[(f64, f64, f64)], centres: &[(f64, f64)]) -> Body<f64> {
+    let holes: Vec<[(f64, f64, f64); 2]> = centres
+        .iter()
+        .map(|&(cx, cy)| [(cx - BORE, cy, 1.0), (cx + BORE, cy, 1.0)])
+        .collect();
+    let mut loops: Vec<&[(f64, f64, f64)]> = vec![outer];
+    loops.extend(holes.iter().map(|h| &h[..]));
+    extruded(SketchPlane::xy(), &loops, 1.0)
 }
 
 /// The slab `x ∈ [x0, x1]` standing through the disc.
@@ -157,6 +169,100 @@ fn a_boolean_carries_a_lune_bore_with_its_half() {
                 Ok(BooleanResult::Body(b)) => assert_half(&row, &b.body, holds),
                 Ok(_) => panic!("{row}: the result is empty"),
                 Err(e) => panic!("{row}: refused: {e:?}"),
+            }
+        }
+    }
+}
+
+/// Two lune bores on one face: each is placed on its own, whether they
+/// share a half or not.
+#[test]
+fn a_split_carries_two_lune_bores_each_with_its_half() {
+    let (_, outer) = DISCS[0];
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.0, 0.5),
+        normal: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let bore = PI * BORE * BORE;
+    for (pose, centres, above_bores) in [
+        ("opposite halves", [(1.6, 0.8), (-1.6, -0.8)], 1.0),
+        ("one half", [(1.6, 0.8), (1.6, -0.8)], 2.0),
+    ] {
+        let result = split(&bored_disc_n(outer, &centres), &plane, tol())
+            .unwrap_or_else(|e| panic!("{pose}: split refused: {e:?}"));
+        for (side, part, bores) in [
+            ("above", &result.above, above_bores),
+            ("below", &result.below, 2.0 - above_bores),
+        ] {
+            let SplitPart::Body(part) = part else {
+                panic!("{pose}: the {side} side is empty");
+            };
+            if let Err(errs) = topo::validate_geometric(part, tol()) {
+                panic!("{pose}, {side}: tier 3 refused the half: {errs:?}");
+            }
+            let v = topo::mass_properties(part, tol()).unwrap().volume;
+            let want = 2.0 * PI - bores * bore;
+            assert!(
+                (v - want).abs() < 1e-9,
+                "{pose}, {side}: volume {v}, want {want}"
+            );
+        }
+    }
+}
+
+/// **An ellipse-bearing run.** The bored disc cut on the oblique plane
+/// `z = 0.5 − 0.2y` leaves a lower piece whose top face is an ellipse
+/// holding the bore's elliptic section as a ring; dividing that piece at
+/// `x = 0` divides the elliptic face with the ring in the lune of an
+/// ELLIPSE arc. Read off the polygon, the bore at `(−1.6, 0.8)` went to
+/// the wrong half and the split answered `Ok`: one half carried the
+/// bore's ring outside its outer loop (tier 3's `RingOutsideOuter`), the
+/// other passed tier 3 with no bore in it — not the torn refusal the
+/// circular cap gives.
+#[test]
+fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
+    let (_, outer) = DISCS[0];
+    let oblique = SplitPlane {
+        origin: Point3::new(0.0, 0.0, 0.5),
+        normal: Vec3::new(0.0, 0.2, 1.0).normalize(),
+    };
+    for (cx, cy) in [(1.6, 0.8), (-1.6, 0.8), (0.8, 0.4)] {
+        let SplitPart::Body(lower) = split(&bored_disc(outer, (cx, cy)), &oblique, tol())
+            .unwrap_or_else(|e| panic!("bore at ({cx}, {cy}): oblique split refused: {e:?}"))
+            .below
+        else {
+            panic!("bore at ({cx}, {cy}): the lower piece is empty");
+        };
+        // Each half-disc (area 2π) under z = 0.5 − 0.2y holds π (the y-term
+        // integrates to zero over a half symmetric in y), less the bore's
+        // column of height 0.5 − 0.2·cy on the half that holds it.
+        let column = PI * BORE * BORE * (0.2f64.mul_add(-cy, 0.5));
+        for nx in [1.0, -1.0] {
+            let row = format!("bore at ({cx}, {cy}), plane normal x = {nx}");
+            let plane = SplitPlane {
+                origin: Point3::new(0.0, 0.0, 0.25),
+                normal: Vec3::new(nx, 0.0, 0.0),
+            };
+            let result = split(&lower, &plane, tol())
+                .unwrap_or_else(|e| panic!("{row}: split refused: {e:?}"));
+            let above_holds = (cx > 0.0) == (nx > 0.0);
+            for (side, part, holds) in [
+                ("above", &result.above, above_holds),
+                ("below", &result.below, !above_holds),
+            ] {
+                let SplitPart::Body(part) = part else {
+                    panic!("{row}: the {side} side is empty");
+                };
+                if let Err(errs) = topo::validate_geometric(part, tol()) {
+                    panic!("{row}, {side}: tier 3 refused the half: {errs:?}");
+                }
+                let v = topo::mass_properties(part, tol()).unwrap().volume;
+                let want = PI - if holds { column } else { 0.0 };
+                // The oblique face's quadrature lands ~1.5e-9 off.
+                assert!(
+                    (v - want).abs() < 1e-8,
+                    "{row}, {side}: volume {v}, want {want} (bore held: {holds})"
+                );
             }
         }
     }
