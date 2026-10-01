@@ -3061,7 +3061,9 @@ class McReport:
         here a reader can check against the certified side."""
     def render(self) -> str:
         """The human form, with the advisory label and the dials on
-        every line that carries an estimate."""
+        every line that carries an estimate. Each node is spoken from
+        the document the run was drawn from, with its label as that
+        document held it."""
 
 def monte_carlo(
     doc: Doc, analyzed: AnalyzedBox, config: Optional[McConfig] = None

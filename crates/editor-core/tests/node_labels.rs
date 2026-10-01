@@ -815,8 +815,8 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
 fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     use editor_core::range::{RangeField, RangeSeed, derive};
     use editor_core::{
-        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McReport, ParamName,
-        SensitivityOutcome, SlotId, render_sensitivity, sensitivities,
+        LeafHistogram, LiftRefusal, MassBasis, McMeasure, McReport, ParamName, SensitivityOutcome,
+        SlotId, render_sensitivity, sensitivities,
     };
 
     let doc = ProfileDoc::empty_derived("node-labels-analysis", Tol::witness());
@@ -837,7 +837,9 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     )
     .expect_err("an extrude carries no radius slot");
     assert!(
-        unknown_slot.to_string().starts_with(&format!("{plate} carries no ")),
+        unknown_slot
+            .to_string()
+            .starts_with(&format!("{plate} carries no ")),
         "{unknown_slot}"
     );
 
