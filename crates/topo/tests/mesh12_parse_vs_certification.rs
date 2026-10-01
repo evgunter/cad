@@ -26,28 +26,22 @@ const RS: f64 = 0.010;
 /// The parse's winding decide.
 const NAME: &str = "props_meridian_span_winding";
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
 fn sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         radius: RS,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 /// The meridian great circle in the xz plane:
 /// `P(t) = (R cos t, 0, R sin t)`.
 fn meridian() -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, -1.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, -1.0, 0.0),
         radius: RS,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -68,9 +62,15 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
     let a = c.eval(t0);
     let b = c.eval(t1);
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(sphere()))
-        .unwrap();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let r = body.mev(
         MevSite::Lone {
             r#loop: seed.r#loop,
@@ -87,7 +87,7 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
         Err(EulerOpError::Certification {
             error:
                 CertifyError::Escalated {
-                    check: CertCheck::ParamSpan,
+                    check: CertCheck::ParamWinding,
                     ..
                 },
         }) => Disp::Escalate,

@@ -42,7 +42,7 @@ probe = [
 # the lane does between them. `demo-tour tess-budget` is the consumer
 # (via pncad's forward of the same name).
 #
-# Its own CI row (`mesh budget meter`, ci.yml + ci-local.sh) runs
+# Its own CI row (`mesh budget meter`, ci.yml) runs
 # clippy and the suite here, because the default rows exercise the
 # INERT half. That row also carries the per-triangle certificate
 # falsifier, whose measurements this feature is what produces.
@@ -90,6 +90,9 @@ sweep = { path = "../sweep", features = ["test-support"] }
 # same reason as `step-export`'s and `step-import`'s edges onto the same
 # door.
 topo = { path = "../topo", features = ["test-support"] }
+# `test-support` ON: the key rows' one fixture of every analytic kind is
+# `geom::test_support`'s. Dev-only, like the edges above.
+geom = { path = "../geom", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

@@ -56,12 +56,12 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    CancelToken, Datum, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr,
+    CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr,
     LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget, RecipeNodeId, SlotId, StepArg, evaluate, persist,
 };
 use fixture::digest::digest;
-use fixture::{ang, axis_in_plane, insert, len, scl, square, step, tol};
+use fixture::{ang, axis_in_plane, frame, insert, len, scl, square, step, tol, xy_frame};
 use geom_brep::RadiusEvidence;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use topo::{Body, BooleanError, FaceKey, SurfaceField};
@@ -78,17 +78,17 @@ const H: f64 = 1.2;
 /// own angle (`sweep`'s `verbs_germarms2`).
 const PHI: f64 = PI / 4.0;
 
-fn param(name: &str) -> Expr {
-    Expr::param(ParamName::new(name), Dimension::Length)
+fn param(name: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(name), Dimension::Length)
 }
 
 /// A document declaring `r`.
-fn doc_with_r(name: &str) -> ProfileDoc {
+fn doc_with_r(name: &'static str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(name), tol());
     step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::from_static("r"),
             value: DocParam::continuous(Dimension::Length, R),
         },
     )
@@ -102,14 +102,7 @@ fn circle_on_frame(
     z: f64,
     radius: Expr,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -146,12 +139,14 @@ fn spin(
 ) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: axis.map(scl),
-            rotation_angle: ang(angle),
-        },
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: axis.map(scl),
+                angle: ang(angle),
+            },
+        ),
     )
 }
 
@@ -175,11 +170,7 @@ fn both_sweeps() -> BothSweeps {
     let mut r = corpus::Recorder::new();
     let snapshot = r.doc.clone();
     let square_loop = LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap();
-    let frame = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let frame = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![square_loop],
@@ -191,11 +182,7 @@ fn both_sweeps() -> BothSweeps {
     });
     // The revolve's own profile: a square clear of the axis, drawn on
     // its own frame, spun about an axis written in that same frame.
-    let rev_frame = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let rev_frame = r.insert(xy_frame());
     let rev_profile = r.insert(Node::Profile(ProfileProgram {
         plane: rev_frame,
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
@@ -292,11 +279,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x591f_47ce_aa59_12e9),
-        ("corner_table", 0x82f6_6598_1367_177a),
-        ("cut_cylinder", 0x6b92_0ace_eeb8_c896),
-        ("boss_union", 0x784f_5dfd_4f52_16f3),
-        ("kitchen_sink", 0x6e3a_8472_c4c9_c90b),
+        ("die", 0x3de1_781a_083b_96ef),
+        ("corner_table", 0xbc83_6362_381c_a85d),
+        ("cut_cylinder", 0xfeb1_3678_fb55_ee2e),
+        ("boss_union", 0xf4a9_9741_63ed_705f),
+        ("kitchen_sink", 0x08ed_78c4_461a_eb2a),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -400,10 +387,7 @@ fn one_shared_radius_declares_across_two_extruded_circles() {
 fn two_radii_spelled_differently_do_not_declare() {
     let doc = doc_with_r("seat7-two-radii");
     let (doc, a) = cylinder(doc, param("r"));
-    let (doc, b) = cylinder(
-        doc,
-        Expr::div(param("r"), Expr::literal(2.0, Dimension::Scalar).unwrap()).unwrap(),
-    );
+    let (doc, b) = cylinder(doc, Expr::div(param("r"), scl(2.0)).unwrap());
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "two-radii document:\n{}", bad.join("\n"));
@@ -446,14 +430,7 @@ fn a_kernel_built_cylinder_has_no_channel() {
 #[test]
 fn a_polygon_profile_attaches_nothing() {
     let doc = ProfileDoc::empty(DocumentId::derive("seat7-polygon"), tol());
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -494,14 +471,7 @@ fn a_polygon_profile_attaches_nothing() {
 #[test]
 fn a_revolved_circle_sources_its_minor_radius_only() {
     let doc = doc_with_r("seat7-revolve-flow");
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let (doc, plane) = insert(doc, xy_frame());
     // Negative y: the door's half-plane about the +x axis is
     // `(p − origin).perp_dot(dir) ≥ 0`, which is `−y`.
     let (doc, profile) = insert(
@@ -557,14 +527,7 @@ fn a_revolved_circle_sources_its_minor_radius_only() {
 #[test]
 fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
     let doc = doc_with_r("seat7-revolve-on-axis");
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let (doc, plane) = insert(doc, xy_frame());
     // Negative y is the door's half-plane about the +x axis, and the
     // first leg runs ALONG that axis from the origin.
     let mut steps = vec![
@@ -705,14 +668,7 @@ fn extruded(
     z: f64,
     loops: Vec<LoopProgram>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let (doc, plane) = insert(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -786,7 +742,7 @@ fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("q"),
+            name: ParamName::from_static("q"),
             value: DocParam::continuous(Dimension::Length, Q),
         },
     );
@@ -949,7 +905,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::from_static("r"),
             value: DocParam::continuous(Dimension::Length, 2.0 * R),
         },
     );
@@ -1173,12 +1129,12 @@ fn each_arc_of_a_reversed_chain_carries_its_own_steps_radius() {
 /// The shared body of the two rows above: a two-arc chain at `r` and
 /// `q`, and a peg extruded from a circle at each, with every arc wall
 /// required to declare against its own step's peg and against no other.
-fn assert_two_arcs_declare_apart(id: &str, side: profile::ArcSide, want_reversed: bool) {
+fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_reversed: bool) {
     let doc = doc_with_r(id);
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("q"),
+            name: ParamName::from_static("q"),
             value: DocParam::continuous(Dimension::Length, Q),
         },
     );

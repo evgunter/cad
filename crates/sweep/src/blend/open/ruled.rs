@@ -659,7 +659,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
     }
 
     // ---- (3) Excise the crease across its two strips. ----
-    sources.kef_minted(body, hp, "ruled crease kef")?;
+    sources.kef_minted(body, hp, "ruled crease kef", tol)?;
     rec.dead.edges.push(crease);
 
     // ---- (4) Per cap: fold the sliver into the band across the
@@ -678,7 +678,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
         } else {
             ahp
         };
-        sources.kef_minted(body, dying, "cap sliver kef")?;
+        sources.kef_minted(body, dying, "cap sliver kef", tol)?;
         let (bhp, bhm) = halves_of(body, b.near)
             .ok_or_else(|| not_intact(EntityId::Edge(b.near), "a split rim's near piece"))?;
         let spur = if body.half_edge_end(bhm) == Some(v) {
@@ -686,6 +686,12 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
         } else {
             bhp
         };
+        // The sliver's `kef` left the near piece a spur at `v`, so `v`
+        // has valence one and the keys-only kill merges no fan.
+        debug_assert!(
+            body.kev_merged_members(spur).is_ok_and(|m| m.is_empty()),
+            "cap vertex kev: the near piece is a spur at the old vertex"
+        );
         body.kev(spur).map_err(|e| op("cap vertex kev", e))?;
         rec.dead.vertices.push(v);
     }

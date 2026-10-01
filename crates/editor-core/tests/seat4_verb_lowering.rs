@@ -50,7 +50,7 @@ use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
 };
 use fixture::digest::digest;
-use fixture::{len, prism_edges, tol};
+use fixture::{len, prism_edges, tol, xy_frame};
 
 /// The cube side and the two blend sizes, all dyadic.
 const L: f64 = 1.0;
@@ -69,14 +69,7 @@ fn both_blends() -> BothBlends {
     // round-trip a test of the wire spelling of every node.
     let snapshot = r.doc.clone();
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![square],
@@ -203,11 +196,14 @@ fn both_blends_evaluate_in_one_document() {
 /// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
+/// Re-blessed again when step ids became digests of the document's mint
+/// chain: the names spell different ids, and the same id-free pins held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
+    let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x073e_9e1c_437e_868b_u64),
-        ("die_chamfer", 0x40dc_fc06_ddb4_595d),
+        ("die_fillet", 0x91d8_06d5_7561_4105_u64),
+        ("die_chamfer", 0x2ac7_0d65_6064_540f),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -216,8 +212,15 @@ fn the_blend_documents_evaluate_to_their_committed_digests() {
         let ev = corpus::eval::<f64>(&doc.doc);
         let got = digest(&ev);
         println!("seat4 {name}: {got:#018x}");
-        assert_eq!(got, want, "{name}'s evaluation moved — body or name table");
+        if got != want {
+            moved.push(format!("{name}: {got:#018x} (want {want:#018x})"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "these documents' evaluations moved — body or name table:\n{}",
+        moved.join("\n")
+    );
 }
 
 /// **A registered boolean document's bytes survive the migration**:
@@ -287,12 +290,15 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
+/// Re-blessed again when step ids became digests of the document's mint
+/// chain: the names spell different ids, and the same id-free pins held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
+    let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xf470_9f84_7704_ae91_u64),
-        ("heat_sink", 0x6c5d_70cd_4433_36a7),
-        ("kiss_carry", 0xd50a_9072_2042_b77a),
+        ("crossing_slots", 0x100c_c483_5f1c_4d3b_u64),
+        ("heat_sink", 0xd68c_866a_03dd_72e1),
+        ("kiss_carry", 0xa21d_7737_3ae7_b1ee),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -306,11 +312,15 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
         );
         let got = digest(&ev);
         println!("seat5 {name}: {got:#018x}");
-        assert_eq!(
-            got, want,
-            "{name}'s evaluation moved — body, value or name table"
-        );
+        if got != want {
+            moved.push(format!("{name}: {got:#018x} (want {want:#018x})"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "these documents' evaluations moved — body, value or name table:\n{}",
+        moved.join("\n")
+    );
 }
 
 /// **The typed empty success is pinned by an input that PRODUCES it** —
@@ -335,14 +345,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
     let square =
         |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
-    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_1 = r.insert(xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![square(0.0)],
@@ -352,14 +355,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         profile: pa,
         distance: len(L),
     });
-    let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_2,
         loops: vec![square(3.0)],
@@ -388,7 +384,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xfb37_ae41_85d4_4899,
+        got, 0xeb0c_29dc_fd93_2da5,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

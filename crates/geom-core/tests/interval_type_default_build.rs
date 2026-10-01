@@ -35,10 +35,13 @@ fn interval_constructs_decides_and_encloses_in_a_default_build() {
     let x = Interval::from_f64(1e-3);
     assert_eq!(Bounds::lo(x), 1e-3, "from_f64 is the point enclosure");
     assert_eq!(Bounds::hi(x), 1e-3, "from_f64 is the point enclosure");
-    assert_eq!(x.sign_within(band), Ok(Sign::Positive));
-    assert_eq!(Interval::from_f64(0.0).sign_within(band), Ok(Sign::Zero));
+    assert_eq!(x.sign_within(band).map(|d| d.sign), Ok(Sign::Positive));
     assert_eq!(
-        Interval::from_f64(-1e-3).sign_within(band),
+        Interval::from_f64(0.0).sign_within(band).map(|d| d.sign),
+        Ok(Sign::Zero)
+    );
+    assert_eq!(
+        Interval::from_f64(-1e-3).sign_within(band).map(|d| d.sign),
         Ok(Sign::Negative)
     );
 
@@ -108,9 +111,9 @@ fn dual_interval_is_nameable_in_a_default_build() {
 /// The refusing half of the decision door is compiled too: a
 /// domain-clamped enclosure (`sqrt([-1, 4])` clamps to `[0, 2]`, a
 /// plausible bracket) is refused on its DECORATION, not on its
-/// endpoints — `MarginDiag::Invalid`, where the straddling row above
-/// refuses with `MarginDiag::Enclosure`. A build that compiled the
-/// arithmetic but not the poison channel would answer `Positive`.
+/// endpoints — `MarginKind::Invalid`, where the straddling row above
+/// refuses with `MarginKind::Enclosure`. A build that compiled the
+/// arithmetic but not the refusal channel would answer `Positive`.
 #[test]
 fn a_domain_clamp_refuses_on_the_decoration_in_a_default_build() {
     let band = Band::new(1e-9, 1e-8).unwrap();
@@ -121,7 +124,7 @@ fn a_domain_clamp_refuses_on_the_decoration_in_a_default_build() {
     );
     let refused = clamped.sign_within(band).unwrap_err();
     assert!(
-        matches!(refused.margin, geom_core::MarginDiag::Invalid),
+        refused.margin.is_invalid(),
         "a clamped enclosure refuses on its decoration: {refused:?}"
     );
     assert_eq!(

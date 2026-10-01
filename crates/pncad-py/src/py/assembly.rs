@@ -89,11 +89,19 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
     };
     let none = || py.None();
     match err {
-        E::UnknownNode { node }
-        | E::RootFailed { node }
-        | E::Graft { node, .. }
-        | E::SolidInvalid { node, .. } => (id(node), none(), none()),
-        E::RootPoisoned { node, through } => (id(node), id(through), none()),
+        E::Root(standing) => (
+            id(&standing.node()),
+            standing.through().map_or_else(none, |through| id(&through)),
+            none(),
+        ),
+        E::Graft { node, .. } => (id(node), none(), none()),
+        // The first failing root, in gather order; every failing root
+        // and output is in the message.
+        E::RootInvalid { findings } => (
+            findings.first().map_or_else(none, |first| id(&first.node)),
+            none(),
+            none(),
+        ),
         E::Naming { node, name } => (id(node), none(), text(name)),
         // The placed node is the one the author acts on; the two roots
         // it sits under are in the message.

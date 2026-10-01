@@ -41,10 +41,10 @@ use crate::fixture;
 
 use corpus::{documents, eval, failures};
 use editor_core::{
-    Datum, Dimension, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, TubeWindow, apply, product_recorded,
+    Datum, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram,
+    TubeWindow, apply, product_recorded,
 };
-use fixture::{Recorder, band, frame, len, xy_frame};
+use fixture::{Recorder, band, frame, len, scl, xy_frame};
 use geom_core::Tol;
 use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 use topo::{
@@ -112,10 +112,6 @@ fn pin(name: &str, doc: &ProfileDoc) -> usize {
     pruned
 }
 
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite")
-}
-
 /// A solid ring torus (R = 2, r = 0.5, axis z through the origin)
 /// resting on the top cap of a three-arc cylinder (radius 3, z ∈
 /// [-1.5, -0.5]): the torus's lowest circle lies on the planar cap.
@@ -123,11 +119,11 @@ fn torus_on_cylinder() -> ProfileDoc {
     let mut r = Recorder::new();
     let spine = r.insert(Node::Datum(Datum::Axis {
         origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scalar(0.0), scalar(0.0), scalar(1.0)],
+        direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
     r.insert(Node::Tube {
         spine,
-        u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
         major_radius: len(2.0),
         window: TubeWindow::Full,
         minor_radius: len(0.5),
@@ -327,7 +323,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
     apply(
         &entry.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("fins"),
+            name: ParamName::from_static("fins"),
             value: DocParam::Count { value: fins },
         },
         Tol::witness(),

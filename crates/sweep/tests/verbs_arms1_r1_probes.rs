@@ -52,10 +52,6 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn revolved(verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
@@ -71,10 +67,10 @@ fn bored_dome() -> Body<f64> {
     let bulge = (th / 4.0).tan();
     revolved(
         vec![
-            (p2(0.3, 0.0), 0.0),
-            (p2(1.0, 0.0), bulge),
-            (p2(x_hi, y_hi), 0.0),
-            (p2(0.3, y_hi), 0.0),
+            (Point2::new(0.3, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), bulge),
+            (Point2::new(x_hi, y_hi), 0.0),
+            (Point2::new(0.3, y_hi), 0.0),
         ],
         Revolution::Full,
     )
@@ -86,9 +82,9 @@ fn hemisphere() -> Body<f64> {
     let quarter = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     revolved(
         vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(1.0, 0.0), quarter),
-            (p2(0.0, 1.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), quarter),
+            (Point2::new(0.0, 1.0), 0.0),
         ],
         Revolution::Full,
     )
@@ -418,19 +414,23 @@ fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     else {
         panic!("the band is a torus");
     };
+    // Lifts both refusals: the in-band torus is what tier 3 must escalate.
     out.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             band_face,
-            FaceSurface::New(Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                // R − r lands at eps·√k — strictly inside the
-                // [eps, k·eps] escalation band, so the classification
-                // is not available at this tolerance.
-                minor_radius: major_radius - tol().eps() * tol().k().sqrt(),
-                u_ref,
-            }),
+            FaceSurface::New {
+                surface: Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    // R − r lands at eps·√k — strictly inside the
+                    // [eps, k·eps] escalation band, so the classification
+                    // is not available at this tolerance.
+                    minor_radius: major_radius - tol().eps() * tol().k().sqrt(),
+                    u_ref,
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let errors = validate_geometric(&out.body, tol()).expect_err("the boundary cannot pass");

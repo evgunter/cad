@@ -16,13 +16,17 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{Alignment, Frame, RecipeNodeId, product};
+use pncad::document::{Frame, RecipeNodeId, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::display::{self, AdmissionFault, DisplayFault};
 use viewer::frame;
+use viewer::marks;
+use viewer::pickindex::IdMap;
 use viewer::scene::SceneMesh;
-use viewer::session::{DocSession, Refusal, SessionOp};
+use viewer::session::{
+    DocSession, FaceFrameFault, Refusal, Selection, SessionOp, face_frame_seat_drawn,
+};
 use viewer::tree::RowStatus;
 
 /// Every `Node::Mate` the session's document holds, document order —
@@ -36,33 +40,6 @@ fn mate_nodes(session: &DocSession) -> Vec<RecipeNodeId> {
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
         .collect()
-}
-
-/// The mate these rows author directly: a post's top seated under the
-/// shelf's middle, no rider — `asm::seat_alignment`'s one home, at the
-/// place along the shelf this suite wants.
-fn seat_alignment() -> Alignment {
-    asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None)
-}
-
-/// Author the seat mate between `a_instance` and the shelf through
-/// the session's insert door, answering the mate's node.
-fn add_seat_mate(
-    session: &mut DocSession,
-    bench: &asm::Bench,
-    a_instance: RecipeNodeId,
-) -> RecipeNodeId {
-    let mate = common::session_insert(
-        session,
-        SessionOp::AddMate {
-            a: common::head(asm::in_part(a_instance, &bench.post_top)),
-            b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            class: ContactClass::Rest,
-            alignment: seat_alignment(),
-        },
-    );
-    session.pump();
-    mate
 }
 
 // --- the resolver (deliverable 1) ---------------------------------
@@ -95,16 +72,16 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
 fn a_session_with_no_backing_file_resolves_nothing_and_refuses_typed() {
     let tol = Tol::witness();
     let bench = asm::bench("noresolver", tol);
-    // The same document VALUE, held in memory: no file, no resolver —
-    // the typed no-resolver refusal renders as the tree's badges.
+    // The same document VALUE, held in memory: no file, so no store —
+    // the viewer's no-file refusal renders as the tree's badges.
     let history = viewer::docio::open(&bench.asm_path, tol).expect("the file opens");
     let mut session = DocSession::inline(history.doc().clone(), tol);
     session.pump();
     for row in session.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
-                message.contains("no part resolver"),
-                "the refusal names the missing seam: {message}"
+            RowStatus::Failed { message, .. } => assert!(
+                message.contains("this document has no file"),
+                "the refusal names the missing file: {message}"
             ),
             other => panic!("an unresolvable instantiate row must fail typed, got {other:?}"),
         }
@@ -124,7 +101,7 @@ fn a_missing_part_document_refuses_typed_and_badges_the_row() {
     let status_of = |id: RecipeNodeId| common::status_of(&rows, id);
     for post in [bench.post_a, bench.post_b] {
         match status_of(post) {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
                 "the store's own refusal reaches the badge: {message}"
             ),
@@ -153,7 +130,7 @@ fn the_directory_rule_a_document_never_resolves_against_another_directory() {
     session.pump();
     for row in session.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
                 "unresolvable — the parts are not beside THIS file: {message}"
             ),
@@ -175,7 +152,7 @@ fn a_directory_that_will_not_scan_refuses_each_resolution_typed() {
     // own refusal about the offending file.
     for row in session.tree_rows() {
         match &row.status {
-            RowStatus::Failed { message } => assert!(
+            RowStatus::Failed { message, .. } => assert!(
                 message.contains("junk.pncad"),
                 "the scan refusal names the offending file: {message}"
             ),
@@ -198,10 +175,7 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     let eval = &*eval;
 
     // Before: post_b draws and picks at its authored spot.
-    let at_post_b = asm::down_at(
-        asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
-        asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-    );
+    let at_post_b = asm::over_post_b();
     let full = index.scene_for(&session.display_view()).expect("a scene");
     let hit = index
         .pick_for(eval, &at_post_b, &session.display_view())
@@ -252,6 +226,51 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     });
     let restored = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(restored.stats().triangles, full.stats().triangles);
+}
+
+/// **A held face on a hidden instance is neither marked nor committed
+/// against.** Hiding edits what the picture emits and not what an id
+/// means, so the face's patch id outlives the hide; what the held mark
+/// and the add-datum form's gate both read is whether the picture
+/// DRAWS it (`marks::drawn_patch`), and after the hide it does not.
+#[test]
+fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
+    let tol = Tol::witness();
+    let bench = asm::bench("held-hide", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let index = asm::index_of(&session);
+    let face = asm::pick_face(&session, &asm::over_post_b());
+    assert_eq!(face.node, bench.post_b, "the pick is on post_b");
+    let held = marks::Held {
+        faces: [Some(&face), None, None],
+        edges: None,
+    };
+    let read = |session: &DocSession| {
+        let view = session.display_view();
+        let (marked, _) = marks::compose(&index, &view, &Selection::None, None, &held);
+        let seat = face_frame_seat_drawn(session.landed_pair(), Some(&face), Some((&index, &view)));
+        (marked.held[0], seat)
+    };
+    let (mark, seat) = read(&session);
+    assert_ne!(mark, IdMap::NOTHING, "a drawn held face is marked");
+    assert_ne!(
+        seat,
+        Err(FaceFrameFault::NotDrawn),
+        "and not refused as undrawn"
+    );
+
+    let outcome = session.perform(SessionOp::SetInstanceHidden {
+        instance: bench.post_b,
+        hidden: true,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let (mark, seat) = read(&session);
+    assert_eq!(mark, IdMap::NOTHING, "a hidden held face is not marked");
+    assert_eq!(
+        seat,
+        Err(FaceFrameFault::NotDrawn),
+        "the button would commit against a face nothing marks"
+    );
 }
 
 /// Two instances of one part consumed by a single boolean: the drawn
@@ -415,13 +434,15 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
         Some(&viewer::session::AtRestBadge::Certified { minted: 0 }),
         "disjoint instances certify outright (A5's disjoint half)"
     );
-    session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Tangent,
-        alignment: seat_alignment(),
-    });
-    session.pump();
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Tangent,
+            asm::middle_seat_alignment(),
+        ),
+    );
     match session.at_rest() {
         Some(viewer::session::AtRestBadge::Refused { message }) => assert!(
             message.contains("no at-rest kernel record"),
@@ -479,16 +500,15 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let mut session = asm::open_bench(&bench, tol);
     // One node of another kind, authored through the ordinary door so
     // the wrong-kind arm is driven by a node a user can really select.
-    let mate = common::session_insert(
+    let mate = common::commit_mate(
         &mut session,
-        SessionOp::AddMate {
-            a: common::head(asm::in_part(bench.post_a, &bench.post_top)),
-            b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            class: ContactClass::Tangent,
-            alignment: seat_alignment(),
-        },
+        asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Tangent,
+            asm::middle_seat_alignment(),
+        ),
     );
-    session.pump();
     let doc = session.doc();
 
     assert_eq!(
@@ -563,7 +583,15 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     let bench = asm::bench("fmeligible", tol);
     let mut session = asm::open_bench(&bench, tol);
     // Constrain post_a by mating it to the shelf.
-    let mate = add_seat_mate(&mut session, &bench, bench.post_a);
+    let mate = common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            asm::middle_seat_alignment(),
+        ),
+    );
     // Both mate participants refuse, naming the mate.
     for constrained in [bench.post_a, bench.shelf_i] {
         let outcome = session.perform(SessionOp::BeginFreeMove {
@@ -703,7 +731,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     assert_eq!(hit.node, bench.post_b);
     assert!(
         index
-            .pick_for(eval, &asm::down_at(centre[0], centre[1]), &view)
+            .pick_for(eval, &asm::over_post_b(), &view)
             .expect("the pick answers")
             .is_none(),
         "nothing is picked where the probe moved away from"
@@ -798,12 +826,12 @@ fn a_landing_mate_discards_the_probe_value() {
 
     // The mate lands on post_b: ONE committed edit, and the probe is
     // superseded IN THE SAME OUTCOME.
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat_alignment(),
-    });
+    let outcome = session.perform(asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     let [superseded] = &outcome.withdrawn.superseded[..] else {
@@ -847,14 +875,7 @@ fn a_landing_mate_discards_the_probe_value() {
     let _ = index; // (the pre-mate index is stale by generation)
     let (_, eval) = session.landed_pair().expect("landed");
     let hit = index_after
-        .pick_for(
-            eval,
-            &asm::down_at(
-                asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
-                asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-            ),
-            &session.display_view(),
-        )
+        .pick_for(eval, &asm::over_post_b(), &session.display_view())
         .expect("the pick answers");
     assert!(
         hit.is_none_or(|h| h.node != bench.post_b),
@@ -894,6 +915,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
         op: pncad::document::BooleanOp::Union,
         a: bench.post_b,
         b: bench.post_a,
+        declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [dropped] = &outcome.withdrawn.dropped_hides[..] else {

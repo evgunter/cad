@@ -50,6 +50,12 @@ impl RevolveTool {
         }
     }
 
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
+    }
+
     /// The held profile pick.
     pub fn profile(&self) -> Option<RecipeNodeId> {
         self.seats.held(0)

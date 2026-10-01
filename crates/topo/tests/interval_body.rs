@@ -122,8 +122,15 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
         NetState::Poisoned,
         "the fixture is corrupt DESCRIBED geometry at this scalar, not the placeholder"
     );
-    body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(Arc::new(net))))
-        .unwrap();
+    // Lifts both refusals: the poisoned described net is the surface check's subject.
+    body.set_face_surface_stranding_for_tests(
+        face,
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(net)),
+            sense: true,
+        },
+    )
+    .unwrap();
 
     let errs = validate_geometric(&body, Tol::witness())
         .expect_err("corrupt described geometry is refused at the interval scalar too");

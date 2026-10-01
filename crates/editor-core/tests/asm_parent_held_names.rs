@@ -221,3 +221,175 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     );
     assert_eq!(updated.maintenance, Vec::new(), "nothing is reported");
 }
+
+/// The part's profile step ids, loop 0.
+fn step_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId> {
+    match doc.node(profile) {
+        Some(Node::Profile(p)) => p.ids[0].clone(),
+        other => panic!("the part's profile: {other:?}"),
+    }
+}
+
+/// `base` with one leg inserted into its square at program position
+/// `at`, the new step minted by the door: the square's corners with
+/// `corner` spliced in as corner `at`.
+fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f64)) -> ProfileDoc {
+    let mut corners = vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+    corners.insert(at, corner);
+    let mut ids: Vec<Option<editor_core::StepId>> =
+        step_ids(base, profile).into_iter().map(Some).collect();
+    ids.insert(at, None);
+    apply(
+        base,
+        &DocEdit::SetProgram {
+            node: profile,
+            loops: vec![LoopProgram::polygon(corners).unwrap()],
+            ids: vec![ids],
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap()
+    .doc
+}
+
+/// **Two versions of one part that branch from one value.** Version A
+/// inserts a leg to `(3,1)` after the corner `(2,0)`; version B, made
+/// from the same base (an undo and a different edit, or a second
+/// `apply` on the base), inserts a leg to `(1,3)` after `(2,2)`
+/// instead. A step id is minted from the document's mint chain, which
+/// each branch extends by its own edit, so the two legs get different
+/// ids. The parent pins A and paints A's new leg, then moves its pin to
+/// B — the version a store holds once B is saved over A
+/// (`pncad::workspace::update_to_store`). The held name spells a step B
+/// never minted: it denotes nothing there and the evaluation reports
+/// the paint `Vanished`, rather than re-denoting B's leg.
+#[test]
+fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them() {
+    let (base, profile, ext) = part();
+    let a = with_leg(&base, profile, 2, (3.0, 1.0));
+    let b = with_leg(&base, profile, 3, (1.0, 3.0));
+    let a_new = step_ids(&a, profile)[2];
+    let b_new = step_ids(&b, profile)[3];
+    assert_ne!(
+        a_new, b_new,
+        "each branch mints its new step from its own chain"
+    );
+    assert!(
+        !b.step_mint().has_minted(a_new),
+        "B's mint log does not hold A's new step"
+    );
+    let again = with_leg(&base, profile, 2, (3.0, 1.0));
+    assert_eq!(
+        step_ids(&again, profile),
+        step_ids(&a, profile),
+        "one edit from one base mints one set of ids (D9)"
+    );
+
+    let mut shelf = VersionShelf::default();
+    let ra = shelf.shelve(a);
+    let rb = shelf.shelve(b);
+    let shelf = Arc::new(shelf);
+
+    let wall = |step| {
+        fixture::fname(
+            ext,
+            RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
+                step,
+                role: editor_core::PieceRole::Leg,
+            }),
+        )
+    };
+    let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
+    let (parent, instance) = insert(parent, Node::instantiate_part(ra));
+    let name = held(instance, &wall(a_new));
+    let parent = apply(
+        &parent,
+        &DocEdit::SetAppearance {
+            name: name.clone(),
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap()
+    .doc;
+    let before_ev = run(&parent, &shelf);
+    let before = corners(&before_ev, instance, &name);
+    assert!(
+        before.contains(&(2.0, 0.0, 0.0)) && before.contains(&(3.0, 1.0, 0.0)),
+        "at A the held name is A's leg (2,0)→(3,1): {before:?}"
+    );
+    assert_eq!(
+        before_ev.appearance.losses,
+        Vec::new(),
+        "at A the paint lands"
+    );
+
+    let updated = apply(
+        &parent,
+        &DocEdit::UpdateReference {
+            node: instance,
+            new_pin: rb.pin,
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap();
+    assert_eq!(
+        updated.maintenance,
+        Vec::new(),
+        "the storeless update reads neither version and reports nothing"
+    );
+    let after_ev = run(&updated.doc, &shelf);
+    assert!(
+        table(&after_ev, instance).lookup(&name).is_none(),
+        "at B the held spelling denotes nothing"
+    );
+    let b_leg = corners(&after_ev, instance, &held(instance, &wall(b_new)));
+    assert!(
+        b_leg.contains(&(2.0, 2.0, 0.0)) && b_leg.contains(&(1.0, 3.0, 0.0)),
+        "B's leg (2,2)→(1,3) is drawn, under B's own id: {b_leg:?}"
+    );
+    match after_ev.appearance.losses.as_slice() {
+        [loss] => {
+            assert_eq!(loss.name, name, "the lost paint is the held name's");
+            // No candidate: an offer here could only point at the
+            // sibling's leg, which is the rebind this row refuses.
+            assert_eq!(
+                loss.cause,
+                editor_core::AppearanceLossCause::Vanished {
+                    candidates: Vec::new()
+                },
+                "and it is lost as Vanished, with nothing offered"
+            );
+        }
+        other => panic!("one appearance loss, the held name's: {other:?}"),
+    }
+}
+
+/// **Node ids branch the same way.** Two inserts applied to one base
+/// mint one `RecipeNodeId` for two different nodes, so a name minted by
+/// either node carries across to the other branch as the other node's.
+#[test]
+fn sibling_versions_mint_one_node_id_for_different_nodes() {
+    let (base, profile, _) = part();
+    let (_, tall) = insert(
+        base.clone(),
+        Node::Extrude {
+            profile,
+            distance: len(3.0),
+        },
+    );
+    let (_, taller) = insert(
+        base,
+        Node::Extrude {
+            profile,
+            distance: len(5.0),
+        },
+    );
+    assert_eq!(
+        tall, taller,
+        "each branch mints its new node from the base's counter"
+    );
+}

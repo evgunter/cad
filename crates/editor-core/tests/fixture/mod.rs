@@ -141,12 +141,14 @@ pub fn xform(
     axis: [f64; 3],
     angle: f64,
 ) -> Node<ProfileProgram> {
-    Node::Transform {
+    Node::transform(
         input,
-        translation: translation.map(len),
-        rotation_axis: axis.map(scl),
-        rotation_angle: Expr::literal(angle, Dimension::Angle).expect("an angle literal"),
-    }
+        editor_core::Step::Rigid {
+            translation: translation.map(len),
+            axis: axis.map(scl),
+            angle: ang(angle),
+        },
+    )
 }
 
 /// The pip depth the document's `pip_depth` parameter starts at.
@@ -169,15 +171,11 @@ pub fn band() -> geom_core::Band {
     geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
 }
 
-pub fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-pub fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-pub fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
+/// The literal of each dimension, a point of two lengths, and the
+/// frame a sketch is drawn on — `editor_core::test_support`'s, which the
+/// crate's own unit-test modules read too, re-exported so a suite
+/// imports them from here beside the rest of its authoring doors.
+pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 
 /// Applies an edit, returning the new doc and any minted id.
 ///
@@ -198,6 +196,23 @@ pub fn step_with(
 ) -> (ProfileDoc, Option<RecipeNodeId>) {
     let applied = doc.apply(&edit, Tol::witness(), reach).unwrap();
     (applied.doc, applied.record.minted)
+}
+
+/// **The id `doc`'s next insert would mint**, read by making that
+/// insert on a copy: an id no node of `doc` holds, whatever the mint.
+pub fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
+    insert(doc.clone(), xy_frame()).1
+}
+
+/// **The last node in `doc.order()`** — the one a just-applied
+/// `InsertNode` minted, for a row that pushes an insert through a door
+/// that hands back only the document.
+///
+/// # Panics
+///
+/// If `doc` holds no live node.
+pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
+    *doc.order().last().expect("the document holds a node")
 }
 
 pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
@@ -259,12 +274,14 @@ pub fn door_refusal(
 ///
 /// `side` is the head that resolves to nothing, spelled in `node` as
 /// it is meant to read — at its own mint, which is where the rebind
-/// leaves it.
+/// leaves it. `anchor_body` is the body node of `anchor`'s part
+/// document.
 pub fn insert_mate_with_stranded_head(
     doc: ProfileDoc,
     node: Node<ProfileProgram>,
     side: editor_core::MateSide,
     anchor: RecipeNodeId,
+    anchor_body: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
     let Node::Mate {
         a,
@@ -286,7 +303,11 @@ pub fn insert_mate_with_stranded_head(
             },
         },
     );
-    let stand_in = in_copy(scratch, 1, resolver::in_part(anchor, CapEnd::End));
+    let stand_in = in_copy(
+        scratch,
+        1,
+        resolver::in_part(anchor, anchor_body, CapEnd::End),
+    );
     let (stranded, a, b) = match side {
         editor_core::MateSide::A => (a, head(stand_in.clone()), b),
         editor_core::MateSide::B => (b, a, head(stand_in.clone())),
@@ -321,19 +342,6 @@ pub fn insert_mate_with_stranded_head(
         "the rebind left the head read where `node` spelled it"
     );
     (doc, mate)
-}
-
-/// The frame datum a profile is drawn on, as a node to insert.
-///
-/// The components `desc` used to bake into a `SketchPlane` are the
-/// frame's own slots now, spelled the same way round: an origin and
-/// the two directions sketch +x and +y point.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
-    Node::Datum(editor_core::Datum::Frame {
-        origin: origin.map(len),
-        u: u.map(scl),
-        v: v.map(scl),
-    })
 }
 
 /// **The `SketchPlane` a frame NODE denotes**, read out of a document.
@@ -464,18 +472,6 @@ impl Swept {
             _ => panic!("the profile node's value carries a profile"),
         }
     }
-}
-
-/// The world xy frame as a node — origin at the world origin, sketch
-/// +x along world +x, sketch +y along world +y.
-///
-/// The `SketchPlane::xy()` constant most of these suites used, spelled
-/// as the node a profile now names. One per document, shared by every
-/// sketch on it: that is what "the same plane" is once the plane is a
-/// node, where the constant left each profile holding its own copy of
-/// identical floats.
-pub fn xy_frame() -> Node<ProfileProgram> {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
 }
 
 /// A profile program on `plane`, from polygon corner lists
@@ -711,7 +707,7 @@ pub fn die() -> Die {
     let mut r = Recorder::new();
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("pip_depth"),
+        name: ParamName::from_static("pip_depth"),
         value: DocParam::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
@@ -734,7 +730,11 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),
+            distance: Expr::neg(Expr::param(
+                ParamName::from_static("pip_depth"),
+                Dimension::Length,
+            ))
+            .expect("a shallow negation"),
         });
         masters.push((ext, u, v, pips));
     }
@@ -771,12 +771,14 @@ pub fn die() -> Die {
                 a * u[1] + b * v[1],
                 a * u[2] + b * v[2],
             ];
-            let tr = r.insert(Node::Transform {
-                input: ext,
-                translation: [len(t[0]), len(t[1]), len(t[2])],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            });
+            let tr = r.insert(Node::transform(
+                ext,
+                editor_core::Step::Rigid {
+                    translation: [len(t[0]), len(t[1]), len(t[2])],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ));
             // The pip master extrudes INWARD (negative distance), so
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane).
@@ -980,6 +982,27 @@ pub fn count(t: &NameTable, seg: fn(&RoleSeg) -> bool) -> usize {
     t.iter().filter(|(n, _)| seg(&n.path[0])).count()
 }
 
+/// **`names`, faces of `node`'s body, ordered left to right** by the
+/// least x any of the face's vertices stands at: a geometric order for
+/// rows that mean "the left fragment", which name order does not give
+/// (a name's order follows the ids it spells).
+pub fn left_to_right(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    mut names: Vec<StableName>,
+) -> Vec<StableName> {
+    let body = crate::corpus::body_of(ev, node);
+    let t = table(ev, node);
+    let least_x = |n: &StableName| {
+        face_vertices(body, face_of(t, "a fragment", n))
+            .into_iter()
+            .map(|v| point(body, v).x)
+            .fold(f64::INFINITY, f64::min)
+    };
+    names.sort_by(|a, b| least_x(a).total_cmp(&least_x(b)));
+    names
+}
+
 /// Where a vertex stands.
 pub fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
     topo::readback::vertex_point(body, v).expect("a live vertex")
@@ -1144,12 +1167,29 @@ pub fn as_authored(node: &Node<ProfileProgram>) -> Node<ProfileProgram> {
     node
 }
 
-/// **A piece no profile draws**: the first step any document mints,
-/// in a role no verb gives it — a locator that is well formed and
-/// within every document's step counter, and denotes nothing.
+/// **A piece no profile draws, spelled without a document**: step id
+/// 0 in a role no verb gives it — a well-formed locator that denotes
+/// nothing, since `Piece(7)` is no verb's role. Whether a document's
+/// mint log holds id 0 is a matter of what its chain drew, so a row
+/// whose name passes a door that checks the log uses [`no_piece_of`],
+/// which spells a step the document minted.
 pub fn no_piece() -> ProfileEdgeRef {
     ProfileEdgeRef::Piece {
         step: editor_core::StepId(0),
+        role: editor_core::PieceRole::Piece(7),
+    }
+}
+
+/// **A piece no profile of `doc` draws**: the least step id `doc` has
+/// minted, in a role no verb gives it — a locator that is well formed,
+/// spells a minted step, and denotes nothing.
+pub fn no_piece_of(doc: &editor_core::ProfileDoc) -> ProfileEdgeRef {
+    ProfileEdgeRef::Piece {
+        step: *doc
+            .step_mint()
+            .log()
+            .first()
+            .expect("the document has minted a step"),
         role: editor_core::PieceRole::Piece(7),
     }
 }
@@ -1386,7 +1426,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(edge.as_ref()).chain(band).collect()
         }
-        RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
+        RoleSeg::Fragment(Qualifier::Borders(v)) => v.iter().collect(),
         RoleSeg::Fragment(Qualifier::OrderAlong { .. })
         | RoleSeg::OutputBody
         | RoleSeg::Cap(_)

@@ -33,10 +33,6 @@ fn in_band() -> f64 {
     5.0 * tol().eps()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A cylinder: a three-arc circle extruded.
 fn cylinder() -> Body<f64> {
     disc_of_arcs(3, 0.5, 1.0, tol())
@@ -213,7 +209,7 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, Sign::Zero);
             assert_eq!(
-                margin.value(),
+                margin.reading.diagnostic_f64_for_error_text().value(),
                 Some(0.0),
                 "a smooth split has an exactly-zero wedge"
             );
@@ -374,7 +370,7 @@ fn trio_hostless_annulus_ring_containment() {
         matches!(&definite, BlendError::RingClearance { margin, .. }
             if margin.predicate == "fillet3_ring_clearance"
                 && margin.sign == Sign::Negative
-                && margin.value().is_some_and(|m| (m - -0.01).abs() < 1e-12)),
+                && margin.reading.diagnostic_f64_for_error_text().value().is_some_and(|m| (m - -0.01).abs() < 1e-12)),
         "the definite arm classifies at the exact containment margin: {definite}"
     );
     // Exactly on: the bore reaches the trim circle - a refusal, not a
@@ -424,7 +420,7 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
         matches!(&definite, BlendError::FaceClearanceUncertified { margin, .. }
             if margin.sign == Sign::Negative
                 && margin
-                    .value()
+                    .reading.diagnostic_f64_for_error_text().value()
                     .is_some_and(|m| m.to_bits() == ((1.0 - 0.1) - 0.92f64).to_bits())),
         "the screen answers first, at the derived containment double: {definite}"
     );
@@ -506,7 +502,10 @@ fn trio_convexity_sign() {
     assert_eq!(m.predicate, "fillet3_convexity_sign");
     assert_eq!(m.sign, Sign::Positive);
     assert!(
-        m.value().is_some_and(|v| (v - 1.0).abs() < 1e-12),
+        m.reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .is_some_and(|v| (v - 1.0).abs() < 1e-12),
         "the 90° box edge margin is the arm"
     );
     let (concave, _) = convexity_at(
@@ -556,13 +555,16 @@ fn trio_corner_independence() {
     let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let b = band();
-    let n = |x: f64, y: f64, z: f64| Vec3::new(x, y, z);
     // Definitely independent: the orthonormal trihedron.
     corner_config(
         v,
         3,
         3,
-        [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(0.0, 0.0, 1.0)],
+        [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ],
         1.0,
         b,
     )
@@ -572,7 +574,11 @@ fn trio_corner_independence() {
         v,
         3,
         3,
-        [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(1.0, 1.0, 0.0)],
+        [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+        ],
         1.0,
         b,
     )
@@ -591,9 +597,9 @@ fn trio_corner_independence() {
         3,
         3,
         [
-            n(1.0, 0.0, 0.0),
-            n(0.0, 1.0, 0.0),
-            n(0.0, 0.0, t).normalize() * t,
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, t).normalize() * t,
         ],
         1.0,
         b,
@@ -638,7 +644,10 @@ fn trio_corner_independence() {
 /// `review_blend1_r1_probes::r1_tilted_cap_is_tier2_valid_and_tier3_names_the_tilt`
 /// and `::r1_tilted_cap_departure_is_the_meridian_reading`.
 fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
-    let lp = bulge_loop(vec![(p2(0.5, 0.0), 1.0), (p2(-0.5, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.5, 0.0), 1.0),
+        (Point2::new(-0.5, 0.0), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
@@ -695,8 +704,15 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
         u_ref,
     };
-    body.set_face_surface(cap, FaceSurface::New(tilted))
-        .expect("a plane for a planar cap");
+    // Lifts both refusals: the tilted cap plane is the coaxiality fixture.
+    body.set_face_surface_stranding_for_tests(
+        cap,
+        FaceSurface::New {
+            surface: tilted,
+            sense: true,
+        },
+    )
+    .expect("a plane for a planar cap");
     (body, arcs)
 }
 

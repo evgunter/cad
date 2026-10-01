@@ -43,18 +43,12 @@ use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, CoherenceCondition, CoherenceFinding, EdgeKey, FaceSurface, MefSite, MevSite};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -80,31 +74,37 @@ fn rim_r() -> f64 {
 fn pole_crossing_half_cap() -> (Body<f64>, EdgeKey) {
     let tol = Tol::witness();
     let r = rim_r();
-    let a = p3(r, 0.0, RIM_Z);
-    let b = p3(-r, 0.0, RIM_Z);
+    let a = Point3::new(r, 0.0, RIM_Z);
+    let b = Point3::new(-r, 0.0, RIM_Z);
     let rim = Curve3::Circle {
-        center: p3(0.0, 0.0, RIM_Z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, RIM_Z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     // The great circle in the plane y = 0, oriented so the arc from `b`
     // to `a` passes over the north pole (increasing z first).
     let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis,
         radius: 1.0,
-        u_ref: v3(-r, 0.0, RIM_Z),
+        u_ref: Vec3::new(-r, 0.0, RIM_Z),
     };
-    let mut g = great(v3(0.0, 1.0, 0.0));
+    let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < RIM_Z {
-        g = great(v3(0.0, -1.0, 0.0));
+        g = great(Vec3::new(0.0, -1.0, 0.0));
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let e_rim = body
         .mev(
             MevSite::Lone {
@@ -145,24 +145,27 @@ fn chord_wobble(metres: f64) -> Body<f64> {
     // The closure gap is θ/2 at a lever arm of `rr`, so this opens
     // exactly `metres` of arc.
     let theta = 2.0 * metres / rr;
-    let a = p3(rr, 0.0, 0.0);
-    let b = p3(rr * theta.cos(), rr * theta.sin(), 0.0);
+    let a = Point3::new(rr, 0.0, 0.0);
+    let b = Point3::new(rr * theta.cos(), rr * theta.sin(), 0.0);
     let rim = Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: rr,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cylinder {
-            origin: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: rr,
-            u_ref: v3(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: rr,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e = body
@@ -208,27 +211,33 @@ fn chord_wobble(metres: f64) -> Body<f64> {
 fn two_circle_rim_cap(c: f64) -> Body<f64> {
     let tol = Tol::witness();
     let r = rim_r();
-    let a = p3(r, 0.0, RIM_Z);
-    let b = p3(-r, 0.0, RIM_Z);
+    let a = Point3::new(r, 0.0, RIM_Z);
+    let b = Point3::new(-r, 0.0, RIM_Z);
     let true_rim = Curve3::Circle {
-        center: p3(0.0, 0.0, RIM_Z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, RIM_Z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let other = Curve3::Circle {
-        center: p3(0.0, c, RIM_Z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, c, RIM_Z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: (r * r + c * c).sqrt(),
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let s = other.param_near(b, 0.0).unwrap();
     let e = other.param_near(a, 0.0).unwrap();
     let e = if e > s { e } else { e + core::f64::consts::TAU };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let e1 = body
         .mev(
             MevSite::Lone {
@@ -484,27 +493,30 @@ fn split_meridian_wobble(metres: f64) -> Body<f64> {
     let rr = 0.05_f64;
     // The continuation gap is w/2 at lever `rr`.
     let w = 2.0 * metres / rr;
-    let on = |theta: f64, z: f64| p3(rr * theta.cos(), rr * theta.sin(), z);
+    let on = |theta: f64, z: f64| Point3::new(rr * theta.cos(), rr * theta.sin(), z);
     let (v0, v1) = (on(0.0, 0.0), on(0.9, 0.0));
     let mid = on(0.9, 0.5);
     let top = on(0.9 + w, 1.0);
     let tl = on(0.0, 1.0);
     let rim = |z: f64, sense: f64| Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, sense),
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, sense),
         radius: rr,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(v0).unwrap();
+    let seed = body.mvfs(v0, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cylinder {
-            origin: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: rr,
-            u_ref: v3(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: rr,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e0 = body
@@ -603,13 +615,13 @@ fn two_carriers_for_one_meridian_column_report_their_u_gap() {
 /// off the analytic pole.
 fn tilted_lune(radius: f64, theta: f64) -> Option<Body<f64>> {
     let tol = Tol::witness();
-    let raw = v3(0.3, 0.2, 1.0);
+    let raw = Vec3::new(0.3, 0.2, 1.0);
     let axis = raw * (1.0 / raw.norm());
-    let x = v3(1.0, 0.0, 0.0);
+    let x = Vec3::new(1.0, 0.0, 0.0);
     let u0 = x - axis * axis.dot(x);
     let u_ref = u0 * (1.0 / u0.norm());
     let v_ref = axis.cross(u_ref);
-    let c = p3(0.0, 0.0, 0.0);
+    let c = Point3::new(0.0, 0.0, 0.0);
     // A meridian circle at azimuth `az`, oriented so that its forward
     // parameter runs south pole → equator → north pole.
     let meridian = |az: f64| Curve3::Circle {
@@ -629,15 +641,18 @@ fn tilted_lune(radius: f64, theta: f64) -> Option<Body<f64>> {
     let m0 = meridian(0.0);
     let (s, n) = (m0.eval(ta), m0.eval(tb));
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(s).ok()?;
+    let seed = body.mvfs(s, true).ok()?;
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: c,
-            radius,
-            axis,
-            u_ref,
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: c,
+                radius,
+                axis,
+                u_ref,
+            },
+            sense: true,
+        },
     )
     .ok()?;
     let e = body

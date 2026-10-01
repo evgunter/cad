@@ -30,9 +30,10 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **two** of the six doors that read a box from
-//! here; at the other four, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL:
+//! PRUNES. That is **two** of the seven doors that read a box from
+//! here; at four of the other five, box NON-overlap is the answer being
+//! sought, so a bigger box is a REFUSAL, and at the fifth it is more
+//! exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict.
@@ -55,6 +56,19 @@
 //!   ball's certified extent CLEARS the face's box, so a bigger box
 //!   turns a separated cyl×sphere pair into
 //!   `FallbackExtentUnsupported`.
+//! - `boolean::ops`'s section certificate (`section_pairs`, on both
+//!   paths) EXAMINES every pair whose two face boxes overlap, and
+//!   builds from the overlap the pair's reach, which pivots and levers
+//!   its angular margins (`section_cert`'s module docs). A bigger box
+//!   sends a separated pair through the exact classification, which
+//!   certifies it apart; and it widens the reach, which lengthens the
+//!   lever, so a nearly parallel pair decides its tilt `Zero` less
+//!   readily — onto the exact tilted arm where there is one, and into
+//!   a REFUSAL on reach where there is not (a torus pair with a
+//!   near-parallel wall). A parallel reading that survives a bigger box
+//!   is bounded by the band over a region at least as large as the
+//!   section's. A box TIGHTER than its face is the unsound direction:
+//!   its reach could miss the section.
 //! - `census`'s arm 2 clears an instance pair at its gate on a
 //!   definitely negative margin against a CONTAINING box and sends
 //!   every other pair to the material test, so over-width would cost
@@ -65,10 +79,10 @@
 //!   (`bool4r1_probes::probe_d`).
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The six are not
+//! about a door, and the door has to be named. The seven are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! a seventh door cannot land unargued. **It pins WHERE the doors are
+//! an eighth door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
@@ -703,55 +717,6 @@ pub(crate) fn meet<T: Real>(a: SpanBox<T>, b: SpanBox<T>) -> SpanBox<T> {
     }
 }
 
-/// One stored pcurve's CHART-CHANNEL extent over the span it is
-/// certified on: `hull(P(t₀), P(t₁))` widened per channel by the
-/// trigonometric part's chord dip `hypot(paᵢ, pbᵢ)·(t₁ − t₀)²/8`.
-///
-/// `P(t) = p0 + pa·cos t + pb·sin t + pl·t`, so `P″(t)` is
-/// `−(pa·cos t + pb·sin t)` and a C² function leaves the chord of an
-/// interval of width `h` by at most `max|P″|·h²/8` — [`arc_extent`]'s
-/// own charge, taken here on the chart's two channels instead of
-/// space's three. The linear channel contributes nothing to `P″` and
-/// is exact at the endpoints.
-///
-/// **Not [`geom_brep::Pcurve::chart_box`].** That enclosure is
-/// `p0 ± (|pa| + |pb| + |pl|·max(|t₀|, |t₁|))` — a ball about the
-/// CONSTANT term rather than a hull of the span the edge occupies. For
-/// an edge running `t ∈ [0, 22°]` on a linear channel it claims
-/// `p0 ± 22°`, which is twice the true reach and centred on the wrong
-/// point; a window built from it would not be the face's.
-///
-/// `None` for every other [`geom_brep::Pcurve`] variant: their images
-/// are not this family and this bound says nothing about them.
-pub(crate) fn harmonic_extent<T: Real>(
-    pcurve: &geom_brep::Pcurve<T>,
-    t0: T,
-    t1: T,
-) -> Option<(Span<T>, Span<T>)> {
-    let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
-        return None;
-    };
-    let at = |t: T| {
-        let (s, c) = t.sin_cos();
-        (
-            p0.x + pa.x * c + pb.x * s + pl.x * t,
-            p0.y + pa.y * c + pb.y * s + pl.y * t,
-        )
-    };
-    let (a, b) = (at(t0), at(t1));
-    let channel = |x: T, y: T, ca: T, cb: T| {
-        Span {
-            lo: x.min(y),
-            hi: x.max(y),
-        }
-        .widen(subdivision_charge(
-            (ca.powi(2) + cb.powi(2)).sqrt(),
-            t1 - t0,
-        ))
-    };
-    Some((channel(a.0, b.0, pa.x, pb.x), channel(a.1, b.1, pa.y, pb.y)))
-}
-
 /// A torus face's chart window: the `u` (major azimuth) and `v`
 /// (minor angle) channels' spans, in that order.
 pub(crate) type TorusWindowPair<T> = (Span<T>, Span<T>);
@@ -917,9 +882,17 @@ impl<T: Real> TorusChartWindow<T> {
             return;
         };
         let (t0, t1) = cache.params();
-        let Some((u, v)) = harmonic_extent(cache.pcurve(), t0, t1) else {
+        let Some(b) = cache.pcurve().harmonic_span_box(t0, t1) else {
             self.ok = false;
             return;
+        };
+        let u = Span {
+            lo: b.u_min,
+            hi: b.u_max,
+        };
+        let v = Span {
+            lo: b.v_min,
+            hi: b.v_max,
         };
         let Some(travel) = harmonic_travel(cache.pcurve(), t0, t1, forward) else {
             self.ok = false;
@@ -2165,7 +2138,7 @@ mod tests {
         (a, b, c): (Point3<f64>, Point3<f64>, Point3<f64>),
     ) -> (Body<f64>, FaceKey) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let plane = body.add_surface(plane_surface);
         let cyl = body.add_surface(cyl_surface);
         let arc = EdgeCurveSpec {
@@ -2208,7 +2181,10 @@ mod tests {
                     he2: e_ab.he_plus,
                 },
                 EdgeCurveSpec::line_between(c, a),
-                FaceSurface::Shared(plane),
+                FaceSurface::Shared {
+                    key: plane,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap()
@@ -2283,10 +2259,10 @@ mod tests {
     /// generator edges at the sides. The face's own surface is the
     /// CYLINDER through the bottom rim; a caller wanting another
     /// surface of revolution through the same boundary re-labels it
-    /// ([`FaceSurface::New`]) — the boundary is genuinely on that
-    /// surface whenever `rho` is the surface's own radius profile,
-    /// which is what makes the re-label honest rather than a fixture
-    /// trick.
+    /// ([`Body::set_face_surfaces_describing`]) — the boundary is
+    /// genuinely on that surface whenever `rho` is the surface's own
+    /// radius profile, which is what makes the re-label honest rather
+    /// than a fixture trick.
     ///
     /// The rim carriers are described as the cylinder-of-that-radius
     /// cut by the plane at that height, which is the same circle
@@ -2301,7 +2277,7 @@ mod tests {
     ) -> (Body<f64>, FaceKey) {
         let on = |u: f64, z: f64| Point3::new(rho(z) * u.cos(), rho(z) * u.sin(), z);
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(on(u0, z0)).unwrap();
+        let seed = body.mvfs(on(u0, z0), true).unwrap();
         // A rim at height `z`: the cylinder cut by the plane there.
         // The descending rim runs on the reversed axis so its own
         // parameters increase, exactly as the split lane mints them.
@@ -2393,7 +2369,10 @@ mod tests {
                     he2: e_b.he_plus,
                 },
                 EdgeCurveSpec::line_between(on(u0, z1), on(u0, z0)),
-                FaceSurface::Shared(cyl),
+                FaceSurface::Shared {
+                    key: cyl,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap()
@@ -2439,14 +2418,19 @@ mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let center = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surface(
-                face,
-                FaceSurface::New(Surface::Sphere {
-                    center,
-                    radius: r,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
-                }),
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(
+                    Surface::Sphere {
+                        center,
+                        radius: r,
+                        axis: Vec3::unit_z(),
+                        u_ref: Vec3::unit_x(),
+                    },
+                    face,
+                    true,
+                )],
+                &[],
+                Tol::witness(),
             )
             .unwrap();
             let b = face_box(&body, face, pad()).unwrap();
@@ -2474,24 +2458,31 @@ mod tests {
         use geom::surfaces::nurbs::NurbsSurface;
         use geom_core::spline::KnotVector;
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::new(2).unwrap());
-        let p = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let control = vec![
-            p(0.0, 0.0, 0.0),
-            p(0.0, 0.5, 0.0),
-            p(0.0, 1.0, 0.0),
-            p(0.5, 0.0, 0.0),
-            p(0.5, 0.5, 1.0),
-            p(0.5, 1.0, 0.0),
-            p(1.0, 0.0, 0.0),
-            p(1.0, 0.5, 0.0),
-            p(1.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.5, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.5, 0.0, 0.0),
+            Point3::new(0.5, 0.5, 1.0),
+            Point3::new(0.5, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.5, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
         ];
         let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
         let surface = Surface::Nurbs(std::sync::Arc::new(patch));
         let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-        body.set_face_surface(face, FaceSurface::New(surface))
-            .unwrap();
-        (body, face, (p(0.0, 0.0, 0.0), p(1.0, 1.0, 1.0)))
+        body.set_face_surfaces_describing(
+            vec![crate::Rechart::new(surface, face, true)],
+            &[],
+            Tol::witness(),
+        )
+        .unwrap();
+        (
+            body,
+            face,
+            (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 1.0)),
+        )
     }
 
     /// **The NURBS half of the same defect.** A patch's interior
@@ -2780,14 +2771,19 @@ mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let c = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surface(
-                face,
-                FaceSurface::New(Surface::Sphere {
-                    center: c,
-                    radius: r,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
-                }),
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(
+                    Surface::Sphere {
+                        center: c,
+                        radius: r,
+                        axis: Vec3::unit_z(),
+                        u_ref: Vec3::unit_x(),
+                    },
+                    face,
+                    true,
+                )],
+                &[],
+                Tol::witness(),
             )
             .unwrap();
             let b = face_box(&body, face, pad).unwrap();
@@ -2858,9 +2854,18 @@ mod tests {
     ///   face's [`edge_box`]es against the germ circle's box, the
     ///   cone/torus arm consults a [`face_box`] before refusing by
     ///   kind — reach first, kind second, as at the operand gate —
-    ///   and the WALL-PAIR gate reads two [`face_box`]es, one per
-    ///   operand, on the same rule. **Refuses**: whichever box fails
-    ///   to clear turns the pair into `FallbackExtentUnsupported`.
+    ///   and the section certificate's pair scan (`section_pairs`,
+    ///   both paths) reads one [`face_box`] per face of each operand:
+    ///   two that overlap put the pair through the certificate, whose
+    ///   reach — the ball about the overlap — pivots and levers its
+    ///   angular margins. **Refuses** at the extent scan: a box that
+    ///   fails to clear turns the pair into `FallbackExtentUnsupported`.
+    ///   **Examines, and can refuse,** at the pair scan: a loose box
+    ///   sends a separated pair through the classification, which
+    ///   certifies it apart, and lengthens the lever, so a near-parallel
+    ///   tilt stops deciding `Zero` and the pair takes the tilted arm or
+    ///   refuses on reach. A box TIGHTER than its face would be the
+    ///   unsound direction: its reach could miss the section.
     /// - `separation.rs` — the two separation certificates, the
     ///   placement one and the solid-pair one, on one rule.
     ///   **Refuses**, both of them and for the same reason:
@@ -2923,7 +2928,7 @@ mod tests {
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         const PINNED: [(&str, usize); 4] = [
-            ("boolean/ops.rs", 5),
+            ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("census.rs", 7),
             ("separation.rs", 2),
@@ -3005,7 +3010,12 @@ mod tests {
         for s in kinds {
             let kind = geom_brep::SurfaceKind::of(&s);
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surface(face, FaceSurface::New(s)).unwrap();
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(s, face, true)],
+                &[],
+                Tol::witness(),
+            )
+            .unwrap();
             let b = face_box(&body, face, pad()).unwrap();
             assert!(
                 !b.min_x.is_nan(),
@@ -3048,7 +3058,7 @@ mod tests {
         // The seed FIRST: a surface added before it has a face is
         // orphan geometry, which `mvfs`'s tier-1 postcondition
         // rejects.
-        let seed = body.mvfs(on(u0, v0)).unwrap();
+        let seed = body.mvfs(on(u0, v0), true).unwrap();
         let torus = body.add_surface(Surface::Torus {
             center,
             axis,
@@ -3189,7 +3199,10 @@ mod tests {
                     he2: e_b.he_plus,
                 },
                 left,
-                FaceSurface::Shared(torus),
+                FaceSurface::Shared {
+                    key: torus,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap()
@@ -3203,17 +3216,56 @@ mod tests {
     /// origin. Rims are the cone's own circles, sides its generators.
     fn cone_wall(alpha: f64, u0: f64, u1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
         let (mut body, face) = revolved_wall(&|z| z * alpha.tan(), u0, u1, z0, z1);
-        body.set_face_surface(
-            face,
-            FaceSurface::New(Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
-                half_angle: alpha,
-                u_ref: Vec3::unit_x(),
-            }),
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: alpha,
+            u_ref: Vec3::unit_x(),
+        };
+        body.set_face_surfaces_describing(
+            vec![crate::Rechart::new(cone, face, true)],
+            &[],
+            Tol::witness(),
         )
         .unwrap();
         (body, face)
+    }
+
+    /// **The face-level containment door keeps its two kinds of `Out`
+    /// apart on a cone** (it lives here because this module's tests
+    /// own the cone-wall fixture). A point on the MIRROR nappe is on
+    /// the double-cone carrier the face's surface states, so
+    /// `curved_face_placement` answers `Trim(Some(Out))` — a sibling
+    /// face's incidence — and never `OffCarrier`, which the crossing
+    /// layer reads as a contradiction of its own on-carrier
+    /// certificate. A point off the carrier is `OffCarrier`, and a
+    /// carrier point outside the azimuth window is `Trim(Some(Out))`.
+    #[test]
+    fn a_cone_band_places_the_mirror_nappe_on_its_carrier() {
+        use crate::boolean::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
+        let alpha = 30.0_f64.to_radians();
+        let (body, face) = cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        let band = Band::linear(Tol::witness()).unwrap();
+        let at = |u: f64, z: f64, off: f64| {
+            let rho = z.abs() * alpha.tan() + off;
+            Point3::new(rho * u.cos(), rho * u.sin(), z)
+        };
+        let place = |p| curved_face_placement(&body, face, p, band).unwrap();
+        assert_eq!(
+            place(at(0.5, 0.75, 0.0)),
+            CurvedPlacement::Trim(Some(FaceContainment::In))
+        );
+        assert_eq!(
+            place(at(0.5, -0.75, 0.0)),
+            CurvedPlacement::Trim(Some(FaceContainment::Out)),
+            "the mirror nappe is on the carrier"
+        );
+        assert_eq!(place(at(0.5, 0.75, 1e-3)), CurvedPlacement::OffCarrier);
+        assert_eq!(
+            place(at(2.0, 0.75, 0.0)),
+            CurvedPlacement::Trim(Some(FaceContainment::Out)),
+            "outside the azimuth window"
+        );
     }
 
     /// The cone arm, against the wall it bounds — the same claim the
@@ -3301,15 +3353,20 @@ mod tests {
                 let (u_ref, _) = axis.orthonormal_basis();
                 let v_ref = axis.cross(u_ref);
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surface(
-                    face,
-                    FaceSurface::New(Surface::Torus {
-                        center,
-                        axis,
-                        major_radius: major,
-                        minor_radius: minor,
-                        u_ref,
-                    }),
+                body.set_face_surfaces_describing(
+                    vec![crate::Rechart::new(
+                        Surface::Torus {
+                            center,
+                            axis,
+                            major_radius: major,
+                            minor_radius: minor,
+                            u_ref,
+                        },
+                        face,
+                        true,
+                    )],
+                    &[],
+                    Tol::witness(),
                 )
                 .unwrap();
                 let b = face_box(&body, face, pad()).unwrap();
@@ -3363,7 +3420,7 @@ mod tests {
         let on =
             |u: f64, v: f64| center + e(u) * (major + minor * v.cos()) + axis * (minor * v.sin());
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(on(u0, 0.0)).unwrap();
+        let seed = body.mvfs(on(u0, 0.0), true).unwrap();
         let torus = body.add_surface(Surface::Torus {
             center,
             axis,
@@ -3410,7 +3467,10 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 m0,
-                FaceSurface::New(cap0_plane),
+                FaceSurface::New {
+                    surface: cap0_plane,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .expect("mef Lone: the circular edge at u0");
@@ -3453,14 +3513,23 @@ mod tests {
                     he2: strut.he_minus,
                 },
                 m1,
-                FaceSurface::New(cap1_plane),
+                FaceSurface::New {
+                    surface: cap1_plane,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .expect("mef Chords self-loop: the circular edge at u1");
         body.kemr(strut.he_plus, strut.he_minus)
             .expect("kemr: the strut dies and the u1 circle becomes a ring");
-        body.set_face_surface(seed.face, FaceSurface::Shared(torus))
-            .expect("the seed face is the torus annulus");
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::Shared {
+                key: torus,
+                sense: true,
+            },
+        )
+        .expect("the seed face is the torus annulus");
         (body, seed.face)
     }
 
@@ -3912,13 +3981,13 @@ mod tests {
         );
     }
 
-    /// **The window is the EDGE'S OWN SPAN**, not
-    /// `geom_brep::Pcurve::chart_box`'s ball about the constant term:
-    /// a 22° patch's `u` window is 22° wide and sits where the face
-    /// does, where `chart_box` would give `p0 ± 22°` — 44° wide and
-    /// centred on the wrong point.
+    /// **The window is the EDGE'S OWN SPAN, and it is the stored rows'
+    /// `chart_box` hull** — the window reads the one harmonic span box,
+    /// so a 22° patch's `u` window is 22° wide and sits where the face
+    /// does, and so is the hull the mint's check 5 measures the same
+    /// rows by.
     #[test]
-    fn the_torus_window_is_the_edges_own_span_not_its_chart_box() {
+    fn the_torus_window_is_the_edges_own_span_and_its_chart_box_hull() {
         let (major, minor) = (5.0, 0.06);
         let (u0, u1) = (0.0, 22.0_f64.to_radians());
         let (v0, v1) = (-0.4, 0.9);
@@ -3933,26 +4002,36 @@ mod tests {
         );
         let (u, v) = read_window(&body, face, major, minor)
             .expect("every half-edge stores a certified cache and the window reads");
+        let hull = face_window_steps(&body, face)
+            .expect("the face walks")
+            .into_iter()
+            .flatten()
+            .map(|step| {
+                let (cache, _) = step.expect("every half-edge stores a certified cache");
+                let (t0, t1) = cache.params();
+                cache.pcurve().chart_box(t0, t1)
+            })
+            .reduce(geom_brep::ChartWindow::hull)
+            .expect("the face has half-edges");
         // The slack is `2·envelope/(R − r)` and `2·envelope/r` on a
         // fixture whose images are exact, so it is at the mint's own
         // residual scale — orders below the spans themselves.
         let slack = 1e-6;
-        for (got, want, what) in [
-            (u.lo, u0, "u lo"),
-            (u.hi, u1, "u hi"),
-            (v.lo, v0, "v lo"),
-            (v.hi, v1, "v hi"),
+        for (got, span_end, boxed, what) in [
+            (u.lo, u0, hull.u_min, "u lo"),
+            (u.hi, u1, hull.u_max, "u hi"),
+            (v.lo, v0, hull.v_min, "v lo"),
+            (v.hi, v1, hull.v_max, "v hi"),
         ] {
             assert!(
-                (got - want).abs() < slack,
-                "the {what} window end is {got}, the edge's own span end {want}"
+                (got - span_end).abs() < slack,
+                "the {what} window end is {got}, the edge's own span end {span_end}"
+            );
+            assert!(
+                (got - boxed).abs() < slack,
+                "the {what} window end is {got}, the rows' chart_box hull end {boxed}"
             );
         }
-        let chart_box_reach = u1;
-        assert!(
-            u.hi - u.lo < 1.5 * chart_box_reach,
-            "the window is the 22° span, not `chart_box`'s ±22°: {u:?}"
-        );
     }
 
     /// **`TorusWindow`**, both halves of the rule.
@@ -3974,15 +4053,20 @@ mod tests {
                 let c = Point3::new(0.3 * major, -0.2 * major, 0.1 * major);
                 let u_ref = axis.orthonormal_basis().0;
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surface(
-                    face,
-                    FaceSurface::New(Surface::Torus {
-                        center: c,
-                        axis,
-                        major_radius: major,
-                        minor_radius: minor,
-                        u_ref,
-                    }),
+                body.set_face_surfaces_describing(
+                    vec![crate::Rechart::new(
+                        Surface::Torus {
+                            center: c,
+                            axis,
+                            major_radius: major,
+                            minor_radius: minor,
+                            u_ref,
+                        },
+                        face,
+                        true,
+                    )],
+                    &[],
+                    Tol::witness(),
                 )
                 .unwrap();
                 let b = face_box(&body, face, pad).unwrap();
@@ -4100,7 +4184,12 @@ mod tests {
         };
         let relabelled = |s: Surface<f64>| {
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surface(face, FaceSurface::New(s)).unwrap();
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(s, face, true)],
+                &[],
+                Tol::witness(),
+            )
+            .unwrap();
             (body, face)
         };
         let (nurbs_body, nurbs_face, _) = nurbs_bulge_face();

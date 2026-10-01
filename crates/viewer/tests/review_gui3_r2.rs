@@ -14,7 +14,7 @@
 //! that read them are; the profile's shape is not an oracle here, so
 //! it is drawn with the shared rectangle.
 //!
-//! Randomized rows follow `memories/test-suite-cost.md`: a fresh seed
+//! Randomized rows follow implementer-discipline §8: a fresh seed
 //! per run through `test_utils::fuzz` (logged unconditionally,
 //! `CAD_FUZZ_SEED` replays), counts on `CAD_FUZZ_EFFORT`. Every row
 //! asserts; there is no print-only probe in this file.
@@ -25,7 +25,9 @@
 test_utils::gated_to![
     "crates/viewer/src/",
     "crates/pncad/src/",
-    "crates/viewer/tests/common/"
+    "crates/viewer/tests/common/",
+    "crates/viewer/src/test_support.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use std::sync::Arc;
@@ -49,7 +51,7 @@ use viewer::{docio, props, tree};
 // --- fixtures, authored here rather than borrowed -------------------
 
 fn width_param() -> ParamName {
-    ParamName::new("width")
+    ParamName::from_static("width")
 }
 
 /// A slab whose extrude distance is a LITERAL and whose transform's
@@ -78,17 +80,19 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     );
     let (doc, moved) = inserted(
         &doc,
-        Node::Transform {
-            input: extrude,
-            translation: [
-                Expr::mul(Expr::param(width_param(), Dimension::Length), scl(2.0))
-                    .expect("length * scalar is a length"),
-                len(0.0),
-                len(0.0),
-            ],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            extrude,
+            pncad::document::Step::Rigid {
+                translation: [
+                    Expr::mul(Expr::param(width_param(), Dimension::Length), scl(2.0))
+                        .expect("length * scalar is a length"),
+                    len(0.0),
+                    len(0.0),
+                ],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
     (doc, extrude, moved)
@@ -179,7 +183,7 @@ fn an_abandoned_subtree_keeps_its_grandchildren_their_documents_and_their_edits(
 /// A counterexample search over undo/redo walks: after any sequence of
 /// undos and edits, walking undo to the root and redo back must land on
 /// the document the last commit produced. The seed varies per run
-/// (`memories/test-suite-cost.md`); the walk length rides the effort
+/// (implementer-discipline §8); the walk length rides the effort
 /// dial.
 #[test]
 fn redo_from_the_root_returns_to_the_last_committed_state_under_random_walks() {
@@ -658,12 +662,14 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     );
     let (doc, downstream) = inserted(
         &doc,
-        Node::Transform {
-            input: bad,
-            translation: [len(0.01), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            bad,
+            pncad::document::Step::Rigid {
+                translation: [len(0.01), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
 
@@ -684,7 +690,8 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     assert_eq!(
         failed.status,
         viewer::tree::RowStatus::Failed {
-            message: expected.clone()
+            message: expected.clone(),
+            carried: Vec::new(),
         },
         "the badge is NodeError's own Display, not a sentence the panel wrote"
     );
@@ -930,7 +937,11 @@ fn the_panel_models_are_pure_functions_of_the_document_and_the_evaluation() {
         assert_eq!(session.slot_rows(), session.slot_rows());
         assert_eq!(
             session.tree_rows(),
-            tree::rows(session.doc(), session.evaluation()),
+            tree::rows(
+                session.doc(),
+                session.evaluation(),
+                &viewer::parts::PartFiles::default()
+            ),
             "the session's tree is the free function's"
         );
         assert_eq!(

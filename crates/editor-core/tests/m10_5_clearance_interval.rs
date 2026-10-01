@@ -134,7 +134,7 @@ use editor_core::{
 };
 use geom_core::{Sign, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, ang, len, scl};
 
 /// The analysis box's half-width, in metres.
 ///
@@ -145,12 +145,12 @@ fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 /// The leaf box: one axis at [`half`] around the nominal.
-fn box_of(axis: &str) -> ParamBox {
+fn box_of(axis: &'static str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
         name(axis),
@@ -164,7 +164,7 @@ fn box_of(axis: &str) -> ParamBox {
 
 /// Declares one continuous parameter with a uniform distribution of
 /// half-width [`half`].
-fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
+fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
         value: DocParam::Continuous {
@@ -183,12 +183,14 @@ fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
 /// direction passes through exactly and the placed body's charts are as
 /// clean as the literal one's.
 fn translated(input: RecipeNodeId, by: Expr) -> Node<ProfileProgram> {
-    Node::Transform {
+    Node::transform(
         input,
-        translation: [by, len(0.0), len(0.0)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    }
+        editor_core::Step::Rigid {
+            translation: [by, len(0.0), len(0.0)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    )
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
@@ -197,12 +199,12 @@ fn translated(input: RecipeNodeId, by: Expr) -> Node<ProfileProgram> {
 /// `ProfileProgram::plane` became a node reference under this branch
 /// (main's move), so every fixture mints the frame first and hands the
 /// profile its id.
-fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::xy_frame())
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
@@ -944,7 +946,7 @@ fn the_cost_curve_is_measured_at_both_ends() {
     // 1.155 m apart where the faces are 2 m apart. Every cell of it is
     // classified, so this is what a budget actually buys.
     let (hex, minted, _at) = hexagon();
-    let sel = opposite_flats(&doc, minted);
+    let sel = opposite_flats(&hex, minted);
     let leaf = box_of("place");
     let held = clearance(&hex, &leaf, &sel, &sel, 1.5, Tol::witness());
     let hr = held.receipt();

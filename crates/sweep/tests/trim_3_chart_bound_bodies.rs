@@ -35,19 +35,14 @@
 use std::f64::consts::{PI, TAU};
 
 use crate::common::approx::band;
+use crate::common::interval::{iv, p2, v2};
 use geom::Surface;
-use geom_core::{Bounds, Interval, Point2, Point3, Real, Tol, Vec2, Vec3};
+use geom_core::{Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, ChartBound, ChartEdge, ChartLoop, FaceKey, LoopBoundary, MetredRect, chart_boundary,
 };
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
 fn mid(x: Interval) -> f64 {
     0.5 * (x.lo() + x.hi())
 }
@@ -676,7 +671,7 @@ fn run_revolve(
     let vp = profile_of(loops);
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(iv(0.0), iv(1.0)),
+        dir: v2(0.0, 1.0),
     };
     let t = revolve(&vp, axis, rev, Tol::witness()).unwrap();
     let mut all = Vec::new();
@@ -974,7 +969,7 @@ fn p13_off_branch_cells_of_a_cylinder_face_are_certified_outside() {
     let vp = profile_of(&loops);
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(iv(0.0), iv(1.0)),
+        dir: v2(0.0, 1.0),
     };
     let t = revolve(&vp, axis, Revolution::Partial(iv(PI / 2.0)), Tol::witness()).unwrap();
     let mut off_branch_material_certified = 0usize;
@@ -1133,7 +1128,7 @@ fn singular_probe(name: &str, loops: &[Vec<((f64, f64), f64)>], theta: f64) -> (
     let vp = profile_of(loops);
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(iv(0.0), iv(1.0)),
+        dir: v2(0.0, 1.0),
     };
     let t = revolve(&vp, axis, Revolution::Partial(iv(theta)), Tol::witness()).unwrap();
     let (mut singular_refusals, mut violations) = (0usize, 0usize);

@@ -79,7 +79,7 @@ use editor_core::{
     ProgramTarget, SlotId,
 };
 
-use crate::fixture::{ang, axis_in_plane, frame, len, scl, xy_frame};
+use crate::fixture::{ang, axis_in_plane, frame, len, len2, scl, xy_frame};
 
 use super::{CorpusDoc, Recorder};
 
@@ -141,14 +141,16 @@ pub fn document() -> CorpusDoc {
     });
 
     // ---- the pip: the face-1 ball, at the +Z face centre ----
-    let pip = r.insert(Node::Transform {
-        input: ball,
-        translation: [len(h), len(h), len(PIP_C)],
-        // Translation-only: the chart is already poled (deviation
-        // (a)), so the rotation is the exact identity.
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    // Translation-only: the chart is already poled (deviation (a)), so
+    // the rotation is the exact identity.
+    let pip = r.insert(Node::transform(
+        ball,
+        editor_core::Step::Rigid {
+            translation: [len(h), len(h), len(PIP_C)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let pipped = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
         a: cube,
@@ -181,17 +183,11 @@ pub fn document() -> CorpusDoc {
 /// closed by its on-axis diameter — three steps, both vertices on the
 /// revolve axis.
 pub fn half_disc_program() -> LoopProgram {
-    let lpt = |x: f64, y: f64| {
-        [
-            editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
-            editor_core::Expr::literal(y, editor_core::Dimension::Length).unwrap(),
-        ]
-    };
     LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, -PIP_R)),
+        ProgramStep::At(len2([0.0, -PIP_R])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(lpt(0.0, PIP_R)),
-            b: editor_core::Expr::literal(1.0, editor_core::Dimension::Scalar).unwrap(),
+            target: ProgramTarget::Point(len2([0.0, PIP_R])),
+            b: scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])

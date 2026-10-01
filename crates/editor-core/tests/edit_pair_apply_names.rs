@@ -41,8 +41,9 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, HitTestError,
-    Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
+    NameLookupError, Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
 };
+use editor_core::{Mispaired, NodeStanding};
 use fixture::{ename, insert, len, on_frame};
 use geom_core::Tol;
 
@@ -388,13 +389,13 @@ fn the_name_doors_refuse_a_twins_evaluation() {
          refusal here buys something"
     );
 
-    let expected = HitTestError::EvaluationOfAnotherDocument {
+    let expected = NameLookupError::EvaluationOfAnotherDocument(Mispaired {
         expected: t.square.id(),
         found: t.triangle.id(),
-    };
+    });
     assert_eq!(
         pick.patch_names(&t.ev_triangle),
-        Err(expected.clone()),
+        Err(expected),
         "the finding: a foreign evaluation used to answer out of the \
          twin's tables, in patch order"
     );
@@ -412,12 +413,10 @@ fn the_name_doors_refuse_a_twins_evaluation() {
     );
 }
 
-/// Straight down the prism's axis, through the end cap.
+/// Straight down the prism's axis, through the end cap, from above
+/// it — the height is this suite's claim about its own prism.
 fn down() -> editor_core::Ray {
-    editor_core::Ray {
-        origin: geom_core::Point3::new(0.0, 0.0, 5.0),
-        dir: geom_core::Vec3::new(0.0, 0.0, -1.0),
-    }
+    editor_core::test_support::down_from(0.0, 0.0, 5.0)
 }
 
 /// **`pick_face` refuses a target of another document**, before it
@@ -471,10 +470,13 @@ fn pick_face_refuses_a_target_of_another_document() {
 /// thing the row left open: the later run answers the SAME names, slot
 /// for slot, and "admitted" is not covering a difference. The second
 /// half takes the same parameter to a degenerate value, so the node
-/// FAILS in the later run, and shows the split the signature exists
-/// for: the CALL is still admitted (identity is unchanged) and every
-/// SLOT refuses, so a stale index announces itself per patch rather
-/// than answering a plausible name.
+/// FAILS in the later run, and shows the two checks the door runs in
+/// order: the pairing admits the call (identity is unchanged) and the
+/// standing refuses it — once, for the call, because a node with no
+/// table is one fact about the arguments and not one fact per patch —
+/// so a stale index announces itself rather than answering a
+/// plausible name, and the per-slot lane is left to the one thing it
+/// holds, an unnamed entity.
 ///
 /// What may be reused across such a run is the content keys' business
 /// (`PickMemo`), not the pairing's — and
@@ -537,23 +539,25 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
     );
 
     // The loud end of the same admission: the node FAILS in the later
-    // run. Identity is unchanged, so the call is admitted; the stale
-    // index's patches have no table to invert, so every slot refuses.
+    // run. Identity is unchanged, so the pairing admits the call; the
+    // stale index's patches have no table to invert, so the standing
+    // refuses it — outside the vector, the way the pairing refusal
+    // sits, since both are one fact about the arguments.
     let broken = later(0.0);
-    let names_broken = pick
-        .patch_names(&broken)
-        .expect("identity is unchanged, so the CALL is still admitted");
     assert_eq!(
-        names_broken.len(),
-        names_before.len(),
-        "the index is still the one that was built"
-    );
-    assert!(
-        names_broken
-            .iter()
-            .all(|n| matches!(n, Err(HitTestError::NodeFailed { node }) if *node == ext)),
+        pick.patch_names(&broken),
+        Err(NameLookupError::Standing(NodeStanding::Failed {
+            node: ext
+        })),
         "a stale index over a node that has since failed announces \
-         itself in every slot rather than answering a plausible name"
+         itself once, for the call, rather than answering a plausible name"
+    );
+    assert_eq!(
+        pick.boundary_names(&broken),
+        Err(NameLookupError::Standing(NodeStanding::Failed {
+            node: ext
+        })),
+        "the edge door refuses the same way"
     );
 }
 
@@ -614,10 +618,10 @@ fn the_memo_refuses_a_prior_of_another_document() {
         second
             .patch_names(&ev_a)
             .expect_err("a is the other document"),
-        HitTestError::EvaluationOfAnotherDocument {
+        NameLookupError::EvaluationOfAnotherDocument(Mispaired {
             expected: b.id(),
             found: a.id(),
-        },
+        }),
         "and it is not a's"
     );
 }

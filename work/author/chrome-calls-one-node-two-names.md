@@ -31,7 +31,8 @@ and what two widgets say too:
 And in refusal and report prose, where nothing is a widget:
 `session/refuse.rs` (the `NoSuchSlot`, `WrongNodeKind`,
 `ProfileEditStale`, `ProfileEditOrder`, `ProfileEditOrderCapped` and
-`FaceFrameFault` arms), `display.rs`, `pickindex.rs`, `props.rs`,
+`FaceFrameFault` arms; #3446 retired `ProfileEditOrder` and
+`ProfileEditOrderCapped` with the write-order search), `display.rs`, `pickindex.rs`, `props.rs`,
 `matetool.rs`, `sketch.rs`'s `NotAProfile`.
 
 ## Why it is filed and not fixed
@@ -77,3 +78,65 @@ BlendTarget`, `pane/properties.rs`'s entity heading,
   node.0)` — a node named by id as "instance N", beside the entity
   heading that says `feature N` through `node_number`. Found by
   `grep -nE 'format!\([^)]*\.0\b' crates/viewer/src`.
+
+## Evidence 2026-09-25 (VNEWS, `vnews/one-seat-line`, PR 3281)
+
+- **The three widget/notice sites this row names have moved to
+  `feature`**, through `tree::node_number`: the mate panel's picks
+  line (now `MateToolState::line`, composed by `seats::picks_line`),
+  `SeatEvent::PickLost`'s notice, and — not listed above, same class —
+  `MateToolEvent::PickLost`'s (`pick a (a face of feature N) no longer
+  resolves`). All three are held-pick sentences read on a chrome
+  surface, so they land on `feature` under both the "everywhere" and
+  "split by surface" answers; only "node everywhere" would move them
+  back, and that answer would also have to rewrite `node_number`.
+- **So did `matetool.rs`'s two refusals that name a picked node**,
+  `MateToolError::NotAnInstancePick` (`pick a is on feature N, …`) and
+  `SamePick` (`(head: feature N)`): `pane::create`'s mate commit pushes
+  them to the status line while the tool stays open, on the frame the
+  panel says `face of feature N` about the same pick, so leaving them
+  on `node` would have minted a two-name pair on one frame. Every
+  `matetool.rs` sentence that names a node now reads `node_number`.
+- **What is left is refusal and report prose**, re-derived with
+  `rg -n '"[^"]*\bnode \{[a-z_.0-9]*\}' crates/viewer/src`:
+  `pickindex.rs` (four sentences: patch offered twice, body drawn by two
+  parts, no body of node, edge out of range), `matetool.rs`'s
+  `NotAnInstancePick` and same-member refusals (since moved, above), `session/refuse.rs`'s
+  `NoSuchSlot` and `WrongNodeKind`, `display.rs`'s two instance
+  refusals and its fused-geometry sentence, and `props.rs`'s two slot
+  sentences. That pattern cannot see a node number passed through a
+  word other than `node`; the second pass
+  (`rg -n '\b(node|id)\.0\b' crates/viewer/src`, filtered to text)
+  found two `feature {}` literals that spell the chrome word WITHOUT
+  its home: `session/refuse.rs`'s `ProfileRestructure`
+  "feature {} was not edited" (retired by #3446: a reshaping is one
+  `SetProgram` now) and `sketch.rs`'s `NotAProfile` — the
+  literal-sweep's own blind spot (`write!`, not `format!`).
+
+## Evidence 2026-09-25 (VNEWS, from VNEWS #3281's style review)
+
+Three pairings the moves above leave standing, each a `feature N`
+chrome sentence beside a `node N` refusal about the same node:
+
+- **One status line, two names, one delete.** `app.rs`'s
+  `ViewerApp::sync_scene` pushes a seated tool's survival drop onto
+  the frame's notices (`frame::tool_news`), and `frame::outcome_notices`
+  (`frame.rs`) pushes the delete's withdrawals onto the same line. On
+  a delete of a held node 4 the drop says *"the second operand pick
+  (feature 4) is no longer in the document"* (`seats.rs`,
+  `Display for SeatEvent`) and a withdrawal cause can say *"node 4 is
+  not in the document"* (`display.rs`, the `AdmissionFault::NoSuchNode`
+  arm, near line 212). The reviewer's reading, not traced end to end.
+- **A seated panel and its commit refusal.** The panel says
+  `second operand: feature 5` (`seats::seat_line`); a wrong-kind pick
+  in that seat refuses at the commit as *"node 5 is not a body…"*
+  (`session/refuse.rs`, `Refusal::WrongNodeKind`'s arm, near line
+  687). Pre-existing; the panel side moved to `feature` in AUTH-3.
+- **The docs disagree about which word a refusal uses.**
+  `tree::node_label`'s doc (`tree.rs`, near line 341) says *"The
+  number is what every refusal in this crate calls a node by"*, while
+  `tree::node_number`'s doc lists *"a refusal's subject"* among the
+  surfaces that say `feature N` and calls `node 3` a word a reader has
+  to translate. Thirteen refusal sites say `node {}`, so the first
+  describes the tree and the second the direction — the row's open
+  question, stated twice in one file with both answers.

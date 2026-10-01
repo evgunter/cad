@@ -46,7 +46,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, ang, len, len2, scl};
 
 // ------------------------------------------------------------ authoring
 
@@ -66,11 +66,11 @@ fn k_eps() -> f64 {
     Tol::witness().k() * eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn box_of(axis: &str) -> ParamBox {
+fn box_of(axis: &'static str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
         name(axis),
@@ -82,7 +82,7 @@ fn box_of(axis: &str) -> ParamBox {
     ParamBox::from_axes(axes)
 }
 
-fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
+fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
         value: DocParam::Continuous {
@@ -99,20 +99,22 @@ fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
 
 fn translated(input: RecipeNodeId, d: [Expr; 3]) -> Node<ProfileProgram> {
     let [dx, dy, dz] = d;
-    Node::Transform {
+    Node::transform(
         input,
-        translation: [dx, dy, dz],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    }
+        editor_core::Step::Rigid {
+            translation: [dx, dy, dz],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    )
 }
 
-fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::xy_frame())
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
@@ -310,20 +312,19 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
 fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
     let chain = LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 1.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(1.5, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 1.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, 1.0]))),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p2(0.5, 1.0)),
+            target: ProgramTarget::Point(len2([0.5, 1.0])),
             b: scl(-1.0),
         }),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = xy_frame(&mut r);
+    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![chain],
@@ -436,7 +437,7 @@ fn a_cylinder_band_answers_through_a_cut_root() {
 /// (`t3s-r2` lane, `t3s_probes_interval.rs::p6_block_mid_way_along_the_negative_band_wall`),
 /// adopted here with its measurement.
 fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::CircleSplit {
@@ -606,7 +607,7 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
 fn a_selection_door_refusal_reports_no_windows_at_all() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let plane = xy_frame(&mut r);
+    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(fixture::desc(
         plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],

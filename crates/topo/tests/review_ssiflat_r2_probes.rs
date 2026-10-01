@@ -113,7 +113,7 @@ fn certify_at<T>(
     band: Band,
 ) -> Result<PcurveCache<T>, geom_brep::PcurveCertifyError>
 where
-    T: geom_brep::PcurveFittedLane,
+    T: topo::AtRestPolicy,
 {
     let carrier = general_circle::<T>(radius);
     let (t0, t1) = (T::from_f64(arc.0), T::from_f64(arc.1));
@@ -128,6 +128,7 @@ where
         Some(&tilted_plane::<T>()),
         window,
         band,
+        T::fitted_lane().expect("a certifying scalar holds the fitted door"),
     )
 }
 
@@ -170,7 +171,9 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
         "an escalation names no limb, only its predicate"
     );
     assert_eq!(what, "ssi_hull_sup");
-    let Some(geom_core::MarginDiag::Enclosure { lo, hi }) = margin else {
+    let Some(geom_core::ErrorTextReading::Enclosure { lo, hi }) =
+        margin.map(geom_core::MarginDiag::diagnostic_f64_for_error_text)
+    else {
         panic!("the escalation must carry its enclosure: {margin:?}");
     };
     assert!(
@@ -227,8 +230,8 @@ fn the_interval_hull_bound_is_span_dependent() {
             Err(geom_brep::PcurveCertifyError::FittedEscalated { cause })
                 if cause.predicate == Some("ssi_hull_sup") =>
             {
-                match cause.margin {
-                    geom_core::MarginDiag::Enclosure { hi, .. } => Some(hi),
+                match cause.margin.diagnostic_f64_for_error_text() {
+                    geom_core::ErrorTextReading::Enclosure { hi, .. } => Some(hi),
                     other => panic!("unexpected margin shape at div={div}: {other:?}"),
                 }
             }
@@ -255,7 +258,7 @@ fn the_interval_hull_bound_is_span_dependent() {
 /// when the tube ladder is EMPTY — a structural refusal with no margin
 /// at all, reachable on a legal body whose feature extent is under
 /// `64·ε`. The PR's rewritten `ssi_refusal` turns that into
-/// `Some(MarginDiag::Value(NaN))`, which is exactly the manufactured
+/// `Some(MarginKind::Value(NaN))`, which is exactly the manufactured
 /// poison #925 was filed as, wearing the label the classifier reserves
 /// for a real f64 margin — and the text still says a limb "exceeded ε".
 ///
@@ -324,18 +327,24 @@ fn the_margin_is_legible_through_the_public_topo_door() {
     let image = Arc::new(lift2::<Interval>(&fit_image(radius, f0, f1)));
 
     let mut body = Body::<Interval>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let sph_key = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New(sphere::<Interval>(radius)),
+            topo::FaceSurface::New {
+                surface: sphere::<Interval>(radius),
+                sense: true,
+            },
         )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let pl_key = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New(tilted_plane::<Interval>()),
+            topo::FaceSurface::New {
+                surface: tilted_plane::<Interval>(),
+                sense: true,
+            },
         )
         .unwrap();
     let mid = <Interval as Real>::from_f64(0.5 * (f0 + f1));
@@ -370,6 +379,7 @@ fn the_margin_is_legible_through_the_public_topo_door() {
             Some(&tilted_plane::<Interval>()),
             window,
             loose_band(),
+            geom_brep::FittedLane::certified(),
         )
         .expect("the cache mints at a loose band");
         body.attach_pcurve(he, cache);

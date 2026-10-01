@@ -531,7 +531,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let bad = displaced(&carrier, n, d);
     let (t0, t1) = bad.domain();
     for i in 0..CERT_SAMPLES {
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = geom_brep::sample_param(t0, t1, i);
         let r = geom_brep::implicit_residual(&c, bad.eval(t)).abs();
         assert!(
             r <= eps(),
@@ -1400,14 +1400,14 @@ fn the_composite_bound_tracks_dense_scan_truth_on_the_pr7_fixture() {
         }
         Err(e) => panic!("the ℝ⁴ trace: {e}"),
     };
-    use geom_core::spline::compose::{CurveRingData, tensor};
-    let scoords = w.ring_coords();
+    use geom_core::spline::compose::{CurveCertData, tensor};
+    let scoords = w.certified_coords();
     let sdata =
-        tensor::SurfaceRingData::new(w.knots_u(), w.knots_v(), w.weights(), &scoords).unwrap();
-    let ccoords = carrier.ring_coords();
-    let cdata = CurveRingData::new(carrier.knots(), carrier.weights(), &ccoords).unwrap();
-    let pcoords = pb.ring_coords();
-    let pdata = CurveRingData::new(pb.knots(), pb.weights(), &pcoords).unwrap();
+        tensor::SurfaceCertData::new(w.knots_u(), w.knots_v(), w.weights(), &scoords).unwrap();
+    let ccoords = carrier.certified_coords();
+    let cdata = CurveCertData::new(carrier.knots(), carrier.weights(), &ccoords).unwrap();
+    let pcoords = pb.certified_coords();
+    let pdata = CurveCertData::new(pb.knots(), pb.weights(), &pcoords).unwrap();
     let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &[])
         .unwrap()
         .sup_bound();
@@ -1479,7 +1479,7 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
     };
     let v_ref = normal.cross(u_ref);
     for i in 0..CERT_SAMPLES {
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = geom_brep::sample_param(t0, t1, i);
         let c = carrier.eval(t);
         // The wall chart, through the NURBS map.
         let q = pb.eval(t);
@@ -1692,7 +1692,7 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 //
 // `exhaust.rs` has three refusal sites and `ssi.rs` one guard that
 // makes the sweep's floor meaningful. What multiplies them is not the
-// site count: the budget check and both poison arms live in the ONE
+// site count: the budget check and both refusal arms live in the ONE
 // shared recursion, which runs under BOTH of `SweepDuty`'s values, on
 // separate calls with separate floors. Duty is therefore an axis, and
 // it is the axis the original bug lived on — `sweep` used to read its
@@ -1702,14 +1702,14 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 //
 //     floor refusal   × lane × {empty, non-empty tubes}   4 cells
 //     cell budget     × lane × {Seed, Account}            4 cells
-//     poison arm      × lane × {Seed, Account}            4 cells
+//     refusal arm     × lane × {Seed, Account}            4 cells
 //     chart-speed guard (pre-sweep, chart only)           1 cell
 //                                                       13 cells
 //
 // Three had rows before this block: the floor refusal in ℝ³ with both
 // tube sets, and in the chart lane with an empty one. Five more do
 // now — the floor refusal's fourth cell, and the cell budget and the
-// poison arm in each lane under the **Seed** duty. Every row here
+// refusal arm in each lane under the **Seed** duty. Every row here
 // names the duty it drives, because the duty is not visible in the
 // call: it is which of the two `exhaust` entry points the operation
 // reached first, and on both lanes seeding runs before accounting.
@@ -1717,7 +1717,7 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 // **Five cells still have no row**, and this block does not close
 // them:
 //
-//   - the cell budget and the poison arm under the **Account** duty,
+//   - the cell budget and the refusal arm under the **Account** duty,
 //     in both lanes (four cells). Reachable in principle — the
 //     accounting floor is routinely orders finer than the seeding one
 //     (measured on the substrate wall: 8.8e-10 against 2.1e-2 in chart
@@ -2032,7 +2032,7 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
     });
 }
 
-/// **The ℝ³ sweep's poison arm**: an operand whose certified implicit
+/// **The ℝ³ sweep's refusal arm**: an operand whose certified implicit
 /// enclosure cannot be formed at all, so no cell can be excluded and
 /// the domain cannot be proved exhausted by any amount of refinement.
 ///
@@ -2040,7 +2040,7 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 /// `Surface` enum admits (its radius is documented "positive by
 /// convention", and the convention is unchecked). The sphere's
 /// enclosure divides by `2r`, and the ring refuses a divisor that
-/// touches zero, so the very first cell poisons.
+/// touches zero, so the very first cell's enclosure is refused.
 ///
 /// **The refusal names the cause a caller can actually produce**, and
 /// the row pins that rather than the obligation alone: the only way
@@ -2052,14 +2052,14 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 /// certificate stack has many.
 ///
 /// **Which duty**: the **Seed** one. `cylinder_sphere_ssi` calls
-/// `seed_r3` before `account_r3`, the poison arm lives in the closure
-/// the shared recursion runs under either duty, and the first cell
-/// poisons — so the refusal arrives during seeding and accounting is
+/// `seed_r3` before `account_r3`, the refusal arm lives in the closure
+/// the shared recursion runs under either duty, and the first cell's
+/// enclosure is refused — so the refusal arrives during seeding and accounting is
 /// never reached (instrumented). The Account-duty cell of this door
 /// has no row.
 ///
 /// Without the arm the sweep does not go wrong quietly in one step: a
-/// poisoned enclosure excludes nothing, so every cell refines and
+/// refused enclosure excludes nothing, so every cell refines and
 /// **another door answers** — measured, on this fixture, the cell
 /// budget. The caller is then told the search was too big, when the
 /// truth is that this operand has no certificate at all and no budget
@@ -2084,7 +2084,7 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
             // this phrase appears at exactly one site in the kernel.
             assert!(
                 what.contains("ring-computable implicit enclosure"),
-                "the refusal must be the SWEEP's poison arm: {what}"
+                "the refusal must be the SWEEP's refusal arm: {what}"
             );
             assert!(what.contains("cannot be proved exhausted"), "{what}");
             // The sentence must name a cause this door can deliver. A
@@ -2111,14 +2111,14 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
     }
 }
 
-/// **The chart sweep's poison arm**: the same obligation in the ℝ⁴
+/// **The chart sweep's refusal arm**: the same obligation in the ℝ⁴
 /// lane, where the enclosure is a first-order box over the control net
 /// rather than an implicit residual.
 ///
 /// The fixture is a wall of **finite** control points with **finite**
 /// weights whose homogeneous products are not finite: the net sits at
 /// `1e308` m and the weights run 1, 2, 3, 4, so `w·P` overflows and the
-/// enclosure of `S` over the first cell poisons. The distinction is the
+/// enclosure of `S` over the first cell is refused. The distinction is the
 /// one `projection.rs`'s `mid` doc already carries in this workspace —
 /// **finite inputs, non-finite arithmetic** — and the row asserts the
 /// input half rather than describing it, because a fixture that had
@@ -2139,12 +2139,12 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
 /// own terms rather than handing back a receipt.
 ///
 /// The coupling is not a property of this fixture alone: a control-net
-/// enclosure poisons only once `w·P` overflows, and the chart speed
+/// enclosure is refused only once `w·P` overflows, and the chart speed
 /// squares the same magnitudes, so it is already `+∞` well below that.
-/// A fixture that reaches the sweep's poison arm from the public door
+/// A fixture that reaches the sweep's refusal arm from the public door
 /// is still wanted.
 #[test]
-fn a_poisoning_control_net_refuses_the_enclosure_typed() {
+fn an_overflowing_control_net_refuses_the_enclosure_typed() {
     let h = 1.0e308;
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -2170,12 +2170,12 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     let w = NurbsSurface::new(ku, kv, control, weights).expect("a wall a caller can build");
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Err(SsiError::UnsupportedCertificate { what })
-            if what.contains("control-net enclosure poisoned") =>
+            if what.contains("control-net enclosure refused") =>
         {
-            println!("the poisoned net was answered by the CHART SWEEP'S POISON ARM");
+            println!("the overflowing net was answered by the CHART SWEEP'S REFUSAL ARM");
         }
         Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
-            println!("the poisoned net was answered by the CHART-SPEED GUARD");
+            println!("the overflowing net was answered by the CHART-SPEED GUARD");
         }
         Err(other) => {
             panic!("expected the enclosure refusal or the chart-speed refusal, got {other}")
@@ -2189,7 +2189,7 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     }
 }
 
-/// **The chart sweep's poison arm, reached with no magnitude at all** —
+/// **The chart sweep's refusal arm, reached with no magnitude at all** —
 /// the row that says the arm is live code a caller can enter, not an
 /// unreachable branch.
 ///
@@ -2221,11 +2221,11 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
 /// over a net whose values cannot be enclosed at all. A guard on the
 /// derivative cannot stand in for the enclosure's own arm.
 ///
-/// **ε-invariant on purpose**: the root cell poisons, so the arm
+/// **ε-invariant on purpose**: the root cell's enclosure is refused, so the arm
 /// answers before the first floor comparison and no tolerance the
 /// battery runs can change which door fires.
 #[test]
-fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
+fn an_underflowing_weight_reaches_the_chart_refusal_arm_without_magnitude() {
     // The smallest positive subnormal: `w` survives as a weight, and
     // `N·w` for any `N < 1` does not.
     let tiny = f64::from_bits(1);
@@ -2248,17 +2248,17 @@ fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
     let w = wall_from_cols_w(NURBS_WALL_COLS, [tiny; 8]);
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Err(SsiError::UnsupportedCertificate { what })
-            if what.contains("control-net enclosure poisoned") => {}
+            if what.contains("control-net enclosure refused") => {}
         Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
             panic!("the chart-speed guard answered for a net whose speed is finite: {what}")
         }
         Err(other) => panic!(
-            "expected the chart sweep's poison arm, got {other} — the arm is what \
+            "expected the chart sweep's refusal arm, got {other} — the arm is what \
              must answer an enclosure that cannot be formed, and any other door \
              answering in its place is the wrong DIAGNOSIS"
         ),
         Ok(out) => panic!(
-            "SILENT: a chart domain whose enclosure poisons returned Ok with {} \
+            "SILENT: a chart domain whose enclosure is refused returned Ok with {} \
              branches and a receipt {:?}",
             out.branches.len(),
             out.exhaustiveness
@@ -2286,8 +2286,8 @@ fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
 /// when squared, so the speed comes out `+∞`.
 ///
 /// The guard's fold propagates NaN — `f64::max` returns the non-NaN
-/// operand, which would drop a lone poisoned derivative box — so a
-/// poisoned box reaches the same refusal as an overflowed one.
+/// operand, which would drop a lone refused derivative box — so a
+/// refused box reaches the same refusal as an overflowed one.
 #[test]
 fn an_infinite_chart_speed_refuses_rather_than_receipting() {
     let m = 1.0e200;

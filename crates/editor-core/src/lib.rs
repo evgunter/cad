@@ -21,6 +21,7 @@ pub mod appearance;
 pub mod assembly;
 pub mod checks;
 pub mod clearance;
+mod decision;
 pub mod diff;
 pub mod distribution;
 pub mod doc;
@@ -33,7 +34,6 @@ pub mod eval;
 pub mod expr;
 mod finding;
 pub mod ident;
-pub(crate) mod lane;
 pub mod mate;
 /// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
 /// replay over samples drawn from the document's own distributions.
@@ -67,12 +67,23 @@ pub mod refactor;
 pub mod report;
 pub mod resolve;
 pub mod roots;
+pub mod sentence;
 /// The E4 sensitivity driver and the E5 stackup — the analysis lane's
 /// derivative and report services over [`mod@drive`]'s leaves. Every
 /// sensitivity carries a chamber mark whose certified variant IS an E6
 /// leaf identity, and the gating `worst_case` is a certified interval
 /// enclosure.
 pub mod stackup;
+pub mod step_handle;
+pub mod step_mint;
+// Test fixtures (the literals and the pick door); see the module's
+// docs. The gate is this crate's `test-support` feature, on only
+// through dev-dependency edges. `doc(hidden)` because the rustdoc gate
+// runs `--all-features`.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod test_support;
+mod tree;
 pub mod update;
 mod verbs;
 pub mod witness;
@@ -112,12 +123,14 @@ pub use edit::{
     MaintenanceNet, apply, apply_logged, cascade_delete_order,
 };
 pub use eval::{
-    Arity, BooleanValue, CancelToken, CanonicalSegment, ContentBits, ContentKey, DatumValue,
-    DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement,
-    NamingKey, NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, PartReach,
-    PiecesFault, ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind,
-    evaluate, mate_reach,
+    Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
+    EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault,
+    ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate,
+    mate_reach,
 };
+pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
 // than through the module path.
@@ -127,11 +140,10 @@ pub use expr::{
     eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
-pub use lane::{BracketEnd, Lane};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission,
     ClusterMaintenance, Coset, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach,
-    MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, ReachRefusal, RefusingReach,
+    MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, PlacerRow, ReachRefusal, RefusingReach,
     SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of, member_of,
     reading_edges, relative_freedom_components, solve_document, table_gap,
 };
@@ -150,31 +162,32 @@ pub use names::{
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung,
     FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef,
-    NameTable, NamingError, NotAFaceName, OpGroup, PieceRole, ProfileEdgeRef, ProfileVertexRef,
-    Qualifier, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat,
-    SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet,
-    TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
-    carried, declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame,
-    face_carrier_kind, face_frame, find_flush_candidates, meridian_vertex, select, select_where,
-    vertex_position,
+    NameTable, NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole, ProfileEdgeRef,
+    ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
+    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, StableName,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
+    band_pi, band_rim, carried, declare, declare_all, declare_node, denotation, edge_carrier_kind,
+    edge_frame, face_carrier_kind, face_frame, find_flush_candidates, meridian_vertex, select,
+    select_where, vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
-    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SitedFace, SitedRef, SlotId,
-    StepArg, StepId, TubeWindow, VectorSlot,
+    Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, RigidArg, SitedFace, SitedRef,
+    SlotId, StepArg, StepId, TubeWindow, VectorSlot,
 };
-pub use parse::{ParseError, parse_expr};
+pub use parse::{ParamNameFault, ParamNameReason, ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
     load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
-pub use placement::{AxisRefusal, Frame, FrameFault};
+pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    Product, ProductError, ProductErrorKind, product, product_named, product_recorded,
+    Product, ProductError, ProductErrorKind, SourceFinding, product, product_named,
+    product_recorded,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
@@ -192,24 +205,29 @@ pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
-    Diagnosis, FlipSet, FlipSource, GroupCutters, HitTestError, MeshPatchKey, NodeVerdictDelta,
-    PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
-    ResolveIndeterminate, Resolved, RunCtx, RunStatus, SHADOW_EXEC_MAX_PAIRS, ShadowExecRefusal,
-    TieWitness, Tombstone, UpstreamCause, VerdictFlip, appearance_rebind_suggestions,
-    apply_with_names, body_name, derivation_nodes, diff_verdicts, edge_name,
-    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
-    rebind_suggestions, resolve, resolve_with_prior, vertex_name,
+    Diagnosis, FlipSet, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
+    NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
+    ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
+    UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
+    body_name, derivation_nodes, diff_verdicts, edge_name, enrich_appearance_loss,
+    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
+    resolve_with_prior, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
 };
+pub use step_handle::{
+    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+};
+pub use step_mint::StepMint;
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
 pub use bvh::Ray;
 pub use resolve::{
-    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, pick_face,
+    MeshPick, MeshPickError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo,
+    PickTarget, pick_face,
 };
 pub use roots::RootFault;
 pub use stackup::{

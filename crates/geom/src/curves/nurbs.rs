@@ -170,6 +170,9 @@ use crate::net;
 /// bound is assembled from shrink. The constant is a measured
 /// trade-off, not a tuning knob — see the `rational_speed_lower_bound`
 /// docs and the adversarial rows in `tests/curves/m5_pr7_speed_meter.rs`.
+/// It is this meter's alone: `geom_brep::patch_bound`'s rational
+/// certificate schedule has the same value but prices a different
+/// bound, and neither follows the other.
 const RATIONAL_METER_SPLITS: usize = 16;
 
 macro_rules! nurbs_curve {
@@ -1338,32 +1341,7 @@ macro_rules! nurbs_curve {
                 // bound is assembled from, which is what buys a
                 // POSITIVE answer on steep weight ratios where the
                 // one-span assembly is dominated by `sup‖C − c‖·sup|w′|`.
-                let mut add = Vec::new();
-                for span in self.knots.first_span()..=self.knots.last_span() {
-                    // A plain emptiness filter: this loop builds knot
-                    // VALUES and constructs no window, so there is no
-                    // span validation here to fuse with (the shape
-                    // `mesh`'s `rational_split_points` shares).
-                    if !self.knots.span_is_nonempty(span) {
-                        continue;
-                    }
-                    let (Some(&lo), Some(&hi)) =
-                        (self.knots.knots().get(span), self.knots.knots().get(span + 1))
-                    else {
-                        return poison;
-                    };
-                    for k in 1..RATIONAL_METER_SPLITS {
-                        #[allow(clippy::cast_precision_loss)]
-                        let f = k as f64 / RATIONAL_METER_SPLITS as f64;
-                        let u = lo + (hi - lo) * f;
-                        // Skip a split point that floating point has
-                        // collapsed onto a span end — refinement is a
-                        // tightening, never a correctness condition.
-                        if u > lo && u < hi {
-                            add.push(u);
-                        }
-                    }
-                }
+                let add = spline::algebra::equal_split_points(&self.knots, RATIONAL_METER_SPLITS);
                 let Ok(refined) = self.refine_knots(&add) else {
                     return poison;
                 };
@@ -1385,7 +1363,7 @@ macro_rules! nurbs_curve {
                     return poison;
                 }
                 // `w′`'s coefficient enclosures, once for the curve:
-                // index `i` holds `q_i`, poison for a bad knot
+                // index `i` holds `q_i`, refused for a bad knot
                 // difference (which then poisons this bound).
                 let Some(weight_spline) = self.knots.with_coeffs(&self.weights) else {
                     // Unreachable by construction: `new` relates the
@@ -1632,20 +1610,20 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     /// The control coordinates lifted to enclosure points — the data-in
     /// shape of `geom_core::spline::compose`: channel `d`, point `i`,
     /// as `[x, y, z]` channels of certification enclosures. Pair with
-    /// [`Self::knots`] and [`Self::weights`] to build a `CurveRingData`
+    /// [`Self::knots`] and [`Self::weights`] to build a `CurveCertData`
     /// for composite bounds. The bracket seam this reads the net
-    /// through is the shared one (`net::ring_coords`).
-    pub fn ring_coords(&self) -> Vec<Vec<Interval>> {
-        net::ring_coords(&self.control)
+    /// through is the shared one (`net::certified_coords`).
+    pub fn certified_coords(&self) -> Vec<Vec<Interval>> {
+        net::certified_coords(&self.control)
     }
 }
 
 impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
-    /// [`NurbsCurve3::ring_coords`] at two channels: `[x, y]` channels
+    /// [`NurbsCurve3::certified_coords`] at two channels: `[x, y]` channels
     /// of certification enclosures, through the same bracket seam and the same
     /// body.
-    pub fn ring_coords(&self) -> Vec<Vec<Interval>> {
-        net::ring_coords(&self.control)
+    pub fn certified_coords(&self) -> Vec<Vec<Interval>> {
+        net::certified_coords(&self.control)
     }
 }
 

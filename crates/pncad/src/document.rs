@@ -79,10 +79,18 @@
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
 // arm can name what it caught. `PiecesFault` is the same for
 // `NodeErrorKind::ProfilePieces` and `ProgramRefusal::Pieces`.
+// `AuthoredStep` is how an author who recorded a step reaches its id
+// and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
+// keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
+// what those doors refuse with, and the shape types are what an
+// `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
     Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
     StepIdFault, apply, apply_logged,
+};
+pub use editor_core::{
+    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -94,8 +102,12 @@ pub use editor_core::cascade_delete_order;
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
     Axis3, BooleanOp, Datum, InputFault, MeasureNodeFault, Node, PartSelect, PatternKind,
-    PlacementRuleFault, RecipeNodeId, SlotId, TubeWindow, VectorSlot,
+    PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
 };
+
+// Placement: the chain a `Node::Transform` holds — rigid steps of
+// expressions and literal frames — and its steps.
+pub use editor_core::{Placement, Step};
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
 // `MeasureExpr` + `MeasurePrimitive` are what a `Node::Measure` is
@@ -159,7 +171,9 @@ pub use editor_core::{
 pub use editor_core::expr::{EvalError, eval, eval_count};
 
 // Named document parameters.
-// `ParamName` is a parameter's name — a plain string newtype — and
+// `ParamName` is a parameter's name — a string newtype admissible by
+// construction (one identifier an expression reads back), whose
+// fallible constructor answers `ParamNameFault` — and
 // `DocParam` its declared dimension plus exact stored value: recipe
 // vocabulary, plain values, no arena key anywhere in either. They
 // complete doors this module already carried: `DocEdit::SetDocParam`
@@ -187,7 +201,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // `DistributionRefusal` is the same thing at the third field, for
 // `DocParam::with_distribution`.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, UnitSym,
+    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, ParamNameFault,
+    ParamNameReason, UnitSym,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -231,12 +246,22 @@ pub use editor_core::DocParamField;
 // what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
 // an evaluation refusal in, so a consumer can match either variant but
 // not read the cause out of it without naming the wrapper.
+// `CarriedChain`, `CarriedLevel` and `CarriedIn` ride with it: they are
+// `NodeErrorKind::carried_chain`'s answer, the one reading of which
+// refusal a failure carries and which document its node is in.
 // `Mispaired` rides with `Evaluation` by the same rule: it is
 // `Evaluation::prior_refused`'s payload, so a consumer cannot read why
 // a memo was refused without naming it. The name is not the memo's —
 // it is the one payload every pairing door carries (DI3; which doors
 // those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
 // spelled for the QUESTION rather than for any one door.
+// `NodeStanding` rides with `Evaluation` by the same rule: it is
+// `Evaluation::usable`'s refusal and the payload every door that
+// needs a node's value refuses with, so a consumer can match those
+// arms but not read which node, or which standing, without naming it.
+// `NodeErrorClass` rides with `NodeErrorKind`: it is `NodeErrorKind::class`'s
+// answer, the refusal's class a consumer can clone, compare and hash where
+// the refusal itself cannot be.
 // `Found` rides with `NodeErrorKind` by the same rule: it is the
 // `found` field of the four entity-kind refusals, so a consumer can
 // match those variants but not name what they say was there instead.
@@ -245,9 +270,10 @@ pub use editor_core::DocParamField;
 // which is the point of it: its field is private to the door that
 // mints it.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
-    Evaluation, Found, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeValue, ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
+    DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
+    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
@@ -261,6 +287,12 @@ pub use editor_core::{
     Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
     save,
 };
+
+// A refusal's two renderings: under its stage word (`Display`), and as
+// the sentence a carrier that names the stage renders
+// ([`Staged::sentence`]); the recourse label, and what an API door
+// given no part resolver says to do.
+pub use editor_core::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 
 // Document identity and content pins.
 // `DocumentId` answers "which part" (authored at construction —
@@ -285,7 +317,7 @@ pub use editor_core::ContentBits;
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
 pub use editor_core::{
-    Product, ProductError, ProductErrorKind, RootFault, product, product_recorded,
+    Product, ProductError, ProductErrorKind, RootFault, SourceFinding, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -305,8 +337,8 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure, ResolveFault,
-    product_named,
+    AxisRefusal, Frame, FrameFault, FrameSite, PartFault, PartResolver, ResolveFailure,
+    ResolveFault, product_named,
 };
 
 // Mates: the declaration node's
@@ -340,9 +372,9 @@ pub use editor_core::{
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal,
-    RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach,
-    member_of, reading_edges, relative_freedom_components, solve_document,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, PlacerRow,
+    ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of,
+    mate_reach, member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
@@ -450,7 +482,7 @@ pub use editor_core::{
 /// two different findings about the SAME thing: the component count
 /// for this subject is unknowable, because a shell's orientation read
 /// escalated or because a face of it is outside the flux inventory.
-/// Which shell, and which of the four ways the door refused, is
+/// Which shell, and which of the five ways the door refused, is
 /// `source` — and a consumer that could match the arm and not name its
 /// type read that only out of the message prose.
 ///

@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
 # evalscalar-allowlist.sh — the Bounds gate, over the compound bound's
-# NAME. ONE home; ci.yml's "EvalScalar allowlist (the Bounds gate, over
-# the name)" step and local-scripts/ci-local.sh's discipline row both
-# call this file.
+# NAME. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # The SAME gate, over the compound bound's NAME (ASM-2A review
 # MINOR-4). `editor_core::EvalScalar` is the evaluation-service
 # bound — ten supertraits at `editor-core/src/eval/mod.rs`, of which
 # `geom_core::Bounds` is the bracket door: `Decide + ContentBits +
-# geom_core::Bounds + Send + Sync + topo::AtRestPolicy` (whose own
-# supertraits are `Decide` and the one lane trait, `PcurveFittedLane`
-# — it hands out no bracket door) `+
+# geom_core::Bounds + Send + Sync + topo::AtRestPolicy` (whose one
+# supertrait is `Decide` — it hands out no bracket door) `+
 # crate::analysis::AxisScalar + crate::analysis::SeedScalar +
 # crate::measure::MinClearanceLane + SectionScalar` — declared once at
 # the seam the rule above already ratifies, so `eval/parts.rs` names

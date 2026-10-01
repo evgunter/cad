@@ -28,7 +28,7 @@
 //!    *prove* it, and a control is needed or "certifies Zero" could be
 //!    satisfied by an enclosure too wide to say anything;
 //! 3. a domain violation flows through arithmetic AND transcendentals
-//!    into a **refused** verdict carrying `MarginDiag::Invalid`.
+//!    into a **refused** verdict carrying `MarginKind::Invalid`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -85,12 +85,14 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     );
     let (doc, placed) = insert(
         doc,
-        Node::Transform {
-            input: cut,
-            translation: [len(1.0), len(1.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.5),
-        },
+        Node::transform(
+            cut,
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(1.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.5),
+            },
+        ),
     );
     let (doc, sub) = insert(
         doc,
@@ -131,13 +133,13 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     // at a 1e-6 band, definitely POSITIVE against a shifted baseline.
     let band = Band::new(1e-6, 1e-5).unwrap();
     let residual = vol - Interval::from_f64(oracle);
-    match residual.sign_within(band) {
+    match residual.sign_within(band).map(|d| d.sign) {
         Ok(s) => assert_eq!(format!("{s:?}"), "Zero", "residual must certify Zero"),
         other => panic!("residual failed to certify: {other:?}"),
     }
     let shifted = vol - Interval::from_f64(oracle - 1.0);
     assert!(matches!(
-        shifted.sign_within(band),
+        shifted.sign_within(band).map(|d| d.sign),
         Ok(geom_core::predicate::Sign::Positive)
     ));
     println!(
@@ -147,16 +149,16 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         vol.hi() - vol.lo()
     );
 
-    // ---- poison path end-to-end: a domain violation at interval type
+    // ---- refusal path end-to-end: a domain violation at interval type
     // flows through arithmetic/transcendentals into a REFUSED verdict.
-    let poisoned = Interval::from_bounds(-1.0, 4.0).sqrt(); // clamped [0,2] @ Trv
-    let chained = (poisoned * Interval::pi()).sin() + Interval::from_f64(10.0);
-    match chained.sign_within(band) {
+    let refused = Interval::from_bounds(-1.0, 4.0).sqrt(); // clamped [0,2] @ Trv
+    let chained = (refused * Interval::pi()).sin() + Interval::from_f64(10.0);
+    match chained.sign_within(band).map(|d| d.sign) {
         Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             ..
-        }) => println!("e2e poison: refused with Invalid margin, as contracted"),
-        other => panic!("poison leaked to a verdict: {other:?}"),
+        }) => println!("e2e refusal: refused with Invalid margin, as contracted"),
+        other => panic!("the refusal leaked to a verdict: {other:?}"),
     }
     println!("review-e2e: ALL CHECKS PASSED");
 }

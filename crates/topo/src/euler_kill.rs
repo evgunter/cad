@@ -1,6 +1,7 @@
-//! Kill-direction Euler duals — [`Body::kvfs`], [`Body::kev`],
-//! [`Body::kef`] — and the ring-promotion inverse [`Body::mfkrh`]
-//! (M1 PR 4).
+//! Kill-direction Euler duals — [`Body::kvfs`], [`Body::kev`] (with
+//! its describing door [`Body::kev_describing`]), [`Body::kef`] (with
+//! its band twin [`Body::kef_minting`]) — and the ring-promotion
+//! inverse [`Body::mfkrh`] (with [`Body::mfkrh_minting`]) (M1 PR 4).
 //!
 //! These complete the ten-operator catalog (Mäntylä ch. 9): every
 //! make-direction operator now has its exact inverse in-tree, which is
@@ -108,9 +109,34 @@
 //! `next(m)` when `next(he) = m`); the loop of `m` — when distinct — at
 //! `next(m)`; when both halves share one loop the `next(m)`-side write
 //! is last and wins (deterministic). `v.emanating` becomes the first
-//! merged-fan member (= `next(he)`, which starts at `w` pre-kill), else
-//! the strut case's `next(m)` (which starts at `v`), else `None`
-//! (segment kill — `v` is lone again).
+//! merged-fan member (= `next(he)`), else the strut case's `next(m)`,
+//! else `None` (segment kill — `v` is lone again). The plan proves it
+//! before mutating: the fan's member by the orbit walk, which shows it
+//! starts at `w` for the merge to re-base, and the other two through
+//! the crate-internal `Body::require_kill_anchors` (`next(m)` starts at
+//! `v`; `None` leaves `v` lone: no half-edge but the killed two starts
+//! there, and the segment kill's loop is `Empty` at it). The loop writes
+//! go through the same proof: each `first` is not killed and lies in its
+//! loop, and the segment kill's loop keeps no member but the killed two
+//! and empties at a `v` written `None` that no other loop holds, so a
+//! kill that merges a fan onto `v` never empties it. Where the killed
+//! halves are adjacent, the one loop re-anchored is both halves' loop.
+//!
+//! **The merged fan's geometry.** The merge moves an end of every
+//! merged member from `w`'s point to `v`'s, and each keeps the carrier
+//! it was certified with. [`Body::kev`] is keys-only and ε-free: it
+//! carries a merge that moves nothing — an empty fan, or a killed null
+//! edge, whose two vertices hold one point — and otherwise refuses
+//! every merge with a certified member, one at a single point included
+//! ([`EulerOpError::MergeRebasesCarriers`], naming every one), or one
+//! that moves one end of a null edge
+//! ([`EulerOpError::RebasedNullEdge`]). [`Body::kev_describing`] is the
+//! same kill with a band and the members' re-descriptions: a listed
+//! member is certified with its spec at the merged endpoints, an
+//! unlisted one passes the re-basing gate `mev`'s fan site passes, so
+//! `kev_describing(he, &[], tol)` is the merge that moves nothing or
+//! moves within band. [`Body::kev_merged_members`] reads the members
+//! and their merged endpoints.
 //!
 //! # `kef` — inverse of `mef` (the loop splice)
 //!
@@ -179,11 +205,18 @@
 //! Re-anchoring rules (unconditional): the surviving loop re-anchors at
 //! `next(m)` when it survives the kill, else `next(he)` (both dead only
 //! in the `Lone` inverse, which anchors the [`Empty`] state
-//! instead). Emanating: `start(he)` gets `next(m)` — which starts at
-//! `start(he)` by antiparallelism — falling back to `next(he)`, else
-//! `None`; `start(m)` symmetrically gets `next(he)` falling back to
-//! `next(m)`, else `None`; when the endpoints coincide the
-//! `start(m)`-side write is last and wins (kemr's precedent).
+//! instead). Emanating: `start(he)` gets `next(m)`, falling back to
+//! `next(he)`, else `None`; `start(m)` symmetrically gets `next(he)`
+//! falling back to `next(m)`, else `None`; when the endpoints coincide
+//! the `start(m)`-side write is last and wins (kemr's precedent). The
+//! plan proves every anchor write before mutating (the crate-internal
+//! `Body::require_kill_anchors`): a `Some` starts at its endpoint, a
+//! `None` leaves it lone (no half-edge but the killed two starts there,
+//! and the `Empty` surviving loop holds it), the remnant claims the
+//! dying loop and is all of it but `he`, the surviving loop's `first`
+//! is not killed and lies in it once the remnant has moved in, and an
+//! `Empty` surviving loop keeps no member but the killed two and holds
+//! a vertex no other loop holds.
 //!
 //! # `mfkrh` — inverse of `kfmrh`
 //!
@@ -208,7 +241,7 @@
 //! | make | exact inverse | degenerate cases |
 //! |---|---|---|
 //! | `mvfs` | `kvfs(created.solid)` | — |
-//! | `mev(site)` | `kev(created.he_plus)` | `Fan{he1==he2}` ↔ strut kill; `Lone` ↔ segment kill |
+//! | `mev(site)` | `kev(created.he_plus)` — `kev_describing(created.he_plus, &[], tol)` where the run is non-empty and the new edge certified | `Fan{he1==he2}` ↔ strut kill; `Lone` ↔ segment kill |
 //! | `mef(site)` | `kef(created.he_minus)` | `Chords{he1==he2}` ↔ dying-loop-alone; `Lone` ↔ both-alone |
 //! | `mekr(site)` | `kemr(created.he_plus, created.he_minus)` | per-site, see [`crate::euler_ring`] |
 //! | `kfmrh(f1, f2)` | `mfkrh(result.ring)` | empty-outer `f2` ↔ empty-ring promotion |
@@ -245,7 +278,7 @@
 //! # fn run() -> Result<(), topo::EulerOpError> {
 //! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
-//! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
+//! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true)?;
 //! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
@@ -271,7 +304,8 @@
 //!
 //! [`Empty`]: crate::LoopBoundary::Empty
 
-use geom_core::Decide;
+use geom_brep::{EdgeCurve, EdgeCurveSpec};
+use geom_core::{Decide, Point3, Real, Tol};
 
 use crate::body::Body;
 use crate::entity::{
@@ -280,9 +314,13 @@ use crate::entity::{
 };
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::{EulerOpError, FaceSurface};
+use crate::euler::{
+    Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, ProvenMate,
+    Records, RunExtent, shared_loop,
+};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
+use crate::pcurves::SiteHalf;
 use crate::provenance::Provenance;
 
 /// The outcome of one [`Body::kvfs`] call: five dead topology keys plus
@@ -381,6 +419,167 @@ pub struct MfkrhCreated {
     pub surface: SurfaceKey,
 }
 
+/// One merged member of a [`Body::kev`] fan merge, as
+/// [`Body::kev_merged_members`] reads it: the edge, and its two
+/// endpoints once the merge has re-based it, in `he_plus` forward
+/// order (`start` is `start(he_plus)`'s point, `end` is
+/// `start(he_minus)`'s).
+#[derive(Clone, Copy, Debug)]
+pub struct MergedMember<T: Real> {
+    /// The member edge.
+    pub edge: EdgeKey,
+    /// Where the edge will start: the point its `he_plus` starts at
+    /// after the merge.
+    pub start: Point3<T>,
+    /// Where the edge will end: the point its `he_minus` starts at
+    /// after the merge.
+    pub end: Point3<T>,
+}
+
+/// Everything [`Body::kev_plan`] proves, handed to
+/// [`Body::kev_execute`]: the keys the kill reads and writes, the
+/// merged fan and its members, and the four splice links as proof
+/// tokens.
+struct KevPlan {
+    he: HalfEdgeKey,
+    m: HalfEdgeKey,
+    edge: EdgeKey,
+    he_plus: HalfEdgeKey,
+    he_minus: HalfEdgeKey,
+    curve: CurveKey,
+    /// The surviving vertex, `start(he)`.
+    v: VertexKey,
+    /// The dying vertex, `end(he)`.
+    w: VertexKey,
+    w_point: PointKey,
+    /// `he`'s loop and the mate's.
+    loops: [LoopKey; 2],
+    /// How the unsplice closes the killed halves' gap, and so which loop
+    /// anchors it writes ([`KevUnsplice::loop_writes`], proved).
+    unsplice: KevUnsplice,
+    /// `w`'s surviving fan, clockwise from the mate: the run the merge
+    /// re-bases onto `v`. Every half in it starts at `w`.
+    fan: Vec<HalfEdgeKey>,
+    /// The merged members: every edge with a half in `fan`, once, in
+    /// orbit order. None is `edge`.
+    members: Vec<EdgeKey>,
+    /// `prev(he)`, `next(he)`, `prev(m)`, `next(m)`.
+    links: [Live; 4],
+    /// `v`'s new `emanating` (the emanating rule, module docs), proved:
+    /// it starts at `v` once the merge has re-based the fan, or leaves
+    /// `v` lone.
+    anchor: KillAnchor,
+}
+
+/// How [`Body::kev`]'s unsplice closes the gap the killed halves leave
+/// (module docs), read from their two `next` steps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum KevUnsplice {
+    /// The loop was the 2-cycle `[he, m]`, and empties.
+    Segment,
+    /// `next(he) = m`: one link, `prev(he) → next(m)`.
+    Strut,
+    /// `next(m) = he`: one link, `prev(m) → next(he)`.
+    Mirror,
+    /// Each half unspliced from its own loop, one loop or two.
+    General,
+}
+
+impl KevUnsplice {
+    /// The links the unsplice writes, in order, from `he`'s
+    /// `[prev, next]` and the mate's (`[a, b, c, d]`).
+    fn links(self, [a, b, c, d]: [Live; 4]) -> Vec<(Live, Live)> {
+        match self {
+            // The 2-cycle loop empties: the inverse of MevSite::Lone.
+            Self::Segment => Vec::new(),
+            // … a → he → m → d …: one write bridges both.
+            Self::Strut => vec![(a, d)],
+            // … c → m → he → b ….
+            Self::Mirror => vec![(c, b)],
+            Self::General => vec![(a, b), (c, d)],
+        }
+    }
+
+    /// The loop anchors this arm writes (the loop rule, module docs), in
+    /// order, where both name one loop the second winning: each loop
+    /// re-anchors at the first survivor after its killed half in `next`
+    /// order, and the segment's loop empties at the survivor `v`.
+    fn loop_writes(
+        self,
+        [l1, l2]: [LoopKey; 2],
+        [next_he, next_m]: [HalfEdgeKey; 2],
+        v: VertexKey,
+    ) -> Vec<(LoopKey, LoopBoundary)> {
+        match self {
+            Self::Segment => vec![(l1, LoopBoundary::Empty { vertex: v })],
+            Self::Strut => vec![(l1, LoopBoundary::Cycle { first: next_m })],
+            Self::Mirror => vec![(l1, LoopBoundary::Cycle { first: next_he })],
+            Self::General => vec![
+                (l1, LoopBoundary::Cycle { first: next_he }),
+                (l2, LoopBoundary::Cycle { first: next_m }),
+            ],
+        }
+    }
+}
+
+/// How [`Body::kef`]'s splice closes the gap the killed halves leave
+/// (module docs), read from the dying loop's remnant and the mate's
+/// `next`.
+#[derive(Clone, Copy)]
+enum KefSplice {
+    /// The `Lone` inverse: a self-loop edge whose halves were both
+    /// one-half-edge loops. The surviving loop empties.
+    Lone,
+    /// An empty remnant (the dying loop was `[he]`): the mate unspliced
+    /// from its loop.
+    Unsplice,
+    /// The mate was alone: the remnant, from its first member `b`,
+    /// closes into itself and becomes the surviving loop's whole cycle.
+    MateAlone(Live),
+    /// The remnant, from its first member `b`, stitched across the
+    /// mate's gap.
+    General(Live),
+}
+
+impl KefSplice {
+    /// The links the splice writes, in order, from `a = prev(he)` and
+    /// the mate's `[prev, next]`.
+    fn links(self, a: Live, [c, d]: [Live; 2]) -> Vec<(Live, Live)> {
+        match self {
+            Self::Lone => Vec::new(),
+            Self::Unsplice => vec![(c, d)],
+            Self::MateAlone(b) => vec![(a, b)],
+            Self::General(b) => vec![(c, b), (a, d)],
+        }
+    }
+}
+
+/// [`Body::kev`]'s arena delta, shared by both kill doors.
+#[cfg(debug_assertions)]
+const KEV_DELTA: ArenaDelta = ArenaDelta {
+    half_edges: -2,
+    edges: -1,
+    vertices: -1,
+    ..ArenaDelta::ZERO
+};
+
+/// [`Body::kef`]'s arena delta, shared by both kill doors.
+#[cfg(debug_assertions)]
+const KEF_DELTA: ArenaDelta = ArenaDelta {
+    faces: -1,
+    loops: -1,
+    half_edges: -2,
+    edges: -1,
+    ..ArenaDelta::ZERO
+};
+
+/// [`Body::mfkrh`]'s arena delta, shared by both doors.
+#[cfg(debug_assertions)]
+const MFKRH_DELTA: ArenaDelta = ArenaDelta {
+    faces: 1,
+    ..ArenaDelta::ZERO
+};
+
 impl<T: Decide> Body<T> {
     /// KVFS — *kill vertex, face, solid*: the inverse of [`Body::mvfs`].
     /// Destroys a solid in EXACTLY the skeletal state `mvfs` creates:
@@ -405,10 +604,23 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); it has no rings ([`EulerOpError::FaceHasRings`]);
     /// its outer loop resolves (`StaleKey`); the loop is empty
     /// ([`EulerOpError::LoopNotEmpty`]); the lone vertex resolves
-    /// (`StaleKey`). (A lone vertex with `emanating: Some` — or one held
-    /// by a second empty loop — is tier-1-invalid input and is not
-    /// re-checked here; the debug postcondition would report the
-    /// resulting garbage.)
+    /// (`StaleKey`). Then no record the kill keeps names one it removes,
+    /// each refusal naming the first such record in arena order: no
+    /// half-edge claims the loop ([`EulerOpError::LoopCycleBroken`]
+    /// naming the loop), and no other face lists it
+    /// ([`EulerOpError::KillLeavesDangling`]); no half-edge starts at the
+    /// vertex ([`EulerOpError::OrbitBroken`] naming the half-edge), and no other
+    /// loop is `Empty` at it (`KillLeavesDangling` from that loop); no
+    /// other loop names the face, then no other shell lists it; no other
+    /// face names the shell, then no other solid lists it; no other shell
+    /// names the solid (`KillLeavesDangling`, each). All are
+    /// tier-1-invalid input — a torn `parent_loop`, start, boundary,
+    /// `face`, `rings`, `shell`, `faces` or `solid` names a removed record
+    /// from another shell — and each proof reads its arenas once
+    /// (the crate-internal `Body::require_run_of`,
+    /// `Body::require_loop_unlisted`, `Body::require_vertex_unnamed`,
+    /// `Body::require_face_unnamed`, `Body::require_shell_unnamed`,
+    /// `Body::require_solid_unnamed`).
     ///
     /// # Errors
     ///
@@ -454,6 +666,22 @@ impl<T: Decide> Body<T> {
             key: EntityId::Vertex(vertex),
         })?;
         let point = vertex_data.point;
+        let clearing = Clearing {
+            removed: Records {
+                loops: &[loop_key],
+                faces: &[face],
+                shells: &[shell],
+                solids: &[solid],
+                ..Records::default()
+            },
+            ..Clearing::default()
+        };
+        self.require_run_of([], loop_key, RunExtent::Whole, &[])?;
+        self.require_loop_unlisted(loop_key, clearing)?;
+        self.require_vertex_unnamed(vertex, &[], &[loop_key])?;
+        self.require_face_unnamed(face, clearing)?;
+        self.require_shell_unnamed(shell, clearing)?;
+        self.require_solid_unnamed(solid, clearing)?;
 
         // ---- Mutation (infallible from here on). ----
         // Kill order (documented above): face, loop, shell, solid,
@@ -525,37 +753,88 @@ impl<T: Decide> Body<T> {
     /// `None` (segment kill — the loop is [`LoopBoundary::Empty`] at the
     /// survivor again).
     ///
-    /// **The merged fan's carriers are left certified against the dead
-    /// vertex.** The far vertex's surviving edges are re-based onto
-    /// `start(he)` and each keeps the curve it was certified with,
-    /// which pins `carrier(t₀)` (or `carrier(t₁)`) to the point that
-    /// died; where the two vertices' points differ, every merged edge
-    /// describes a locus that no longer ends where the edge does.
+    /// # The merged fan
     ///
-    /// Nothing enforces a re-description. Tier 1 does not constrain
-    /// it, this operator does not check it, and no later operator
-    /// repairs it: tier 3 reports it at rest, and `split_edge` and
-    /// [`Body::set_edge_curve`] refuse typed on such an edge.
-    /// [`Body::mev`]'s fan site refuses exactly this state; this door
-    /// does not, and the asymmetry is measured rather than chosen —
-    /// the fan merge's live callers kill MID-SURGERY, so a
-    /// precondition here would refuse a promise that does not exist
-    /// yet at the call. The measurement, the landing shapes and the
-    /// decision are
-    /// `work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`.
+    /// The far vertex's surviving edges — the **merged members** — are
+    /// re-based onto `start(he)`, each keeping the curve it was
+    /// certified with, which pins one end of its carrier to the dying
+    /// vertex's point. This door takes no band, so it certifies none of
+    /// them: it refuses **every** merge with a certified member
+    /// ([`EulerOpError::MergeRebasesCarriers`], naming each in orbit
+    /// order), a merge of two vertices at one point included, since
+    /// whether the survivor's point is the dying vertex's is the question
+    /// the re-basing gate does not ask (the crate-internal
+    /// `Body::certify_rebased_run`'s docs). It carries what structure
+    /// answers: an empty merged fan, a killed null edge, and a null
+    /// member with both halves in the fan; a null member with one half
+    /// in it refuses [`EulerOpError::RebasedNullEdge`].
+    ///
+    /// A killed null edge moves nothing because its two vertices hold
+    /// one point: [`Body::mev_null`] mints them so, and both re-basing
+    /// gates refuse to move one end of one. Nothing else enforces it,
+    /// and the doors that write vertex points (`replace_face`,
+    /// `offset_*`) take tier-2-valid bodies, which hold no null edge.
+    ///
+    /// A merge that moves nothing, or moves its members within band,
+    /// goes through `kev_describing(he, &[], tol)`
+    /// ([`Body::kev_describing`]), and a merge that re-describes its
+    /// members hands their specs to that door;
+    /// [`Body::kev_merged_members`] reads the members and the endpoints
+    /// the merge gives each.
     ///
     /// # Precondition check order
     ///
     /// `he` resolves ([`EulerOpError::StaleKey`]); its edge resolves
     /// (`StaleKey`) and claims it
     /// ([`EulerOpError::UnclaimedHalfEdge`]); the mate resolves
-    /// (`StaleKey`); the endpoints are distinct
+    /// (`StaleKey`); `he` and the mate are the edge's two halves:
+    /// distinct, and the mate names the edge
+    /// ([`EulerOpError::NotSameEdge`]); the endpoints are distinct
     /// ([`EulerOpError::SelfLoopEdge`]); both endpoint vertices resolve
     /// (`StaleKey`); both parent loops resolve (`StaleKey`) and are
     /// cycles ([`EulerOpError::LoopNotCycle`]); the far vertex's orbit
-    /// closes ([`EulerOpError::OrbitBroken`] — tier-1-invalid input);
-    /// the four splice links (`prev`/`next` of both halves) resolve
-    /// (`StaleKey`).
+    /// closes and every half-edge on it starts at the far vertex
+    /// ([`EulerOpError::OrbitBroken`] — tier-1-invalid input: a torn
+    /// `next` can walk it through the killed half itself); the four
+    /// splice links (`prev`/`next` of both halves) resolve
+    /// (`StaleKey`); where the merged fan is empty, the survivor's new
+    /// `emanating` holds: `next(mate)` starts at the survivor, or, where
+    /// `next(mate)` is `he` and the anchor is `None`, the survivor is
+    /// left lone: no half-edge but the killed two starts there, and the
+    /// segment kill's loop empties at it (`OrbitBroken` naming `he` — a
+    /// torn `next` can put the step on another vertex, or on `he` at a
+    /// survivor that keeps edges or whose loop does not empty; a fan's
+    /// anchor is its first member, which the orbit proof covers); each
+    /// loop's new anchor holds: its `first` is not killed and lies in the
+    /// loop, and the segment kill's loop keeps no member but the killed
+    /// two and empties at a survivor written `None` that no other loop
+    /// holds ([`EulerOpError::LoopCycleBroken`] naming the loop —
+    /// tier-1-invalid input: a torn `next` can land the step on the mate
+    /// or in another loop, or read the loop as `[he, mate]` while it
+    /// keeps other members or while the merge moves a fan onto the
+    /// survivor, and a torn start can put the survivor on another loop's
+    /// lone vertex);
+    /// where the halves are adjacent in `next` order, both lie in one
+    /// loop (`LoopCycleBroken` naming the mate's loop, which that arm
+    /// does not re-anchor); no half-edge but the killed two names the
+    /// edge (`UnclaimedHalfEdge` naming the first in arena order); no
+    /// half-edge off the far vertex's orbit starts at it (`OrbitBroken`
+    /// naming the first), and no loop is `Empty` at it
+    /// (`KillLeavesDangling` from the loop); nothing the kill keeps names
+    /// a killed half: no `next` or `prev` as the unsplice leaves it, and
+    /// no loop's `first` but those it re-anchors (`LoopCycleBroken`
+    /// naming the half-edge's loop, or the loop), then no vertex's
+    /// `emanating` but the survivor's and no other edge's slot
+    /// ([`EulerOpError::KillLeavesDangling`]), each first in arena
+    /// order. Then, where the merged fan is
+    /// not empty: the killed
+    /// edge's curve entry resolves ([`EulerOpError::StaleGeometry`]),
+    /// and unless it is a null edge, per merged member in orbit order,
+    /// the member and its curve entry resolve (`StaleKey` /
+    /// `StaleGeometry`) and it is not a null edge the merge moves one
+    /// end of ([`EulerOpError::RebasedNullEdge`]); last, no member is
+    /// certified ([`EulerOpError::MergeRebasesCarriers`], naming all
+    /// of them).
     ///
     /// # Errors
     ///
@@ -564,21 +843,179 @@ impl<T: Decide> Body<T> {
     pub fn kev(&mut self, he: HalfEdgeKey) -> Result<KevResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let plan = self.kev_plan(he)?;
+        self.kev_keys_only_gate(&plan)?;
+        let result = self.kev_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEV_DELTA, "kev");
+        Ok(result)
+    }
 
-        // ---- Preconditions: no mutation until every check passes. ----
-        let he_data = self.resolve_half_edge(he)?;
-        let edge = he_data.edge;
-        let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let m = if edge_data.he_plus == he {
-            edge_data.he_minus
-        } else if edge_data.he_minus == he {
-            edge_data.he_plus
-        } else {
-            return Err(EulerOpError::UnclaimedHalfEdge { he, edge });
-        };
-        let m_data = self.resolve_half_edge(m)?;
+    /// KEV with the merged fan's re-descriptions: [`Body::kev`]'s kill,
+    /// taking a band and, for any merged member whose stored carrier
+    /// does not describe it at the merged endpoints, the spec that
+    /// does.
+    ///
+    /// The shape of [`Body::mev`] on the kill side: the site (`he`),
+    /// the geometry the kill writes (`redescriptions`) and the band
+    /// (`tol`). Topology and descriptions are written together, so no
+    /// state between them is ever observable, and nothing is written
+    /// until everything has certified.
+    ///
+    /// - **A listed member** is certified with its spec against the
+    ///   endpoints the merge WILL give it — the surviving vertex's point
+    ///   at every half in the merged fan, its current point elsewhere —
+    ///   through the attachment gate [`Body::set_edge_curve`] certifies
+    ///   through, adjacency coherence included, and its curve is
+    ///   replaced by fresh insertion (the old one reaped iff orphaned).
+    ///   Pcurve rows stand, as they do under `set_edge_curve` (its docs
+    ///   say why, and what tier 3 does with them).
+    /// - **An unlisted member** keeps its carrier and passes the
+    ///   re-basing gate [`Body::mev`]'s fan site passes, under this
+    ///   band: its stored description re-certified against the merged
+    ///   endpoints, a pre-existing staleness carried and a null edge
+    ///   the merge moves one end of refused. Where the killed edge is a
+    ///   null edge nothing moves and the gate is not asked ([`Body::kev`]
+    ///   says why).
+    ///
+    /// An empty list is the kill for a caller whose members all pass
+    /// where they land — a merge of two vertices at one point, or a band
+    /// apart — and a non-empty one is the kill for a caller that
+    /// re-describes what it merges: `split_edge`'s inverse re-attaching
+    /// the parent's spec, a blend handing a member the chord it spans.
+    /// [`Body::kev_merged_members`] reads the members and the endpoints
+    /// the merge gives each, which is what a caller states its specs
+    /// against.
+    ///
+    /// Euler vector, kill order and re-anchoring: [`Body::kev`]'s. Then,
+    /// per listed member in list order: its certified curve is inserted
+    /// and its old curve reaped iff orphaned, through the write
+    /// [`Body::set_edge_curve`] makes. [`KevResult`] reports what the
+    /// kill kills and not these: a re-described member survives, its
+    /// new curve is its edge's `curve`, and the replaced curve is reaped
+    /// exactly as `set_edge_curve` reaps one, which reports no reaped
+    /// key either.
+    ///
+    /// # Precondition check order
+    ///
+    /// [`Body::kev`]'s structural list (through the adjacent arms' one
+    /// loop).
+    /// Then per entry of `redescriptions`, in list order: the edge is a
+    /// merged member ([`EulerOpError::NotMergedMember`]); it was not
+    /// listed before ([`EulerOpError::DuplicateRedescription`]); its
+    /// spec is adjacency-coherent
+    /// ([`EulerOpError::DescriptionNotAdjacent`], with `StaleKey` for a
+    /// half, loop or face that does not resolve); the merged endpoints
+    /// resolve (`StaleKey` / [`EulerOpError::StaleGeometry`], the
+    /// surviving vertex's point among them); the spec certifies against
+    /// them ([`EulerOpError::RebasedCarrier`] naming the edge). Then,
+    /// where the merged fan is not empty, the killed edge's curve entry
+    /// resolves (`StaleGeometry`); and unless it is a null edge, where a
+    /// member is left unlisted, the surviving vertex's point resolves
+    /// (`StaleGeometry`) and the unlisted members pass the re-basing
+    /// gate in orbit order ([`EulerOpError::StaleKey`] /
+    /// `StaleGeometry` / [`EulerOpError::RebasedNullEdge`] /
+    /// [`EulerOpError::RebasedCarrier`] naming the first that fails).
+    /// So an empty merged fan with an empty list asks nothing past the
+    /// structural list, and the two doors agree there.
+    ///
+    /// # Errors
+    ///
+    /// The first failing precondition above; the body is untouched on
+    /// `Err`.
+    pub fn kev_describing(
+        &mut self,
+        he: HalfEdgeKey,
+        redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
+        tol: Tol,
+    ) -> Result<KevResult, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let plan = self.kev_plan(he)?;
+        let described = self.kev_describing_gate(&plan, redescriptions, tol)?;
+        let result = self.kev_execute(plan);
+        // Every listed edge is a merged member, and no merged member is
+        // the killed edge (`kev_plan` proves it), so each one survives
+        // the kill to be written.
+        for (edge, curve) in described {
+            self.replace_edge_curve(edge, curve);
+        }
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEV_DELTA, "kev_describing");
+        Ok(result)
+    }
+
+    /// The merged members of `kev(he)` — every edge the kill re-bases
+    /// onto `start(he)`, once each, in the dying vertex's clockwise
+    /// orbit order from the killed edge — each with the endpoints the
+    /// merge gives it. Read from the plan both kill doors run and the
+    /// endpoint reading their gates certify against, so a spec stated
+    /// between these endpoints is one [`Body::kev_describing`]
+    /// certifies at them. Pure.
+    ///
+    /// Empty where the merged fan is: a strut or segment kill merges
+    /// nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::kev`]'s structural list; then, where the fan is not
+    /// empty, `StaleKey` / [`EulerOpError::StaleGeometry`] where the
+    /// surviving vertex's point or a member's other endpoint does not
+    /// resolve. Nothing the merge's geometry decides is asked.
+    pub fn kev_merged_members(
+        &self,
+        he: HalfEdgeKey,
+    ) -> Result<Vec<MergedMember<T>>, EulerOpError> {
+        let plan = self.kev_plan(he)?;
+        if plan.members.is_empty() {
+            return Ok(Vec::new());
+        }
+        let p_v = self.resolve_vertex_point(plan.v)?;
+        plan.members
+            .iter()
+            .map(|&edge| {
+                let (start, end) = self.rebased_endpoints(edge, &plan.fan, p_v)?;
+                Ok(MergedMember { edge, start, end })
+            })
+            .collect()
+    }
+
+    /// The kill with neither door's gate: plan, then execute. For
+    /// fixtures that plant a state no door produces (a carrier its
+    /// endpoint left, a null self-loop), which the gates' own arms are
+    /// rowed against.
+    #[cfg(test)]
+    pub(crate) fn kev_ungated(&mut self, he: HalfEdgeKey) -> Result<KevResult, EulerOpError> {
+        let plan = self.kev_plan(he)?;
+        Ok(self.kev_execute(plan))
+    }
+
+    /// [`Body::kev`]'s structural plan phase, shared by both kill doors
+    /// (the precondition list through the adjacent arms' one loop, before
+    /// the fan-merge geometry). Pure.
+    ///
+    /// Beyond resolving every key the kill writes, it proves that every
+    /// half-edge of the merged fan starts at the dying vertex, the
+    /// survivor's new `emanating` and the loops' new anchors
+    /// ([`Body::require_kill_anchors`]), and that nothing the kill keeps
+    /// names the edge, the vertex or the half-edges it removes
+    /// ([`Body::require_edge_unnamed`], [`Body::require_vertex_unnamed`],
+    /// [`Body::require_killed_halves_unnamed`]). The first is
+    /// what keeps the killed edge out of its own merged members: its
+    /// halves are `he`, which starts at the survivor, and the mate, which
+    /// heads the orbit walk and so is not in the fan. The walk steps
+    /// through `next(mate(·))` and reads no start vertex, so a torn
+    /// `next` can put a foreign half-edge — the killed half among
+    /// them — on it, and only this check sees one.
+    fn kev_plan(&self, he: HalfEdgeKey) -> Result<KevPlan, EulerOpError> {
+        let ProvenMate {
+            he_data,
+            edge,
+            edge_data,
+            mate: m,
+            mate_data: m_data,
+        } = self.proven_mate(he)?;
+        let (he_plus, he_minus, curve) = (edge_data.he_plus, edge_data.he_minus, edge_data.curve);
         let v = he_data.start; // survives
         let w = m_data.start; // dies (= end(he))
         if v == w {
@@ -607,7 +1044,9 @@ impl<T: Decide> Body<T> {
         let orbit_w = self
             .vertex_orbit(m)
             .ok_or(EulerOpError::OrbitBroken { he: m })?;
+        self.require_orbit_starts_at(&orbit_w, w, m)?;
         let fan: Vec<HalfEdgeKey> = orbit_w[1..].to_vec();
+        let members = self.run_edges(&fan)?;
         // The unsplice writes through all four neighbor links; prove
         // them now so the mutation below cannot fail midway (atomicity).
         let (a, b) = (
@@ -618,7 +1057,189 @@ impl<T: Decide> Body<T> {
             self.require_live(m_data.prev)?,
             self.require_live(m_data.next)?,
         );
-        // ---- Mutation (infallible from here on). ----
+        // Emanating rule (unconditional, module docs): the fan's first
+        // member, which the orbit proof above shows starts at `w` and the
+        // merge re-bases onto `v`. With no fan, `v` keeps only what
+        // already starts there: `next(m)`, `v`'s orbit step from `he`,
+        // or nothing where that step is `he` itself.
+        let anchor = match fan.first() {
+            Some(&first) => KillAnchor::Merged(first),
+            None => KillAnchor::step((d.key() != he).then_some(d.key())),
+        };
+        // The unsplice arm, read from the two `next` steps. The segment's
+        // loop empties at `v`, so it needs `v` left lone: the proof below
+        // refuses it where `v`'s anchor is not `Lone`, which is where a
+        // fan merges onto `v`. An adjacent pair's arm re-anchors one loop,
+        // so it needs both halves in that loop.
+        let unsplice = match (b.key() == m, d.key() == he) {
+            (true, true) => KevUnsplice::Segment,
+            (true, false) => KevUnsplice::Strut,
+            (false, true) => KevUnsplice::Mirror,
+            (false, false) => KevUnsplice::General,
+        };
+        let loops = [l1, l2];
+        let loop_writes = unsplice.loop_writes(loops, [b.key(), d.key()], v);
+        self.require_kill_anchors(&[(v, anchor, he)], &loop_writes, &[he, m], None)?;
+        if unsplice != KevUnsplice::General && shared_loop(&he_data, &m_data).is_none() {
+            return Err(EulerOpError::LoopCycleBroken { r#loop: l2 });
+        }
+        // Nothing the kill keeps names what it removes: the edge, whose
+        // mate the plan read from its slots, `w`, whose half-edges it read
+        // from the orbit walk, and the halves, whose neighbours it read
+        // from their own links.
+        self.require_edge_unnamed(edge, [he, m])?;
+        self.require_vertex_unnamed(w, &orbit_w, &[])?;
+        let rewritten: Vec<LoopKey> = loop_writes.iter().map(|&(l, _)| l).collect();
+        self.require_killed_halves_unnamed(
+            [he, m],
+            Clearing {
+                removed: Records {
+                    vertices: &[w],
+                    edges: &[edge],
+                    ..Records::default()
+                },
+                edited: Records {
+                    loops: &rewritten,
+                    vertices: &[v],
+                    ..Records::default()
+                },
+                links: &unsplice.links([a, b, c, d]),
+            },
+        )?;
+        Ok(KevPlan {
+            he,
+            m,
+            edge,
+            he_plus,
+            he_minus,
+            curve,
+            v,
+            w,
+            w_point,
+            loops,
+            unsplice,
+            fan,
+            members,
+            links: [a, b, c, d],
+            anchor,
+        })
+    }
+
+    /// Whether the merge moves anything: `false` for an empty merged
+    /// fan and for a killed null edge (whose two vertices hold one
+    /// point — [`Body::kev`]'s docs), `true` otherwise.
+    fn kev_merge_moves(&self, plan: &KevPlan) -> Result<bool, EulerOpError> {
+        if plan.fan.is_empty() {
+            return Ok(false);
+        }
+        match self.get_curve_geom(plan.curve) {
+            Some(crate::null::CurveGeom::NullScaffold(_)) => Ok(false),
+            Some(crate::null::CurveGeom::Certified(_)) => Ok(true),
+            None => Err(EulerOpError::StaleGeometry {
+                key: crate::GeomRef::Curve(plan.curve),
+            }),
+        }
+    }
+
+    /// [`Body::kev`]'s ε-free gate over the merged fan (its docs): the
+    /// re-basing gate's null arm, and every certified member named.
+    fn kev_keys_only_gate(&self, plan: &KevPlan) -> Result<(), EulerOpError> {
+        if !self.kev_merge_moves(plan)? {
+            return Ok(());
+        }
+        let mut stranded: Vec<EdgeKey> = Vec::new();
+        for &member in &plan.members {
+            if self.rebased_carrier(member, &plan.fan)?.is_some() {
+                stranded.push(member);
+            }
+        }
+        if stranded.is_empty() {
+            Ok(())
+        } else {
+            Err(EulerOpError::MergeRebasesCarriers { edges: stranded })
+        }
+    }
+
+    /// [`Body::kev_describing`]'s gate: every listed spec certified
+    /// against the merged endpoints, every unlisted member through the
+    /// re-basing gate. Pure; returns the certified curves in list
+    /// order for the mutation to write.
+    fn kev_describing_gate(
+        &self,
+        plan: &KevPlan,
+        redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
+        tol: Tol,
+    ) -> Result<Vec<(EdgeKey, EdgeCurve<T>)>, EulerOpError> {
+        // The survivor's point, resolved at the first question that
+        // needs it and not before.
+        let mut p_v: Option<Point3<T>> = None;
+        let mut survivor_point = || -> Result<Point3<T>, EulerOpError> {
+            if let Some(p) = p_v {
+                return Ok(p);
+            }
+            let p = self.resolve_vertex_point(plan.v)?;
+            p_v = Some(p);
+            Ok(p)
+        };
+        let mut listed: Vec<EdgeKey> = Vec::with_capacity(redescriptions.len());
+        let mut certified = Vec::with_capacity(redescriptions.len());
+        for (edge, spec) in redescriptions {
+            let edge = *edge;
+            if !plan.members.contains(&edge) {
+                return Err(EulerOpError::NotMergedMember { edge });
+            }
+            if listed.contains(&edge) {
+                return Err(EulerOpError::DuplicateRedescription { edge });
+            }
+            listed.push(edge);
+            self.check_description_adjacent(edge, &spec.description)?;
+            let (p_start, p_end) = self.rebased_endpoints(edge, &plan.fan, survivor_point()?)?;
+            let curve = self
+                .certify_edge_spec(spec.clone(), p_start, p_end, tol)
+                .map_err(|e| match e {
+                    EulerOpError::Certification { error } => {
+                        EulerOpError::RebasedCarrier { edge, error }
+                    }
+                    other => other,
+                })?;
+            certified.push((edge, curve));
+        }
+        if self.kev_merge_moves(plan)? && listed.len() < plan.members.len() {
+            let mut run: Vec<HalfEdgeKey> = Vec::with_capacity(plan.fan.len());
+            for &moved in &plan.fan {
+                if !listed.contains(&self.resolve_half_edge(moved)?.edge) {
+                    run.push(moved);
+                }
+            }
+            self.certify_rebased_run(&run, survivor_point()?, tol)?;
+        }
+        Ok(certified)
+    }
+
+    /// The kill itself, from a proven plan: the fan merge, the
+    /// unsplice, the re-anchoring and the kills. Infallible — every
+    /// key it touches was resolved by [`Body::kev_plan`] — and it
+    /// checks no geometry, so it is the gated doors' tail and nothing
+    /// else's: it is private to this module, whose callers are those
+    /// two doors and the test-only `Body::kev_ungated`.
+    fn kev_execute(&mut self, plan: KevPlan) -> KevResult {
+        let KevPlan {
+            he,
+            m,
+            edge,
+            he_plus,
+            he_minus,
+            curve,
+            v,
+            w,
+            w_point,
+            loops,
+            unsplice,
+            fan,
+            members: _,
+            links: [a, b, c, d],
+            anchor,
+        } = plan;
         // Fan merge: everything starting at w except the doomed mate now
         // starts at v (the run move, reversed — module docs).
         for &moved in &fan {
@@ -629,61 +1250,23 @@ impl<T: Decide> Body<T> {
             };
             half_edge.start = v;
         }
-        // Unsplice (derived as mev's exact inverse — module docs). The
-        // adjacency cases collapse the two link writes into one.
-        let segment_kill = b.key() == m && d.key() == he; // the loop was [he, m]
-        if segment_kill {
-            // The 2-cycle loop empties: Empty at the survivor v — the
-            // inverse of MevSite::Lone.
-            let Some(loop_data) = self.get_loop_mut(l1) else {
-                unreachable!("kev: `l1` resolved in the plan phase")
-            };
-            loop_data.boundary = LoopBoundary::Empty { vertex: v };
-        } else if b.key() == m {
-            // Strut shape … a → he → m → d …: one write bridges both.
-            self.link_half_edges(a, d);
-            let Some(loop_data) = self.get_loop_mut(l1) else {
-                unreachable!("kev: `l1` resolved in the plan phase")
-            };
-            loop_data.boundary = LoopBoundary::Cycle { first: d.key() };
-        } else if d.key() == he {
-            // Mirror adjacency … c → m → he → b ….
-            self.link_half_edges(c, b);
-            let Some(loop_data) = self.get_loop_mut(l1) else {
-                unreachable!("kev: `l1` resolved in the plan phase")
-            };
-            loop_data.boundary = LoopBoundary::Cycle { first: b.key() };
-        } else {
-            // General: unsplice each half from its own loop (one loop or
-            // two). Re-anchor both; when l1 == l2 the second write wins
-            // (deterministic).
-            self.link_half_edges(a, b);
-            self.link_half_edges(c, d);
-            let Some(loop_data) = self.get_loop_mut(l1) else {
-                unreachable!("kev: `l1` resolved in the plan phase")
-            };
-            loop_data.boundary = LoopBoundary::Cycle { first: b.key() };
-            let Some(loop_data) = self.get_loop_mut(l2) else {
-                unreachable!("kev: `l2` resolved in the plan phase")
-            };
-            loop_data.boundary = LoopBoundary::Cycle { first: d.key() };
+        // Unsplice (derived as mev's exact inverse — module docs), then
+        // the loop anchors the plan proved.
+        for (from, to) in unsplice.links([a, b, c, d]) {
+            self.link_half_edges(from, to);
         }
-        // Emanating rule (unconditional, module docs): first merged-fan
-        // member (which is next(he) — the clockwise orbit step from m is
-        // next(mate(m)) = next(he)), else the strut's next(m), else None.
-        let v_anchor = if segment_kill {
-            None
-        } else if let Some(&first) = fan.first() {
-            Some(first)
-        } else {
-            Some(d.key())
-        };
+        for (r#loop, boundary) in unsplice.loop_writes(loops, [b.key(), d.key()], v) {
+            let Some(loop_data) = self.get_loop_mut(r#loop) else {
+                unreachable!("kev: both loops resolved in the plan phase")
+            };
+            loop_data.boundary = boundary;
+        }
         let Some(vertex) = self.get_vertex_mut(v) else {
             unreachable!("kev: `v` resolved in the plan phase, and only `w` (!= v) is reaped")
         };
-        vertex.emanating = v_anchor;
+        vertex.emanating = anchor.key();
         // Kills, each with its provenance entry (kill order documented
-        // above).
+        // on `kev`).
         self.half_edges.remove(he);
         self.half_edge_provenance.remove(he);
         self.half_edges.remove(m);
@@ -692,30 +1275,16 @@ impl<T: Decide> Body<T> {
         self.edge_provenance.remove(edge);
         self.vertices.remove(w);
         self.vertex_provenance.remove(w);
-        let killed_curve = self
-            .remove_curve_if_orphaned(edge_data.curve)
-            .then_some(edge_data.curve);
+        let killed_curve = self.remove_curve_if_orphaned(curve).then_some(curve);
         let killed_point = self.remove_point_if_orphaned(w_point).then_some(w_point);
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                half_edges: -2,
-                edges: -1,
-                vertices: -1,
-                ..ArenaDelta::ZERO
-            },
-            "kev",
-        );
-        Ok(KevResult {
+        KevResult {
             killed_edge: edge,
-            killed_he_plus: edge_data.he_plus,
-            killed_he_minus: edge_data.he_minus,
+            killed_he_plus: he_plus,
+            killed_he_minus: he_minus,
             killed_vertex: w,
             killed_curve,
             killed_point,
-        })
+        }
     }
 
     /// KEF — *kill edge, face*: the inverse of [`Body::mef`]. Kills
@@ -746,21 +1315,35 @@ impl<T: Decide> Body<T> {
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): the remnant's stored rows
     /// are curves stated in the DYING face's chart. Where the surviving
-    /// face is on the same chart — one key, or two the body records as
-    /// one description ([`Body::same_chart`]) — they stand; on any
-    /// other chart the remnant's rows are DROPPED, for the reasons and
-    /// with the consequences [`Body::drop_rows`] states. The surviving
-    /// loop's own rows are untouched either way. Which is why the
-    /// surviving face RESOLVES in the plan phase below, and the chart
-    /// is decided there: it is what the mutation phase acts on, and a
-    /// mutation phase reads nothing it has not proven.
+    /// face is on the same chart — one key, or two sharing one
+    /// payload ([`Body::same_chart`]) — they stand; on any
+    /// other chart the remnant's rows are DROPPED ([`Body::drop_rows`]).
+    /// Where they do not stand — dropped, or missing — and the
+    /// surviving face's rows were complete on an analytic chart, the
+    /// surviving face is owed a re-mint this keys-only kill takes no
+    /// band for, so it refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves rather than leave that face half-minted — the shape of
+    /// [`Body::kev`]'s refusal where a carrier would go stale.
+    /// [`Body::kef_minting`] is the same kill with a band: it walks the
+    /// surviving loop as the splice leaves it (its own members from its
+    /// new anchor, then the remnant) in the surviving face's chart. On
+    /// a spline chart, or a surviving face that was unminted or
+    /// half-minted, the drop is the whole answer at either door and the
+    /// surviving loop's own rows are untouched.
+    /// Which is why the surviving face RESOLVES in the plan phase
+    /// below, and the chart is decided there: it is what the mutation
+    /// phase acts on, and a mutation phase reads nothing it has not
+    /// proven.
     ///
     /// # Precondition check order
     ///
     /// `he` resolves ([`EulerOpError::StaleKey`]); its edge resolves
     /// (`StaleKey`) and claims it
     /// ([`EulerOpError::UnclaimedHalfEdge`]); the mate resolves
-    /// (`StaleKey`); the two halves lie in distinct loops
+    /// (`StaleKey`); `he` and the mate are the edge's two halves:
+    /// distinct, and the mate names the edge
+    /// ([`EulerOpError::NotSameEdge`]); the two halves lie in distinct loops
     /// ([`EulerOpError::SameLoop`] — the same-loop configuration is
     /// [`Body::kemr`]'s); the dying loop resolves (`StaleKey`) and is
     /// a cycle ([`EulerOpError::LoopNotCycle`]), then the surviving
@@ -774,7 +1357,42 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); the dying loop's cycle closes
     /// ([`EulerOpError::LoopCycleBroken`]); `prev(he)` and the mate's
     /// `prev`/`next` resolve (`StaleKey` — `next(he)` is proven by the
-    /// cycle walk); both endpoint vertices resolve (`StaleKey`).
+    /// cycle walk); both endpoint vertices resolve (`StaleKey`); last,
+    /// each endpoint's new `emanating` (the re-anchoring rule above)
+    /// holds, `start(he)`'s and then `start(m)`'s: a `Some` starts at
+    /// the endpoint, and `None` leaves it lone, with no half-edge but the
+    /// killed two and the surviving loop `Empty` at it
+    /// ([`EulerOpError::OrbitBroken`] naming `he`, then the mate —
+    /// tier-1-invalid input: a torn `next` can put either anchor on
+    /// another vertex, or land both steps on the killed halves at an
+    /// endpoint that keeps edges, and a torn start can empty the loop at
+    /// another vertex than the one it strands); then every remnant member claims the
+    /// dying loop, and no half-edge but the remnant and `he` does
+    /// ([`EulerOpError::LoopCycleBroken`] naming the dying loop —
+    /// tier-1-invalid input: a torn `next` can divert its walk through
+    /// another loop, whose members the move would take, or close it past
+    /// a member, which the kill would leave naming a dead loop); then
+    /// the surviving loop's new anchor holds: its `first` is not killed
+    /// and lies in it once the remnant has moved in, and in the `Lone`
+    /// inverse it keeps no member but the killed two and no other loop
+    /// is `Empty` at its vertex (`LoopCycleBroken` naming the surviving
+    /// loop — a torn `next(m)` can land on a killed half or in another
+    /// loop, or read the mate as alone in a loop that keeps other
+    /// members); then no face but the dying one lists the dying loop, no
+    /// loop but it names the dying face, and no shell but the dying
+    /// face's own lists that face ([`EulerOpError::KillLeavesDangling`]
+    /// naming the first in arena order); then no half-edge but the
+    /// killed two names the edge (`UnclaimedHalfEdge` naming the first in
+    /// arena order); then nothing the kill keeps names a killed half: no
+    /// `next` or `prev` as the splice leaves it, and no loop's `first`
+    /// but the surviving loop's (`LoopCycleBroken` naming the half-edge's
+    /// loop, or the loop), then no vertex's `emanating` but the
+    /// endpoints' and no other edge's slot (`KillLeavesDangling`), each
+    /// first in arena order; then, where the surviving face would be re-minted,
+    /// the
+    /// site mint's plan ([`Body::plan_moved_rows`]'s errors,
+    /// [`EulerOpError::PcurveMint`] naming the surviving face among
+    /// them — `KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -783,21 +1401,46 @@ impl<T: Decide> Body<T> {
     pub fn kef(&mut self, he: HalfEdgeKey) -> Result<KefResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let killed = self.kef_with(he, None)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEF_DELTA, "kef");
+        Ok(killed)
+    }
 
+    /// [`Body::kef`] with a band: where `kef` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the remnant's
+    /// rows do not stand on a complete surviving face — this door
+    /// re-mints the surviving face at `tol`'s band, the surviving loop
+    /// walked in its chart ([`Body::plan_moved_rows`]); everywhere else
+    /// it is `kef`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::kef`], except the `KeysOnly` refusal, and the site
+    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
+    pub fn kef_minting(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KefResult, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let killed = self.kef_with(he, Some(tol))?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEF_DELTA, "kef_minting");
+        Ok(killed)
+    }
+
+    /// [`Body::kef`]'s plan and surgery, with the band its site mint
+    /// runs at, or none for the keys-only door. The door that calls it
+    /// declares the postcondition.
+    fn kef_with(&mut self, he: HalfEdgeKey, tol: Option<Tol>) -> Result<KefResult, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
-        let he_data = self.resolve_half_edge(he)?;
-        let edge = he_data.edge;
-        let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let m = if edge_data.he_plus == he {
-            edge_data.he_minus
-        } else if edge_data.he_minus == he {
-            edge_data.he_plus
-        } else {
-            return Err(EulerOpError::UnclaimedHalfEdge { he, edge });
-        };
-        let m_data = self.resolve_half_edge(m)?;
+        let ProvenMate {
+            he_data,
+            edge,
+            edge_data,
+            mate: m,
+            mate_data: m_data,
+        } = self.proven_mate(he)?;
+        let (curve, killed_he_plus, killed_he_minus) =
+            (edge_data.curve, edge_data.he_plus, edge_data.he_minus);
         let l1 = he_data.parent_loop; // dies with its face
         let l2 = m_data.parent_loop; // survives, absorbs the remnant
         if l1 == l2 {
@@ -873,6 +1516,118 @@ impl<T: Decide> Body<T> {
         for vertex in [u, w] {
             require_key(&self.vertices, vertex, EntityId::Vertex)?;
         }
+        // Emanating rule (unconditional, module docs): `u` takes
+        // `next(m)`, its orbit step from `he`, and `w` takes `next(he)`,
+        // its step from `m`; each falls back across, which on a valid
+        // body happens only where `u == w`, else None. When `u == w` the
+        // w-side write is last and wins (kemr's precedent). The plan
+        // proves both writes (`Body::require_kill_anchors`).
+        let survivor = |candidate: HalfEdgeKey, fallback: HalfEdgeKey| {
+            if candidate != he && candidate != m {
+                Some(candidate)
+            } else if fallback != he && fallback != m {
+                Some(fallback)
+            } else {
+                None
+            }
+        };
+        // `next(he)` as a key: `he` itself in the absent case, which
+        // `survivor` then rejects because `he` is reaped.
+        let next_he = b.map_or(he, Live::key);
+        let u_anchor = KillAnchor::step(survivor(d.key(), next_he));
+        let w_anchor = KillAnchor::step(survivor(next_he, d.key()));
+        // The splice arm, read from `b` and whether the mate's loop was
+        // `[m]`, and the surviving loop's anchor it writes (unconditional
+        // rule, module docs): `next(m)` where that survives, else the
+        // remnant's first member, else `Empty` at `w`. The plan proves it
+        // with the `emanating` writes, and the remnant it moves into `l2`.
+        let splice = match (b, d.key() == m) {
+            (None, true) => KefSplice::Lone,
+            (None, false) => KefSplice::Unsplice,
+            (Some(b), true) => KefSplice::MateAlone(b),
+            (Some(b), false) => KefSplice::General(b),
+        };
+        let l2_boundary = match splice {
+            KefSplice::Lone => LoopBoundary::Empty { vertex: w },
+            KefSplice::MateAlone(b) => LoopBoundary::Cycle { first: b.key() },
+            KefSplice::Unsplice | KefSplice::General(_) => LoopBoundary::Cycle { first: d.key() },
+        };
+        self.require_kill_anchors(
+            &[(u, u_anchor, he), (w, w_anchor, m)],
+            &[(l2, l2_boundary)],
+            &[he, m],
+            Some(KillRun {
+                members: &remnant,
+                from: l1,
+                extent: RunExtent::Whole,
+                into: KillInto::Kept(l2),
+            }),
+        )?;
+        // The dying loop and face: nothing the kill keeps may name them.
+        let clearing = Clearing {
+            removed: Records {
+                loops: &[l1],
+                faces: &[f1],
+                ..Records::default()
+            },
+            edited: Records {
+                shells: &[shell],
+                ..Records::default()
+            },
+            ..Clearing::default()
+        };
+        self.require_loop_unlisted(l1, clearing)?;
+        self.require_face_unnamed(f1, clearing)?;
+        self.require_edge_unnamed(edge, [he, m])?;
+        self.require_killed_halves_unnamed(
+            [he, m],
+            Clearing {
+                removed: Records {
+                    loops: &[l1],
+                    edges: &[edge],
+                    ..Records::default()
+                },
+                edited: Records {
+                    loops: &[l2],
+                    vertices: &[u, w],
+                    ..Records::default()
+                },
+                links: &splice.links(a, [c, d]),
+            },
+        )?;
+        // The surviving loop as the splice leaves it, from its new
+        // anchor: its own members from `next(m)` up to `m`, then the
+        // remnant.
+        let remnant_keys: Vec<HalfEdgeKey> = remnant.iter().map(|moved| moved.key()).collect();
+        let rows = self.plan_moved_rows(
+            &remnant_keys,
+            !remnant_changes_chart,
+            f2,
+            |body| {
+                let own: Vec<HalfEdgeKey> = if d.key() == m {
+                    Vec::new()
+                } else {
+                    body.site_cycle_from(d.key(), l2)?
+                        .into_iter()
+                        .take_while(|&h| h != m)
+                        .collect()
+                };
+                let mut site = body.site_face(
+                    f2,
+                    &[(
+                        l2,
+                        own.into_iter()
+                            .chain(remnant_keys.iter().copied())
+                            .map(SiteHalf::Existing)
+                            .collect(),
+                    )],
+                    None,
+                )?;
+                site.moved = true;
+                Ok(site)
+            },
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         // The remnant joins the mate's loop.
@@ -895,71 +1650,24 @@ impl<T: Decide> Body<T> {
         if remnant_changes_chart {
             self.drop_rows(remnant.iter().map(|moved| moved.key()));
         }
+        crate::pcurves::apply_site_rows(self, rows, None);
         // Splice (derived as mef's exact inverse — module docs diagram).
-        let m_alone = d.key() == m; // mate's loop was [m]
-        // `b` absent = the dying loop was [he] alone; see its binding.
-        match (b, m_alone) {
-            (None, true) => {
-                // The Lone inverse: a self-loop edge whose halves were
-                // both one-half-edge loops. The surviving loop empties.
-                let Some(loop_data) = self.get_loop_mut(l2) else {
-                    unreachable!("kef: `l2` resolved in the plan phase")
-                };
-                loop_data.boundary = LoopBoundary::Empty { vertex: w };
-            }
-            (None, false) => {
-                // Empty remnant: just unsplice the mate from its loop.
-                self.link_half_edges(c, d);
-                let Some(loop_data) = self.get_loop_mut(l2) else {
-                    unreachable!("kef: `l2` resolved in the plan phase")
-                };
-                loop_data.boundary = LoopBoundary::Cycle { first: d.key() };
-            }
-            (Some(b), true) => {
-                // The mate was alone: the remnant closes into itself and
-                // becomes the surviving loop's whole cycle.
-                self.link_half_edges(a, b);
-                let Some(loop_data) = self.get_loop_mut(l2) else {
-                    unreachable!("kef: `l2` resolved in the plan phase")
-                };
-                loop_data.boundary = LoopBoundary::Cycle { first: b.key() };
-            }
-            (Some(b), false) => {
-                // General: stitch the remnant across the mate's gap.
-                self.link_half_edges(c, b);
-                self.link_half_edges(a, d);
-                let Some(loop_data) = self.get_loop_mut(l2) else {
-                    unreachable!("kef: `l2` resolved in the plan phase")
-                };
-                loop_data.boundary = LoopBoundary::Cycle { first: d.key() };
-            }
+        for (from, to) in splice.links(a, [c, d]) {
+            self.link_half_edges(from, to);
         }
-        // Emanating rule (unconditional, module docs): next(m) starts at
-        // u and next(he) starts at w by antiparallelism; fall back
-        // across, else None. When u == w the w-side write is last and
-        // wins (kemr's precedent).
-        let survivor = |candidate: HalfEdgeKey, fallback: HalfEdgeKey| {
-            if candidate != he && candidate != m {
-                Some(candidate)
-            } else if fallback != he && fallback != m {
-                Some(fallback)
-            } else {
-                None
-            }
+        let Some(loop_data) = self.get_loop_mut(l2) else {
+            unreachable!("kef: `l2` resolved in the plan phase")
         };
-        // `next(he)` as a key: `he` itself in the absent case, which
-        // `survivor` then rejects because `he` is reaped.
-        let b = b.map_or(he, Live::key);
-        let u_anchor = survivor(d.key(), b);
-        let w_anchor = survivor(b, d.key());
+        loop_data.boundary = l2_boundary;
+        // Emanating: the anchors the plan phase derived and proved.
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("kef: `u` resolved in the plan phase")
         };
-        vertex.emanating = u_anchor;
+        vertex.emanating = u_anchor.key();
         let Some(vertex) = self.get_vertex_mut(w) else {
             unreachable!("kef: `w` resolved in the plan phase")
         };
-        vertex.emanating = w_anchor;
+        vertex.emanating = w_anchor.key();
         // Kills, each with its provenance entry (kill order documented
         // above), then the shell's face list and orphaned geometry.
         self.half_edges.remove(he);
@@ -979,9 +1687,7 @@ impl<T: Decide> Body<T> {
             unreachable!("kef: the shell resolved in the plan phase; only `f1` is reaped above")
         };
         shell_data.faces.retain(|&face| face != f1);
-        let killed_curve = self
-            .remove_curve_if_orphaned(edge_data.curve)
-            .then_some(edge_data.curve);
+        let killed_curve = self.remove_curve_if_orphaned(curve).then_some(curve);
         // The curve hygiene above can itself reap f1's surface (a
         // killed curve's `Intersection`/`Seam` description can hold
         // the last reference — the issue #86 cascade); `f1_data`
@@ -992,22 +1698,10 @@ impl<T: Decide> Body<T> {
             || cascade_took_surface)
             .then_some(f1_data.surface);
 
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                faces: -1,
-                loops: -1,
-                half_edges: -2,
-                edges: -1,
-                ..ArenaDelta::ZERO
-            },
-            "kef",
-        );
         Ok(KefResult {
             killed_edge: edge,
-            killed_he_plus: edge_data.he_plus,
-            killed_he_minus: edge_data.he_minus,
+            killed_he_plus,
+            killed_he_minus,
             killed_face: f1,
             killed_loop: l1,
             killed_curve,
@@ -1045,19 +1739,28 @@ impl<T: Decide> Body<T> {
     /// `Surface::Nurbs` for the honest "no description yet" state —
     /// exact restoration of `kfmrh`'s killed surface is impossible and
     /// NOT promised, [module docs](self)), `Shared` reuses an existing
-    /// key. Promoting an [`LoopBoundary::Empty`] ring
-    /// yields an **empty-outer face** — the `mvfs`-face shape, now
+    /// key.
+    ///
+    /// **Sense** ([`crate::Face::sense`]): `mfkrh` passes
+    /// [`ParentSide::Against`], derived on the demoting face's chart
+    /// and stated on any other ([`Body::resolve_face_surface`]).
+    /// Promoting an [`LoopBoundary::Empty`] ring yields an
+    /// **empty-outer face** — the `mvfs`-face shape, now
     /// operator-reachable inside a larger body.
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): the promoted ring's stored
-    /// rows are a curve stated in the DEMOTING face's chart.
-    /// [`FaceSurface::Inherit`] — and a [`FaceSurface::Shared`] naming
-    /// that same key, or one the body records as the same description
-    /// ([`Body::same_chart`]) — keeps them, since the chart does not
-    /// move; any other surface DROPS them, for the reasons and with
-    /// the consequences [`Body::drop_rows_on_chart_change`] states. A
-    /// new face's rows are the caller's to mint either way
-    /// ([`crate::pcurves::mint_pcurves`]).
+    /// rows are a curve stated in the DEMOTING face's chart. A spec on
+    /// that chart ([`Body::same_chart`]) keeps them; any other surface
+    /// DROPS them ([`Body::drop_loop_rows`]; [`Body::drop_rows`] states
+    /// why). Where they do not stand on the new face — dropped, or
+    /// missing — and the demoting face's rows were complete on an
+    /// analytic chart, this door refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves; [`Body::mfkrh_minting`] takes a band and mints the new
+    /// face with the ring walked in its chart. It is two doors for the
+    /// kill family's reason: `mfkrh` decides nothing against ε, and the
+    /// band is read only where that re-mint runs. A spline chart keeps
+    /// the drop at either door.
     ///
     /// Euler vector: `(v 0, e 0, f +1, h −1, r −1, s 0)` — arena delta
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
@@ -1075,7 +1778,13 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); it is not that face's outer loop
     /// ([`EulerOpError::RingIsOuter`]); the face's shell resolves
     /// (`StaleKey`); a [`FaceSurface::Shared`] key resolves
-    /// ([`EulerOpError::StaleGeometry`]).
+    /// ([`EulerOpError::StaleGeometry`]); a stated sense agrees with
+    /// the derived one on the demoting face's chart
+    /// ([`EulerOpError::SenseContradictsChart`]); the ring walks
+    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face
+    /// would be minted, the site mint's plan ([`Body::plan_moved_rows`]'s
+    /// errors, [`EulerOpError::PcurveMint`] naming the demoting face
+    /// among them — `KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -1088,7 +1797,46 @@ impl<T: Decide> Body<T> {
     ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let created = self.mfkrh_with(ring, surface, None)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh");
+        Ok(created)
+    }
 
+    /// [`Body::mfkrh`] with a band: where `mfkrh` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the promoted
+    /// ring's rows do not stand on the new face, and the demoting
+    /// face's rows were complete — this door mints the new face at
+    /// `tol`'s band, the ring walked in its chart
+    /// ([`Body::plan_moved_rows`]); everywhere else it is `mfkrh`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::mfkrh`], except the `KeysOnly` refusal, and the site
+    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
+    pub fn mfkrh_minting(
+        &mut self,
+        ring: LoopKey,
+        surface: FaceSurface<T>,
+        tol: Tol,
+    ) -> Result<MfkrhCreated, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mfkrh_with(ring, surface, Some(tol))?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh_minting");
+        Ok(created)
+    }
+
+    /// [`Body::mfkrh`]'s plan and surgery, with the band its site mint
+    /// runs at, or none for the keys-only door. The door that calls it
+    /// declares the postcondition.
+    fn mfkrh_with(
+        &mut self,
+        ring: LoopKey,
+        surface: FaceSurface<T>,
+        tol: Option<Tol>,
+    ) -> Result<MfkrhCreated, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
         let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(ring),
@@ -1103,17 +1851,42 @@ impl<T: Decide> Body<T> {
         let shell = old_face_data.shell;
         let (inherit_surface, inherit_sense) = (old_face_data.surface, old_face_data.sense);
         require_key(&self.shells, shell, EntityId::Shell)?;
-        // Geometry gate: a Shared surface key must resolve now (the M1
-        // surface-anchor rule retired with the placeholder surfaces).
-        self.check_face_surface(&surface)?;
+        // The ring was wound clockwise about the parent's outward
+        // normal (interior-left), and as an outer loop it winds
+        // counter-clockwise about the new face's, so on the parent's
+        // chart the new face takes the parent's bit negated.
+        let resolved = self.resolve_face_surface(
+            &surface,
+            old_face,
+            (inherit_surface, inherit_sense),
+            ParentSide::Against,
+        )?;
+        let ring_halves = self.site_cycle(ring)?;
+        let rows = self.plan_moved_rows(
+            &ring_halves,
+            resolved.on_parent_chart,
+            old_face,
+            |body| {
+                body.new_site_face(
+                    old_face,
+                    &surface,
+                    true,
+                    ring_halves
+                        .iter()
+                        .copied()
+                        .map(SiteHalf::Existing)
+                        .collect(),
+                )
+            },
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): surface (for New), face.
-        let (surface, sense) =
-            self.mint_face_surface_and_sense(surface, inherit_surface, inherit_sense);
+        let surface = self.mint_face_surface(surface, inherit_surface);
         let face = self.add_face(
             Face {
-                sense,
+                sense: resolved.sense,
                 surface,
                 outer: ring,
                 rings: vec![],
@@ -1129,45 +1902,42 @@ impl<T: Decide> Body<T> {
             unreachable!("mfkrh: the ring resolved in the plan phase")
         };
         loop_data.face = face;
-        self.drop_rows_on_chart_change(ring, inherit_surface, surface);
+        if !resolved.on_parent_chart {
+            self.drop_loop_rows(ring);
+        }
+        crate::pcurves::apply_site_rows(self, rows, None);
         let Some(shell_data) = self.get_shell_mut(shell) else {
             unreachable!("mfkrh: the shell resolved in the plan phase")
         };
         shell_data.faces.push(face);
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                faces: 1,
-                ..ArenaDelta::ZERO
-            },
-            "mfkrh",
-        );
         Ok(MfkrhCreated { face, surface })
     }
 
-    /// [`Body::mfkrh`] with [`FaceSurface::New`]`(Surface::Nurbs)` —
-    /// the new face is born with the honest "no description yet"
-    /// surface (`crate::euler`'s geometry policy; replace it via
-    /// [`Body::set_face_surface`] before rest). Mirrors the M1
-    /// fresh-surface semantics for the migrated suites and for
-    /// promotions whose real surface is not yet known.
+    /// [`Body::mfkrh`] with [`FaceSurface::New`] holding the
+    /// `Surface::Nurbs` placeholder — the new face is born with the
+    /// honest "no description yet" surface (`crate::euler`'s geometry
+    /// policy; replace it via [`Body::set_face_surface`] before rest).
+    /// Mirrors the M1 fresh-surface semantics for the migrated suites
+    /// and for promotions whose real surface is not yet known.
     ///
-    /// **Pcurve rows**: the promoted ring arrives rowless whenever it
-    /// brought rows. A placeholder is not a described surface at all,
-    /// so it is not the chart any row was stated in and cannot be —
-    /// the drop here is decided by KIND, not by whether the door
-    /// minted a fresh key, and a `Shared` placeholder would read the
-    /// same way. [`Body::drop_rows_on_chart_change`] carries the rest;
-    /// the promoted face's rows are the caller's to mint once it gives
-    /// the face a real surface.
+    /// The placeholder is a fresh payload, so it is never the demoting
+    /// face's chart: `mfkrh` writes `sense`, the caller's provisional
+    /// bit, as stated, and drops the promoted ring's rows — a spline
+    /// chart, so none is owed there and this keys-only door never
+    /// refuses for one. The caller states the honest bit, and mints the
+    /// rows, when it gives the face a real surface.
     ///
     /// # Errors
     ///
     /// As [`Body::mfkrh`].
-    pub fn mfkrh_plug(&mut self, ring: LoopKey) -> Result<MfkrhCreated, EulerOpError> {
-        self.mfkrh(ring, FaceSurface::New(geom::Surface::nurbs_placeholder()))
+    pub fn mfkrh_plug(&mut self, ring: LoopKey, sense: bool) -> Result<MfkrhCreated, EulerOpError> {
+        self.mfkrh(
+            ring,
+            FaceSurface::New {
+                surface: geom::Surface::nurbs_placeholder(),
+                sense,
+            },
+        )
     }
 }
 
@@ -1180,7 +1950,10 @@ mod tests {
     use super::*;
     use crate::entity::{Edge, HalfEdge, Loop, Shell, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-    use crate::fixtures::{ArenaSnapshot, arena_snapshot, deep_snapshot, ops_holed_box, prov};
+    use crate::fixtures::{
+        ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, assert_kill_refuses,
+        deep_snapshot, ops_holed_box, prov,
+    };
     use crate::iso::{canonical_form, isomorphic};
     use crate::readback::euler_counts;
     use crate::test_support_fixtures::declined_cube;
@@ -1191,51 +1964,14 @@ mod tests {
         Point3::new(x, 0.0, 0.0)
     }
 
-    /// Runs `op` on `body`, asserts it fails with exactly `expected`,
-    /// and asserts the body is DEEPLY untouched (kill-direction
-    /// atomicity needs more than counts).
-    fn assert_err_deep_unchanged(
-        body: &mut Body<f64>,
-        expected: &EulerOpError,
-        op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
-    ) {
-        let before = deep_snapshot(body);
-        let err = op(body);
-        assert_eq!(&err, expected);
-        assert_eq!(deep_snapshot(body), before, "body changed on Err");
-    }
-
-    /// mvfs + mev(Lone): the segment body.
+    /// [`crate::fixtures::ops_segment`] at the witness tol.
     fn segment() -> (Body<f64>, MvfsCreated, MevCreated) {
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
-        let seg = body
-            .mev_line(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p(1.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        (body, seed, seg)
+        crate::fixtures::ops_segment(Tol::witness())
     }
 
-    /// Segment + one strut at the far vertex: cycle
-    /// `[seg+, strut+, strut−, seg−]`.
+    /// [`crate::fixtures::ops_strutted`] at the witness tol.
     fn strutted() -> (Body<f64>, MvfsCreated, MevCreated, MevCreated) {
-        let (mut body, seed, seg) = segment();
-        let strut = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: seg.he_minus,
-                    he2: seg.he_minus,
-                },
-                p(2.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        (body, seed, seg, strut)
+        crate::fixtures::ops_strutted(Tol::witness())
     }
 
     // ------------------------------------------------------------------
@@ -1245,7 +1981,7 @@ mod tests {
     #[test]
     fn kvfs_inverts_mvfs_to_the_empty_body() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(1.0, 2.0, 3.0)).unwrap();
+        let seed = body.mvfs(Point3::new(1.0, 2.0, 3.0), true).unwrap();
         let result = body.kvfs(seed.solid).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
@@ -1280,7 +2016,7 @@ mod tests {
         // canonical form.
         let (mut body, _, _) = segment();
         let before = canonical_form(&body);
-        let seed = body.mvfs(p(9.0)).unwrap();
+        let seed = body.mvfs(p(9.0), true).unwrap();
         body.kvfs(seed.solid).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(canonical_form(&body), before);
@@ -1329,7 +2065,7 @@ mod tests {
         // Extra shell, raw-built: a legal multi-shell solid, which
         // `kvfs` still refuses because it unmakes the seed shell only.
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let extra = body.add_shell(
             Shell {
                 faces: vec![],
@@ -1348,7 +2084,7 @@ mod tests {
         );
         // A ring on the single face (raw-built empty ring).
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let point = body.add_point(p(1.0));
         let vertex = body.add_vertex(
             Vertex {
@@ -1381,7 +2117,7 @@ mod tests {
         let (mut body, seed, seg) = segment();
         let skeletal = {
             let mut fresh = Body::<f64>::new();
-            fresh.mvfs(p(0.0)).unwrap();
+            fresh.mvfs(p(0.0), true).unwrap();
             canonical_form(&fresh)
         };
         let before = arena_snapshot(&body);
@@ -1504,7 +2240,7 @@ mod tests {
     /// `[a+, b+, c+, d+]`.
     fn four_spoke_star() -> (Body<f64>, MvfsCreated, [MevCreated; 4]) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let a = body
             .mev_line(
                 MevSite::Lone {
@@ -1583,7 +2319,7 @@ mod tests {
         // vertex): he_plus and he_minus land in different loops; kev
         // must unsplice each from its own loop.
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -1637,11 +2373,14 @@ mod tests {
         // single-op re-make — the re-making mev would have to start
         // the migrated fan at a vertex its chords do not run to, which
         // `mev`'s re-basing gate refuses — but the result must still be
-        // tier-1 valid. That the migrated chords now miss their own
-        // endpoint is this door's open residue,
-        // `work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`.)
+        // tier-1 valid.) The migrated chord would miss its new end, so
+        // the merge is the describing kill's, handed the chord it runs
+        // along now; the row's subject is the merge's topology.
         let (mut body, seed, seg, strut) = strutted();
-        let result = body.kev(strut.he_minus).unwrap();
+        let chord = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        let result = body
+            .kev_describing(strut.he_minus, &[(seg.edge, chord)], Tol::witness())
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(result.killed_vertex, seg.vertex);
         // The whole old fan of seg.vertex (seg.he_minus) now starts at
@@ -1660,38 +2399,625 @@ mod tests {
     }
 
     #[test]
-    fn the_merged_fan_keeps_a_carrier_its_endpoint_left_and_split_edge_refuses_on_it() {
-        // The symptom, still live on the kill side
-        // (`work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`),
-        // and the state `mev`'s fan site used to produce and now
-        // refuses. After the mirror merge, `seg` runs to the strut tip
-        // while its chord still runs to the dead vertex's point, so
-        // `split_edge` — which certifies both children against the
-        // CURRENT endpoints — refuses on it. This is what `seqgen`'s
-        // split filter routes around, and what a re-describing kill
-        // door would close.
+    fn a_merge_that_would_strand_a_carrier_refuses_keys_only_and_the_describing_kill_leaves_it_splittable()
+     {
+        // The mirror merge moves `seg`'s far end from `(1,0,0)` to the
+        // strut tip `(2,0,0)` while its chord still runs to `(1,0,0)`:
+        // the state `split_edge` refuses on, since it certifies both
+        // children against the CURRENT endpoints. The keys-only kill
+        // refuses it typed, naming the member, body untouched; so does
+        // the describing kill that is handed a band and nothing to
+        // write, through the re-basing gate. Handed the chord `seg` runs
+        // along after the merge, it merges, certifies, and `split_edge`
+        // runs on the merged edge.
+        let tol = Tol::witness();
         let (mut body, _seed, seg, strut) = strutted();
-        body.kev(strut.he_minus).unwrap();
+        let before = deep_snapshot(&body);
+        assert_eq!(
+            body.kev(strut.he_minus).map(|_| ()),
+            Err(EulerOpError::MergeRebasesCarriers {
+                edges: vec![seg.edge]
+            })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+        let err = body
+            .kev_describing(strut.he_minus, &[], tol)
+            .map(|_| ())
+            .unwrap_err();
+        assert!(
+            matches!(err, EulerOpError::RebasedCarrier { edge, .. } if edge == seg.edge),
+            "{err:?}"
+        );
+        assert_eq!(deep_snapshot(&body), before);
+
+        let chord = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        body.kev_describing(strut.he_minus, &[(seg.edge, chord)], tol)
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
         let curve = body.get_edge(seg.edge).unwrap().curve;
-        let (t0, t1) = body
-            .get_curve_geom(curve)
+        let certified = body.get_curve_geom(curve).unwrap().certified().unwrap();
+        let (t0, t1) = certified.params();
+        assert_eq!(
+            certified.carrier().eval(t1).x,
+            2.0,
+            "the chord runs to the tip"
+        );
+        let split = body
+            .split_edge(seg.edge, 0.5f64.mul_add(t1 - t0, t0), tol)
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            body.get_point(body.get_vertex(split.vertex).unwrap().point)
+                .map(|q| q.x),
+            Some(1.0),
+            "the split lands on the merged chord's midpoint"
+        );
+    }
+
+    /// A merged member the caller re-describes, certified against the
+    /// merged endpoints; an unlisted member through the re-basing gate.
+    /// The strutted segment with a second strut at the far vertex:
+    /// killing the first strut from its tip merges `seg` and `other`
+    /// onto the tip.
+    fn two_member_merge() -> (Body<f64>, MevCreated, MevCreated, MevCreated) {
+        let (mut body, _seed, seg, strut) = strutted();
+        let other = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: strut.he_plus,
+                    he2: strut.he_plus,
+                },
+                Point3::new(1.0, 1.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        (body, seg, strut, other)
+    }
+
+    /// **The keys-only merge refusal ends in its own lever** (D4 ¶1
+    /// (i)): the members' descriptions, or the other end, before the
+    /// door. On the real raise, in two poses of the strut's tip: where
+    /// the tip meets no other edge, `kev` on the strut's other half
+    /// kills it; where a null edge also meets it, a fan with no
+    /// certified edge, the lever's condition fails and so does the
+    /// kill, for the null edge's sake.
+    #[test]
+    fn the_keys_only_merge_refusal_ends_in_its_lever() {
+        let lever = "Recourse: re-describe those edges at the surviving vertex, or kill the \
+                     edge's other end where it meets no other edge (kev_describing takes \
+                     their re-descriptions under a band, and kev on the other half kills the \
+                     other end)";
+        let (bare, _seed, _seg, strut) = strutted();
+        let mut nulled = bare.clone();
+        let null = nulled
+            .mev_null(
+                MevSite::Fan {
+                    he1: strut.he_minus,
+                    he2: strut.he_minus,
+                },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        for (pose, mut body) in [("bare tip", bare), ("null edge at the tip", nulled)] {
+            let text = body
+                .kev(strut.he_minus)
+                .map(|_| ())
+                .unwrap_err()
+                .to_string();
+            assert!(text.ends_with(lever), "{pose}: {text}");
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&text),
+                1,
+                "{pose}: {text}"
+            );
+            let others: Vec<EdgeKey> = body
+                .edges_of_vertex(strut.vertex)
+                .unwrap()
+                .into_iter()
+                .filter(|&e| e != strut.edge)
+                .collect();
+            let killed = body.kev(strut.he_plus).map(|_| ());
+            if others.is_empty() {
+                assert_eq!(killed, Ok(()), "{pose}: the lever's condition holds");
+            } else {
+                assert_eq!(others, [null.edge], "{pose}: the edges the tip meets");
+                assert_eq!(
+                    killed,
+                    Err(EulerOpError::RebasedNullEdge { edge: null.edge }),
+                    "{pose}: the lever's condition fails, and so does the kill"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn kev_names_every_certified_member_in_orbit_order() {
+        let (mut body, seg, strut, other) = two_member_merge();
+        let before = deep_snapshot(&body);
+        let err = body.kev(strut.he_minus).map(|_| ()).unwrap_err();
+        let EulerOpError::MergeRebasesCarriers { edges } = err else {
+            panic!("{err:?}")
+        };
+        let mut sorted = edges.clone();
+        sorted.sort();
+        let mut expected = vec![seg.edge, other.edge];
+        expected.sort();
+        assert_eq!(sorted, expected, "both members are named");
+        let orbit = body.vertex_orbit(strut.he_plus).unwrap();
+        let in_orbit: Vec<EdgeKey> = orbit[1..]
+            .iter()
+            .map(|&h| body.get_half_edge(h).unwrap().edge)
+            .collect();
+        assert_eq!(edges, in_orbit, "named in the dying vertex's orbit order");
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_refuses_a_listed_edge_that_is_not_a_merged_member() {
+        // The killed edge itself, and an edge at the surviving end of
+        // `seg`, which the merge does not touch.
+        let (mut body, seg, strut, _other) = two_member_merge();
+        let far = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                Point3::new(0.0, -1.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let before = deep_snapshot(&body);
+        for stranger in [strut.edge, far.edge] {
+            assert_eq!(
+                body.kev_describing(
+                    strut.he_minus,
+                    &[(stranger, EdgeCurveSpec::line_between(p(0.0), p(9.0)))],
+                    Tol::witness(),
+                )
+                .map(|_| ()),
+                Err(EulerOpError::NotMergedMember { edge: stranger })
+            );
+            assert_eq!(deep_snapshot(&body), before);
+        }
+    }
+
+    #[test]
+    fn kev_describing_refuses_a_member_listed_twice() {
+        let (mut body, seg, strut, _other) = two_member_merge();
+        let before = deep_snapshot(&body);
+        let chord = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        assert_eq!(
+            body.kev_describing(
+                strut.he_minus,
+                &[(seg.edge, chord.clone()), (seg.edge, chord)],
+                Tol::witness(),
+            )
+            .map(|_| ()),
+            Err(EulerOpError::DuplicateRedescription { edge: seg.edge })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_refuses_a_spec_that_does_not_certify_at_the_merged_endpoints() {
+        // `seg`'s spec is the chord it had — to the dying vertex's
+        // point, which is not where the merge ends it. Named at the
+        // listed edge, body untouched.
+        let (mut body, seg, strut, other) = two_member_merge();
+        let before = deep_snapshot(&body);
+        let tip_to_other = EdgeCurveSpec::line_between(p(2.0), Point3::new(1.0, 1.0, 0.0));
+        let err = body
+            .kev_describing(
+                strut.he_minus,
+                &[
+                    (other.edge, tip_to_other),
+                    (seg.edge, EdgeCurveSpec::line_between(p(0.0), p(1.0))),
+                ],
+                Tol::witness(),
+            )
+            .map(|_| ())
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EulerOpError::RebasedCarrier {
+                    edge,
+                    error: geom_brep::CertifyError::ResidualExceeded { .. },
+                } if edge == seg.edge
+            ),
+            "{err:?}"
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_refuses_a_spec_whose_description_is_not_the_members() {
+        // A chart image must name one of the member's own faces'
+        // surfaces: the attachment gate's adjacency rule, asked in the
+        // plan phase against the faces the merge leaves the member on
+        // (the kill moves no half-edge between loops). The chart named
+        // is a live surface — another solid's face's — so what refuses
+        // is whose it is, not that it does not resolve.
+        let (mut body, seg, strut, _other) = two_member_merge();
+        let elsewhere = body.mvfs(Point3::new(9.0, 9.0, 9.0), true).unwrap();
+        let own = body
+            .get_face(body.face_of_half_edge(seg.he_plus).unwrap())
+            .unwrap()
+            .surface;
+        assert_ne!(elsewhere.surface, own);
+        assert!(body.get_surface(elsewhere.surface).is_some());
+        let before = deep_snapshot(&body);
+        let mut spec = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        spec.description = geom_brep::EdgeDescriptionSpec::chart(elsewhere.surface);
+        assert_eq!(
+            body.kev_describing(strut.he_minus, &[(seg.edge, spec)], Tol::witness())
+                .map(|_| ()),
+            Err(EulerOpError::DescriptionNotAdjacent { edge: seg.edge })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_refuses_an_unlisted_member_the_gate_refuses() {
+        // Only `seg` is re-described; `other` keeps a chord to the dying
+        // vertex's point and the re-basing gate names it.
+        let (mut body, seg, strut, other) = two_member_merge();
+        let before = deep_snapshot(&body);
+        let err = body
+            .kev_describing(
+                strut.he_minus,
+                &[(seg.edge, EdgeCurveSpec::line_between(p(0.0), p(2.0)))],
+                Tol::witness(),
+            )
+            .map(|_| ())
+            .unwrap_err();
+        assert!(
+            matches!(err, EulerOpError::RebasedCarrier { edge, .. } if edge == other.edge),
+            "{err:?}"
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn kev_describing_writes_every_listed_member_and_reaps_what_it_replaced() {
+        let tol = Tol::witness();
+        let (mut body, seg, strut, other) = two_member_merge();
+        let old = [
+            body.get_edge(seg.edge).unwrap().curve,
+            body.get_edge(other.edge).unwrap().curve,
+        ];
+        let curves_before = body.curves().count();
+        body.kev_describing(
+            strut.he_minus,
+            &[
+                (
+                    other.edge,
+                    EdgeCurveSpec::line_between(p(2.0), Point3::new(1.0, 1.0, 0.0)),
+                ),
+                (seg.edge, EdgeCurveSpec::line_between(p(0.0), p(2.0))),
+            ],
+            tol,
+        )
+        .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        // The killed edge's curve and both replaced curves are reaped;
+        // two are minted.
+        assert_eq!(body.curves().count(), curves_before - 1);
+        for (edge, was) in [(seg.edge, old[0]), (other.edge, old[1])] {
+            let now = body.get_edge(edge).unwrap().curve;
+            assert_ne!(now, was);
+            assert!(
+                body.get_curve_geom(was).is_none(),
+                "the old curve is reaped"
+            );
+            assert!(carrier_is_coherent_here(&body, edge, tol));
+        }
+    }
+
+    #[test]
+    fn kev_merged_members_reads_what_the_describing_door_certifies_against() {
+        // The members in orbit order, each with the endpoints the merge
+        // gives it; handed back as chords, the describing kill takes
+        // them. A strut kill merges nothing.
+        let tol = Tol::witness();
+        let (mut body, seg, strut, other) = two_member_merge();
+        let members = body.kev_merged_members(strut.he_minus).unwrap();
+        let orbit = body.vertex_orbit(strut.he_plus).unwrap();
+        let in_orbit: Vec<EdgeKey> = orbit[1..]
+            .iter()
+            .map(|&h| body.get_half_edge(h).unwrap().edge)
+            .collect();
+        assert_eq!(members.iter().map(|m| m.edge).collect::<Vec<_>>(), in_orbit);
+        let tip = [2.0, 0.0, 0.0];
+        let xyz = |q: Point3<f64>| [q.x, q.y, q.z];
+        for m in &members {
+            let (start, end) = (xyz(m.start), xyz(m.end));
+            if m.edge == seg.edge {
+                assert_eq!((start, end), ([0.0; 3], tip), "seg now ends at the tip");
+            } else {
+                assert_eq!(m.edge, other.edge);
+                assert_eq!(
+                    (start, end),
+                    (tip, [1.0, 1.0, 0.0]),
+                    "other now starts there"
+                );
+            }
+        }
+        assert!(
+            body.kev_merged_members(strut.he_plus).unwrap().is_empty(),
+            "the strut kill from the far end merges nothing"
+        );
+        let chords: Vec<_> = members
+            .iter()
+            .map(|m| (m.edge, EdgeCurveSpec::line_between(m.start, m.end)))
+            .collect();
+        body.kev_describing(strut.he_minus, &chords, tol).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+    }
+
+    #[test]
+    fn a_torn_orbit_through_the_killed_half_refuses_typed_in_both_doors() {
+        // Two `next` tears walk the dying vertex's orbit through the
+        // killed half itself: [seg−, strut+, seg+]. Unchecked, the
+        // killed edge is its own merged member, the keys-only door
+        // names it, and the describing door certifies it, kills it and
+        // then has it to write. The plan phase sees that `seg+` does not
+        // start at the dying vertex and both doors, and the read door,
+        // refuse typed, body untouched.
+        let tol = Tol::witness();
+        let (mut body, _seed, seg, strut) = strutted();
+        body.get_half_edge_mut(strut.he_minus).unwrap().next = seg.he_plus;
+        body.get_half_edge_mut(seg.he_minus).unwrap().next = seg.he_minus;
+        assert_eq!(
+            body.vertex_orbit(seg.he_minus),
+            Some(vec![seg.he_minus, strut.he_plus, seg.he_plus])
+        );
+        let torn = EulerOpError::OrbitBroken { he: seg.he_minus };
+        let he = seg.he_plus;
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(he).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &torn, |b| {
+            b.kev_describing(he, &[], tol).unwrap_err()
+        });
+        let chord = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        assert_err_deep_unchanged(&mut body, &torn, |b| {
+            b.kev_describing(he, &[(seg.edge, chord)], tol).unwrap_err()
+        });
+        assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn));
+    }
+
+    #[test]
+    fn a_twice_torn_declined_cube_refuses_typed_in_both_doors() {
+        // The first counterexample a seeded search of two random
+        // `next` tears on the declined cube found (22 of 96,000 kill
+        // calls reached the describing door's write with the killed
+        // edge listed): the tears and the kill, by position in the
+        // fixture's half-edge arena. The orbit leaves the dying vertex,
+        // and both doors refuse it in the plan phase.
+        let tol = Tol::witness();
+        let mut body = declined_cube::<f64>(tol).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[8]).unwrap().next = halves[18];
+        body.get_half_edge_mut(halves[16]).unwrap().next = halves[23];
+        let he = halves[16];
+        let m = body.mate(he).unwrap();
+        let torn = EulerOpError::OrbitBroken { he: m };
+        let killed = body.get_half_edge(he).unwrap().edge;
+        let orbit = body.vertex_orbit(m).unwrap();
+        assert!(
+            orbit[1..]
+                .iter()
+                .any(|&h| body.get_half_edge(h).unwrap().edge == killed),
+            "the torn orbit walks the killed edge back into its own fan"
+        );
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(he).unwrap_err());
+        let chords: Vec<_> = orbit[1..]
+            .iter()
+            .map(|&h| body.get_half_edge(h).unwrap().edge)
+            .fold(Vec::new(), |mut edges, e| {
+                if !edges.contains(&e) {
+                    edges.push(e);
+                }
+                edges
+            })
+            .into_iter()
+            .map(|e| (e, EdgeCurveSpec::line_between(p(0.0), p(1.0))))
+            .collect();
+        assert_err_deep_unchanged(&mut body, &torn, |b| {
+            b.kev_describing(he, &chords, tol).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn kev_describing_asks_the_survivors_point_only_where_a_question_needs_it() {
+        // A strut kill from the tip's far end merges nothing; with the
+        // surviving vertex's point gone, the describing door asks what
+        // its docs list in their order: a listed non-member refuses as
+        // one, and an empty list asks nothing past the structural list,
+        // as the keys-only door asks nothing, so both kill. (The body is
+        // tier-1-invalid, so the kills run inside a surgery scope,
+        // whose close is dropped unswept.)
+        let tol = Tol::witness();
+        let (mut body, _seed, seg, strut) = strutted();
+        let v = body.get_half_edge(strut.he_plus).unwrap().start;
+        let point = body.get_vertex(v).unwrap().point;
+        body.points.remove(point);
+        assert!(body.kev_merged_members(strut.he_plus).unwrap().is_empty());
+        let stranger = EdgeCurveSpec::line_between(p(0.0), p(9.0));
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::NotMergedMember { edge: seg.edge },
+            |b| {
+                b.kev_describing(strut.he_plus, &[(seg.edge, stranger)], tol)
+                    .unwrap_err()
+            },
+        );
+        for describing in [false, true] {
+            let mut copy = body.clone();
+            let mut scope = copy.begin_surgery();
+            let got = if describing {
+                scope.kev_describing(strut.he_plus, &[], tol)
+            } else {
+                scope.kev(strut.he_plus)
+            };
+            drop(scope);
+            assert!(got.is_ok(), "describing: {describing}: {got:?}");
+        }
+    }
+
+    #[test]
+    fn both_doors_carry_a_killed_null_edge_whose_fan_holds_one_half_of_another() {
+        // `n1` joins `seg`'s far vertex to `w` at one point, and `n2`
+        // leaves `w` at that point too. Killing `n1` toward `w` merges
+        // one half of `n2` onto the survivor: nothing moves, so neither
+        // door asks the re-basing gate, whose null arm would refuse the
+        // one half.
+        let tol = Tol::witness();
+        let (mut body, _seed, seg) = segment();
+        let n1 = body
+            .mev_null(
+                MevSite::Fan {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let at_w = if body.get_half_edge(n1.he_plus).unwrap().start == n1.vertex {
+            n1.he_plus
+        } else {
+            n1.he_minus
+        };
+        let n2 = body
+            .mev_null(
+                MevSite::Fan {
+                    he1: at_w,
+                    he2: at_w,
+                },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let toward_w = body.mate(at_w).unwrap();
+        assert_eq!(body.half_edge_end(toward_w), Some(n1.vertex));
+        let members = body.kev_merged_members(toward_w).unwrap();
+        assert_eq!(
+            members.iter().map(|m| m.edge).collect::<Vec<_>>(),
+            [n2.edge]
+        );
+        assert_eq!(body.clone().kev(toward_w).map(|_| ()), Ok(()));
+        body.kev_describing(toward_w, &[], tol).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+    }
+
+    #[test]
+    fn a_certified_self_loop_member_is_named_once() {
+        // A self-loop circle at the dying vertex has both halves in the
+        // merged fan; it is one member, named once by the refusal and
+        // read once by the read door.
+        let tol = Tol::witness();
+        let (mut body, _seed, seg) = segment();
+        let circle = body
+            .mef(
+                MefSite::Chords {
+                    he1: seg.he_minus,
+                    he2: seg.he_minus,
+                },
+                EdgeCurveSpec::self_loop_circle_at(p(1.0)),
+                crate::euler::FaceSurface::Inherit,
+                tol,
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            body.kev_merged_members(seg.he_plus)
+                .unwrap()
+                .iter()
+                .map(|m| m.edge)
+                .collect::<Vec<_>>(),
+            [circle.edge]
+        );
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::MergeRebasesCarriers {
+                edges: vec![circle.edge],
+            },
+            |b| b.kev(seg.he_plus).unwrap_err(),
+        );
+    }
+
+    #[test]
+    fn the_keys_only_kill_refuses_a_merge_that_moves_no_point_and_kev_describing_takes_it() {
+        // The exact inverse of a certified `mev` at the old point: the
+        // kill merges the star's two middle spokes back onto a vertex at
+        // their own point, so every carrier stays true bitwise. The
+        // keys-only door refuses it anyway — it asks no band question,
+        // and whether the two points are one is the question the
+        // re-basing gate does not ask — and the describing door with
+        // nothing listed takes it, carriers untouched.
+        let tol = Tol::witness();
+        let (mut body, _seed, [_a, b, c, d]) = four_spoke_star();
+        let created = body
+            .mev(
+                MevSite::Fan {
+                    he1: b.he_plus,
+                    he2: d.he_plus,
+                },
+                p(0.0),
+                EdgeCurveSpec::self_loop_circle_at(p(0.0)),
+                tol,
+            )
+            .unwrap();
+        let curves = [
+            body.get_edge(b.edge).unwrap().curve,
+            body.get_edge(c.edge).unwrap().curve,
+        ];
+        let carriers = curves.map(|k| format!("{:?}", body.get_curve_geom(k).unwrap()));
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::MergeRebasesCarriers {
+                edges: vec![b.edge, c.edge],
+            },
+            |body| body.kev(created.he_plus).unwrap_err(),
+        );
+        body.kev_describing(created.he_plus, &[], tol).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        assert_eq!(
+            [b.edge, c.edge].map(|e| body.get_edge(e).unwrap().curve),
+            curves,
+            "no curve is re-minted"
+        );
+        assert_eq!(
+            curves.map(|k| format!("{:?}", body.get_curve_geom(k).unwrap())),
+            carriers,
+            "every carrier is bitwise what it was"
+        );
+    }
+
+    /// Whether `edge`'s stored carrier re-certifies against its own
+    /// endpoints now.
+    fn carrier_is_coherent_here(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
+        let e = body.get_edge(edge).unwrap();
+        let point = |he| {
+            let v = body.get_half_edge(he).unwrap().start;
+            *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+        };
+        body.get_curve_geom(e.curve)
             .unwrap()
             .certified()
             .unwrap()
-            .params();
-        let err = body
-            .split_edge(seg.edge, 0.5f64.mul_add(t1 - t0, t0), Tol::witness())
-            .unwrap_err();
-        assert!(
-            matches!(err, EulerOpError::Certification { .. }),
-            "the merged edge's own carrier misses its endpoint: {err:?}"
-        );
+            .recertify(
+                point(e.he_plus),
+                point(e.he_minus),
+                |k| body.get_surface(k).cloned(),
+                geom_core::Band::linear(tol).unwrap(),
+            )
+            .is_ok()
     }
 
     #[test]
     fn kev_rejects_self_loops_and_stale_keys() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let circ = body
             .mef_chord(
                 MefSite::Lone {
@@ -1902,7 +3228,7 @@ mod tests {
     #[test]
     fn kef_lone_inverse_restores_the_empty_loop() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let before = canonical_form(&body);
         let before_counts = arena_snapshot(&body);
         let circ = body
@@ -2126,7 +3452,7 @@ mod tests {
         // is an empty loop — and the body validates.
         let (mut body, split, kill) = pillow_with_empty_ring();
         let before_counts = arena_snapshot(&body);
-        let created = body.mfkrh_plug(kill.ring).unwrap();
+        let created = body.mfkrh_plug(kill.ring, true).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // E–P vector (0, 0, +1, −1, −1, 0): +1 face, +1 surface, all
@@ -2172,7 +3498,7 @@ mod tests {
     fn mfkrh_then_kfmrh_roundtrips() {
         let (mut body, split, kill) = pillow_with_empty_ring();
         let before = canonical_form(&body);
-        let created = body.mfkrh_plug(kill.ring).unwrap();
+        let created = body.mfkrh_plug(kill.ring, true).unwrap();
         let plug = body.kfmrh(split.face, created.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(plug.ring, kill.ring);
@@ -2190,7 +3516,7 @@ mod tests {
         let mut body = t.body;
         let before = canonical_form(&body);
         let bottom_face = t.box_mefs[0].face;
-        let created = body.mfkrh_plug(t.plug.ring).unwrap();
+        let created = body.mfkrh_plug(t.plug.ring, true).unwrap();
         assert_eq!(validate(&body), Ok(()));
         // Euler–Poincaré at genus 0 with one ring left (the hole's top
         // rim): v − e + f − r = 16 − 24 + 11 − 1 = 2 = 2(1 − 0).
@@ -2212,14 +3538,14 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RingIsOuter { r#loop: outer },
-            |b| b.mfkrh_plug(outer).unwrap_err(),
+            |b| b.mfkrh_plug(outer, true).unwrap_err(),
         );
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::StaleKey {
                 key: EntityId::Loop(LoopKey::default()),
             },
-            |b| b.mfkrh_plug(LoopKey::default()).unwrap_err(),
+            |b| b.mfkrh_plug(LoopKey::default(), true).unwrap_err(),
         );
     }
 
@@ -2237,8 +3563,14 @@ mod tests {
                 key: crate::entity::GeomRef::Surface(stale),
             },
             |b| {
-                b.mfkrh(kill.ring, crate::FaceSurface::Shared(stale))
-                    .unwrap_err()
+                b.mfkrh(
+                    kill.ring,
+                    crate::FaceSurface::Shared {
+                        key: stale,
+                        sense: true,
+                    },
+                )
+                .unwrap_err()
             },
         );
     }
@@ -2327,12 +3659,620 @@ mod tests {
                 )
                 .unwrap();
             body.kef(cut.he_minus).unwrap();
-            body.kev(seg.he_plus).unwrap(); // pillow → circular-edge body
+            // pillow → circular-edge body: the surviving edge closes
+            // onto the seed vertex, so the kill re-describes it as the
+            // circle there.
+            let circle = EdgeCurveSpec::self_loop_circle_at(p(0.0));
+            body.kev_describing(seg.he_plus, &[(split.edge, circle)], Tol::witness())
+                .unwrap();
             body
         };
         let a = run();
         let b = run();
         assert_eq!(deep_snapshot(&a), deep_snapshot(&b));
         assert!(isomorphic(&a, &b));
+    }
+
+    /// The declined cube with `next` tears planted, each `(from, to)`
+    /// by position in its half-edge arena, and the arena's keys.
+    fn torn_cube(tears: &[(usize, usize)]) -> (Body<f64>, Vec<HalfEdgeKey>) {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        for &(from, to) in tears {
+            body.get_half_edge_mut(halves[from]).unwrap().next = halves[to];
+        }
+        (body, halves)
+    }
+
+    #[test]
+    fn kef_refuses_an_anchor_step_that_leaves_its_vertex() {
+        // The first counterexample of a seeded search of one `next`
+        // tear on the declined cube: the mate's `next` torn back onto
+        // the killed half, so the anchor for `start(he)` falls back to
+        // `next(he)`, which starts at the other end. Unchecked, the
+        // kill writes that anchor and returns `Ok`.
+        let (mut body, halves) = torn_cube(&[(9, 8)]);
+        let he = halves[8];
+        assert_eq!(body.mate(he), Some(halves[9]));
+        let next_he = body.get_half_edge(he).unwrap().next;
+        assert_ne!(
+            body.get_half_edge(next_he).unwrap().start,
+            body.get_half_edge(he).unwrap().start,
+            "the fallback anchor starts off the vertex it would anchor"
+        );
+        let torn = EulerOpError::OrbitBroken { he };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
+    }
+
+    #[test]
+    fn kev_refuses_a_strut_anchor_that_leaves_the_survivor() {
+        // The first counterexample of a seeded search of two `next`
+        // tears on the declined cube: `next(he)` torn onto the mate
+        // empties the merged fan, so the survivor is anchored at
+        // `next(mate)`, which the other tear points at a half-edge of
+        // another vertex. Every door that runs the plan refuses it.
+        let tol = Tol::witness();
+        let (mut body, halves) = torn_cube(&[(19, 5), (18, 19)]);
+        let he = halves[18];
+        let m = body.mate(he).unwrap();
+        assert_eq!(m, halves[19]);
+        assert_eq!(
+            body.vertex_orbit(m),
+            Some(vec![m]),
+            "the merged fan is empty"
+        );
+        assert_ne!(
+            body.get_half_edge(halves[5]).unwrap().start,
+            body.get_half_edge(he).unwrap().start,
+            "the strut anchor starts off the survivor"
+        );
+        let torn = EulerOpError::OrbitBroken { he };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(he).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &torn, |b| {
+            b.kev_describing(he, &[], tol).unwrap_err()
+        });
+        assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn));
+    }
+
+    /// Whether a half-edge other than `killed` starts at `v`: the vertex
+    /// keeps an edge through the kill.
+    fn keeps_incidence(body: &Body<f64>, v: VertexKey, killed: &[HalfEdgeKey]) -> bool {
+        body.half_edges()
+            .any(|(x, data)| data.start == v && !killed.contains(&x))
+    }
+
+    #[test]
+    fn kev_refuses_a_none_anchor_on_a_survivor_that_keeps_its_edges() {
+        // The kill-anchor review's `None`-arm construction: the strut's
+        // mate's `next` torn back onto the killed half, so `next(m) ==
+        // he` reads as a segment kill and the orbit walk from `he`
+        // closes on `[he]`, while the survivor keeps the cube's three
+        // edges. Unchecked, the kill anchors it at `None` and returns
+        // `Ok`.
+        let tol = Tol::witness();
+        let fixture = crate::fixtures::ops_strut_cube(tol);
+        let mut body = fixture.body;
+        let (he, m) = (fixture.strut.he_plus, fixture.strut.he_minus);
+        body.get_half_edge_mut(m).unwrap().next = he;
+        let v = body.get_half_edge(he).unwrap().start;
+        assert_eq!(
+            body.vertex_orbit(m),
+            Some(vec![m]),
+            "the merged fan is empty"
+        );
+        assert_eq!(
+            body.vertex_orbit(he),
+            Some(vec![he]),
+            "the walk from `he` closes at once"
+        );
+        assert!(
+            keeps_incidence(&body, v, &[he, m]),
+            "the survivor keeps edges"
+        );
+        let torn = EulerOpError::OrbitBroken { he };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(he).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &torn, |b| {
+            b.kev_describing(he, &[], tol).unwrap_err()
+        });
+        assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn));
+    }
+
+    #[test]
+    fn kev_refuses_a_none_anchor_where_the_mate_is_not_on_the_killed_edge() {
+        // The kill-anchor review's `EdgeBijection` case (`ops_strut_cube`,
+        // seed 30, one tear): `halves[16]`'s edge claims `halves[25]` as
+        // its other half, whose own edge is another. The orbit walk from
+        // that mate steps through its own edge's mate, so the merged fan
+        // reads empty although `next(he)` is not the mate, and `next(m)
+        // == he` would pick the `None` arm at a survivor that keeps edges.
+        // The pair check reads the mate's own edge first and refuses it
+        // before any anchor is read.
+        let tol = Tol::witness();
+        let mut body = crate::fixtures::ops_strut_cube(tol).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        let (he, m) = (halves[16], halves[25]);
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let edge_data = body.get_edge_mut(edge).unwrap();
+        (edge_data.he_plus, edge_data.he_minus) = (he, m);
+        let he_data = body.get_half_edge(he).unwrap();
+        let m_data = body.get_half_edge(m).unwrap();
+        assert_ne!(m_data.edge, edge, "the mate's own edge is another");
+        assert_ne!(he_data.next, m, "the kill is not a strut's");
+        assert_eq!(m_data.next, he, "`next(m)` is the killed half");
+        assert_eq!(
+            body.vertex_orbit(m),
+            Some(vec![m]),
+            "the merged fan reads empty"
+        );
+        assert!(
+            keeps_incidence(&body, he_data.start, &[he, m]),
+            "the survivor keeps edges"
+        );
+        let torn = EulerOpError::NotSameEdge { he1: he, he2: m };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(he).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &torn, |b| {
+            b.kev_describing(he, &[], tol).unwrap_err()
+        });
+        assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn));
+    }
+
+    #[test]
+    fn kef_refuses_a_none_anchor_on_a_vertex_that_keeps_its_edges() {
+        // The kill-anchor review's `None`-arm construction: both killed
+        // halves' `next` torn onto each other, so neither end finds a
+        // surviving anchor, while both keep the cube's edges. Unchecked,
+        // the kill anchors both at `None` and returns `Ok`.
+        let (mut body, halves) = torn_cube(&[(9, 8), (8, 9)]);
+        let (he, m) = (halves[8], halves[9]);
+        assert_eq!(body.mate(he), Some(m));
+        for end in [he, m] {
+            let start = body.get_half_edge(end).unwrap().start;
+            assert!(
+                keeps_incidence(&body, start, &[he, m]),
+                "{end:?}'s start keeps edges"
+            );
+        }
+        let torn = EulerOpError::OrbitBroken { he };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
+    }
+
+    #[test]
+    fn kef_refuses_an_anchor_step_that_leaves_the_mates_start() {
+        // `next(he)` shortcut past its successor inside the dying loop:
+        // the cycle still closes and `start(he)`'s anchor `next(m)`
+        // stands, but `start(m)`'s, `next(he)`, now starts elsewhere.
+        let (mut body, halves) = torn_cube(&[]);
+        let he = halves[8];
+        let m = body.mate(he).unwrap();
+        let successor = body.get_half_edge(he).unwrap().next;
+        let skip = body.get_half_edge(successor).unwrap().next;
+        body.get_half_edge_mut(he).unwrap().next = skip;
+        let start = |b: &Body<f64>, x: HalfEdgeKey| b.get_half_edge(x).unwrap().start;
+        let next_m = body.get_half_edge(m).unwrap().next;
+        assert_eq!(
+            start(&body, next_m),
+            start(&body, he),
+            "`start(he)`'s anchor stands"
+        );
+        assert_ne!(
+            start(&body, skip),
+            start(&body, m),
+            "`start(m)`'s anchor starts off it"
+        );
+        let torn = EulerOpError::OrbitBroken { he: m };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
+    }
+
+    #[test]
+    fn kef_proves_the_anchor_that_wins_where_both_ends_are_one_vertex() {
+        // The kill-anchor review's `u == w` construction: a circular edge
+        // at one vertex `x`, the segment on one side and a strut on the
+        // other, so `next(m)` and `next(he)` are distinct live anchors of
+        // `x`. The `start(m)`-side write, `next(he)`, is last and wins.
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+        let lone = MevSite::Lone {
+            r#loop: seed.r#loop,
+        };
+        let segment = body
+            .mev_line(lone, Point3::new(1.0, 0.0, 0.0), tol)
+            .unwrap();
+        let chords = MefSite::Chords {
+            he1: segment.he_minus,
+            he2: segment.he_minus,
+        };
+        let circle = body.mef_chord(chords, tol).unwrap();
+        let fan = MevSite::Fan {
+            he1: circle.he_minus,
+            he2: circle.he_minus,
+        };
+        body.mev_line(fan, Point3::new(1.2, 0.1, 0.0), tol).unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        let (he, m) = (circle.he_plus, circle.he_minus);
+        let x = body.get_half_edge(he).unwrap().start;
+        assert_eq!(body.get_half_edge(m).unwrap().start, x, "both ends are `x`");
+        let next_he = body.get_half_edge(he).unwrap().next;
+        let next_m = body.get_half_edge(m).unwrap().next;
+        assert!(
+            next_he != next_m && ![he, m].contains(&next_he) && ![he, m].contains(&next_m),
+            "both anchors are live and distinct"
+        );
+
+        let mut killed = body.clone();
+        killed.kef(he).unwrap();
+        assert_eq!(validate(&killed), Ok(()));
+        assert_eq!(killed.get_vertex(x).unwrap().emanating, Some(next_he));
+
+        // `next(he)` shortcut to the segment's other half, which starts
+        // at the origin: the winning anchor leaves `x`.
+        let skip = body.get_half_edge(next_he).unwrap().next;
+        assert_ne!(body.get_half_edge(skip).unwrap().start, x);
+        body.get_half_edge_mut(he).unwrap().next = skip;
+        let torn = EulerOpError::OrbitBroken { he: m };
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
+    }
+
+    /// The loop `x` claims.
+    fn loop_of(body: &Body<f64>, x: HalfEdgeKey) -> LoopKey {
+        body.get_half_edge(x).unwrap().parent_loop
+    }
+
+    #[test]
+    fn kef_refuses_a_loop_anchor_step_into_another_loop() {
+        // The first one-tear counterexample of the loop-anchor probe
+        // (`review_d18::kill_anchors_on_torn_bodies`) on the declined
+        // cube: the mate's `next` torn onto a half-edge of a third loop
+        // that starts where the mate ends. `start(he)`'s anchor stands,
+        // but the surviving loop would anchor in the third loop.
+        // Unchecked, the kill writes that anchor and returns `Ok`.
+        let (mut body, halves) = torn_cube(&[(7, 14)]);
+        let (he, m, step) = (halves[6], halves[7], halves[14]);
+        assert_eq!(body.mate(he), Some(m));
+        let (l1, l2) = (loop_of(&body, he), loop_of(&body, m));
+        assert!(
+            ![l1, l2].contains(&loop_of(&body, step)),
+            "`next(m)` lies in a third loop"
+        );
+        let start = |x: HalfEdgeKey| body.get_half_edge(x).unwrap().start;
+        assert_eq!(start(step), start(he), "the vertex anchor stands");
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
+    }
+
+    /// Every door that runs `kev`'s plan refuses `torn` at `he`, with
+    /// the body deep-unchanged: `kev_describing` with `chords` first,
+    /// then `kev`, `kev_describing` with no list, the ungated kill and
+    /// `kev_merged_members`. `chords` re-describes every merged member,
+    /// so the describing door's gates pass and the plan is all that
+    /// stands between a public door and the kill's writes; with no fan,
+    /// it is empty and every door reaches the writes.
+    fn assert_kev_doors_refuse(
+        body: &mut Body<f64>,
+        he: HalfEdgeKey,
+        chords: &[(EdgeKey, EdgeCurveSpec<f64>)],
+        torn: &EulerOpError,
+    ) {
+        let tol = Tol::witness();
+        assert_kill_refuses(body, torn, |b| b.kev_describing(he, chords, tol));
+        assert_kill_refuses(body, torn, |b| b.kev(he));
+        assert_kill_refuses(body, torn, |b| b.kev_describing(he, &[], tol));
+        assert_kill_refuses(body, torn, |b| b.kev_ungated(he));
+        assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn.clone()));
+    }
+
+    /// The chord re-descriptions of `kev(halves[at])` on the untorn
+    /// declined cube, whose fan every tear below leaves standing: the
+    /// list that takes the describing door past its gates.
+    fn cube_chords(at: usize) -> Vec<(EdgeKey, EdgeCurveSpec<f64>)> {
+        let (untorn, halves) = torn_cube(&[]);
+        let chords = crate::seqgen::try_chord_redescriptions(&untorn, halves[at]).unwrap();
+        assert!(!chords.is_empty(), "the kill merges a fan");
+        chords
+    }
+
+    #[test]
+    fn kev_refuses_a_loop_anchor_step_into_another_loop() {
+        // The loop-anchor probe's first counterexample for `kev`: the
+        // mate's `next` torn onto a half-edge of a third loop that starts
+        // where the mate ends, so the fan walk and `he`'s loop stand and
+        // the mate's loop would anchor in the third loop.
+        let (mut body, halves) = torn_cube(&[(21, 5)]);
+        let (he, m, step) = (halves[20], halves[21], halves[5]);
+        assert_eq!(body.mate(he), Some(m));
+        let (l1, l2) = (loop_of(&body, he), loop_of(&body, m));
+        assert!(
+            ![l1, l2].contains(&loop_of(&body, step)),
+            "`next(m)` lies in a third loop"
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
+        assert_kev_doors_refuse(&mut body, he, &cube_chords(20), &torn);
+    }
+
+    #[test]
+    fn kev_refuses_a_loop_anchor_at_the_killed_mate() {
+        // The general arm with the mate's `next` torn onto itself: the
+        // mate's loop would re-anchor at `next(m)`, which is the mate,
+        // and it claims that loop, so only "the anchor is not killed"
+        // refuses it.
+        let (mut body, halves) = torn_cube(&[(7, 7)]);
+        let (he, m) = (halves[6], halves[7]);
+        assert_eq!(body.mate(he), Some(m));
+        let (l1, l2) = (loop_of(&body, he), loop_of(&body, m));
+        assert_ne!(l1, l2, "the general arm, across two loops");
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
+        assert_kev_doors_refuse(&mut body, he, &cube_chords(6), &torn);
+    }
+
+    #[test]
+    fn kev_refuses_an_adjacent_pair_whose_halves_lie_in_two_loops() {
+        // The probe's one-tear mirror case on the declined cube: the
+        // mate's `next` torn back onto the killed half, so `next(m) ==
+        // he` reads the two halves as adjacent in one loop. The mirror
+        // arm re-anchors `he`'s loop alone, and the mate's loop, which
+        // is another and anchors at the mate itself, keeps a dead
+        // anchor.
+        let (mut body, halves) = torn_cube(&[(7, 6)]);
+        let (he, m) = (halves[6], halves[7]);
+        assert_eq!(body.mate(he), Some(m));
+        let (l1, l2) = (loop_of(&body, he), loop_of(&body, m));
+        assert_ne!(l1, l2, "the halves claim two loops");
+        assert_eq!(
+            body.get_loop(l2).unwrap().boundary,
+            LoopBoundary::Cycle { first: m },
+            "the mate's loop anchors at the mate"
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
+        assert_kev_doors_refuse(&mut body, he, &cube_chords(6), &torn);
+    }
+
+    #[test]
+    fn kev_refuses_a_strut_whose_halves_lie_in_two_loops() {
+        // The strut arm across two loops (the review's construction): on
+        // the strut cube, the top loop's half `he` from the strut's base
+        // has its mate in a side face; `next(he)` is torn onto the mate
+        // and `next(m)` onto the strut, so the kill reads a strut in the
+        // top loop. The fan walk closes at once on the mate, so no fan
+        // merges and no gate is asked; the strut arm re-anchors the top
+        // loop alone, and the side face's loop keeps the dead mate.
+        let fixture = crate::fixtures::ops_strut_cube(Tol::witness());
+        let mut body = fixture.body;
+        let base = body.get_half_edge(fixture.strut.he_plus).unwrap().start;
+        let (he, _) = body
+            .half_edges()
+            .find(|&(x, data)| {
+                data.parent_loop == fixture.outer
+                    && data.start == base
+                    && x != fixture.strut.he_plus
+            })
+            .unwrap();
+        let m = body.mate(he).unwrap();
+        let l2 = loop_of(&body, m);
+        assert_ne!(l2, fixture.outer, "the mate lies in a side face");
+        body.get_half_edge_mut(he).unwrap().next = m;
+        body.get_half_edge_mut(m).unwrap().next = fixture.strut.he_plus;
+        assert_eq!(body.vertex_orbit(m), Some(vec![m]), "no fan merges");
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
+        assert_kev_doors_refuse(&mut body, he, &[], &torn);
+    }
+
+    #[test]
+    fn kev_refuses_a_segment_whose_halves_lie_in_two_loops() {
+        // The segment arm across two loops: a segment beside a circle,
+        // with the segment's minus half torn to claim the circle's plus
+        // loop and that loop torn to anchor at it. The cycle `[he, m]`
+        // reads a segment, whose arm empties `he`'s loop alone; the
+        // circle's loop keeps the dead mate as its anchor.
+        let tol = Tol::witness();
+        let mut body = Body::new();
+        let seed = body.mvfs(p(0.0), true).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+                tol,
+            )
+            .unwrap();
+        let other = body.mvfs(p(5.0), true).unwrap();
+        let circle = body
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: other.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        let (he, m) = (seg.he_plus, seg.he_minus);
+        let l2 = loop_of(&body, circle.he_plus);
+        body.get_half_edge_mut(m).unwrap().parent_loop = l2;
+        body.get_loop_mut(l2).unwrap().boundary = LoopBoundary::Cycle { first: m };
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
+        assert_kev_doors_refuse(&mut body, he, &[], &torn);
+    }
+
+    #[test]
+    fn kev_refuses_a_segment_kill_that_merges_a_fan() {
+        // The segment arm where a fan merges onto the survivor, which
+        // the mate's own edge being another makes possible. A digon
+        // pillow with a strut at `v1` inside face B; the edge of `a0`
+        // (`v0 → v1`) is torn to claim `a1` (`v1 → v0`, face A's other
+        // half) as its mate, and the strut's return half is torn onto
+        // `a1`. Face A's loop is `[a0, a1]`, so the kill reads a segment;
+        // but the orbit walk from `a1` steps through `a1`'s own edge and
+        // closes on `[a1, strut]`, a fan the merge moves onto `v0`. The
+        // loop would empty at `v0` while the strut starts there. The pair
+        // check reads `a1`'s own edge first and refuses it before any
+        // anchor is read.
+        let tol = Tol::witness();
+        let pillow = crate::fixtures::pillow(tol);
+        let mut body = pillow.body;
+        let (a0, a1, b0) = (pillow.hes_a[0], pillow.hes_a[1], pillow.hes_b[0]);
+        let strut = body
+            .mev_line(MevSite::Fan { he1: b0, he2: b0 }, p(1.5), tol)
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        let edge = body.get_edge_mut(pillow.edges[0]).unwrap();
+        assert_eq!(edge.he_plus, a0);
+        edge.he_minus = a1;
+        body.get_half_edge_mut(strut.he_minus).unwrap().next = a1;
+        let next = |b: &Body<f64>, x: HalfEdgeKey| b.get_half_edge(x).unwrap().next;
+        assert_eq!((next(&body, a0), next(&body, a1)), (a1, a0), "a segment");
+        assert_eq!(
+            body.vertex_orbit(a1),
+            Some(vec![a1, strut.he_plus]),
+            "a merged fan"
+        );
+        // The strut, re-described where the merge lands it: from `v0`
+        // to its tip.
+        let point = |x: HalfEdgeKey| {
+            let v = body.get_half_edge(x).unwrap().start;
+            body.resolve_vertex_point(v).unwrap()
+        };
+        let chords = [(
+            strut.edge,
+            EdgeCurveSpec::line_between(point(a0), point(strut.he_minus)),
+        )];
+        let torn = EulerOpError::NotSameEdge { he1: a0, he2: a1 };
+        assert_kev_doors_refuse(&mut body, a0, &chords, &torn);
+    }
+
+    #[test]
+    fn kev_refuses_to_empty_a_loop_at_another_loops_lone_vertex() {
+        // The review's S8: a segment beside a lone vertex `x` (a second
+        // `mvfs`), with the segment's plus half torn to start at `x`.
+        // The kill reads `x` as the survivor and the segment's loop as
+        // emptying there, but `x` is already another loop's lone vertex,
+        // and the segment's own start would keep a dead anchor.
+        let tol = Tol::witness();
+        let mut body = Body::new();
+        let seed = body.mvfs(p(0.0), true).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+                tol,
+            )
+            .unwrap();
+        let other = body.mvfs(p(5.0), true).unwrap();
+        body.get_half_edge_mut(seg.he_plus).unwrap().start = other.vertex;
+        let torn = EulerOpError::LoopCycleBroken {
+            r#loop: seed.r#loop,
+        };
+        assert_kev_doors_refuse(&mut body, seg.he_plus, &[], &torn);
+    }
+
+    #[test]
+    fn kef_refuses_to_empty_a_loop_that_strands_its_vertex() {
+        // The review's S9: a circle (a self-loop edge at `v`, each half
+        // its own one-half-edge loop) beside a lone vertex `x`, with the
+        // mate torn to start at `x`. The kill reads the `Lone` inverse
+        // and anchors both `v` and `x` at `None`, but empties the
+        // surviving loop at `x`, which leaves `v` held by no loop.
+        let tol = Tol::witness();
+        let mut body = Body::new();
+        let seed = body.mvfs(p(0.0), true).unwrap();
+        let circle = body
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        let other = body.mvfs(p(5.0), true).unwrap();
+        let (he, m) = (circle.he_plus, circle.he_minus);
+        assert_eq!(body.mate(he), Some(m));
+        body.get_half_edge_mut(m).unwrap().start = other.vertex;
+        let torn = EulerOpError::OrbitBroken { he };
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
+    }
+
+    #[test]
+    fn kef_refuses_a_remnant_walked_through_another_loop() {
+        // The loop-anchor probe's `kef` counterexample once the written
+        // anchor is proven (declined cube, seed 57, two tears): the
+        // dying loop's walk is diverted through a third loop and back,
+        // so the remnant carries that loop's anchor into the surviving
+        // loop. Unchecked, the third loop keeps an anchor that the kill
+        // moved into another loop, and the kill returns `Ok`.
+        let (mut body, halves) = torn_cube(&[(5, 14), (13, 1)]);
+        let he = halves[1];
+        let l1 = loop_of(&body, he);
+        let walk = body.loop_cycle(he).unwrap();
+        let taken: Vec<LoopKey> = walk
+            .iter()
+            .map(|&x| loop_of(&body, x))
+            .filter(|&l| l != l1)
+            .collect();
+        assert!(
+            taken.iter().any(|&l| {
+                let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary else {
+                    return false;
+                };
+                walk.contains(&first)
+            }),
+            "the walk takes a third loop's anchor"
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l1 };
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
+    }
+
+    #[test]
+    fn kef_refuses_to_kill_a_loop_whose_walk_skips_a_member() {
+        // The dying loop's walk torn past its third member
+        // (`next(next(he)) := next(next(next(he)))`, one `next` tear on
+        // the declined cube): the walk closes without that member, which
+        // still claims the dying loop. Unchecked, the kill removes the
+        // loop, leaves the member naming it, and returns `Ok`.
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let (he, _) = body.half_edges().next().unwrap();
+        let second = body.get_half_edge(he).unwrap().next;
+        let skipped = body.get_half_edge(second).unwrap().next;
+        let fourth = body.get_half_edge(skipped).unwrap().next;
+        body.get_half_edge_mut(second).unwrap().next = fourth;
+        let l1 = loop_of(&body, he);
+        assert!(
+            !body.loop_cycle(he).unwrap().contains(&skipped) && loop_of(&body, skipped) == l1,
+            "the walk skips a member of the dying loop"
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l1 };
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
+    }
+
+    /// A segment's solid beside a lone vertex's (`mvfs`, then `mev_line`
+    /// at `MevSite::Lone`, then `mvfs`): the segment's plus half and the
+    /// lone solid.
+    fn segment_beside_a_lone_solid() -> (Body<f64>, HalfEdgeKey, MvfsCreated) {
+        let (mut body, _, seg) = segment();
+        let lone = body.mvfs(p(5.0), true).unwrap();
+        (body, seg.he_plus, lone)
+    }
+
+    #[test]
+    fn kvfs_refuses_a_loop_a_torn_half_edge_claims() {
+        // The segment's plus half torn to claim the lone loop. Unchecked,
+        // the kill removes the loop the half-edge names, and returns `Ok`.
+        let (mut body, he, lone) = segment_beside_a_lone_solid();
+        body.get_half_edge_mut(he).unwrap().parent_loop = lone.r#loop;
+        let torn = EulerOpError::LoopCycleBroken {
+            r#loop: lone.r#loop,
+        };
+        assert_kill_refuses(&mut body, &torn, |b| b.kvfs(lone.solid));
+    }
+
+    #[test]
+    fn kvfs_refuses_a_vertex_a_torn_half_edge_starts_at() {
+        // The segment's plus half torn to start at the lone vertex.
+        // Unchecked, the kill removes the vertex the half-edge starts at,
+        // and returns `Ok`.
+        let (mut body, he, lone) = segment_beside_a_lone_solid();
+        body.get_half_edge_mut(he).unwrap().start = lone.vertex;
+        let torn = EulerOpError::OrbitBroken { he };
+        assert_kill_refuses(&mut body, &torn, |b| b.kvfs(lone.solid));
     }
 }

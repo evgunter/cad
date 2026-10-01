@@ -30,7 +30,7 @@ use editor_core::{
     ProfileLift, ProfileProgram, RecipeNodeId, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{frame, insert, len, on_frame, run, square, step};
+use fixture::{insert, len, on_frame, run, square, step, xy_frame};
 use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::{Bracket, Verdict};
@@ -296,10 +296,7 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
 #[test]
 fn a_lone_frame_decides_its_placement_with_no_one_to_read_it() {
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-lone-frame"), Tol::witness());
-    let (doc, lone) = insert(
-        doc,
-        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, lone) = insert(doc, xy_frame());
     let ev = run(&doc, &EvalOptions::default());
     assert_eq!(
         per_node(&ev),
@@ -572,7 +569,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the witness tolerance bands");
     let in_band = (band.zero() * band.escalate()).sqrt();
-    let edge = ParamName::new("island_edge");
+    let edge = ParamName::from_static("island_edge");
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-pre-pass-fails"), tol);
     let (doc, _) = step(
         doc,
@@ -581,10 +578,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
             value: DocParam::continuous(Dimension::Length, 0.25),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, plane) = insert(doc, xy_frame());
     let at_edge = || Expr::param(edge.clone(), Dimension::Length);
     let island = LoopProgram::polygon_expr([
         [len(0.0), len(-0.25)],
@@ -651,7 +645,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
 /// because the frame was the node's.
 #[test]
 fn a_pre_key_expr_refusal_carries_no_escalations() {
-    let divisor = ParamName::new("divisor");
+    let divisor = ParamName::from_static("divisor");
     let doc = ProfileDoc::empty(DocumentId::derive("kstats-expr-refusal"), Tol::witness());
     let (doc, _) = step(
         doc,
@@ -660,10 +654,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             value: DocParam::continuous(Dimension::Scalar, 1.0),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, plane) = insert(doc, xy_frame());
     let over = || {
         Expr::div(len(1.0), Expr::param(divisor.clone(), Dimension::Scalar))
             .expect("a length over a scalar")

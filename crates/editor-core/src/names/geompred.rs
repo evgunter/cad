@@ -66,7 +66,7 @@
 use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
-use crate::eval::{DatumValue, Evaluation, NodeResult, ValuePayload};
+use crate::eval::{DatumValue, Evaluation, NodeStanding, ValuePayload};
 use crate::expr::{Dimension, Expr, ParamEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;
@@ -189,9 +189,11 @@ pub enum GeomPred {
 /// answers the ambient tolerance, which `select_where` asks about
 /// unconditionally before it reads a single candidate. The static
 /// faults of a malformed query — [`NotADatum`](Self::NotADatum),
+/// [`DatumHasNoValue`](Self::DatumHasNoValue),
 /// [`NotALength`](Self::NotALength), [`BadValue`](Self::BadValue) —
-/// and the detector's [`PairInBand`](Self::PairInBand) are about the
-/// query and the pair, not about the filter's exactness.
+/// and the detector's [`PairInBand`](Self::PairInBand) and
+/// [`NodeHasNoValue`](Self::NodeHasNoValue) are about the query and
+/// the pair, not about the filter's exactness.
 /// One door with one contract was preferred over splitting into an
 /// infallible and a fallible materializer.
 #[derive(Debug)]
@@ -231,14 +233,25 @@ pub enum SelectRefusal {
         /// Why.
         error: InterrogateError,
     },
-    /// The referenced datum node is not an evaluated datum.
+    /// The referenced datum node evaluated to something other than a
+    /// datum.
     NotADatum {
         /// The node referenced by [`GeomPred::DatumDistance`].
         datum: RecipeNodeId,
-        /// What that node produced instead (`ValuePayload::kind_name`),
-        /// or why it has no value at all.
+        /// What that node produced instead (`ValuePayload::kind_name`).
         found: &'static str,
     },
+    /// The referenced datum node has no value in this evaluation.
+    DatumHasNoValue(
+        /// The datum node's standing.
+        NodeStanding,
+    ),
+    /// One of the flush detector's two nodes has no value in this
+    /// evaluation, so there is no geometry to pair.
+    NodeHasNoValue(
+        /// That node's standing.
+        NodeStanding,
+    ),
     /// The stated value is not a length (`Dimension::Length`) — the
     /// comparand of a distance must be a distance.
     NotALength {
@@ -342,6 +355,15 @@ impl core::fmt::Display for SelectRefusal {
                  a datum — point a distance query at an evaluated datum",
                 datum.0
             ),
+            Self::DatumHasNoValue(standing) => {
+                write!(
+                    f,
+                    "select: the distance query's datum has no value: {standing}"
+                )
+            }
+            Self::NodeHasNoValue(standing) => {
+                write!(f, "select: the flush query's node has no value: {standing}")
+            }
             Self::NotALength { dim } => write!(
                 f,
                 "select: the comparand of a distance is a distance, and this expression has \
@@ -421,9 +443,10 @@ pub(crate) enum Prepared<'a, T: Decide> {
 ///
 /// # Errors
 ///
-/// [`SelectRefusal::NotADatum`], [`SelectRefusal::NotALength`],
-/// [`SelectRefusal::BadValue`] — all three are STATIC faults of the
-/// query itself, so they surface before a single margin is taken.
+/// [`SelectRefusal::NotADatum`], [`SelectRefusal::DatumHasNoValue`],
+/// [`SelectRefusal::NotALength`], [`SelectRefusal::BadValue`] — faults
+/// of the query's own references, so they surface before a single
+/// margin is taken.
 pub(crate) fn prepare<'a, T: Decide>(
     ev: &'a Evaluation<T>,
     geom: &[GeomPred],
@@ -438,26 +461,18 @@ pub(crate) fn prepare<'a, T: Decide>(
                 if value.dim() != Dimension::Length {
                     return Err(SelectRefusal::NotALength { dim: value.dim() });
                 }
-                let found = match ev.nodes.get(datum) {
-                    Some(NodeResult::Ok(v)) => match &v.payload {
-                        ValuePayload::Datum(d) => {
-                            return Ok(Prepared::Distance {
-                                datum: d,
-                                cmp: *cmp,
-                                value: crate::expr::eval(value, params)
-                                    .map_err(SelectRefusal::BadValue)?,
-                            });
-                        }
-                        other => other.kind_name(),
-                    },
-                    Some(NodeResult::Failed(_)) => "a failed node",
-                    Some(NodeResult::Poisoned { .. }) => "a poisoned node",
-                    None => "an unevaluated node",
-                };
-                Err(SelectRefusal::NotADatum {
-                    datum: *datum,
-                    found,
-                })
+                let v = ev.usable(*datum).map_err(SelectRefusal::DatumHasNoValue)?;
+                match &v.payload {
+                    ValuePayload::Datum(d) => Ok(Prepared::Distance {
+                        datum: d,
+                        cmp: *cmp,
+                        value: crate::expr::eval(value, params).map_err(SelectRefusal::BadValue)?,
+                    }),
+                    other => Err(SelectRefusal::NotADatum {
+                        datum: *datum,
+                        found: other.kind_name(),
+                    }),
+                }
             }
         })
         .collect()
@@ -528,4 +543,124 @@ pub(crate) fn candidate_matches<T: Decide>(
         }
     }
     Ok(true)
+}
+
+/// **`SelectRefusal`'s variant census**, sited inside the crate
+/// because `#[non_exhaustive]` binds only outside it: here the
+/// census's `match` is wildcard-free and rustc checks it, so a variant
+/// added to the enum stops this crate's test build until it is named
+/// in `CENSUS`. That list is the roster too, and the
+/// test below holds one sample per entry, so the new name is then
+/// declared with no sample and the test reports it.
+///
+/// `tests/display_contract.rs` cannot hold this guarantee (its `match`
+/// must carry a wildcard) and does not need to see this one: its own
+/// roster is welded to its rendering cases there.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod census {
+    use std::collections::BTreeSet;
+
+    use super::*;
+    use crate::names::{CapEnd, EntityKind, RoleSeg};
+
+    test_utils::f6_variants! {
+        /// Every `SelectRefusal` variant, as the wildcard-free `match`
+        /// and the roster at once.
+        pub(super) const CENSUS: SelectRefusal = [
+            InBand,
+            TiedDisagrees,
+            Unreadable,
+            NotADatum,
+            DatumHasNoValue,
+            NodeHasNoValue,
+            NotALength,
+            PairInBand,
+            BadValue,
+            Band,
+        ];
+    }
+
+    fn name() -> Box<StableName> {
+        Box::new(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(7),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        })
+    }
+
+    fn in_band() -> geom_core::Indeterminate {
+        geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(3e-11),
+            band: Band::new(1e-12, 1e-9).expect("zero < escalate"),
+            predicate: Some(SEL_DATUM_DISTANCE),
+            terminal_sliver: false,
+        }
+    }
+
+    #[test]
+    fn one_sample_per_variant_each_under_its_own_identifier() {
+        let samples = [
+            SelectRefusal::InBand {
+                name: name(),
+                predicate: SEL_DATUM_DISTANCE,
+                source: in_band(),
+            },
+            SelectRefusal::TiedDisagrees {
+                name: name(),
+                matched: 1,
+                candidates: 3,
+            },
+            SelectRefusal::Unreadable {
+                name: name(),
+                error: InterrogateError::WholeBody,
+            },
+            SelectRefusal::NotADatum {
+                datum: RecipeNodeId(9),
+                found: "a body",
+            },
+            SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
+                node: RecipeNodeId(9),
+                through: RecipeNodeId(4),
+            }),
+            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
+                node: RecipeNodeId(9),
+            }),
+            SelectRefusal::NotALength {
+                dim: Dimension::Angle,
+            },
+            SelectRefusal::PairInBand {
+                pair: Box::new((*name(), *name())),
+                predicate: "bool_plane_side_of",
+                source: in_band(),
+            },
+            SelectRefusal::BadValue(crate::expr::EvalError::ContinuousExprInCountEval {
+                found: Dimension::Length,
+            }),
+            SelectRefusal::Band(BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            }),
+        ];
+        let read: Vec<String> = samples
+            .iter()
+            .map(test_utils::f6::variant_identifier)
+            .collect();
+        let read: Vec<&str> = read.iter().map(String::as_str).collect();
+        let distinct: BTreeSet<&str> = read.iter().copied().collect();
+        assert_eq!(
+            distinct.len(),
+            read.len(),
+            "two samples are one variant: {read:?}"
+        );
+        if let Some(report) = test_utils::census::set_difference(
+            CENSUS.identifiers(),
+            &read,
+            "the `SelectRefusal` census and its samples disagree",
+            "sampled here and absent from `CENSUS`",
+            "in `CENSUS` with no sample here — add one",
+        ) {
+            panic!("{report}");
+        }
+    }
 }

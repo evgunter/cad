@@ -72,12 +72,16 @@
 //! one class of margin decides and nothing about the certificate, and
 //! a bound says that without an impl to write.
 
+use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::spline::SplineError;
-use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
+use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
+use geom_core::spline::algebra::{GridSkip, domain_grid_points};
+use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, Real, Vec3};
 
-use crate::certify::CERT_SAMPLES;
+use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
+use crate::recourse::{Reading, Refused, RefusedArm};
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
 
 /// What the plane × NURBS lane proved, in meters unless noted.
@@ -130,11 +134,19 @@ pub enum PlaneNurbsRefusal {
     NotTransverse {
         /// The interior sample index.
         sample: u32,
+        /// The verdict on the levered angle, with its reporting margin.
+        verdict: Refused,
     },
-    /// The chart image could not be interpolated through the schedule's
-    /// foot points (a degenerate parameterization — coincident feet, a
-    /// singular collocation system).
+    /// The interpolation through the schedule's foot points refused
+    /// ([`PCURVE_FIT_REFUSAL`]). The parameters are the schedule's own,
+    /// fixed and strictly ascending, so nothing a caller sets reaches it.
     PcurveFit,
+    /// The interpolated image could not be re-expressed on the
+    /// carrier's own parameter domain: the domain door's refusal,
+    /// carried whole. Told apart from [`PcurveFit`](Self::PcurveFit)
+    /// because its recourse is the carrier's parameterization, not a
+    /// defect report.
+    CarrierDomain(CarrierDomainRefusal),
     /// A certificate limb exceeded ε, with the measured bound. **The
     /// declare-and-check refusal**: the file's carrier is not on both
     /// surfaces to the run's tolerance, and this is by how much.
@@ -144,26 +156,35 @@ pub enum PlaneNurbsRefusal {
         /// The measured bound, in meters.
         value: f64,
     },
-    /// The uniqueness tube's transversality straddles zero — a genuine
-    /// sliver of the operand pair along the locus (F6: escalate, never
-    /// guess).
+    /// The uniqueness tube's transversality is not certified clear of
+    /// the zero band — a genuine sliver of the operand pair along the
+    /// locus at this tolerance (F6: escalate, never guess).
     TubeStraddles {
-        /// The transversality enclosure's **certified clearance from
-        /// zero**, levered — NOT a measurement of how far the sliver
-        /// straddles. An enclosure that contains zero has certified
-        /// clearance exactly `0.0` by construction (rung 3's
+        /// The verdict on the transversality enclosure's **certified
+        /// clearance from zero**, levered — NOT a measurement of how far
+        /// the sliver straddles. An enclosure that contains zero has
+        /// certified clearance exactly `0.0` by construction (rung 3's
         /// `zero_free_lower_bound`), and containing zero is what this
-        /// refusal reports, so this field is `0.0` on every straddling
+        /// refusal reports, so the margin is `0.0` on every straddling
         /// refusal and a small positive number only on the levered
-        /// rungs that failed the band instead. Read it as the bound
-        /// the certificate could prove, never as the geometry's own
-        /// extent; the informative companion is `boxes`.
-        certified_clearance: f64,
+        /// rungs that failed the band instead. Read it as the bound the
+        /// certificate could prove, never as the geometry's own extent;
+        /// the informative companion is `boxes`.
+        verdict: Refused,
         /// How many boxes of the tube's chain the clearance above was
         /// certified over — the resolution the verdict was reached at.
         boxes: u32,
     },
-    /// A margin escalated inside the certificate.
+    /// The per-sample transversality margin escalated: the same
+    /// decision as [`NotTransverse`](Self::NotTransverse), undecided.
+    TransversalityEscalated {
+        /// The interior sample index.
+        sample: u32,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// A margin escalated inside the rung-3 certificate, or the
+    /// reported transversality was poisoned.
     Escalated(Indeterminate),
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly. A routing boundary (C12.1), never a
@@ -172,6 +193,144 @@ pub enum PlaneNurbsRefusal {
         /// The refused class, named.
         what: &'static str,
     },
+}
+
+/// What [`PlaneNurbsRefusal::PcurveFit`] states, and the pcurve mint's
+/// refusal for the same failure of the same producer
+/// ([`crate::FittedLane::general_image`]).
+pub(crate) const PCURVE_FIT_REFUSAL: &str = "the chart image could not be interpolated through the schedule's foot points: on the \
+     schedule's fixed, strictly ascending parameters the interpolation refuses only a foot it \
+     cannot take (a non-finite one) or a collocation system it cannot solve";
+
+/// The one recourse for a carrier whose parameter domain its chart
+/// image cannot be expressed on ([`CarrierDomainRefusal`]), read by the
+/// lane's refusal and by `topo`'s at-rest classifier alike.
+pub const CARRIER_DOMAIN_RECOURSE: &str = "Recourse: give the curve a parameter range of moderate \
+     width near zero, such as 0 to 1; an affine reparameterization moves no point of it";
+
+/// The chart image could not be re-expressed on the carrier's own
+/// parameter domain `[lo, hi]`: the domain door
+/// (`NurbsCurve2::on_domain`) refused, and its typed reason rides here.
+///
+/// The image lives on the carrier's parameter by construction (the OQ4
+/// identity, module docs), so no image of this carrier can be expressed
+/// on a domain the door refuses. An affine reparameterization of the
+/// carrier moves no point of it and gives the door a domain it accepts,
+/// which is why that is the recourse.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CarrierDomainRefusal {
+    /// The carrier's domain start.
+    pub lo: f64,
+    /// The carrier's domain end.
+    pub hi: f64,
+    /// Which of the door's two refusals.
+    pub fault: CarrierDomainFault,
+}
+
+/// The domain door's refusal of a carrier domain, in the two shapes it
+/// takes on a validated image: `SplineError`'s other arms are about
+/// weights and counts, which the door carries over verbatim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarrierDomainFault {
+    /// [`SplineError::DomainInvalid`]: the interval is not a finite
+    /// increasing interval of finite width — for a validated carrier,
+    /// a width that overflows.
+    Interval,
+    /// [`SplineError::KnotVectorInvalid`]: `f64` rounding collapsed the
+    /// image's knots onto a domain too narrow for the magnitude of its
+    /// ends, and the clamp contract refused the result by this clause.
+    Collapse(KnotVectorIssue),
+}
+
+impl CarrierDomainRefusal {
+    /// The domain door's refusal on `[lo, hi]`, typed.
+    ///
+    /// # Panics
+    ///
+    /// On a weight or count arm of [`SplineError`], which the door
+    /// never returns: it re-expresses the knots alone and carries the
+    /// validated net and weights over verbatim.
+    fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
+        let fault = match e {
+            SplineError::DomainInvalid { .. } => CarrierDomainFault::Interval,
+            SplineError::KnotVectorInvalid { reason } => CarrierDomainFault::Collapse(*reason),
+            SplineError::NonPositiveWeight { .. }
+            | SplineError::NonFiniteWeight { .. }
+            | SplineError::ControlCountMismatch { .. }
+            | SplineError::WeightCountMismatch { .. } => unreachable!(
+                "the domain door re-expresses knots only, so it cannot refuse a weight or a \
+                 count: {e:?}"
+            ),
+        };
+        Self { lo, hi, fault }
+    }
+}
+
+impl core::fmt::Display for CarrierDomainRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let (lo, hi) = (Readable(self.lo), Readable(self.hi));
+        match self.fault {
+            CarrierDomainFault::Interval => write!(
+                f,
+                "the carrier's parameter domain [{lo}, {hi}] is not a finite increasing interval \
+                 of finite width"
+            )?,
+            CarrierDomainFault::Collapse(_) => write!(
+                f,
+                "f64 rounding collapsed the chart image's knots onto the carrier's parameter \
+                 domain [{lo}, {hi}], which is too narrow for the magnitude of its ends"
+            )?,
+        }
+        write!(
+            f,
+            ", so the chart image, which lives on the carrier's own parameter, cannot be \
+             expressed on it. {CARRIER_DOMAIN_RECOURSE}"
+        )
+    }
+}
+
+impl PlaneNurbsRefusal {
+    /// The ending this refusal's decision gives it, read at `reading`
+    /// ([`recourse`]), or `None` for a refusal that is no decision's
+    /// refused arm. `Display` renders the payload alone, as
+    /// [`crate::CertifyError`]'s does, and the door appends this.
+    ///
+    /// The per-sample transversality and the uniqueness tube are the
+    /// `Transversality` decision, whose band-decided arms end alike (D4
+    /// ¶1 (iv)); the certificate's limb and escalation refusals share
+    /// the certificate's ending.
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        self.decision()
+            .map(|(check, arm)| recourse(check, arm, reading))
+    }
+
+    /// The decision this refusal is a refused arm of, and which arm
+    /// ([`crate::CertifyError::decision`]'s structure).
+    #[must_use]
+    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
+        Some(match self {
+            Self::NotTransverse { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            Self::TransversalityEscalated { cause, .. } => {
+                (CertCheck::Transversality, RefusedArm::Undecided(cause))
+            }
+            Self::Limb { .. } => (CertCheck::PlaneNurbsCertificate, RefusedArm::SignCertain),
+            // The tube's margin is the lane's transversality over the
+            // chain (`ssi_tube_transversality`), and this refusal is its
+            // decided verdict.
+            Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            Self::Escalated(diag) => (
+                CertCheck::PlaneNurbsCertificate,
+                RefusedArm::Undecided(diag),
+            ),
+            Self::FootPointInconclusive { .. }
+            | Self::PcurveFit
+            | Self::CarrierDomain(_)
+            | Self::Unsupported { .. } => {
+                return None;
+            }
+        })
+    }
 }
 
 impl core::fmt::Display for PlaneNurbsRefusal {
@@ -185,34 +344,38 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 "the foot-point projection did not converge at schedule sample {sample} \
                  (last distance {last_distance:e} m)"
             ),
-            Self::NotTransverse { sample } => write!(
+            Self::NotTransverse { sample, .. } => write!(
                 f,
                 "the plane and the NURBS wall have coincident tangent planes at interior \
-                 sample {sample} — the Intersection transversality precondition fails (D2); {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 sample {sample}, where the edge's description says they cross"
             ),
-            Self::PcurveFit => write!(
+            Self::TransversalityEscalated { sample, cause } => write!(
                 f,
-                "the chart image could not be interpolated through the schedule's foot \
-                 points (a degenerate parameterization)"
+                "whether the plane and the NURBS wall cross at interior sample {sample} is too \
+                 close to call: {}",
+                cause.payload()
             ),
+            Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
+            Self::CarrierDomain(refusal) => write!(f, "{refusal}"),
             Self::Limb { limb, value } => write!(
                 f,
                 "{} measured {value:e} m against the run tolerance — the declared carrier \
                  is not on both surfaces",
                 limb.name()
             ),
-            Self::TubeStraddles {
-                certified_clearance,
-                boxes,
-            } => write!(
+            Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "the uniqueness tube's transversality enclosure contains zero over {boxes} \
-                 boxes of the chain — a genuine sliver of the plane/NURBS pair along the \
-                 locus; the certificate's proven clearance from zero is {certified_clearance:e} \
-                 m, which is the bound it could prove and not the sliver's own extent"
+                "the uniqueness tube's transversality is not certified clear of the zero band \
+                 over {boxes} boxes of the chain — a sliver of the plane/NURBS pair along the \
+                 locus at this tolerance; the certificate's proven clearance from zero is {:e} \
+                 m, which is the bound it could prove and not the sliver's own extent",
+                verdict.margin()
             ),
-            Self::Escalated(diag) => write!(f, "a plane × NURBS limb margin escalated: {diag}"),
+            Self::Escalated(diag) => write!(
+                f,
+                "a plane × NURBS limb margin escalated: {}",
+                diag.payload()
+            ),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
         }
     }
@@ -329,12 +492,15 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // edge's spatial extent — the same meter the analytic
         // `Intersection` arm hands `classify_dihedral`.
         let margin = geom_core::Margin::levered(sin_theta, extent);
-        match crate::dihedral::decide("plane_nurbs_transversality", margin, band) {
-            Ok(geom_core::Sign::Positive) => {}
-            Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
-                return Err(PlaneNurbsRefusal::NotTransverse { sample: i });
+        match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(PlaneNurbsRefusal::NotTransverse { sample: i, verdict });
+                }
             }
-            Err(cause) => return Err(PlaneNurbsRefusal::Escalated(cause)),
+            Err(cause) => {
+                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+            }
         }
         // `Real::min` PROPAGATES poison (unlike `f64::min`, which
         // returns the non-NaN operand), so a poisoned sine cannot
@@ -388,7 +554,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ///
 /// **Two consumers, one producer.** [`plane_nurbs_limbs`] certifies the image as
 /// part of the plane × NURBS edge certificate at ADOPT time;
-/// [`crate::PcurveFittedLane::general_image`] hands the same image to
+/// [`crate::FittedLane::general_image`] hands the same image to
 /// the pcurve mint, where it becomes a stored
 /// [`crate::Pcurve::General`] cache certified through
 /// [`crate::PcurveCache::certify_general`]. They must be the same bits
@@ -404,11 +570,13 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ///
 /// # Errors
 ///
+/// [`PlaneNurbsRefusal::CarrierDomain`] before any sample when the
+/// carrier's domain is not an interval the door accepts, or after the
+/// fit when the image's knots collapse on it;
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] at the first sample
-/// whose projection does not converge (never a best-effort foot),
-/// [`PlaneNurbsRefusal::PcurveFit`] for a degenerate interpolation or
-/// for a degenerate carrier interval (the domain door's refusal, which
-/// `PcurveFit` does not carry), or whatever `per_sample` returns.
+/// whose projection does not converge (never a best-effort foot);
+/// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses; or
+/// whatever `per_sample` returns.
 pub(crate) fn chart_image<T, F>(
     carrier: &NurbsCurve3<T>,
     wall: &NurbsSurface<T>,
@@ -430,24 +598,26 @@ where
         });
     }
     let (t0, t1) = carrier.domain();
+    let domain_refusal = |e| PlaneNurbsRefusal::CarrierDomain(CarrierDomainRefusal::of(t0, t1, &e));
+    // The domain door, asked first on a vector with no interior knots
+    // (so only the interval itself can refuse): a domain whose width
+    // overflows would otherwise reach the schedule as NaN parameters and
+    // refuse as a foot that did not converge, hiding the carrier's own
+    // fault behind the projection's.
+    KnotVector::unit_segment(NonZeroUsize::MIN)
+        .on_domain(t0, t1)
+        .map_err(domain_refusal)?;
     // The schedule is a SUPERSET of the certificate's own
-    // ([`CERT_SAMPLES`] divides it), so limb 1 re-projects at
-    // parameters the image passes through exactly. Its ends are the
-    // carrier's ends ASSIGNED: the image is re-expressed on `[t0, t1]`
-    // exactly (`on_carrier_domain`), so the foot its last knot carries
-    // has to be the projection at `t1` itself, and `t0 + (t1 − t0)·1`
-    // is an ulp off `t1` in general.
+    // ([`CERT_SAMPLES`] divides it) and both are `schedule_param`, so
+    // limb 1 re-projects at parameters the image passes through
+    // exactly, its assigned ends included: the image is re-expressed
+    // on `[t0, t1]` exactly (`on_carrier_domain`), so the foot its last
+    // knot carries is the projection at `t1` itself.
     let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     for i in 0..PXN_FIT_SAMPLES {
-        let frac = f64::from(i) / f64::from(PXN_FIT_SAMPLES - 1);
-        let t = if i == 0 {
-            t0
-        } else if i == PXN_FIT_SAMPLES - 1 {
-            t1
-        } else {
-            t0 + (t1 - t0) * frac
-        };
+        let frac = schedule_fraction(i, PXN_FIT_SAMPLES);
+        let t = schedule_param(t0, t1, i, PXN_FIT_SAMPLES);
         let p = carrier.eval(T::from_f64(t));
         let proj = wall
             .project(p)
@@ -462,7 +632,7 @@ where
     }
     let image = NurbsCurve2::<f64>::interpolate_with_params(&uv, PXN_IMAGE_DEGREE, &params)
         .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
-    on_carrier_domain(&image, t0, t1).map_err(|_| PlaneNurbsRefusal::PcurveFit)
+    on_carrier_domain(&image, t0, t1).map_err(domain_refusal)
 }
 
 /// **The certified foot of ONE point** on a NURBS wall, in the wall's
@@ -472,7 +642,7 @@ where
 ///
 /// Its consumer is the pcurve mint's rim arms, which need to know WHERE
 /// on the chart an edge's endpoint actually lands rather than assuming
-/// it lands on a knot-domain end. One foot rather than the image's 33,
+/// it lands on a knot-domain end. One foot rather than the image's [`PXN_FIT_SAMPLES`],
 /// because those arms already know the SHAPE of their image (a chart
 /// row or column) and are only missing its position.
 ///
@@ -568,14 +738,7 @@ fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
         if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
             return Vec::new();
         }
-        let (lo, hi) = kv.domain();
-        (1..PXN_WALL_SPANS)
-            .filter_map(|i| {
-                #[allow(clippy::cast_precision_loss)]
-                let t = lo + (hi - lo) * (i as f64 / PXN_WALL_SPANS as f64);
-                kv.multiplicity_of(t).is_none().then_some(t)
-            })
-            .collect()
+        domain_grid_points(kv, PXN_WALL_SPANS, GridSkip::BitEqual)
     }
     let add_u = breaks(wall.knots_u());
     let add_v = breaks(wall.knots_v());
@@ -622,14 +785,9 @@ fn on_carrier_domain<T: Real>(
 fn refusal(e: SsiError) -> PlaneNurbsRefusal {
     match e {
         SsiError::CertificateLimb { limb, value } => PlaneNurbsRefusal::Limb { limb, value },
-        // Rung 3's `margin` is a CERTIFIED CLEARANCE, not a measured
-        // extent — it is exactly zero whenever the enclosure contains
-        // zero — so it is carried under a name that says so, with the
-        // chain's box count as the informative companion.
-        SsiError::TubeStraddles { margin, boxes } => PlaneNurbsRefusal::TubeStraddles {
-            certified_clearance: margin,
-            boxes,
-        },
+        SsiError::TubeStraddles { verdict, boxes } => {
+            PlaneNurbsRefusal::TubeStraddles { verdict, boxes }
+        }
         SsiError::Escalated(diag) => PlaneNurbsRefusal::Escalated(diag),
         SsiError::FootPointInconclusive { t, last_distance } => {
             // The limb re-projects warm-started from the image; a
@@ -776,5 +934,52 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A degree-2 knot vector on `[0, 1]` with the given interior knots.
+    fn deg2(interior: &[f64]) -> KnotVector {
+        let mut knots = vec![0.0, 0.0, 0.0];
+        knots.extend_from_slice(interior);
+        knots.extend([1.0, 1.0, 1.0]);
+        KnotVector::clamped(knots, 2).unwrap()
+    }
+
+    fn wall(ku: KnotVector, kv: KnotVector) -> NurbsSurface<f64> {
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        #[allow(clippy::cast_precision_loss)]
+        let control = (0..nu * nv)
+            .map(|i| Point3::new((i / nv) as f64, (i % nv) as f64, 0.0))
+            .collect();
+        NurbsSurface::new(ku, kv, control, vec![1.0; nu * nv]).unwrap()
+    }
+
+    /// Odd 64ths: none on the sixteenths grid.
+    fn odd64(n: i32) -> Vec<f64> {
+        (0..n).map(|j| f64::from(2 * j + 1) / 64.0).collect()
+    }
+
+    /// `localized` inserts each direction's DOMAIN sixteenths, skipping
+    /// a grid point only where a knot sits on it bit for bit (`0.5`;
+    /// a knot one ulp above `1/16` does NOT suppress `1/16`), and
+    /// leaves a direction with `PXN_WALL_SPANS + degree` control points
+    /// alone while one with a control point fewer takes the grid.
+    #[test]
+    fn localized_inserts_the_domain_grid_per_direction_with_its_cut_off() {
+        let near = f64::from_bits(0.0625f64.to_bits() + 1);
+        let at = deg2(&odd64(15));
+        assert_eq!(at.control_count(), PXN_WALL_SPANS + 2);
+        let out = localized(&wall(deg2(&[near, 0.5]), at.clone()));
+        assert_eq!(
+            out.knots_u().knots(),
+            [
+                0.0, 0.0, 0.0, 0.0625, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5,
+                0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
+            ]
+        );
+        assert_eq!(out.knots_v().knots(), at.knots());
+        let below = deg2(&odd64(14));
+        assert_eq!(below.control_count(), 17);
+        let out = localized(&wall(deg2(&[0.5]), below));
+        assert_eq!(out.knots_v().control_count(), 17 + 15);
     }
 }

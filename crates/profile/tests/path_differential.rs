@@ -24,13 +24,9 @@ use crate::common;
 
 use common::pinned;
 use geom_core::Tol;
-use geom_core::{Point2, Vec2};
+use geom_core::{Arc2, Point2, Vec2};
 use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, Start, Via};
 use profile::{RawLoop, test_support::bulge_loop};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 // ---------------------------------------------------------------
 // The recorded fixtures (LIB-RETTAIL): what this suite compares against
@@ -86,7 +82,7 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
     let mut lp = bulge_loop(
         table
             .iter()
-            .map(|&[x, y, bulge]| (p2(x, y), bulge))
+            .map(|&[x, y, bulge]| (Point2::new(x, y), bulge))
             .collect(),
     );
     lp = lp.with_tangent_joints(joints.to_vec());
@@ -231,11 +227,11 @@ static FIXTURES: &[(&str, &[[f64; 3]], &[usize])] = &[
 fn segment_bits(s: profile::Segment<f64>) -> Option<[u64; 4]> {
     match s {
         profile::Segment::Line => None,
-        profile::Segment::Arc {
+        profile::Segment::Arc(Arc2 {
             centre,
             radius,
             sweep,
-        } => Some([
+        }) => Some([
             centre.x.to_bits(),
             centre.y.to_bits(),
             radius.to_bits(),
@@ -310,7 +306,11 @@ fn assert_validate_identically(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f6
 /// Every coordinate is authored; identity is exact everywhere.
 #[test]
 fn sharp_triangle_matches_loopbuilder() {
-    let (a, b, c) = (p2(0.0, 0.0), p2(4.0, 0.5), p2(1.5, 3.0));
+    let (a, b, c) = (
+        Point2::new(0.0, 0.0),
+        Point2::new(4.0, 0.5),
+        Point2::new(1.5, 3.0),
+    );
     let algebra = Open
         .at(a)
         .line_to(b, Tol::witness())
@@ -329,7 +329,11 @@ fn sharp_triangle_matches_loopbuilder() {
 /// through untouched; junction checks classify definitely sharp.
 #[test]
 fn sharp_arc_chain_matches_loopbuilder() {
-    let (a, b, c) = (p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 2.0));
+    let (a, b, c) = (
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 2.0),
+    );
     let (b1, b2) = (0.5, 0.2);
     let algebra = Open
         .at(a)
@@ -351,7 +355,11 @@ fn sharp_arc_chain_matches_loopbuilder() {
 /// evaluated directly on the same inputs (the oracle below).
 #[test]
 fn tangent_arc_leg_matches_loopbuilder() {
-    let (a, b, c) = (p2(0.0, 0.0), p2(2.0, 0.0), p2(3.0, 1.0));
+    let (a, b, c) = (
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(3.0, 1.0),
+    );
     // The unique tangent arc departing east from b to c: tangent-chord
     // angle Δ = atan2(1, 1), bulge tan(Δ/2) (the documented form).
     let delta = 1.0_f64.atan2(1.0);
@@ -428,8 +436,8 @@ fn single_fillet_after_leg_matches_loopbuilder_fillet() {
     // arrival
     // carrier is the vertical line through the anchor (6, 2) heading
     // north; the virtual corner is (6, 0).
-    let a = p2(0.0, 0.0);
-    let anchor = p2(6.0, 2.0);
+    let a = Point2::new(0.0, 0.0);
+    let anchor = Point2::new(6.0, 2.0);
     let north = std::f64::consts::FRAC_PI_2;
     let r = 0.5;
     // The corner the algebra constructs, re-derived from the
@@ -450,7 +458,7 @@ fn single_fillet_after_leg_matches_loopbuilder_fillet() {
         // sharply through the top-left.
         .line(1.0, Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 3.0), Tol::witness())
+        .line_to(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -476,10 +484,10 @@ fn single_fillet_after_leg_matches_loopbuilder_fillet() {
 #[test]
 fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
     let m = [
-        p2(0.0, -1.0), // side 1 midpoint, heading east
-        p2(1.0, 0.0),  // side 2, north
-        p2(0.0, 1.0),  // side 3, west
-        p2(-1.0, 0.0), // side 4, south
+        Point2::new(0.0, -1.0), // side 1 midpoint, heading east
+        Point2::new(1.0, 0.0),  // side 2, north
+        Point2::new(0.0, 1.0),  // side 3, west
+        Point2::new(-1.0, 0.0), // side 4, south
     ];
     let north = std::f64::consts::FRAC_PI_2;
     let th = [0.0, north, std::f64::consts::PI, -north];
@@ -518,8 +526,8 @@ fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
     // th[k]) and side k+1; the algebra's canonical trim inputs are
     // head = the ray origin (the side's anchor) and next = the arrival
     // anchor.
-    let mut t1 = [p2(0.0, 0.0); 4];
-    let mut t2 = [p2(0.0, 0.0); 4];
+    let mut t1 = [Point2::new(0.0, 0.0); 4];
+    let mut t2 = [Point2::new(0.0, 0.0); 4];
     let mut bulge = [0.0; 4];
     for k in 0..4 {
         let next = (k + 1) % 4;
@@ -531,16 +539,16 @@ fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
     }
     // The exact intended locations (side 2, r = 1/4 — all dyadic).
     let exact_t1 = [
-        p2(0.75, -1.0),
-        p2(1.0, 0.75),
-        p2(-0.75, 1.0),
-        p2(-1.0, -0.75),
+        Point2::new(0.75, -1.0),
+        Point2::new(1.0, 0.75),
+        Point2::new(-0.75, 1.0),
+        Point2::new(-1.0, -0.75),
     ];
     let exact_t2 = [
-        p2(1.0, -0.75),
-        p2(0.75, 1.0),
-        p2(-1.0, 0.75),
-        p2(-0.75, -1.0),
+        Point2::new(1.0, -0.75),
+        Point2::new(0.75, 1.0),
+        Point2::new(-1.0, 0.75),
+        Point2::new(-0.75, -1.0),
     ];
     let quarter = 1.0 / (1.0 + 2.0_f64.sqrt());
     for k in 0..4 {
@@ -568,9 +576,9 @@ fn rounded_square_with_seam_fillet_matches_explicit_hand_chain() {
 /// from the same virtual corner.
 #[test]
 fn arrival_bound_by_line_to_matches_loopbuilder() {
-    let a = p2(0.0, 0.0);
-    let anchor = p2(6.0, 1.0);
-    let end = p2(6.0, 3.0);
+    let a = Point2::new(0.0, 0.0);
+    let anchor = Point2::new(6.0, 1.0);
+    let end = Point2::new(6.0, 3.0);
     let r = 0.5;
     let corner = expected_corner(a, 0.0, anchor, std::f64::consts::FRAC_PI_2);
     assert!((corner.x - 6.0).abs() < 1e-12 && corner.y.abs() < 1e-12);
@@ -584,7 +592,7 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
         .unwrap()
         .line_to(end, Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 3.0), Tol::witness())
+        .line_to(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -606,9 +614,12 @@ fn arrival_bound_by_line_to_matches_loopbuilder() {
 #[test]
 fn circle_matches_the_raw_corpus_convention() {
     for (cx, cy, r) in [(0.0, 0.0, 1.0), (-1.5, 0.0, 0.7), (2.0, 2.0, 0.5)] {
-        let algebra = profile::circle(p2(cx, cy), r, Tol::witness()).unwrap();
+        let algebra = profile::circle(Point2::new(cx, cy), r, Tol::witness()).unwrap();
         let algebra = pinned(algebra);
-        let hand = bulge_loop(vec![(p2(cx + r, cy), 1.0), (p2(cx - r, cy), 1.0)]);
+        let hand = bulge_loop(vec![
+            (Point2::new(cx + r, cy), 1.0),
+            (Point2::new(cx - r, cy), 1.0),
+        ]);
         assert_loops_identical(&algebra, &hand);
         assert_validate_identically(&algebra, &hand);
     }
@@ -619,7 +630,11 @@ fn circle_matches_the_raw_corpus_convention() {
 /// `bulge_from_via(a, q, p)` and the endpoints pass through verbatim.
 #[test]
 fn arc_via_matches_loopbuilder_arc_to_via() {
-    let (a, via, b) = (p2(0.0, 0.0), p2(1.0, 1.0), p2(2.0, 0.0));
+    let (a, via, b) = (
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(2.0, 0.0),
+    );
     let algebra = Open
         .at(a)
         .arc_to(Via { q: via, p: b }, Tol::witness())
@@ -637,8 +652,8 @@ fn arc_via_matches_loopbuilder_arc_to_via() {
 /// arc-onto-arc junctions.
 #[test]
 fn arc_via_closing_matches_loopbuilder_close_arc_via() {
-    let (a, b) = (p2(0.0, 0.0), p2(2.0, 0.0));
-    let (out, back) = (p2(1.0, 0.5), p2(1.0, 0.1));
+    let (a, b) = (Point2::new(0.0, 0.0), Point2::new(2.0, 0.0));
+    let (out, back) = (Point2::new(1.0, 0.5), Point2::new(1.0, 0.1));
     let algebra = Open
         .at(a)
         .arc_to(Via { q: out, p: b }, Tol::witness())
@@ -659,7 +674,11 @@ fn arc_via_closing_matches_loopbuilder_close_arc_via() {
 /// the minor arc from the major one on the same three authored points.
 #[test]
 fn arc_center_matches_loopbuilder_in_both_windings() {
-    let (a, c, b) = (p2(1.0, 0.0), p2(0.0, 0.0), p2(0.0, 1.0));
+    let (a, c, b) = (
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(0.0, 1.0),
+    );
     for winding in [profile::ArcSweep::Ccw, profile::ArcSweep::Cw] {
         let algebra = Open
             .at(a)
@@ -707,7 +726,7 @@ fn arc_center_matches_loopbuilder_in_both_windings() {
 /// unmovable. It needed both new constructors at once: the corner is
 /// reached by an axis director (`.toward(-1, 0)`, where `.angle(PI)`
 /// carried sin(π) = 1.22e-16 into the ray), and the filleted side ends
-/// at its authored far vertex (`.to(p2(1, 3))`, where the old surface
+/// at its authored far vertex (`.to(Point2::new(1, 3))`, where the old surface
 /// had only a synthetic mid-side anchor plus a length).
 ///
 /// With both, the algebra lowers to the raw chain bit-for-bit.
@@ -716,14 +735,14 @@ fn bracket_matches_loopbuilder_via_toward_and_far_end_anchor() {
     // The virtual corner the two legs meet at (exact here: both legs are
     // axis-aligned). It used to be the hand chain's `fillet` argument;
     // it is asserted against the lowering below.
-    let corner = p2(1.0, 1.0);
-    let far = p2(1.0, 3.0);
+    let corner = Point2::new(1.0, 1.0);
+    let far = Point2::new(1.0, 3.0);
     let r = 0.5;
     let algebra = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(3.0, 0.0), Tol::witness())
         .unwrap()
-        .line_to(p2(3.0, 1.0), Tol::witness())
+        .line_to(Point2::new(3.0, 1.0), Tol::witness())
         .unwrap()
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
@@ -733,7 +752,7 @@ fn bracket_matches_loopbuilder_via_toward_and_far_end_anchor() {
         .unwrap()
         .to(far, Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 3.0), Tol::witness())
+        .line_to(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -761,14 +780,14 @@ fn bracket_matches_loopbuilder_via_toward_and_far_end_anchor() {
 /// through `sin_cos`.
 #[test]
 fn angle_directors_drift_where_toward_is_exact() {
-    let far = p2(1.0, 3.0);
+    let far = Point2::new(1.0, 3.0);
     let r = 0.5;
     let build = |exact: bool| {
         let tip = Open
-            .at(p2(0.0, 0.0))
-            .line_to(p2(3.0, 0.0), Tol::witness())
+            .at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(3.0, 0.0), Tol::witness())
             .unwrap()
-            .line_to(p2(3.0, 1.0), Tol::witness())
+            .line_to(Point2::new(3.0, 1.0), Tol::witness())
             .unwrap();
         let opened = if exact {
             tip.toward(-1.0, 0.0, Tol::witness()).unwrap()
@@ -787,7 +806,7 @@ fn angle_directors_drift_where_toward_is_exact() {
         arrival
             .to(far, Tol::witness())
             .unwrap()
-            .line_to(p2(0.0, 3.0), Tol::witness())
+            .line_to(Point2::new(0.0, 3.0), Tol::witness())
             .unwrap()
             .line_to(Start, Tol::witness())
             .unwrap()
@@ -821,19 +840,19 @@ fn angle_directors_drift_where_toward_is_exact() {
 #[test]
 fn toward_axis_rays_are_exact() {
     let cases = [
-        (1.0, 0.0, p2(2.0, 0.0)),
-        (-1.0, 0.0, p2(-2.0, 0.0)),
-        (0.0, 1.0, p2(0.0, 2.0)),
-        (0.0, -1.0, p2(0.0, -2.0)),
+        (1.0, 0.0, Point2::new(2.0, 0.0)),
+        (-1.0, 0.0, Point2::new(-2.0, 0.0)),
+        (0.0, 1.0, Point2::new(0.0, 2.0)),
+        (0.0, -1.0, Point2::new(0.0, -2.0)),
         // A Pythagorean direction normalizes exactly too (3,4)/5.
-        (3.0, 4.0, p2(1.2, 1.6)),
+        (3.0, 4.0, Point2::new(1.2, 1.6)),
     ];
     for (dx, dy, expected) in cases {
         // A third vertex perpendicular to the leg keeps the loop
         // non-degenerate; only vertex 1 is under test.
-        let third = p2(expected.x - dy, expected.y + dx);
+        let third = Point2::new(expected.x - dy, expected.y + dx);
         let lowered = Open
-            .at(p2(0.0, 0.0))
+            .at(Point2::new(0.0, 0.0))
             .toward(dx, dy, Tol::witness())
             .unwrap()
             .line(2.0, Tol::witness())
@@ -874,13 +893,13 @@ fn eye_arc_by_arc_fillet_matches_loopbuilder_fillet_corner() {
     let algebra = Open
         .arc_fillet_arc(
             profile::Center {
-                c: p2(-0.5, 0.0),
+                c: Point2::new(-0.5, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
+                p: Point2::new(0.0, -tip),
             },
             r,
             profile::Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -917,8 +936,8 @@ fn the_derived_circle_by_circle_corner_lands_on_the_authored_one() {
     let tip = 0.75f64.sqrt();
     // Reproduce the boundary's squared-radius closed form here,
     // independently of the implementation (the differential discipline).
-    let (o1, o2) = (p2(-0.5, 0.0), p2(0.5, 0.0));
-    let a = p2(0.0, -tip);
+    let (o1, o2) = (Point2::new(-0.5, 0.0), Point2::new(0.5, 0.0));
+    let a = Point2::new(0.0, -tip);
     let r1_sq = (a - o1).norm_squared();
     let r2_sq = (a - o2).norm_squared();
     let d = o2 - o1;
@@ -963,12 +982,12 @@ fn the_derived_circle_by_circle_corner_lands_on_the_authored_one() {
 /// the natural anchors do land, line×arc migrates like any other site.
 #[test]
 fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
-    let centre = p2(2.0, -2.0);
+    let centre = Point2::new(2.0, -2.0);
     // r ≤ 0.414 here: the turn onto the arc is sharp (≈135°) and the
     // offset carriers separate above that — measured, not guessed.
     let r = 0.3;
     let algebra = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
@@ -996,13 +1015,13 @@ fn line_by_arc_carrier_fillet_matches_loopbuilder_fillet_corner() {
 #[test]
 fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
     let lowered = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .toward(1.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.3,
             profile::Center {
-                c: p2(2.0, -2.0),
+                c: Point2::new(2.0, -2.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -1041,20 +1060,20 @@ fn the_advance_gate_discards_the_root_at_the_incoming_anchor() {
 /// travelling west never came from it.
 #[test]
 fn straight_arrival_off_an_arc_departure_matches_loopbuilder_fillet_corner() {
-    let centre = p2(0.0, 0.0);
+    let centre = Point2::new(0.0, 0.0);
     let r = 0.5;
     let algebra = Open
         .arc_fillet(
             profile::Center {
                 c: centre,
                 winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
+                p: Point2::new(5.0, 0.0),
             },
             r,
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 3.0), Tol::witness())
+        .at(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
@@ -1079,15 +1098,15 @@ fn an_arc_carrier_arrival_refuses_a_zero_director() {
     let err = Open
         .arc_fillet(
             profile::Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
+                p: Point2::new(5.0, 0.0),
             },
             0.5,
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 3.0), Tol::witness())
+        .at(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
         .toward(0.0, 0.0, Tol::witness())
         .unwrap_err();
@@ -1106,15 +1125,15 @@ fn an_arc_carrier_arrival_refuses_carriers_that_never_meet() {
     let err = Open
         .arc_fillet(
             profile::Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
+                p: Point2::new(5.0, 0.0),
             },
             0.5,
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 6.0), Tol::witness())
+        .at(Point2::new(0.0, 6.0), Tol::witness())
         .unwrap()
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap_err();

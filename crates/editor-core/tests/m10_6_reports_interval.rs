@@ -33,10 +33,10 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 /// The ε-scaled half-width the driver can certify over.
@@ -62,7 +62,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distribution: Some(law),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -78,20 +78,18 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // Placed by the parameter, so the measured distance moves with it —
     // M10-5's finding that a rigid placement is what survives the
     // interval lane at a usable box.
-    let placed = r.insert(Node::Transform {
-        input: solid,
-        translation: [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    });
+    let placed = r.insert(Node::transform(
+        solid,
+        editor_core::Step::Rigid {
+            translation: [
+                Expr::param(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     // distance(wall 0, wall 2) — two parallel walls of the prism, 2 m
     // apart, measured at the PLACED node.
     let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
@@ -113,7 +111,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+        bound: len(1.0),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure, assertion)

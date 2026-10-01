@@ -132,7 +132,7 @@ pub mod surgery;
 
 use core::fmt;
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
 use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
@@ -256,22 +256,6 @@ pub struct ClassifiedMargin {
     pub sign: Sign,
 }
 
-impl ClassifiedMargin {
-    /// The reading as ONE number, when the classifier saw one: `Some`
-    /// at the `f64` scalar, and for an interval margin whose enclosure
-    /// is thin. `None` for a genuine enclosure and for a poisoned
-    /// reading, neither of which any single `f64` stands for — so a
-    /// consumer that wants the number has to say what it does when
-    /// there is not one.
-    #[must_use]
-    pub fn value(&self) -> Option<f64> {
-        match self.reading {
-            MarginDiag::Value(m) => Some(m),
-            MarginDiag::Enclosure { .. } | MarginDiag::Invalid => None,
-        }
-    }
-}
-
 impl fmt::Display for ClassifiedMargin {
     /// Rendered as `geom_core::IndeterminatePayload` renders its twin:
     /// the same `{:e}` spelling for the reading and for both band
@@ -281,14 +265,15 @@ impl fmt::Display for ClassifiedMargin {
     /// sibling printed `1e-9`).
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (zero, escalate) = (self.band.zero(), self.band.escalate());
-        match self.reading {
-            MarginDiag::Value(m) => write!(f, "margin {m:e} m")?,
-            MarginDiag::Enclosure { lo, hi } => write!(f, "margin enclosure [{lo:e}, {hi:e}] m")?,
+        let reading = self.reading;
+        match reading.kind() {
+            MarginKind::Value => write!(f, "margin {reading:e} m")?,
+            MarginKind::Enclosure => write!(f, "margin enclosure {reading:e} m")?,
             // Unreachable from a definite decision — the classifier
             // escalates poison instead of deciding it — and rendered
             // rather than asserted, because a payload that cannot be
             // printed is worse than one that prints an impossibility.
-            MarginDiag::Invalid => write!(f, "margin invalid (NaN or a poisoned enclosure)")?,
+            MarginKind::Invalid => write!(f, "margin invalid (NaN or a poisoned enclosure)")?,
         }
         write!(
             f,
@@ -311,10 +296,9 @@ struct Measured(MarginDiag);
 
 impl fmt::Display for Measured {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            MarginDiag::Value(m) => write!(f, "{m}"),
-            MarginDiag::Enclosure { lo, hi } => write!(f, "[{lo}, {hi}]"),
-            MarginDiag::Invalid => f.write_str("an invalid (NaN or poisoned)"),
+        match self.0.kind() {
+            MarginKind::Value | MarginKind::Enclosure => write!(f, "{}", self.0),
+            MarginKind::Invalid => f.write_str("an invalid (NaN or poisoned)"),
         }
     }
 }
@@ -1376,11 +1360,30 @@ impl fmt::Display for BlendError {
                  {CHAMFER_ARM_RECOURSE}"
             ),
             Self::Escalated { site, source } => {
-                let recourse = match source.predicate {
-                    Some("fillet3_radius_headroom") => FILLET3_RADIUS_RECOURSE,
-                    Some("fillet3_face_clearance") => FILLET3_CLEARANCE_RECOURSE,
-                    Some("fillet3_spine_regularity") => FILLET3_SPINE_RECOURSE,
-                    Some("fillet3_chain_g1" | "fillet3_chain_arm") => FILLET3_CHAIN_RECOURSE,
+                // What each routed decision decides, in words, and its
+                // recourse: one table, so a name cannot gain a recourse
+                // without a subject or the other way round.
+                let (what, recourse) = match source.predicate {
+                    Some("fillet3_radius_headroom") => (
+                        "whether the radius fits inside the tightest bend of a support face",
+                        FILLET3_RADIUS_RECOURSE,
+                    ),
+                    Some("fillet3_face_clearance") => (
+                        "whether a face is wide enough for the setbacks on both its sides",
+                        FILLET3_CLEARANCE_RECOURSE,
+                    ),
+                    Some("fillet3_spine_regularity") => (
+                        "whether the ball's centre path folds",
+                        FILLET3_SPINE_RECOURSE,
+                    ),
+                    Some("fillet3_chain_g1") => (
+                        "whether two links of the chain meet tangentially",
+                        FILLET3_CHAIN_RECOURSE,
+                    ),
+                    Some("fillet3_chain_arm") => (
+                        "whether a link of the chain is long enough to measure an angle over",
+                        FILLET3_CHAIN_RECOURSE,
+                    ),
                     // `fillet3_convexity_sign`'s definite refusal is
                     // the decided `Zero` — `TangentialEdge`, whose
                     // sentence is the tangential one. An in-band wedge
@@ -1390,26 +1393,42 @@ impl fmt::Display for BlendError {
                     // different site — a chain whose links all resolved
                     // definitely and disagree — and keeps
                     // `FILLET3_CONVEXITY_RECOURSE`.
-                    Some("fillet3_convexity_sign") => FILLET3_TANGENTIAL_RECOURSE,
-                    Some("fillet3_ring_clearance") => FILLET3_RING_RECOURSE,
+                    Some("fillet3_convexity_sign") => (
+                        "whether the edge is convex or concave",
+                        FILLET3_TANGENTIAL_RECOURSE,
+                    ),
+                    Some("fillet3_ring_clearance") => (
+                        "whether a trimline clears a hole in its support face",
+                        FILLET3_RING_RECOURSE,
+                    ),
                     // The in-band arm carries the definite arm's
                     // recourse: a pair whose axes part by an amount
                     // too small to call belongs to the same door as
                     // one whose axes part definitely — a spine that is
                     // neither line nor circle is the canal family
                     // either way.
-                    Some("fillet3_support_coaxiality") => FILLET3_SPINE_KIND_RECOURSE,
+                    Some("fillet3_support_coaxiality") => (
+                        "whether the two support faces share an axis or a ruling",
+                        FILLET3_SPINE_KIND_RECOURSE,
+                    ),
                     // The must-carry rule's in-band verdict over a
                     // contact edge (the surgery's description pass):
                     // the lever is the blend radius, in a direction
                     // the site fixes, and the sentence says which.
-                    Some("tangent_second_order") => FILLET3_CONTACT_RECOURSE,
+                    Some("tangent_second_order") => {
+                        ("whether the faces curve apart", FILLET3_CONTACT_RECOURSE)
+                    }
                     // Predicate 6's two classifications share the corner
                     // recourse: the trihedron's independence and the
                     // ruled band's transverse cap.
-                    Some("fillet3_corner_independence" | "fillet3_cap_transverse") => {
-                        FILLET3_CORNER_RECOURSE
-                    }
+                    Some("fillet3_corner_independence") => (
+                        "whether the three face normals at the corner are independent",
+                        FILLET3_CORNER_RECOURSE,
+                    ),
+                    Some("fillet3_cap_transverse") => (
+                        "whether the band's end face is a plane perpendicular to its ruling",
+                        FILLET3_CORNER_RECOURSE,
+                    ),
                     // An escalation from a predicate this match does not
                     // know is a MISSING recourse, and saying so is the
                     // honest answer — emitting the radius sentence would
@@ -1422,7 +1441,8 @@ impl fmt::Display for BlendError {
                     other => {
                         return write!(
                             f,
-                            "escalated at {site}: {source}; {}",
+                            "at {site}, {} is undecided: {source}; {}",
+                            geom_core::UNNAMED_DECISION,
                             geom_core::MissingRecourse(other)
                         );
                     }
@@ -1434,15 +1454,15 @@ impl fmt::Display for BlendError {
                 // of its own: the geometry did not produce it, the
                 // inputs did, so that lever leads.
                 match source.margin {
-                    geom_core::MarginDiag::Invalid => write!(
+                    geom_core::MarginDiag::INVALID => write!(
                         f,
-                        "escalated at {site}: {}. Recourse: check the operation's inputs \
+                        "{what} is undecided: {}. Recourse: check the operation's inputs \
                          upstream, then {recourse}",
                         source.payload()
                     ),
                     _ => write!(
                         f,
-                        "escalated at {site}: {}. Recourse: {recourse}",
+                        "{what} is undecided: {}. Recourse: {recourse}",
                         source.payload()
                     ),
                 }
@@ -1666,7 +1686,7 @@ mod recourse_tests {
         let band = Band::new(1e-9, 1e-6).expect("a band");
         let decided = |predicate, m: f64, sign| ClassifiedMargin {
             predicate,
-            reading: MarginDiag::Value(m),
+            reading: MarginDiag::value(m),
             band,
             sign,
         };
@@ -1686,13 +1706,13 @@ mod recourse_tests {
             BlendError::FaceClearanceUncertified {
                 face: FaceKey::default(),
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-                gap: MarginDiag::Value(0.2),
+                gap: MarginDiag::value(0.2),
                 cross_chain: false,
             },
             BlendError::FaceClearanceUncertified {
                 face: FaceKey::default(),
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-                gap: MarginDiag::Value(0.2),
+                gap: MarginDiag::value(0.2),
                 cross_chain: true,
             },
             BlendError::TangentialEdge {
@@ -1706,7 +1726,7 @@ mod recourse_tests {
             BlendError::ChainNotG1 {
                 vertex: VertexKey::default(),
                 margin: decided("fillet3_chain_g1", 1e-3, Sign::Positive),
-                arm: MarginDiag::Value(0.5),
+                arm: MarginDiag::value(0.5),
             },
             BlendError::ConvexitySignFlip {
                 edge: EdgeKey::default(),
@@ -1734,9 +1754,10 @@ mod recourse_tests {
             BlendError::Escalated {
                 site: BlendSite::Chain,
                 source: Indeterminate {
-                    margin: MarginDiag::Value(0.0),
+                    margin: MarginDiag::value(0.0),
                     band,
                     predicate: Some("fillet3_ring_clearance"),
+                    terminal_sliver: false,
                 },
             },
             BlendError::Escalated {
@@ -1744,9 +1765,10 @@ mod recourse_tests {
                     edge: EdgeKey::default(),
                 },
                 source: Indeterminate {
-                    margin: MarginDiag::Value(0.0),
+                    margin: MarginDiag::value(0.0),
                     band,
                     predicate: Some("fillet3_radius_headroom"),
+                    terminal_sliver: false,
                 },
             },
             BlendError::Escalated {
@@ -1754,9 +1776,10 @@ mod recourse_tests {
                     vertex: VertexKey::default(),
                 },
                 source: Indeterminate {
-                    margin: MarginDiag::Value(0.0),
+                    margin: MarginDiag::value(0.0),
                     band,
                     predicate: Some("fillet3_chain_g1"),
+                    terminal_sliver: false,
                 },
             },
             BlendError::Escalated {
@@ -1764,9 +1787,10 @@ mod recourse_tests {
                     edge: EdgeKey::default(),
                 },
                 source: Indeterminate {
-                    margin: MarginDiag::Value(0.0),
+                    margin: MarginDiag::value(0.0),
                     band,
                     predicate: Some("tangent_second_order"),
+                    terminal_sliver: false,
                 },
             },
             BlendError::RepeatedEdge {
@@ -1930,7 +1954,7 @@ mod recourse_tests {
                 chain,
                 margin: ClassifiedMargin {
                     predicate: "fillet3_ring_clearance",
-                    reading: MarginDiag::Value(-1e-3),
+                    reading: MarginDiag::value(-1e-3),
                     band: Band::new(1e-9, 1e-6).expect("a band"),
                     sign: Sign::Negative,
                 },

@@ -2,7 +2,8 @@
 id: a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names
 kind: issue
 title: A slot edit through a Zero fit renumbers a loop's live names and reports nothing
-status: open
+status: closed
+closed: 2026-09-29
 priority: P0
 cost: H
 opened: 2026-09-20
@@ -68,3 +69,14 @@ and #3202. A profile piece is now named `{ step, role }`. At a zero fit
 the suppressed run vanishes, and every other name keeps what it
 denotes. EDIT's row `edit_set_program::a_slot_edit_through_a_zero_fit_…`
 is updated in that PR. Whether this row is closed is EDIT's call.
+
+## Closed (2026-09-29, EDIT orchestrator) — answered by EMIT's #3223
+
+Ev asked on #3163 for a more general stable-name system rather than a
+per-door report, and ruled it on #3193 (minted step ids) and #3202
+(the roles, the loft seams). EMIT built it in #3223: a profile piece is
+named `{ step, role }` by an id the document minted, so no value edit
+renumbers it. This row's pin is now
+`edit_set_program::a_slot_edit_through_a_zero_fit_keeps_a_live_name_and_reports_nothing`,
+beside `a_zero_fit_piece_vanishes_and_comes_back`. #3163 was closed
+unmerged (a misclick, and in any case superseded).

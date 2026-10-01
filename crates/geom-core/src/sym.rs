@@ -211,8 +211,9 @@
 //! the zero form, and `sin`/`cos` at an exact half-multiple of π is
 //! its constant. Nothing folds at any other argument shape. The two
 //! spellings of an arc — the pushforward's `sin(s·θ)`, `−2·sin²(s·θ/2)`
-//! at `θ = 4·atan b` and the carrier's `cos t`, `sin t` at `t =
-//! (i/8)·4·atan|b|` — are then rational functions of the same atoms,
+//! at `θ = 4·atan b` (the lowering's stored sweep) and the carrier's
+//! `cos t`, `sin t` at `t = (i/8)·σ·θ` (the span, the sweep signed by
+//! the decided turn σ) — are then rational functions of the same atoms,
 //! and **rules A/B per node** ([`SymRules::early_ab`]) close the ring:
 //! the substitution is linear (`algebra::poly_subst_square` accumulates
 //! one numerator over one common denominator), bounded by
@@ -299,8 +300,10 @@
 //! residual's retirement for arc carriers (PCURVE/D3). On the pad the
 //! fillet's identity-shaped `line_span` is a `Min` over frozen
 //! 60-term, degree-16 products (`work/sym/symbolic-tier-census`).
-//! And the reach is the UNIT bulge: a parameter bulge is outside the
-//! mechanism (R2's D-tab: `3.52e2 · ε` on and off alike) and a literal
+//! And the reach was measured at the UNIT bulge: a parameter bulge was
+//! outside the mechanism while the carrier's span was spelled `atan|b|`
+//! (R2's D-tab, `3.52e2 · ε` on and off alike; the span now shares the
+//! pushforward's atom and the nominal split did not move) and a literal
 //! bulge other than 1 leaves residue — at M10-10 R1's boss at bulge 2
 //! stood at `carrier_matches_mapped_source` 6 of 54 and
 //! `carrier_on_surface_2` 27 of 90 numeric with its ceiling unmoved;
@@ -539,10 +542,14 @@
 //! and every whole-certifying ceiling is identical to the digit on all
 //! EIGHT, with the over-band set at ceiling + δ identical too. The
 //! exception is the pad's replay at the scale it certifies whole at:
-//! `symbolic_zero` 858 → 854, `registered` 104 → 128, `numeric`
-//! 991 → 971, `frozen` 2750 either way — the same 1953 decisions, 24
+//! `symbolic_zero` 889 → 885, `registered` 104 → 128, `numeric`
+//! 1078 → 1058, `frozen` 2750 either way — the same 2071 decisions, 24
 //! of them moving into the door, twenty out of `numeric` and FOUR out
-//! of `symbolic_zero`. Those four are the unit's finding: opening an
+//! of `symbolic_zero` (the rows' stored values; the replay's
+//! `numeric` and `frozen` currently measure off them by a drift not
+//! yet attributed,
+//! `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`).
+//! Those four are the unit's finding: opening an
 //! atom the early walk was cancelling OVER can cost that walk a
 //! theorem, which is
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class.
@@ -807,7 +814,7 @@
 //!
 //! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
 //! and enum variants; `carrier_kind` is a diagnostic name on an
-//! `Indeterminate` carrying `MarginDiag::Invalid`
+//! `Indeterminate` carrying `MarginKind::Invalid`
 //! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
@@ -875,7 +882,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
+use crate::predicate::{Band, Decide, Decided, Indeterminate, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
 use crate::spline::{KnotVector, SpanLocate, SpanSet};
 use crate::tolerance::Tol;
@@ -1402,9 +1409,9 @@ pub struct SymCounts {
     /// pinned by `geom-core`'s
     /// `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`).
     /// No leaf of a drive reaches it — a drive mints every node inside
-    /// its own session — and `editor-core`'s
-    /// `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
-    /// pins that over five drives.
+    /// its own session — measured over five drives with the profile's
+    /// `FreezeCause::Unrecorded` count; no gating row holds that
+    /// count.
     ///
     /// **The dial does not move it.** With the drive's memo off a leaf
     /// freezes every node of its closure that freezes at all, so its
@@ -3647,6 +3654,8 @@ impl<T: Real> Real for Sym<T> {
     /// the theorem-vs-numeric contradiction by.
     const WITNESS: crate::real::Witness = T::WITNESS;
 
+    const NAME: &'static str = "symbolic";
+
     fn from_f64(x: f64) -> Self {
         Self::nullary(T::from_f64(x), SymOp::Lit, x.to_bits())
     }
@@ -3791,7 +3800,7 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// 1. **the computation was defined on the whole input box**, checked
 ///    in TWO places because one scalar cannot see both halves of it.
 ///
-///    *The value side.* [`MarginDiag::Invalid`] is the arm every scalar
+///    *The value side.* [`MarginKind::Invalid`](crate::MarginKind::Invalid) is the arm every scalar
 ///    returns for a domain violation it can see —
 ///    [`crate::Interval::sign_within`] for an uncertified enclosure,
 ///    `f64` and [`crate::Probe`] for NaN — so the numeric channel
@@ -3871,15 +3880,20 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 ///
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
-    fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
+    fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]
         let mark = crate::k_stats::sink_mark();
         let numeric = self.value.sign_within(band);
-        let domain_violation =
-            matches!(&numeric, Err(e) if matches!(e.margin, MarginDiag::Invalid));
-        let definitely_nonzero = matches!(&numeric, Ok(Sign::Positive | Sign::Negative));
+        let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
+        let definitely_nonzero = matches!(
+            &numeric,
+            Ok(Decided {
+                sign: Sign::Positive | Sign::Negative,
+                ..
+            })
+        );
         if definitely_nonzero {
             // **A REGISTERED zero here is a CONTRADICTED AXIOM**, and it
             // is checked in release rather than asserted in debug: a
@@ -3957,7 +3971,15 @@ impl<T: Decide> Decide for Sym<T> {
             #[cfg(feature = "probe")]
             crate::k_stats::retag_at(mark, how.sample_outcome());
             report::record(&numeric, Some(how), None, self.value.enclosure_probe());
-            return Ok(Sign::Zero);
+            // The form decided; what the numeric channel saw is still
+            // the reading a refusal reports.
+            let margin = match numeric {
+                Ok(Decided { margin, .. }) | Err(Indeterminate { margin, .. }) => margin,
+            };
+            return Ok(Decided {
+                sign: Sign::Zero,
+                margin,
+            });
         }
         // The shape report wants the residual that BLOCKED — rendered
         // only when the instrument is installed, so an ordinary replay
@@ -4767,8 +4789,9 @@ mod tests {
     /// the SPAN identity `carrier.eval(θ) = q_to` (M10-9 amendment A1;
     /// `sweep::swept::register_span_identity`). The far endpoint is
     /// reached by rotating the rim vector through the span, so the
-    /// residual carries `cos`/`sin` atoms of `4·atan|b|` that no rule
-    /// relates to the polynomial `q_to − c` is: it is registered per
+    /// residual carries `cos`/`sin` of the span `4·atan b`, which no
+    /// rule relates to the independently built far vertex: it is
+    /// registered per
     /// COMPONENT, because the consumer asks
     /// `carrier.eval(t1).distance(end)`.
     ///
@@ -4776,7 +4799,7 @@ mod tests {
     fn span(theta: f64, off: f64) -> [[Sym<f64>; 2]; 3] {
         let (vx, vy) = (p("vx", 3.0), p("vy", 4.0));
         let b = p("b", theta);
-        let (sn, cs) = (Sym::from_f64(4.0) * b.abs().atan()).sin_cos();
+        let (sn, cs) = (Sym::from_f64(4.0) * b.atan()).sin_cos();
         // The rotated rim vector, as a circle carrier's `eval` builds
         // it, plus the centre.
         let (cx, cy) = (p("cx", 1.0), p("cy", -2.0));
@@ -4787,7 +4810,7 @@ mod tests {
         // rather than a tautology, and what keeps it out of the cyclic
         // arm. Its value is the same real, computed the same way;
         // `off` displaces it into a claim that is FALSE.
-        let (s0, c0) = (4.0 * theta.abs().atan()).sin_cos();
+        let (s0, c0) = (4.0 * theta.atan()).sin_cos();
         let (qx, qy) = (
             p("qx", 1.0 + (3.0 * c0 - 4.0 * s0) + off),
             p("qy", -2.0 + (3.0 * s0 + 4.0 * c0) + off),
@@ -4942,20 +4965,24 @@ mod tests {
     }
 
     /// **The two spellings of one arc meet.** The certifier's carrier
-    /// sample `cos t`, `sin t` at `t = 4·atan|b|·(i/8)` against the
-    /// pushforward's `sin(s·θ)` and `1 − 2·sin²(s·θ/2)` at `θ =
-    /// 4·atan b`, `s = i/8`, for a bulge that is a LITERAL (the circle
-    /// kernel's `1`, so `|b|` folds under A0) and for a parameter
-    /// bulge — where `atan|b|` and `atan b` are two atoms and the
-    /// residual stays numeric, which is the honest limit this rule
-    /// draws: the turn sign the carrier's axis carries is a `Sign`,
-    /// not a form.
+    /// sample `cos t`, `sin t` at `t = σ·θ·(i/8)` — the span, the stored
+    /// sweep `θ = 4·atan b` signed by the decided turn σ
+    /// (`sweep::swept::arc_span`) — against the pushforward's
+    /// `sin(s·θ)` and `1 − 2·sin²(s·θ/2)` at `s = i/8`, for a LITERAL
+    /// bulge (the circle kernel's `1`) and for a parameter bulge of
+    /// either sign. About the turn-signed axis the carrier turns by
+    /// `σ·t` in the sketch plane, so its sine enters with σ. Both sides
+    /// read the one `atan b` atom, so the parameter bulge meets too:
+    /// no value of `b` is read.
     #[test]
     fn rule_d_meets_the_carrier_and_the_pushforward_at_every_sample() {
-        let (rows, _) = with_session(budget(), || {
-            let b = Sym::from_f64(1.0);
+        let spellings = |b: Sym<f64>, sigma: f64| {
             let theta = Sym::from_f64(4.0) * b.atan();
-            let span = Sym::from_f64(4.0) * b.abs().atan();
+            let span = if sigma < 0.0 {
+                Sym::zero() - theta
+            } else {
+                theta
+            };
             let one = Sym::from_f64(1.0);
             let two = Sym::from_f64(2.0);
             (0..=8)
@@ -4965,27 +4992,25 @@ mod tests {
                     let (st, ct) = t.sin_cos();
                     let sin = (s * theta).sin_cos().0;
                     let cos_m1 = -(two * (s * theta * Sym::from_f64(0.5)).sin_cos().0.powi(2));
-                    (how(st - sin), how(ct - (cos_m1 + one)))
+                    (
+                        how(Sym::from_f64(sigma) * st - sin),
+                        how(ct - (cos_m1 + one)),
+                    )
                 })
                 .collect::<Vec<_>>()
-        });
+        };
+        let (rows, _) = with_session(budget(), || spellings(Sym::from_f64(1.0), 1.0));
         assert!(
             rows.iter().all(|r| *r == ("theorem", "theorem")),
             "literal bulge: {rows:?}"
         );
-        let (rows, _) = with_session(budget(), || {
-            let b = p("bulge", 0.7);
-            let theta = Sym::from_f64(4.0) * b.atan();
-            let span = Sym::from_f64(4.0) * b.abs().atan();
-            let s = Sym::from_f64(3.0 / 8.0);
-            let (st, _) = (span * s).sin_cos();
-            how(st - (s * theta).sin_cos().0)
-        });
-        assert_eq!(
-            rows, "numeric",
-            "a parameter bulge: `atan|b|` and `atan b` are two atoms, and no rule here \
-             reads the sign that would relate them"
-        );
+        for (bv, sigma) in [(0.7, 1.0), (-0.7, -1.0)] {
+            let (rows, _) = with_session(budget(), || spellings(p("bulge", bv), sigma));
+            assert!(
+                rows.iter().all(|r| *r == ("theorem", "theorem")),
+                "a parameter bulge at {bv}, turn {sigma}: {rows:?}"
+            );
+        }
     }
 
     /// **Nothing folds at an argument that is not `q·atan(X)`**: an

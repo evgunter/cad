@@ -22,20 +22,13 @@ use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, FaceSurface, MefSite, MevSite};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 /// The unit sphere about `+Z` at the origin.
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -44,19 +37,19 @@ fn unit_sphere() -> Surface<f64> {
 /// material it caps.
 fn cut_plane(z: f64, up: bool) -> Surface<f64> {
     Surface::Plane {
-        origin: p3(0.0, 0.0, z),
-        normal: v3(0.0, 0.0, if up { 1.0 } else { -1.0 }),
-        u_ref: v3(1.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, z),
+        normal: Vec3::new(0.0, 0.0, if up { 1.0 } else { -1.0 }),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 /// The cut circle at height `z` on the unit sphere.
 fn cut_circle(z: f64) -> Curve3<f64> {
     Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: (1.0 - z * z).sqrt(),
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -79,12 +72,18 @@ fn cut_circle(z: f64) -> Curve3<f64> {
 fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64>>) -> Body<f64> {
     let tol = Tol::witness();
     let r = (1.0 - z * z).sqrt();
-    let (a, b) = (p3(r, 0.0, z), p3(-r, 0.0, z));
+    let (a, b) = (Point3::new(r, 0.0, z), Point3::new(-r, 0.0, z));
     let pi = core::f64::consts::PI;
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(seed_surface))
-        .unwrap();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: seed_surface,
+            sense: true,
+        },
+    )
+    .unwrap();
     let e_rim = body
         .mev(
             MevSite::Lone {
@@ -103,13 +102,19 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64
                 he2: e_rim.he_plus,
             },
             EdgeCurveSpec::arc_of_circle(cut_circle(z), pi, core::f64::consts::TAU).unwrap(),
-            made_surface.map_or(FaceSurface::Inherit, FaceSurface::New),
+            made_surface.map_or(FaceSurface::Inherit, |surface| FaceSurface::New {
+                surface,
+                sense: true,
+            }),
             tol,
         )
         .unwrap();
     let s_seed = body.get_face(seed.face).unwrap().surface;
     let s_made = body.get_face(made.face).unwrap().surface;
-    for (edge, witness) in [(e_rim.edge, p3(0.0, r, z)), (made.edge, p3(0.0, -r, z))] {
+    for (edge, witness) in [
+        (e_rim.edge, Point3::new(0.0, r, z)),
+        (made.edge, Point3::new(0.0, -r, z)),
+    ] {
         if transverse {
             let curve = body.get_edge(edge).unwrap().curve;
             let spec = body

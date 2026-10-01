@@ -24,7 +24,8 @@
 //! reduction sweep (M3 PRs 2 and 4).
 
 use geom_brep::CertifyError;
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign, Tol};
+use geom_brep::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use geom_core::{Band, Decide, InfSpeed, Margin, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -33,6 +34,37 @@ use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey};
 use crate::provenance::Provenance;
+
+/// Where a crossing lands along its edge, in words: the subject every
+/// decision on it states, here and wherever an edge is split at a
+/// crossing.
+pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly inside its edge";
+
+/// The lever every door that splits an edge at a crossing has (the
+/// split, the blend, the Boolean): the geometry.
+pub(crate) const CROSSING_LEVER: &str =
+    "move the geometry so the crossing lands clearly away from the edge's ends";
+
+/// What a crossing's interiority margin measures.
+pub(crate) const CROSSING_SIZE: &str = "distance from the edge's end";
+
+/// [`Body::split_edge`]'s interiority decision: it passes only on a
+/// crossing definitely inside its edge.
+pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
+    lever: CROSSING_LEVER,
+    size: CROSSING_SIZE,
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The one ending of [`SPLIT_PARAM_INTERIOR`]'s refused `arm`, at the
+/// operation that asked. Both of `split_edge`'s interiority refusals end
+/// here, and neither offers a declaration: no door that splits an edge
+/// takes one naming where on the edge a crossing lands.
+pub(crate) fn split_param_ending(arm: RefusedArm<'_>) -> String {
+    SPLIT_PARAM_INTERIOR.recourse(arm, Reading::Build)
+}
 
 /// Every key minted (and the one possibly killed) by one
 /// [`Body::split_edge`] call.
@@ -146,7 +178,8 @@ impl<T: Decide> Body<T> {
     ///
     /// Two frontiers, both stated at `split_cache`. A
     /// `Fitted`/`General` row is left exactly as found, because its
-    /// certification doors are the `PcurveFittedLane` ones. And on a
+    /// certification doors take the fitted door
+    /// ([`crate::AtRestPolicy::fitted_lane`]). And on a
     /// SPLINE chart the carry is exact — a described-NURBS wall's
     /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
     /// reads `Ok` — but the recovery step the caveat below names,
@@ -242,10 +275,11 @@ impl<T: Decide> Body<T> {
             Margin::metered(t - t0, scale),
             Margin::metered(t1 - t, scale),
         ] {
-            match geom_core::k_stats::decide("split_edge_param_interior", margin, band) {
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Zero | Sign::Negative) => {
-                    return Err(EulerOpError::SplitParamNotInterior { edge });
+            match geom_core::k_stats::decide_reported("split_edge_param_interior", margin, band) {
+                Ok(decided) => {
+                    if let Some(verdict) = Refused::of(decided, band) {
+                        return Err(EulerOpError::SplitParamNotInterior { edge, verdict });
+                    }
                 }
                 Err(diag) => {
                     return Err(EulerOpError::SplitParamEscalated { edge, diag });
@@ -403,7 +437,7 @@ mod tests {
     use geom_brep::{
         EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SketchSegment,
     };
-    use geom_core::{Affine3, Point2, Point3, Vec3};
+    use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
@@ -460,18 +494,22 @@ mod tests {
 
     /// A quarter-circle arc edge (circle carrier, placed-segment arc
     /// description): split at the 45° parameter; both children certify
-    /// (the bulge restriction is exercised) and the parent carrier is
+    /// (the arc restriction is exercised) and the parent carrier is
     /// shared unchanged.
     #[test]
     fn split_arc_edge() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
                 segment: SketchSegment::Arc {
                     a: Point2::new(1.0, 0.0),
                     b: Point2::new(0.0, 1.0),
-                    bulge: (PI / 8.0).tan(),
+                    arc: Arc2 {
+                        centre: Point2::new(0.0, 0.0),
+                        radius: 1.0,
+                        sweep: FRAC_PI_2,
+                    },
                 },
                 place: Affine3::identity(),
             }),
@@ -528,7 +566,7 @@ mod tests {
     #[test]
     fn split_self_loop_edge() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -612,7 +650,7 @@ mod tests {
         ] {
             let err = body.split_edge(edge, t, Tol::witness()).unwrap_err();
             match (expect_escalated, &err) {
-                (false, EulerOpError::SplitParamNotInterior { edge: e }) => {
+                (false, EulerOpError::SplitParamNotInterior { edge: e, .. }) => {
                     assert_eq!(*e, edge);
                 }
                 (true, EulerOpError::SplitParamEscalated { edge: e, .. }) => {

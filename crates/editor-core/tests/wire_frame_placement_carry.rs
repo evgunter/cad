@@ -101,13 +101,13 @@ fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64
 }
 
 fn p() -> ParamName {
-    ParamName::new("lift")
+    ParamName::from_static("lift")
 }
 
 /// The parameter row 7 drives a frame's x axis LENGTH with — a
 /// `Scalar`, because a direction's components are not lengths.
 fn span() -> ParamName {
-    ParamName::new("span")
+    ParamName::from_static("span")
 }
 
 /// A one-axis degenerate box `name ∈ nominal + [offset, offset]`:
@@ -410,11 +410,7 @@ fn a_frame_whose_v_is_not_perpendicular_carries_the_orthonormalized_pair() {
     let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_r5", Tol::witness());
     let (doc, frame) = fixture::insert(
         doc,
-        Node::Datum(Datum::Frame {
-            origin: [0.0, 0.0, 0.0].map(fixture::len),
-            u: [1.0, 0.0, 0.0].map(fixture::scl),
-            v: [1.0, 2.0, 0.0].map(fixture::scl),
-        }),
+        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 2.0, 0.0]),
     );
     let (doc, _profile) = fixture::insert(
         doc,

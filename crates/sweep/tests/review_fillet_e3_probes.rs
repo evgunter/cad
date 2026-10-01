@@ -6,9 +6,9 @@
 //! and goes green when the shape it names is fixed:
 //!
 //! 1. **One bracket, one shape.** A thin interval margin is diagnosed
-//!    as `MarginDiag::Enclosure { lo, hi }` with `lo == hi` when it
+//!    as `MarginKind::Enclosure { lo, hi }` with `lo == hi` when it
 //!    escalates (`Interval::sign_within`, pinned in `geom-core`'s dual
-//!    suite) and as `MarginDiag::Value` when it decides
+//!    suite) and as `MarginKind::Value` when it decides
 //!    (`blend::battery::classified`). Two spellings of "what a
 //!    bracket's reading is", one per twin.
 //! 2. **The companion `gap` is a projected endpoint.**
@@ -22,7 +22,7 @@
 
 mod certified {
     use crate::common::approx::band;
-    use geom_core::{Decide, Interval, MarginDiag, Real, Sign, Vec3};
+    use geom_core::{Decide, ErrorTextReading, Interval, Real, Sign, Vec3};
     use sweep::blend::BlendError;
     use sweep::blend::battery::{chain_g1, face_clearance};
     use sweep::blend::surgery::ring_clearance_for_tests as ring_clearance;
@@ -53,8 +53,14 @@ mod certified {
             other => panic!("expected RingClearance, got {other:?}"),
         };
         assert_eq!(decided.sign, Sign::Negative);
-        let esc_is_value = matches!(escalated.margin, MarginDiag::Value(_));
-        let dec_is_value = matches!(decided.reading, MarginDiag::Value(_));
+        let esc_is_value = matches!(
+            escalated.margin.diagnostic_f64_for_error_text(),
+            ErrorTextReading::Value(_)
+        );
+        let dec_is_value = matches!(
+            decided.reading.diagnostic_f64_for_error_text(),
+            ErrorTextReading::Value(_)
+        );
         assert_eq!(
             esc_is_value, dec_is_value,
             "a thin bracket is diagnosed as {:?} when it escalates and as {:?} when it \
@@ -76,7 +82,10 @@ mod certified {
             panic!("expected FaceClearanceUncertified, got {err:?}");
         };
         assert!(
-            matches!(margin.reading, MarginDiag::Enclosure { .. }),
+            matches!(
+                margin.reading.diagnostic_f64_for_error_text(),
+                ErrorTextReading::Enclosure { .. }
+            ),
             "the margin itself is carried as the enclosure it is: {:?}",
             margin.reading
         );
@@ -104,7 +113,10 @@ mod certified {
         };
         assert_eq!(margin.sign, Sign::Positive);
         assert!(
-            matches!(margin.reading, MarginDiag::Enclosure { .. }),
+            matches!(
+                margin.reading.diagnostic_f64_for_error_text(),
+                ErrorTextReading::Enclosure { .. }
+            ),
             "sin θ · arm over a wide arm is an enclosure: {:?}",
             margin.reading
         );

@@ -111,9 +111,13 @@
 //! over every contact edge at the description pass (`attach_contact`,
 //! through [`geom_brep::must_carry_over_edge`]):
 //! **`tangent_second_order`** at the certification schedule's seven
-//! interior stations — jet-determinate stores the intrinsic tangency,
-//! under-determined the conventional chart image, in-band refuses
-//! [`BlendError::Escalated`] at the link. Everything else in this
+//! interior stations, each first gated by the first-order wedge
+//! (`dihedral_wedge` behind its `dihedral_arm`) —
+//! jet-determinate stores the intrinsic tangency, under-determined the
+//! conventional chart image, in-band refuses [`BlendError::Escalated`]
+//! at the link, and a transverse station refuses
+//! [`BlendError::SurgeryInvariant`]: the routing sends every contact
+//! whose surfaces cross at an angle to the plain intersection instead. Everything else in this
 //! module is structural: cycle walks, key equality, stored senses.
 //!
 //! # Out of scope, refused typed
@@ -184,7 +188,7 @@ use topo::{
 use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
 use super::arms::EdgeBlend;
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::build::{Blended, face_cycle};
+use super::build::{Blended, face_cycle, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
 use super::open::planar::{BlankPlan, Corner, blank_phase, corner_plan};
 use super::open::ruled::{RuledPlan, ruled_phase};
@@ -510,7 +514,7 @@ struct RimCarrier<T: Real> {
 /// [`super::build::fillet_edges`] AFTER the battery, for every
 /// request. The verdict's chains are the input; nothing re-derives
 /// what the battery already resolved.
-pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     source: &Body<T>,
     verdict: &BatteryVerdict<T>,
     band: Band,
@@ -588,7 +592,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let mut corners: Vec<Corner<'_, T>> = Vec::new();
     for links in ends {
         let v = links.vertex();
-        let Some(mut incident) = vertex_edges_of(source, v) else {
+        let Some(mut incident) = fan_at(source.edges_of_vertex(v)) else {
             return Err(not_intact(
                 EntityId::Vertex(v),
                 "a chain end's vertex orbit does not walk",
@@ -724,10 +728,14 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         described.append(&mut arcs);
     }
 
-    // ---- Surfaces and senses first (attach.rs: attach surfaces
-    // before upgrading edge descriptions), then every new edge's
-    // intrinsic description, then the pcurve re-mint (the input's
-    // caches are stale the moment the first strut lands). ----
+    // ---- Surfaces and senses first (`set_face_surface` refuses a
+    // swap under an edge already described against the face's chart),
+    // then every new edge's intrinsic description, then the pcurve
+    // re-mint: the faces the surgery builds carry no row until it runs,
+    // and the descriptions it upgrades are what every image derives
+    // from. The struts leave a complete input face they land on
+    // complete or rowless, never half-minted, and this pass re-derives
+    // that face with the rest. ----
     // **The sense bit is the band's, not the verb's.** A rolling-ball
     // band's chart normal is the radial one, which is outward exactly
     // on a convex chain — so it folds the stored convexity verdict. A
@@ -742,24 +750,36 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     };
     for (o, fk) in &blend_rows {
         let fk = *fk;
-        body.set_face_surface(fk, FaceSurface::New(o.link().blend.surface.clone()))
-            .map_err(|e| op("blend face surface", e))?;
-        body.set_face_sense(fk, band_sense(o.convexity()))
-            .map_err(|e| op("blend face sense", e))?;
+        body.set_face_surface(
+            fk,
+            FaceSurface::New {
+                surface: o.link().blend.surface.clone(),
+                sense: band_sense(o.convexity()),
+            },
+        )
+        .map_err(|e| op("blend face surface", e))?;
     }
     for (i, c) in corners.iter().enumerate() {
         let fk = corner_faces[i];
-        body.set_face_surface(fk, FaceSurface::New(c.surface.clone()))
-            .map_err(|e| op("corner patch surface", e))?;
-        body.set_face_sense(fk, band_sense(c.convexity))
-            .map_err(|e| op("corner patch sense", e))?;
+        body.set_face_surface(
+            fk,
+            FaceSurface::New {
+                surface: c.surface.clone(),
+                sense: band_sense(c.convexity),
+            },
+        )
+        .map_err(|e| op("corner patch surface", e))?;
     }
     for (i, rim) in rims.iter().enumerate() {
         let fk = band_faces[i];
-        body.set_face_surface(fk, FaceSurface::New(band_surfaces[i].clone()))
-            .map_err(|e| op("band face surface", e))?;
-        body.set_face_sense(fk, rim.chain.first().convexity.blend_sense())
-            .map_err(|e| op("band face sense", e))?;
+        body.set_face_surface(
+            fk,
+            FaceSurface::New {
+                surface: band_surfaces[i].clone(),
+                sense: rim.chain.first().convexity.blend_sense(),
+            },
+        )
+        .map_err(|e| op("band face surface", e))?;
     }
     for (edge, carrier, link) in described {
         attach_contact(&mut body, edge, carrier, link, band, tol)?;
@@ -828,19 +848,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 // ------------------------------------------------------------------
 // Plan helpers (read-only).
 // ------------------------------------------------------------------
-
-/// A vertex's incident edges, sorted (the corner front-door check).
-fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
-    let he = body.get_vertex(vertex)?.emanating?;
-    let mut edges: Vec<EdgeKey> = body
-        .vertex_orbit(he)?
-        .iter()
-        .filter_map(|h| body.get_half_edge(*h).map(|x| x.edge))
-        .collect();
-    edges.sort_unstable();
-    edges.dedup();
-    Some(edges)
-}
 
 /// Resolve one closed chain onto its two supports, with every
 /// structural precondition of the band replacement checked.
@@ -1354,10 +1361,9 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let mut crossings = Vec::with_capacity(chain.link_count());
     for (i, link) in chain.links().enumerate() {
         let vertex = ends[i].1;
-        let mut incident = vertex_edges_of(body, vertex)
+        let mut incident = fan_at(body.edges_of_vertex(vertex))
             .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
-        incident.dedup();
         let (arcs, seams): (Vec<EdgeKey>, Vec<EdgeKey>) =
             incident.iter().partition(|e| chain_edges.contains(e));
         // One seam per side that HAS one: both under `Seams`, the mate
@@ -1632,10 +1638,9 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
     // recourse, which is honest wherever they could fire.
     let mut live = Vec::with_capacity(ann.crossings.len());
     for c in &ann.crossings {
-        let mut incident = vertex_edges_of(body, c.vertex)
+        let mut incident = fan_at(body.edges_of_vertex(c.vertex))
             .ok_or_else(|| not_intact(EntityId::Vertex(c.vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
-        incident.dedup();
         let extras: Vec<EdgeKey> = incident
             .into_iter()
             .filter(|e| !chain_edges.contains(e))
@@ -1749,7 +1754,7 @@ fn resolve_annulus<T: Decide + Bounds>(
     // the band's slit is minted from the MATE seam's rim-side piece
     // and the HOST seam's rim-side piece dies with this vertex, so a
     // third incident edge would be left behind by both.
-    let mut incident = vertex_edges_of(body, vertex)
+    let mut incident = fan_at(body.edges_of_vertex(vertex))
         .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
     incident.sort_unstable();
     let mut expected = vec![link0.edge, host_seam, mate_seam];
@@ -2208,9 +2213,10 @@ impl<T: Bounds> CircleFrame<T> {
     ///   agree, and so do their derivatives in every parameter that
     ///   moves them. A scalar that carries tangents (a `Dual`) reads
     ///   its branch off its value channel alone, and either branch then
-    ///   hands on the same value and the same first-order tangent,
-    ///   which is what the locally-constant condition of DL5(b) buys
-    ///   and what this selection gives without it.
+    ///   hands on the same value and the same first-order tangent.
+    ///   The branch is locally constant everywhere off the switch, and
+    ///   on it the choice moves no tangent — what the locally-constant
+    ///   condition of DL5(b) exists to guarantee.
     fn misses(self, (ta, tb): (T, T), q: Point3<T>) -> bool {
         let past = self.past(ta, q);
         (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
@@ -3006,7 +3012,7 @@ fn rim_phase<T: Decide + Bounds>(
     // SOURCE meridian it came from).
     let mut remnants: Vec<(VertexKey, EdgeKey, EdgeKey)> = Vec::with_capacity(n);
     for &(_, v, e) in &plane_walk {
-        let incident = vertex_edges_of(body, v)
+        let incident = fan_at(body.edges_of_vertex(v))
             .ok_or_else(|| not_intact(EntityId::Vertex(v), "a rim vertex's edge orbit"))?;
         let meridians: Vec<EdgeKey> = incident
             .into_iter()
@@ -3161,7 +3167,7 @@ fn rim_phase<T: Decide + Bounds>(
     for l in rim.chain.links() {
         let half = host_side_half(body, l, rim.host0())
             .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim edge's plane-side half"))?;
-        sources.kef_minted(body, half, "rim kef")?;
+        sources.kef_minted(body, half, "rim kef", tol)?;
         rec.dead.edges.push(l.edge);
     }
 
@@ -3173,11 +3179,12 @@ fn rim_phase<T: Decide + Bounds>(
     // (`props`' inventory; the donut's own representation): so the
     // strut dies by a fan-merging kev that re-anchors the remnant to
     // the trim foot, leaving the remnant as the band's SLIT — a
-    // double-traversed torus meridian, exactly the donut's shape. Its
-    // carrier is re-described as that meridian arc in the final pass
-    // (the kev leaves it spanning foot → split point with a stale
-    // sphere-meridian carrier; nothing validates between here and
-    // there). ----
+    // double-traversed torus meridian, exactly the donut's shape. The
+    // kill re-describes it as it merges it: the remnant would keep a
+    // sphere-meridian carrier to the dying rim vertex, so the kill is
+    // handed the chord foot → split point as scaffolding (the band's
+    // surface does not exist yet), and the final pass states it as the
+    // band's seam, the meridian arc. ----
     let remnant_at = |v: VertexKey| -> Option<(EdgeKey, EdgeKey)> {
         remnants
             .iter()
@@ -3232,12 +3239,14 @@ fn rim_phase<T: Decide + Bounds>(
             } else {
                 hp
             };
-            body.kev(dying).map_err(|e| op("rim closure kev", e))?;
             // The slit's true carrier: the torus minor circle at this
             // vertex's azimuth (radial read off the foot, which lies
             // on the trim circle).
             let fp = strut_hes[idx].1;
             let radial = (fp - ca) / sa;
+            let chord = merged_chord_spec(body, mr, dying, "rim closure kev")?;
+            body.kev_describing(dying, &[(mr, chord)], tol)
+                .map_err(|e| op("rim closure kev", e))?;
             // The slit SURVIVES as the band's own double-traversed
             // meridian: a birth row, not a death.
             rec.slits.push((mr, msrc, band_named.clone()));
@@ -3257,7 +3266,7 @@ fn rim_phase<T: Decide + Bounds>(
                 u_ref: radial,
             });
         } else {
-            sources.kef_minted(body, hp, "rim strut kef")?;
+            sources.kef_minted(body, hp, "rim strut kef", tol)?;
             // The upper meridian remnant at this vertex is now a spur
             // ending at the old rim vertex.
             let (shp, shm) = halves_of(body, mr).ok_or_else(|| {
@@ -3268,6 +3277,13 @@ fn rim_phase<T: Decide + Bounds>(
             } else {
                 shp
             };
+            // A spur: the rim edges and the plane strut at `v` are
+            // gone, so `v` has valence one and the keys-only kill merges
+            // no fan.
+            debug_assert!(
+                body.kev_merged_members(dying).is_ok_and(|m| m.is_empty()),
+                "rim kev: the remnant is a spur, so the kill merges no fan"
+            );
             body.kev(dying).map_err(|e| op("rim kev", e))?;
             retire_fragment(rec, mr, msrc);
         }
@@ -3939,7 +3955,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     for (i, l) in rim.chain.links().enumerate() {
         let dying = host_side_half(body, l, rim.hosts[i])
             .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
-        sources.kef_minted(body, dying, "annulus rim kef")?;
+        sources.kef_minted(body, dying, "annulus rim kef", tol)?;
     }
 
     // ---- (6)+(7) The crossings. Carry-through ones first, so every
@@ -3962,7 +3978,16 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         } else {
             hp
         };
-        body.kev(dying).map_err(|e| op("annulus closure kev", e))?;
+        // The merge re-bases the mate seam's rim-side piece from the
+        // crossing onto the host foot, where it spans the two feet. The
+        // kill is handed the chord between them as scaffolding; the
+        // closure's piece survives as the slit, whose final description
+        // below states the band's meridian, and every other one dies by
+        // the `kef` after.
+        let member = mate_feet[ix].1;
+        let chord = merged_chord_spec(body, member, dying, "annulus closure kev")?;
+        body.kev_describing(dying, &[(member, chord)], tol)
+            .map_err(|e| op("annulus closure kev", e))?;
         if ix == ann.closure {
             continue;
         }
@@ -3975,7 +4000,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                  own `split_edge` and only the closure crossing keeps one"
             )
         };
-        sources.kef_minted(body, mp, "annulus seam-crossing kef")?;
+        sources.kef_minted(body, mp, "annulus seam-crossing kef", tol)?;
     }
 
     // ---- The band's chart is SEAMED at the slit (certification demands
@@ -4219,6 +4244,7 @@ impl SourceFaces {
         body: &mut Body<T>,
         dying: HalfEdgeKey,
         site: &'static str,
+        tol: Tol,
     ) -> Result<(), BlendError> {
         let f = face_of_half(body, dying).ok_or_else(|| {
             invariant_broken(
@@ -4233,7 +4259,7 @@ impl SourceFaces {
                  kills only faces its own `mef`s minted",
             ));
         }
-        body.kef(dying).map_err(|e| op(site, e))?;
+        body.kef_minting(dying, tol).map_err(|e| op(site, e))?;
         Ok(())
     }
 }
@@ -4347,12 +4373,12 @@ fn attach_contact<T: Decide + Bounds>(
         // description is the plain intersection locus. Calling it a
         // TANGENT intersection would claim normal-parallelism along
         // the locus that the geometry does not have. The description
-        // is chosen for what the geometry IS, not for what the
-        // certifier would catch: a cut-off arc mis-described as a
-        // tangent intersection of band and cap certifies and passes
-        // tier 3 today (the `TangentParallel` margin `sin θ / |κ_rel|`
-        // admits a 90° crossing —
-        // `work/props/tangent-parallel-certifier-passes-a-transverse-arc.md`).
+        // is chosen for what the geometry IS, not for what a later
+        // gate would catch. Routed through the tangent branch below
+        // instead, a cut-off arc reads `Transverse` at the must-carry
+        // rule's first-order gate in either surface order, and that
+        // branch refuses it as the surgery contradicting its own
+        // routing.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
@@ -4361,12 +4387,13 @@ fn attach_contact<T: Decide + Bounds>(
         // definitely-smooth join, whose description is the must-carry
         // rule's to decide over the whole edge
         // (`geom_brep::must_carry_over_edge` — the lane gate, the
-        // certification schedule's interior stations and the three-way
-        // answer, in their one home). The rule decides; this site does
-        // not argue. Jet-determinate stores the intrinsic tangency,
+        // certification schedule's interior stations and the verdict,
+        // in their one home). The rule decides; this site does not
+        // argue. Jet-determinate stores the intrinsic tangency,
         // under-determined the conventional chart image, in-band
         // refuses typed at the door (D4 ¶3) — never silently either
-        // side.
+        // side — and a transverse station refutes this branch's
+        // smooth premise, refused as the invariant it breaks.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         let verdict = {
             let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
@@ -4397,11 +4424,14 @@ fn attach_contact<T: Decide + Bounds>(
             // Reached where the jet is under-determined on a pair the
             // lane admits: a corner arc on a slim wedge, whose extent
             // is the folded lever arm, or any band under a run with
-            // `K < 2`. A pair the lane REFUSES lands here too, and the
-            // derived image covers the carriers the lane admits, so
-            // such a pair would fall to the certification door's own
-            // refusal inside `op("surgery contact edge")`; no arm the
-            // battery admits mints one.
+            // `K < 2`. A pair the lane REFUSES lands here too once
+            // every station has read smooth first-order (a crossing
+            // out of lane answers `Transverse` below, as in lane): the
+            // certificate cannot store an intrinsic tangency there, so
+            // the conventional image is the honest description, and
+            // the door derives it — `geom_brep::chart_pcurve` images a
+            // ruling `Line` in a `Cone`'s chart as readily as in a
+            // plane's. No arm the battery admits mints such a pair.
             MustCarryVerdict::UnderDetermined => EdgeDescriptionSpec::chart(s1),
             // In-band: a separation certifiable as neither positive nor
             // zero — a band a few K·ε in radius, or a corner arc whose
@@ -4412,6 +4442,21 @@ fn attach_contact<T: Decide + Bounds>(
                 return Err(BlendError::Escalated {
                     site: BlendSite::Link { edge: link },
                     source,
+                });
+            }
+            // A station reads the join a corner: this branch's premise
+            // — a definitely-smooth join — is refuted by the geometry.
+            // The carrier kind routed the edge here, and every kind
+            // whose surfaces cross at an angle is routed to the
+            // transverse branch above, so reaching this arm is the
+            // surgery contradicting its own routing, announced rather
+            // than repaired by storing a description the routing did
+            // not choose.
+            MustCarryVerdict::Transverse => {
+                return Err(BlendError::SurgeryInvariant {
+                    at: EntityId::Edge(edge),
+                    detail: "a contact edge routed as a smooth join reads definitely \
+                             transverse at a certification station",
                 });
             }
         }
@@ -4432,6 +4477,36 @@ fn attach_contact<T: Decide + Bounds>(
     // operator refusal that raised it.
     .map_err(|e| op("surgery contact edge", e))?;
     Ok(())
+}
+
+/// What a closure kill hands [`Body::kev_describing`] for the one
+/// member its merge re-bases: the member as the chord between the
+/// endpoints the merge gives it ([`Body::kev_merged_members`]) — the
+/// scaffolding this surgery's struts and trims carry too, until the
+/// description pass states the true carrier ([`attach_contact`], over
+/// the `described` list the member is on). The member spans two
+/// distinct feet, so the chord is a line and never a closed circle.
+/// A chord and not the meridian arc it will rest as: the arc's sweep
+/// is an `atan2` over directions read off a centre that is itself
+/// computed, and its scaffolding residual sets the carrier against a
+/// rotation of its start point by that sweep, so the certified scalar
+/// encloses the residual wider than the tightest band and the kill
+/// escalates; the chord's carrier and its scaffold are one affine
+/// expression each, and enclose it at a few units in the last place.
+fn merged_chord_spec<T: Decide>(
+    body: &Body<T>,
+    member: EdgeKey,
+    dying: HalfEdgeKey,
+    site: &'static str,
+) -> Result<EdgeCurveSpec<T>, BlendError> {
+    let members = body.kev_merged_members(dying).map_err(|e| op(site, e))?;
+    let merged = members.iter().find(|m| m.edge == member).ok_or_else(|| {
+        not_intact(
+            EntityId::Edge(member),
+            "the meridian a closure kill's merge re-bases",
+        )
+    })?;
+    Ok(EdgeCurveSpec::line_between(merged.start, merged.end))
 }
 
 #[cfg(test)]

@@ -97,9 +97,9 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use slotmap::SecondaryMap;
 
+use crate::attach::Rechart;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, SolidKey, VertexKey};
-use crate::euler::FaceSurface;
 use crate::geometry::SurfaceKey;
 use crate::replace_face::ReplaceFaceError;
 
@@ -150,7 +150,7 @@ struct MovedPlane<T: Real> {
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
 /// plan is decided before anything is written, and the writes go to a
 /// clone that replaces `body` only on success.
-pub fn offset_planes_together<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,
@@ -349,7 +349,7 @@ pub fn offset_planes_together<T: Decide + geom_brep::PcurveFittedLane>(
     // adopted on is the door's own whole-body check.
     let mut staged = body.clone();
     let mut work = staged.begin_surgery();
-    let mut minted: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
+    let mut charts: Vec<Rechart<T>> = Vec::new();
     for m in moves {
         let Some(&first) = m.faces.first() else {
             return Err(ReplaceFaceError::EmptyGroup);
@@ -362,43 +362,17 @@ pub fn offset_planes_together<T: Decide + geom_brep::PcurveFittedLane>(
         else {
             return Err(ReplaceFaceError::Corrupt);
         };
-        let new_key = work
-            .set_face_surface(
-                first,
-                FaceSurface::New(Surface::Plane {
-                    origin: origin + p.delta,
-                    normal: p.normal,
-                    u_ref,
-                }),
-            )
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-        for &member in &m.faces[1..] {
-            work.set_face_surface(member, FaceSurface::Shared(new_key))
-                .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-        }
-        minted.push((p.old_key, new_key));
+        charts.push(crate::replace_face::offset_rechart(
+            &work,
+            Surface::Plane {
+                origin: origin + p.delta,
+                normal: p.normal,
+                u_ref,
+            },
+            &m.faces,
+        )?);
     }
-    for (vertex, point) in &moved {
-        let old_point = work
-            .get_vertex(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point;
-        let new_point = work.add_point(*point);
-        work.get_vertex_mut(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point = new_point;
-        work.remove_point_if_orphaned(old_point);
-    }
-    for (edge, mut spec) in specs {
-        for (old, new) in &minted {
-            spec.description = crate::replace_face::remap_description(spec.description, *old, *new);
-        }
-        work.set_edge_curve(edge, spec, tol)
-            .map_err(|error| ReplaceFaceError::Op {
-                edge: Some(edge),
-                error,
-            })?;
-    }
+    crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)?;
     // Every edge OF THE SCOPE was just re-described, so its stored
     // pcurve rows are stale — re-minted here for the same reason
     // `replace_faces_offset` re-mints, and before the tier-2 gate that
@@ -670,31 +644,15 @@ fn corner_arms<T: Real>(
     Ok(out)
 }
 
-/// Every face incident to a vertex, in orbit order.
+/// Every face incident to a vertex, in orbit order
+/// ([`Body::faces_of_vertex`]), with the door's `None` turned into this
+/// module's entity-agnostic [`ReplaceFaceError::Corrupt`].
 pub(crate) fn faces_at_vertex<T: Real>(
     body: &Body<T>,
     vertex: VertexKey,
 ) -> Result<Vec<FaceKey>, ReplaceFaceError<T>> {
-    let Some(emanating) = body
-        .get_vertex(vertex)
-        .ok_or(ReplaceFaceError::Corrupt)?
-        .emanating
-    else {
-        return Ok(Vec::new());
-    };
-    let orbit = body
-        .vertex_orbit(emanating)
-        .ok_or(ReplaceFaceError::Corrupt)?;
-    let mut out = Vec::new();
-    for he in orbit {
-        let face = body
-            .face_of_half_edge(he)
-            .ok_or(ReplaceFaceError::Corrupt)?;
-        if !out.contains(&face) {
-            out.push(face);
-        }
-    }
-    Ok(out)
+    body.faces_of_vertex(vertex)
+        .ok_or(ReplaceFaceError::Corrupt)
 }
 
 /// **The solids a simultaneous door works over.**
@@ -976,7 +934,7 @@ mod scope_walks {
 
     use super::{ChartMove, Scope, offset_planes_together, scope_of_moves};
     use crate::body::Body;
-    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
+    use crate::entity::{HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
     use crate::replace_face::ReplaceFaceError;
     use crate::splitting::reassembly::quad_prism;
     use crate::test_support_fixtures::UNIT_SQUARE;
@@ -1006,16 +964,14 @@ mod scope_walks {
     /// before any meter runs — and it is what these rows use, so that
     /// what they measure is the BOOKKEEPING around the solve.
     fn moves_of(body: &Body<f64>, solid: SolidKey, distance: f64) -> Vec<ChartMove<f64>> {
-        let mut out: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-        for face in body.faces_of_solid(solid).expect("a live solid") {
-            let key = body.get_face(face).unwrap().surface;
-            match out.iter_mut().find(|(k, _)| *k == key) {
-                Some((_, v)) => v.push(face),
-                None => out.push((key, vec![face])),
-            }
-        }
-        out.into_iter()
-            .map(|(_, faces)| ChartMove { faces, distance })
+        let faces = body.faces_of_solid(solid).expect("a live solid");
+        crate::chart_groups::ChartGroups::within(body, faces)
+            .expect("a live solid's faces resolve")
+            .iter()
+            .map(|(_, faces)| ChartMove {
+                faces: faces.to_vec(),
+                distance,
+            })
             .collect()
     }
 
@@ -1106,12 +1062,15 @@ mod scope_walks {
         let victim = body.faces_of_solid(second).expect("a live solid")[0];
         body.set_face_surface(
             victim,
-            crate::euler::FaceSurface::New(geom::Surface::Cylinder {
-                origin: Point3::new(10.5, 0.5, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: 0.5,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            crate::euler::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::new(10.5, 0.5, 0.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    radius: 0.5,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
         assert!(
@@ -1162,7 +1121,7 @@ mod scope_walks {
         // a stale key is the case this door promises to catch, and a
         // foreign key is the case it documents that it does not, so
         // only the first witnesses the refusal under test.
-        let scratch = body.mvfs(Point3::new(0.0, 0.0, 9.0)).unwrap();
+        let scratch = body.mvfs(Point3::new(0.0, 0.0, 9.0), true).unwrap();
         let dead = scratch.face;
         body.kvfs(scratch.solid)
             .expect("the scratch solid dies whole");

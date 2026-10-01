@@ -11,7 +11,7 @@ use editor_core::{
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, SplitHalf, band,
     band_rim, evaluate, meridian_vertex,
 };
-use fixture::{ang, axis_in_plane, insert, len, minted, on_frame_keeping, table};
+use fixture::{ang, axis_in_plane, insert, len, len2, minted, on_frame_keeping, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -211,11 +211,10 @@ fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
 /// pole export exists for.
 fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
     let meridian = LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.0, -1.0)),
+        ProgramStep::At(len2([0.0, -1.0])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p2(0.0, 1.0)),
+            target: ProgramTarget::Point(len2([0.0, 1.0])),
             b: fixture::scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
@@ -707,12 +706,14 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
     );
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: ext,
-            translation: [len(3.0), len(0.0), len(0.0)],
-            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            ext,
+            editor_core::Step::Rigid {
+                translation: [len(3.0), len(0.0), len(0.0)],
+                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, pat) = insert(
         doc,

@@ -72,8 +72,8 @@
 //!
 //! Every curved-face quantity is extracted from **stored** data —
 //! carrier parameter intervals (angle-true for circle carriers; spans
-//! minted from `θ = 4·atan|bulge|` or the sweep angle at construction,
-//! the sanctioned re-inspection), stored circle centers/axes/radii,
+//! minted from the segment's stored sweep or the sweep angle at
+//! construction), stored circle centers/axes/radii,
 //! and carrier endpoint evaluations — never from endpoint `atan2`
 //! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker: two
 //! endpoint inversions differenced lose the winding and sit on a
@@ -726,9 +726,10 @@ mod tests {
 
         let msg = PropsError::Escalated {
             cause: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("props_face_extent"),
+                terminal_sliver: false,
             },
         }
         .to_string();
@@ -761,9 +762,10 @@ mod tests {
         ];
         let escalated = PropsError::Escalated {
             cause: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
+                margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
                 predicate: Some("props_face_extent"),
+                terminal_sliver: false,
             },
         };
         let arms = [

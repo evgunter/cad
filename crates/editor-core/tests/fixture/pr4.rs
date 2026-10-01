@@ -81,12 +81,14 @@ where
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(0.5), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            editor_core::Step::Rigid {
+                translation: [len(0.5), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     // M4 PR 5: the sliding overlap's flush planes are DECLARED (the
     // recipe intent; the retired bit rung no longer infers them). The
@@ -156,14 +158,8 @@ where
         doc: &doc,
         eval: &ev1,
     };
-    out.push((
-        "flip-vanish",
-        resolve_with_prior(new, prior, &ranked, Tol::witness()),
-    ));
-    out.push((
-        "cascade",
-        resolve_with_prior(new, prior, &inst, Tol::witness()),
-    ));
+    out.push(("flip-vanish", resolve_with_prior(new, prior, &ranked)));
+    out.push(("cascade", resolve_with_prior(new, prior, &inst)));
 
     // ---- Scenario B: pattern count shrink (StructuralParam). ----
     let (doc3, _) = step(
@@ -184,7 +180,6 @@ where
             },
             prior,
             &inst,
-            Tol::witness(),
         ),
     ));
 

@@ -689,13 +689,7 @@ pub(crate) mod tests {
         let mut refused = cube();
         crate::validate::validate(&refused).expect("the fixture is tier-1 valid");
         let faces: Vec<_> = refused.faces().map(|(k, _)| k).collect();
-        let err = crate::replace_faces_offset(
-            &mut refused,
-            &faces,
-            1.0,
-            geom_core::Band::linear(tol).expect("a band"),
-            tol,
-        );
+        let err = crate::replace_faces_offset(&mut refused, &faces, 1.0, tol);
         assert!(err.is_err(), "one chart's faces are not a whole group");
         assert_eq!(
             refused.open_surgery_scopes(),

@@ -32,7 +32,7 @@ first three groups for placement; the dual review added the rest.
 
 - `crates/geom-brep/src/props/quad.rs:691` `DerivLadder::build(kv,
   coeffs)` with `levels: [Option<(Option<KnotVector>,
-  Vec<RingInterval>)>; 3]`, and `:1264` `collapse_1d(dir, coeffs, op)`
+  Vec<Interval>)>; 3]`, and `:1264` `collapse_1d(dir, coeffs, op)`
   with `Dir::Kv(kv)` beside a channel — each mints at the door it
   reaches (`range_hull`, `KnotVector::difference_coeffs`), so every
   refusal arm is dead by construction. Disposition: a level type that
@@ -70,7 +70,7 @@ first three groups for placement; the dual review added the rest.
 - `crates/geom-core/src/spline/compose.rs:1033` `linear_composite(data,
   coeffs, offset)` — matched by the reviewers' grep; **not the shape**:
   `coeffs` here are the linear form's per-channel weights, related to
-  `CurveRingData::dims()` and to no knot vector. Disposition: none;
+  `CurveCertData::dims()` and to no knot vector. Disposition: none;
   recorded so the next sweep does not re-derive it.
 - `crates/geom/src/surfaces/nurbs.rs:797` `map_u_columns(build: impl
   Fn(&KnotVector, &[f64]) -> …)` — the higher-order form of the

@@ -98,8 +98,7 @@
 # holder invoking an exclusive-wanting script passes through with only
 # its one slot held — don't wrap battery scripts in a shared slot.
 #
-# The battery scripts self-acquire (ci-local.sh: exclusive;
-# test-fast.sh: shared), so anything going through the standard entry
+# The battery scripts self-acquire (test-fast.sh: shared), so anything going through the standard entry
 # points is queued automatically; use this wrapper directly for raw
 # `cargo build` / `cargo nextest` invocations in lanes.
 set -euo pipefail

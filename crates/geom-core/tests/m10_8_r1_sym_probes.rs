@@ -34,7 +34,7 @@ fn lit(x: f64) -> Sym<Interval> {
 }
 
 fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
-    m.sign_within(band()).map_err(|_| ())
+    m.sign_within(band()).map(|d| d.sign).map_err(|_| ())
 }
 
 /// **Clause 1 in front of rule A**: `sqrt(X)² − X` with `X` STRADDLING

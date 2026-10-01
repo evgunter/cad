@@ -22,14 +22,14 @@ use editor_core::analysis::{
 use editor_core::drive::{DriveConfig, RefusalReason, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet,
     UnitSym, select_where,
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, scl, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{OverBand, ceiling, certifies_whole, over_band_set, render_over_band};
 
@@ -231,8 +231,9 @@ fn r2_evidence_every_refused_leaf_of_the_plates_real_study_read_as_its_set() {
 /// side is an arc authored by BULGE (`ArcTo(Bulge)`), a round hole
 /// inside it, and the measure `distance(hole wall, arc wall)` with an
 /// assertion on it. Two variants: the bulge a LITERAL (0.4) with the
-/// hole's centre and radius varying, and the bulge a PARAMETER (the
-/// honest limit rule D states: `atan|b|` against `atan b`).
+/// hole's centre and radius varying, and the bulge a PARAMETER (where
+/// the carrier's span and the pushforward now read one `atan b` atom,
+/// and what stands is the coefficient ring and the radius's `abs`).
 ///
 /// Geometry (metres): chord `(4e-3, ∓2e-3)`, bulge `b` → sagitta
 /// `2e-3·b`, radius `(1 + b²)/(2b)·2e-3`, centre `x = 4e-3 + 2e-3·b −
@@ -260,20 +261,19 @@ pub(crate) fn d_tab_at(
     bulge_nominal: f64,
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite length");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, dim: Dimension, value: f64, d: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
-                dim,
-                value,
-                display_unit: UnitSym::canonical_for(dim),
-                distribution: Some(d),
-            },
-        });
-    };
+    let declare =
+        |r: &mut Recorder, n: &'static str, dim: Dimension, value: f64, d: Distribution| {
+            r.push(DocEdit::SetDocParam {
+                name: ParamName::from_static(n),
+                value: DocParam::Continuous {
+                    dim,
+                    value,
+                    display_unit: UnitSym::canonical_for(dim),
+                    distribution: Some(d),
+                },
+            });
+        };
     declare(
         &mut r,
         "hole_x",
@@ -304,15 +304,11 @@ pub(crate) fn d_tab_at(
                 hi: 0.05 * scale,
             },
         );
-        Expr::param(ParamName::new("bulge"), Dimension::Scalar)
+        Expr::param(ParamName::from_static("bulge"), Dimension::Scalar)
     } else {
         scl(bulge_nominal)
     };
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     let outline = LoopProgram::Chain(vec![
         ProgramStep::At([len(-4.0e-3), len(-2.0e-3)]),
         ProgramStep::LineTo(ProgramTarget::Point([len(4.0e-3), len(-2.0e-3)])),
@@ -337,10 +333,10 @@ pub(crate) fn d_tab_at(
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [
-                Expr::param(ParamName::new("hole_x"), Dimension::Length),
+                Expr::param(ParamName::from_static("hole_x"), Dimension::Length),
                 len(0.0),
             ],
-            radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
+            radius: Expr::param(ParamName::from_static("hole_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));

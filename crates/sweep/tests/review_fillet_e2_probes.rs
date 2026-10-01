@@ -44,12 +44,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
-    (p2(x, y), bulge)
+    (Point2::new(x, y), bulge)
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
@@ -75,7 +71,7 @@ fn ball_at(c: Vec3<f64>) -> Body<f64> {
         .validate(tol())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
@@ -161,7 +157,11 @@ fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_follow
     );
     assert_eq!(margin.predicate, "fillet3_ring_clearance");
     assert!(
-        margin.value().is_some_and(|m| m < 0.0 && m > -0.01),
+        margin
+            .reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .is_some_and(|m| m < 0.0 && m > -0.01),
         "the ring sits 0.7172 from the edge and the setback is 0.72: {margin}"
     );
     assert!(
@@ -201,7 +201,7 @@ fn the_ring_refusal_beside_a_concave_band_says_the_band_buries_the_ring() {
     use crate::common::cavity::{brick, cavity_edges, cut, rod};
     use sweep::blend::Convexity;
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
-    let vent = rod(p2(2.125, 1.7), 0.5, 2.5, 5.0);
+    let vent = rod(Point2::new(2.125, 1.7), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
     let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
     validate_geometric(&body, tol()).expect("the off-centre vented cavity is valid");
@@ -216,6 +216,8 @@ fn the_ring_refusal_beside_a_concave_band_says_the_band_buries_the_ring() {
     assert_eq!(chain, Convexity::Concave, "the cavity's chain is concave");
     assert!(
         margin
+            .reading
+            .diagnostic_f64_for_error_text()
             .value()
             .is_some_and(|m| (m - (0.2 - 0.22)).abs() < 1e-12),
         "the ring sits 0.2 from the edge and the setback is 0.22: {margin}"

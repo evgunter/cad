@@ -56,7 +56,7 @@ use topo::{Body, HalfEdgeKey};
 
 /// The fixture's cylinder: offset from the sphere's centre so the two
 /// intersection loops differ wildly in size (the PR 7 planted shape).
-const CYL_ORIGIN: (f64, f64, f64) = (0.03, 0.0, 0.0);
+const CYL_ORIGIN: Point3<f64> = Point3::new(0.03, 0.0, 0.0);
 const CYL_RADIUS: f64 = 0.08;
 const SPH_RADIUS: f64 = 1.0;
 
@@ -82,11 +82,7 @@ pub struct Built<T: Real> {
 
 fn cylinder<T: Real>() -> Surface<T> {
     Surface::Cylinder {
-        origin: Point3::new(
-            T::from_f64(CYL_ORIGIN.0),
-            T::from_f64(CYL_ORIGIN.1),
-            T::from_f64(CYL_ORIGIN.2),
-        ),
+        origin: CYL_ORIGIN.map(T::from_f64),
         axis: Vec3::new(T::zero(), T::zero(), T::one()),
         radius: T::from_f64(CYL_RADIUS),
         u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
@@ -155,7 +151,7 @@ fn trace_branch() -> Option<ssi::SsiBranch> {
 /// about the axis, `v` the axial height. Both exact arithmetic on the
 /// chart's own frame — this is the chart map's inverse, not a fit.
 fn chart_of(p: Point3<f64>) -> Point2<f64> {
-    let w = p - Point3::new(CYL_ORIGIN.0, CYL_ORIGIN.1, CYL_ORIGIN.2);
+    let w = p - CYL_ORIGIN;
     Point2::new(w.y.atan2(w.x), w.z)
 }
 
@@ -262,7 +258,7 @@ fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
 /// Build the fixture at `T`. `None` is the typed budget stand-down.
 pub fn build<T>() -> Option<Built<T>>
 where
-    T: geom_brep::PcurveFittedLane + geom_core::Bounds,
+    T: topo::AtRestPolicy + geom_core::Bounds,
 {
     let branch = branch_or_budget()?;
     let s = restrict(branch, (0.0, 0.25))?;
@@ -287,35 +283,12 @@ pub fn foreign_cache(built: &Built<f64>) -> PcurveCache<f64> {
         .clone()
 }
 
-/// The dual lane's refusal, executed: the same fitted image offered at
-/// a scalar that may not certify. Since the D1 ruling (2026-08-19) a
-/// dual DOES carry a bracket, so the refusal this exercises is the
-/// lane's own, not a missing `Bounds` impl standing in for it.
-pub fn certify_at_dual(built: &Built<f64>) -> geom_brep::PcurveCertifyError {
-    type D = geom_core::Dual<f64>;
-    let carrier = Curve3::Nurbs(Arc::new(lift3::<D>(&built.carrier)));
-    let image = Arc::new(lift2::<D>(&built.image));
-    let (t0, t1) = image.domain();
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(D::from_f64(t0), D::from_f64(t1));
-    PcurveCache::<D>::certify_fitted(
-        image,
-        D::from_f64(t0),
-        D::from_f64(t1),
-        &carrier,
-        &cylinder::<D>(),
-        Some(&sphere::<D>()),
-        window,
-        Band::linear(Tol::witness()).unwrap(),
-    )
-    .expect_err("a dual scalar has no fitted lane")
-}
-
 /// Assemble the body: the cylinder face carries the edge (its chart is
 /// the well-conditioned one — azimuth about the axis, height along it),
 /// the sphere is the mate the edge's own DESCRIPTION names.
 fn assemble<T>(s: &Structure) -> Built<T>
 where
-    T: geom_brep::PcurveFittedLane + geom_core::Bounds,
+    T: topo::AtRestPolicy + geom_core::Bounds,
 {
     let band = Band::linear(Tol::witness()).unwrap();
     let carrier = Arc::new(lift3::<T>(&s.carrier));
@@ -325,13 +298,25 @@ where
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
 
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let cyl_key = body
-        .set_face_surface(seed.face, topo::FaceSurface::New(cylinder::<T>()))
+        .set_face_surface(
+            seed.face,
+            topo::FaceSurface::New {
+                surface: cylinder::<T>(),
+                sense: true,
+            },
+        )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let sph_key = body
-        .set_face_surface(anchor.face, topo::FaceSurface::New(sphere::<T>()))
+        .set_face_surface(
+            anchor.face,
+            topo::FaceSurface::New {
+                surface: sphere::<T>(),
+                sense: true,
+            },
+        )
         .unwrap();
     let mid = T::from_f64(0.5 * (f0 + f1));
     let made = body
@@ -367,6 +352,7 @@ where
             Some(&sphere::<T>()),
             window,
             band,
+            T::fitted_lane().expect("a certifying scalar holds the fitted door"),
         )
         .expect("the fitted cache certifies through the M6-2 door");
         body.attach_pcurve(he, cache);

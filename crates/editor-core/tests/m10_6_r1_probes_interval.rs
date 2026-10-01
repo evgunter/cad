@@ -2,7 +2,7 @@
 //! `bf67a734`). Independent derivations, written against the unit's
 //! claims rather than against its own fixtures.
 //!
-//! Row shapes, per `memories/test-suite-cost.md`: every row is a
+//! Row shapes, per implementer-discipline §8: every row is a
 //! written-down witness (a static fixture) — no sampling, no seeds.
 //! Rows whose subject was a finding red at that head arrived
 //! `#[ignore]`d with the finding named. **The fix pass un-ignored
@@ -65,7 +65,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -81,16 +81,12 @@ fn numeric_lane() -> DriveConfig {
     }
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 fn half() -> f64 {
     Tol::witness().eps() / 64.0
-}
-
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
 fn eval_over<T: editor_core::EvalScalar>(
@@ -131,7 +127,7 @@ fn measure_value<T: geom_core::Decide>(
     }
 }
 
-fn param(r: &mut Recorder, n: &str, value: f64, dist: Option<Distribution>) {
+fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distribution>) {
     r.push(DocEdit::SetDocParam {
         name: name(n),
         value: DocParam::Continuous {
@@ -144,12 +140,14 @@ fn param(r: &mut Recorder, n: &str, value: f64, dist: Option<Distribution>) {
 }
 
 fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Expr; 3]) -> RecipeNodeId {
-    r.insert(Node::Transform {
+    r.insert(Node::transform(
         input,
-        translation: t,
-        rotation_axis: [scalar(0.0), scalar(0.0), scalar(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    })
+        editor_core::Step::Rigid {
+            translation: t,
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ))
 }
 
 fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64) -> RecipeNodeId {
@@ -614,7 +612,7 @@ fn report_key_tells_two_budgets_apart() {
             hi: 40.0 * eps,
         }),
     );
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -1044,7 +1042,8 @@ fn bracket(
             len(0.0),
             Expr::sub(
                 len(1.0),
-                Expr::neg(Expr::param(name("lift"), Dimension::Length)),
+                Expr::neg(Expr::param(name("lift"), Dimension::Length))
+                    .expect("a shallow negation"),
             )
             .expect("length"),
         ],
@@ -1314,7 +1313,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     for n in ["hole_a_r", "hole_b_r"] {
         param(&mut r, n, RADIUS, Some(Distribution::Normal { sigma }));
     }
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -1332,7 +1331,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         profile: plate_p,
         distance: len(1.0e-3),
     });
-    let hole = |r: &mut Recorder, centre: Expr, radius: &str| {
+    let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
@@ -1377,7 +1376,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
+    let radius_of = |n: &'static str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),

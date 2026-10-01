@@ -354,17 +354,21 @@ fn a_planted_horn_torus_is_reported_by_tier_3() {
     else {
         panic!("the band's surface is a torus");
     };
+    // Lifts both refusals: the planted horn torus is what tier 3 must report.
     out.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             band_face,
-            FaceSurface::New(Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                // A spindle: the tube swallows the axis.
-                minor_radius: major_radius * 2.0,
-                u_ref,
-            }),
+            FaceSurface::New {
+                surface: Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    // A spindle: the tube swallows the axis.
+                    minor_radius: major_radius * 2.0,
+                    u_ref,
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let errors = validate_geometric(&out.body, tol())

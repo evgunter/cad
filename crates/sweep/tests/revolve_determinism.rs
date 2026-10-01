@@ -18,10 +18,27 @@ use sweep::{Revolution, RevolveAxis, revolve};
 
 /// The four acceptance shapes as (profile loops, revolution).
 fn shapes() -> Vec<(Vec<ProfileLoop<f64>>, Revolution<f64>)> {
-    let half_disc = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
-    let triangle = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-    let washer = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    let square = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let half_disc = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
+    let triangle = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ]);
+    let washer = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
+    let square = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     vec![
         (vec![half_disc], Revolution::Full),
         (vec![triangle], Revolution::Full),

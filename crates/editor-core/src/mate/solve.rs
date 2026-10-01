@@ -880,12 +880,12 @@ fn pair_reach<P: crate::ProfilePayload>(
     child: &Member,
 ) -> Result<f64, super::LeverRefusal> {
     let of = |instance: RecipeNodeId| {
-        let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(instance) else {
+        let Some(doc_ref) = crate::eval::parts::instantiated(doc, instance) else {
             return Err(super::LeverRefusal::NotAnInstance { node: instance });
         };
         reach
-            .reach(doc_ref)
-            .map_err(|refusal| super::LeverRefusal::of(refusal, instance, *doc_ref))
+            .reach(&doc_ref)
+            .map_err(|refusal| super::LeverRefusal::of(refusal, instance, doc_ref))
     };
     Ok(of(parent.instance)? + of(child.instance)?)
 }
@@ -1673,7 +1673,7 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::predicate::MarginDiag;
+    use geom_core::ErrorTextReading;
 
     const SITE: &str = "solve_test_direction";
 
@@ -1700,7 +1700,9 @@ mod tests {
             panic!("an in-band length escalates with its diagnostic: {in_band:?}");
         };
         assert_eq!(diag.predicate, Some(SITE));
-        assert!(matches!(diag.margin, MarginDiag::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9));
+        assert!(
+            matches!(diag.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9)
+        );
         assert_eq!(
             derived_direction(Vec3::new(0.5 * eps, 0.0, 0.0), SITE, band()).unwrap_err(),
             FrameError::Degenerate {

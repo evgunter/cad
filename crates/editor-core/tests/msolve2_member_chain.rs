@@ -46,8 +46,8 @@ const BASE_WIDTH: f64 = 9.0;
 const BASE_HEIGHT: f64 = 1.0;
 const TOP_HEIGHT: f64 = 3.0;
 
-/// A `w x w x h` block, as a whole part document.
-fn part_doc(label: &str, w: f64, h: f64) -> ProfileDoc {
+/// A `w x w x h` block, as a whole part document, and its body.
+fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -56,14 +56,13 @@ fn part_doc(label: &str, w: f64, h: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (w, 0.0), (w, w), (0.0, w)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(h),
         },
-    );
-    doc
+    )
 }
 
 /// A `Rest`/`FrameCoincidence`/`Opposed` mate seating `b`'s bottom cap
@@ -101,26 +100,25 @@ fn seat_at(a: SitedFace, b: SitedFace, a_origin: [f64; 3]) -> Node<ProfileProgra
 /// `(1, 1)`.
 const FIRST_SEAT: [f64; 3] = [1.0, 1.0, BASE_HEIGHT];
 
-/// A document holding the two instances and their resolver.
+/// A document holding the two instances and their resolver, with each
+/// instance's part body.
 struct Scene {
     doc: ProfileDoc,
     opts: EvalOptions,
     base: RecipeNodeId,
     top: RecipeNodeId,
+    base_body: RecipeNodeId,
+    top_body: RecipeNodeId,
 }
 
 /// `base` (the wide slab) and `top` (the tall block), instantiated,
 /// with nothing between them yet.
 fn scene(label: &str) -> Scene {
     let mut store = PartStore::new();
-    let base_ref = store.insert(
-        part_doc(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
-        Tol::witness(),
-    );
-    let top_ref = store.insert(
-        part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT),
-        Tol::witness(),
-    );
+    let (base_part, base_body) = part_doc(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT);
+    let (top_part, top_body) = part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT);
+    let base_ref = store.insert(base_part, Tol::witness());
+    let top_ref = store.insert(top_part, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -130,6 +128,8 @@ fn scene(label: &str) -> Scene {
         opts,
         base,
         top,
+        base_body,
+        top_body,
     }
 }
 
@@ -141,8 +141,9 @@ fn scene(label: &str) -> Scene {
 fn control_seat(label: &str) -> Affine3<f64> {
     let s = scene(&format!("{label}-control"));
     let (base, top) = (s.base, s.top);
-    let a = in_part(base, CapEnd::End);
-    let b = in_part(top, CapEnd::Start);
+    let (base_body, top_body) = (s.base_body, s.top_body);
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_part(top, top_body, CapEnd::Start);
     let (doc, _) = step(
         s.doc,
         DocEdit::InsertNode {
@@ -262,6 +263,7 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
     let control = control_seat("msolve2-a1");
     let s = scene("msolve2-a1");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, inner) = insert(s.doc, linear(top, [1.0, 0.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
     let (doc, axis) = insert(
@@ -282,8 +284,12 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
             },
         },
     );
-    let a = in_part(base, CapEnd::End);
-    let b = in_copy(outer, 1, in_copy(inner, 1, in_part(top, CapEnd::Start)));
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_copy(
+        outer,
+        1,
+        in_copy(inner, 1, in_part(top, top_body, CapEnd::Start)),
+    );
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -422,11 +428,12 @@ fn a2b_sibling_outer_copies_close_a_loop() {
     let outer_siblings = |label: &str, rule: ([f64; 3], f64), second: [f64; 3]| {
         let s = scene(label);
         let (base, top) = (s.base, s.top);
+        let (base_body, top_body) = (s.base_body, s.top_body);
         let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
         let (doc, part) = insert(doc, part_of(inner, 1));
         let (doc, outer) = insert(doc, linear(part, rule.0, rule.1, 2));
-        let a = in_part(base, CapEnd::End);
-        let master = in_part(top, CapEnd::Start);
+        let a = in_part(base, base_body, CapEnd::End);
+        let master = in_part(top, top_body, CapEnd::Start);
         let named = |i2: u32| in_copy(outer, i2, in_copy(inner, 1, master.clone()));
         let (doc, m1) = step(
             doc,
@@ -482,13 +489,14 @@ fn a2a_sibling_inner_copies_close_a_loop() {
         |label: &str, rule: ([f64; 3], f64), picks: (i64, i64), second: [f64; 3]| {
             let s = scene(label);
             let (base, top) = (s.base, s.top);
+            let (base_body, top_body) = (s.base_body, s.top_body);
             let (doc, inner) = insert(s.doc, linear(top, rule.0, rule.1, 3));
             let (doc, part_a) = insert(doc, part_of(inner, picks.0));
             let (doc, outer_a) = insert(doc, linear(part_a, [0.0, 0.0, 1.0], LIFT, 2));
             let (doc, part_b) = insert(doc, part_of(inner, picks.1));
             let (doc, outer_b) = insert(doc, linear(part_b, [0.0, 0.0, 1.0], LIFT, 2));
-            let a = in_part(base, CapEnd::End);
-            let master = in_part(top, CapEnd::Start);
+            let a = in_part(base, base_body, CapEnd::End);
+            let master = in_part(top, top_body, CapEnd::Start);
             let (i1a, i1b) = (picks.0 as u32, picks.1 as u32);
             let (doc, m1) = step(
                 doc,
@@ -542,13 +550,14 @@ fn a2c_copies_differing_at_both_levels_close_a_loop() {
     let both_levels = |label: &str, outer_b_rule: ([f64; 3], f64), second: [f64; 3]| {
         let s = scene(label);
         let (base, top) = (s.base, s.top);
+        let (base_body, top_body) = (s.base_body, s.top_body);
         let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
         let (doc, part_a) = insert(doc, part_of(inner, 1));
         let (doc, outer_a) = insert(doc, linear(part_a, [0.0, 0.0, 1.0], LIFT, 2));
         let (doc, part_b) = insert(doc, part_of(inner, 2));
         let (doc, outer_b) = insert(doc, linear(part_b, outer_b_rule.0, outer_b_rule.1, 2));
-        let a = in_part(base, CapEnd::End);
-        let master = in_part(top, CapEnd::Start);
+        let a = in_part(base, base_body, CapEnd::End);
+        let master = in_part(top, top_body, CapEnd::Start);
         let (doc, m1) = step(
             doc,
             DocEdit::InsertNode {
@@ -602,10 +611,11 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
     let control = control_seat("msolve2-a3a");
     let s = scene("msolve2-a3a");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(pattern, 1));
-    let a = in_part(base, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -654,10 +664,11 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
 fn a3b_two_operands_over_one_copy_are_two_members() {
     let s = scene("msolve2-a3b");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(pattern, 1));
-    let a = in_part(base, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let at_pattern = crate::fixture::head_at(pattern, b.clone());
     let at_part = crate::fixture::head_at(part, b.clone());
     let (doc, m1) = step(
@@ -704,6 +715,7 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
     let control = control_seat("msolve2-a3c");
     let s = scene("msolve2-a3c");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(pattern, 1));
     let (doc, moved) = insert(
@@ -715,8 +727,8 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
             std::f64::consts::FRAC_PI_2,
         ),
     );
-    let a = in_part(base, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -768,11 +780,12 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
 fn a4_a_part_that_selects_another_copy_refuses_typed() {
     let s = scene("msolve2-a4");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
     // The Part selects copy 2; the name below says copy 1.
     let (doc, part) = insert(doc, part_of(pattern, 2));
-    let a = in_part(base, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let reference = crate::fixture::head_at(part, b.clone());
     // ADMISSION is structural and evaluates nothing, so the walk
     // still resolves this reference to a member: the disagreement is
@@ -833,13 +846,14 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
 fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
     let s = scene("msolve2-gate");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
     let (doc, outer) = insert(doc, linear(part, [0.0, 0.0, 1.0], LIFT, 2));
-    let a = in_part(base, CapEnd::End);
+    let a = in_part(base, base_body, CapEnd::End);
     // Read at the `Part`, BELOW the outer pattern: the name stops at
     // the inner pattern's own `Instance(1)` row.
-    let b = in_copy(inner, 1, in_part(top, CapEnd::Start));
+    let b = in_copy(inner, 1, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -907,14 +921,15 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
     let control = control_seat("msolve2-a1b");
     let s = scene("msolve2-a1b");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, p1) = circular(s.doc, top, [0.0, 0.0], Q, 4);
     let (doc, part1) = insert(doc, part_of(p1, 1));
     let (doc, t_mid) = insert(doc, xform(part1, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], Q));
     let (doc, p2) = insert(doc, linear(t_mid, [1.0, 0.0, 0.0], 4.0, 3));
     let (doc, part2) = insert(doc, part_of(p2, 2));
     let (doc, t_top) = insert(doc, xform(part2, [0.0, 3.0, 0.0], [0.0, 0.0, 1.0], Q));
-    let a = in_part(base, CapEnd::End);
-    let b = in_copy(p2, 2, in_copy(p1, 1, in_part(top, CapEnd::Start)));
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_copy(p2, 2, in_copy(p1, 1, in_part(top, top_body, CapEnd::Start)));
     let r = crate::fixture::head_at(t_top, b.clone());
     let (doc, mate) = step(
         doc,
@@ -958,16 +973,17 @@ fn a1c_three_levels_deep_seat() {
     let control = control_seat("msolve2-a1c");
     let s = scene("msolve2-a1c");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, p1) = circular(s.doc, top, [0.0, 0.0], Q, 4);
     let (doc, part1) = insert(doc, part_of(p1, 1));
     let (doc, p2) = insert(doc, linear(part1, [1.0, 0.0, 0.0], 4.0, 2));
     let (doc, part2) = insert(doc, part_of(p2, 1));
     let (doc, p3) = circular(doc, part2, [5.0, 5.0], std::f64::consts::FRAC_PI_3, 4);
-    let a = in_part(base, CapEnd::End);
+    let a = in_part(base, base_body, CapEnd::End);
     let b = in_copy(
         p3,
         2,
-        in_copy(p2, 1, in_copy(p1, 1, in_part(top, CapEnd::Start))),
+        in_copy(p2, 1, in_copy(p1, 1, in_part(top, top_body, CapEnd::Start))),
     );
     let r = crate::fixture::head_at(p3, b.clone());
     let (doc, mate) = step(
@@ -1014,11 +1030,12 @@ fn rotating_outer_tree_edge(
 ) {
     let s = scene(label);
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
     let (doc, outer) = circular(doc, part, axis_at, Q, 3);
-    let a = in_part(base, CapEnd::End);
-    let master = in_part(top, CapEnd::Start);
+    let a = in_part(base, base_body, CapEnd::End);
+    let master = in_part(top, top_body, CapEnd::Start);
     let named = |i2: u32| in_copy(outer, i2, in_copy(inner, 1, master.clone()));
     let (doc, m1) = step(
         doc,
@@ -1090,6 +1107,7 @@ fn a2d_a_rotating_outer_map_on_the_tree_edge_seats_and_closes() {
 fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
     let s = scene("msolve2-a4b");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
     let (doc, part1) = insert(doc, part_of(pattern, 0));
     // `part2` agrees with the name at insert — the edit door refuses
@@ -1097,8 +1115,8 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
     // re-pointed at copy 2 below, which is how a `Part` comes to
     // disagree after insert.
     let (doc, part2) = insert(doc, part_of(pattern, 0));
-    let a = in_part(base, CapEnd::End);
-    let b = in_copy(pattern, 0, in_part(top, CapEnd::Start));
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_copy(pattern, 0, in_part(top, top_body, CapEnd::Start));
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
@@ -1165,7 +1183,8 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     let control = control_seat("msolve2-a4c");
     let s = scene("msolve2-a4c");
     let (base, top) = (s.base, s.top);
-    let k = ParamName::new("k");
+    let (base_body, top_body) = (s.base_body, s.top_body);
+    let k = ParamName::from_static("k");
     let (doc, _) = step(
         s.doc,
         DocEdit::SetDocParam {
@@ -1181,8 +1200,8 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
             select: PartSelect::Instance(Expr::param(k.clone(), Dimension::Count)),
         },
     );
-    let a = in_part(base, CapEnd::End);
-    let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let r = crate::fixture::head_at(part, b.clone());
     let (doc, mate) = step(
         doc,
@@ -1238,19 +1257,24 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
 fn a3d_a_part_over_the_wrong_pattern_stops_the_walk() {
     let s = scene("msolve2-a3d");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, inner_a) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, inner_b) = insert(doc, linear(top, [1.0, 0.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner_b, 1));
     let (doc, outer) = insert(doc, linear(part, [0.0, 0.0, 1.0], 10.0, 2));
     // The name continues into `inner_a`; the chain runs through
     // `inner_b`.
-    let b = in_copy(outer, 1, in_copy(inner_a, 1, in_part(top, CapEnd::Start)));
+    let b = in_copy(
+        outer,
+        1,
+        in_copy(inner_a, 1, in_part(top, top_body, CapEnd::Start)),
+    );
     let r = crate::fixture::head_at(outer, b);
     assert!(member_of(&doc, &r).is_none(), "no member stands there");
     let fault = door_refusal(
         &doc,
         seat_at(
-            crate::fixture::head(in_part(base, CapEnd::End)),
+            crate::fixture::head(in_part(base, base_body, CapEnd::End)),
             r,
             FIRST_SEAT,
         ),
@@ -1268,6 +1292,7 @@ fn a3d_a_part_over_the_wrong_pattern_stops_the_walk() {
 fn a3e_a_part_naming_a_split_half_stops_the_walk() {
     let s = scene("msolve2-a3e");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(
         doc,
@@ -1276,13 +1301,13 @@ fn a3e_a_part_naming_a_split_half_stops_the_walk() {
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );
-    let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
+    let b = in_copy(pattern, 1, in_part(top, top_body, CapEnd::Start));
     let r = crate::fixture::head_at(part, b);
     assert!(member_of(&doc, &r).is_none(), "not a member");
     let fault = door_refusal(
         &doc,
         seat_at(
-            crate::fixture::head(in_part(base, CapEnd::End)),
+            crate::fixture::head(in_part(base, base_body, CapEnd::End)),
             r,
             FIRST_SEAT,
         ),
@@ -1310,11 +1335,12 @@ fn a3e_a_part_naming_a_split_half_stops_the_walk() {
 fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
     let s = scene("msolve2-lifted");
     let (base, top) = (s.base, s.top);
+    let (base_body, top_body) = (s.base_body, s.top_body);
     let (doc, inner) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
     let (doc, outer) = insert(doc, linear(part, ALONG.0, ALONG.1, 2));
-    let a = in_part(base, CapEnd::End);
-    let master = in_part(top, CapEnd::Start);
+    let a = in_part(base, base_body, CapEnd::End);
+    let master = in_part(top, top_body, CapEnd::Start);
     let named = |i2: u32| in_copy(outer, i2, in_copy(inner, 1, master.clone()));
     let (doc, m1) = step(
         doc,

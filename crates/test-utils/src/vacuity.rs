@@ -101,7 +101,7 @@
 //! condition is a `#[cfg]` and there is no running row to announce
 //! from. It has the working half this door lacks: its NAME reaches the
 //! PASS list, which is the payload a gating run actually carries.
-//! `memories/test-suite-cost.md` points at the viewer's `app` spelling of
+//! implementer-discipline §8 points at the viewer's `app` spelling of
 //! that name, and no other.
 //!
 //! # What a passing row prints reaches nobody on the gate

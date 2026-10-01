@@ -22,7 +22,7 @@ use crate::corpus::documents;
 use editor_core::{
     CancelToken, Datum, DatumValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
 };
-use geom_core::{Real, Sign, Tol};
+use geom_core::{Arc2, Real, Sign, Tol};
 use profile::{Profile, ProfileLoop, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The `f64` loop embedded at `T` through `from_f64`, vertex by
@@ -61,9 +61,12 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
         for s in lp.segments() {
             out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
             if let SegmentKind::Arc {
-                center,
-                radius,
-                sweep,
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        sweep,
+                    },
                 ..
             } = s.kind
             {
@@ -99,7 +102,8 @@ fn structure<T: Real>(vp: &ValidatedProfile<T>) -> String {
 /// comparison.
 type Channel<T> = (&'static str, fn(T) -> f64);
 
-fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(scalar: &str, channels: &[Channel<T>]) {
+fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>]) {
+    let scalar = T::NAME;
     let tol = Tol::witness();
     let mut profiles = 0usize;
     for d in documents() {
@@ -186,7 +190,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(scalar: &str, channels
 
 #[test]
 fn the_lifted_form_is_the_revalidated_form_at_f64() {
-    the_lifted_form_is_the_revalidated_form::<f64>("f64", &[("value", |x| x)]);
+    the_lifted_form_is_the_revalidated_form::<f64>(&[("value", |x| x)]);
 }
 
 /// At `Dual64` the derivative channel of a pinned profile is zero
@@ -198,7 +202,7 @@ fn the_lifted_form_is_the_revalidated_form_at_f64() {
 #[test]
 fn the_lifted_form_is_the_revalidated_form_at_dual() {
     use geom_core::Dual64;
-    the_lifted_form_is_the_revalidated_form::<Dual64>("Dual64", &[("value", |d| d.value)]);
+    the_lifted_form_is_the_revalidated_form::<Dual64>(&[("value", |d| d.value)]);
     for d in documents() {
         let ev = evaluate::<Dual64>(
             &d.doc,
@@ -224,10 +228,10 @@ fn the_lifted_form_is_the_revalidated_form_at_dual() {
 #[test]
 fn the_lifted_form_is_the_revalidated_form_at_interval() {
     use geom_core::Bounds;
-    the_lifted_form_is_the_revalidated_form::<geom_core::Interval>(
-        "Interval",
-        &[("lo", |i| i.lo()), ("hi", |i| i.hi())],
-    );
+    the_lifted_form_is_the_revalidated_form::<geom_core::Interval>(&[
+        ("lo", |i| i.lo()),
+        ("hi", |i| i.hi()),
+    ]);
 }
 
 /// **A margin definite at `f64` and indeterminate at `Interval` is

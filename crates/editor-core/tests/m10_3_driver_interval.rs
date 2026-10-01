@@ -67,21 +67,17 @@ use editor_core::{
 };
 use geom_core::{Bounds, Interval, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl, xy_frame};
 
 fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn lit(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length literal")
-}
-
-fn param(n: &str) -> Expr {
+fn param(n: &'static str) -> Expr {
     Expr::param(name(n), Dimension::Length)
 }
 
@@ -127,14 +123,7 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
             distribution: Some(uniform(half)),
         },
     });
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![unit_square()],
@@ -175,21 +164,14 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
             distribution: Some(depth),
         },
     });
-    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                 .expect("finite plate corners"),
             LoopProgram::Circle {
-                centre: [lit(1.0), lit(1.0)],
+                centre: [len(1.0), len(1.0)],
                 radius: param("hole_r"),
             },
         ],
@@ -214,7 +196,6 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
 /// refuse it rather than refine it.
 /// Crate-visible for the same reason [`slab`] is.
 pub(crate) fn sliver_axis() -> ProfileDoc {
-    let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("axis"),
@@ -225,14 +206,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
             distribution: Some(uniform(15.0 * eps())),
         },
     });
-    let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_2 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_2,
         loops: vec![unit_square()],
@@ -242,16 +216,18 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
         profile: p,
         distance: len(1.0),
     });
-    r.insert(Node::Transform {
-        input: block,
-        translation: [lit(0.0), lit(0.0), lit(0.0)],
-        rotation_axis: [
-            scalar(0.0),
-            scalar(0.0),
-            Expr::param(name("axis"), Dimension::Scalar),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    });
+    r.insert(Node::transform(
+        block,
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), len(0.0)],
+            axis: [
+                scl(0.0),
+                scl(0.0),
+                Expr::param(name("axis"), Dimension::Scalar),
+            ],
+            angle: ang(0.0),
+        },
+    ));
     r.doc
 }
 
@@ -561,7 +537,9 @@ fn node_failures(doc: &editor_core::ProfileDoc, analyzed: &AnalyzedBox) -> Vec<S
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>()
