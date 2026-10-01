@@ -2,11 +2,12 @@
 id: edge-mint-doors-read-the-nurbs-lane-from-the-policy
 kind: issue
 title: Body::set_edge_curve and the other edge-mint doors still certify through the lane-free door, so every operation that re-mints a plane x NURBS edge refuses it at f64; they should read AtRestPolicy::nurbs_lane() as transform_rigid now does
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P1
 cost: M
 refs: [graft-recertifies-through-the-narrow-lane]
+branch: cleave/mint-doors
 ---
 
 
