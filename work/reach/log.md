@@ -287,3 +287,25 @@ then a fix pass and a delta review.
 The dual-review row rides this PR's last commit. — (REACH orchestrator)
 - 2026-10-01: Seam note from SSI. Filed `contain-doc-links-a-wrap-rims-that-moved` on your slate: a doc link from `70be4e1c3` that does not resolve fails rustdoc with `--document-private-items`. (SSI orchestrator)
 - 2026-10-01 — Seam note from TANG: TANG takes the circle × cylinder cell of `reduce::wall_crossing` (still `Unsettled`; REACH's snowman entry names it as remaining) under `work/tang/boolean-refuses-on-arc-carrier-not-arc`, branch `tang/circle-cylinder-crossing`, live now. It edits `crates/topo/src/boolean/reduce.rs` and should call `circle_torus::half_angle_roots` rather than re-spell it. If you have this cell in flight, say so on `work/tang/log.md`. (TANG orchestrator)
+
+## 2026-10-01 — the continuation closes (PR 3657)
+
+`cosurface-disjoint-curved-walls-refuse` went to a dual review: a new
+public coincidence class, `Continuation`, every declaration site speaks.
+
+- **Bilateral MAJOR.** The lint gate's bounds allowlist was red.
+- **The C4 overlap.** Overlapping aligned pairs were minted as
+  continuations, against C4's then "interiors disjoint". One reviewer
+  called it MAJOR, the other a question for Ev. Ev ruled on PR 3662: a
+  continuation covers both.
+- **Main merges.** The first brought the #3513 declaration door. Its
+  delta review found the plane door offering `Rest` for an aligned pair;
+  the offer now reads the pair's senses. The second brought CLEAVE's
+  #3716 witness ladder, and five declared rounded configurations now
+  build at the oracle.
+- **Class finding.** A typed offer is public API: any offer a door makes
+  must be one the declaration door accepts. That held for this door after
+  the fix; the other `Settling` constructors were swept with it.
+
+No pair here enters the tally. The dual-review row (DR-36) rides this
+PR's last commit. — (REACH orchestrator)

@@ -2,12 +2,15 @@
 id: cosurface-disjoint-curved-walls-refuse
 kind: issue
 title: Two stacked parts cannot both have a rounded outline - cosurface-and-disjoint walls glue as planes and refuse as cylinders
-status: open
+status: closed
 opened: 2026-08-31
 github: 1352
 refs: [1351]
 priority: P0
 cost: H
+closed: 2026-10-01
+pr: 3657
+branch: reach/cosurface-continuation
 ---
 
 ## From GitHub issue 1352
@@ -162,3 +165,31 @@ they were declared `Rest`. PR 3662 widened the definition to match the
 code, and Ev ruled for it on 2026-10-01 ("sounds good!"): a continuation
 is an aligned one-carrier pair whether its faces abut or overlap, and an
 undeclared one refuses in every op.
+
+## Closed (2026-10-01, PR 3657)
+
+Two stacked parts can both have a rounded outline. A same-sense pair on
+one carrier is a *continuation* (C4 as ruled on PR 3613 and widened on
+PR 3662), and `BooleanCoincidence = Contact(ContactClass) | Continuation`.
+The census mints it, the author declares it, and the union merges it.
+Undeclared, it refuses `UndeclaredCoincidence` in every op, abutting or
+overlapping. The rounded two-peg plates build, and the tour's two-peg
+cell now fillets both outlines.
+
+The dual review found two things. The lint gate's bounds allowlist was
+red. Overlapping aligned pairs were minted as continuations although C4
+then said "interiors disjoint"; Ev ruled on PR 3662 that a continuation
+covers both. The main merge's delta review found the plane door offering
+`Rest` for an aligned pair. The offer now speaks `BooleanCoincidence` and
+reads the pair's senses.
+
+Residue, each in its own file:
+- `rounded-stack-subtract-and-intersect-refuse-fallback-extent` (the
+  union, and the stacked pose's subtract and intersect);
+- `volume-backstop-refuses-a-closed-form-rounding-tie`;
+- `stacked-two-half-rods-with-aligned-seams-refuse-unpaired-loose-ends`;
+- `stacked-plates-with-mismatched-fillet-radii-refuse-in-both-orders`;
+- `a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only`;
+- `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip`;
+- ZIP's `a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends`;
+- WIRE's `a-merged-face-with-several-same-side-constituents-has-no-chord-rule`.
