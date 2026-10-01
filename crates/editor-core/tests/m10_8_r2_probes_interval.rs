@@ -255,10 +255,7 @@ fn r2_end_to_end_rounded_pad_study() {
                 &analyzed,
                 &DriveConfig {
                     max_leaves: 64,
-                    symbolic: SymbolicDials {
-                        rules,
-                        ..SymbolicDials::default()
-                    },
+                    symbolic: crate::m10_8_harness::dials(rules),
                     ..DriveConfig::default()
                 },
                 tol,

@@ -385,7 +385,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
 /// its child. Roles are assigned per PAIR (a second mate on a tree
 /// pair is a co-determiner, not a declarer), so the declaring case is
 /// a CYCLE: three instances stacked in a column, mated 0-1, 0-2 and
-/// 1-2. The spanning tree from the gauge takes the first two; the
+/// 1-2. The spanning tree from the root takes the first two; the
 /// third solved nothing, and it still says what touches what.
 #[test]
 fn row2_b_a_declaring_mate_mints_identically() {
@@ -399,7 +399,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
         ids.push(id);
     }
     // The column: instance 1 seats on 0 (z ∈ [1,2]), instance 2 on
-    // that (z ∈ [2,3]). Both are edges from the gauge, so both are
+    // that (z ∈ [2,3]). Both are edges from the root, so both are
     // TREE edges.
     let (doc, _) = step(
         doc,
@@ -435,7 +435,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
     );
 
     // The column's two tree mates seat their instances a unit apart
-    // from the gauge's top face, so this document's verdict is NOT the
+    // from the root's top face, so this document's verdict is NOT the
     // frontier — one declaration is genuinely contradicted, and the
     // gate refuses either way. What the row reads out of the refusal
     // is who was ATTRIBUTED, which is the set that got minted.
@@ -484,7 +484,7 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
     // solved the pose — the placement survives as document data, so
     // the instances still touch and nothing declares it.
     let (doc, ids, mate, store, _) = stacked("asm-r2b-row3a", 1.0);
-    // Deleting the mate splits the cluster and mints the orphan's
+    // Deleting the mate splits the group and mints the orphan's
     // frame from the solved pose: the store's reach, not the fixture's
     // refusing one.
     let o = with_resolver(store);
@@ -669,11 +669,11 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // only when BOTH of a mate's heads are live instances (A12: `head_of`
 // requires `Node::InstantiatePart`). For such a PROPER mate edge the
 // crossing is unreachable, and that is verified in both directions
-// below: the mate joins its two instances into ONE placement cluster
+// below: the mate joins its two instances into ONE placement group
 // (A11 rule 2, role-blind), and ASM-R2a's ratified precondition
-// refuses any cut that is not a union of WHOLE clusters
-// (`SplitError::TornCluster`). Opposite sides of a cut and the same
-// cluster are mutually exclusive. A4's sentence and A11's cut rule are
+// refuses any cut that is not a union of WHOLE groups
+// (`SplitError::TornGroup`). Opposite sides of a cut and the same
+// group are mutually exclusive. A4's sentence and A11's cut rule are
 // in tension for proper edges; that gap is now recorded as **AQ8** in
 // crates/editor-core/ASSEMBLY.md, whose proposed resolution is a conversion
 // door (ASM-XSPLIT) rather than a change to either rule.
@@ -682,7 +682,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // review found the collector's predicate (name-derivation sides) was
 // wider than A4's edge: a mate with a DANGLING head — one reference
 // naming non-instance geometry, or a node id not in the document —
-// contributes no cluster edge, leaves its instance a singleton, and
+// contributes no group edge, leaves its instance a singleton, and
 // so slipped a populated record through a cut the precondition
 // accepts. The ruling closes that: such a mate never solved, so a
 // record minted from it would be trusted-at-rest state, which AQ8's
@@ -692,8 +692,8 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 
 /// INVARIANT (the A4-vs-A11 tension for a PROPER MATE EDGE,
 /// executable): cutting ONE instance of a mated pair refuses
-/// `TornCluster` — which is exactly why a mate EDGE cannot cross a cut
-/// — and the whole-cluster cut that IS accepted carries both of the
+/// `TornGroup` — which is exactly why a mate EDGE cannot cross a cut
+/// — and the whole-group cut that IS accepted carries both of the
 /// mate's ends, so its record is empty. Scoped to edges: the
 /// non-edge case is `row5_d`'s subject.
 #[test]
@@ -701,7 +701,7 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let (doc, ids, _, store, _) = stacked("asm-r2b-row5", 1.0);
     let o = with_resolver(store);
 
-    // One instance alone: the cut tears the cluster.
+    // One instance alone: the cut tears the group.
     let torn = split(
         &doc,
         &[ids[1]].into_iter().collect(),
@@ -709,14 +709,14 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         Tol::witness(),
         o.resolver.as_ref(),
     )
-    .expect_err("a torn cluster refuses");
+    .expect_err("a torn group refuses");
     assert!(
-        matches!(torn, editor_core::SplitError::TornCluster { .. }),
-        "the ratified whole-cluster precondition is what makes a \
+        matches!(torn, editor_core::SplitError::TornGroup { .. }),
+        "the ratified whole-group precondition is what makes a \
          mate EDGE's crossing unreachable: {torn:?}"
     );
 
-    // The whole cluster: accepted, and nothing crosses.
+    // The whole group: accepted, and nothing crosses.
     let out = split(
         &doc,
         &ids.iter().copied().collect(),
@@ -724,7 +724,7 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         Tol::witness(),
         o.resolver.as_ref(),
     )
-    .expect("a whole-cluster cut splits");
+    .expect("a whole-group cut splits");
     let Some(Node::InstantiatePart { interface, .. }) = out.remainder.node(out.instance) else {
         panic!("the split minted an instance");
     };
@@ -925,8 +925,8 @@ fn row5_c_inline_dissolves_the_crossing_record() {
 /// A12's reading edge exists only when BOTH heads are live instances
 /// (`head_of` requires an instantiate node). A mate naming
 /// non-instance geometry is therefore not an edge: it joins no
-/// placement cluster, its instance stays a singleton, and a cut of
-/// that instance alone IS a whole-cluster cut the precondition
+/// placement group, its instance stays a singleton, and a cut of
+/// that instance alone IS a whole-group cut the precondition
 /// accepts — but the record it produces is empty. The ruling's reason
 /// is the load-bearing one: such a mate never solved, so a record
 /// minted from it would be trusted-at-rest state, which AQ8's
@@ -965,8 +965,8 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
         body,
     );
 
-    // The instance is a singleton cluster (no reading edge), so a cut
-    // of it alone is whole-cluster and the precondition accepts.
+    // The instance is a singleton group (no reading edge), so a cut
+    // of it alone is whole-group and the precondition accepts.
     let out = split(
         &doc,
         &[instance].into_iter().collect(),
@@ -974,7 +974,7 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
         Tol::witness(),
         None,
     )
-    .expect("a singleton-cluster cut splits");
+    .expect("a singleton-group cut splits");
     let Some(Node::InstantiatePart { interface, .. }) = out.remainder.node(out.instance) else {
         panic!("the split minted an instance");
     };
@@ -1738,7 +1738,7 @@ fn a_flush_seat_certifies_at_the_gate() {
 #[test]
 fn the_same_flush_seat_undeclared_is_the_hard_error() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
-    // Deleting the mate splits the cluster and mints the orphan's
+    // Deleting the mate splits the group and mints the orphan's
     // frame from the solved pose: the store's reach, not the fixture's
     // refusing one.
     let o = with_resolver(store);

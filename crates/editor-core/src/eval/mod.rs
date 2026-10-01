@@ -1821,7 +1821,7 @@ pub enum NodeErrorKind {
         fault: parts::PartFault,
     },
     /// The mate solve refused for this node (ASM-R2a D-4): the mate
-    /// itself, or an instance whose cluster the refusal left without a
+    /// itself, or an instance whose group the refusal left without a
     /// pose. The fault names its own subject — the pair, the residual
     /// subgroup, the failed predicate and its measured clash.
     Mate(Box<crate::mate::MateFault>),
@@ -2707,8 +2707,15 @@ pub(crate) mod leaf {
         /// Plain `Interval`, the pre-E12 replay.
         Numeric,
         /// `Sym<Interval>` inside a fresh session at this budget, with
-        /// these atom-algebra rules.
-        Symbolic(geom_core::SymBudget, geom_core::SymRules),
+        /// these atom-algebra rules and this retry ladder
+        /// (`geom_core::SymRetry`) — the three dials
+        /// `drive::SymbolicDials` carries, so a leaf read back here
+        /// runs the tier the drive certified at and not a narrower one.
+        Symbolic(
+            geom_core::SymBudget,
+            geom_core::SymRules,
+            geom_core::SymRetry,
+        ),
     }
 
     /// A shared memo prior over the nominal box, for the numeric lane.
@@ -2813,8 +2820,8 @@ pub(crate) mod leaf {
                     evaluate(doc, prior, &CancelToken::new(), opts, tol);
                 read_leaf(&ev, want, |v| v)
             }
-            LeafLane::Symbolic(budget, rules) => {
-                let (out, _) = geom_core::sym::with_session_rules(budget, rules, || {
+            LeafLane::Symbolic(budget, rules, retry) => {
+                let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, &CancelToken::new(), opts, tol);
                     read_leaf(&ev, want, |v: geom_core::Sym<geom_core::Interval>| v.value)
@@ -3356,10 +3363,10 @@ where
         tol,
     );
     // The mate solve is a WHOLE-DOCUMENT computation over recipe data
-    // (A11): one spanning tree per cluster, folded once, read by every
+    // (A11): one spanning tree per group, folded once, read by every
     // instance and every mate below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
-    // answer to "where does this cluster sit". Its two geometric
+    // answer to "where does this group sit". Its two geometric
     // reads — each mated part's extent (the lever) and a `FromFace`
     // side's face pose — come off THIS run's part cache: at the top a
     // mated part is evaluated on its first ask, once, under the cache's
@@ -4355,7 +4362,7 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
 struct SolveAnswer {
     /// The instance's solved world placement, `None` when the node is
     /// not a placed instance — which includes an instance whose
-    /// cluster refused.
+    /// group refused.
     placement: Option<crate::placement::Frame>,
     /// The role the solve assigned. `None` covers BOTH "not a live
     /// mate" and a live mate the solve never reached — a `Band`
@@ -4418,7 +4425,7 @@ impl SolveAnswer {
         }
     }
 
-    /// The placement's tags: one for "no pose" so a refusing cluster
+    /// The placement's tags: one for "no pose" so a refusing group
     /// keys distinctly from any pose, else the frame's bits.
     fn feed_placement(self, h: &mut KeyHasher) {
         match self.placement {
@@ -4786,7 +4793,7 @@ where
         }
         // ASM-2A D-1/D-2: WHICH document (id + pin — the pin IS the
         // referenced content, so nothing about the part needs hashing
-        // here) and WHERE its cluster sits. The placement is document
+        // here) and WHERE its group sits. The placement is document
         // data, not node data, which is exactly why it must feed the
         // key: a `SetPlacement` moves this node's value and nothing
         // else about the node changes. The INTERFACE RECORD feeds the
@@ -4800,7 +4807,7 @@ where
         } => {
             feed_doc_ref(&mut h, doc_ref);
             // The SOLVED placement (ASM-R2a D-5): a mate edit that
-            // moves this instance's pose moves its key, and a cluster
+            // moves this instance's pose moves its key, and a group
             // that refuses to solve keys DISTINCTLY from any pose —
             // otherwise a repaired document could hit the memo on a
             // stale success.
