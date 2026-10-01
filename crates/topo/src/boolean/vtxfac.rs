@@ -90,7 +90,7 @@ struct Entry {
 /// `contact.face` (in the pierced body) and performs the paired
 /// insertion (module docs).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn classify_vertex_on_face<T: Decide>(
+pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &mut Body<T>,
     pierced_body: &mut Body<T>,
     piercing: Operand,

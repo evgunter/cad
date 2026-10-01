@@ -33,9 +33,9 @@ use topo::{Body, Pcurve, Rechart};
 /// `face` onto a fresh chart, `surface`, outward-facing. Every edge the
 /// move would strand is restated as an image in the chart of its OTHER
 /// face, which does not move: the edges here are carried by NURBS
-/// curves, whose image in a plane is not derived, and the plane × NURBS
-/// intersection lane is `set_edge_curve_nurbs_lane`'s, which upgrades
-/// an edge afterwards. Returns the chart's key.
+/// curves, whose image in a plane is not derived, and `set_edge_curve`
+/// upgrades an edge to its plane × NURBS intersection afterwards.
+/// Returns the chart's key.
 fn recharted(
     body: &mut Body<f64>,
     face: topo::FaceKey,
@@ -189,7 +189,7 @@ fn main() {
         tol,
     )
     .expect("flat wall restates as a plane");
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {

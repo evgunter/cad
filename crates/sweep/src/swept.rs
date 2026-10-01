@@ -724,7 +724,7 @@ pub(crate) fn face_surface_key<T: Real>(
 /// every edge is a cap–wall rim between a plane and a `Surface::Nurbs`
 /// wall; D2 exempts NURBS-adjacent edges from the must-carry demand,
 /// and loft's module doc says these rims are never classified.
-pub(crate) fn describe_face_rim_at_rest<T: Decide>(
+pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     tol: Tol,

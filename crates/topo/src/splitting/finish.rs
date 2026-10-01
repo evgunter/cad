@@ -306,7 +306,7 @@ impl std::error::Error for SplitFinishError {}
 ///
 /// [`SplitFinishError`]; the scratch body is discarded on `Err` (the
 /// operand was never touched).
-pub(super) fn split_finish<T: Decide>(
+pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     red: SplitReduction<T>,
     completed: &[CompletedSection],
     face_fragments: Vec<(FaceKey, FaceKey)>,
@@ -524,7 +524,7 @@ pub(super) fn split_finish<T: Decide>(
 ///
 /// [`SplitFinishError::NestingContradiction`]; [`SplitFinishError::Euler`]
 /// and [`SplitFinishError::Corrupt`] from the surgery.
-fn nest_hole_sections<T: Decide>(
+fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
     naming: &mut SplitNaming,
@@ -925,7 +925,7 @@ fn section_plane_restatements<T: Decide>(
 /// opposed is a wedge end nothing declared and refuses
 /// ([`SplitFinishError::SectionCusp`]).
 /// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
-fn describe_section_boundary<T: Decide>(
+fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     band: geom_core::Band,

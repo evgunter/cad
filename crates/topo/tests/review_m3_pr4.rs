@@ -33,7 +33,7 @@ fn dump<T: Decide>(b: &Body<T>) -> String {
     s
 }
 
-fn reduce_ok<T: Decide + geom_core::Bounds>(
+fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,

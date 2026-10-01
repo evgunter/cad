@@ -1,6 +1,7 @@
 //! **A placed STEP instance**
 //! whose NURBS wall meets planes (the M7-8 class the importer adopts
-//! through the lane) moves through `transform_rigid` at import.
+//! through the lane) moves through `transform_rigid` at import, and
+//! re-mints through the plain edge doors after it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point3, Tol};
@@ -65,7 +66,7 @@ fn m7_8_cube() -> topo::Body<f64> {
                 geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
             ))
         };
-        body.set_edge_curve_nurbs_lane(
+        body.set_edge_curve(
             edge_key,
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
@@ -119,6 +120,50 @@ fn a_placed_m7_8_instance_imports() {
             "{p:?}"
         );
     }
+    re_mints_the_class(placed, m7_8);
+}
+
+/// The imported class re-mints through the plain edge doors at `f64`:
+/// each M7-8 edge re-describes with its own restated spec through
+/// `set_edge_curve`, then one splits through `split_edge` into two of
+/// the class. Both doors read the lane off `f64`'s policy.
+fn re_mints_the_class(mut body: topo::Body<f64>, count: usize) {
+    let class: Vec<_> = body
+        .edges()
+        .filter_map(|(k, e)| match body.get_curve_geom(e.curve) {
+            Some(topo::CurveGeom::Certified(c))
+                if matches!(
+                    c.description(),
+                    geom_brep::EdgeDescription::Intersection { .. }
+                ) && matches!(c.carrier(), geom::Curve3::Nurbs(_)) =>
+            {
+                Some((k, c.restated_spec()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(class.len(), count);
+    for (edge, spec) in &class {
+        body.set_edge_curve(*edge, spec.clone(), Tol::witness())
+            .unwrap_or_else(|e| panic!("imported edge {edge:?} re-describes: {e:?}"));
+    }
+    let (edge, spec) = &class[0];
+    let mid = (spec.param_start + spec.param_end) * 0.5;
+    body.split_edge(*edge, mid, Tol::witness())
+        .unwrap_or_else(|e| panic!("imported edge {edge:?} splits: {e:?}"));
+    let after = body
+        .curves()
+        .filter(|(_, c)| {
+            matches!(c, topo::CurveGeom::Certified(c)
+                if matches!(c.description(), geom_brep::EdgeDescription::Intersection { .. })
+                    && matches!(c.carrier(), geom::Curve3::Nurbs(_)))
+        })
+        .count();
+    assert_eq!(
+        after,
+        count + 1,
+        "both children of the split are of the class"
+    );
 }
 
 /// Places the exported representation into a fresh root

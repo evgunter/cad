@@ -615,13 +615,10 @@ fn adopt_edges(
                 param_start: spec.t0,
                 param_end: spec.t1,
             };
-            // The plane × NURBS attach door (M7-8): the importer is
-            // exactly the caller that has a declared carrier and needs
-            // it certified against a described NURBS wall, and it runs
-            // at `f64`, which carries the lane. Every other rung is
-            // unaffected — the door differs only in whether that one
-            // certificate is reachable.
-            match body.set_edge_curve_nurbs_lane(edge_key, attempt, tol) {
+            // A declared carrier against a described NURBS wall (M7-8)
+            // certifies through the plane × NURBS lane, which `f64`'s
+            // policy holds and `set_edge_curve` reads.
+            match body.set_edge_curve(edge_key, attempt, tol) {
                 Ok(_) => {
                     adopted = true;
                     break;

@@ -20,8 +20,7 @@ holds open, and the whole face, whatever it misses, once no null edge
 is left on it. `Body::set_edge_curve_via`
 (`crates/topo/src/attach.rs`) plans it
 (`null_description_rows`, through `pcurves::site_rows`) before it
-mutates, which covers `set_edge_curve` and
-`set_edge_curve_nurbs_lane`. `describe_at_rest` refuses a null edge
+mutates, which covers `set_edge_curve`. `describe_at_rest` refuses a null edge
 (`NullScaffoldCurve`).
 
 `Body::kev_describing` (`crates/topo/src/euler_kill.rs`) is the one

@@ -49,7 +49,7 @@ fn budget() -> SymBudget {
 /// `(d, d, d)`, extruded by one unit along the plane normal: four
 /// arc-arm registrants per lamina rim (two arcs × {bottom, top} ×
 /// {rim, span}) plus the side walls'.
-fn stadium_extrude<T: Decide>(d: T, r: T) -> Result<usize, String> {
+fn stadium_extrude<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
     let lp = bulge_loop(vec![
@@ -99,7 +99,7 @@ fn washer_revolve<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, S
 /// **R2's triangle**, adopted from that review's own e2e probe: three
 /// straight edges and no arc, so it carries no arc registrant at all —
 /// which is why its column moves independently of the other two.
-fn triangle_extrude<T: Decide>(d: T, _r: T) -> Result<usize, String> {
+fn triangle_extrude<T: Decide + topo::AtRestPolicy>(d: T, _r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
     let lp = ProfileLoop::polygon([

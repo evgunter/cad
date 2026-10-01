@@ -1327,11 +1327,12 @@ pub mod bounds_allowlist {
     //! extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
     //! door with a **declared** carrier instead of a marched one, inheriting
     //! that door's signature rather than widening the rule's reach. It
-    //! is what keeps `Bounds` off `topo`'s DEFAULT doors: the lane is a
-    //! SEPARATE door whose own impl block carries the lane bound
-    //! (`Body::set_edge_curve_nurbs_lane`), with `_via(…, lane)` parameterising
-    //! the shared machinery. Injection moves a bound onto a narrower
-    //! signature; it does not remove one.
+    //! is what keeps `Bounds` off `topo`'s doors: the lane is a sealed
+    //! VALUE (`geom_brep::NurbsLane`) whose one constructor carries the
+    //! lane bound, handed to the shared machinery as `_via(…, lane)`'s
+    //! argument, and `topo`'s doors read it off the scalar's policy
+    //! (`AtRestPolicy::nurbs_lane`). Injection moves a bound onto a
+    //! narrower signature; it does not remove one.
     //!
     //! **2026-09-02, amending the entry above rather than adding a row — the
     //! lane's split is a BOUND, not a trait.** This lane's static split was
@@ -1339,12 +1340,10 @@ pub mod bounds_allowlist {
     //! refusing `Dual` one. The trait is deleted: the shared certified body
     //! is the free function `geom_brep::plane_nurbs_limbs`, at
     //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
-    //! exactly as before, and the two DOORS that name it carry
-    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) —
-    //! `geom_brep::certify`'s `certify_nurbs_lane` impl block (in the same
-    //! file as the lane's sealed value, `NurbsLane::certified`, at the same
-    //! bound) and `topo::euler`'s `set_edge_curve_nurbs_lane` door. Both
-    //! files join this allowlist for that reason and no other; the
+    //! exactly as before, and the one DOOR that names it carries
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) — the lane's
+    //! sealed value, `geom_brep::certify`'s `NurbsLane::certified`. That
+    //! file joins this allowlist for that reason and no other; the
     //! per-file scope consequence is real and is the price of writing the
     //! obligation where a grep can read it, which is the whole point of
     //! retiring the trait name. **The compound is forced rather than

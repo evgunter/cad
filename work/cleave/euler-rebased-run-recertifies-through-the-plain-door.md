@@ -7,6 +7,7 @@ opened: 2026-10-01
 priority: P3
 cost: M
 refs: [graft-recertifies-through-the-narrow-lane, the-re-basing-gate-refuses-m7-8-where-nothing-moves]
+parent: edge-mint-doors-read-the-nurbs-lane-from-the-policy
 ---
 
 

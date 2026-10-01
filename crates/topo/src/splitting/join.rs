@@ -93,7 +93,7 @@ pub(crate) struct CompletedSection {
 ///
 /// [`SplitJoinError`] — the body may be left mid-surgery on `Err`
 /// (callers operate on a scratch clone; the public ops discard it).
-pub(super) fn split_connect<T: Decide>(
+pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
     red: &mut SplitReduction<T>,
     band: Band,
     tol: Tol,

@@ -170,7 +170,7 @@ fn intrinsic_seam_at(
         )
         .expect("the exactly-planar wall restates as a plane");
     let (s1, s2) = if swap { (bowed, plane) } else { (plane, bowed) };
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -743,7 +743,7 @@ fn redescribe_against(
 ) -> Result<(), topo::EulerOpError> {
     let edge = body.get_half_edge(he).unwrap().edge;
     let (carrier, t0, t1) = seam_carrier(body, he);
-    body.set_edge_curve_nurbs_lane(
+    body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {

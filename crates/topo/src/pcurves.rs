@@ -3886,11 +3886,6 @@ pub(crate) mod staleness_posture {
              left on, every loop, whatever it missed",
             ),
             (
-                "set_edge_curve_nurbs_lane",
-                Completes,
-                "`set_edge_curve` with the NURBS certifier injected",
-            ),
-            (
                 "describe_at_rest",
                 Neither,
                 "`set_edge_curve` with the edge's own carrier and interval put back \
@@ -4450,8 +4445,8 @@ mod recourse_tests {
 /// Called directly, not through a body: the one arm that reaches it is
 /// an `Intersection` seam on a spline chart, and attaching that edge
 /// needs the plane × NURBS lane, which only a certifying scalar holds
-/// (`Body::set_edge_curve_nurbs_lane`'s `CertifiedBounds` block), so no
-/// `Dual64` body carries one.
+/// (`AtRestPolicy::nurbs_lane` is `None` at a dual), so no `Dual64`
+/// body carries one.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod derive_without_a_door {

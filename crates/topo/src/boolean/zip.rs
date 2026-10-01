@@ -54,7 +54,7 @@ pub(super) struct ZipReport {
 }
 
 /// Zips one section-face pair (module docs).
-pub(super) fn zip_seam<T: Decide>(
+pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     a_face: FaceKey,
     b_face: FaceKey,

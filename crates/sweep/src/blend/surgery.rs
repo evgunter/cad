@@ -2968,7 +2968,7 @@ pub(super) struct ExpectedSource {
 /// boolean outputs, which is why neither is read off the key and why
 /// [`retire_fragment`] exists.
 #[allow(clippy::too_many_arguments)] // three call sites, each the split's own inputs.
-pub(super) fn split_fragment<T: Decide>(
+pub(super) fn split_fragment<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     vertex: VertexKey,
@@ -3059,7 +3059,7 @@ pub(super) fn retire_fragment(rec: &mut BlendNaming, dying: EdgeKey, source: Edg
 /// The chord is scaffolding: a radial line between the two points,
 /// upgraded to nothing later because a strut never survives the carve
 /// (it dies at its crossing by `kef` or by the closure `kev`).
-fn strut_foot<T: Decide + Bounds>(
+fn strut_foot<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     he: HalfEdgeKey,
     v: VertexKey,
@@ -3079,7 +3079,7 @@ fn strut_foot<T: Decide + Bounds>(
     Ok(created)
 }
 
-fn rim_phase<T: Decide + Bounds>(
+fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
     ring: LoopKey,
@@ -3476,7 +3476,7 @@ fn trim_chords<T: Decide>(
 /// reconstructed; the description pass restates it as the tangential
 /// contact locus once the band's torus exists.
 #[allow(clippy::too_many_arguments)]
-fn mef_trim<T: Decide + Bounds>(
+fn mef_trim<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     he1: HalfEdgeKey,
     he2: HalfEdgeKey,
@@ -3732,7 +3732,7 @@ struct ArcPlan<T: Real> {
 /// source; every naming row names the source the split recovers,
 /// because a birth record names the SOURCE entity an output was minted
 /// for and the live piece is a mid-call fragment of it.
-fn rim_phase_annulus<T: Decide + Bounds>(
+fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
     ann: &AnnulusRim,
@@ -4387,7 +4387,7 @@ impl SourceFaces {
 /// reconstruction into a variant this kernel already stores and
 /// certifies, rather than a taxonomy scramble at adoption time
 /// (the rule is `DESIGN.md`'s prefer-intrinsic paragraph under D2).
-fn attach_contact<T: Decide + Bounds>(
+fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     carrier: ContactCarrier<T>,

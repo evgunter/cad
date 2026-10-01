@@ -1126,9 +1126,9 @@ impl<T: Decide> EdgeCurve<T> {
 
     /// The shared certification body, with the plane × NURBS lane
     /// ([`NurbsLane`]) as its argument: `None` mints exactly what
-    /// [`EdgeCurve::certify`] does and `Some` exactly what
-    /// [`EdgeCurve::certify_nurbs_lane`] does. A pass generic over its
-    /// scalar fills the argument from that scalar's policy
+    /// [`EdgeCurve::certify`] does and `Some` also certifies the plane ×
+    /// NURBS class through the lane. A pass generic over its scalar
+    /// fills the argument from that scalar's policy
     /// (`topo::AtRestPolicy::nurbs_lane`).
     ///
     /// # Errors
@@ -1322,38 +1322,6 @@ impl<T: Real> NurbsLane<T> {
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.limbs)(carrier, plane, wall, extent, band)
-    }
-}
-
-impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
-    /// [`EdgeCurve::certify`] **with the plane × NURBS lane wired in**
-    /// ([`NurbsLane::certified`]): the door for callers whose scalar can
-    /// derive the declare-and-check certificate of an `Intersection`
-    /// between a PLANE and a described NURBS wall (M7-8).
-    ///
-    /// Every other check is identical, in the same order. No `Dual`
-    /// implements [`geom_core::CertifiedEnclosure`], so no `Dual`
-    /// reaches this door at all.
-    ///
-    /// # Errors
-    ///
-    /// As [`EdgeCurve::certify`], plus [`CertifyError::PlaneNurbs`]
-    /// carrying the lane's measured bound.
-    pub fn certify_nurbs_lane(
-        spec: EdgeCurveSpec<T>,
-        start: Point3<T>,
-        end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        band: Band,
-    ) -> Result<Self, CertifyError> {
-        Self::certify_via(
-            spec,
-            start,
-            end,
-            surfaces,
-            band,
-            Some(NurbsLane::certified()),
-        )
     }
 }
 

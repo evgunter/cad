@@ -239,7 +239,7 @@ pub(in crate::blend) struct BlankPlan<'a, T: Real> {
 }
 
 #[allow(clippy::type_complexity)]
-pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
+pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &mut Body<T>,
     plan: &BlankPlan<'_, T>,
     sources: &SourceFaces,

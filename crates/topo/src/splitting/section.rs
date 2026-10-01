@@ -75,7 +75,7 @@ pub struct Section<T: Real> {
 /// through unchanged: in particular a pure-tangency section REFUSES
 /// (`DegenerateSection`, exactly as [`super::split`] does) rather
 /// than reporting a degenerate zero-area trace.
-pub fn plane_section<T: geom_core::Decide>(
+pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

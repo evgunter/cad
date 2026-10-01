@@ -158,7 +158,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         )
         .expect("the exactly-planar wall restates as a plane");
     let eps = Tol::witness().get().eps;
-    match body.set_edge_curve_nurbs_lane(
+    match body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -311,7 +311,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
         (c.carrier().clone(), a, b)
     };
     let err = body
-        .set_edge_curve_nurbs_lane(
+        .set_edge_curve(
             edge,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {

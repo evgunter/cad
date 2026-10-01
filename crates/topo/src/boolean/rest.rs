@@ -1115,7 +1115,7 @@ struct SeamSet {
 /// edge (fan walk) or a minted chord through the standard splitting
 /// machinery. `Ok(None)`: a segment does not resolve structurally —
 /// not this lane's frontier (pre-identification phase).
-fn realize_seam<T: Decide>(
+fn realize_seam<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     segments: &[(VertexKey, VertexKey)],
     rings: &SecondaryMap<VertexKey, FaceKey>,
@@ -1178,7 +1178,7 @@ fn fan_edge_between<T: Decide>(
 /// machinery (`mef` same-loop, `mekr` for ring loops / pierce-ring
 /// vertices) in the unique face incident to both endpoints.
 /// `Ok(None)`: no unique host face — not this lane's frontier.
-fn mint_chord<T: Decide>(
+fn mint_chord<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     u: VertexKey,
     v: VertexKey,
@@ -1598,7 +1598,7 @@ fn shared_run<T: Decide>(
 /// the promoted pairs then glue the same way — the same-shell
 /// `kfmrh` inside those glues is where the mate's genus bookkeeping
 /// lives (a filled through-peg's handle).
-fn glue_pair<T: Decide>(
+fn glue_pair<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     fa: FaceKey,
     fb: FaceKey,
@@ -1715,7 +1715,7 @@ fn glue_pair<T: Decide>(
 /// own transient face (`mfkrh`) and zipped by the same folded-loop
 /// zipper that finishes the outer cycle — the genus drop of closing a
 /// band lives in those promotions, never in ad-hoc surgery.
-fn slit_zip<T: Decide>(
+fn slit_zip<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     fa: FaceKey,
     fb: FaceKey,
@@ -1971,7 +1971,7 @@ fn edge_of<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, Boolea
 /// pair and a `kef` retires the b copy, and the final coincident pair
 /// retires face and b copy together (the a copy survives as a seam
 /// edge, absorbed by the b-side neighbor's loop).
-fn zip_folded<T: Decide>(
+fn zip_folded<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     a_edges: &SecondaryMap<EdgeKey, ()>,

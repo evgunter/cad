@@ -2737,8 +2737,12 @@ pub trait AtRestPolicy: Decide {
 
     /// **This scalar's plane × NURBS lane, or `None` where it may not
     /// certify** — the ONE seam the `Some` comes from for an operation
-    /// generic over its scalar that re-certifies edge carriers (the
-    /// transform, [`crate::transform_rigid`]).
+    /// generic over its scalar that certifies edge carriers: the
+    /// transform ([`crate::transform_rigid`]) and the Euler surface's
+    /// attachment gate, which every door that mints or re-describes an
+    /// edge runs ([`Body::set_edge_curve`],
+    /// [`Body::set_face_surfaces_describing`], [`Body::split_edge`], the
+    /// re-basing gate of a fan [`Body::mev`]).
     ///
     /// `None` is certification rights (DL1), the same fact as
     /// [`AtRestPolicy::fitted_lane`]'s: the certificate of an
@@ -2748,7 +2752,8 @@ pub trait AtRestPolicy: Decide {
     /// [`geom_core::CertifiedBounds`]. An operation holding `None`
     /// refuses that class typed, naming the scalar
     /// ([`crate::TransformError::NurbsLaneUnsupported`] at the
-    /// transform).
+    /// transform, [`crate::EulerOpError::NurbsLaneUnsupported`] at an
+    /// Euler door).
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the
@@ -3302,7 +3307,7 @@ mod at_rest_policy_tests {
 
     /// A unit cube and a half-height brick on it, the second standing
     /// in as a union's "result" that is smaller than an operand.
-    fn planted_union<T: Decide>(tol: Tol) -> (Body<T>, Body<T>) {
+    fn planted_union<T: Decide + crate::props::AtRestPolicy>(tol: Tol) -> (Body<T>, Body<T>) {
         let brick = crate::test_support_fixtures::brick::<T>;
         (
             brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),

@@ -28,7 +28,7 @@ use geom_core::Tol;
 /// sign class of θ (`true` ⇔ θ definitely positive — module docs'
 /// winding convention); it selects the θ-signed rim-carrier axis
 /// structurally (no re-inspection of θ).
-pub(super) fn build_partial<T: Decide>(
+pub(super) fn build_partial<T: Decide + topo::AtRestPolicy>(
     frame: &AxisFrame<T>,
     loops: &[Vec<SweptSeg<T>>],
     classes: &[LoopClasses<T>],
@@ -298,7 +298,7 @@ pub(super) fn he_edge<T: Decide>(
 /// each other — `Intersection { start, end }` when definitely
 /// transverse (θ ≠ π), conventional when definitely smooth (θ = π).
 #[allow(clippy::too_many_arguments)] // one internal call site.
-fn finish_partial<T: Decide>(
+fn finish_partial<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     loops: &[Vec<SweptSeg<T>>],
     classes: &[LoopClasses<T>],
@@ -358,7 +358,7 @@ pub(super) struct LoopSwept {
 /// derivation — see M2-LOG PR 5), latitude-join classification.
 #[allow(clippy::too_many_arguments)] // one internal call site; the
 // arguments are the sweep's fixed context.
-pub(super) fn sweep_loop<T: Decide>(
+pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     loop_index: usize,
     segs: &[SweptSeg<T>],
