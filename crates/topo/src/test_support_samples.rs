@@ -340,6 +340,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::FittedEscalated { cause: diag() },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
+        PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
@@ -372,6 +373,7 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,
             cause: diag(),

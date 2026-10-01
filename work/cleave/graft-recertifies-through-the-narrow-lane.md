@@ -2,10 +2,11 @@
 id: graft-recertifies-through-the-narrow-lane
 kind: issue
 title: boolean graft re-certifies through the plain certify door, the second instance of the transform split
-status: open
+status: dispatched
 opened: 2026-09-12
 priority: P1
 cost: M
+branch: cleave/graft-reach
 ---
 
 
