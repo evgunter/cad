@@ -9,8 +9,8 @@
 //! crosses the bore's wall along a line, the section is two faces either
 //! side of the bore, bounded by lines and an ellipse arc, and each winds
 //! counter-clockwise: sense `true`. Where it crosses the bore all round,
-//! the section is a face over the whole outline plus a disc over the
-//! bore that cancels it, winding the other way: sense `false`.
+//! the section is one face over the whole outline with the bore's
+//! section as its ring, its outer loop counter-clockwise: sense `true`.
 //!
 //! Every probe is a grid point whose analytic distance from each
 //! boundary surface is at least `1e3·ε`; the region it is judged by is
@@ -22,9 +22,7 @@ use crate::common::poses::poses;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{bored_cylinder, brick, prism_at};
 use topo::splitting::{SplitPart, SplitPlane, split};
-use topo::{
-    Body, PointInSolidError, SolidContainment, ValidationError, point_in_solid, transform_rigid,
-};
+use topo::{Body, PointInSolidError, SolidContainment, point_in_solid, transform_rigid};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -151,17 +149,7 @@ struct Case {
     floor: [usize; 2],
     /// The most in-band escalations over the six poses.
     escalations: usize,
-    /// Tier 3's findings on each body, none of them on a section face
-    /// (see [`every_section_face_passes_check_6`]).
-    residue: [&'static [&'static str]; 2],
 }
-
-/// A steep cut through a ringed cap: the cap fragment below keeps a
-/// ring that touches its outer loop, and the cap fragment above has an
-/// outer loop wound against its sense. Both are the split's handling of
-/// an operand face's ring, not a section face's sense, and both are
-/// found on the base as well.
-const STEEP_RESIDUE: [&[&str]; 2] = [&["RingMeetsOuter"], &["LoopRoleInverted"]];
 
 fn cases() -> Vec<Case> {
     vec![
@@ -171,7 +159,6 @@ fn cases() -> Vec<Case> {
             cut: Some(Cut::tilted(1.25, 1.0, false)),
             floor: [5015, 11428],
             escalations: 0,
-            residue: [&[], &[]],
         },
         Case {
             name: "cavity uncut",
@@ -179,7 +166,6 @@ fn cases() -> Vec<Case> {
             cut: None,
             floor: [12360, 0],
             escalations: 0,
-            residue: [&[], &[]],
         },
         Case {
             name: "cavity cut flat",
@@ -187,15 +173,13 @@ fn cases() -> Vec<Case> {
             cut: Some(Cut::tilted(1.25, 0.0, false)),
             floor: [12360, 12360],
             escalations: 0,
-            residue: [&[], &[]],
         },
         Case {
             name: "cavity cut at tilt 0.3",
             solid: cavity,
             cut: Some(Cut::tilted(1.25, 0.3, false)),
-            floor: [5825, 8990],
+            floor: [5518, 9696],
             escalations: 0,
-            residue: [&[], &[]],
         },
         Case {
             name: "off-centre cavity cut flat",
@@ -203,15 +187,13 @@ fn cases() -> Vec<Case> {
             cut: Some(Cut::tilted(1.25, 0.0, false)),
             floor: [12360, 12360],
             escalations: 0,
-            residue: [&[], &[]],
         },
         Case {
             name: "off-centre cavity cut at tilt 1.4, flipped",
             solid: off_centre_cavity,
             cut: Some(Cut::tilted(1.25, 1.4, true)),
-            floor: [10032, 6120],
+            floor: [11263, 5958],
             escalations: 0,
-            residue: STEEP_RESIDUE,
         },
         Case {
             name: "bored cylinder cut flat",
@@ -219,23 +201,20 @@ fn cases() -> Vec<Case> {
             cut: Some(Cut::tilted(0.5, 0.0, false)),
             floor: [12360, 12360],
             escalations: 0,
-            residue: [&[], &[]],
         },
         Case {
             name: "bored cylinder cut at tilt 0.3",
             solid: bored,
             cut: Some(Cut::tilted(0.5, 0.3, false)),
-            floor: [5297, 8603],
+            floor: [5200, 8936],
             escalations: 3,
-            residue: [&[], &[]],
         },
         Case {
             name: "bored cylinder cut at tilt -1, flipped",
             solid: bored,
             cut: Some(Cut::tilted(0.5, -1.0, true)),
-            floor: [6071, 8766],
+            floor: [5909, 9560],
             escalations: 0,
-            residue: STEEP_RESIDUE,
         },
     ]
 }
@@ -401,54 +380,31 @@ fn every_cut_through_a_bore_reads_its_truth_at_every_pose() {
     );
 }
 
-/// **Every section face passes check 6, and the rest of tier 3 finds
-/// only its residue.** A section face's sense is the one reading check
-/// 6 makes, so no section face is `LoopRoleInverted`, at every ε row.
+/// **Every half passes tier 3, and every section face winds
+/// counter-clockwise.** A section face's sense is the one reading check
+/// 6 makes, at every ε row.
 #[test]
 fn every_section_face_passes_check_6() {
     let mut problems = Vec::new();
     for case in cases() {
         let Some(cut) = case.cut else { continue };
         let solid = (case.solid)();
-        for (i, (part, half)) in parts(&case, &solid).into_iter().enumerate() {
+        for (part, half) in parts(&case, &solid) {
             let sections = section_faces(&half, cut);
             assert!(
                 !sections.is_empty(),
                 "{} {part:?}: the cut makes section faces",
                 case.name
             );
-            let errors = match topo::validate_geometric(&half, tol()) {
-                Ok(()) => Vec::new(),
-                Err(errors) => errors,
-            };
-            let kinds: Vec<String> = errors
-                .iter()
-                .map(|e| {
-                    format!("{e:?}")
-                        .split([' ', '(', '{'])
-                        .next()
-                        .unwrap()
-                        .to_owned()
-                })
-                .collect();
-            let senses: Vec<bool> = sections
-                .iter()
-                .map(|f| half.get_face(*f).unwrap().sense)
-                .collect();
-            eprintln!(
-                "MEASURE {} {part:?}: section senses {senses:?}, tier 3 {kinds:?}",
-                case.name
-            );
-            for e in &errors {
-                if let ValidationError::LoopRoleInverted { face, .. } = e
-                    && sections.contains(face)
-                {
-                    problems.push(format!("{} {part:?}: {e:?}", case.name));
-                }
+            if let Err(errors) = topo::validate_geometric(&half, tol()) {
+                problems.push(format!("{} {part:?}: tier 3 {errors:?}", case.name));
             }
-            for kind in &kinds {
-                if !case.residue[i].contains(&kind.as_str()) {
-                    problems.push(format!("{} {part:?}: tier 3 finds {kind}", case.name));
+            for f in &sections {
+                if !half.get_face(*f).unwrap().sense {
+                    problems.push(format!(
+                        "{} {part:?}: section {f:?} is clockwise",
+                        case.name
+                    ));
                 }
             }
         }

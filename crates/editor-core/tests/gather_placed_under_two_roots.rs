@@ -824,3 +824,35 @@ fn halves_of_two_splits_that_overlap_still_refuse_naming() {
     }
     assert!(wrong.is_empty(), "expected a Naming refusal: {wrong:#?}");
 }
+
+/// **A split through the U-cutter's pockets gathers.** The plane at
+/// `x = 3` (and at `x = 3.9`) runs through both prongs, so the Above
+/// half's section has two holes. It is one face with the prongs'
+/// sections as its two rings, beside the `x = 4` wall the prongs leave
+/// through, and the half passes the per-source gate.
+#[test]
+fn a_split_through_the_u_cutters_pockets_gathers() {
+    for x in [3.0, 3.9] {
+        let doc = ProfileDoc::empty_derived("gather-u-cutter-pockets", Tol::witness());
+        let (doc, sub) = cutter(doc, &[(1.0, 1.5), (2.5, 3.0)]);
+        let (doc, above) =
+            half_of_a_split(doc, sub, ([x, 0.0, 0.0], [1.0, 0.0, 0.0]), SplitHalf::Above);
+        assert_eq!(
+            doc.roots(),
+            &[above][..],
+            "the premise: the Above half alone"
+        );
+        let body = product(&doc, &run(&doc), Tol::witness())
+            .unwrap_or_else(|e| panic!("x = {x}: the half gathers: {e:?}"));
+        let ringed: Vec<usize> = body
+            .faces()
+            .map(|(_, f)| f.rings.len())
+            .filter(|&n| n > 0)
+            .collect();
+        assert_eq!(
+            ringed,
+            vec![2, 2],
+            "x = {x}: the x = 4 wall and the section, each holed by both prongs"
+        );
+    }
+}

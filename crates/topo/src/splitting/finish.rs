@@ -19,9 +19,11 @@
 //!
 //! That is each face's CHART normal. Its sense is its loop's winding
 //! about it, the reading tier 3's check 6 makes: a section's outer
-//! boundary winds counter-clockwise (`true`), and a section that is a
-//! hole in another — the disc over a bore, beside the face over the
-//! whole outline — winds clockwise (`false`).
+//! boundary winds counter-clockwise (`true`). A section polygon that
+//! is a hole in another — the bore's outline inside the cut through a
+//! bored block — winds clockwise, and does not stay a face: it becomes
+//! a ring of the section face of its side that encloses it
+//! (`nest_hole_sections`), so a holed section is one face.
 //!
 //! The book's "the 'inner' loop should appear in the part Above, and
 //! the 'outer' loop in the part Below" is list-position convention
@@ -61,6 +63,7 @@
 use geom_core::{Decide, Real, Vec3};
 use slotmap::SecondaryMap;
 
+use super::containment::{LoopContainment, point_in_carrier_loop};
 use super::join::{CompletedSection, loop_points_of};
 use super::{PlaneSide, SplitReduction};
 use crate::attach::Rechart;
@@ -68,6 +71,7 @@ use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
+use crate::validate::{RingOuterVerdict, ring_outer_contact};
 use geom::Surface;
 use geom_core::Tol;
 
@@ -407,6 +411,10 @@ pub(super) fn split_finish<T: Decide>(
         naming.sections.push((section.face, other_side));
     }
 
+    // ---- Nesting: a section that is a hole in another becomes its
+    // ring, so a holed section is one face. ----
+    nest_hole_sections(&mut body, &mut section_side, &mut naming, band, tol)?;
+
     // ---- D6 (M3 PR 6a): honest descriptions on the section boundary,
     // AT MINT TIME — both parent surfaces are known here (the section
     // faces were just promoted; the other side of every boundary edge
@@ -464,13 +472,122 @@ pub(super) fn split_finish<T: Decide>(
     })
 }
 
+/// Each section face that is a hole — sense `false`: its loop winds
+/// clockwise about its outward normal — becomes a ring of the section
+/// face of its side that immediately encloses it, and the hole's face
+/// dies (`kfmrh`). A section with holes is then one face whose rings
+/// are the holes' sections, the encoding tier 3 reads, rather than a
+/// face over the whole outline plus a coplanar face per hole that
+/// cancels it.
+///
+/// A face encloses the hole when the two outlines are certified
+/// disjoint (tier 3's check 9 contact reading, `ring_outer_contact`)
+/// and the hole's anchor vertex is certified inside the face's outline
+/// on the loops' own carriers ([`point_in_carrier_loop`]); among
+/// several (an island in a hole in a face), the hole goes to the one
+/// every other encloses. The hole moves onto that face's chart first,
+/// its boundary restated with it, so the ring rides the chart of the
+/// face that keeps it.
+///
+/// A hole no face certainly encloses keeps its own face. That
+/// encoding is the one the split produced before this step, sound by
+/// cancellation, and it is what a clockwise section the join chorded
+/// across the wrong arc of a curved face comes back as
+/// (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`).
+///
+/// # Errors
+///
+/// [`SplitFinishError::Euler`] and [`SplitFinishError::Corrupt`] from
+/// the surgery.
+fn nest_hole_sections<T: Decide>(
+    body: &mut Body<T>,
+    section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
+    naming: &mut SplitNaming,
+    band: geom_core::Band,
+    tol: Tol,
+) -> Result<(), SplitFinishError> {
+    let corrupt = || SplitFinishError::Corrupt;
+    let mut holes = Vec::new();
+    for &(face, side) in &naming.sections {
+        if !body.get_face(face).ok_or_else(corrupt)?.sense {
+            holes.push((face, side));
+        }
+    }
+    for (hole, side) in holes {
+        let encloses = |outer: FaceKey, inner: FaceKey| -> Result<bool, SplitFinishError> {
+            let outer_data = body.get_face(outer).ok_or_else(corrupt)?;
+            let inner_loop = body.get_face(inner).ok_or_else(corrupt)?.outer;
+            let Some(&Surface::Plane { normal, .. }) = body.get_surface(outer_data.surface) else {
+                return Err(corrupt());
+            };
+            if !matches!(
+                ring_outer_contact(body, outer_data.outer, inner_loop, band),
+                RingOuterVerdict::Disjoint
+            ) {
+                return Ok(false);
+            }
+            let q = anchor_point(body, inner_loop)?;
+            Ok(matches!(
+                point_in_carrier_loop(body, outer_data.outer, normal, q, band),
+                Ok(Some(LoopContainment::In))
+            ))
+        };
+        let mut enclosing = Vec::new();
+        for &(f, s) in &naming.sections {
+            if s == side && body.get_face(f).ok_or_else(corrupt)?.sense && encloses(f, hole)? {
+                enclosing.push(f);
+            }
+        }
+        let mut parent = None;
+        for &f in &enclosing {
+            let mut innermost = true;
+            for &g in &enclosing {
+                if g != f && !encloses(g, f)? {
+                    innermost = false;
+                }
+            }
+            if innermost {
+                parent = parent.or(Some(f));
+            }
+        }
+        let Some(parent) = parent else {
+            continue;
+        };
+        let chart = body.get_face(parent).ok_or_else(corrupt)?.surface;
+        let restated = section_plane_restatements(body, hole)?;
+        body.set_face_surfaces_describing(
+            vec![Rechart::shared(chart, hole, false)],
+            &restated,
+            tol,
+        )?;
+        body.kfmrh(parent, hole)?;
+        section_side.remove(hole);
+        naming.sections.retain(|&(f, _)| f != hole);
+    }
+    Ok(())
+}
+
+/// The point of a loop's anchor vertex.
+fn anchor_point<T: Decide>(
+    body: &Body<T>,
+    l: crate::entity::LoopKey,
+) -> Result<geom_core::Point3<T>, SplitFinishError> {
+    let corrupt = || SplitFinishError::Corrupt;
+    let v = match body.get_loop(l).ok_or_else(corrupt)?.boundary {
+        LoopBoundary::Cycle { first } => body.get_half_edge(first).ok_or_else(corrupt)?.start,
+        LoopBoundary::Empty { vertex } => vertex,
+    };
+    let point = body.get_vertex(v).ok_or_else(corrupt)?.point;
+    body.get_point(point).copied().ok_or_else(corrupt)
+}
+
 /// The sense of the section face a promoted loop will bound, charted
 /// on `plane`: the loop's winding about the chart normal (interior-left
 /// ⇒ counter-clockwise about the outward normal), read by the function
 /// tier 3's check 6 falsifies the bit with. A section's outer boundary
 /// winds counter-clockwise about the normal `plane_for` gives it; a
-/// section whose region is a hole in another's (the disc over a bore,
-/// beside the square around it) winds clockwise and is `false`.
+/// hole's polygon winds clockwise and is `false`, which is how
+/// `nest_hole_sections` finds it.
 ///
 /// # Errors
 ///
