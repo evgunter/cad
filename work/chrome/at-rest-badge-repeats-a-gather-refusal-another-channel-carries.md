@@ -4,9 +4,14 @@ kind: issue
 title: the at-rest badge repeats every gather refusal of an assembly-shaped document, including the ones frame::badge_site sends to the feature tree or to product_badge
 status: open
 opened: 2026-09-24
+needs_ev: true
 priority: P3
 cost: E
 ---
+
+## Question
+
+What should the at-rest badge (A5) report when the assembly gather itself refused? Today it shows the gather's refusal as an Actionable `Refused` badge. The same refusal already has a channel through `frame::badge_site`, and the landing chooses between them with a second class policy, a boolean beside `badge_site`'s exhaustive match. The choice is what the badge is for: the gate's verdict only, a deliberate second report, or an explicit "not judged" state.
 
 
 ## Finding
