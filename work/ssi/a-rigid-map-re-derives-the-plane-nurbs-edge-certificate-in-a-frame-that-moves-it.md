@@ -155,10 +155,14 @@ On this row's subject, at the default ε, with the edge seated at
 0.969 ε: **32 of 32 rotations move the body** (8 before), and limb 2
 moves by at most ×1.00066 (×1.183 before). That is about 6e-13 m, and
 it does not scale with δ. The two rows in
-`crates/topo/tests/rigid_map_near_eps_plane_nurbs.rs` pin both claims
-and run by default. They stand down by name at ε = 1e-12, where the
-bound's floor at δ = 0 (3.06e-12 m) leaves no room to place an edge
-under ε.
+`crates/topo/tests/rigid_map_near_eps_plane_nurbs.rs` pin both claims.
+They cost seconds each, so they are in the CI slow set and run nightly
+(and per PR only when the diff seeds `topo`). The per-PR guard on frame
+invariance is the fast geom-core row
+`m5_pr7b_tensor_compose::a_rotation_moves_the_bound_only_by_rounding`,
+which runs on every PR. The two topo rows pin the bound's floor at
+δ = 0 (3.06e-12 m at every battery ε) and stand down by name only at
+an ε that floor reaches, which is ε = 1e-12.
 
 The measured section's "enclosure width" was the Bernstein-box
 overshoot, which is also a box artefact; it is corrected above. The

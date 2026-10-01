@@ -24,12 +24,12 @@
 //! surfaces as a typed [`TransformError::Certify`] refusal, never as
 //! silently corrupt geometry. Re-running the checks rather than
 //! copying the old certificate keeps the certificate honest (D4 ¶2).
-//! A rigid map preserves sampled distances, implicit-form residuals
-//! and the plane × NURBS lane's limb 2 up to rounding: that limb reads
-//! the norm of each vector coefficient of its residual composite, and
-//! no rotation moves a norm. The residue — rounding and the re-derived
-//! chart, under 1e-12 m measured — can still refuse an edge certified
-//! within that width of ε, and that refusal is a typed
+//! A rigid map preserves sampled distances and implicit-form residuals
+//! up to rounding. The plane × NURBS lane's limb 2 reads the norm of
+//! each vector coefficient of its residual composite, which no rotation
+//! moves; a residue remains, ≈6e-13 m on the
+//! near-ε reproduction and not scaling with the residual, so an edge
+//! certified within that width of ε can still refuse, typed
 //! [`TransformError::Certify`]. An `Approx` face's `hull_sup` is
 //! assembled from control hulls in the ambient frame, so it can
 //! re-derive above ε for a face certified near it; that face is

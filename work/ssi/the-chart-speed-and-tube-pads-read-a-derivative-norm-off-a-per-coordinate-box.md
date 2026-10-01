@@ -12,36 +12,37 @@ cost: M
 ## Found (§5 sweep of the frame-invariant limb-2 lane, branch `ssi/frame-invariant-bound`, 2026-10-01)
 
 **Inferred from the code, not reproduced.** The limb-2 fix reads the
-residual composite's bound from each vector coefficient's norm, so a
-rigid map moves it only by rounding (`geom_core::spline::compose::tensor`,
-`coefficient_norm_bound`). Three more upper bounds on a vector's norm in
-the plane × NURBS lane are still read off a per-coordinate box, all of
-them from `NurbsBoxes::deriv_box` (`crates/geom-brep/src/ssi/enclose.rs`),
+residual composite's bound from each vector coefficient's norm,
+`max_k |n_k| / |d_k|` over a one-signed scalar denominator, so a rigid
+map moves it only by rounding (`geom_core::spline::compose::tensor`,
+`coefficient_norm_bound`). Two more upper bounds on a vector's norm in
+the plane × NURBS lane are still read off a per-coordinate box, both
+from `NurbsBoxes::deriv_box` (`crates/geom-brep/src/ssi/enclose.rs`),
 the quotient-rule hull of `∂S/∂u` or `∂S/∂v` over a rectangle:
 
-- **The chart speed**, `plane_nurbs_ssi` (`crates/geom-brep/src/ssi.rs`):
-  `norm_sup` of the whole-domain `deriv_box` in u and v, which turns the
-  floors stated in metres into parameter units.
-- **The transverse stretch**, `graph_margin`
-  (`crates/geom-brep/src/ssi/enclose.rs`): `norm_sup` of
+- **The chart speeds**, `NurbsBoxes::chart_speeds` (same file):
+  `norm_sup` of the whole-domain `deriv_box` in u and in v, minted once
+  per wall as `ChartedNurbs` (`crates/geom-brep/src/ssi.rs`). They turn
+  the floors stated in metres into parameter units, and the tube rung
+  into chart pads.
+- **The transverse stretch**, `graph_margin` (same file): `norm_sup` of
   `S_u·e⊥x + S_v·e⊥y` assembled on the two derivative boxes, the divisor
   of the tube's transversality margin.
-- **The tube pad's chart speed**, `certify_branch`
-  (`crates/geom-brep/src/ssi/certify.rs`): `norm_sup` of the whole-domain
-  `deriv_box`, which converts the tube radius into chart pads.
 
 Each is sound, and each reads between 1× and √3× the norm it bounds
 depending on how the derivative field sits against the axes. A rotation
 can therefore move the sweep's floors, the transversality margin and the
 pads. On the limb-2 reproduction
-(`crates/topo/tests/rigid_map_near_eps_plane_nurbs.rs`) none of them moves
-a printed digit across 32 rotations, so no verdict is known to turn on
-them.
+(`crates/topo/tests/rigid_map_near_eps_plane_nurbs.rs`) the tube rung,
+the transversality margin (to 1e-6 relative) and the box count do not
+move across 32 rotations; the pads are not compared. No verdict is
+known to turn on them.
 
 ## Why the limb-2 lane did not fix them
 
-- They are limb 3 and the tube. PR 3683 (`ssi/chart-tube`) is changing
-  that limb and the certificate's tube field in flight.
+- They are limb 3 and the tube, which PR 3683 (`ssi/chart-tube`) had
+  in flight; it consolidated the speeds into `chart_speeds` and kept
+  their box reading.
 - `deriv_box` is a hull of the quotient rule `(A_d − S·w_d)/w`, with `S`
   a box, not a Bernstein form whose coefficients a norm can be read
   from. A norm reading needs the rational derivative's own coefficient

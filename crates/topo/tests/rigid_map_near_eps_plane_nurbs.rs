@@ -32,6 +32,11 @@ const W: f64 = core::f64::consts::FRAC_1_SQRT_2;
 /// Where the bound is placed under ε, as a fraction of ε.
 const MARGIN: f64 = 1.0 / 32.0;
 
+/// The limb-2 bound at `δ = 0`, in metres: the floor every placement
+/// sits on. Measured 3.058e-12 at every battery ε; pinned with 30%
+/// headroom.
+const FLOOR: f64 = 4e-12;
+
 /// How far limb 2 may move under a rigid map, as a factor on the
 /// seated reading. Measured ×1.00066 at the default ε: about 6e-13 m,
 /// which does not scale with `δ`, so it is the re-derived chart and
@@ -113,6 +118,14 @@ fn calibrated_delta(row: &str) -> Option<f64> {
     // The readings that place δ are taken where any of them certifies.
     let probe = Band::new(64.0 * eps, 640.0 * eps).unwrap();
     let floor = hull_at(0.0, probe).hull_sup;
+    println!("rigid map, plane × NURBS: the bound's floor at δ = 0 is {floor:e} at ε = {eps:e}");
+    // Pinned at every ε, so a floor that grew cannot turn these rows
+    // into a green skip: the stand-down below is only for an ε the
+    // pinned floor genuinely reaches.
+    assert!(
+        floor <= FLOOR,
+        "the bound's floor at δ = 0 rose to {floor:e} (pinned at {FLOOR:e})"
+    );
     if floor >= eps / 8.0 {
         vacuity::stood_down(
             row,

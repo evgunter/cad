@@ -49,7 +49,8 @@
 //!    `den = N_w·W_C`, and `num_d/den = S(P(t))_d − C_d(t)` **exactly**
 //!    (the common factor divides out). The three numerators are one
 //!    VECTOR Bernstein form over one scalar denominator, and its bound
-//!    is `max_k |n_k| / d_k` over its coefficients (the convex-hull
+//!    is `max_k |n_k| / |d_k|` over its coefficients when the `d_k`
+//!    share one strict sign (the convex-hull
 //!    property applied to the norm itself; the argument is at
 //!    `coefficient_norm_bound`), maxed over the cells a span touches
 //!    and then over spans. A denominator whose coefficients do not
@@ -73,7 +74,7 @@
 //! *same numbers* and subtract to outward rounding, so the surviving
 //! coefficients are the residual polynomial's own — small because the
 //! residual is small — and the convexity fact (a rational Bernstein
-//! form with positive weights lies in the convex hull of its
+//! form over a one-signed denominator lies in the convex hull of its
 //! coefficient quotients) turns them into a sup bound at the
 //! residual's own scale. The only losses are outward rounding (~1e-16
 //! relative, accumulated over the composition's few hundred ring ops)
@@ -136,7 +137,7 @@ use super::{
     BernsteinSpans, ComposeError, CurveCertData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
 use crate::interval::certification::Certification;
-use crate::interval::{Interval, div_up, norm_sup};
+use crate::interval::{Interval, div_up, max_bound, norm_sup};
 use crate::real::Bounds;
 
 // ---------------------------------------------------------------------
@@ -253,21 +254,12 @@ impl SurfaceResidual {
     /// the largest span bound (fixed ascending fold, D9). `NaN` if any
     /// span is refused, which fails every `≤ ε` comparison (D4 ¶2).
     pub fn sup_bound(&self) -> f64 {
-        max_or_refused(self.spans.iter().copied())
+        self.spans
+            .iter()
+            .copied()
+            .reduce(max_bound)
+            .unwrap_or(f64::NAN)
     }
-}
-
-/// The largest of `xs` in ascending order, `NaN` if any is `NaN` or
-/// there are none — `f64::max` would drop a refusal.
-fn max_or_refused(xs: impl Iterator<Item = f64>) -> f64 {
-    let mut acc = f64::NAN;
-    for (n, x) in xs.enumerate() {
-        if x.is_nan() {
-            return f64::NAN;
-        }
-        acc = if n == 0 { x } else { acc.max(x) };
-    }
-    acc
 }
 
 // ---------------------------------------------------------------------
@@ -482,10 +474,14 @@ fn coefficient_norm_bound(num: &[Vec<Interval>; 3], den: &[Interval]) -> f64 {
     if !(positive || negative) {
         return f64::NAN;
     }
-    max_or_refused(den.iter().enumerate().map(|(k, d)| {
-        let floor = if positive { d.lo() } else { -d.hi() };
-        div_up(norm_sup(&[num[0][k], num[1][k], num[2][k]]), floor)
-    }))
+    den.iter()
+        .enumerate()
+        .map(|(k, d)| {
+            let floor = if positive { d.lo() } else { -d.hi() };
+            div_up(norm_sup(&[num[0][k], num[1][k], num[2][k]]), floor)
+        })
+        .reduce(max_bound)
+        .unwrap_or(f64::NAN)
 }
 
 // ---------------------------------------------------------------------
@@ -670,9 +666,12 @@ pub fn surface_curve_residual(
         let (v0, v1) = cells_touched(&surf[0].breaks_v, wv.lo(), wv.hi());
         // `cells_touched` always returns at least one cell.
         let cells = (u0..=u1).flat_map(|su| (v0..=v1).map(move |sv| (su, sv)));
-        spans.push(max_or_refused(
-            cells.map(|(su, sv)| cell_residual(&surf, su, sv, &rows)),
-        ));
+        spans.push(
+            cells
+                .map(|(su, sv)| cell_residual(&surf, su, sv, &rows))
+                .reduce(max_bound)
+                .unwrap_or(f64::NAN),
+        );
     }
     Ok(SurfaceResidual { breaks, spans })
 }

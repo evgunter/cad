@@ -18,8 +18,8 @@ and √3× its norm depending on how the field sits against the axes, so a
 bound assembled that way is sound but moves under a rotation, and a
 verdict re-derived near its threshold can flip. That lane now reads each
 vector coefficient's norm (`geom_core::spline::compose::tensor`,
-`coefficient_norm_bound`: `max_k |n_k| / d_k` over a positive scalar
-denominator, the convex-hull property applied to the norm). The same
+`coefficient_norm_bound`: `max_k |n_k| / |d_k|` over a one-signed
+scalar denominator, the convex-hull property applied to the norm). The same
 shape is here:
 
 - `nonrational_second_derivative_sup`

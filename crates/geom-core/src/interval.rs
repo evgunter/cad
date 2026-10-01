@@ -371,6 +371,14 @@ pub fn div_down(num: f64, den: f64) -> f64 {
     if q.is_certified() { q.lo() } else { num / den }
 }
 
+/// The larger of two `f64` bounds, `NaN` if either is: [`Real::max`] at
+/// `f64`, for the certification files that may not name `Real`.
+/// `f64::max` would drop a refused bound.
+#[must_use]
+pub fn max_bound(a: f64, b: f64) -> f64 {
+    <f64 as Real>::max(a, b)
+}
+
 /// `num / den` rounded UP — an upper bound on the real quotient, which
 /// is what an upper bound divided by a positive lower bound has to
 /// stay. Refusals fall back to the bare quotient exactly as

@@ -17,8 +17,8 @@ folded per-coordinate coefficient hulls into a Euclidean norm. A box of
 one vector field reads between 1× and √3× its norm depending on how the
 field sits against the axes. That lane now reads each vector
 coefficient's norm (`geom_core::spline::compose::tensor`,
-`coefficient_norm_bound`: `max_k |n_k| / d_k` over a positive scalar
-denominator, the convex-hull property applied to the norm), and the
+`coefficient_norm_bound`: `max_k |n_k| / |d_k|` over a one-signed
+scalar denominator, the convex-hull property applied to the norm), and the
 bound moves only by rounding. The same shape remains in the offset
 certificate and its meters, as `norm_sup` over three per-coordinate
 cell hulls:

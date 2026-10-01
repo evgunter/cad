@@ -213,8 +213,10 @@ fn the_bound_dominates_a_dense_scan_on_the_aligned_pair() {
     // beat: replacing `cell_residual`'s coefficient subtraction with a
     // hull-then-difference of the two hulls — still sound, a pure
     // tightness loss — takes this row from 1.043x the sampled truth to
-    // 20.842x. 1.5 is 44% over the healthy ratio and fourteen times
-    // under the degraded one. The whole-object box would admit 45.707x, which is
+    // 20.842x. A second degradation is the one the norm reading
+    // replaced: folding each coordinate's coefficient maximum Euclidean
+    // per cell reads 1.485x (the whole-domain fold read 1.491x). 1.2
+    // is 15% over the healthy ratio and under both. The whole-object box would admit 45.707x, which is
     // a necessary check on the ceiling and NOT what makes it a guard —
     // the degraded reading is what does, and it sits well under the
     // box (`test_utils::tightness`).
@@ -227,7 +229,7 @@ fn the_bound_dominates_a_dense_scan_on_the_aligned_pair() {
         )
         .dominates()
         .within(
-            1.5,
+            1.2,
             0.0,
             Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &c.2])),
             "the composite bound lost the cancellation — the degraded reading here \
@@ -251,8 +253,8 @@ fn the_bound_dominates_when_the_two_curves_disagree_on_knots() {
     // Exact insertion costs no tightness: the merged-break bound tracks
     // the residual's own scale (1.012x) as closely as the aligned
     // pair's does (1.043x). Under the hull-then-difference enclosure
-    // this row reads 6.730x, so 1.5 sits 4.5x under the degraded state
-    // and 48% over the healthy one. The whole-object box would admit
+    // this row reads 6.730x, and a per-cell componentwise fold reads
+    // 1.309x, so 1.2 sits under both and 19% over the healthy one. The whole-object box would admit
     // 16.000x — a ceiling anywhere under that passes the anchor while
     // saying nothing, which is why the degraded reading is the
     // evidence and the box is only a floor under the argument.
@@ -266,7 +268,7 @@ fn the_bound_dominates_when_the_two_curves_disagree_on_knots() {
         )
         .dominates()
         .within(
-            1.5,
+            1.2,
             0.0,
             Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &ca.2])),
             "the merged-break path lost the cancellation — the degraded reading \
@@ -312,7 +314,9 @@ fn the_bound_dominates_when_the_pcurve_straddles_surface_cells() {
     // extension — 3.051x the true residual against the aligned pair's
     // 1.043x. Under the hull-then-difference enclosure it reads 4.622x,
     // so 3.7 is the value that separates the two, with 21% over the
-    // healthy ratio and 20% under the degraded one. That narrowness is
+    // healthy ratio and 20% under the degraded one. It does NOT
+    // separate the norm reading from a componentwise fold (3.264x); the
+    // aligned and merged-break rows and the rotation row do. That narrowness is
     // the finding: on this fixture the cross-cell union and a lost
     // cancellation are nearly the same size, and the file's actual
     // cancellation witness is
