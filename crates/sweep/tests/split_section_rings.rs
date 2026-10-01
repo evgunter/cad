@@ -18,7 +18,7 @@ use crate::common::cavity::{brick, cut, prism, rod};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::bored_cylinder;
 use topo::Body;
-use topo::splitting::{SplitError, SplitPlane, split};
+use topo::splitting::{SplitError, SplitJoinError, SplitPlane, split};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -227,10 +227,23 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
                 // tight ε (`props_quad_converged`); that pose's volume is
                 // then not read, and the count below says how many were.
                 let volumes = [&below, &above].map(|h| topo::mass_properties(h, tol()));
-                if let [Ok(b), Ok(a)] = &volumes {
-                    let sum = b.volume + a.volume;
-                    assert!((sum - whole).abs() < close, "{what}: {sum} against {whole}");
-                    measured += 1;
+                let quadrature = |r: &Result<topo::MassProperties<f64>, topo::MassPropsError>| {
+                    matches!(
+                        r,
+                        Err(topo::MassPropsError::Face {
+                            source: geom_brep::PropsError::Escalated { cause },
+                            ..
+                        }) if cause.predicate == Some("props_quad_converged")
+                    )
+                };
+                match &volumes {
+                    [Ok(b), Ok(a)] => {
+                        let sum = b.volume + a.volume;
+                        assert!((sum - whole).abs() < close, "{what}: {sum} against {whole}");
+                        measured += 1;
+                    }
+                    [b, a] if [b, a].iter().all(|r| r.is_ok() || quadrature(r)) => {}
+                    other => panic!("{what}: volume refused: {other:?}"),
                 }
                 for (side, half) in [("below", &below), ("above", &above)] {
                     let s = sections(half, &plane);
@@ -287,8 +300,8 @@ fn a_hole_in_an_island_in_a_hole_goes_to_the_island() {
 
 /// **Two crossings on different faces never refuse, however close in
 /// the sweep's order.** Two rods two apart in `y`, their facing seams
-/// `g` apart in `x` with `g` across the band's ambiguity window
-/// (`2e-9 … 9e-9` at the witness ε); the cut is flat, so the sweep's
+/// `g` apart in `x` with `g ∈ {2, 5, 9}·ε`, across the band's ambiguity
+/// window `(ε, K·ε)` at every ε row; the cut is flat, so the sweep's
 /// `u` is `x` exactly. No face holds crossings of both rods, so nothing
 /// the join pairs depends on their order. (Review R1/R2, finding M1.)
 #[test]
@@ -299,7 +312,7 @@ fn a_flat_cut_answers_whatever_the_gap_between_crossings_on_different_faces() {
         &block,
         &rod(Point2::new(0.5, 1.0), 0.5, -0.5, 3.5),
     );
-    for g in [2e-9, 5e-9, 9e-9] {
+    for g in [2.0, 5.0, 9.0].map(|k| k * tol().eps()) {
         let body = cut(
             "second rod",
             &first,
@@ -317,15 +330,21 @@ fn a_flat_cut_answers_whatever_the_gap_between_crossings_on_different_faces() {
 }
 
 /// **A hairline slot crossed nearly along its length answers.** The
-/// slot is `1e5·ε` wide (`0.1 mm` at the witness ε) and the plane runs
-/// `±1e4·ε` rad off its axis,
-/// so the cap line's crossings of the slot's long walls sit a real
-/// distance apart along the cap's line however close they are in the
-/// sweep's `u`. (Review R2, finding M1.)
+/// slot is `0.1 mm` wide (`w`) and the steep plane (tilt `t = 1.4`)
+/// leans `±δ` off its axis, so on the `z = 0` cap the plane's line
+/// crosses the slot's two long walls a real `w / δ` apart along the
+/// line, while in the sweep's frame (`u` the plane's projection of
+/// `x`) the two crossings differ in `u` by `δ·w·|cos²t − sin²t| /
+/// (sin t·cos t)`. `δ` is chosen to put that at `5·ε`, inside the
+/// band's ambiguity window `(ε, K·ε)` at every ε row: a pairing read
+/// off the sweep's order with the band would refuse here. (Review R2,
+/// finding M1.)
 #[test]
 fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
     let t: f64 = 1.4;
-    let w = 1e5 * tol().eps();
+    let w = 1e-4;
+    let (s, c) = t.sin_cos();
+    let lean = 5.0 * tol().eps() * s * c / (w * (c * c - s * s).abs());
     let block = brick(Point3::new(-3.0, -3.0, 0.0), Point3::new(3.0, 3.0, 2.5));
     let outline = [
         (-0.8, -w / 2.0),
@@ -335,11 +354,10 @@ fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
     ]
     .map(|(x, y)| Point2::new(x, y));
     let body = cut("slot", &block, &prism(&outline, -0.5, 3.0));
-    let lean = 1e4 * tol().eps();
     for delta in [lean, -lean] {
         let plane = SplitPlane {
             origin: Point3::new(0.0, 0.0, 1.25),
-            normal: Vec3::new(-t.sin(), -delta, -t.cos()).normalize(),
+            normal: Vec3::new(-s, -delta, -c).normalize(),
         };
         halves_at_rest(&format!("off-axis by {delta:e}"), &body, &plane);
     }
@@ -350,21 +368,24 @@ fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
 /// the steep plane's trace on the `z = 0` cap, so the cap's four
 /// crossings sit at `y = −2, 1.47, 1.97, 2` (gaps 3.47, 0.5, 0.03), and
 /// the body turned `δ` about `x` so the cap line leans off `v` by about
-/// `δ / sin t`. Each face's crossings are ordered along that face's own
+/// `δ / sin t`. The leans `δ / sin t ∈ {±26, ±30}·ε` put the 0.03 gap's
+/// `u` difference under `ε` and the 0.5 gap's over `K·ε` at every ε
+/// row — a column order would read one line as two columns. Each face's crossings are ordered along that face's own
 /// line, where these gaps are their real lengths, so no lean puts one
 /// gap under the band and another over it: no lean refuses at the
 /// join, the unleaned pose answers, and every pose that answers is at
-/// rest. Leans that put a crossing vertex's sector bisector in the band
-/// refuse at the reduction (`split_bisector_side`; 6 of the 16 poses
-/// at ε = 1e-9), and at ε = 1e-12 the `1e-5` lean refuses at the
-/// pcurve mint (`pcurve_trim_containment`) — stages before and after
-/// the join's order, not this row's subject. (Review R1's concern.)
+/// rest. A lean that puts a crossing vertex's sector bisector in the
+/// band refuses at the reduction (`split_bisector_side`), and one the
+/// pcurve mint cannot certify refuses there (`pcurve_trim_containment`)
+/// — stages before and after the join's order, not this row's subject.
+/// (Review R1's concern.)
 #[test]
 fn a_cap_line_a_hair_off_the_sweeps_v_axis_never_refuses_at_the_join() {
     let t: f64 = 1.4;
     let x0 = 1.25 * t.cos() / t.sin();
     let body = bored_brick(x0, 1.72, 0.25);
-    for d in [0.0, 1e-12, -1e-9, 2.6e-8, -2.6e-8, 3e-8, -1e-7, 1e-5] {
+    let eps = tol().eps();
+    for d in [0.0, 26.0, -26.0, 30.0, -30.0].map(|k| k * eps * t.sin()) {
         let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), d);
         let posed = topo::transform_rigid(&body, &map, tol()).unwrap();
         for flip in [true, false] {
@@ -427,6 +448,68 @@ fn a_clockwise_section_nothing_places_keeps_its_face() {
                 s,
                 vec![(false, 0), (false, 0), (true, 0)],
                 "flipped {flip} {side}: the ellipse and its two cancelling 2-gons"
+            );
+        }
+    }
+}
+
+/// **A thin tube cut at a tilt is one annular face per half.** The unit
+/// cylinder bored concentrically at radius `a` up to `0.9`, cut at
+/// tilts 0.1 and 0.3: the bore's elliptic section nests in the
+/// cylinder's because the separation reads the hole's true reach (the
+/// largest singular value), not the `√2`-loose sum of its semi-axes,
+/// which left `a ≥ 0.75` un-nested. (Review R1/R2.)
+#[test]
+fn a_thin_tube_cut_at_a_tilt_is_one_annular_face_per_half() {
+    for a in [0.75, 0.8, 0.9] {
+        let body = bored_cylinder(a, 0.0, 0.37, tol());
+        for t in [0.1, 0.3] {
+            let what = format!("tube bored at {a}, tilt {t}");
+            let plane = tilted(0.5, t, false);
+            for (side, half) in ["below", "above"]
+                .into_iter()
+                .zip(halves_at_rest(&what, &body, &plane))
+            {
+                assert_eq!(sections(&half, &plane), vec![(true, 1)], "{what} {side}");
+            }
+        }
+    }
+}
+
+/// **A plane through a notch's tip line refuses at the join, typed, as
+/// main does.** The block `[0, 4]² × [0, 2]` less a V-notch whose tip
+/// line is `x = 2, y = 2`, alone and with a second notch beside it, cut
+/// by planes through that tip line. The fixed partners of the line's
+/// crossings meet across a face an earlier chord divided, so they are
+/// returned to the book's rule, which leaves two ends unpaired:
+/// `Join(UnpairedLooseEnds { count: 2 })`, the refusal main gives. (It
+/// reached the Euler layer as `NotSameFace` before the partners were
+/// re-checked at use.) This row pins the refusal's stage and kind, not
+/// that the pose should refuse.
+#[test]
+fn a_plane_through_a_notch_tip_refuses_at_the_join() {
+    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 2.0));
+    let notch = [(1.0, 5.0), (2.0, 2.0), (3.0, 5.0)].map(|(x, y)| Point2::new(x, y));
+    let v = cut("notch", &block, &prism(&notch, -1.0, 3.0));
+    let second = [(0.5, 4.5), (1.0, 2.0), (1.5, 4.5)].map(|(x, y)| Point2::new(x, y));
+    let two = cut("second notch", &v, &prism(&second, -1.0, 3.0));
+    for (name, body) in [("one notch", &v), ("two notches", &two)] {
+        for (o, n) in [
+            (Point3::new(0.0, 2.0, 0.0), Vec3::new(0.0, 1.0, 0.3)),
+            (Point3::new(0.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 1.0)),
+        ] {
+            let plane = SplitPlane {
+                origin: o,
+                normal: n.normalize(),
+            };
+            assert!(
+                matches!(
+                    split(body, &plane, tol()),
+                    Err(SplitError::Join(SplitJoinError::UnpairedLooseEnds {
+                        count: 2
+                    }))
+                ),
+                "{name}, plane through {o:?}: refuses with two ends unpaired"
             );
         }
     }

@@ -204,6 +204,15 @@ pub(super) fn sort_indices_by_point<T: Decide>(
 /// successive Zero gaps (**`split_join_line_gap`**) is put back in
 /// insertion order, so the result is a function of the verdicts.
 ///
+/// **Residual: a chain of sub-ε gaps.** The comparator is banded, so
+/// it is not transitive: three crossings of one face whose successive
+/// gaps are each Zero (≤ ε) while their span lands in the window
+/// `(ε, K·ε)` — all three within about `1.2·ε` of each other, a
+/// cluster the reduction's own sliver gates normally refuse first —
+/// sort in an order that can depend on their insertion order. The
+/// result is still a function of the verdicts (the run is put back in
+/// insertion order), but not of the positions alone.
+///
 /// # Errors
 ///
 /// A comparison in the band's ambiguity window — two crossings of one

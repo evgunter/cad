@@ -114,7 +114,7 @@ pub(super) fn split_connect<T: Decide>(
     let sorted = order::sort_indices_by_point(&points, &red.plane, band, exact)
         .map_err(|diag| SplitJoinError::OrderEscalated { diag })?;
 
-    let partner = line_partners(red, band)?;
+    let partner = line_partners(red, &above_set, band)?;
     let mut st = Sweep {
         ends: Vec::new(),
         partner,
@@ -199,11 +199,23 @@ fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJ
 /// more than two crossings (module docs), both ways round.
 ///
 /// A face's halves are taken in insertion order (null-edge record
-/// order, up half first), keyed by their along-line coordinate
-/// `(p − origin)·d̂`, `d = n_face × n_plane`; a face whose line the
-/// band cannot certify (**`split_join_face_line`**: `|d|` levered by
-/// the crossings' spread — a face lying in the plane has none) keeps
-/// the book's rule. A half left unpaired on its line keeps it too.
+/// order, up half first — the half starting at `below_end`, the order
+/// the sweep offers them in), keyed by their along-line coordinate
+/// `(p − origin)·d̂`, `d = n_face × n_plane`. A half left unpaired on
+/// its line keeps the book's rule.
+///
+/// **A face whose line the band cannot certify keeps the book's rule
+/// too, silently** (**`split_join_face_line`**: `|d|` levered by the
+/// crossings' spread is Zero). That is a face lying in the plane, or
+/// within the band of it, whose crossings are the plane's contact with
+/// it rather than a section line; its pairing is main's, with main's
+/// exposure to the global order. An escalated reading refuses.
+///
+/// The partners are fixed on the faces the sweep starts with. A chord
+/// minted earlier in the sweep can divide a face so that two partners
+/// end up in different faces; `Sweep::take_neighbor` re-checks the
+/// pair's face at use and, where they parted, returns both halves to
+/// the book's rule.
 ///
 /// # Errors
 ///
@@ -211,17 +223,28 @@ fn he_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<FaceKey, SplitJ
 /// the order of two of its crossings along it is undecided.
 fn line_partners<T: Decide>(
     red: &SplitReduction<T>,
+    above_set: &SecondaryMap<VertexKey, ()>,
     band: Band,
 ) -> Result<SecondaryMap<HalfEdgeKey, HalfEdgeKey>, SplitJoinError> {
     let body = &red.body;
-    let above = |he: HalfEdgeKey| -> Result<bool, SplitJoinError> {
+    // The half's up/down sense, read as the sweep reads it (`is_down`).
+    let down_half = |he: HalfEdgeKey| -> Result<bool, SplitJoinError> {
         let start = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start;
-        Ok(red.null_edges.iter().any(|r| r.attr.above_end == start))
+        Ok(above_set.contains_key(start))
     };
     let mut faces: Vec<(FaceKey, Vec<HalfEdgeKey>)> = Vec::new();
     for r in &red.null_edges {
         let edge = body.get_edge(r.edge).ok_or_else(|| corrupt_edge(r.edge))?;
-        for half in [edge.he_plus, edge.he_minus] {
+        let plus_start = body
+            .get_half_edge(edge.he_plus)
+            .ok_or_else(|| corrupt_he(edge.he_plus))?
+            .start;
+        let up_first = if plus_start == r.attr.below_end {
+            [edge.he_plus, edge.he_minus]
+        } else {
+            [edge.he_minus, edge.he_plus]
+        };
+        for half in up_first {
             let face = he_face(body, half)?;
             match faces.iter_mut().find(|(f, _)| *f == face) {
                 Some((_, halves)) => halves.push(half),
@@ -274,10 +297,10 @@ fn line_partners<T: Decide>(
         let mut loose: Vec<HalfEdgeKey> = Vec::new();
         for i in order {
             let h = halves[i];
-            let down = above(h)?;
+            let down = down_half(h)?;
             let mut matched = None;
             for (j, &e) in loose.iter().enumerate() {
-                if above(e)? != down {
+                if down_half(e)? != down {
                     matched = Some(j);
                     break;
                 }
@@ -338,15 +361,27 @@ impl<T: Decide> Sweep<T> {
         body: &Body<T>,
         half: HalfEdgeKey,
     ) -> Result<Option<HalfEdgeKey>, SplitJoinError> {
-        if let Some(&mate) = self.partner.get(half) {
-            if let Some(i) = self.ends.iter().position(|&e| e == mate) {
-                self.ends.remove(i);
-                return Ok(Some(mate));
-            }
-            self.ends.push(half);
-            return Ok(None);
-        }
         let face = he_face(body, half)?;
+        if let Some(&mate) = self.partner.get(half) {
+            match self.ends.iter().position(|&e| e == mate) {
+                // The partner waits in this half's face: the line's pair.
+                Some(i) if he_face(body, mate)? == face => {
+                    self.ends.remove(i);
+                    return Ok(Some(mate));
+                }
+                // An earlier chord divided the face between them (the
+                // fixed pairing is of the faces the sweep started with):
+                // both return to the book's rule below.
+                Some(_) => {
+                    self.partner.remove(half);
+                    self.partner.remove(mate);
+                }
+                None => {
+                    self.ends.push(half);
+                    return Ok(None);
+                }
+            }
+        }
         let down = self.is_down(body, half)?;
         for i in 0..self.ends.len() {
             let end = self.ends[i];

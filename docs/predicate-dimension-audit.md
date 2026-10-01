@@ -477,7 +477,7 @@ which is what actually moves the number.
 | splitting/order.rs (`sort_along_line`) | split_join_line_gap | the gap between successive along-line coordinates of one planar face's sorted crossings (m) vs the run's band: Zero is one point, Positive two | m | OK (CLEAVE) |
 | splitting/join.rs (`line_partners`) | split_join_face_line | `|n_face × n_plane|` levered by the face's crossings' spread (m): the face's section line exists | m | OK (CLEAVE) |
 | splitting/finish.rs (`line_clears_conic`) | split_nest_line_conic | a conic carrier's centre offset from a line less its amplitude across it, `|m·(c − p)| − √((m·a)² + (m·b)²)` (m) | m | OK (CLEAVE) |
-| splitting/finish.rs (`conics_clear`) | split_nest_conic_conic | in one conic's unit coordinates, `1 − |c′| − R` or `|c′| − R − 1`, levered by its smaller semi-axis (m) | m | OK (CLEAVE) |
+| splitting/finish.rs (`conics_clear`) | split_nest_conic_conic | in one conic's unit coordinates, `1 − |c′| − σ` or `|c′| − σ − 1` with `σ` the largest singular value of the other's semi-axis matrix, levered by the first's smaller semi-axis (m) | m | OK (CLEAVE) |
 | splitting/rules.rs:132/151/202 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |
 | splitting/rules.rs:179 | tangent_sector_osculation | κ(1/m) × face-extent²/2 | m | FLAG F11 |
 | chord_join.rs:710 | split_sphere_section_polar | sin(axes) × sphere radius | m | OK |

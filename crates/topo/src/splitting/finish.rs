@@ -616,9 +616,8 @@ fn nest_hole_sections<T: Decide>(
 ///   the conic's centre from the line less its amplitude across it,
 ///   `√((m·a)² + (m·b)²)`). Two conics: in the unit coordinates of one,
 ///   the other's carrier lies wholly inside or wholly outside the unit
-///   circle (**`split_nest_conic_conic`**, `1 − |c′| − R` or
-///   `|c′| − R − 1` with `R = √(|a′|² + |b′|²)` bounding its reach,
-///   levered by the first's smaller semi-axis into metres).
+///   circle, either way round (**`split_nest_conic_conic`**; the bound
+///   is at [`conics_clear`]).
 /// - **A spiric or NURBS edge, or an edge with no certified curve**:
 ///   nothing decides it, so `false`.
 ///
@@ -770,8 +769,20 @@ fn positive<T: Decide>(name: &'static str, margin: T, band: geom_core::Band) -> 
     )
 }
 
-/// One conic's carrier lies definitely inside or definitely outside the
-/// other's (both in one plane).
+/// `h`'s carrier lies definitely inside or definitely outside `e`'s
+/// (both in one plane).
+///
+/// **The bound.** In `e`'s unit coordinates (`e` the unit circle), `h`
+/// is `c′ + M·(cos θ, sin θ)` with `M = [a′ b′]`, so its distance from
+/// the origin lies in `[|c′| − σ, |c′| + σ]`, `σ` the largest singular
+/// value of `M`: `σ² = (S + √((|a′|² − |b′|²)² + 4(a′·b′)²)) / 2`,
+/// `S = |a′|² + |b′|²` — exact for the 2×2, with the radicand a sum of
+/// squares so rounding cannot take it negative. `h` is inside when
+/// `|c′| + σ < 1`, outside when `|c′| − σ > 1`. Both margins are levered
+/// by `e`'s smaller semi-axis, the least a unit step in its coordinates
+/// spans in metres. `σ` is padded up by a few ulps so the bound stays an
+/// upper bound under rounding; the triangle inequality in `|c′| ± σ`
+/// is the one remaining slack (exact for concentric conics).
 fn conics_clear<T: Decide>(e: &Conic<T>, h: &Conic<T>, band: geom_core::Band) -> bool {
     let (ae, be) = (e.a.norm(), e.b.norm());
     let lever = ae.min(be);
@@ -783,7 +794,14 @@ fn conics_clear<T: Decide>(e: &Conic<T>, h: &Conic<T>, band: geom_core::Band) ->
     let (ax, ay) = unit(h.a);
     let (bx, by) = unit(h.b);
     let centre = (cx.powi(2) + cy.powi(2)).sqrt();
-    let reach = (ax.powi(2) + ay.powi(2) + bx.powi(2) + by.powi(2)).sqrt();
+    let (aa, bb, ab) = (
+        ax.powi(2) + ay.powi(2),
+        bx.powi(2) + by.powi(2),
+        ax * bx + ay * by,
+    );
+    let spread = ((aa - bb).powi(2) + T::from_f64(4.0) * ab.powi(2)).sqrt();
+    let reach =
+        ((aa + bb + spread) * T::from_f64(0.5)).sqrt() * T::from_f64(1.0 + 8.0 * f64::EPSILON);
     let inside = (T::one() - centre - reach) * lever;
     let outside = (centre - reach - T::one()) * lever;
     positive("split_nest_conic_conic", inside, band)
