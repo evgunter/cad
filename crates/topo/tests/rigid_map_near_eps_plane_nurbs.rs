@@ -221,7 +221,7 @@ fn is_hull_refusal(e: &topo::TransformError) -> bool {
     }
 }
 
-/// **The reproduction.** The body moves through the lane door under
+/// **The reproduction.** The body moves through the transform under
 /// the rotations about x, which keep the arc's chord on an axis, and
 /// refuses on limb 2 under oblique ones.
 #[test]
@@ -231,12 +231,7 @@ fn the_image_of_an_edge_certified_near_eps_refuses_re_derivation() {
     let mut refused = Vec::new();
     let mut moved = 0;
     for (name, map) in rotations() {
-        match topo::transform_rigid_via(
-            &body,
-            &map,
-            Tol::witness(),
-            Some(&geom_brep::plane_nurbs_limbs::<f64>),
-        ) {
+        match topo::transform_rigid(&body, &map, Tol::witness()) {
             Ok(_) => moved += 1,
             Err(e) if is_hull_refusal(&e) => refused.push(name),
             Err(e) => panic!("{name}: only limb 2 moves here: {e}"),

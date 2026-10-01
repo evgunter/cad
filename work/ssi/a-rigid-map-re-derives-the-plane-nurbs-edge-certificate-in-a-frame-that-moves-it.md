@@ -134,3 +134,11 @@ are frame-sensitive and points here. The same docs' two-class contract
 ("what can still refuse is authored VERDICT marginality") is
 ratified text (the PR #83 ruling) and is not re-worded here. This class
 is a third refusal it does not name.
+
+## Rename, 2026-10-01 (CLEAVE)
+
+`transform_rigid_via` is gone: `topo::transform_rigid` now reads the
+plane x NURBS lane from `AtRestPolicy::nurbs_lane()` and is the door
+this row's reproduction (`crates/topo/tests/rigid_map_near_eps_plane_nurbs.rs`)
+runs through. Nothing about the finding moves; at `f64` the two calls
+re-derive through the same lane.
