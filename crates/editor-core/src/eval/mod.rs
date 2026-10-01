@@ -5708,9 +5708,11 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         h.write_tag(match q {
             Qualifier::OrderAlong { .. } => 2,
             Qualifier::Borders(..) => 3,
+            Qualifier::Keeps(..) => 4,
+            Qualifier::Ends(..) => 5,
         });
         match q {
-            Qualifier::Borders(walls) => {
+            Qualifier::Borders(walls) | Qualifier::Keeps(walls) | Qualifier::Ends(walls) => {
                 h.write_u64(walls.len() as u64);
                 for name in walls {
                     h.name(name);

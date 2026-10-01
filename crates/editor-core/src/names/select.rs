@@ -365,7 +365,9 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::FromMember { .. }
         | RoleSeg::Seam { .. }
         | RoleSeg::Merged(_)
-        | RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::OrderAlong { .. })
+        | RoleSeg::Fragment(
+            Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_) | Qualifier::OrderAlong { .. },
+        )
         | RoleSeg::FromTarget(_)
         | RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
@@ -433,7 +435,9 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
             std::iter::once(&**edge).chain(band).collect()
         }
         // A qualifier, not a role argument (see the doc note).
-        RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::OrderAlong { .. }) => Vec::new(),
+        RoleSeg::Fragment(
+            Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_) | Qualifier::OrderAlong { .. },
+        ) => Vec::new(),
         name_free_seg!() => Vec::new(),
     }
 }

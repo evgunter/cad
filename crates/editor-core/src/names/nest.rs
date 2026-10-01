@@ -381,7 +381,9 @@ impl RoleSeg {
                 f(Shared(edge));
                 band.iter().for_each(|n| f(Owned(n)));
             }
-            RoleSeg::Fragment(Qualifier::Borders(walls)) => walls.iter().for_each(|n| f(Owned(n))),
+            RoleSeg::Fragment(
+                Qualifier::Borders(walls) | Qualifier::Keeps(walls) | Qualifier::Ends(walls),
+            ) => walls.iter().for_each(|n| f(Owned(n))),
             RoleSeg::Fragment(Qualifier::OrderAlong { .. }) | super::name_free_seg!() => {}
         }
     }
@@ -429,7 +431,9 @@ impl RoleSeg {
                 f(Shared(edge));
                 band.iter_mut().for_each(|n| f(Owned(n)));
             }
-            RoleSeg::Fragment(Qualifier::Borders(walls)) => {
+            RoleSeg::Fragment(
+                Qualifier::Borders(walls) | Qualifier::Keeps(walls) | Qualifier::Ends(walls),
+            ) => {
                 walls.iter_mut().for_each(|n| f(Owned(n)));
             }
             RoleSeg::Fragment(Qualifier::OrderAlong { .. }) | super::name_free_seg!() => {}

@@ -1397,10 +1397,11 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             None => {}
         }
     } else if let Some(base) = unqualified(name)
-        // The same collapse for a face piece: the undivided survivor is
-        // offered for an explicit `Rebind`, never bound. There is no
-        // over-tie to widen to here — a `Borders` tie is a row of the
-        // QUALIFIED name, which step 2 already answered.
+        // The same collapse for a face or edge piece: the undivided
+        // survivor is offered for an explicit `Rebind`, never bound.
+        // There is no over-tie to widen to here — a `Borders`, `Keeps`
+        // or `Ends` tie is a row of the QUALIFIED name, which step 2
+        // already answered.
         && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
@@ -1479,18 +1480,20 @@ fn fragment_base(name: &StableName) -> Option<StableName> {
     (!base.path.is_empty()).then_some(base)
 }
 
-/// A face piece's base ([`fragment_base`]) — what the SAME group is
-/// called once it stops being multi-fragment, and therefore the
-/// current-run counterpart of a vanished piece.
+/// A face or edge piece's base ([`fragment_base`]) — what the SAME
+/// group is called once it stops being multi-fragment, and therefore
+/// the current-run counterpart of a vanished piece.
 ///
 /// Not [`widened_base`]: that one asks which ROW a ranked reference
-/// landed on and must refuse a `Borders` tail; this one asks which FACE
+/// landed on and must refuse a piece's tail; this one asks which entity
 /// a piece became and must refuse an `OrderAlong` tail. Same pop,
 /// different questions, so different filters.
 fn unqualified(name: &StableName) -> Option<StableName> {
     matches!(
         name.path.last(),
-        Some(RoleSeg::Fragment(Qualifier::Borders(_)))
+        Some(RoleSeg::Fragment(
+            Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_)
+        ))
     )
     .then(|| fragment_base(name))
     .flatten()
@@ -1566,12 +1569,16 @@ fn border_delta<T: Decide>(
 /// here. A fragment qualifier exists only while its group has two or
 /// more members (N2), and `OrderAlong` spells the group's size into
 /// the name as `of`. So a fragment name vanishes whenever its group
-/// changes size, and that event need not flip any discriminator: a
+/// stops being divided, and a ranked crossing's whenever its group
+/// changes size, and neither event need flip any discriminator: a
 /// `Borders` group that stops being divided leaves no piece whose walls
 /// could be compared — the walls still stand where they stood relative
 /// to the survivor — and an `OrderAlong` group ranks its members
 /// against EACH OTHER, so a group of one runs no pair. What remains in
-/// evidence is the count.
+/// evidence is the count. An edge piece's `Ends` holds no count, so a
+/// cut elsewhere on its parent leaves its name as it was; only the
+/// group's collapse to one, or a cut that moves one of its own ends,
+/// makes it vanish.
 ///
 /// # What is counted
 ///
@@ -2357,7 +2364,7 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
             }
             // Discrimination references, not derivation.
             RoleSeg::Fragment(q) => match q {
-                Qualifier::Borders(walls) => {
+                Qualifier::Borders(walls) | Qualifier::Keeps(walls) | Qualifier::Ends(walls) => {
                     if partners == Partners::Include {
                         for n in walls {
                             visit(n, partners, f);

@@ -75,7 +75,9 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
-        | RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::OrderAlong { .. })
+        | RoleSeg::Fragment(
+            Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_) | Qualifier::OrderAlong { .. },
+        )
         | name_free_seg!() => Head::Stop,
     }
 }
@@ -91,6 +93,12 @@ fn head(seg: &RoleSeg) -> Head<'_> {
 /// an equal pair, agrees.
 pub(super) fn seam_line_pair(name: &StableName) -> Option<(&StableName, &StableName)> {
     seam_through(name, EntityKind::Edge).filter(|(a, b)| a != b)
+}
+
+/// The two sides `(a, b)` of the seam an EDGE name lies on, if any,
+/// found as [`seam_line_pair`] finds them, an equal pair included.
+pub(super) fn seam_edge_sides(name: &StableName) -> Option<(&StableName, &StableName)> {
+    seam_through(name, EntityKind::Edge)
 }
 
 /// The two parents `(a, b)` of a seam VERTEX name, if it is one: a

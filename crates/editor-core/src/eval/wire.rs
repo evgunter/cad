@@ -2595,7 +2595,6 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         target,
         &target_table,
         &body,
-        plane.normal,
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
