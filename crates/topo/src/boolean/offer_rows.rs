@@ -1795,6 +1795,20 @@ fn a_declared_rest_at_a_decided_tilt_is_contradicted() {
             "{name}: {got:?}"
         );
     }
+    // Undeclared, the same poses offer the tolerance and no declaration.
+    for name in [
+        "thinner_wedge_tilted_past_the_band",
+        "wedge_turned_on_a_block_union",
+    ] {
+        let got = run(&format!("{module}::{name}"), DESIGN_EPS);
+        assert!(
+            matches!(&got, Outcome::Refused { key, text, .. }
+                if key == "Coincidence(Sectors)"
+                    && !text.contains("declare")
+                    && text.contains("tighten")),
+            "{name}: {got:?}"
+        );
+    }
 }
 
 // ------------------------------------------------------------------
