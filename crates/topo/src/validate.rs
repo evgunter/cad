@@ -6454,7 +6454,9 @@ pub(crate) enum RingOuterVerdict {
 ///
 /// **Escalate-never-guess (D4 ¶3)**: the first margin that lands in
 /// the ambiguity band returns [`RingOuterVerdict::Escalated`] and stops
-/// the walk. Both callers treat it as a refusal.
+/// the walk. Check 9 and the shell verb treat it as a refusal; the
+/// split's hole nesting (`splitting::finish`) reads it as "not decided
+/// disjoint" and leaves the hole its own face.
 pub(crate) fn ring_outer_contact<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
