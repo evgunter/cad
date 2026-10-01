@@ -2,10 +2,13 @@
 id: corner-config-recourse-and-policy-assert-a-default-for-any-tag
 kind: issue
 title: blend: CornerConfig's recourse and policy tables assert an answer for any tag added later
-status: open
+status: closed
 opened: 2026-09-17
 priority: P1
 cost: D
+closed: 2026-10-01
+pr: 3690
+branch: band/recourse-tables-decide-per-tag
 ---
 
 

@@ -2,8 +2,11 @@
 id: blend-endings-say-lower-the-tolerance-and-route-by-name
 kind: issue
 title: blend: FILLET3_CONTACT_RECOURSE says 'lower the tolerance', and BlendError::Escalated routes its ending by predicate name
-status: open
+status: closed
 opened: 2026-09-28
+closed: 2026-10-01
+pr: 3690
+branch: band/recourse-tables-decide-per-tag
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3382.) The rule is D4 ¶1 (i)

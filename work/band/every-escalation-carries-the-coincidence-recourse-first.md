@@ -2,10 +2,13 @@
 id: every-escalation-carries-the-coincidence-recourse-first
 kind: issue
 title: blend: every Escalated renders the coincidence recourse BEFORE the routed one, and no blend door takes a declaration
-status: open
+status: closed
 opened: 2026-09-08
 priority: P1
 cost: E
+closed: 2026-10-01
+pr: 3690
+branch: band/recourse-tables-decide-per-tag
 ---
 
 
