@@ -2,11 +2,13 @@
 id: kernel-door-refusals-beyond-edit-speak-the-node
 kind: unit
 title: Kernel refusals raised at a door that holds the document, beyond EditError, speak the node with its label
-status: open
+status: review
 opened: 2026-10-01
 priority: P2
 cost: M
 parent: node-labels-are-document-data
+pr: 3735
+branch: emit/kernel-refusals-speak
 ---
 
 
@@ -24,11 +26,31 @@ Each needs a ruling first: is the value raised at a door that holds the document
 - `edit.rs` `Maintenance`'s `Display` (`Strand`, `OrphanedDeclare`): a report the edit door makes, not a refusal, but it names nodes the same way.
 - `pncad/src/export.rs`, `pncad-py/src/py/checks.rs` (`__repr__`, `new`).
 - `StableName`'s `Display` (`names/role.rs`): "face name minted by node <tag>". It prints inside about 14 `EditError` sentences: every arm that forwards a `name` (`DeclareNamesMissingNode`, the `Rebind…` and `Appearance…` arms, `NameStepNeverMinted`, `Meta…`). So an edit refusal still names a minting node by a bare tag there. A `StableName` is a stored reference with no document behind it, so the fix is a rendering that takes the speaking document, the same shape as the memoized row's.
-- `persist/check.rs`, `persist/mod.rs` (`fmt_labelled`), `mint.rs`: the load door reads bytes that are not a document yet. These most likely keep the tag; say so on the row when it is built.
+- `persist/check.rs`, `persist/mod.rs` (`fmt_labelled`), `mint.rs`: the load and save doors' validator. It judges a deserialized document, so these speak too (ruled below).
 
 The grep matches a format string with `node {…}` on one line. It cannot see a node printed under another noun (`instance {}`, `mate {}`, `gauge {}`, `root {}`) or through a helper. So a second pass listed every `pub enum` named `…Error`/`…Fault`/`…Refusal`/`…Standing` that holds a `RecipeNodeId` field. Its kernel hits, with the number of such fields:
 
-- Door-side, for this row: `MintRefusal` 2 (`assembly.rs`), `SelectionRefusal` 1 (`clearance.rs`), `DriveRefusal` 2 and `RefusalReason` 1 (`drive.rs`), `McRefusal` 1 (`mc.rs`), `NamingError` 4 (`names/emit.rs`), `SelectRefusal` 1 (`names/geompred.rs`), `ProductError` 6 (`product.rs`), `RangeRefusal` 4, `SplitError` 11 and `InlineError` 6 (`refactor.rs`), `NodePickError` 2 (`resolve/pick.rs`), `RootFault` 5, `LiftRefusal` 1, `SensitivityRefusal` 2 and `StackupRefusal` 2 (`stackup.rs`), `NodeStanding` 5, `ExportError` 2 (`pncad/src/export.rs`).
-- Load door, where the tag likely stays: `SnapshotError` 30, `PersistError` 1.
+- Door-side, for this row: `MintRefusal` 2 (`assembly.rs`), `SelectionRefusal` 1 (`clearance.rs`), `DriveRefusal` 2 and `RefusalReason` 1 (`drive.rs`), `McRefusal` 1 (`mc.rs`), `NamingError` 4 (`names/emit.rs`), `SelectRefusal` 1 (`names/geompred.rs`), `ProductError` 6 (`product.rs`), `RangeRefusal` 4, `SplitError` 12 and `InlineError` 6 (`refactor.rs`), `NodePickError` 2 (`resolve/pick.rs`), `RootFault` 5, `LiftRefusal` 1, `SensitivityRefusal` 2 and `StackupRefusal` 2 (`stackup.rs`), `NodeStanding` 5, `ExportError` 2 (`pncad/src/export.rs`).
+- Load and save doors, which speak (ruled below): `SnapshotError` 30, `PersistError` 1.
 - Node-local faults that a door renders in its own words: `InputFault` 1 and `AssertionBoundFault` 2 (`node.rs`). The edit door already speaks them through `EditError`.
 - Memoized, owned by `memoized-refusals-speak-inner-nodes-through-the-frame`: `NodeErrorKind` 13, `PartFault` 4, `MateFault` 19, `FaceRefusal` 2, `LeverRefusal` 2.
+
+## Built
+
+This row's PR speaks the edit door's family:
+
+- **`RootFault`** holds `SpokenNode`s. `roots::check` takes the door's `speak`. The edit door speaks from the document it was handed: a node the edit is minting by kind and tag, an id neither document holds as `absent` (`edit::spoken_before_else_after`). The load and save doors speak from the document they judge. The `Roots` recourse words speak the node too.
+- **A name an `EditError` arm forwards** (15 arms) is a `SpokenName`: the `StableName` beside its minting node spoken (`Doc::spoken_name`). It reads `face name minted by Extrude "base plate" (3fa9c1d2a0b1)`, and `node <tag>` when the node is not held. `StableName`'s own `Display` keeps the tag, because a stored reference has no document behind it.
+- **`Maintenance`'s `Strand`, `StrandedAppearance` and `OrphanedDeclare`** speak their nodes and names from the document the edit was applied to, which still holds a deleted minting node.
+
+## The load and save doors speak too
+
+The orchestrator ruled on review, from DESIGN.md, which makes no exception for loading. `validate_snapshot` judges a deserialized `Doc`, the same validator runs at save on an in-memory document, its labels have already passed `Label::new`, and `LabelOnMissingNode` runs before `roots::check`. So `roots::check` at the load and save doors speaks from that document (`doc.spoken`), and an id it does not hold stays `absent`. Before this, one `load` could print the same `RootFault` two ways: by tag from the validator, and spoken through `EditReplay`. `spoken.rs`'s module doc no longer names the load door as a bare-tag site. The validator's other arms are on `persist-door-refusals-speak-the-node`.
+
+## Split off (each a row, `parent: node-labels-are-document-data`)
+
+- `split-and-inline-refusals-speak-the-node`: `SplitError`, `InlineError`. It also records a defect: `SplitError` prints a cut/kept end as a decimal `u64`.
+- `analysis-door-refusals-speak-the-node`: range, drive, mc, stackup, clearance, report, product.
+- `selection-door-refusals-speak-the-node`: resolve, pick, hit, names, `NodeStanding`, `AssemblyError`/`MintRefusal`, export, `py/checks.rs`.
+- `persist-door-refusals-speak-the-node`: `SnapshotError`'s other node-holding arms and `PersistError::ProfileProgram`.
+- `a-cluster-act-speaks-its-gauges-by-tag`: `ClusterMaintenance`'s sentence. The sweep found it, and no row listed it.

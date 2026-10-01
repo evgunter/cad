@@ -11,7 +11,7 @@ use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
     DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
-    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
+    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -121,7 +121,9 @@ fn set_appearance_validates_and_applies_purely() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::AppearanceWrongKind { name: edge }
+        EditError::AppearanceWrongKind {
+            name: doc.spoken_name(&edge)
+        }
     );
 
     // A never-existed node id: typed refusal at the edit door.
@@ -140,7 +142,9 @@ fn set_appearance_validates_and_applies_purely() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::AppearanceNamesMissingNode { name: bogus }
+        EditError::AppearanceNamesMissingNode {
+            name: SpokenName::absent(bogus)
+        }
     );
 }
 
@@ -167,7 +171,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         )
         .unwrap_err(),
         EditError::AppearanceNotSet {
-            name: body.clone(),
+            name: doc.spoken_name(&body),
             kind: AttrKind::Color,
         }
     );
