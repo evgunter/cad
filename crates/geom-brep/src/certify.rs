@@ -2806,6 +2806,71 @@ fn plane_nurbs_pair<T: Real>(
     }
 }
 
+/// **The lane's WIRING** — the rows that say which free function
+/// [`NurbsLane::certified`]'s one field holds, rather than what that
+/// function answered.
+///
+/// Why a wiring row compares pointers rather than outputs:
+/// `crates/topo/tests/certified_enclosure_impl_census.rs`'s module doc.
+/// The helper is instantiated once per certifying scalar, and that
+/// census counts the instantiations against the tree's
+/// `CertifiedEnclosure` impls.
+#[cfg(test)]
+mod wiring_rows {
+    use super::NurbsLane;
+    use crate::edge_nurbs::plane_nurbs_limbs;
+
+    /// `Ok(())` when the field holds `plane_nurbs_limbs`; otherwise the
+    /// field's name.
+    fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
+    -> Result<(), &'static str> {
+        let lane = NurbsLane::<T>::certified();
+        if !std::ptr::fn_addr_eq(lane.limbs, plane_nurbs_limbs::<T> as fn(_, _, _, _, _) -> _) {
+            return Err("limbs is not `edge_nurbs::plane_nurbs_limbs`");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn f64_is_wired_to_the_certified_nurbs_lane() {
+        assert_eq!(
+            holds_the_certified_nurbs_lane::<f64>(),
+            Ok(()),
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`"
+        );
+    }
+
+    /// The symbolic tier holds the base scalar's lane: the same body,
+    /// instantiated at `Sym<f64>`.
+    #[test]
+    fn sym_over_f64_is_wired_to_the_certified_nurbs_lane() {
+        assert_eq!(
+            holds_the_certified_nurbs_lane::<geom_core::Sym<f64>>(),
+            Ok(()),
+            "`NurbsLane::<Sym<f64>>::certified()` holds something other than `plane_nurbs_limbs`"
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_nurbs_lane() {
+        assert_eq!(
+            holds_the_certified_nurbs_lane::<geom_core::Probe>(),
+            Ok(()),
+            "`NurbsLane::<Probe>::certified()` holds something other than `plane_nurbs_limbs`"
+        );
+    }
+
+    #[test]
+    fn interval_is_wired_to_the_certified_nurbs_lane() {
+        assert_eq!(
+            holds_the_certified_nurbs_lane::<geom_core::interval::Interval>(),
+            Ok(()),
+            "`NurbsLane::<Interval>::certified()` holds something other than `plane_nurbs_limbs`"
+        );
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
