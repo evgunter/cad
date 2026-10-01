@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P0
 cost: D
+needs_ev: true
 ---
 
 
@@ -81,3 +82,17 @@ implementation: the extrude and revolve lowering merge the continuation
 runs, the emitter names the merged wall N3's `Merged`, and the handle
 contracts (`Extruded::side_faces` / `strut_edges`, `Revolved::walls`)
 and N4's per-segment names change with it.
+
+## Re-asked (2026-10-01): construct one wall per run, superseding the 2026-09-25 ruling
+
+Nothing of the 2026-09-25 ruling was implemented. Later that day Ev ruled
+the full revolve's split planar walls the other way ("construct", F7
+unchanged; `work/carve/full-revolve-emits-split-planar-walls.md`), which
+leaves two repairs for one defect. Ev's inclination on 2026-10-01 was to
+build continuation walls whole, uncertain, through the design-fork
+protocol. Both designers recommend it (`docs/DESIGN-FORK-LOG.md` row 30):
+extrude and revolve build one wall per cosurface run on every carrier
+kind (a closed-loop run keeps its C12.5 cut), the station vertex stays
+where a cap carries the profile, the run wall is named `Lateral([run])` /
+`Band([run])` with N3's covers/offers read through one constituents view,
+F7's sweep sentence comes out, and loft stays per segment.
