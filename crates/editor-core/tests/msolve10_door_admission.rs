@@ -262,8 +262,10 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     };
     let sentence = err.to_string();
     assert!(
-        sentence.contains(&format!("node {}", test_utils::refusal::tag(named.0)))
-            && sentence.contains(&fault.to_string()),
+        sentence.contains(&format!(
+            "Mate {} is refused by the solve",
+            test_utils::refusal::tag(named.0)
+        )) && sentence.contains(&fault.to_string()),
         "{sentence}"
     );
 }

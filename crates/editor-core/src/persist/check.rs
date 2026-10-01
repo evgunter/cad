@@ -1049,7 +1049,11 @@ fn frame_refusal(
     at: FrameSite,
     fault: FrameFault,
 ) -> core::fmt::Result {
-    write!(f, "{} {fault}. ", at.subject(node))?;
+    write!(
+        f,
+        "{} {fault}. ",
+        at.subject(&crate::SpokenNode::absent(node))
+    )?;
     match fault {
         FrameFault::NonFinite | FrameFault::Improper { .. } => {
             f.write_str(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)

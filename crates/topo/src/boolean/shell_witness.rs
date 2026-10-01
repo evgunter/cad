@@ -1,31 +1,32 @@
-//! **The uncut-shell witness**: which side of the other operand a
-//! shell lies on when the other operand's boundary does not cut it —
-//! the containment fallback's per-shell verdict and the uncut-component
-//! probe of `setopfinish`, one rule for both.
+//! **The cell-dimension witness ladder**: which side of the other
+//! operand a cell complex — a set of faces of one operand — lies on,
+//! where the other operand's boundary does not cut it. Two questions
+//! read it:
 //!
-//! An uncut shell meets the other operand's boundary only where it
-//! lies ON it (a declared flush face, a vertex at rest on a face), so
-//! every point of the shell OFF that boundary is on one side of it,
-//! and [`point_in_solid`] at any such point names the shell's side.
-//! Each caller has its own ground for "uncut":
+//! - **the uncut-shell witness** ([`shell_side`]): the containment
+//!   fallback's per-shell verdict and the uncut-component probe of
+//!   `setopfinish`. The containment fallback runs only when the
+//!   operands have no crossings, and for a curved boundary the extent
+//!   certificates that run before it (`ops::sphere_extent_scan`,
+//!   `ops::section_extent_pass`) certify that none was missed;
+//!   `setopfinish` classifies a component that carries no section face,
+//!   so its ground is the join's: every crossing of the two boundaries
+//!   was found and cut, and this component met none.
+//! - **section-loop role resolution** (`join::resolve_roles_geometric`):
+//!   the region faces flanking each loop of a completed section
+//!   polygon, read once every polygon is cut, so no crossing runs
+//!   through them.
 //!
-//! - **the containment fallback** runs only when the operands have no
-//!   crossings, and for a curved boundary the extent certificates that
-//!   run before it (`ops::sphere_extent_scan`, `ops::section_extent_pass`)
-//!   certify that none was missed;
-//! - **`setopfinish`** classifies a component that carries no section
-//!   face, so its ground is the join's: every crossing of the two
-//!   boundaries was found and cut, and this component met none.
+//! An uncut complex meets the other operand's boundary only where it
+//! lies ON it (a seam, a declared flush face, a vertex at rest on a
+//! face), so every point of it OFF that boundary is on one side, and
+//! [`point_in_solid`] at any such point names the complex's side. One
+//! decisive witness is therefore the answer; a second could only agree.
 //!
-//! The witnesses are the shell's own points, one per cell, in
+//! The witnesses are the complex's own points, one per cell, in
 //! increasing dimension:
 //!
-//! 1. each vertex, except the contact vertices of [`contact_skip_set`]
-//!    — the reduction already recorded those ON the other boundary, by
-//!    geometry or by declaration, and the probe does not ask the
-//!    geometry again. Tiers 2 and 3 have no such record to read: an
-//!    edge or face between contact vertices is probed (`work/cleave/`
-//!    `the-uncut-shell-witness-skips-contact-vertices-but-probes-the-edges-and-faces-between-them`);
+//! 1. each vertex;
 //! 2. each edge's carrier at its parameter midpoint
 //!    ([`geom_brep::EdgeCurve::mid_point`]), a point ON the edge
 //!    whatever its kind;
@@ -34,17 +35,30 @@
 //!    midpoint of two of the face's vertices — that
 //!    [`point_in_face`] certifies strictly inside the face.
 //!
-//! The first witness off the other boundary decides. A block inside
-//! another, flush on four walls, reaches the third tier: its vertices
-//! and edges all lie on the other boundary, and the interior of each
-//! end face does not.
+//! A witness is **inconclusive** when it reads `OnBoundary`, or when
+//! its reading is in-band ([`inconclusive`]): the point is on the other
+//! boundary or too near it to say, and the next witness is read. Any
+//! other refusal is about the other operand rather than the point, and
+//! propagates.
 //!
-//! When every witness lies on the other boundary the shell's side is
-//! undecided, and the probe refuses
-//! [`BooleanError::ShellWitnessExhausted`] naming the shell. Two
-//! operands that are one body reach this, as does a shell whose
-//! vertices and edges all lie on the other boundary and whose faces off
-//! it are all curved (tier 3 reads planar faces only).
+//! No record of contacts is consulted, at any dimension. A vertex the
+//! reduction recorded ON the other boundary is there by geometry, within
+//! the band's zero, and reads `OnBoundary`; a declared pair whose
+//! carriers sit in the band's sliver is refused by the reduction before
+//! any witness runs. So a recorded contact never reads decisively, which
+//! [`debug_assert_contacts_undecisive`] checks on every boolean that
+//! reaches the ladder.
+//!
+//! The first decisive witness decides. A block inside another, flush on
+//! four walls, reaches the third tier: its vertices and edges all lie
+//! on the other boundary, and the interior of each end face does not.
+//! When no witness decides, the complex's side is undecided, and the
+//! reading says how many witnesses read the other boundary and how many
+//! read too near it to say. That is the cause; an in-band reading is
+//! about one point, possibly near a face far from the complex, and rides
+//! along as evidence only. A complex whose vertices and edges all lie on
+//! the other boundary and whose faces off it are all curved reaches this
+//! (tier 3 reads planar faces only).
 
 use geom_core::{Band, Decide, Point3, Tol, Vec3};
 use slotmap::SecondaryMap;
@@ -57,79 +71,97 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
 use crate::splitting::PointInLoopError;
 
-/// The side of `other` the uncut `shell` of `body` lies on (module
-/// docs), read off its first witness off `other`'s boundary.
+/// What the ladder read off a complex (module docs).
+#[derive(Debug)]
+pub(super) enum Reading {
+    /// The first decisive witness's side: `In` or `Out`.
+    Side(SideCode),
+    /// No witness decided.
+    Undecided(Tally),
+}
+
+/// The witnesses of a complex none of which decided.
+#[derive(Debug, Default)]
+pub(super) struct Tally {
+    /// Witnesses that read `OnBoundary`.
+    pub(super) on_boundary: usize,
+    /// Witnesses that read in-band ([`inconclusive`]).
+    pub(super) in_band: usize,
+    /// The first in-band reading, as evidence.
+    pub(super) first_in_band: Option<PointInSolidError>,
+}
+
+/// The side of `other` the cell complex `faces` of `body` lies on,
+/// read off its first decisive witness (module docs).
 ///
 /// # Errors
 ///
-/// [`BooleanError::ShellWitnessExhausted`] when every witness lies on
-/// `other`'s boundary; [`BooleanError::Containment`] when a probe
-/// refuses; [`BooleanError::JoinDesync`] when the shell does not walk.
-pub(super) fn shell_side<T: Decide>(
+/// [`BooleanError::Containment`] when a probe refuses other than
+/// in-band; [`BooleanError::JoinDesync`] when the complex does not walk.
+pub(super) fn complex_side<T: Decide>(
     body: &Body<T>,
-    shell: ShellKey,
+    faces: &[FaceKey],
     other: &Body<T>,
-    skip: &SecondaryMap<VertexKey, ()>,
-    operand: Operand,
     band: Band,
     tol: Tol,
-) -> Result<SideCode, BooleanError> {
+) -> Result<Reading, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let faces = &body
-        .get_shell(shell)
-        .ok_or(desync("uncut shell no longer resolves"))?
-        .faces;
-    let side = |q: Point3<T>| -> Result<Option<SideCode>, BooleanError> {
-        Ok(
-            match point_in_solid(other, q, band, tol).map_err(BooleanError::Containment)? {
-                SolidContainment::In => Some(SideCode::In),
-                SolidContainment::Out => Some(SideCode::Out),
-                SolidContainment::OnBoundary => None,
-            },
-        )
+    let mut tally = Tally::default();
+    let mut side = |q: Point3<T>| -> Result<Option<SideCode>, BooleanError> {
+        Ok(match point_in_solid(other, q, band, tol) {
+            Ok(SolidContainment::In) => Some(SideCode::In),
+            Ok(SolidContainment::Out) => Some(SideCode::Out),
+            Ok(SolidContainment::OnBoundary) => {
+                tally.on_boundary += 1;
+                None
+            }
+            Err(e) if inconclusive(&e) => {
+                tally.in_band += 1;
+                tally.first_in_band.get_or_insert(e);
+                None
+            }
+            Err(e) => return Err(BooleanError::Containment(e)),
+        })
     };
     let mut halves: Vec<HalfEdgeKey> = Vec::new();
     for &face in faces {
         halves.extend(face_loops(body, face)?.into_iter().flatten());
     }
-    let point = |v: VertexKey| {
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point).copied())
-            .ok_or(desync("uncut shell vertex has no point"))
+    let half = |he: HalfEdgeKey| {
+        body.get_half_edge(he)
+            .ok_or(desync("witnessed half-edge no longer resolves"))
     };
 
     let mut seen_vertex: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
     for &he in &halves {
-        let v = body
-            .get_half_edge(he)
-            .ok_or(desync("uncut shell half-edge no longer resolves"))?
-            .start;
-        if skip.contains_key(v) || seen_vertex.insert(v, ()).is_some() {
+        let v = half(he)?.start;
+        if seen_vertex.insert(v, ()).is_some() {
             continue;
         }
-        if let Some(s) = side(point(v)?)? {
-            return Ok(s);
+        let p = body
+            .get_vertex(v)
+            .and_then(|vd| body.get_point(vd.point).copied())
+            .ok_or(desync("witnessed vertex has no point"))?;
+        if let Some(s) = side(p)? {
+            return Ok(Reading::Side(s));
         }
     }
 
     let mut seen_edge: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
     for &he in &halves {
-        let e = body
-            .get_half_edge(he)
-            .ok_or(desync("uncut shell half-edge no longer resolves"))?
-            .edge;
+        let e = half(he)?.edge;
         if seen_edge.insert(e, ()).is_some() {
             continue;
         }
         let curve = body
             .get_edge(e)
             .and_then(|ed| body.get_curve_geom(ed.curve))
-            .ok_or(desync("uncut shell edge has no curve"))?;
+            .ok_or(desync("witnessed edge has no curve"))?;
         let Some(curve) = curve.certified() else {
             continue;
         };
         if let Some(s) = side(curve.mid_point())? {
-            return Ok(s);
+            return Ok(Reading::Side(s));
         }
     }
 
@@ -142,11 +174,69 @@ pub(super) fn shell_side<T: Decide>(
         if let Some(q) = face_interior_point(body, face, normal, band)?
             && let Some(s) = side(q)?
         {
-            return Ok(s);
+            return Ok(Reading::Side(s));
         }
     }
 
-    Err(BooleanError::ShellWitnessExhausted { operand, shell })
+    Ok(Reading::Undecided(tally))
+}
+
+/// Is `e` a reading too near a boundary to say, about the one point
+/// asked — the ladder's inconclusive refusal (module docs), and the
+/// certificate's ([`certified_in_face`])? Another point of the same
+/// complex can still decide.
+///
+/// - **In**: `Escalated` (a margin in the band's sliver),
+///   `RayExhausted` (every schedule ray grazed), and the in-plane loop
+///   walk's own two (`Loop(Escalated)`, `Loop(RayExhausted)`).
+/// - **Out**: every refusal about a body rather than a point — a face
+///   kind or edge carrier the door has no arm for, a corrupt face, a
+///   zero or uncertified volume, a sphere chart it cannot read. Each
+///   would answer the same at any point, so passing over it would only
+///   defer it.
+fn inconclusive(e: &PointInSolidError) -> bool {
+    matches!(
+        e,
+        PointInSolidError::Escalated { .. }
+            | PointInSolidError::RayExhausted
+            | PointInSolidError::Loop(
+                PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. },
+            )
+    )
+}
+
+/// The side of `other` the uncut `shell` of `body` lies on: the
+/// ladder (module docs) over the shell's faces.
+///
+/// # Errors
+///
+/// [`BooleanError::Containment`] when a probe refuses other than
+/// in-band; [`BooleanError::ShellWitnessExhausted`] when no witness
+/// decides; [`BooleanError::JoinDesync`] when the shell does not walk.
+pub(super) fn shell_side<T: Decide>(
+    body: &Body<T>,
+    shell: ShellKey,
+    other: &Body<T>,
+    operand: Operand,
+    band: Band,
+    tol: Tol,
+) -> Result<SideCode, BooleanError> {
+    let faces = &body
+        .get_shell(shell)
+        .ok_or(BooleanError::JoinDesync {
+            what: "uncut shell no longer resolves",
+        })?
+        .faces;
+    match complex_side(body, faces, other, band, tol)? {
+        Reading::Side(s) => Ok(s),
+        Reading::Undecided(t) => Err(BooleanError::ShellWitnessExhausted {
+            operand,
+            shell,
+            on_boundary: t.on_boundary,
+            in_band: t.in_band,
+            first_in_band: t.first_in_band,
+        }),
+    }
 }
 
 /// The first candidate strictly inside planar `face` (module docs,
@@ -206,7 +296,7 @@ pub(super) fn face_loops<T: Decide>(
 }
 
 /// [`face_loops`] as each half-edge's start point.
-pub(super) fn face_loop_points<T: Decide>(
+fn face_loop_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<Point3<T>>>, BooleanError> {
@@ -230,21 +320,21 @@ pub(super) fn face_loop_points<T: Decide>(
 
 /// The centroid of three consecutive loop vertices: a face-interior
 /// candidate, inside the face only where the corner at `b` is convex.
-pub(super) fn triple_centroid<T: Decide>(a: Point3<T>, b: Point3<T>, c: Point3<T>) -> Point3<T> {
+fn triple_centroid<T: Decide>(a: Point3<T>, b: Point3<T>, c: Point3<T>) -> Point3<T> {
     a + ((b - a) + (c - a)) * T::from_f64(1.0 / 3.0)
 }
 
 /// The midpoint of two of a face's vertices: a face-interior candidate
 /// wherever the chord between them is a diagonal of the face.
-pub(super) fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
+fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
     a.lerp(b, T::from_f64(0.5))
 }
 
 /// Does [`point_in_face`] certify `p` strictly inside planar `face`?
-/// An inconclusive answer — outside, on a loop, an in-band margin, an
-/// exhausted schedule, an outline the walk cannot cross — is `false`:
-/// the candidate is discarded, never probed. A face the walk cannot
-/// read at all is an error.
+/// `false` discards the candidate unprobed: outside, on a loop, an
+/// [`inconclusive`] reading, or an edge of `face` whose carrier the
+/// walk cannot cross — that face then offers no candidate, as a curved
+/// face offers none. Any other refusal is an error.
 pub(super) fn certified_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -254,38 +344,49 @@ pub(super) fn certified_in_face<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match point_in_face(body, face, normal, p, band) {
         Ok(verdict) => Ok(verdict == Some(true)),
-        Err(
-            PointInSolidError::Escalated { .. }
-            | PointInSolidError::Loop(
-                PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. },
-            )
-            | PointInSolidError::EdgeCarrierUnsupported { .. },
-        ) => Ok(false),
+        Err(e) if inconclusive(&e) => Ok(false),
+        Err(PointInSolidError::EdgeCarrierUnsupported { .. }) => Ok(false),
         Err(e) => Err(BooleanError::Containment(e)),
     }
 }
 
-/// The declared-contact vertex skip set of one operand.
-pub(super) fn contact_skip_set(
+/// Every vertex the reduction recorded ON the other operand
+/// (`ContactRecords::vv`, `a_on_b`, `b_on_a`) reads `OnBoundary` or
+/// in-band against it, never `In` or `Out` (module docs: the reason the
+/// ladder reads no contact record). Debug builds only; a refusal of the
+/// probe is not this check's question and is passed over.
+pub(super) fn debug_assert_contacts_undecisive<T: Decide>(
     contacts: &ContactRecords,
-    operand: Operand,
-) -> SecondaryMap<VertexKey, ()> {
-    let mut skip = SecondaryMap::new();
-    for c in &contacts.vv {
-        skip.insert(
-            match operand {
-                Operand::A => c.a,
-                Operand::B => c.b,
-            },
-            (),
+    a: (&Body<T>, &Body<T>),
+    b: (&Body<T>, &Body<T>),
+    band: Band,
+    tol: Tol,
+) {
+    if !cfg!(debug_assertions) {
+        return;
+    }
+    let check = |(body, other): (&Body<T>, &Body<T>), v: VertexKey, operand: Operand| {
+        let Some(p) = body
+            .get_vertex(v)
+            .and_then(|vd| body.get_point(vd.point).copied())
+        else {
+            return;
+        };
+        let read = point_in_solid(other, p, band, tol);
+        debug_assert!(
+            !matches!(read, Ok(SolidContainment::In | SolidContainment::Out)),
+            "a contact vertex of operand {operand:?} recorded ON the other operand reads \
+             decisively: {read:?}"
         );
-    }
-    let list = match operand {
-        Operand::A => &contacts.a_on_b,
-        Operand::B => &contacts.b_on_a,
     };
-    for c in list {
-        skip.insert(c.vertex, ());
+    for c in &contacts.vv {
+        check(a, c.a, Operand::A);
+        check(b, c.b, Operand::B);
     }
-    skip
+    for c in &contacts.a_on_b {
+        check(a, c.vertex, Operand::A);
+    }
+    for c in &contacts.b_on_a {
+        check(b, c.vertex, Operand::B);
+    }
 }

@@ -694,7 +694,7 @@ fn every_step_id_fault_refuses_typed_before_the_program_is_checked() {
             set_program(&doc, profile, vec![square.clone()], ids).expect_err("the ids refuse");
         match err {
             EditError::StepIdsRefused { node, fault } => {
-                assert_eq!(node, profile);
+                assert_eq!(node.id(), profile);
                 fault
             }
             other => panic!("a step-id refusal, got {other:?}"),
@@ -801,12 +801,14 @@ fn a_node_that_holds_no_program_refuses() {
     let ids = keep_all(&r.doc, r.profile);
     assert_eq!(
         set_program(&r.doc, r.rod, vec![rod_loop(false)], ids.clone()).err(),
-        Some(EditError::SetProgramOnNonProfile { node: r.rod })
+        Some(EditError::SetProgramOnNonProfile {
+            node: r.doc.spoken(r.rod)
+        })
     );
     assert_eq!(
         set_program(&r.doc, RecipeNodeId(99), vec![rod_loop(false)], ids).err(),
         Some(EditError::UnknownNode {
-            id: RecipeNodeId(99)
+            id: editor_core::SpokenNode::absent(RecipeNodeId(99))
         })
     );
 }
@@ -1207,8 +1209,8 @@ fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
         tol(),
         &editor_core::RefusingReach,
     ) {
-        Err(e @ EditError::NodeIdCollides { id }) => {
-            assert_eq!(id, drawn, "the refusal names the id the insert drew");
+        Err(ref e @ EditError::NodeIdCollides { ref id }) => {
+            assert_eq!(id.id(), drawn, "the refusal names the id the insert drew");
             let text = e.to_string();
             assert!(
                 text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),

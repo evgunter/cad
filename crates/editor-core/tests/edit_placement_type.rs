@@ -307,7 +307,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
         }
         let text = error.to_string();
         assert!(
-            text.contains("step 2 of node") && text.contains("Recourse:"),
+            text.contains("step 2 of Transform ") && text.contains("Recourse:"),
             "the {what} refusal names the step and its recourse: {text}"
         );
     }

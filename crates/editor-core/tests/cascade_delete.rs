@@ -13,7 +13,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::len;
-use editor_core::{Doc, DocEdit, EditError, Node, RecipeNodeId, apply, cascade_delete_order};
+use editor_core::{
+    Doc, DocEdit, EditError, Node, RecipeNodeId, SpokenNode, apply, cascade_delete_order,
+};
 use geom_core::Tol;
 
 /// The opaque profile payload: this suite never looks inside `P`.
@@ -126,7 +128,9 @@ fn an_absent_node_has_an_empty_cascade() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::UnknownNode { id: absent }
+        EditError::UnknownNode {
+            id: SpokenNode::absent(absent)
+        }
     );
 }
 
@@ -146,24 +150,21 @@ fn the_dangle_refusal_states_the_remedy() {
     assert_eq!(
         refusal,
         EditError::DeleteWouldDangle {
-            id: profile,
-            referenced_by: body,
+            id: doc.spoken(profile),
+            referenced_by: doc.spoken(body),
         }
     );
     let sentence = refusal.to_string();
     assert!(
         sentence.contains(&format!(
-            "node {} is still an input to node {}",
-            test_utils::refusal::tag(profile.0),
-            test_utils::refusal::tag(body.0)
+            "{} is still an input to {}",
+            doc.spoken(profile),
+            doc.spoken(body)
         )),
         "the direction of the reference is stated: {sentence}"
     );
     assert!(
-        sentence.contains(&format!(
-            "delete node {} first",
-            test_utils::refusal::tag(body.0)
-        )),
+        sentence.contains(&format!("delete {} first", doc.spoken(body))),
         "and the immediate remedy: {sentence}"
     );
     assert!(

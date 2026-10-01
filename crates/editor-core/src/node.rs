@@ -1567,16 +1567,25 @@ pub enum InputFault {
     },
 }
 
+/// [`InputFault::Duplicate`]'s sentence, with `input` spoken as the
+/// door that renders it can: the edit door from its document, the load
+/// door by its tag.
+pub(crate) fn duplicate_input(
+    f: &mut core::fmt::Formatter<'_>,
+    input: &crate::SpokenNode,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "{input} is taken as an input twice — a node's inputs are pairwise distinct"
+    )
+}
+
 // The ONE prose vocabulary for this fault, forwarded by every door
 // that renders it rather than restated.
 impl core::fmt::Display for InputFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Duplicate { input } => write!(
-                f,
-                "node {} is taken as an input twice — a node's inputs are pairwise distinct",
-                input
-            ),
+            Self::Duplicate { input } => duplicate_input(f, &crate::SpokenNode::absent(*input)),
             Self::TooFew { found } => write!(
                 f,
                 "a list input takes two or more entries, and this has {found}"

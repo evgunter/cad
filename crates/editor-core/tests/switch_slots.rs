@@ -220,7 +220,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node, doc.order()[1]);
+            assert_eq!(node.id(), doc.order()[1]);
             match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,

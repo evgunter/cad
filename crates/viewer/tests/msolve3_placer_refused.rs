@@ -116,7 +116,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "node {} failed: the mate solve refused: mate {}'s a reference has no \
+            "Mate {} failed: the mate solve refused: mate {}'s a reference has no \
              derived pose: node {p}, on its derivation, refuses. Recourse: repair node \
              {p}",
             test_utils::refusal::tag(mate.0),
@@ -133,7 +133,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         &vec![viewer::tree::CarriedLine {
             document: viewer::tree::THIS_DOCUMENT.to_owned(),
             line: format!(
-                "node {} failed: the pattern direction has no finite length (a component \
+                "Pattern {} failed: the pattern direction has no finite length (a component \
                  overflows the norm or is not a number). Recourse: {}",
                 test_utils::refusal::tag(pattern.0),
                 geom_core::RANGE_RECOURSE
@@ -311,7 +311,7 @@ fn assert_the_mate_is_blamed(
     assert_eq!(
         mate_row,
         RowStatus::Failed {
-            message: error.to_string(),
+            message: error.spoken(doc),
             carried: Vec::new(),
         },
         "the mate's row is the cause and carries the payload's own words"
@@ -410,7 +410,7 @@ fn assert_both_loud(
         assert_eq!(
             common::status_of(&rows, id),
             RowStatus::Failed {
-                message: error.to_string(),
+                message: error.spoken(doc),
                 carried: Vec::new(),
             },
             "{id:?} carries its own words"
