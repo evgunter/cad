@@ -1200,12 +1200,10 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 /// evidence that a profile drew and extruded on it.
 ///
 /// **Not the union of block and boss.** A boss drawn on the face
-/// frame is FLUSH with the block at that face by construction, and
-/// this kernel refuses an undeclared coincident contact
-/// (`ValidationError::UndeclaredContact`); the declaration is a
-/// `Declare` node, which `SessionOp::AddBoolean` has no seat for. The
-/// sum-of-volumes assertion is therefore not authorable through the
-/// op vocabulary this row drives.
+/// frame is FLUSH with the block at that face by construction, so its
+/// union refuses until the contact is declared; that path, with its
+/// sum-of-volumes assertion, is `viewer::pane::create`'s
+/// `declared_union` rows.
 ///
 /// It is still a TWO-FORM trip for a person — add the datum, then draw
 /// on it — which is the residue

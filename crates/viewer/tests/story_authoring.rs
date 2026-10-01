@@ -235,6 +235,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         op: BooleanOp::Union,
         a: softened,
         b: softened,
+        declare: Vec::new(),
     });
     let rendered = mispick
         .refusal
@@ -254,6 +255,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Union,
             a: softened,
             b: base,
+            declare: Vec::new(),
         },
     );
     let v_u1 = body_volume(&mut session, u1, tol);
@@ -280,6 +282,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Union,
             a: u1,
             b: shaft,
+            declare: Vec::new(),
         },
     );
     let v_u2 = body_volume(&mut session, u2, tol);
@@ -302,6 +305,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Union,
             a: u2,
             b: drum,
+            declare: Vec::new(),
         },
     );
     let v_u3 = body_volume(&mut session, u3, tol);
@@ -324,6 +328,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Subtract,
             a: u3,
             b: cutter,
+            declare: Vec::new(),
         },
     );
     let v_cut1 = body_volume(&mut session, cut1, tol);
@@ -346,6 +351,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Subtract,
             a: cut1,
             b: cutter2,
+            declare: Vec::new(),
         },
     );
     let v_carved = body_volume(&mut session, carved, tol);
@@ -412,6 +418,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         op: BooleanOp::Union,
         a: carved,
         b: pattern,
+        declare: Vec::new(),
     });
     assert!(
         matches!(
@@ -459,6 +466,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             op: BooleanOp::Union,
             a: carved,
             b: merlons,
+            declare: Vec::new(),
         },
     );
     // Each merlon meets the crown in its sunk slab and nowhere else,

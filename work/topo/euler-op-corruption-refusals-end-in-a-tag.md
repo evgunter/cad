@@ -21,11 +21,13 @@ its siblings'.
 "(malformed body)" tag: `FanOrbitBroken`, `LoopCycleBroken`,
 `LoopNotCycle`, `UnclaimedHalfEdge`, `OrbitBroken`. `StaleKey`,
 `StaleGeometry`, `NotSameEdge` and `EmptyAnchorsCollide` end in
-nothing. None carries `geom_core::KERNEL_OR_FILE_DEFECT_ENDING` (a
-body the Euler operators refuse may have been read from a file),
-which `test_utils::refusal::recourse_markers` counts. This is the
-Euler-operator instance of
-`work/reach/kernel-bug-refusals-end-without-the-shared-ending`.
+nothing. Only `KillLeavesDangling` (PR 3570) and `NotOwned` (PR 3592,
+`movefac`'s ownership proof) carry
+`geom_core::KERNEL_OR_FILE_DEFECT_ENDING` (a body the Euler operators
+refuse may have been read from a file), which
+`test_utils::refusal::recourse_markers` counts; the class now ends
+three ways. This is the Euler-operator instance of
+`work/hone/kernel-bug-refusals-end-without-the-shared-ending`.
 
 ## The shape to give
 

@@ -704,7 +704,8 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
         u_ref,
     };
-    body.set_face_surface(
+    // Lifts both refusals: the tilted cap plane is the coaxiality fixture.
+    body.set_face_surface_stranding_for_tests(
         cap,
         FaceSurface::New {
             surface: tilted,

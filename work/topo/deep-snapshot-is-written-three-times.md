@@ -2,10 +2,13 @@
 id: deep-snapshot-is-written-three-times
 kind: issue
 title: topo's tests write the deep body snapshot three times: fixtures::deep_snapshot, review_m1_pr2's deep_snapshot and review_m1_pr3's snapshot
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: E
+pr: 3557
+branch: topo/one-deep-snapshot
+closed: 2026-09-30
 ---
 
 

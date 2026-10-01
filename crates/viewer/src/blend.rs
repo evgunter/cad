@@ -68,6 +68,7 @@ use std::collections::BTreeSet;
 use pncad::document::{Doc, Evaluation, Expr, NodeStanding, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
+use crate::pickindex::EdgeNamesRefused;
 use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};
 use crate::vocab::vocabulary;
 
@@ -240,6 +241,13 @@ pub enum BlendEvent {
         /// The body that was asked.
         target: BlendTarget,
     },
+    /// The index draws edges on the target that it cannot name, so
+    /// "every edge" is not a set the tool can hold: nothing was loaded
+    /// and the held set is untouched.
+    EdgesUnnamed {
+        /// The index's refusal, which names the body that was asked.
+        refused: EdgeNamesRefused,
+    },
     /// The target has no value in this evaluation, so there are no
     /// edges to load; nothing was loaded and the held set is
     /// untouched. The standing says why and where the repair is.
@@ -289,6 +297,9 @@ impl core::fmt::Display for BlendEvent {
             ),
             Self::NoEdgesOnTarget { target } => {
                 write!(f, "{target} has no edges to select")
+            }
+            Self::EdgesUnnamed { refused } => {
+                write!(f, "the tool loaded no edges: {refused}")
             }
             Self::TargetHasNoValue { target, standing } => {
                 write!(f, "{target} has no edges to select: {standing}")
@@ -374,8 +385,8 @@ impl BlendTool {
     /// one gets the same (node, body) narrowing a single selection
     /// gets.
     ///
-    /// This is the value claim; [`BlendTool::mark_segments`] is the
-    /// per-frame path, and `a_held_set_marks_exactly_the_edges_it_names`
+    /// This is the value claim; [`BlendTool::held_edges`] is what the
+    /// per-frame mark reads, and `a_held_set_marks_exactly_the_edges_it_names`
     /// asserts the two agree so they cannot drift.
     pub fn marks(&self) -> Vec<EdgeSelection> {
         let Some(target) = self.target else {
@@ -391,41 +402,14 @@ impl BlendTool {
             .collect()
     }
 
-    /// **The drawn segments of the whole held set**, as the line-list
-    /// pairs a renderer consumes — what the viewport marks while this
-    /// tool is open.
-    ///
-    /// **One pass over the target's drawn edges**, testing set
-    /// membership per drawn edge, rather than one
-    /// `crate::marks::edge_segments` search per held name: the search
-    /// scans the body's whole edge run for each name, so the obvious
-    /// spelling costs `O(E²)` name comparisons every frame on a body
-    /// with `E` edges — fine for a cube, not for a real part. This is
-    /// `O(E log E)` and allocates nothing but the output.
-    ///
-    /// The narrowing is exactly what a single selection gets: scoped
-    /// to the tool's own (node, body), empty for a target this index
-    /// does not draw, and silent about a held name the index has no
-    /// edge for — so the picture shows the live members and nothing
-    /// else.
-    pub fn mark_segments(
-        &self,
-        index: &crate::pickindex::PickIndex,
-        display: &crate::display::DisplayView,
-    ) -> Vec<[f32; 3]> {
-        let Some(target) = self.target else {
-            return Vec::new();
-        };
-        let mut out = Vec::new();
-        for &id in index.edges_in(target.node, target.body) {
-            if index
-                .edge_name_of(id)
-                .is_ok_and(|name| self.edges.contains(name))
-            {
-                out.extend(crate::marks::edge_id_segments(index, display, id));
-            }
-        }
-        out
+    /// **The held set as the marks read it** — its body and its
+    /// names, `None` while nothing is held (the struct's invariant).
+    pub fn held_edges(&self) -> Option<crate::marks::HeldEdges<'_>> {
+        self.target.map(|target| crate::marks::HeldEdges {
+            node: target.node,
+            body: target.body,
+            names: &self.edges,
+        })
     }
 
     /// **Feed one edge pick**: add it, or REMOVE it when it is already
@@ -466,6 +450,11 @@ impl BlendTool {
     /// the inside. A target with no edges loads nothing and says so,
     /// rather than emptying the set on the way to a refusal.
     ///
+    /// **A drawn edge the index cannot name refuses the whole load**
+    /// ([`BlendEvent::EdgesUnnamed`]), however many others it names:
+    /// the set would not be every edge, and a name it lacks is not one
+    /// a later click could add either.
+    ///
     /// # The door answers per NODE, so the answer is NARROWED here
     ///
     /// `all_edges` reads one node's name table, and a node whose value
@@ -478,7 +467,7 @@ impl BlendTool {
     ///
     /// So the door's answer is intersected with the names the index
     /// draws for `(node, body)` — the same narrowing a single
-    /// selection and [`BlendTool::mark_segments`] already apply — and
+    /// selection and the held mark (`crate::marks::HeldEdges`) apply — and
     /// the count the panel shows is the set the picture marks, on
     /// every target rather than only on the ones a commit would
     /// accept. This is not a display-tolerance dependency: the mesh
@@ -506,13 +495,17 @@ impl BlendTool {
                 standing: crate::tree::standing_as_drawn(standing, eval),
             });
         }
+        let drawn = index.edge_names_in(target.node, target.body);
+        if let Some(refused) = drawn.refused {
+            return Some(BlendEvent::EdgesUnnamed { refused });
+        }
         let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
             .into_iter()
             .collect();
-        let edges: BTreeSet<StableName> = index
-            .edges_in(target.node, target.body)
-            .iter()
-            .filter_map(|&id| index.edge_name_of(id).ok())
+        let edges: BTreeSet<StableName> = drawn
+            .named
+            .into_iter()
+            .map(|(_, name)| name)
             .filter(|name| named.contains(*name))
             .cloned()
             .collect();
@@ -679,5 +672,113 @@ impl BlendTool {
             Some(target) => Ok(target.node),
             None => Err(BlendError::NoEdges),
         }
+    }
+}
+
+/// **What the all-edges load does with the index's refusals**, at an
+/// index a row can put a naming-emission bug into
+/// (`PickIndex::unname_edge`) — which is why these rows are here and
+/// not with the rest of the tool's in `tests/blend_authoring.rs`.
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::{BlendEvent, BlendTarget, BlendTool};
+    use crate::pickindex::{EdgeId, EdgeNameFault, EdgeNamesRefused};
+    use crate::session::EdgeSelection;
+    use crate::test_support::plate_indexed;
+
+    /// **A target whose drawn edges the index cannot all name loads
+    /// nothing, and says so in the index's words** — for one such edge
+    /// and for every one — and never says the target has no edges. The
+    /// held set is untouched.
+    #[test]
+    fn a_target_whose_edges_the_index_cannot_name_refuses_the_load_in_its_words() {
+        let (eval, mut index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
+        let target = BlendTarget {
+            node: extrude,
+            body: 0,
+        };
+        let drawn = index.edges_in(extrude, 0).to_vec();
+        let mut tool = BlendTool::new();
+        let held = EdgeSelection {
+            name: index.edge_name_of(drawn[0]).expect("named").clone(),
+            node: extrude,
+            body: 0,
+        };
+        assert_eq!(tool.pick(&held), None);
+        let before = tool.clone();
+
+        let first = index.unname_edge(drawn[2]);
+        let refused = EdgeNamesRefused {
+            node: extrude,
+            body: 0,
+            first,
+            named: drawn.len() - 1,
+            refused: 1,
+        };
+        let partly = tool
+            .load_all_edges(target, &eval, &index)
+            .expect("a refused load says so");
+        assert_eq!(
+            partly,
+            BlendEvent::EdgesUnnamed {
+                refused: refused.clone(),
+            }
+        );
+        assert_eq!(tool, before, "nothing was loaded and the held set stands");
+        let said = partly.to_string();
+        assert!(
+            said.contains(&refused.to_string())
+                && said.contains(&EdgeNameFault::Unnamed(first).to_string()),
+            "the index's own words, through its Display: {said}"
+        );
+        assert!(
+            !said.contains(&BlendEvent::NoEdgesOnTarget { target }.to_string()),
+            "a body whose edges have no names is not a body with no edges: {said}"
+        );
+
+        for &id in &drawn[3..] {
+            index.unname_edge(id);
+        }
+        index.unname_edge(drawn[0]);
+        index.unname_edge(drawn[1]);
+        match tool.load_all_edges(target, &eval, &index) {
+            Some(BlendEvent::EdgesUnnamed { refused }) => {
+                assert_eq!(
+                    (refused.named, refused.refused),
+                    (0, drawn.len()),
+                    "every drawn edge refused"
+                );
+                assert_eq!(refused.first, first);
+            }
+            other => panic!("every name refusing is still the index's refusal: {other:?}"),
+        }
+        assert_eq!(tool, before);
+    }
+
+    /// **A target the index does not draw is not a naming refusal.**
+    /// Its edges are [`EdgeNameFault::NotDrawn`]'s — the ordinary arm —
+    /// and the load answers what it answers for a body with no edges.
+    #[test]
+    fn a_target_the_index_does_not_draw_is_not_a_naming_refusal() {
+        let (eval, index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
+        let target = BlendTarget {
+            node: extrude,
+            body: 7,
+        };
+        assert!(matches!(
+            index.edge_name_of(EdgeId {
+                node: extrude,
+                body: 7,
+                boundary: 0,
+            }),
+            Err(EdgeNameFault::NotDrawn { .. })
+        ));
+        assert_eq!(
+            BlendTool::new().load_all_edges(target, &eval, &index),
+            Some(BlendEvent::NoEdgesOnTarget { target })
+        );
     }
 }

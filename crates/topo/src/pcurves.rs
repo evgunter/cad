@@ -212,19 +212,31 @@
 //! LOOP between faces, which changes the CHART every row on that loop
 //! is stated in while changing no key. Each carries the moved loop's
 //! rows where the two faces are on one CHART
-//! ([`crate::Body::same_chart`]) and drops them where they are not,
-//! deriving nothing — [`crate::Body::drop_rows`] carries the whole
-//! argument, including what the drop gives up: every rowless CURVED
-//! target, through every door that drops, trades a loud reading (the
-//! moved rows re-certified against the target's chart and refused)
-//! for a silent one (a face this pass says nothing about). Their
-//! `Neither` reading was the one the guard's table could not see: no
-//! posture makes a claim about what a row MEANS, and these doors
-//! changed nothing else. Two more doors move a RUN of half-edges
-//! between two faces' loops rather than a whole loop —
-//! [`crate::Body::mef`]'s chord surgery and [`crate::Body::kef`]'s
-//! unsplice — and take the same answer over the run;
-//! `staleness_posture::DECLARED` carries each door's note.
+//! ([`crate::Body::same_chart`]) and drops them where they are not
+//! ([`crate::Body::drop_rows`]). Where the moved rows do not stand on
+//! the destination — dropped, or missing — and the destination was
+//! complete, a re-mint is owed, and each door answers it at one of two
+//! doors, as the kill family does ([`crate::Body::kev`] and
+//! [`crate::Body::kev_describing`]): the keys-only door refuses
+//! [`SiteRowRefusal::KeysOnly`] before it mutates, and its `_minting`
+//! twin takes a band and runs the site mint over the destination,
+//! planned before it mutates ([`crate::Body::plan_moved_rows`]). The
+//! moved loop is a rewired loop ([`SiteFace::moved`]), walked in the
+//! destination's chart, so a destination whose rows were complete
+//! leaves complete, or storing nothing where the closed-form lane
+//! cannot mint it. On a spline
+//! chart, or a destination that was unminted or half-minted, the drop
+//! is the whole answer; [`crate::Body::drop_rows`] states what it gives
+//! up there — a rowless CURVED destination trades a loud reading (the
+//! moved rows re-certified against its chart and refused) for a silent
+//! one (a face this pass says nothing about). Their old `Neither`
+//! reading was the one the guard's table could not see: no posture
+//! makes a claim about what a row MEANS, and these doors changed
+//! nothing else. Two more doors move a RUN of half-edges between two
+//! faces' loops rather than a whole loop — [`crate::Body::mef`]'s
+//! chord surgery and [`crate::Body::kef`]'s unsplice — and take the
+//! same answer over the run; `staleness_posture::DECLARED` carries
+//! each door's note.
 //!
 //! [`crate::Body::set_face_surface`] reaches the same posture from the
 //! other side: nothing moves, and the CHART moves under every row the
@@ -256,7 +268,9 @@
 //! kill ops. These are primitives, and they are what the stale-row
 //! consequence below is about. A kill that takes the last null edge
 //! off a loop leaves the rows that loop missed while it was held open
-//! missing: the kills take no `Tol` to mint with
+//! missing: `kemr`, `kev` and `kef` take no `Tol` to mint with, and
+//! [`crate::Body::kef_minting`] runs its site mint only over a remnant
+//! whose rows do not stand
 //! (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`).
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
@@ -409,19 +423,20 @@ pub enum PcurveMintError {
     /// and any body that never ran the minting pass); a half-minted
     /// one is a defect.
     ///
-    /// **On the output of `mev`, `mef` and `mekr` this is a
-    /// kernel-bug detector** for a face that was complete: they leave
-    /// such a face complete or rowless, or refuse ([`site_rows`]). The
-    /// doors that can still produce this state are:
+    /// **On the output of `mev`, `mef` and `mekr`, and of the doors
+    /// that move a loop or run onto a face (`kfmrh`, `ring_move`,
+    /// `mfkrh`, `kef` and their `_minting` twins), this is a kernel-bug
+    /// detector** for a face that was complete on an analytic chart:
+    /// they leave such a face complete or rowless, or refuse
+    /// ([`site_rows`], [`crate::Body::plan_moved_rows`]). The doors that can still
+    /// produce this state are:
     ///
-    /// - [`crate::Body::kfmrh`] and [`crate::Body::ring_move`], which
-    ///   bring a rowless loop onto a complete face;
-    /// - [`crate::Body::kef`], merging a complete face with an unminted
-    ///   one on the same chart, whose half-edges arrive without rows —
-    ///   the boolean's seam zip does, killing each kept section face
-    ///   into the wall it closes;
-    /// - the chart-change drops: a door that moves a loop or run onto a
-    ///   face on another chart drops its rows ([`crate::Body::drop_rows`]);
+    /// - the moving doors onto a complete SPLINE face, where the moved
+    ///   loop's rows are dropped or missing and the fitted lane that
+    ///   could derive them is not theirs ([`crate::Body::drop_rows`]);
+    /// - the moving doors carrying a loop's rows, across one chart,
+    ///   onto a face that stored none of its own — or a rowless loop
+    ///   onto a half-minted one — which leaves the rows they find;
     /// - [`crate::Body::mev_null`], whose scaffolding edge has no
     ///   carrier to derive a row from. The loop it joins misses the
     ///   edge's two rows, and those of any half-edge an operator adds
@@ -2296,6 +2311,15 @@ pub enum SiteRowRefusal {
     /// loop open ([`held_open`]), or to a carrier and a direction, where
     /// it walks the loop — tier 1's corruption.
     Corrupt,
+    /// **A keys-only door owes the face a row it holds no band to
+    /// derive.** The door moves a loop or run onto a face whose rows
+    /// are complete on an analytic chart, and the moved rows do not
+    /// stand there — stated in another chart, or missing — so the face
+    /// would leave half-minted. The keys-only kills and moves
+    /// (`kef`, `kfmrh`, `ring_move`, `mfkrh`) take no band and refuse
+    /// here, before mutating; their `_minting` siblings take one and
+    /// re-mint the face ([`site_rows_owed`]).
+    KeysOnly,
 }
 
 impl core::fmt::Display for SiteRowRefusal {
@@ -2311,6 +2335,14 @@ impl core::fmt::Display for SiteRowRefusal {
                 f,
                 "the body is structurally corrupt (a key did not resolve); read the \
                  structural validators' report and repair the reference it names"
+            ),
+            Self::KeysOnly => write!(
+                f,
+                "the loop or run this door moves lands on a face whose pcurve rows are \
+                 complete, and its own rows do not stand there, so the face would be left \
+                 half-minted; this door takes no band to re-mint it. Recourse: call the \
+                 door's `_minting` sibling with the run's tolerance, or move the loop \
+                 before the face is minted"
             ),
         }
     }
@@ -2330,19 +2362,24 @@ pub(crate) enum SiteLoop {
 }
 
 /// A face a site mint re-mints — one an Euler operator's new
-/// half-edges land on, or one a null edge's halves are on at its
-/// description — described as its door leaves it.
+/// half-edges land on, one a null edge's halves are on at its
+/// description, or one a door moves a loop or run onto — described as
+/// its door leaves it.
 pub(crate) struct SiteFace<T: Real> {
     /// The face whose rows decide whether this one is minted: the face
-    /// itself, or — for `mef`'s new face — the face it is carved from.
-    /// Named by the refusal.
+    /// itself, or — for a face a door makes (`mef`'s new face,
+    /// `mfkrh`'s) — the face it is carved or promoted from. Named by
+    /// the refusal.
     pub(crate) rows_from: FaceKey,
     /// The chart the face is on after the surgery.
     pub(crate) surface: Surface<T>,
-    /// Whether `rows_from`'s rows stand on this face: `false` only for
-    /// a face `mef` carves onto another chart, whose moved run loses
-    /// its rows ([`crate::Body::drop_rows`]).
-    pub(crate) carried: bool,
+    /// Whether a door moves a loop or run onto this face whose rows do
+    /// not stand on it: stated in another chart, or missing
+    /// ([`crate::Body::drop_rows`]). Such a loop is a rewired loop like
+    /// any other, and on an analytic chart it is minted like one; on a
+    /// spline chart the face is left as found rather than refused
+    /// ([`site_rows`] says why).
+    pub(crate) moved: bool,
     /// Its loops after the surgery, outer first.
     pub(crate) loops: Vec<SiteLoop>,
 }
@@ -2352,9 +2389,9 @@ pub(crate) struct SiteFace<T: Real> {
 pub(crate) enum SiteRows<T: Real> {
     /// The face is not re-minted — [`StoredRows::remints`] did not
     /// select it, its chart mints nothing, it is on a spline chart with
-    /// a null edge holding it open, or every loop the door rewires still
-    /// runs through a null edge — and the door leaves its rows exactly
-    /// as found.
+    /// a null edge holding it open or a loop or run moved onto it, or
+    /// every loop the door rewires still runs through a null edge — and
+    /// the door leaves its rows exactly as found.
     Leave,
     /// Every row of the loops the door rewires that run through no null
     /// edge, its two halves' among them. A loop the door keeps keeps
@@ -2404,11 +2441,98 @@ pub(crate) fn site_rows_from<T: Decide>(
         .then_some(SiteFrom { rows, open }))
 }
 
+/// **The loops a site mint walks on `face`**, band-free: the part of
+/// [`site_rows`] that decides before it derives, and the one reading
+/// of it. Empty where the face is left as found ([`SiteRows::Leave`]):
+/// its chart mints nothing, [`StoredRows::remints`] does not select it,
+/// or every loop the door rewires still runs through a null edge.
+/// Otherwise each rewired loop no null edge holds open as the door
+/// leaves it, in `face`'s loop order; [`site_rows`] walks exactly
+/// these and writes the face — rows, or a clear.
+///
+/// # Errors
+///
+/// [`SiteRowRefusal::SplineChart`] on a complete spline face a door
+/// adds half-edges to, and [`held_open`]'s.
+fn site_walks<'a, T: Decide>(
+    body: &Body<T>,
+    face: &'a SiteFace<T>,
+    from: &SiteFrom<T>,
+) -> Result<Vec<&'a [SiteHalf]>, SiteRowRefusal> {
+    if !chart_mints(&face.surface) {
+        return Ok(Vec::new());
+    }
+    // A spline chart's rows derive through the fitted lane, which a
+    // `Decide` door does not hold, so no loop of it is minted here and
+    // the question is per face, not per loop: refuse, or leave as
+    // found. A face a null edge holds open anywhere is left as found,
+    // and an operator on one of its complete loops leaves that loop's
+    // new halves rowless too, by intent: the face is already
+    // incomplete, and a refusal would strand the pipeline mid-surgery
+    // with its null edge, which tier 2 refuses at rest. A face a door
+    // moves a loop or run onto is left as found too, its moved rows
+    // dropped: the doors that move a loop are the ones that fuse and
+    // merge bodies that arrive minted (a boolean's seam zip, the merge
+    // door, a blend's kills), which have no "move before minting" to
+    // take as a refusal's recourse. A complete face the door adds
+    // half-edges to refuses rather than go half-minted.
+    if face.surface.spline_chart().is_some() {
+        return if from.open.is_empty() && !face.moved {
+            Err(SiteRowRefusal::SplineChart)
+        } else {
+            Ok(Vec::new())
+        };
+    }
+    let mut open_after = Vec::with_capacity(face.loops.len());
+    for lp in &face.loops {
+        open_after.push(match lp {
+            SiteLoop::Rewired(halves) => held_open(
+                body,
+                halves.iter().filter_map(|&at| match at {
+                    SiteHalf::Existing(he) => Some(he),
+                    SiteHalf::NewPlus | SiteHalf::NewMinus | SiteHalf::Described(_) => None,
+                }),
+            )?,
+            SiteLoop::Kept(key) => from.open.contains(key),
+        });
+    }
+    let released = !from.open.is_empty() && !open_after.contains(&true);
+    if !from.rows.remints(&from.open, released) {
+        return Ok(Vec::new());
+    }
+    Ok(face
+        .loops
+        .iter()
+        .zip(open_after)
+        .filter_map(|(lp, open)| match lp {
+            SiteLoop::Rewired(halves) if !open && !halves.is_empty() => Some(halves.as_slice()),
+            SiteLoop::Rewired(_) | SiteLoop::Kept(_) => None,
+        })
+        .collect())
+}
+
+/// **Whether a site mint writes `face`**: [`site_walks`] walks a loop
+/// of it. Band-free, for a keys-only door, which refuses
+/// [`SiteRowRefusal::KeysOnly`] exactly where its `_minting` twin's
+/// [`site_rows`] would write the face.
+///
+/// # Errors
+///
+/// [`site_walks`]'.
+pub(crate) fn site_rows_owed<T: Decide>(
+    body: &Body<T>,
+    face: &SiteFace<T>,
+    from: &SiteFrom<T>,
+) -> Result<bool, SiteRowRefusal> {
+    Ok(!site_walks(body, face, from)?.is_empty())
+}
+
 /// **The rows a site mint writes onto one face**, derived before its
-/// door mutates: a face an Euler operator adds half-edges to, or one a
+/// door mutates: a face an Euler operator adds half-edges to, one a
 /// null edge's halves are on at its first description
 /// ([`crate::Body::set_edge_curve`]), which re-walks every loop of the
-/// face. `from` is the face as found, on a face [`site_rows_from`]
+/// face, or one a door moves a loop or run onto whose rows do not
+/// stand there ([`crate::Body::drop_rows`] names the doors). `from` is the face as found, on a face [`site_rows_from`]
 /// read further; every other face is left as found, and never reaches
 /// here. The face is re-minted where [`StoredRows::remints`] selects
 /// it, `released` being whether the door takes the last null edge off
@@ -2430,12 +2554,16 @@ pub(crate) fn site_rows_from<T: Decide>(
 ///   the null edge leaves it. Every rewired loop the door leaves
 ///   running through no null edge is minted whole, the rows it missed
 ///   while it was held open among them.
-/// - **A face `mef` carves onto another chart**, or onto a chart that
-///   mints nothing, stays unminted ([`SiteRows::Leave`]): its moved
-///   rows are dropped, and the minting pass owns it.
+/// - **A moved loop or run is a rewired loop** ([`SiteFace::moved`]):
+///   its rows are stated in the chart it left, or missing, so it is
+///   walked whole in the destination's chart, exactly as the minting
+///   pass would walk it there. Which face's rows decide is the door's
+///   (`rows_from`): the destination as found where one receives the
+///   loop, and the face a new one is carved or promoted from.
 /// - **On a spline chart the site mint refuses a COMPLETE face**
 ///   ([`SiteRowRefusal::SplineChart`]) and leaves a face a null edge
-///   holds open anywhere as found (the arm below says why per face).
+///   holds open anywhere, or one a door moves a loop or run onto, as
+///   found (the arm below says why per face).
 ///   The mint of an ANALYTIC chart
 ///   needs nothing the fitted lane holds — [`chart_pcurve`],
 ///   [`walk_cycle`] and [`PcurveCache::certify`] are all `Decide` — and
@@ -2470,43 +2598,11 @@ pub(crate) fn site_rows<T: Decide>(
     body: &Body<T>,
     face: &SiteFace<T>,
     from: &SiteFrom<T>,
-    edge: &geom_brep::EdgeCurve<T>,
+    edge: Option<&geom_brep::EdgeCurve<T>>,
     band: Band,
 ) -> Result<SiteRows<T>, SiteRowRefusal> {
-    if !face.carried || !chart_mints(&face.surface) {
-        return Ok(SiteRows::Leave);
-    }
-    // A spline chart's rows derive through the fitted lane, which a
-    // `Decide` door does not hold, so no loop of it is minted here and
-    // the question is per face, not per loop: refuse, or leave as
-    // found. A face a null edge holds open anywhere is left as found,
-    // and an operator on one of its complete loops leaves that loop's
-    // new halves rowless too, by intent: the face is already
-    // incomplete, and a refusal would strand the pipeline mid-surgery
-    // with its null edge, which tier 2 refuses at rest. A complete face
-    // refuses rather than go half-minted.
-    if face.surface.spline_chart().is_some() {
-        return if from.open.is_empty() {
-            Err(SiteRowRefusal::SplineChart)
-        } else {
-            Ok(SiteRows::Leave)
-        };
-    }
-    let mut open_after = Vec::with_capacity(face.loops.len());
-    for lp in &face.loops {
-        open_after.push(match lp {
-            SiteLoop::Rewired(halves) => held_open(
-                body,
-                halves.iter().filter_map(|&at| match at {
-                    SiteHalf::Existing(he) => Some(he),
-                    SiteHalf::NewPlus | SiteHalf::NewMinus | SiteHalf::Described(_) => None,
-                }),
-            )?,
-            SiteLoop::Kept(key) => from.open.contains(key),
-        });
-    }
-    let released = !from.open.is_empty() && !open_after.contains(&true);
-    if !from.rows.remints(&from.open, released) {
+    let walks = site_walks(body, face, from)?;
+    if walks.is_empty() {
         return Ok(SiteRows::Leave);
     }
     let kept = |key: LoopKey| {
@@ -2531,6 +2627,14 @@ pub(crate) fn site_rows<T: Decide>(
             })
             .collect()
     };
+    fn named<T: Real>(edge: Option<&geom_brep::EdgeCurve<T>>) -> &geom_brep::EdgeCurve<T> {
+        edge.unwrap_or_else(|| {
+            unreachable!(
+                "site_rows: a plan names a new or described half only beside the edge that \
+                 carries it; a door that moves a loop names existing halves alone"
+            )
+        })
+    }
     let traversal = |at: SiteHalf| -> Result<(geom::Curve3<T>, T, T, bool), ItemFail> {
         match at {
             SiteHalf::Existing(he) => {
@@ -2540,10 +2644,12 @@ pub(crate) fn site_rows<T: Decide>(
                 Ok((carrier, t0, t1, plus))
             }
             SiteHalf::NewPlus | SiteHalf::NewMinus => {
+                let edge = named(edge);
                 let (t0, t1) = edge.params();
                 Ok((edge.carrier().clone(), t0, t1, at == SiteHalf::NewPlus))
             }
             SiteHalf::Described(he) => {
+                let edge = named(edge);
                 let (t0, t1) = edge.params();
                 let plus = is_plus(body, he).map_err(|_| ItemFail::Corrupt)?;
                 Ok((edge.carrier().clone(), t0, t1, plus))
@@ -2551,13 +2657,7 @@ pub(crate) fn site_rows<T: Decide>(
         }
     };
     let mut walked: Vec<Walked<T, SiteHalf>> = Vec::new();
-    for (lp, &open) in face.loops.iter().zip(&open_after) {
-        let SiteLoop::Rewired(halves) = lp else {
-            continue;
-        };
-        if open {
-            continue;
-        }
+    for halves in walks {
         let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(halves.len());
         let item = |i: usize| -> Result<WalkItem<T>, ItemFail> {
             let (carrier, t0, t1, plus) = traversal(halves[i])?;
@@ -2581,9 +2681,6 @@ pub(crate) fn site_rows<T: Decide>(
                 t1,
             },
         ));
-    }
-    if walked.is_empty() {
-        return Ok(SiteRows::Leave);
     }
     match certify_walked(walked, &face.surface, band, None) {
         Ok(rows) => Ok(SiteRows::Mint(rows)),
@@ -3351,11 +3448,16 @@ pub(crate) mod staleness_posture {
         /// loops, and the surface setter, under which a face's whole
         /// row set changes chart at once). What a door in this bucket
         /// never does is return with a row that says something the
-        /// body no longer holds. It says nothing about rows a door
-        /// never HELD: whether a half-edge a door mints gets a row at
-        /// the mint site is the minting posture ([`super::site_rows`]),
-        /// and a door in this bucket that mints half-edges says so in
-        /// its note.
+        /// body no longer holds. Where a door in this bucket moves a
+        /// loop or run onto a face that was complete and the moved rows
+        /// do not stand there, it either refuses, keys-only, or — its
+        /// `_minting` twin — re-mints that face through the site mint
+        /// ([`crate::Body::plan_moved_rows`]), so a complete
+        /// destination on an analytic chart leaves complete, or storing
+        /// nothing; on a spline chart the drop stands.
+        /// Whether a half-edge a door mints gets a row at the mint site
+        /// is the minting posture ([`super::site_rows`]), and a door in
+        /// this bucket that mints half-edges says so in its note.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. What this bucket rests on is
@@ -3553,34 +3655,62 @@ pub(crate) mod staleness_posture {
             ),
             // ---- Transfers: the loop-re-parenting doors, which carry
             // a moved loop's rows onto the target face and drop them
-            // when that face is on another CHART. ----
+            // when that face is on another CHART. Each is two doors:
+            // the keys-only one refuses where the target was complete
+            // and the moved rows do not stand on it
+            // (`SiteRowRefusal::KeysOnly`, before mutating); its
+            // `_minting` twin takes a band and re-mints the target
+            // through the site mint there (`Body::plan_moved_rows`). ----
             (
                 "kfmrh",
                 Transfers,
                 "Euler operator, and a loop re-parenting: `f2`'s demoted outer loop keeps its \
              rows where `f1` is on the same chart (`Body::same_chart`) and loses them where \
-             it is not (`Body::drop_rows_on_chart_change`)",
+             it is not (`Body::drop_rows_on_chart_change`); where they do not stand and \
+             `f1`'s rows were complete on an analytic chart it refuses `KeysOnly` before \
+             mutating, and a spline chart keeps the drop",
+            ),
+            (
+                "kfmrh_minting",
+                Transfers,
+                "`kfmrh` with a band: where `kfmrh` refuses `KeysOnly`, `f1` is re-minted with \
+             the demoted loop walked in its chart (`Body::plan_moved_rows`)",
             ),
             (
                 "mfkrh",
                 Transfers,
                 "Euler operator, and a loop re-parenting: the promoted ring keeps its rows \
              where the spec lands on the demoting face's chart (`Body::same_chart`) and \
-             loses them where it does not",
+             loses them where it does not; where they do not stand and the demoting face's \
+             rows were complete on an analytic chart it refuses `KeysOnly` before mutating, \
+             and a spline chart keeps the drop",
+            ),
+            (
+                "mfkrh_minting",
+                Transfers,
+                "`mfkrh` with a band: where `mfkrh` refuses `KeysOnly`, the new face is minted \
+             with the ring walked in its chart (`Body::plan_moved_rows`)",
             ),
             (
                 "mfkrh_plug",
                 Transfers,
                 "`mfkrh` with a PLACEHOLDER surface — see `mfkrh`; a placeholder is not a \
              described surface, so it is not the chart any row was stated in and the \
-             promoted ring's rows always go. Decided by kind, not by the fresh key the \
-             sugar happens to mint",
+             promoted ring's rows always go, with no refusal: it is a spline chart. \
+             Decided by kind, not by the fresh key the sugar happens to mint",
             ),
             (
                 "ring_move",
                 Transfers,
-                "ring surgery: re-parents a ring, mints no half-edge, and carries or drops \
-             the ring's rows by whether the two faces are on one chart — see `kfmrh`",
+                "ring surgery: re-parents a ring, mints no half-edge, carries or drops the \
+             ring's rows by whether the two faces are on one chart, and refuses `KeysOnly` \
+             where they do not stand on a complete target — see `kfmrh`",
+            ),
+            (
+                "ring_move_minting",
+                Transfers,
+                "`ring_move` with a band: where `ring_move` refuses `KeysOnly`, the target is \
+             re-minted with the ring walked in its chart — see `kfmrh_minting`",
             ),
             // ---- Transfers: the two doors that move a RUN of
             // half-edges between two faces' loops, and dispose of the
@@ -3592,8 +3722,9 @@ pub(crate) mod staleness_posture {
              the new face keeps its rows where that face is on the old face's chart \
              (`Body::same_chart`) and loses them where it is not (`Body::drop_rows`). The \
              two halves it mints get their rows at the site, as `mev`'s do: the old face \
-             is re-minted when the site mint selects it, and the new face when the run's \
-             rows stand on it",
+             is re-minted when the site mint selects it, and so is the new face, its run \
+             walked in the new face's chart; a spline chart other than the old face's \
+             keeps the drop",
             ),
             ("mef_chord", Transfers, "Euler operator (sugar over `mef`)"),
             (
@@ -3601,9 +3732,16 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "kill op, and a run re-parenting: the dying loop's remnant keeps its rows \
              where the surviving face is on the dying face's chart (`Body::same_chart`) and \
-             loses them where it is not (`Body::drop_rows`); the surviving loop's own rows \
-             are untouched, and the two killed halves' rows outlive their keys as every kill \
-             op's do",
+             loses them where it is not (`Body::drop_rows`); where they do not stand and the \
+             surviving face's rows were complete on an analytic chart it refuses `KeysOnly` \
+             before mutating, and a spline chart keeps the drop; the two killed halves' rows \
+             outlive their keys as every kill op's do",
+            ),
+            (
+                "kef_minting",
+                Transfers,
+                "`kef` with a band: where `kef` refuses `KeysOnly`, the surviving loop is \
+             re-minted in the surviving face's chart (`Body::plan_moved_rows`)",
             ),
             (
                 "movefac",
@@ -3634,6 +3772,20 @@ pub(crate) mod staleness_posture {
              the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
              or a placeholder left a COMPLETE row set stated in the chart the face left, \
              which that pass skips entirely",
+            ),
+            (
+                "set_face_surface_stranding_for_tests",
+                Transfers,
+                "the failure-injection twin of `set_face_surface`, whose rows it keeps and \
+             drops on the same terms",
+            ),
+            (
+                "set_face_surfaces_describing",
+                Transfers,
+                "`set_face_surface`'s swap per face, on its terms: a face's rows are kept \
+             across a move onto the same chart and dropped on any other. The edges it \
+             re-describes are the listed certified ones, whose rows stand as \
+             `set_edge_curve` leaves a certified edge's",
             ),
             (
                 "set_edge_curve",

@@ -1139,3 +1139,111 @@ The union's declaration door refuses `ConsumedByFold{Split}` on that shape. That
 No names-only rule recovers both. They are owned by the new design row `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`.
 
 N3 (a retired name never resolves to a face) now holds in every step table and every published table over 434 union runs.
+
+## 2026-09-30 — a curved seam chain refuses as a missing rule (PR 3542)
+
+A pair boolean whose seam chain runs along a curved face (a cylinder across a plate top, unioned) refused `Emission`, the emission-bug category, on a legal recipe. It now refuses `SplitReference { curved: true }`, the missing-rule refusal the union already raised for the same `n_a × n_b` ranking. Both seam rankers read a side's normal through `seam_side_normal`, and one constructor serves them and the union. No ranking direction was chosen.
+
+**Review.** Nothing blocking. The fixes folded in:
+- the union's refusal is traced to the fold's pair step, and the test compares seam sides as a set because `a`/`b` follow member order;
+- the refusal's `group` now names the group actually being ranked;
+- stale `face_plane` citations are fixed.
+
+`seam_line_dir`'s curved refusal is still untested: no cheap fixture reaches it.
+
+**Filed:**
+- `curved-seam-pieces-have-no-ranking-direction` (P0, design): the open question.
+- `a-plane-split-of-a-curved-face-refuses-as-an-emission-bug` (P0, design): the split ranker's sibling.
+- `a-slot-across-a-sunk-cylinder-boss-refuses-duplicate-merged-face-name` (P0): found while looking for a fixture.
+
+## 2026-09-30 — a merged parent held as several faces (PR 3547)
+
+The pair boolean gave every kernel merge group a bare `Merged(set)` name. A slab slot across a sunk boss therefore minted two faces under one name, and the table refused `Duplicate`.
+
+**The fix.** Merged parents are now keyed by the set of operand-face entities their merges list, as N2 says, and never by name:
+- A parent held by one face keeps its bare name, and tied parents stay tied.
+- A parent held by several faces takes `Merged(set)` plus a `Borders` tag.
+
+The recipe now refuses one step later, with a typed missing rule: the wire row's `MergedChordConstituents`, which is now P0 with two witnesses.
+
+**Review.** One blocking finding: the first version keyed by name, which merged tied parents into one and refused them as an emission bug. It was fixed, and the reviewer's repro is now a test. The review also exposed an unrecorded single-holder group that would make `GroupResized` report `now = 0`; that is fixed too.
+
+Not added: a positive synthetic test that two holders get distinct `Borders`. No cheap body gets through the edge pass. The end-to-end test gains that positive check when the chord rule lands.
+
+## 2026-09-30 — curved seam pieces: designer pair (fork-log row 22, PR 3553)
+
+Put to a designer pair (byte 119). Both reject the framing "which direction?": the fixture's seam is two parallel lines. After two rounds they converged:
+- edge pieces take `Ends`, the sorted end-vertex names, and the union's cell count retires with them;
+- crossing vertices are ranked along the crossed edge by its curve parameter;
+- the Split's same-side face pieces take `Keeps`;
+- nothing refuses.
+
+A separate question for Ev is whether section chords (Ev's A2 on PR 512) take `Ends`. The probes filed `a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank` (P0; a lane is diagnosing it) and `edge-dir-is-a-chord-so-curved-edge-pieces-misrank` (P1).
+
+## 2026-09-30 — a split's lineage chase crosses halves (PR 3555)
+
+A cylinder split by a plane that crosses its start rim arc twice refused `MissingUpstream` on the extrude. The second crossing splits the first crossing's child, and the middle piece lies in the other half. The split's edge and vertex lanes chased lineage within one half, so the chase stopped at a key the extrude never named.
+
+`emit_topo::chase_split_edge_to_table` now reads each hop from whichever half holds the key. When both halves hold it, a debug assert checks that their records agree. No design choice was involved, and the review confirmed that no existing name moves.
+
+The recipe now refuses `Duplicate`: the split has no multiplicity rule for a twice-crossed edge. That is filed as `a-split-mints-a-twice-crossed-edges-pieces-under-one-name` (P0, design), which the ruling on #3553 covers.
+
+Also filed:
+- `reach/a-split-half-loses-the-lineage-of-a-twice-crossed-edge` (P3): `topo::props` and `mesh::memo` still walk one half.
+- `origin/the-split-edge-lineage-walk-has-four-homes` (P1).
+
+## 2026-09-30 — node ids off the counter: sizing, unit 1 (PR 3569), display fork (row 23, PR 3565)
+
+**Sizing.** The lane replaced the counter's ids with a scramble and ran the suites. 519 of 2376 editor-core tests assumed small sequential node ids. No shipped code depends on id order. I accepted a split into three units:
+1. tests stop assuming ids;
+2. the digest mint itself, as one document `Mint` for node and step ids;
+3. display.
+
+The row's Sizing section carries the probe inline.
+
+**Unit 1** (PR 3569) is merged. 41 test files now take ids from the insert door or from `doc.order()`. Three library `next_id` comparisons now call `has_minted`, which is behaviour-preserving. Under the probe, 123 failures remain, and all of them are unit 2's. The review found two viewer rows made tautological or weakened (B1, B2); both are fixed. `PART_BODY` (329 uses in 34 files) is split out as a P1 row that must land before unit 2. I posted seam notes on the tcost, tint, chrome and vdoc logs.
+
+**Display fork** (fork-log row 23, byte 36). The designers crossed in round 1 and were run to round 3. B found the `DocRef` precedent: a 12-hex prefix in kernel text, with the file name shown beside it. The split was put to Ev as [ev] #3565:
+- the kernel says which node, as a 12-hex tag on every row and in every sentence (B, likely);
+- the surface says which node, as an address `Extrude 2` through a namer (A, unsure).
+
+Under either answer:
+- `eval::schedule` must break ties by `Doc::order`;
+- one mint chain serves node and step ids.
+
+## 2026-09-30 — each part's body comes from its part (PR 3581)
+
+The assembly suites no longer name every part's body by one constant, `PART_BODY` (329 uses in 34 files). Each part builder returns the id its own extrude minted, and `in_part` takes it. The change is test-only.
+
+It was checked with a per-document salted scramble: main failed 419 tests and the branch 125, and the branch's failures are all unit 2's or artefacts of the probe itself.
+
+**Review.** One blocking finding: the docm6 own-mate row borrowed the good stand's cube ids for the broken stand. It is fixed. The review also added asserts that a re-pinned part keeps its body, and folded two duplicate local `in_part` helpers into the fixture.
+
+Nothing yet catches a body paired with the wrong part's instance while ids come from the counter. That is filed as `tint/part-body-paired-with-the-wrong-instance-stays-green-under-the-counter` (P3).
+
+**Next:** node-id unit 2, the digest mint, is unblocked on the test side. The display half waits on [ev] #3565.
+
+## 2026-09-30 / 10-01 — node-id unit 2 (PRs 3593, 3594), held on #3565
+
+**PR 3593 (merged).** `eval::schedule` breaks ties by position in `Doc::order`. Under the counter nothing moved; ratified text named no id-order tie-break.
+
+**PR 3594 (open, held until [ev] #3565 decides how a person sees a node).**
+- Node ids mint from one document `Mint` shared with step ids, and `next_id` is gone.
+- Old files refuse with the regenerate advice.
+- Split and inline carry nodes one insert at a time.
+- The id-ordered walks are restated in `Doc::order`: the mate tree edge, resolve lanes, `drive`, the appearance tie site (a real regression the walk caught) and the placement backstop.
+
+**Review.** No defect in the mint, the load door or refactor. Two blocking findings, both folded:
+- **B1.** Memo rows built from two documents became true by id alone. They now carry teeth independent of ids, such as content-key inequality. 117 sites were swept.
+- **B2.** The corpus name evidence had blanked `FromMember` members. It was re-measured with each id read as its position in `Doc::order` (`name_tables_by_position`, `#[ignore]`d):
+  - 353 of 359 tables are identical;
+  - 6 respell only the wall order inside `Borders`, naming the same entities;
+  - all 819 `FromMember` segments are unchanged.
+
+The optional findings also landed: per-variant mint pins, one collision recourse, `Doc::positions()`, and a narrowed API.
+
+**Filed:**
+- `name-order-was-insertion-order-under-the-counter` (P2, design): what "least name" should mean;
+- `edit/di1-may-simplify-now-node-ids-are-digests` (P1, design).
+
+The container restarted twice mid-lane. The first lane's work had already been pushed and survived. The second lane's work was rescued from the worktree. I now ask lanes to push after each item.

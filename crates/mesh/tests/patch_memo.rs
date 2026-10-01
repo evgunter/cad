@@ -27,7 +27,7 @@ use geom_core::{Band, Point2, Tol};
 use mesh::{PatchMemo, Tessellation, tessellate, tessellate_with};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Extrusion, extrude};
-use topo::{Body, FaceKey, FaceSurface, HalfEdgeKey};
+use topo::{Body, FaceKey, FaceSurface, HalfEdgeKey, Rechart, SurfaceKey};
 
 use crate::common;
 use crate::d9_mesh_goldens;
@@ -273,18 +273,20 @@ fn misses_between(before: &Body<f64>, after: &Body<f64>) -> Vec<usize> {
 fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
     for (name, body) in corpus() {
         let mut after = body.clone();
-        let faces: Vec<FaceKey> = after.faces().map(|(k, _)| k).collect();
-        for fk in faces {
-            let face = after.get_face(fk).unwrap();
-            let (surface, sense) = (after.get_surface(face.surface).unwrap().clone(), face.sense);
-            after
-                .set_face_surface(fk, FaceSurface::New { surface, sense })
-                .expect("the same surface under a new key attaches");
+        let mut keys: Vec<SurfaceKey> = Vec::new();
+        for (_, face) in after.faces() {
+            if !keys.contains(&face.surface) {
+                keys.push(face.surface);
+            }
         }
-        // The setter drops a face's pcurve rows when it cannot see the
+        for key in keys {
+            rekey(&mut after, key);
+        }
+        // The re-chart drops a face's pcurve rows when it cannot see the
         // two keys as one chart, and an equal surface under a fresh key
         // with no `GeomSource` is exactly that case
-        // (`topo::Body::set_face_surface`). Re-minting is the door's
+        // (`topo::Body::set_face_surface`'s rule, which the describing
+        // door keeps). Re-minting is the door's
         // own prescription, and on a surface equal to the one it
         // replaced it re-derives the rows that were there — so what
         // this row measures is still the memo's key and nothing else.
@@ -294,6 +296,42 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
             "{name}: every surface key moved and no face missed"
         );
     }
+}
+
+/// Every face on `key` moved together onto a fresh key holding the same
+/// surface, through the describing door with the stored description of
+/// every edge the move strands restated on it: a re-key and nothing
+/// else. The whole group moves, because a seam between two of its faces
+/// is described against the one surface both sides wear.
+fn rekey(body: &mut Body<f64>, key: SurfaceKey) {
+    let surface = body.get_surface(key).unwrap().clone();
+    let group: Vec<(FaceKey, bool)> = body
+        .faces()
+        .filter(|(_, f)| f.surface == key)
+        .map(|(k, f)| (k, f.sense))
+        .collect();
+    let (&(first, sense), rest) = group.split_first().unwrap();
+    let chart = rest
+        .iter()
+        .fold(Rechart::new(surface, first, sense), |c, &(k, s)| {
+            c.with(k, s)
+        });
+    let charts = vec![chart];
+    let specs = body.carried_redescriptions(&charts).unwrap();
+    body.set_face_surfaces_describing(charts, &specs, Tol::witness())
+        .expect("the same surface under a new key attaches");
+}
+
+/// `face` alone onto `surface`, outward-facing, with the stored
+/// description of every edge the move strands restated on it.
+fn recharted(
+    body: &mut Body<f64>,
+    face: FaceKey,
+    surface: Surface<f64>,
+) -> Result<Vec<SurfaceKey>, topo::EulerOpError> {
+    let charts = vec![Rechart::new(surface, face, true)];
+    let specs = body.carried_redescriptions(&charts).unwrap();
+    body.set_face_surfaces_describing(charts, &specs, Tol::witness())
 }
 
 /// `(rows stored, half-edges with no row)` over every loop of `face`.
@@ -315,7 +353,7 @@ fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
     (stored, rowless)
 }
 
-/// **The two answers `topo::Body::set_face_surface` gives a re-key, on
+/// **The two answers the surface setters give a re-key, on
 /// the bodies that can tell them apart.** Putting a face on a fresh key
 /// holding the surface it already had is a chart change the setter
 /// cannot see through when the surface is ANALYTIC — two keys, an equal
@@ -341,13 +379,13 @@ fn a_rekey_keeps_a_spline_faces_rows_and_drops_an_analytic_faces() {
                 // one) has nothing to carry either way.
                 continue;
             }
-            let face = body.get_face(fk).unwrap();
-            let (surface, sense) = (body.get_surface(face.surface).unwrap().clone(), face.sense);
-            let spline = matches!(surface, Surface::Nurbs(_) | Surface::Approx(_));
+            let key = body.get_face(fk).unwrap().surface;
+            let spline = matches!(
+                body.get_surface(key).unwrap(),
+                Surface::Nurbs(_) | Surface::Approx(_)
+            );
             let mut after = body.clone();
-            after
-                .set_face_surface(fk, FaceSurface::New { surface, sense })
-                .expect("the same surface under a new key attaches");
+            rekey(&mut after, key);
             if spline {
                 assert_eq!(
                     rows_of(&after, fk),
@@ -426,19 +464,16 @@ fn the_planar_lane_reads_neither_the_stored_plane_nor_the_sense() {
     else {
         panic!("a plane")
     };
-    rotated
-        .set_face_surface(
-            fk,
-            FaceSurface::New {
-                surface: Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref: normal.cross(u_ref),
-                },
-                sense: true,
-            },
-        )
-        .unwrap();
+    recharted(
+        &mut rotated,
+        fk,
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref: normal.cross(u_ref),
+        },
+    )
+    .unwrap();
     assert!(
         misses_between(&base, &rotated).is_empty(),
         "a rotated stored frame hits"
@@ -475,20 +510,17 @@ fn the_curved_lane_misses_when_its_chart_or_sense_changes_and_nothing_else_does(
     else {
         panic!("a cylinder")
     };
-    rotated
-        .set_face_surface(
-            fk,
-            FaceSurface::New {
-                surface: Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    u_ref: axis.cross(u_ref),
-                },
-                sense: true,
-            },
-        )
-        .unwrap();
+    recharted(
+        &mut rotated,
+        fk,
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref: axis.cross(u_ref),
+        },
+    )
+    .unwrap();
     assert_eq!(
         misses_between(&base, &rotated),
         vec![at],
@@ -630,19 +662,16 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
     else {
         panic!("a plane")
     };
-    rotated
-        .set_face_surface(
-            cap,
-            FaceSurface::New {
-                surface: Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref: normal.cross(u_ref),
-                },
-                sense: true,
-            },
-        )
-        .unwrap();
+    recharted(
+        &mut rotated,
+        cap,
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref: normal.cross(u_ref),
+        },
+    )
+    .unwrap();
     assert!(
         misses_between(&base, &rotated).is_empty(),
         "no lane reads a stored plane"
@@ -689,8 +718,9 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
         .filter_map(|(hek, _)| base.pcurve(hek).cloned().map(|cache| (hek, cache)))
         .collect();
     assert!(!saved.is_empty(), "the wall's loop carries stored pcurves");
+    // Lifts both refusals: the memo must miss when the surface changes under the same edges.
     after
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             fk,
             FaceSurface::New {
                 surface: Surface::Nurbs(std::sync::Arc::new(moved)),

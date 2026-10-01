@@ -926,12 +926,14 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     else {
         panic!("expected the pairwise refusal, got {what:?}")
     };
+    // The pair is spelled lower id first.
+    let (cap, bottom) = (
+        SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
+    );
     assert_eq!(
         finding.pair,
-        (
-            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
-        )
+        if a < d { (cap, bottom) } else { (bottom, cap) }
     );
     assert!(merged.0.is_empty() && merged.1.is_empty(), "{merged:?}");
     pairs.push(finding.pair.clone());

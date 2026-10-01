@@ -104,7 +104,6 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
     // Ids are READ from the document rather than counted out here:
     // the frame above is a node, so a written-out number would be a
     // second place to keep the layout in step.
-    let outer_p = RecipeNodeId(doc.len() as u64);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -115,7 +114,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             }),
         },
     );
-    let plate = RecipeNodeId(doc.len() as u64);
+    let outer_p = crate::fixture::newest(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -125,9 +124,9 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             },
         },
     );
+    let plate = crate::fixture::newest(&doc);
     let mut holes = [plate; 2];
     for (i, cx) in [-HOLE_X, HOLE_X].into_iter().enumerate() {
-        let hole_p = RecipeNodeId(doc.len() as u64);
         doc = push(
             &doc,
             &DocEdit::InsertNode {
@@ -141,7 +140,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                 }),
             },
         );
-        holes[i] = RecipeNodeId(doc.len() as u64);
+        let hole_p = crate::fixture::newest(&doc);
         doc = push(
             &doc,
             &DocEdit::InsertNode {
@@ -151,6 +150,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                 },
             },
         );
+        holes[i] = crate::fixture::newest(&doc);
     }
     (doc, plate, holes)
 }
@@ -236,8 +236,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 }),
             },
         );
-        let profile = RecipeNodeId(doc.len() as u64 - 1);
-        slabs.push(RecipeNodeId(doc.len() as u64));
+        let profile = crate::fixture::newest(&doc);
         doc = push(
             &doc,
             &DocEdit::InsertNode {
@@ -247,6 +246,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 },
             },
         );
+        slabs.push(crate::fixture::newest(&doc));
     }
     (doc, slabs[0], slabs[1])
 }
@@ -290,8 +290,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                 }),
             },
         );
-        let profile = RecipeNodeId(doc.len() as u64 - 1);
-        prisms.push(RecipeNodeId(doc.len() as u64));
+        let profile = crate::fixture::newest(&doc);
         doc = push(
             &doc,
             &DocEdit::InsertNode {
@@ -301,15 +300,14 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                 },
             },
         );
+        prisms.push(crate::fixture::newest(&doc));
     }
     (doc, prisms[0], prisms[1])
 }
 
-/// The node the last push minted. These rows insert a measure and then
-/// read it back, so the id is the document's own count rather than a
-/// number written out beside it — which the frame nodes would shift.
+/// The node the last push minted, read back from the document.
 fn last(doc: &ProfileDoc) -> RecipeNodeId {
-    RecipeNodeId(doc.len() as u64 - 1)
+    crate::fixture::newest(doc)
 }
 
 fn measured(ev: &Evaluation<f64>, id: RecipeNodeId) -> (f64, Dimension) {
@@ -361,14 +359,13 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         MeasureExpr::add(r(), r()).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let measure = RecipeNodeId(doc.len() as u64);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::measure(web, walls).expect("both indices address a reference"),
         },
     );
-    let assertion = RecipeNodeId(doc.len() as u64);
+    let measure = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -379,6 +376,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             },
         },
     );
+    let assertion = crate::fixture::newest(&doc);
     (doc, measure, assertion)
 }
 
@@ -465,7 +463,11 @@ fn a_violated_assertion_changes_no_downstream_outcome() {
     );
     // Every node the two documents share evaluates identically, keys
     // included — the memo currency is what a gate would have to move.
-    for id in [RecipeNodeId(0), RecipeNodeId(1), measure] {
+    for id in [
+        with_assertion.order()[0],
+        with_assertion.order()[1],
+        measure,
+    ] {
         let (x, y) = (
             a.nodes.get(&id).expect("live"),
             b.nodes.get(&id).expect("live"),
@@ -501,7 +503,7 @@ fn a_document_without_measures_is_untouched() {
     let (plain, body, holes) = plate();
     let (measured_doc, _, _) = plate_with_web();
     let (a, b) = (eval(&plain), eval(&measured_doc));
-    for id in [RecipeNodeId(0), body, holes[0], holes[1]] {
+    for id in [plain.order()[0], body, holes[0], holes[1]] {
         match (a.nodes.get(&id), b.nodes.get(&id)) {
             (Some(NodeResult::Ok(x)), Some(NodeResult::Ok(y))) => {
                 assert_eq!(x.content_key, y.content_key);
@@ -866,7 +868,6 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
         },
     );
     let square_p = last(&doc);
-    let solid = RecipeNodeId(doc.len() as u64);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -876,7 +877,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
             },
         },
     );
-    let placed = RecipeNodeId(doc.len() as u64);
+    let solid = crate::fixture::newest(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -890,6 +891,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
             ),
         },
     );
+    let placed = crate::fixture::newest(&doc);
 
     let ev = eval(&doc);
     // ONE vertex name, measured against itself at two different

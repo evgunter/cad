@@ -188,22 +188,22 @@ impl ResolveError {
     /// name is stranded. `None` when it is live.
     ///
     /// Ids are never reused, so the two cases are derivable rather
-    /// than recorded: an id below the mint counter named a node this
-    /// document DELETED, and one at or above it was never this
-    /// document's at all.
+    /// than recorded: an id the document has minted named a node it
+    /// DELETED, and one it has not minted was never this document's
+    /// at all.
     ///
     /// Neither case takes a refinement, and neither can: both are
     /// decided by the document in hand, and a prior run of the SAME
     /// document has nothing to add to either — ids are not reused, so
     /// a node the prior run held and this one does not is deleted,
-    /// which is what the counter already says.
+    /// which is what `Doc::has_minted` already says.
     pub(crate) fn node_gone(name: &StableName, doc: &Doc<ProfileProgram>) -> Option<Self> {
         if doc.node(name.node).is_some() {
             return None;
         }
         Some(Self::NodeGone {
             name: name.clone(),
-            edit: if name.node.0 < doc.next_id {
+            edit: if doc.has_minted(name.node) {
                 RecipeEditRef::NodeDeleted { node: name.node }
             } else {
                 RecipeEditRef::ForeignNode { node: name.node }
@@ -2244,19 +2244,37 @@ enum Partners {
     Skip,
 }
 
-/// Visits every name embedded in `name`'s role path, recursively,
+/// Visits every name embedded in `name`'s role path, at every depth,
 /// in path order (operand names, seam pairs, merged constituents,
 /// pattern masters — and discriminator partners iff `partners` says
-/// so). The match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
+/// so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
 /// [`Qualifier`] variant embedding names must be
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
 /// that answer is written for every match that shares it.
 /// (Review Finding 7 — no fail-quiet wildcard.)
+///
+/// The walk keeps the names still to visit on its own stack: a name
+/// nests as deep as its derivation, with no bound.
 fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
-    fn visit<'a>(n: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
+    let mut names = Vec::new();
+    embedded(name, partners, &mut names);
+    names.reverse();
+    while let Some(n) = names.pop() {
         f(n);
-        walk_names(n, partners, f);
+        let deeper = names.len();
+        embedded(n, partners, &mut names);
+        if let Some(held) = names.get_mut(deeper..) {
+            held.reverse();
+        }
+    }
+}
+
+/// The names [`walk_names`] visits one level down from `name`, in path
+/// order.
+fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a StableName>) {
+    fn visit<'a>(n: &'a StableName, _: Partners, f: &mut Vec<&'a StableName>) {
+        f.push(n);
     }
     for seg in &name.path {
         match seg {
@@ -2677,10 +2695,7 @@ mod tests {
             member(3, face(5, 1), &[]),
             &[],
         );
-        let vertex = |on: StableName, cutter: StableName| StableName {
-            kind: EntityKind::Vertex,
-            ..seam(EntityKind::Vertex, on, cutter, &[])
-        };
+        let vertex = |on: StableName, cutter: StableName| seam(EntityKind::Vertex, on, cutter, &[]);
         let mut piece = line.clone();
         piece.path.push(rank(1, 2));
         let cutter = |seg| member(4, face(6, seg), &[]);
@@ -2690,5 +2705,58 @@ mod tests {
             group_cutters(&table(prior), &table(now), &line, true, false),
             read(vec![cutter(1)], vec![])
         );
+    }
+}
+
+#[cfg(test)]
+mod walk_tests {
+    //! [`walk_names`] visits every embedded name, depth first in path
+    //! order, from its own stack.
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+    use crate::names::{CapEnd, NameRef};
+
+    fn leaf(node: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        }
+    }
+
+    /// `inner` under a segment holding it and a partner beside it.
+    fn over(inner: StableName, node: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![
+                RoleSeg::FromA(NameRef::new(inner)),
+                RoleSeg::Fragment(Qualifier::Borders(vec![leaf(node + 1000)])),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_walk_visits_depth_first_in_path_order() {
+        let name = over(over(leaf(1), 2), 3);
+        let mut seen = Vec::new();
+        walk_names(&name, Partners::Include, &mut |n| seen.push(n.node.0));
+        assert_eq!(seen, [2, 1, 1002, 1003], "partners included");
+        seen.clear();
+        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0));
+        assert_eq!(seen, [2, 1], "partners skipped");
+    }
+
+    #[test]
+    fn a_walk_over_a_name_nested_past_every_stack_runs_on_the_smallest_stack() {
+        const DEEP: u64 = 20_000;
+        let seen = test_utils::own_thread::on_the_smallest_stack(|| {
+            let name = (2..DEEP + 2).fold(leaf(1), over);
+            let mut seen = 0usize;
+            walk_names(&name, Partners::Include, &mut |_| seen += 1);
+            seen
+        });
+        assert_eq!(seen, 2 * DEEP as usize, "every level's operand and partner");
     }
 }

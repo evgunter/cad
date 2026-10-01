@@ -110,9 +110,8 @@ pub enum NamingError {
     /// that a sentence cannot supply: WHICH edge.
     ///
     /// **Unguardable from this crate, and the reason is WRITER
-    /// ACCESS.** Both chases (`emit_topo`'s `chase_edge_to_table` and
-    /// `chase_b`) advance only on `Body::edge_provenance`, which is
-    /// `pub(crate)` to `topo`: `Body::split_edge` records the parent on
+    /// ACCESS.** A lineage chase advances only on
+    /// `Body::edge_provenance`, which is `pub(crate)` to `topo`: `Body::split_edge` records the parent on
     /// a child it has just minted, so a chain is strictly decreasing in
     /// age in the arena that wrote it; a graft forwards it injectively
     /// (each source key to its own result key, live or dead on
@@ -322,17 +321,18 @@ pub enum NamingError {
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
-    /// A union's seam pieces, ranked along their two sides' `n_a × n_b`,
-    /// where a side has no one oriented plane: its carrier is curved,
-    /// or a tie leaves it as several faces on different carriers.
+    /// A group ranked along a seam line's `n_a × n_b`, where a side has
+    /// no one oriented plane: its carrier is curved, or a tie leaves it
+    /// as several faces on different carriers.
     ///
     /// The recipe is legal and the body sound; the naming has no rule
     /// for a curved reference or for choosing among tied ones, so this
     /// is a missing rule and not an [`Self::Emission`].
     SplitReference {
-        /// The seam the pieces share.
+        /// The group being ranked along the seam line: the seam's
+        /// pieces, or the pieces or crossings of an edge that lies on it.
         group: Box<StableName>,
-        /// The side without a plane, by the name the union publishes it
+        /// The side without a plane, by the name the seam records it
         /// under.
         reference: Box<StableName>,
         /// Whether the reference's carrier is curved; otherwise a tie
@@ -435,6 +435,22 @@ impl core::fmt::Display for RimShare {
 // op variants unaltered (`NodeErrorKind`'s Display note, D2), this is
 // editor-core's OWN error: rendering it IS the op's vocabulary, and
 // there is no other path by which it reaches a human.
+impl NamingError {
+    /// [`Self::SplitReference`]: the one spelling every seam ranker
+    /// refuses with.
+    pub(crate) fn split_reference(
+        group: &StableName,
+        reference: &StableName,
+        curved: bool,
+    ) -> Self {
+        Self::SplitReference {
+            group: Box::new(group.clone()),
+            reference: Box::new(reference.clone()),
+            curved,
+        }
+    }
+}
+
 impl core::fmt::Display for NamingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

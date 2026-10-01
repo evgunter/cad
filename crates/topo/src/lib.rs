@@ -450,6 +450,7 @@ pub use surgery::Surgery;
 pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
+pub use attach::Rechart;
 pub use census::{CensusStrategy, CensusTrace, SweepPairs};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
@@ -490,7 +491,8 @@ pub use instance::{
     graft_disjoint_all_onto_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup, SkippedMerge,
+    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup,
+    OutlineVerdict, SkippedMerge,
 };
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
