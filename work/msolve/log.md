@@ -992,3 +992,36 @@ MSOLVE-11 fix pass (implementer lane, PR 3680), rulings R1–R12:
 
 Friction: main moved twice during the pass (node tags; the cluster's
 `root`), and each merge cost a conflict in the touched sentences.
+
+## 2026-10-01 — MSOLVE-11 MERGED (PR 3680)
+
+The whole-document solve records each decision on the log of the one
+mate whose answer it decided, and each mate node splices its own
+recording. Under `parallel` and under the memo, a reused mate carries
+the same log as a fresh one, and an assert makes "a mate op decides
+nothing" fail loud. The lever is `coset::Arm`, finite by construction,
+so `parallel`'s hand-minted escalation is unreachable. A `Part`'s
+index refuses at the `Part`; an index out of range refuses as the
+evaluation does. Four riders rode with it:
+- `MateRole` reads in words;
+- every mate refusal ends on a recourse that is true at its raise
+  site, re-authoring the mate where no edit reaches the frame;
+- no document id appears in a mate sentence;
+- `LeverRefusal` and `FaceRefusal` each carry the reach's refusal once.
+
+The predicates' words have one home (`mate::Refuted`).
+
+Review tier: single, full, on `fff779e03`. Fix pass R1–R12, green at
+`9cdb91efb`; the orchestrator spot-checked the diff.
+
+Closes MSOLVE-11, `mate-lane-escalations-reach-no-nodes-log`,
+`placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`,
+`materole-has-no-display`, `msolve-refusals-short-of-the-shape-guard`,
+`mate-refusals-name-documents-by-hex-id` and
+`lever-refusal-respells-reach-refusal`. Filed:
+- `a-clocking-rider-is-levered-unreduced` (P3), which plan item 22's
+  `[ev]` PR 3681 would delete with the rider;
+- `a-placer-row-states-what-a-poisoned-row-cannot` (P2).
+
+Spec deleted, with a note in `docs/doc-ledger/msolve-11-spec.md`.
+Next: item 21's design fork, which is with two designers.
