@@ -770,28 +770,13 @@ fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
 /// the azimuth has no window to be excluded by, and both containment
 /// doors serve it: the latitude window still describes it exactly.
 ///
-/// The face is a revolve's own: the unit circle's arc through the
-/// equator, from `(1/2, -√3/2)` to `(1/2, √3/2)`, closed by the bore
-/// line `ρ = 1/2` and turned a full revolution about `y`. Its zone is
-/// one face with a self-mated seam, bounded by the two rims it shares
-/// with the bore — a body every tier blesses.
+/// The face is the zone of the unit bead with a bore of `1/2`
+/// (`common::bead`): one face with a self-mated seam, bounded by the two
+/// rims it shares with the bore — a body every tier blesses.
 #[test]
 fn a_full_period_azimuth_window_is_served_by_both_doors() {
     let (b, t) = (band(), Tol::witness());
-    let h = 0.75_f64.sqrt();
-    let phi = (h / 0.5).atan();
-    let lp = bulge_loop(vec![
-        (geom_core::Point2::new(0.5, -h), (phi / 2.0).tan()),
-        (geom_core::Point2::new(0.5, h), 0.0),
-    ]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: geom_core::Point2::new(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    let zone_ring = revolve(&vp, axis, Revolution::Full, t).unwrap().body;
+    let zone_ring = crate::common::bead::bead(SketchPlane::xy(), 1.0, 0.5, Revolution::Full);
     assert_eq!(topo::validate_geometric(&zone_ring, t), Ok(()));
     let faces = sphere_faces(&zone_ring);
     assert_eq!(faces.len(), 1, "one sphere face spanning the whole period");

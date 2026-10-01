@@ -22,7 +22,7 @@
 use crate::common::approx::band;
 use geom::Surface;
 use geom_core::{OrthoFrame, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{
     Body, FaceContainment, FaceKey, SolidContainment, curved_face_containment, point_in_solid,
@@ -66,24 +66,9 @@ impl Pose {
     }
 }
 
-/// The sphere radius `big_r`, bore radius `r` bead, swept through `turn`.
+/// The bead (`common::bead`) in the pose's sketch frame.
 fn bead(pose: &Pose, big_r: f64, r: f64, turn: Revolution<f64>) -> Body<f64> {
-    let h = (big_r * big_r - r * r).sqrt();
-    // The arc from (r, −h) to (r, h) through ρ = R turns CCW about the
-    // origin by 2φ, φ = atan(h/r): bulge tan(φ/2).
-    let phi = (h / r).atan();
-    let lp = bulge_loop(vec![
-        (Point2::new(r, -h), (phi / 2.0).tan()),
-        (Point2::new(r, h), 0.0),
-    ]);
-    let vp = Profile::new(pose.plane(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&vp, axis, turn, Tol::witness()).unwrap().body
+    crate::common::bead::bead(pose.plane(), big_r, r, turn)
 }
 
 /// The one face of `body` on a cylinder (`cyl`) or a sphere.
@@ -251,8 +236,9 @@ fn a_near_full_revolves_gap_is_out_at_both_doors() {
 /// The body is not a valid one — tier 3 reports a pcurve
 /// `LoopDiscontinuity` on the merged loop — and the row says so: its
 /// subject is that the face door does not answer `In` for such a face
-/// at a point another face holds. No public door mints a valid body with
-/// this face shape.
+/// at a point another face holds. `kef_minting` is the only door this
+/// suite found that mints the shape; the merge-cosurface doors were not
+/// checked.
 #[test]
 fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
     let b = band();
@@ -379,5 +365,46 @@ fn a_third_of_a_turn_is_out_at_another_thirds_azimuth() {
             (1, 2),
             "face {wall:?} holds its own third only: {verdicts:?}"
         );
+    }
+}
+
+/// **A washer's walls are full-turn bands.** The rectangle
+/// `ρ ∈ [1, 2]`, `y ∈ [0, 1]` revolved a full turn about `y` mints its
+/// bore and its outer wall each as ONE face with a self-mated seam,
+/// between two flat annular caps. On either carrier the face door
+/// answers by height alone, at every azimuth.
+#[test]
+fn a_washers_full_turn_walls_are_height_bands() {
+    let b = band();
+    let lp = profile::ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    let washer = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    assert_eq!(topo::validate_geometric(&washer, Tol::witness()), Ok(()));
+    let pose = Pose::new(false, Point3::new(0.0, 0.0, 0.0));
+    for rho in [1.0, 2.0] {
+        let walls = crate::mate2_common::walls_at(&washer, rho);
+        assert_eq!(walls.len(), 1, "one full-turn wall at radius {rho}");
+        for a in AZIMUTHS {
+            for (y, want) in [(0.5, FaceContainment::In), (1.5, FaceContainment::Out)] {
+                assert_eq!(
+                    curved_face_containment(&washer, walls[0], pose.at(rho, y, a), b).unwrap(),
+                    Some(want),
+                    "wall at radius {rho}, height {y}, azimuth {a}"
+                );
+            }
+        }
     }
 }

@@ -313,10 +313,11 @@ fn revolve_minted_walls_meet_the_same_gate() {
 
 /// The containment door handed a revolve-minted wall: an on-wall point
 /// at mid-height, far from the seams, is `In` exactly one wall face and
-/// `Out` of the rest (an axis-touching revolve mints the wall as two
-/// half-turn faces).
+/// `Out` of the other. An axis-touching revolve mints the wall as two
+/// half-turn faces; a genuine full-turn wall is
+/// `full_turn_wall::a_washers_full_turn_walls_are_height_bands`.
 #[test]
-fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
+fn a_revolved_walls_two_half_turns_place_an_on_wall_point_in_one() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let body = revolved_cyl(1.0, 2.0);
