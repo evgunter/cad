@@ -1,5 +1,5 @@
 ---
-id: swept-continuation-and-ladder-split-rows-residue
+id: blend-split-rows-and-must-carry-prose-residue
 kind: issue
 title: blend/sweep: residue of PRs 3667 and 3670 (split-row source spellings; prose copies of the must-carry mapping)
 status: open
