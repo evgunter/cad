@@ -262,3 +262,22 @@ fix pass, delta review; the review's row
 right source from a merely valid one. Residue (the ladder still names
 `meridian_splits` by the split key) is on
 `blend-split-rows-and-must-carry-prose-residue`.
+
+## 2026-10-01 — the three recourse rows and ENCL's ending row closed (PR #3690)
+
+`corner-config-recourse-and-policy-assert-a-default-for-any-tag`,
+`every-escalation-carries-the-coincidence-recourse-first`,
+`in-band-corner-verdicts-route-to-the-corner-configuration-recourse` and
+`blend-endings-say-lower-the-tolerance-and-route-by-name` closed as one
+unit. `BlendError::Escalated` carries a closed `BlendDecision` (11
+decisions at 13 construction points); subject, lever and ending are
+exhaustive matches; no blend refusal renders "declare the coincidence";
+sized endings go through `geom_brep::recourse`. Full review, fix pass,
+delta review, a last small pass, and a python-census fix (`BlendDecision`
+listed interior beside `BlendSite`). Known cost: `ContactSecondOrder`
+offers no tolerance until ENCL's must-carry row says which reading
+escalated. Filed: ENCL's `recourse-table-has-no-lever-only-ending` and
+`must-carry-in-band-verdict-does-not-say-which-decision-escalated`;
+BAND's `dependent-normals-refusal-carries-no-margin-for-its-ending`,
+`dependent-normals-names-a-run-out-policy-the-tag-says-cannot-help`.
+`blend-surgery-invariant-ends-in-a-tag` priced P4/E.

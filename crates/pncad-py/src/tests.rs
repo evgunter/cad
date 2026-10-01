@@ -3331,51 +3331,49 @@ fn the_prose_rule_separates_a_display_from_a_debug_dump() {
     assert!(reads_as_prose("Tessellate refused"));
 }
 
-/// A blend escalation names its site in prose at every site.
+/// A blend escalation reads as prose for every decision.
 ///
-/// `BlendSite::Link` and `::Joint` are struct variants, so rendering
-/// the site through `Debug` puts the field-brace fingerprint in the
-/// message and the refusal PANICS `crate::py::typed_err` instead of
-/// raising. The escalation arm is the one an indeterminate predicate
-/// is for, so that panic sits behind an ordinary fillet or chamfer
-/// request; the site renders through its own `Display`, and this is
-/// the rendering that says so.
+/// What the refusal renders is chosen by its decision alone (the site
+/// is payload and is not rendered), so each decision is rendered once,
+/// at a site whose `Debug` carries a field: a payload rendered through
+/// `Debug` would put the field-brace fingerprint in the message and
+/// PANIC `crate::py::typed_err` instead of raising, behind an ordinary
+/// fillet or chamfer request.
 #[test]
-fn a_blend_escalation_reads_as_prose_at_every_site() {
-    use pncad::prelude::{Band, BlendError, BlendSite, EdgeKey, Indeterminate};
-    use pncad::prelude::{MarginDiag, VertexKey};
+fn a_blend_escalation_reads_as_prose_for_every_decision() {
+    use pncad::prelude::MarginDiag;
+    use pncad::prelude::{Band, BlendDecision, BlendError, BlendSite, EdgeKey, Indeterminate};
 
     let band = Band::new(1e-9, 1e-6).expect("a band");
-    for site in [
-        BlendSite::Link {
-            edge: EdgeKey::default(),
-        },
-        BlendSite::Joint {
-            vertex: VertexKey::default(),
-        },
-        BlendSite::Chain,
+    for decision in [
+        BlendDecision::RadiusHeadroom,
+        BlendDecision::FaceClearance,
+        BlendDecision::SpineRegularity,
+        BlendDecision::ChainG1,
+        BlendDecision::ChainArm,
+        BlendDecision::ConvexitySign,
+        BlendDecision::RingClearance,
+        BlendDecision::SupportCoaxiality,
+        BlendDecision::ContactSecondOrder,
+        BlendDecision::CornerIndependence,
+        BlendDecision::CapTransverse,
     ] {
         let refused = BlendError::Escalated {
-            site,
+            site: BlendSite::Link {
+                edge: EdgeKey::default(),
+            },
+            decision,
             source: Indeterminate {
-                margin: MarginDiag::value(0.0),
+                margin: MarginDiag::value(5e-7),
                 band,
-                // A name no recourse table routes: the sentence then
-                // names the site, which is what this row reads.
-                predicate: Some("a_name_no_table_routes"),
+                predicate: Some(decision.predicate()),
                 terminal_sliver: false,
             },
         };
         let text = refused.to_string();
         assert!(
-            reads_as_prose(&text),
-            "a fillet or chamfer escalation at {site:?} panics the binding \
-             rather than raising: {text}"
-        );
-        assert!(
-            text.starts_with("at ") && !text.contains("Key("),
-            "the site names itself after the preposition the sentence supplies, \
-             and no arena key: {text}"
+            reads_as_prose(&text) && !text.contains("Key("),
+            "a {decision:?} escalation panics the binding rather than raising: {text}"
         );
     }
 }

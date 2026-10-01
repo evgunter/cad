@@ -3,10 +3,10 @@
 //! Three pins the roster suites leave to inference, each measured by
 //! rendering a door's own refusal and reading the text:
 //!
-//! - **the two routing doors render ONE gap sentence for one unknown
-//!   name.** Each roster suite reads its own door; this crate can see
-//!   both, so the sameness is measured here rather than argued from the
-//!   shared home — for a named escalation and for a nameless one.
+//! - **the path door renders the one gap sentence for an unknown
+//!   name**, named or nameless. The blend door has no such arm: its
+//!   escalation carries a closed decision, so no name reaches it
+//!   unrouted.
 //! - **the validator's door routes no recourse by name.**
 //!   `ProfileError::Escalated` carries the other predicate-keyed table
 //!   in `profile` (the near-tangency addendum): it appends a site note
@@ -24,7 +24,6 @@
 use geom_core::{Band, COINCIDENCE_RECOURSE, Indeterminate, MarginDiag, MissingRecourse, Tol};
 use profile::{EscalationSite, PathError, ProfileError, SegmentRef};
 use sweep::TubeError;
-use sweep::blend::{BlendError, BlendSite};
 
 /// An escalation carrying `name`, its margin inside the run's band.
 fn escalation(name: Option<&'static str>) -> Indeterminate {
@@ -39,48 +38,40 @@ fn escalation(name: Option<&'static str>) -> Indeterminate {
 
 const UNKNOWN: &str = "roster_unknown_probe";
 
-/// **One unknown name, one sentence, at both doors — and the same for
-/// an escalation carrying no name at all.**
+/// **An unknown name renders the one gap sentence at the path door —
+/// and the same for an escalation carrying no name at all.**
 ///
-/// The sentence is the tail of each refusal, byte for byte, so the two
-/// doors cannot answer the same question differently; the shared
+/// The sentence is the tail of the refusal, byte for byte, the home
+/// every name-keyed table's fall-through composes; the shared
 /// coincidence recourse still arrives ahead of it through `{source}`
 /// (the class `every-escalation-carries-the-coincidence-recourse-first`
-/// names, unchanged here); and the profile door asserts no category.
+/// names, which the path door's junction keys keep on purpose); and the
+/// door asserts no category. The blend door is not a leg here: its
+/// `Escalated` carries a `BlendDecision`, so a name it does not route
+/// cannot be built.
 #[test]
-fn the_two_doors_render_one_gap_sentence_for_one_unknown_name() {
+fn the_path_door_renders_the_gap_sentence_for_an_unknown_name() {
     for name in [Some(UNKNOWN), None] {
         let sentence = MissingRecourse(name).to_string();
         let path = PathError::<f64>::Escalated {
             source: escalation(name),
         }
         .to_string();
-        let blend = BlendError::Escalated {
-            site: BlendSite::Chain,
-            source: escalation(name),
-        }
-        .to_string();
-        for text in [&path, &blend] {
-            assert!(
-                text.ends_with(&sentence),
-                "the refusal ends in the one gap sentence: {text}"
-            );
-            assert!(
-                text.contains(COINCIDENCE_RECOURSE),
-                "the shared recourse still rides the payload: {text}"
-            );
-        }
+        assert!(
+            path.ends_with(&sentence),
+            "the refusal ends in the one gap sentence: {path}"
+        );
+        assert!(
+            path.contains(COINCIDENCE_RECOURSE),
+            "the shared recourse still rides the payload: {path}"
+        );
         assert!(
             !path.contains("at this junction"),
             "no category over an unknown name: {path}"
         );
-        // Both doors say what was too close to call before the
-        // payload; for a name neither table knows, that is the door's
-        // own decision, and the blend door names its site too.
         assert!(
-            path.starts_with("an unnamed decision is too close to call: ")
-                && blend.starts_with("at the chain, an unnamed decision is undecided: "),
-            "each door names what escalated ahead of the payload: {path} / {blend}"
+            path.starts_with("an unnamed decision is too close to call: "),
+            "the door names what escalated ahead of the payload: {path}"
         );
     }
 }

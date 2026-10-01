@@ -193,7 +193,7 @@ use super::build::{Blended, face_cycle, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
 use super::open::planar::{BlankPlan, Corner, blank_phase, corner_plan};
 use super::open::ruled::{RuledPlan, ruled_phase};
-use super::{BlendError, BlendKind, BlendSite, CornerConfig, decide};
+use super::{BlendDecision, BlendError, BlendKind, BlendSite, CornerConfig, classify};
 use geom_core::Tol;
 
 // ------------------------------------------------------------------
@@ -272,13 +272,6 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError
 pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
     BlendError::Op { site, source }
 }
-
-/// The one new margin this unit decides (module docs): the exact
-/// clearance between a support face's ring and a blend trimline.
-/// A K row name reaching the funnel through a const, not a literal at
-/// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
-/// "The inventory method, restated").
-const RING_CLEARANCE: &str = "fillet3_ring_clearance";
 
 // ------------------------------------------------------------------
 // The plan: everything classified and derived before any mutation.
@@ -2077,15 +2070,13 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
     margin: T,
     band: Band,
 ) -> Result<(), BlendError> {
-    match decide(RING_CLEARANCE, Margin::of(margin), band).map_err(|e| BlendError::Escalated {
-        site: BlendSite::Chain,
-        source: e,
-    })? {
+    let decision = BlendDecision::RingClearance;
+    match classify(BlendSite::Chain, decision, Margin::of(margin), band)? {
         Sign::Positive => Ok(()),
         sign => Err(BlendError::RingClearance {
             face,
             chain,
-            margin: super::battery::classified(RING_CLEARANCE, margin, band, sign),
+            margin: super::battery::classified(decision, margin, band, sign),
         }),
     }
 }
@@ -4538,6 +4529,7 @@ fn attach_contact<T: Decide + Bounds>(
         let refused = |refusal| match refusal {
             MustCarryRefusal::InBand(source) => BlendError::Escalated {
                 site: BlendSite::Link { edge: link },
+                decision: BlendDecision::ContactSecondOrder,
                 source,
             },
             MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
