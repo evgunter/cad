@@ -2,11 +2,12 @@
 id: a-split-that-de-ties-tied-faces-swaps-their-names-under-an-edit-that-moves-the-split
 kind: issue
 title: A split that de-ties two tied faces names each piece against the split's walls, so an edit that moves the split to the other face swaps the names
-status: open
+status: closed
 opened: 2026-09-26
 priority: P2
 cost: E
-needs_ev: true
+closed: 2026-10-01
+pr: 3523
 ---
 
 
@@ -67,4 +68,26 @@ A designer pair weighed this.
   - Both agree the "recorded user choice" N2 promised was never built.
   - Both would replace it with: repair by a discriminator in the recipe.
 
-The `[ev]` PR carries the rewording. If Ev accepts it, this row closes as by-design, with a test that pins the cross-ceiling motion by centroid.
+The `[ev]` PR (3523) carries the rewording.
+
+## Closed
+
+By design. Ev accepted the rewording on PR 3523 (2026-10-01): "this
+sounds good! i'm not sure if i'm visualizing the situation correctly
+and hence am not sure if there is actually a unique way to be able to
+carry this forward, but the behavior you suggest seems safe and
+principled". N2 now repairs a tie by a discriminator in the recipe or a
+`Rebind`, with no per-candidate choice, and N4 names a divider as a
+discriminator among a tie's candidates
+(`crates/editor-core/src/names/README.md`).
+
+`emit_union_borders::a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it`
+(`crates/editor-core/tests/emit_union_borders.rs`) pins the Evidence
+table above by centroid, in both member orders: the two `Borders`
+pieces lie on the lower ceiling (y 1.25) before the edit and on the
+upper (y 2.75) after, and the bare tied name, narrowed to `Unique`,
+moves upper to lower. A change to that motion is a change to the
+ruling and re-baselines the test on purpose.
+
+The optional datum-side discriminator is not filed; Ev did not ask
+for it.
