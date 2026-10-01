@@ -19,8 +19,8 @@
 //! - **fillet, chamfer**: the subdivided rim is a two-link chain whose
 //!   joint is collinear. Merged, both links lie on the same two faces
 //!   and the blend carves them as one band across the joint; unmerged,
-//!   the two halves lie on two wall faces and the door refuses it as
-//!   unbuilt junction carry-through.
+//!   the two halves lie on two wall faces and the door refuses the
+//!   junction as links on different support faces.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -275,8 +275,8 @@ const R: f64 = 0.25;
 /// volume is the plain cube's closed form for both verbs.
 ///
 /// Unmerged, the same request refuses: the two halves of each rim lie
-/// on two wall FACES the unrequested flat strut separates, which is
-/// general junction carry-through.
+/// on two wall FACES the unrequested flat strut separates, and a band
+/// through such a junction is not built.
 #[test]
 fn subdivided_rim_blends_as_one_band_once_merged() {
     let t = Tol::witness();
@@ -292,7 +292,7 @@ fn subdivided_rim_blends_as_one_band_once_merged() {
     let err = sweep::fillet::fillet_edges(&ex.body, &split_req, R, t).unwrap_err();
     assert!(
         matches!(err.error, BlendError::UnsupportedChain { detail, .. }
-            if detail.contains("junction carry-through")),
+            if detail.contains("different support faces")),
         "split: {err}"
     );
 

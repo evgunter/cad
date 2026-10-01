@@ -19,8 +19,8 @@ when both links lie between the same two FACES (`Joint::admit` in
 continuation, unmerged, puts the two halves of each rim on two wall
 faces of ONE surface key, separated by the continuation's flat strut;
 the joint vertex is then valence 3 and the request refuses
-`UnsupportedChain` "an open chain with more than one link needs
-junction carry-through", carrying `FILLET3_ASSEMBLY_RECOURSE`, which
+`UnsupportedChain` "an open chain's links meet on different support
+faces; that junction is not implemented", carrying `FILLET3_ASSEMBLY_RECOURSE`, which
 names no merge. `Body::merge_coplanar_faces` first makes the same
 request build at the closed form.
 

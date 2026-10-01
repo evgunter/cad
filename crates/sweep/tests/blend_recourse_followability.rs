@@ -450,7 +450,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     for condition in [
         "fully requested trivalent plane\u{2013}plane corners",
         "of one convexity",
-        "chains of links sharing both supports",
+        "chains whose links share both faces",
         "junction carry-through and run-outs are not implemented",
     ] {
         assert!(

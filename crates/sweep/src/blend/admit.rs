@@ -104,9 +104,9 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
     }
 }
 
-/// **A joint of an admitted open band**: an interior vertex of the
-/// chain where two consecutive links meet on the SAME two support
-/// faces.
+/// **A joint of an admitted open band**: an interior valence-2
+/// vertex of the chain where two consecutive plane–plane links meet on
+/// the SAME two support faces.
 ///
 /// Identical supports are what make it the trivial junction: the arm
 /// is one function of the two supports, so it is the same on either
@@ -123,7 +123,16 @@ pub(super) struct Joint {
 impl Joint {
     /// Admit the junction at `vertex` between `arriving` and `leaving`
     /// as a joint; `chain` is the edge the chain refuses under.
-    fn admit<T: Real>(
+    ///
+    /// # Errors
+    ///
+    /// [`BlendError::UnsupportedChain`] when the two links are not both
+    /// plane–plane, or do not lie between the same two support faces;
+    /// [`BlendError::BodyNotIntact`] when the vertex's orbit does not
+    /// walk; [`BlendError::UnsupportedCorner`] when the vertex carries
+    /// edges other than the two links.
+    fn admit<T: Decide>(
+        body: &Body<T>,
         vertex: VertexKey,
         arriving: &Link<T>,
         leaving: &Link<T>,
@@ -132,16 +141,38 @@ impl Joint {
         // Only the plane–plane band mints the struts a joint is fused
         // across: the ruled band is cut off at transverse caps and
         // mints none, and a torus arm on an open arc has no band.
-        let planar = arriving.arm.is_plane_plane() && leaving.arm.is_plane_plane();
+        if !(arriving.arm.is_plane_plane() && leaving.arm.is_plane_plane()) {
+            return Err(unbuilt_chain(
+                chain,
+                "an open chain's links meet on supports other than two planes; that \
+                 junction is not implemented",
+            ));
+        }
         let mut pa = [arriving.face_a, arriving.face_b];
         let mut pb = [leaving.face_a, leaving.face_b];
         pa.sort_unstable();
         pb.sort_unstable();
-        if !planar || pa != pb {
+        if pa != pb {
             return Err(unbuilt_chain(
                 chain,
-                "an open chain with more than one link needs junction \
-                 carry-through, which is not implemented",
+                "an open chain's links meet on different support faces; that junction is \
+                 not implemented",
+            ));
+        }
+        // Two edges between the same two faces close a manifold
+        // vertex's fan, so the valence is two; checked, not inherited.
+        let incident = fan_at(body.edges_of_vertex(vertex)).ok_or_else(|| {
+            not_intact(
+                EntityId::Vertex(vertex),
+                "a joint's vertex orbit does not walk",
+            )
+        })?;
+        if incident.len() != 2 {
+            return Err(unbuilt_corner_config(
+                vertex,
+                CornerConfig::NEdgeVertex {
+                    valence: incident.len(),
+                },
             ));
         }
         Ok(Self {
@@ -188,17 +219,16 @@ pub(super) struct OpenBand<'a, T: Real> {
     joints: Vec<Joint>,
 }
 
-impl<'a, T: Real> OpenBand<'a, T> {
+impl<'a, T: Decide> OpenBand<'a, T> {
     /// The open-chain door: admit a chain the battery resolved, or
     /// refuse it through the frontier vocabulary.
     ///
     /// # Errors
     ///
-    /// [`BlendError::UnsupportedChain`] when two consecutive links are
-    /// not a plane–plane pair on both of one pair of support faces
-    /// (junction carry-through), or when a link's arm is neither
+    /// [`Joint::admit`]'s refusals at any junction, and
+    /// [`BlendError::UnsupportedChain`] when a link's arm is neither
     /// plane–plane nor ruled.
-    pub(super) fn admit(chain: &'a Chain<T>) -> Result<Self, BlendError> {
+    pub(super) fn admit(body: &Body<T>, chain: &'a Chain<T>) -> Result<Self, BlendError> {
         // Two open bands are built, and the door admits exactly those:
         // the plane–plane link, terminating in trivalent corners the
         // corner patch fills, and the RULED link — a cylinder band
@@ -224,7 +254,7 @@ impl<'a, T: Real> OpenBand<'a, T> {
                     "a chain junction names a link position the chain does not carry",
                 ));
             };
-            joints.push(Joint::admit(j.vertex, a, b, chain.first().edge)?);
+            joints.push(Joint::admit(body, j.vertex, a, b, chain.first().edge)?);
         }
         for link in chain.links() {
             if !(link.arm.is_plane_plane() || link.arm.is_ruled()) {
@@ -744,7 +774,7 @@ mod tests {
         let admitted: Vec<AdmittedOpen<'_, f64>> = chains
             .iter()
             .map(|c| {
-                OpenBand::admit(c)
+                OpenBand::admit(&body, c)
                     .expect("a cube's links are plane–plane")
                     .first()
             })

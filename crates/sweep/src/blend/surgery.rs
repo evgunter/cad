@@ -550,7 +550,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut rims: Vec<RimPlan<'_, T>> = Vec::new();
     for chain in &verdict.chains {
         match chain.closure {
-            ChainClosure::Open { .. } => bands.push(OpenBand::admit(chain)?),
+            ChainClosure::Open { .. } => bands.push(OpenBand::admit(source, chain)?),
             // The band replacement is the rolling ball's torus over a
             // closed rim, whatever kinds its two supports are. A chamfer has no closed-chain band at
             // all — its one arm is plane–plane, whose closed chains
@@ -590,27 +590,9 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         .filter(|b| !b.first().link().arm.is_ruled())
         .collect();
 
-    // ---- Joints: each is a valence-2 vertex, both of whose edges are
-    // the band's two links there. On a manifold body two edges between
-    // the same two faces already close the vertex's fan; the count is
-    // checked rather than inherited. ----
+    // ---- Joints: each one's two feet, read off the source. ----
     let mut joints: Vec<JointPlan<'_, T>> = Vec::new();
     for joint in planar_bands.iter().flat_map(|b| b.joints()) {
-        let v = joint.vertex();
-        let Some(incident) = fan_at(source.edges_of_vertex(v)) else {
-            return Err(not_intact(
-                EntityId::Vertex(v),
-                "a joint's vertex orbit does not walk",
-            ));
-        };
-        if incident.len() != 2 {
-            return Err(unbuilt_corner_config(
-                v,
-                CornerConfig::NEdgeVertex {
-                    valence: incident.len(),
-                },
-            ));
-        }
         joints.push(joint_plan(source, joint, &planar)?);
     }
     let is_joint = |v: VertexKey| joints.iter().any(|j| j.joint.vertex() == v);

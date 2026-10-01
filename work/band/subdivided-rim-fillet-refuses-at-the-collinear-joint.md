@@ -36,7 +36,8 @@ multi-link arm, and the merge keeps the rim vertices.
 
 The door is now `OpenBand::admit` (`crates/sweep/src/blend/admit.rs`):
 a junction whose two links are plane–plane on the same two support
-FACES is a `Joint`, and any other junction refuses as before. The
+FACES at a valence-2 vertex is a `Joint`; any other junction refuses,
+naming what differs. The
 blank phase struts each joint on both supports, then one `kef` and one
 `kev` fuse the two strips into ONE band face over the chain (one
 surface key, so the boolean's maximal-faces gate passes it), leaving
@@ -45,7 +46,10 @@ The band face is named `BandFace` of the chain's edge set
 (`BlendNaming::joined_blends`). Both verbs; pinned by
 `band_subdivided_side_walls` (merged prism, both verbs, closed-form
 volumes; a declared flush union) and editor-core's
-`band_joined_rim_names` (three-link chains).
+`band_joined_rim_names` (three-link chains). Predicate 2's
+face-clearance screen reads a joined run as one feature and meters
+each joint's foot against the trimlines of the edges at the run's ends
+(`review_3701_probes`).
 
 Not built, and filed: the UNMERGED rim, whose halves lie on two faces
 of one key (`unmerged-subdivided-wall-rim-fillet-names-no-merge-recourse`),

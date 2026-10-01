@@ -1166,9 +1166,10 @@ pub enum RoleSeg {
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
     },
-    /// The band face rounding a chain of several source edges as ONE
-    /// face — a CLOSED chain's torus band, or an open band carved
-    /// across joints where consecutive links share both supports
+    /// The one blend face a chain of several source edges is carved
+    /// into — a CLOSED chain's torus band, or an open fillet's cylinder
+    /// or chamfer's flat strip carved across joints where consecutive
+    /// links lie on the same two faces
     /// (argument: the chain's source edges as a sorted set — a rim is a
     /// cycle with no distinguished first edge, and an open chain's walk
     /// order depends on which link seeded it, so the SET is the

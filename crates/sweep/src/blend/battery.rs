@@ -1947,6 +1947,17 @@ fn corner_at<T: Decide + Bounds>(
 
 /// Predicate 2's sweep: for each support face, every pair of its
 /// boundary edges, with the blended ones carrying their setbacks.
+///
+/// **A joined run is one feature.** Consecutive links of one chain on
+/// the same two support faces (a joint, `admit::Joint`) are one band
+/// whose setback on each support is ONE trimline, so two links of one
+/// run are never a pair, and the run's adjacency is the run's: an edge
+/// touching either end of the run is its neighbour, as a plain edge's
+/// neighbours are. What a joint itself needs is metered instead: its
+/// foot on each support must lie beyond the trimline of the edge that
+/// meets the run at each end — the corner's own foot is on that
+/// trimline, so a joint short of it would put the band's foot inside
+/// the corner patch.
 fn consumption_sweep<T: Decide + Bounds>(
     body: &Body<T>,
     chains: &[Chain<T>],
@@ -1980,6 +1991,55 @@ fn consumption_sweep<T: Decide + Bounds>(
     let chain_ix = |e: EdgeKey| -> Option<usize> {
         chain_of.iter().find(|(ee, _)| *ee == e).map(|(_, ci)| *ci)
     };
+    // The joined runs: each requested edge's run id, a junction of an
+    // open chain whose two links share both support faces joining the
+    // leaving link's run to the arriving one's.
+    let mut run_of: Vec<(EdgeKey, usize)> = Vec::new();
+    // Per joint: (vertex, the arriving link) — what its feet are read
+    // off.
+    let mut joints: Vec<(VertexKey, &Link<T>)> = Vec::new();
+    for chain in chains {
+        let ring: Vec<&Link<T>> = chain.links().collect();
+        let mut ids: Vec<usize> = (0..ring.len()).map(|i| run_of.len() + i).collect();
+        // Joints are an OPEN chain's: a closed rim is carved by the rim
+        // phases, whose arcs this screen meters edge by edge.
+        let open = matches!(chain.closure, ChainClosure::Open { .. });
+        for j in chain.junctions.iter().filter(|_| open) {
+            let (a, b) = (ring[j.arriving], ring[j.leaving]);
+            let (mut pa, mut pb) = ([a.face_a, a.face_b], [b.face_a, b.face_b]);
+            pa.sort_unstable();
+            pb.sort_unstable();
+            if pa == pb {
+                let (from, to) = (ids[j.leaving], ids[j.arriving]);
+                for id in &mut ids {
+                    if *id == from {
+                        *id = to;
+                    }
+                }
+                joints.push((j.vertex, a));
+            }
+        }
+        for (i, l) in ring.iter().enumerate() {
+            run_of.push((l.edge, ids[i]));
+        }
+    }
+    let run =
+        |e: EdgeKey| -> Option<usize> { run_of.iter().find(|(ee, _)| *ee == e).map(|(_, r)| *r) };
+    let members = |e: EdgeKey| -> Vec<EdgeKey> {
+        match run(e) {
+            Some(r) => run_of
+                .iter()
+                .filter(|(_, rr)| *rr == r)
+                .map(|(ee, _)| *ee)
+                .collect(),
+            None => vec![e],
+        }
+    };
+    let touches = |a: EdgeKey, b: EdgeKey| -> bool {
+        let (ma, mb) = (members(a), members(b));
+        ma.iter()
+            .any(|x| mb.iter().any(|y| shares_vertex(body, *x, *y)))
+    };
     for face in faces {
         let Some(fa) = body.get_face(face) else {
             continue;
@@ -2012,11 +2072,15 @@ fn consumption_sweep<T: Decide + Bounds>(
             for j in (i + 1)..boundary.len() {
                 let (ei, pi) = (&boundary[i].0, &boundary[i].1);
                 let (ej, pj) = (&boundary[j].0, &boundary[j].1);
-                // Adjacent boundary edges TOUCH (gap 0 at the shared
+                // Adjacent boundary features TOUCH (gap 0 at the shared
                 // vertex) — their setbacks are judged by the corner
                 // and G1 predicates, not by this one, so the pair is
-                // skipped exactly when the edges share a vertex.
-                if shares_vertex(body, *ei, *ej) {
+                // skipped exactly when the features share a vertex. Two
+                // links of one joined run are one feature, and skipped.
+                if run(*ei).is_some() && run(*ei) == run(*ej) {
+                    continue;
+                }
+                if touches(*ei, *ej) {
                     continue;
                 }
                 // The closest approach of the two sampled boundaries.
@@ -2049,6 +2113,45 @@ fn consumption_sweep<T: Decide + Bounds>(
                     cross_chain,
                     band,
                 )?;
+            }
+        }
+        // Each joint on this face: its foot against the trimline of
+        // every boundary edge that meets its run at an end.
+        for (v, link) in &joints {
+            let trim = if link.face_a == face {
+                &link.blend.trim_a.0
+            } else if link.face_b == face {
+                &link.blend.trim_b.0
+            } else {
+                continue;
+            };
+            let (Curve3::Line { origin, dir }, Some(p)) = (
+                trim,
+                body.get_vertex(*v).and_then(|x| body.get_point(x.point)),
+            ) else {
+                continue;
+            };
+            let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
+            let run_edges = members(link.edge);
+            for (e, pts) in &boundary {
+                if run_edges.contains(e) || !run_edges.iter().any(|m| shares_vertex(body, *m, *e)) {
+                    continue;
+                }
+                // The distance from the foot to that edge: exact to a
+                // straight edge's line, else to its nearest sample.
+                let gap = match carrier_of(body, *e) {
+                    Some((Curve3::Line { origin: o, dir: d }, _, _)) => {
+                        (foot - o).cross(d).norm() / d.norm()
+                    }
+                    _ => {
+                        let mut ds = pts.iter().map(|q| (*q - foot).norm());
+                        let Some(first) = ds.next() else {
+                            continue;
+                        };
+                        ds.fold(first, T::min)
+                    }
+                };
+                face_clearance(face, gap, T::zero(), look(*e, face), false, band)?;
             }
         }
     }

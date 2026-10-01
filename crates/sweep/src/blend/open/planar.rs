@@ -767,7 +767,7 @@ mod tests {
             let admitted: Vec<AdmittedOpen<'_, f64>> = chains
                 .iter()
                 .map(|c| {
-                    OpenBand::admit(c)
+                    OpenBand::admit(&body, c)
                         .expect("a cube's links are plane–plane")
                         .first()
                 })

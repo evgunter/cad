@@ -19,8 +19,8 @@ face across the joint (`blank_phase`'s joint fusion in
 both links to be plane–plane: a RULED link pair on one support pair (a
 cylinder–plane or cylinder–cylinder crease split by a valence-2 vertex,
 which `merge_coplanar_faces` leaves wherever a boolean's operands met
-along the crease) still refuses `UnsupportedChain` "an open chain with
-more than one link needs junction carry-through".
+along the crease) still refuses `UnsupportedChain` "an open chain's links meet on
+supports other than two planes; that junction is not implemented".
 
 The planar fusion does not transfer as is: it fuses the two links'
 strips across the joint's STRUTS, and the ruled band mints none — on a

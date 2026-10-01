@@ -745,10 +745,10 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc
 /// A merged flat top that is an ANNULUS carves through this clause:
 /// `ring_clearance_forms::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
 /// `blend_recourse_followability` follows the clause to a carve.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains of links sharing both supports between fully requested trivalent \
-     plane\u{2013}plane corners of one convexity, or single links at TRANSVERSE CAPS on \
-     cylinder rulings. For a fillet, a whole latitude rim of coaxial surfaces of revolution, \
-     its rings clear of the band's setback; junction carry-through and run-outs are not \
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend chains whose links share both faces between fully requested trivalent \
+     plane\u{2013}plane corners of one convexity, or single cylinder-ruling links at TRANSVERSE \
+     CAPS. For a fillet, a whole latitude rim of coaxial surfaces of revolution carves, its \
+     rings clear of the band's setback; junction carry-through and run-outs are not \
      implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less

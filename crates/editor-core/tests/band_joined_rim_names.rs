@@ -3,8 +3,8 @@
 //! A declared union of two x-offset blocks merges its flush walls and
 //! caps, and the merge keeps the vertices where the operands' rims
 //! met: each long edge of the result is a chain of collinear links on
-//! the same two faces. Filleting every edge carves each such chain as
-//! ONE band face, and the emitter names it [`RoleSeg::BandFace`] of
+//! the same two faces. Filleting or chamfering every edge carves each
+//! such chain as ONE band face, and the emitter names it [`RoleSeg::BandFace`] of
 //! the chain's source edge names — a set, the same covariant identity
 //! a closed rim's band takes.
 
@@ -73,7 +73,25 @@ fn a_joined_band_is_named_by_its_chains_edge_set() {
         "the long edges are split: {}",
         edges.len()
     );
-    let (doc, f) = insert(doc, Node::fillet(u, len(0.125), edges.clone()));
+    for chamfer in [false, true] {
+        let node = if chamfer {
+            Node::chamfer(u, len(0.125), edges.clone())
+        } else {
+            Node::fillet(u, len(0.125), edges.clone())
+        };
+        assert_named(&doc, node, &edges, chamfer);
+    }
+}
+
+/// The blend node's table: four joined bands of three links each, all
+/// union edges, and one plain band per unsplit edge.
+fn assert_named(
+    doc: &ProfileDoc,
+    node: Node<editor_core::ProfileProgram>,
+    edges: &[editor_core::StableName],
+    chamfer: bool,
+) {
+    let (doc, f) = insert(doc.clone(), node);
     let ev = run(&doc);
     let t = table(&ev, f);
     let bands: Vec<Vec<_>> = t
@@ -85,11 +103,19 @@ fn a_joined_band_is_named_by_its_chains_edge_set() {
             _ => None,
         })
         .collect();
-    assert_eq!(bands.len(), 4, "one joined band per long edge: {bands:?}");
+    assert_eq!(
+        bands.len(),
+        4,
+        "chamfer {chamfer}: one joined band per long edge: {bands:?}"
+    );
     for set in &bands {
         // Split at x = 0.5 and x = 1, where the operands' rims ended:
         // three links, two joints.
-        assert_eq!(set.len(), 3, "a joined band spans its links: {set:?}");
+        assert_eq!(
+            set.len(),
+            3,
+            "chamfer {chamfer}: a joined band spans its links: {set:?}"
+        );
         let mut sorted = set.clone();
         sorted.sort();
         assert_eq!(&sorted, set, "the set is canonical");
