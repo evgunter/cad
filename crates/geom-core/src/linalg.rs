@@ -68,6 +68,18 @@
 //! reassociating floating-point sums changes results). The order is stated
 //! in each operation's doc comment and is part of its contract.
 //!
+//! **What a fixed order buys is bit-identity for non-NaN outputs only.**
+//! Where an output is NaN, its sign and payload are not stable under code
+//! motion: the compiler may commute an addition (`a + b` → `b + a`, exact
+//! for every non-NaN pair), and when both summands are NaN, which one's
+//! sign and payload survive follows the operand order it chose — so two
+//! inlined call sites of one [`Mat3`] product can disagree in a NaN's
+//! sign bit between optimisation levels. Every bit-level claim in this
+//! layer that cites D9 is a claim about non-NaN values; the kernel's
+//! geometry meets it because its gates refuse non-finite coordinates.
+//! `affine.rs`'s `two_spellings_of_a_product_agree_bitwise_off_nan` pins
+//! it over finite operands, both zeros, subnormals and overflow.
+//!
 //! The [`svd`] submodule (M5 PR 7) is the second C12.8 addition: the
 //! fixed-shape 2×3/3×4 decomposition of the SSI marcher's underdetermined
 //! derivative systems (Householder QR + one-sided Jacobi, fixed

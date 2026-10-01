@@ -229,6 +229,104 @@ mod tests {
             .prop_map(|(axis, theta, t)| Affine3::from_parts(Mat3::rotation_about(axis, theta), t))
     }
 
+    /// The determinism the module docs claim for a fixed evaluation
+    /// order, and only that: two spellings of one product — the
+    /// operators, and the documented order written out over scalars —
+    /// agree bit for bit wherever the output is not NaN, and agree on
+    /// being NaN where it is (a NaN's sign and payload are not claimed).
+    /// The operands are an enumeration over finite values that include
+    /// both zeros, subnormals and magnitudes whose products overflow.
+    #[test]
+    fn two_spellings_of_a_product_agree_bitwise_off_nan() {
+        const TABLE: [f64; 10] = [
+            0.0,
+            -0.0,
+            5e-324,
+            -f64::MIN_POSITIVE,
+            1e-160,
+            -1.5,
+            3.0,
+            1e154,
+            -1e300,
+            f64::MAX,
+        ];
+        let n = TABLE.len();
+        let map = |offset: usize, stride: usize| {
+            let e = |j: usize| TABLE[(offset + stride * j) % n];
+            Affine3::from_parts(
+                Mat3::from_cols(
+                    Vec3::new(e(0), e(1), e(2)),
+                    Vec3::new(e(3), e(4), e(5)),
+                    Vec3::new(e(6), e(7), e(8)),
+                ),
+                Vec3::new(e(9), e(10), e(11)),
+            )
+        };
+        // Row i of `m` applied to `v`, in `Mat3`'s documented order.
+        let row = |m: Mat3<f64>, i: usize, v: Vec3<f64>| {
+            let pick = |c: Vec3<f64>| [c.x, c.y, c.z][i];
+            (pick(m.c0) * v.x + pick(m.c1) * v.y) + pick(m.c2) * v.z
+        };
+        let apply =
+            |m: Mat3<f64>, v: Vec3<f64>| Vec3::new(row(m, 0, v), row(m, 1, v), row(m, 2, v));
+        let (mut compared, mut minus_zeros) = (0usize, 0usize);
+        let mut agree = |what: &str, k: usize, got: f64, want: f64| {
+            if got.is_nan() || want.is_nan() {
+                assert!(
+                    got.is_nan() && want.is_nan(),
+                    "{what} #{k}: {got:e} vs {want:e}"
+                );
+            } else {
+                assert_eq!(
+                    got.to_bits(),
+                    want.to_bits(),
+                    "{what} #{k}: {got:e} vs {want:e}"
+                );
+                compared += 1;
+                minus_zeros += usize::from(got == 0.0 && got.is_sign_negative());
+            }
+        };
+        let all = |x: f64| {
+            Affine3::from_parts(
+                Mat3::from_cols(Vec3::new(x, x, x), Vec3::new(x, x, x), Vec3::new(x, x, x)),
+                Vec3::new(x, x, x),
+            )
+        };
+        let operands: Vec<_> = (0..n)
+            .map(|o| map(o, 1))
+            .chain((0..n).map(|o| map(o, 3)))
+            .chain([all(-0.0), all(0.0)])
+            .collect();
+        let pairs = operands
+            .iter()
+            .flat_map(|&a| operands.iter().map(move |&b| (a, b)));
+        for (k, (a, b)) in pairs.enumerate() {
+            let ab = a * b;
+            let lin = [b.linear.c0, b.linear.c1, b.linear.c2].map(|c| apply(a.linear, c));
+            let t = apply(a.linear, b.translation) + a.translation;
+            for (got, want) in [
+                (ab.linear.c0, lin[0]),
+                (ab.linear.c1, lin[1]),
+                (ab.linear.c2, lin[2]),
+                (ab.translation, t),
+            ] {
+                agree("product", k, got.x, want.x);
+                agree("product", k, got.y, want.y);
+                agree("product", k, got.z, want.z);
+            }
+            let p = Point3::new(TABLE[k % n], TABLE[(k / n + 4) % n], TABLE[(k + 7) % n]);
+            let q = a.transform_point(p);
+            let r = apply(a.linear, Vec3::new(p.x, p.y, p.z)) + a.translation;
+            agree("point", k, q.x, r.x);
+            agree("point", k, q.y, r.y);
+            agree("point", k, q.z, r.z);
+        }
+        assert!(
+            compared > 1000 && minus_zeros > 0,
+            "the table reached {compared} non-NaN entries, {minus_zeros} of them −0"
+        );
+    }
+
     #[test]
     fn identity_fixes_points_and_vectors() {
         // Identity linear part applies bit-exactly on −0.0-free inputs

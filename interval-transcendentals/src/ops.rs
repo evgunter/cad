@@ -14,15 +14,17 @@
 use crate::interval::{DInterval, Decoration};
 
 impl DInterval {
-    /// `|x|`: exact (endpoint selection only).
+    /// `|x|`: exact (endpoint selection only). Each endpoint is
+    /// `f64::abs` of one of the operand's, so a zero endpoint is `+0`,
+    /// as `f64::abs` gives it.
     pub fn abs(self) -> Self {
         if let Some(p) = Self::propagate1(&self) {
             return p;
         }
         let (lo, hi) = if self.lo >= 0.0 {
-            (self.lo, self.hi)
+            (self.lo.abs(), self.hi.abs())
         } else if self.hi <= 0.0 {
-            (-self.hi, -self.lo)
+            (self.hi.abs(), self.lo.abs())
         } else {
             (0.0, f64::max(-self.lo, self.hi))
         };
@@ -35,8 +37,8 @@ impl DInterval {
             return p;
         }
         Self::make(
-            self.lo.min(rhs.lo),
-            self.hi.min(rhs.hi),
+            lower_of(self.lo, rhs.lo, f64::min),
+            upper_of(self.hi, rhs.hi, f64::min),
             self.dec.min(rhs.dec),
         )
     }
@@ -47,8 +49,8 @@ impl DInterval {
             return p;
         }
         Self::make(
-            self.lo.max(rhs.lo),
-            self.hi.max(rhs.hi),
+            lower_of(self.lo, rhs.lo, f64::max),
+            upper_of(self.hi, rhs.hi, f64::max),
             self.dec.min(rhs.dec),
         )
     }
@@ -91,8 +93,8 @@ impl DInterval {
             return self;
         }
         Self::make(
-            self.lo.min(rhs.lo),
-            self.hi.max(rhs.hi),
+            lower_of(self.lo, rhs.lo, f64::min),
+            upper_of(self.hi, rhs.hi, f64::max),
             self.dec.min(rhs.dec),
         )
     }
@@ -107,12 +109,34 @@ impl DInterval {
         if self.is_empty() || rhs.is_empty() {
             return Self::empty();
         }
-        let lo = self.lo.max(rhs.lo);
-        let hi = self.hi.min(rhs.hi);
+        let lo = lower_of(self.lo, rhs.lo, f64::max);
+        let hi = upper_of(self.hi, rhs.hi, f64::min);
         if lo > hi {
             return Self::empty();
         }
         Self::make(lo, hi, Decoration::Trv)
+    }
+}
+
+/// A lower endpoint chosen between `x` and `y` by `pick` (`f64::min` or
+/// `f64::max`), except that two zeros give `-0` in either order. `pick`
+/// leaves the sign of that choice unspecified, so its own answer is a
+/// fact about the codegen rather than the source (crate docs, "Signed
+/// zeros").
+pub(crate) fn lower_of(x: f64, y: f64, pick: fn(f64, f64) -> f64) -> f64 {
+    if x == 0.0 && y == 0.0 {
+        if x.is_sign_negative() { x } else { y }
+    } else {
+        pick(x, y)
+    }
+}
+
+/// [`lower_of`] for an upper endpoint: two zeros give `+0`.
+pub(crate) fn upper_of(x: f64, y: f64, pick: fn(f64, f64) -> f64) -> f64 {
+    if x == 0.0 && y == 0.0 {
+        if x.is_sign_positive() { x } else { y }
+    } else {
+        pick(x, y)
     }
 }
 
@@ -218,5 +242,75 @@ mod tests {
         // Touching at a point is a singleton, not empty.
         let t = a.intersection(di(4.0, 7.0));
         assert_eq!((t.lo(), t.hi()), (4.0, 4.0));
+    }
+
+    /// The zero-sign rule (crate docs, "Signed zeros"): a choice between
+    /// zeros of opposite sign gives `-0` below and `+0` above. Every
+    /// choice is made in both candidate orders, so a door that lets
+    /// `f64::min`/`max` decide reds on one of them whichever operand the
+    /// codegen favours.
+    #[test]
+    fn a_choice_between_zeros_is_minus_below_and_plus_above_in_either_order() {
+        let (minus, plus) = ((-0.0f64).to_bits(), 0.0f64.to_bits());
+        let (lo_m, lo_p) = (di(-0.0, 1.0), di(0.0, 1.0));
+        let (hi_m, hi_p) = (di(-1.0, -0.0), di(-1.0, 0.0));
+        for (a, b) in [(lo_m, lo_p), (lo_p, lo_m)] {
+            for (op, r) in [
+                ("hull", a.hull(b)),
+                ("intersection", a.intersection(b)),
+                ("min_i", a.min_i(b)),
+                ("max_i", a.max_i(b)),
+            ] {
+                assert_eq!(r.lo().to_bits(), minus, "{op}({a:?}, {b:?}) lower endpoint");
+            }
+        }
+        for (a, b) in [(hi_m, hi_p), (hi_p, hi_m)] {
+            for (op, r) in [
+                ("hull", a.hull(b)),
+                ("intersection", a.intersection(b)),
+                ("min_i", a.min_i(b)),
+                ("max_i", a.max_i(b)),
+            ] {
+                assert_eq!(r.hi().to_bits(), plus, "{op}({a:?}, {b:?}) upper endpoint");
+            }
+        }
+
+        // `×` and `÷` fold four corner bounds. A zero factor or numerator
+        // gives an upper corner of `+0`; a product or quotient of
+        // `-2^-1074`, inexact by the witness's floor, pads up to `-0`.
+        // The two operand orders put the `+0` corners first and last.
+        let tiny = di(0.0, 2f64.powi(-600));
+        let neg = di(-(2f64.powi(-474)), -(2f64.powi(-474)));
+        for (case, r) in [
+            ("[0, 2^-600] × [-2^-474]", tiny * neg),
+            ("[-2^-474] × [0, 2^-600]", neg * tiny),
+            (
+                "[0, 2^-600] ÷ [-2^474]",
+                tiny / di(-(2f64.powi(474)), -(2f64.powi(474))),
+            ),
+            (
+                "[-2^-600, 0] ÷ [2^474]",
+                di(-(2f64.powi(-600)), 0.0) / di(2f64.powi(474), 2f64.powi(474)),
+            ),
+        ] {
+            assert_eq!(
+                r.hi().to_bits(),
+                plus,
+                "{case}: upper endpoint {:e}",
+                r.hi()
+            );
+        }
+    }
+
+    /// `abs` gives each endpoint as `f64::abs` of an operand endpoint, so
+    /// a zero comes out `+0` from either sign and from either arm.
+    #[test]
+    fn abs_of_a_zero_endpoint_is_plus_zero() {
+        let plus = 0.0f64.to_bits();
+        for x in [di(-0.0, -0.0), di(-0.0, 2.0), di(-3.0, 0.0), di(-3.0, -0.0)] {
+            assert_eq!(x.abs().lo().to_bits(), plus, "abs({x:?}) lower endpoint");
+        }
+        let both = di(-0.0, -0.0).abs();
+        assert_eq!(both.hi().to_bits(), plus, "abs([-0, -0]) upper endpoint");
     }
 }
