@@ -265,6 +265,18 @@ pub enum EllipseInvalid {
     Escalated(Indeterminate),
 }
 
+impl EllipseInvalid {
+    /// What an [`Self::Escalated`] constructor predicate was deciding,
+    /// in words: whether the semi-axes differ (an ellipse, not a
+    /// circle), or whether the minor semi-axis is positive.
+    fn escalated_subject(diag: &Indeterminate) -> &'static str {
+        match diag.predicate {
+            Some("ellipse_minor_positive") => "whether the minor semi-axis is positive",
+            _ => "whether the semi-axes differ, an ellipse rather than a circle",
+        }
+    }
+}
+
 impl core::fmt::Display for EllipseInvalid {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -286,9 +298,9 @@ impl core::fmt::Display for EllipseInvalid {
             ),
             Self::Escalated(diag) => write!(
                 f,
-                "ellipse construction escalated: {} — the configuration sits too close to \
-                 the circular coincidence to name a kind; construct the Circle carrier, \
+                "ellipse construction: {} is undecided: {} — construct the Circle carrier, \
                  or {} (D4)",
+                Self::escalated_subject(diag),
                 diag.payload(),
                 geom_core::COINCIDENCE_RECOURSE
             ),

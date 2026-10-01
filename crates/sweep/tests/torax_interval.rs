@@ -312,17 +312,20 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 }
 
 /// **The klein elbow at `T = Interval`**: the carried-datum arm, the
-/// kind-changing spiric mint (its six `decide` sites) and both
-/// endpoint meters execute at the certified scalar on the way to the
-/// same door f64 measures — the equator seams' re-author, which
-/// refuses a `RevolvedPoint` corner displaced off its sketch plane
-/// (`torax_axial`). The old door, verbatim: `TogetherAxialEdge { what:
-/// "a circular edge between two charts whose centre is off the axis"
-/// }`, the latitude mint's `offset_axial_centre`. An escalation at a
-/// strict band is the certified scalar's honest answer and is pinned
-/// as such.
+/// kind-changing spiric mint (its six `decide` sites), both endpoint
+/// meters and the equator seams' re-author — each end's out-of-plane
+/// decide and the turned start's verification, on corners the moved
+/// caps turned about the axis — execute at the certified scalar on the
+/// way to the door f64 measures: the attach layer refusing a spiric
+/// rim whose window runs backwards
+/// (`work/curved/spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut.md`).
+/// The old door, verbatim: `TogetherAxialEdge { what: "a revolved
+/// point's moved corner stands out of the family's own sketch plane,
+/// so the same rotation does not pass through it" }`, the re-author's
+/// `offset_axial_reauthor_plane`. An escalation at a strict band is
+/// the certified scalar's honest answer and is pinned as such.
 #[test]
-fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
+fn interval_the_klein_elbow_seams_re_author_and_its_rim_window_runs_backwards() {
     let tol = Tol::witness();
     let r = 0.275_f64;
     let profile = Profile::new(
@@ -345,14 +348,17 @@ fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     )
     .expect("the elbow revolves")
     .body;
-    let e = topo::shell(&body, iv(0.05), tol)
-        .expect_err("the elbow's equator seams cannot be re-authored off their plane");
+    let e = topo::shell(&body, iv(0.05), tol).expect_err("a rim's window runs backwards");
     match e {
         ShellError::Face { ref error, .. }
             if matches!(
                 **error,
-                topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
-                    if what == "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+                topo::ReplaceFaceError::Op {
+                    edge: Some(_),
+                    error: topo::EulerOpError::Certification {
+                        error: geom_brep::CertifyError::IntervalNotForward { .. }
+                    }
+                }
             ) => {}
         ShellError::Face { ref error, .. }
             if tol.eps() < DEFAULT_EPS
@@ -360,10 +366,10 @@ fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
         {
             stood_down(
                 &format!("the klein elbow's interval rim, eps = {:e}", tol.eps()),
-                "the certified scalar escalated before the seam re-author's refusal was \
+                "the certified scalar escalated before the rim window's refusal was \
                  reachable, so THIS RUN ASSERTS ONLY the door's own typed escalation",
             );
         }
-        other => panic!("expected the seam re-author's out-of-plane refusal, got {other:?}"),
+        other => panic!("expected the rim window's refusal, got {other:?}"),
     }
 }

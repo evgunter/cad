@@ -3,7 +3,8 @@
 //! wall is a meridian arc about a centre OFF the axis), the klein elbow
 //! (a disc swept a quarter turn about an axis off its centre), and the
 //! tour's sectioned vessel with the cavity the axial door carves in it
-//! (a partial revolve whose rims mint as spirics).
+//! (a partial revolve whose rims mint as spirics); and the one reader
+//! of the door the elbow's hollow stops at ([`rim_window_reversed`]).
 //!
 //! A row that hollows one of these and a row that asks `point_in_solid`
 //! of it are about each other only while they build THE SAME BODY
@@ -30,7 +31,7 @@ use profile::path::{Open, Start};
 use profile::{ArcSweep, Center, Profile, ProfileLoop, SketchPlane};
 use sweep::test_support::revolved_about_y;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::Body;
+use topo::{Body, EdgeKey, FaceKey, ShellError};
 
 use super::bulge;
 use super::charts::hollow_moves;
@@ -171,4 +172,28 @@ pub fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
     )
     .expect("the vessel's corners solve and its rims mint");
     (quarter, cavity)
+}
+
+/// **The door the klein elbow's hollow stops at**: the attach layer
+/// refusing a spiric rim whose stored window runs BACKWARDS — the face
+/// and edge it names and the span's margin, or `None` for any other
+/// refusal. The rim's inner-equator end is read on `atan2`'s branch
+/// cut, so the sign of a zero picks `±π` and the span reads `−π·r′`
+/// (`work/curved/spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut.md`).
+pub fn rim_window_reversed(e: &ShellError<f64>) -> Option<(FaceKey, EdgeKey, f64)> {
+    let ShellError::Face { face, error } = e else {
+        return None;
+    };
+    let topo::ReplaceFaceError::Op {
+        edge: Some(edge),
+        error:
+            topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::IntervalNotForward { verdict },
+            },
+    } = &**error
+    else {
+        return None;
+    };
+    let span = verdict.margin().diagnostic_f64_for_error_text().value()?;
+    Some((*face, *edge, span))
 }

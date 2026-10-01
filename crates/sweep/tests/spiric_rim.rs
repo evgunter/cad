@@ -6,10 +6,11 @@
 //! census refusals through public doors, and the re-pose parity of the
 //! minted rim — on the SECTIONED VESSEL (the tour's `torusvessel` wall
 //! 1), the partial revolve whose rims mint through a public door and
-//! reach tier 3. The klein ELBOW's rims mint too, but its hollow stops
-//! one door earlier, at its equator seams' re-author
-//! (`the_elbow_stops_at_its_seam_reauthor` below), so its cavity is not
-//! readable through any public door at this head. The elbow rows that
+//! reach tier 3. The klein ELBOW's rims mint too and its equator seams
+//! re-author, but its hollow stops one door earlier, at the attach
+//! layer on a rim's backwards window (`the_elbow_stops_at_its_rim_window`
+//! below), so its cavity is not readable through any public door at
+//! this head. The elbow rows that
 //! MOVE doors stay in their own suites (`torax_axial`, `verbs_shell`,
 //! `torax_interval`, `shell7_seam_corner`).
 
@@ -25,7 +26,7 @@ use topo::{Body, ShellError, transform_rigid};
 
 use crate::common::charts::hollow_moves;
 use crate::common::poses::torax_pose;
-use crate::common::torus_walls::{klein_elbow, vessel_cavity, vessel_quarter};
+use crate::common::torus_walls::{klein_elbow, rim_window_reversed, vessel_cavity, vessel_quarter};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -339,38 +340,29 @@ fn the_census_refusals_through_public_doors() {
     );
 }
 
-/// **The closing measurement — where the elbow stands after the
-/// carrier.** §4 of the spec predicted tier 3's check 7. Measured: the
-/// elbow's rims MINT (both endpoint meters and the midpoint meter pass
-/// — the mutants that flip the oval or the reach guard's sign refuse
-/// on the rim edge, `torax_axial`), and the hollow then refuses one
-/// door EARLIER than predicted, on the EQUATOR SEAMS: a disc revolved
-/// a quarter turn carries its two profile vertices as
-/// `RevolvedPoint`-declared chart seams between the two torus faces,
-/// and `restate` re-authors a declaration in its own sketch plane —
-/// whose start corner the moved cap has displaced OFF that plane by
-/// `t`, so `offset_axial_reauthor_plane` refuses typed. The spec's §0
-/// authority measurement covered the rims (`Intersection`/`Derived`,
-/// no re-author) and not the seams (`Chart`/`Declared`). This is the
-/// pre-registered STOP-1 shape (a re-author refusal off §4's chain);
-/// the row pins the measured door, and what to do about a declared
-/// seam whose corner leaves its sketch plane is the orchestrator's
-/// question, not this unit's. The sectioned vessel next door has no
-/// such seam and reaches check 7.
+/// **Where the elbow stands after its seams re-author.** The rims
+/// MINT (both endpoint meters and the midpoint meter pass — the
+/// mutants that flip the oval or the reach guard's sign refuse on the
+/// rim edge, `torax_axial`), the equator seams' declarations follow
+/// the corners the moved caps turned about the axis, and every
+/// decision of the axial door passes. The attach layer then refuses a
+/// rim whose stored window runs backwards by `π·r′`: its inner-equator
+/// end is read on `atan2`'s branch cut
+/// (`work/curved/spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut.md`).
+/// The old door was the seams' re-author (`TogetherAxialEdge` on
+/// `EdgeKey(3v1)`, `offset_axial_reauthor_plane`). The sectioned vessel
+/// next door reaches check 7.
 #[test]
-fn the_elbow_stops_at_its_seam_reauthor() {
+fn the_elbow_stops_at_its_rim_window() {
     let elbow = klein_elbow_of_disc(0.275);
-    let e = topo::shell(&elbow, 0.05, tol()).expect_err("the equator seams' re-author");
+    let e = topo::shell(&elbow, 0.05, tol()).expect_err("a rim's window runs backwards");
     println!("[spiric] the elbow's door: {e:?}");
-    let ShellError::Face { error, .. } = e else {
-        panic!("the offset door's refusal, got {e:?}");
-    };
-    let topo::ReplaceFaceError::TogetherAxialEdge { what, .. } = *error else {
-        panic!("the re-author's out-of-plane refusal, got {error:?}");
-    };
-    assert_eq!(
-        what,
-        "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+    let (_, edge, span) =
+        rim_window_reversed(&e).unwrap_or_else(|| panic!("the rim window's refusal, got {e:?}"));
+    let half_turn = -core::f64::consts::PI * (0.275 - 0.05);
+    assert!(
+        (span - half_turn).abs() < 1e-12,
+        "{edge:?}: {span} vs {half_turn}"
     );
 }
 

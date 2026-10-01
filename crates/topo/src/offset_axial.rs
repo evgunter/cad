@@ -132,11 +132,7 @@
 //! from the axis, past the shrunk circle's `r − t = 0.25`) — both
 //! `torax_axial`; `TogetherNotAxial`'s oblique-plane arm;
 //! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`,
-//! and `shell7_seam_corner`'s three-quarter-turn cone frustum); the
-//! re-author's out-of-plane refusal (a disc revolved a quarter turn:
-//! its equator seams are revolved-point declarations whose start
-//! corner the moved cap displaces off the sketch plane — the klein
-//! elbow, `torax_axial`, `verbs_shell`, `shell7_seam_corner`).
+//! and `shell7_seam_corner`'s three-quarter-turn cone frustum).
 //!
 //! **A hand-made operand, or the door called directly:** the
 //! no-profile-constraint refusal (a wedge's axis edge split by
@@ -147,6 +143,12 @@
 //! directly, `torax_axial` — `shell`'s closing tier 3 needs a volume
 //! the sphere flux arm cannot yet give the cavity's lens face, whose
 //! rims are the moved caps' off-centre sections).
+//!
+//! **The re-author's turned ends have door-built rows**: a revolved
+//! point whose ends the moved meridian caps turn about the axis — the
+//! klein elbow's equator seams (`torax_axial`, `verbs_shell`,
+//! `shell7_seam_corner`, `torax_interval`) and the two-arc lune's,
+//! which certifies at the attach layer (`torax_axial`).
 //!
 //! **The carried arms themselves have door-built rows**: a full tube's
 //! seam vertex (torus circle), a drum's collinear wall vertex
@@ -162,8 +164,11 @@
 //! station arm and its off-axis-circle arm (a torus meridian cannot
 //! contain a pole, `R − r > 0` keeps it clear), the seam arms'
 //! refusing sides, the off-axis rim mint's four refusing predicates,
-//! and the over-determined-azimuth arm — no constructible body here has more than one plane
-//! through the axis at a corner that is not also all-planar.
+//! the over-determined-azimuth arm — no constructible body here has more than one plane
+//! through the axis at a corner that is not also all-planar — and the
+//! re-author's turned-start refusal (every door-built revolved point's
+//! sketch plane contains its axis; a mutation that keeps the old
+//! azimuth reaches it on the klein elbow).
 //!
 //! # What this door does not do
 //!
@@ -2485,15 +2490,20 @@ fn restate<T: Decide>(
 /// so the centre is the datum that does not move and the sweep is what
 /// the endpoints say it is. A POINT's
 /// trajectory — extruded along a vector, or revolved about an axis —
-/// is the same trajectory of the moved point: the vector, the axis and
-/// the angle are the operand's own conventional data and are carried,
-/// and a revolved point's axis is this door's axis, so its rotation of
-/// the moved corner IS the moved latitude circle — and that premise,
-/// the moved corner standing IN the family's own sketch plane, is
-/// decided rather than assumed: the pulled-back point's out-of-plane
-/// coordinate is a length and is metered as one, and a corner the
-/// azimuth solve moved out of the plane refuses typed. Refuses also
-/// an arc whose moved carrier is no circle to subtend at.
+/// is the same trajectory of the moved point: the vector and the axis
+/// are the operand's own conventional data and are carried. A revolved
+/// point's axis is this door's axis, so its rotation of the moved
+/// corner IS the moved latitude circle; what an offset can move is
+/// where on that circle each end stands. A moved meridian cap stops
+/// containing the axis and turns the corner on it out of its old
+/// sketch plane, so each end's out-of-plane coordinate — a length — is
+/// decided: an end still in its plane keeps its azimuth, and an end
+/// turned out of it has the sketch plane follow it about the axis (the
+/// start) or the span absorb the turn (the end), the way a restriction
+/// of the same declaration advances its placement. A start turned onto
+/// its own azimuth and still out of the plane — a sketch plane that
+/// does not contain the axis — refuses typed. Refuses also an arc
+/// whose moved carrier is no circle to subtend at.
 fn reauthor<T: Decide>(
     mapped: geom_brep::MappedCurve<T>,
     carrier: &Curve3<T>,
@@ -2554,26 +2564,73 @@ fn reauthor<T: Decide>(
             angle,
             ..
         } => {
-            let q = place.inverse().transform_point(p_start);
-            match decide("offset_axial_reauthor_plane", Margin::of(q.z), band) {
-                Ok(Sign::Zero) => {}
-                Ok(_) => {
-                    return Err(refuse(
-                        "a revolved point's moved corner stands out of the family's own sketch \
-                         plane, so the same rotation does not pass through it",
-                    ));
+            let turn = |name, plane: geom_core::Affine3<T>, s: T, moved: Point3<T>| {
+                let old = mapped.eval(s);
+                azimuth_turn(name, plane, (axis_origin, axis_dir), old, moved, band)
+            };
+            let start_turn = turn("offset_axial_reauthor_plane", place, T::zero(), p_start)?;
+            let end_plane =
+                geom_core::Affine3::rotation_about_axis(axis_origin, axis_dir, angle) * place;
+            let end_turn = turn("offset_axial_reauthor_end", end_plane, T::one(), p_end)?;
+            let place = match start_turn {
+                Some(phi) => {
+                    geom_core::Affine3::rotation_about_axis(axis_origin, axis_dir, phi) * place
                 }
-                Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+                None => place,
+            };
+            let q = place.inverse().transform_point(p_start);
+            if start_turn.is_some() {
+                match decide("offset_axial_reauthor_azimuth", Margin::of(q.z), band) {
+                    Ok(Sign::Zero) => {}
+                    Ok(_) => {
+                        return Err(refuse(
+                            "a revolved point's moved corner stands out of its family's sketch \
+                             plane even turned to its own azimuth, so no rotation of the sketch \
+                             point passes through it",
+                        ));
+                    }
+                    Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+                }
             }
+            let zero = T::zero();
             geom_brep::MappedCurve::RevolvedPoint {
                 point: geom_core::Point2::new(q.x, q.y),
                 place,
                 axis_origin,
                 axis_dir,
-                angle,
+                angle: angle + end_turn.unwrap_or(zero) - start_turn.unwrap_or(zero),
             }
         }
     })
+}
+
+/// How far about the axis a revolved point's end moved: `None` when the
+/// moved corner still stands in that end's own sketch plane `plane`
+/// (its out-of-plane coordinate, a length, decided under `name`), and
+/// otherwise the signed turn about `axis` from the old corner's
+/// azimuth to the moved one's.
+fn azimuth_turn<T: Decide>(
+    name: &'static str,
+    plane: geom_core::Affine3<T>,
+    (origin, dir): (Point3<T>, Vec3<T>),
+    old: Point3<T>,
+    moved: Point3<T>,
+    band: Band,
+) -> Result<Option<T>, ReplaceFaceError<T>> {
+    let off = plane.inverse().transform_point(moved).z;
+    match decide(name, Margin::of(off), band) {
+        Ok(Sign::Zero) => Ok(None),
+        Ok(_) => {
+            let a = dir.normalize();
+            let radial = |p: Point3<T>| {
+                let v = p - origin;
+                v - a * v.dot(a)
+            };
+            let (from, to) = (radial(old), radial(moved));
+            Ok(Some(a.dot(from.cross(to)).atan2(from.dot(to))))
+        }
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
+    }
 }
 
 /// A point read as the vector from the origin — the form `n̂·x` needs.

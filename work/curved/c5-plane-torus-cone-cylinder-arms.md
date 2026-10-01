@@ -56,6 +56,12 @@ the seam re-author (an orchestrator question raised by PR-1a) and the
 props quadrature lane for a spiric-bounded face (the spiric unit's
 PR-2, after PR-1b's pcurve variant and STEP spline).
 
+**2026-09-30 (`curved/equator-seam`).** The equator seams re-author
+onto the corners the moved caps turned about the axis; the elbow now
+stops at the attach layer on a spiric rim whose window runs backwards
+by `π·r′` (`spiric-rim-window-reads-its-inner-equator-end-on-the-branch-cut`),
+then the props quadrature lane.
+
 ## A second consumer: lily wall 1 (GERM, 2026-09-28)
 
 With the circle × torus root lane landed, the lily's stem glue
