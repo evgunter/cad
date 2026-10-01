@@ -2,12 +2,12 @@
 id: the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window
 kind: issue
 title: viewer: below a 400-point window the toolbar's theme picker, and below the message floor its canceled line, are drawn past the panel
-status: open
+status: dispatched
 opened: 2026-09-29
 priority: P3
 cost: M
-design: true
 refs: [the-toolbars-status-line-runs-past-the-panel-below-a-floor-wide-window]
+branch: chrome/width-contract
 ---
 
 ## Question (answered by Ev, 2026-10-01)
