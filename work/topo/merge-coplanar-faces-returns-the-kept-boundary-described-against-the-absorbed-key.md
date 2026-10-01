@@ -2,8 +2,9 @@
 id: merge-coplanar-faces-returns-the-kept-boundary-described-against-the-absorbed-key
 kind: issue
 title: merge_coplanar_faces is public and returns a body whose kept face's boundary still names the absorbed face's key; only the boolean's describe_minted_edges repairs it
-status: dispatched
+status: review
 branch: topo/merge-door-re-describes
+pr: 3702
 opened: 2026-10-01
 priority: P2
 cost: M
@@ -48,3 +49,15 @@ boundaries itself, moving that half of `describe_minted_edges`'
 worklist into the door so it has one home. Under the other, the door
 becomes `pub(crate)` until the representation stops storing key copies.
 Either way, a public door must not return a strand at rest.
+
+## Delivered
+
+The witness reds on the merge base through both doors: a declared
+merge, and an undeclared one on two keys of one surface source, each
+leave `DescriptionNotAdjacent` on the absorbed wall's three edges. The
+door now re-describes every boundary edge of each kept face through
+the boolean's describer (`boolean::describe_edges`) before its tier-2
+gate, and refuses `KeptBoundaryStranded` rather than return an edge
+tier 3 would name. The boolean's worklist keeps the seam edges and the
+skipped groups' faces only. Rows: `merge_faces::kept_rows`, and
+`boolean::ops::tests::the_description_worklist_carries_no_kept_boundary`.
