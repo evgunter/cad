@@ -37,7 +37,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
@@ -213,9 +212,9 @@ fn the_bound_dominates_a_dense_scan_on_the_aligned_pair() {
     // ceiling is set against the enclosure the composition exists to
     // beat: replacing `cell_residual`'s coefficient subtraction with a
     // hull-then-difference of the two hulls — still sound, a pure
-    // tightness loss — takes this row from 1.491x the sampled truth to
-    // 20.843x. 3.0 is twice the healthy ratio and seven times under the
-    // degraded one. The whole-object box would admit 45.707x, which is
+    // tightness loss — takes this row from 1.043x the sampled truth to
+    // 20.842x. 1.5 is 44% over the healthy ratio and fourteen times
+    // under the degraded one. The whole-object box would admit 45.707x, which is
     // a necessary check on the ceiling and NOT what makes it a guard —
     // the degraded reading is what does, and it sits well under the
     // box (`test_utils::tightness`).
@@ -228,11 +227,11 @@ fn the_bound_dominates_a_dense_scan_on_the_aligned_pair() {
         )
         .dominates()
         .within(
-            3.0,
+            1.5,
             0.0,
             Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &c.2])),
             "the composite bound lost the cancellation — the degraded reading here \
-             is 20.843x",
+             is 20.842x",
         );
 }
 
@@ -250,10 +249,10 @@ fn the_bound_dominates_when_the_two_curves_disagree_on_knots() {
     let (sup, max) = falsify(&w, &p, &ca, &[], 100_000);
     assert!(sup.is_finite(), "bound must be finite here, got {sup}");
     // Exact insertion costs no tightness: the merged-break bound tracks
-    // the residual's own scale (1.520x) as closely as the aligned
-    // pair's does (1.491x). Under the hull-then-difference enclosure
-    // this row reads 6.730x, so 3.0 sits 2.2x under the degraded state
-    // and 2.0x over the healthy one. The whole-object box would admit
+    // the residual's own scale (1.012x) as closely as the aligned
+    // pair's does (1.043x). Under the hull-then-difference enclosure
+    // this row reads 6.730x, so 1.5 sits 4.5x under the degraded state
+    // and 48% over the healthy one. The whole-object box would admit
     // 16.000x — a ceiling anywhere under that passes the anchor while
     // saying nothing, which is why the degraded reading is the
     // evidence and the box is only a floor under the argument.
@@ -267,7 +266,7 @@ fn the_bound_dominates_when_the_two_curves_disagree_on_knots() {
         )
         .dominates()
         .within(
-            3.0,
+            1.5,
             0.0,
             Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &ca.2])),
             "the merged-break path lost the cancellation — the degraded reading \
@@ -309,11 +308,11 @@ fn the_bound_dominates_when_the_pcurve_straddles_surface_cells() {
          [{u_lo}, {u_hi}] does not cross the wall's interior knot at 0.5"
     );
     // Straddling costs tightness and this states how much: the window is
-    // hulled across BOTH cells, so the enclosure is a union of two
-    // cells' boxes — 3.264x the true residual against the aligned pair's
-    // 1.491x. Under the hull-then-difference enclosure it reads 5.108x,
-    // so 4.0 is the value that separates the two, with 22% over the
-    // healthy ratio and 28% under the degraded one. That narrowness is
+    // bounded on BOTH cells, the neighbour through its polynomial
+    // extension — 3.051x the true residual against the aligned pair's
+    // 1.043x. Under the hull-then-difference enclosure it reads 4.622x,
+    // so 3.7 is the value that separates the two, with 21% over the
+    // healthy ratio and 20% under the degraded one. That narrowness is
     // the finding: on this fixture the cross-cell union and a lost
     // cancellation are nearly the same size, and the file's actual
     // cancellation witness is
@@ -329,12 +328,11 @@ fn the_bound_dominates_when_the_pcurve_straddles_surface_cells() {
         )
         .dominates()
         .within(
-            4.0,
+            3.7,
             0.0,
             Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &c.2])),
-            "the cross-cell hull is no longer residual-scaled — the degraded \
-             reading here is 5.108x, and the whole-object box would admit 7.744x, \
-             which the OLD 6.0 ceiling passed while missing the degradation",
+            "the cross-cell bound is no longer residual-scaled — the degraded \
+             reading here is 4.622x, and the whole-object box would admit 7.744x",
         );
 }
 
@@ -516,15 +514,15 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
     //
     //
     // **The tightest ceiling in this file, and it is tight because the
-    // fixture leaves little room.** The healthy ratio is 1.443x the
+    // fixture leaves little room.** The healthy ratio is 1.000x the
     // sampled truth; a TOTAL loss of the cancellation — `cell_residual`
     // hulling each product and then subtracting — reads 1.809x. That is
-    // a quarter of a factor of separation, against the aligned row's
-    // fourteen-fold. The cause is the fixture: the paraboloid patch and
+    // under a factor of two of separation, against the aligned row's
+    // twenty-fold. The cause is the fixture: the paraboloid patch and
     // the carrier are nearly as far apart as the object is big (a
     // residual of 0.910 m inside a box of 1.600 m), so the enclosure
     // has almost nothing to be tight about and the whole-object box
-    // admits only 1.757x. 1.6 sits 11% over the healthy reading and 12%
+    // admits only 1.757x. 1.3 sits 30% over the healthy reading and 28%
     // under the degraded one — narrow, but the whole computation is
     // pure certification arithmetic and bit-identical across the battery, so the
     // margin is real rather than noise budget. If a legitimate change
@@ -542,7 +540,7 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
         )
         .dominates()
         .within(
-            1.6,
+            1.3,
             0.0,
             Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &c.2])),
             "the in-budget composition lost the cancellation — the degraded \
@@ -579,10 +577,7 @@ fn the_pipeline_is_deterministic_to_the_bit() {
     assert_eq!(a.breaks(), b.breaks());
     assert_eq!(a.span_bounds().len(), b.span_bounds().len());
     for (ra, rb) in a.span_bounds().iter().zip(b.span_bounds().iter()) {
-        for d in 0..3 {
-            assert_eq!(ra[d].lo().to_bits(), rb[d].lo().to_bits());
-            assert_eq!(ra[d].hi().to_bits(), rb[d].hi().to_bits());
-        }
+        assert_eq!(ra.to_bits(), rb.to_bits());
     }
     assert_eq!(a.sup_bound().to_bits(), b.sup_bound().to_bits());
 }
@@ -673,4 +668,137 @@ fn the_entry_points_refuse_typed() {
         Err(ComposeError::DomainMismatch { .. }) => {}
         other => panic!("domain mismatch: {other:?}"),
     }
+}
+
+// ---------------------------------------------------------------------
+// Row 7: the bound is a function of the geometry, not of the frame
+// ---------------------------------------------------------------------
+
+/// A 3×3 linear map applied to every control point of a channel-major
+/// net (`coords[d][i]`).
+fn rotate(m: &[[f64; 3]; 3], coords: &[Vec<f64>]) -> Vec<Vec<f64>> {
+    (0..3)
+        .map(|r| {
+            (0..coords[0].len())
+                .map(|i| m[r][0] * coords[0][i] + m[r][1] * coords[1][i] + m[r][2] * coords[2][i])
+                .collect()
+        })
+        .collect()
+}
+
+/// The rotation by `angle` about `axis` (Rodrigues).
+fn rodrigues(axis: [f64; 3], angle: f64) -> [[f64; 3]; 3] {
+    let n = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt();
+    let [x, y, z] = axis.map(|a| a / n);
+    let (s, c) = angle.sin_cos();
+    let t = 1.0 - c;
+    [
+        [t * x * x + c, t * x * y - s * z, t * x * z + s * y],
+        [t * x * y + s * z, t * y * y + c, t * y * z - s * x],
+        [t * x * z - s * y, t * y * z + s * x, t * z * z + c],
+    ]
+}
+
+#[test]
+fn a_rotation_moves_the_bound_only_by_rounding() {
+    // The rational quarter-cylinder of radius 1 against the rational
+    // arc of radius 1 + δ on the same parameter: the residual is δ
+    // along the outward radius at every t, so its sup norm is δ in every
+    // frame, while the per-coordinate sups of the same field fold to
+    // √2·δ seated and to other values in other frames. A bound read
+    // off a per-coordinate box moves with that fold; this one must not.
+    const W: f64 = core::f64::consts::FRAC_1_SQRT_2;
+    const DELTA: f64 = 1e-3;
+    let kq = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let kl = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let wall_net = vec![
+        vec![1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
+        vec![0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
+        vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+    ];
+    let r = 1.0 + DELTA;
+    let arc_net = vec![vec![r, r, 0.0], vec![0.0, r, r], vec![0.5; 3]];
+    let p = (kq(), vec![1.0; 3], vec![vec![0.0, 0.5, 1.0], vec![0.5; 3]]);
+    let bound_in = |m: &[[f64; 3]; 3]| {
+        let w = (
+            kq(),
+            kl.clone(),
+            vec![1.0, 1.0, W, W, 1.0, 1.0],
+            rotate(m, &wall_net),
+        );
+        let c = (kq(), vec![1.0, W, 1.0], rotate(m, &arc_net));
+        let (sup, max) = falsify(&w, &p, &c, &[], 4_000);
+        assert!(
+            sup >= max && (max - DELTA).abs() <= 1e-12,
+            "the field is δ = {DELTA:e} in every frame and the bound covers it: \
+             bound {sup:e}, sampled {max:e}"
+        );
+        // The per-coordinate sups of the sampled field, folded: a LOWER
+        // bound on any reading that folds per-coordinate enclosures of it.
+        let mut sups = [0.0f64; 3];
+        for i in 0..=4_000 {
+            let t = f64::from(i) / 4_000.0;
+            let uv = curve_eval(&p.0, &p.1, &p.2, t);
+            let s = surf_eval(&w.0, &w.1, &w.2, &w.3, uv[0], uv[1]);
+            let cc = curve_eval(&c.0, &c.1, &c.2, t);
+            for d in 0..3 {
+                sups[d] = sups[d].max((s[d] - cc[d]).abs());
+            }
+        }
+        let fold = sups.iter().map(|s| s * s).sum::<f64>().sqrt();
+        (sup, fold)
+    };
+    let id = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    let (seated, seated_fold) = bound_in(&id);
+    // Quarter turns permute and negate coordinates exactly, so every
+    // composite coefficient is the seated one permuted: only the order
+    // of the norm's three-term sum differs.
+    let quarter_turns = [
+        ("x", [[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]]),
+        ("y", [[0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]]),
+        ("z", [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]),
+    ];
+    for (axis, m) in quarter_turns {
+        let (b, fold) = bound_in(&m);
+        assert!(
+            (b - seated).abs() <= 4.0 * f64::EPSILON * seated,
+            "a quarter turn about {axis} moved the bound past rounding: {b:e} vs {seated:e}"
+        );
+        assert!(
+            b <= fold,
+            "about {axis}: {b:e} is above the folded box {fold:e}"
+        );
+    }
+    // An oblique map rounds every control point (~1e-16 m), which the
+    // composite carries into the residual's coefficients at their own
+    // O(1) magnitude: the bound may move by that (6.8e-16 m measured;
+    // the ceiling is fifteen times it), and by nothing that scales with
+    // δ, which a per-coordinate fold moves by 1.6e-4 m here.
+    let (oblique, oblique_fold) = bound_in(&rodrigues([0.3, -0.4, 0.8], 0.81));
+    assert!(
+        (oblique - seated).abs() <= 1e-14,
+        "an oblique rotation moved the bound past its rounding width: \
+         {oblique:e} vs {seated:e}"
+    );
+    // The fixture is one a per-coordinate fold reads differently in the
+    // two frames, so the row above is not passing for want of a move.
+    assert!(
+        (oblique_fold - seated_fold).abs() >= 0.05 * seated_fold,
+        "the field's folded box must move between the frames: \
+         {oblique_fold:e} vs {seated_fold:e}"
+    );
+    assert!(
+        seated <= seated_fold && oblique <= oblique_fold,
+        "the norm bound is above the folded box: seated {seated:e} / {seated_fold:e}, \
+         oblique {oblique:e} / {oblique_fold:e}"
+    );
+    println!(
+        "δ = {DELTA:e}: bound/δ seated {:.6}, oblique {:.6} (moved {:e} m); folded box/δ \
+         seated {:.4}, oblique {:.4}",
+        seated / DELTA,
+        oblique / DELTA,
+        (oblique - seated).abs(),
+        seated_fold / DELTA,
+        oblique_fold / DELTA
+    );
 }

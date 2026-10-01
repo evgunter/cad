@@ -175,6 +175,27 @@ impl<'a> Sup<'a> {
         self
     }
 
+    /// Soundness up to `slack`: the bound is not below the sampled
+    /// truth by more than `slack`. For a bound tight enough to meet the
+    /// sampling's own rounding, where the sampled value is a rounded
+    /// evaluation of the quantity the bound encloses; `why` states the
+    /// rounding `slack` budgets.
+    ///
+    /// # Panics
+    ///
+    /// If the bound is below the truth by more than `slack` (or is NaN).
+    #[track_caller]
+    pub fn dominates_up_to(self, slack: f64, why: &str) -> Self {
+        assert!(
+            self.bound >= self.truth - slack,
+            "UNSOUND: {self} — the certified bound is below a value that was \
+             actually sampled, by {:e}, past this row's rounding budget of \
+             {slack:e}; {why}",
+            self.truth - self.bound
+        );
+        self
+    }
+
     /// The ceiling: `bound <= ratio * truth + extra`.
     ///
     /// `extra` is for the rows whose truth approaches zero, where a

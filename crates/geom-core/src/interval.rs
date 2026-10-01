@@ -371,6 +371,16 @@ pub fn div_down(num: f64, den: f64) -> f64 {
     if q.is_certified() { q.lo() } else { num / den }
 }
 
+/// `num / den` rounded UP — an upper bound on the real quotient, which
+/// is what an upper bound divided by a positive lower bound has to
+/// stay. Refusals fall back to the bare quotient exactly as
+/// [`div_down`]'s do.
+#[must_use]
+pub fn div_up(num: f64, den: f64) -> f64 {
+    let q = Interval::from_bounds(num, num) / Interval::from_bounds(den, den);
+    if q.is_certified() { q.hi() } else { num / den }
+}
+
 impl Add for Interval {
     type Output = Self;
 
