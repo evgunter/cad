@@ -2,10 +2,11 @@
 id: torus-meridian-orient-builds-a-frame-on-an-undecided-normalize
 kind: issue
 title: torus_meridian_orient builds a hand Gram-Schmidt frame on an undecided normalize
-status: open
+status: closed
 opened: 2026-09-15
 priority: P0
 cost: E
+closed: 2026-10-01
 ---
 
 
@@ -49,3 +50,17 @@ funnel name that the props lane owns, not SCALAR.
 `crates/geom-core/src/linalg/ortho_frame.rs` — `OrthoFrame::gram_schmidt`
 is the ladder written once, with both lengths decided and a typed
 refusal naming which axis.
+
+## Closed (2026-10-01)
+
+Closed by #3686. The axis is now decided as `UnitVec3`, under
+`props_torus_axis`. The radial comes from `OrthoFrame`, under
+`props_meridian_radial`.
+
+On main, a meridian centre on the axis refused under the wrong name,
+`props_meridian_orient`. A centre within the band of the axis
+answered `Ok`. Both cases now refuse typed under the radial's name,
+which is D2 row 1.
+
+Orientation is bit-identical to main across 880 f64 patches and the
+Interval family, as measured by the review.
