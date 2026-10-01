@@ -6,8 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P0
 cost: M
-design: true
-refs: [a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank, edge-dir-is-a-chord-so-curved-edge-pieces-misrank, curved-seam-pieces-have-no-ranking-direction, a-plane-split-of-a-curved-face-refuses-as-an-emission-bug]
+refs: [a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank, edge-dir-is-a-chord-so-curved-edge-pieces-misrank, curved-seam-pieces-have-no-ranking-direction, a-plane-split-of-a-curved-face-refuses-as-an-emission-bug, edge-pieces-are-named-by-their-ends]
 ---
 
 
@@ -61,3 +60,13 @@ Every recipe that crosses an edge twice reaches this, whatever the
 face lane does: the cylinder split through `(0, 0.2, 0)`, normal
 `(0, 1, 0)`, reaches it too once its same-side wall pieces are let
 through (`a-plane-split-of-a-curved-face-refuses-as-an-emission-bug`).
+
+## Ruled (2026-10-01, PR 3553)
+
+Ev took the recommendation of fork-log row 22 ("the recommendation
+sounds good, including the change to what was decided in 512!"). The
+rule is `crates/editor-core/src/names/README.md` N2. The split's edge
+pieces take `Ends`, and its crossing vertices keep an ordinal along the
+crossed edge by its carrier's own parameter, oriented as the operand
+body stores the edge; equal values tie rather than refuse `Duplicate`.
+`edge-pieces-are-named-by-their-ends` implements it and closes this row.

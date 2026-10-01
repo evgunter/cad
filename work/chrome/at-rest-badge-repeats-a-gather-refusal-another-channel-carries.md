@@ -4,12 +4,11 @@ kind: issue
 title: the at-rest badge repeats every gather refusal of an assembly-shaped document, including the ones frame::badge_site sends to the feature tree or to product_badge
 status: open
 opened: 2026-09-24
-needs_ev: true
 priority: P3
 cost: E
 ---
 
-## Question
+## Question (answered by Ev, 2026-10-01)
 
 What should the at-rest badge (A5) report when the assembly gather itself refused? Today it shows the gather's refusal as an Actionable `Refused` badge. The same refusal already has a channel through `frame::badge_site`, and the landing chooses between them with a second class policy, a boolean beside `badge_site`'s exhaustive match. The choice is what the badge is for: the gate's verdict only, a deliberate second report, or an explicit "not judged" state.
 
@@ -69,3 +68,14 @@ at `product_badge`.
   though on a gather refusal the A5 gate never ran: there was no
   product to hand it. That is a further argument for option 1 (no
   at-rest verdict when the gather refused).
+
+## Ev's answer (2026-10-01, on PR 3604)
+
+Ev asked whether the stronger version had any downside. The orchestrator's reply on the PR found none in the final state: the type is private, its accessors keep their signatures, and `fit_request` gets simpler. Ev answered: *"sounds good!"*
+
+The ruling has three parts:
+- **No badge on a gather refusal.** The at-rest badge is the A5 gate's verdict only, and takes none when the gather refused, for every class. `frame::badge_site` stays the one router of a gather refusal.
+- **One `Result` in `LandedRun`.** The landing holds the gather's outcome as `gather: Result<Gathered, ProductError>`, with `Gathered { at_rest, body }`. `checks` stays beside it. On a refusal, the `Err` arm has nowhere to put a badge.
+- **Wording deleted.** `tree::product_refusal_wording` loses its only caller and is deleted, and `AssemblyError::product_refusal` folds back into the kernel's `Display`.
+
+The tests that move are the ones the PR body lists. `work/vnews/the-at-rest-badge-restates-a-failed-root-louder-than-its-row.md` closes with the same change.
