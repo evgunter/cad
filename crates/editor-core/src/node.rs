@@ -1530,7 +1530,7 @@ impl core::fmt::Display for InputFault {
             Self::Duplicate { input } => write!(
                 f,
                 "node {} is taken as an input twice — a node's inputs are pairwise distinct",
-                input.0
+                input
             ),
             Self::TooFew { found } => write!(
                 f,

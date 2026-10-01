@@ -460,7 +460,9 @@ impl PickHit {
     fn __repr__(&self) -> String {
         format!(
             "PickHit(node={}, body={}, t={})",
-            self.node.0.0, self.body, self.t
+            self.node.0.full(),
+            self.body,
+            self.t
         )
     }
 }
@@ -641,7 +643,7 @@ impl NodePick {
     fn __repr__(&self) -> String {
         format!(
             "NodePick(node={}, body={}, {} patches)",
-            self.inner.node().0,
+            self.inner.node().full(),
             self.inner.body(),
             self.inner.mesh().patches.len()
         )
