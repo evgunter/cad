@@ -341,6 +341,17 @@ fn a_tilted_cone_cut_is_never_misread_by_containment() {
             }
         }
     }
+    // Far from the body, a ray that misses the cone answers: the
+    // untrimmable face refuses only a query it could decide.
+    for q in [Point3::new(10.0, 10.0, 10.0), Point3::new(-3.0, -8.0, 2.0)] {
+        for part in [&above, &below] {
+            assert_eq!(
+                point_in_solid(part, q, band, Tol::witness()).unwrap(),
+                SolidContainment::Out,
+                "{q:?}"
+            );
+        }
+    }
 }
 
 /// The upright cone, `revolve` of the triangle `(0,0), (1,0), (0,1)`:
@@ -358,8 +369,8 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
     assert!((vol(&cone) - total).abs() < 1e-12, "the uncut cone");
     for qy in [0.15, 0.4, 0.75] {
         let what = format!("axis-normal circle at y = {qy}");
-        let result = split(&cone, &plane(0.0, qy), Tol::witness())
-            .unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result =
+            split(&cone, &plane(0.0, qy), Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
         let tip = PI * (1.0 - qy).powi(3) / 3.0;
         assert!((vol(&above) - tip).abs() < 1e-12, "{what}: the tip cone");

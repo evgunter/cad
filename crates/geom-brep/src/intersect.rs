@@ -1806,13 +1806,15 @@ pub fn plane_cone_section<T: Decide>(
     let c = a.dot(n);
     let s_vec = a.cross(n);
     let s = s_vec.norm();
+    // The conic-type discriminant: its sign is the conic's type off the
+    // apex and the generator count through it.
+    let discr = sin_a * s - cos_a * c.abs();
 
     let apex_gap = (apex - q).dot(n);
     match decide("pn_apex_on_plane", Margin::of(apex_gap), band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // Apex lane: generators g(u) = a·cosα + radial(u)·sinα with
             // g·n = 0 ⇔ cos(u − φ) = −cosα·c / (sinα·s).
-            let discr = sin_a * s - cos_a * c.abs();
             let verdict = decide("pn_apex_section", Margin::levered(discr, extent), band)
                 .map_err(SectionError::Escalated)?;
             match verdict {
@@ -1861,7 +1863,6 @@ pub fn plane_cone_section<T: Decide>(
                     u_ref: cone_u,
                 })),
                 Sign::Positive | Sign::Negative => {
-                    let discr = sin_a * s - cos_a * c.abs();
                     match decide("pn_conic_type", Margin::levered(discr, extent), band)
                         .map_err(SectionError::Escalated)?
                     {
@@ -1988,7 +1989,7 @@ pub enum PlaneTorusSection<T: Real> {
 /// 4. Everything else ⇒ [`SectionError::RoutesToGeneralRung`], with
 ///    the bitangent (Villarceau) two-circle case NAMED as deliberately
 ///    unclassified — exactly as the cylinder×cylinder arm names skew
-///    and the plane×cone arm names the conic trio.
+///    and the plane×cone arm names the parabola and the hyperbola.
 ///
 /// The form is `atan2`-free and branch-cut-free by construction, so the
 /// `Interval` lane takes it unchanged: there is no lane fork here.

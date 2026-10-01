@@ -231,6 +231,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_cone_trim_side"
         | "bool_ray_cone_apex"
         | "bool_ray_cone_nappe"
+        | "bool_cone_partial_reach"
         | "point_in_loop_segment"
         | "point_in_loop_boundary"
         | "point_in_loop_side"

@@ -656,24 +656,16 @@ fn harmonic_span_box<T: Real>(
 }
 
 impl<T: Real> Pcurve<T> {
-    /// [`Pcurve::chart_box`] for a harmonic image, at every [`Real`]
-    /// scalar — the door for a caller with no span location, which
-    /// `chart_box` needs for its NURBS arms. `None` for every other
-    /// variant. The construction, its enclosure argument and its
-    /// restriction monotonicity are `harmonic_span_box`'s.
-    pub fn harmonic_span_box(&self, t0: T, t1: T) -> Option<ChartWindow<T>> {
-        let Pcurve::Harmonic { p0, pa, pb, pl } = *self else {
-            return None;
-        };
-        Some(harmonic_span_box(p0, pa, pb, pl, t0, t1))
-    }
-
-    /// [`Pcurve::chart_box`] for the closed-form images whose box needs
+    /// [`Pcurve::chart_box`] for the closed-form images, whose box needs
     /// no span location — [`Pcurve::Harmonic`] and
-    /// [`Pcurve::ConeSection`] — at every [`Real`] scalar; `None` for
-    /// every other variant.
+    /// [`Pcurve::ConeSection`] — at every [`Real`] scalar: the door for
+    /// a caller with none, which `chart_box` needs for its NURBS arms.
+    /// `None` for every other variant. The construction, its enclosure
+    /// argument and its restriction monotonicity are
+    /// `harmonic_span_box`'s and `cone_section_span_box`'s.
     pub fn closed_form_span_box(&self, t0: T, t1: T) -> Option<ChartWindow<T>> {
         match *self {
+            Pcurve::Harmonic { p0, pa, pb, pl } => Some(harmonic_span_box(p0, pa, pb, pl, t0, t1)),
             Pcurve::ConeSection {
                 u0,
                 v0,
@@ -682,7 +674,7 @@ impl<T: Real> Pcurve<T> {
                 beta,
                 sense,
             } => Some(cone_section_span_box(u0, v0, va, vb, beta, sense, t0, t1)),
-            _ => self.harmonic_span_box(t0, t1),
+            _ => None,
         }
     }
 
@@ -3060,9 +3052,10 @@ fn run_harmonic_checks<T: Decide>(
     let Some(carrier_form) = carrier_harmonic(carrier) else {
         return Err(PcurveCertifyError::UnsupportedCarrier);
     };
-    let Some(boxed) = pcurve.harmonic_span_box(t0, t1) else {
+    let &Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
         return Err(PcurveCertifyError::UnsupportedCarrier);
     };
+    let boxed = harmonic_span_box(p0, pa, pb, pl, t0, t1);
     let v_sup = boxed.v_reach();
     let reach = t0.abs().max(t1.abs());
     let windings = chart_windings(pcurve, surface, v_sup, band)?;

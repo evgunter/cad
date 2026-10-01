@@ -1759,14 +1759,18 @@ fn face_flux<T: Decide>(
             // winding-derived end to end (the signed UV area IS
             // s_f·|Ω| through the stored loop traversal), exactly
             // the class the S10 module docs keep bit-free.
-            let is_trimmed = outer.iter().any(|e| {
-                matches!(
-                    e.carrier,
-                    geom::Curve3::Ellipse { .. }
-                        | geom::Curve3::Spiric { .. }
-                        | geom::Curve3::Nurbs(_)
-                )
-            });
+            // A cone face is the exception: its closed form reads the
+            // boundary's vector area, whatever trims it
+            // (`geom_brep::props::cone_face_closed_form`).
+            let is_trimmed = !matches!(surface, Surface::Cone { .. })
+                && outer.iter().any(|e| {
+                    matches!(
+                        e.carrier,
+                        geom::Curve3::Ellipse { .. }
+                            | geom::Curve3::Spiric { .. }
+                            | geom::Curve3::Nurbs(_)
+                    )
+                });
             // A described NURBS face ALWAYS takes the quadrature
             // lane (M6-3): its flux has no closed form regardless
             // of what bounds it, and the patch engine reads the

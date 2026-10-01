@@ -2188,8 +2188,12 @@ fn run_azimuth_images<T: Decide>(
                 if let geom::Surface::Cone { apex, .. } = surface {
                     let entry_v = he_data.start;
                     let p = vertex_point(body, entry_v).map_err(|_| corrupt_vertex(entry_v))?;
-                    if decide("split_cone_window_apex", Margin::of((p - *apex).norm()), band)
-                        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                    if decide(
+                        "split_cone_window_apex",
+                        Margin::of((p - *apex).norm()),
+                        band,
+                    )
+                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
                         == Sign::Zero
                     {
                         return Err(SplitJoinError::SectionArcWindow {

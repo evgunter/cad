@@ -2,7 +2,7 @@ use geom_brep::Pcurve;
 use geom_brep::props::quad::{
     self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
-use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
+use geom_brep::props::{LoopEdge, PropsError, cone_face_closed_form, loop_vector_area};
 use geom_core::Tol;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -134,10 +134,11 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 /// — the cylinder chart's closed-form lane plus the described-NURBS
 /// patch lane (M6-3), entered and left where the window says (the
 /// quadrature module's two levels); [`super::QuadLane`] holds this
-/// and reads it at either level. Cone/sphere/torus charts MINT
-/// stored pcurves since M6-3 (walk row 4) but their chart-normal
-/// flux algebra is not written — they refuse typed naming that true
-/// blocker.
+/// and reads it at either level. A cone face needs no quadrature: it
+/// converges at once on its closed form
+/// ([`geom_brep::props::cone_face_closed_form`]). Sphere and torus
+/// charts mint stored pcurves but have no flux lane here, and refuse
+/// typed.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
@@ -166,10 +167,10 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         ..
     } = *surface
     {
-        let (flux, area) = cone_face(apex, axis, half_angle, outer, band)?;
+        let face = cone_face_closed_form(apex, axis, half_angle, outer, band)?;
         return Ok(RoundOutcome::Converged(FaceCutBounds {
-            flux: Interval::from_certified(flux),
-            area: Interval::from_certified(area),
+            flux: Interval::from_certified(face.flux),
+            area: Interval::from_certified(face.area),
         }));
     }
     let Surface::Cylinder { origin, radius, .. } = surface else {
@@ -233,51 +234,6 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         band,
         window,
     )
-}
-
-/// **The cone face's flux and area, in closed form** — no quadrature.
-///
-/// Every point of a cone lies on a generator through the apex, and the
-/// generator lies in the tangent plane, so `(p − apex)·n = 0` on the
-/// whole face. The flux is therefore
-/// `∮ p·n dA = apex·∮ n dA = apex·VA`, with `VA` the boundary's vector
-/// area (Stokes; `loop_vector_area`, whose arms are exact for every
-/// carrier a cone face carries). And the normal makes the constant angle
-/// `n·axis = ∓sin α` with the axis on each nappe, so the area is
-/// `|axis·VA| / sin α` — for a face on ONE nappe, which the vertex walk
-/// below decides: an edge of a line, circle or ellipse carrier stays on
-/// its endpoints' side of the apex (a circle at one height, a line
-/// between its ends, a section ellipse on one nappe whole).
-///
-/// The traversal's winding orients `VA`, so no sense bit is read — the
-/// cylinder lane's posture. `(flux, area)`, final at every round.
-fn cone_face<T: Decide>(
-    apex: Point3<T>,
-    axis: geom_core::Vec3<T>,
-    half_angle: T,
-    outer: &[LoopEdge<T>],
-    band: Band,
-) -> Result<(T, T), PropsError> {
-    let (mut above, mut below) = (false, false);
-    for e in outer {
-        for t in [e.t0, e.t1] {
-            let h = (e.carrier.eval(t) - apex).dot(axis);
-            match crate::validate::decide("props_cone_face_nappe", geom_core::Margin::of(h), band)
-                .map_err(|cause| PropsError::Escalated { cause })?
-            {
-                geom_core::Sign::Positive => above = true,
-                geom_core::Sign::Negative => below = true,
-                geom_core::Sign::Zero => {}
-            }
-        }
-    }
-    if above && below {
-        return Err(PropsError::NappeSpanning);
-    }
-    let va = loop_vector_area(outer, apex)?;
-    let flux = (apex - Point3::origin()).dot(va);
-    let area = (axis.dot(va) / half_angle.sin()).abs();
-    Ok((flux, area))
 }
 
 /// **The NURBS-patch flux lane** (M6-3 Leg C; RATIONAL since

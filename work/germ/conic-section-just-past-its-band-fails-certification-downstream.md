@@ -54,3 +54,42 @@ semi-major axis against `extent`, or against the band's own reach) is
 the design question; a naive `A ≤ extent` refuses legitimate long
 sections (the frustum cut at tilt `1.0` has `A ≈ 3.5` against a face
 extent near `2.2`, and certifies exactly).
+
+## The region is wider than the table (dual review of #3688, 2026-10-01)
+
+The table above starts at the arm's band. Measured by the review's
+certificate sweep, which drives `chart_pcurve` + `PcurveCache::certify`
+on the plane × cone ellipse directly (`ε = 1e-9`), the downstream
+refusal reaches much farther from the parabola, and it grows with the
+cone's half-angle and the scale:
+
+| cone | tilt (fraction of the parabolic limit) | outcome |
+|---|---|---|
+| `α = 1`, unit scale | 0.999 | certifies (envelope 1.2e-10 on the `+` traversal) |
+| `α = 1`, unit scale | 0.99999 | `ResidualExceeded { MapResidual }` (map residual **1.8e-6 m**) on one traversal, `Escalated(pcurve_map_residual)` on the other |
+| `α = 1`, scale 1000 | 0.999 | `ResidualExceeded { MapResidual }` (1.5e-7 m) |
+| `α = 1.55`, unit scale | 0.95 | `Escalated(pcurve_map_residual)`, margin 1.0e-9–1.4e-9 |
+| `α = 1.55`, unit scale | 0.999 | `ResidualExceeded { MapResidual }` (1.8e-7 m) |
+
+The carrier itself stays accurate across that range (its own residual
+1.3e-10 at `α = 1`, 0.99999); it is the chart image's map residual that
+grows, so an admission criterion has to bound the image's conditioning
+as well as the carrier's.
+
+**The refusal's text misnames the cause.** In the split, a frustum cut
+`1e-8` short of the parabola (`φ = 1.1071`) refuses at the Euler gate:
+
+> an Euler operation refused: geometry attachment gate: the
+> start-endpoint residual at sample 0 escalated: margin 2.03e-9 lies
+> inside the ambiguity band (1e-9, 1e-8). There is no way through: this
+> is a kernel defect; report it
+
+The input is legal and only ill-conditioned at this ε, so "no way
+through" and "kernel defect" are both false: a looser tolerance or a
+tilt farther from the parabola goes through. The ending is
+`CertifyError::render(Reading::Build)`'s for every attachment-gate
+residual (`geom-brep/src/certify.rs`), which is right for a carrier the
+kernel built from well-conditioned data. The arm-side criterion above
+is what makes it right here too: the section refuses at the arm, with a
+tolerance recourse, before a carrier reaches the gate. Until then this
+is the class's mislabelled door.

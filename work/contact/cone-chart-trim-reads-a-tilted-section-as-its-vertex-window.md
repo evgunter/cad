@@ -83,3 +83,22 @@ generator (`Line`). After it: 0 wrong, 1358 refused. The row is
 guard removed). What remains here is the fix proper: the section's
 side along each generator, the cylinder's `wall_outline` discipline,
 so those faces answer instead of refusing.
+
+### Narrowed in the same lane's fix pass
+
+The guard refused every query on a body carrying such a face, the
+point `(10, 10, 10)` included. The solid door now reads the face as
+`FaceGeo::PartialCone` (`solid_contain.rs`): the face lies within a
+ball about the apex (`partial_cone_reach`: vertex distances, and
+`|centre − apex| + semi-major` for an ellipse edge), and a query
+refuses only for `q` on the double cone inside that ball, or when every
+schedule ray meets the cone ahead of `q` inside it. A ray that does
+is set aside like a graze. The at-infinity side reads the face's
+closed-form volume, which the cone's closed form now supplies for a
+trimmed face too.
+
+Measured (fix-pass probe, 11³ grid over `[−3, 3]³`, both halves, four
+tilts each): narrowing frustum 10–22 refused of 2662 per tilt, widening
+2, upright cone 0, and **0 wrong** throughout. `cone_face_trim`, the
+face-scoped door, still refuses. The fix proper is unchanged: the
+section's side along each generator.

@@ -75,7 +75,7 @@ pub fn curved_face<T: Decide>(
             axis,
             half_angle,
             ..
-        } => cone(apex, axis, half_angle, outer, band),
+        } => cone_face_closed_form(apex, axis, half_angle, outer, band),
         Surface::Sphere {
             center,
             radius,
@@ -1612,13 +1612,37 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 // Cone
 // ---------------------------------------------------------------------
 
-/// Cone face: rims are axis-centered circles of radius `|v|·sin α`;
-/// meridians are generator lines (`|dir·axis| = cos α`). `v` is the
-/// signed slant parameter `((p − apex)·axis)/cos α`; the face must not
-/// definitely span both nappes. `Area = sin α·Δu·|v_hi² − v_lo²|/2`;
-/// `(p − apex)·n_chart = 0` along generators, so the anchored term
-/// vanishes and flux `= apex·A⃗` — no orientation sign is needed.
-fn cone<T: Decide>(
+/// **A cone face's flux and area, in closed form** — no quadrature, and
+/// the one home of both for every cone face, iso-bounded or trimmed by a
+/// plane section.
+///
+/// Every point of a cone lies on a generator through the apex, and the
+/// generator lies in the tangent plane, so `(p − apex)·n = 0` on the
+/// whole face. The flux is therefore `∮ p·n dA = apex·∮ n dA = apex·A⃗`,
+/// with `A⃗` the boundary's vector area (Stokes; [`loop_vector_area`]).
+/// The normal makes the constant angle `n·axis = ∓sin α` with the axis
+/// on each nappe, so the area is `|axis·A⃗| / sin α` — for a face on ONE
+/// nappe. The traversal's winding orients `A⃗`, so no sense bit is read.
+///
+/// What admits the boundary, and decides its nappe, is per class:
+///
+/// - **Rims and generators** take the shared iso parse
+///   ([`cone_boundary`], the apex folded in): a positive extent, the
+///   rims at its extremes, one azimuth span, and the nappe read off the
+///   extent's two ends.
+/// - **A boundary with a plane-section ellipse** has no iso reading. Its
+///   nappe is read off the edges' endpoints, which bound each edge for
+///   the carriers such a face carries: a generator runs between its
+///   ends, a rim holds one height, and a plane section that is an
+///   ellipse lies on one nappe whole. A spline or spiric edge could
+///   cross the apex between its ends, so it refuses.
+///
+/// # Errors
+///
+/// The iso parse's refusals; [`PropsError::Unimplemented`] for a spline
+/// or spiric edge; [`PropsError::NappeSpanning`] for a face on both
+/// nappes; [`PropsError::Escalated`] for an in-band decision.
+pub fn cone_face_closed_form<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
     half_angle: T,
@@ -1626,48 +1650,58 @@ fn cone<T: Decide>(
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let (sin_a, cos_a) = half_angle.sin_cos();
-    // A generator-free cone boundary of rims alone carries no extent of
-    // its own: every level it touches is a rim's slant, and where those
-    // coincide the face's missing extreme is the APEX
-    // ([`cone_apex_level`], folded inside the shared parse — with its
-    // closure guard — so all three doors read the same extent).
-    let b = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
-    let (lo, hi) = min_max(&b.levels)?;
-    require_extent(Margin::of(hi - lo), band)?;
-    // The iso-rectangle premise (S58/#649). Cone levels are the signed
-    // SLANT arc length — `Length`, so bare — and the arm (the first
-    // rim's own radius) meters only the dimensionless margins
-    // downstream. The premise alone here: a cone's flux needs no `s_f`
-    // (generators run through the apex, so the anchored term
-    // vanishes), and metering a side this lane does not read would be
-    // a decide for nobody. `boundary_material_sign`'s cone arm, which
-    // DOES read one, reaches it through `linear_rim_side` and gets the
-    // premise with it.
-    require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
-    let du = du_of_rims(&b.rims, b.arms, band)?;
-    // Single-nappe check: definitely-negative low AND definitely-positive
-    // high would straddle the apex through both nappes.
+    let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
+    let (lo, hi) = if edges
+        .iter()
+        .any(|e| matches!(e.carrier, Curve3::Ellipse { .. }))
+    {
+        let mut ends = Vec::with_capacity(2 * edges.len());
+        for e in edges {
+            match e.carrier {
+                Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {}
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
+            }
+            ends.push(slant(e.carrier.eval(e.t0)));
+            ends.push(slant(e.carrier.eval(e.t1)));
+        }
+        min_max(&ends)?
+    } else {
+        // A generator-free cone boundary of rims alone carries no extent
+        // of its own: every level it touches is a rim's slant, and where
+        // those coincide the face's missing extreme is the APEX
+        // ([`cone_apex_level`], folded inside the shared parse — with its
+        // closure guard — so every door reads the same extent).
+        let b = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
+        let (lo, hi) = min_max(&b.levels)?;
+        require_extent(Margin::of(hi - lo), band)?;
+        // The iso-rectangle premise (S58/#649), and one azimuth span.
+        require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
+        du_of_rims(&b.rims, b.arms, band)?;
+        (lo, hi)
+    };
+    // Single-nappe check: a definitely-negative low AND a
+    // definitely-positive high straddle the apex through both nappes.
     let s_lo = classify("props_cone_nappe", Margin::of(lo), band)?;
     let s_hi = classify("props_cone_nappe", Margin::of(hi), band)?;
     if s_lo == Sign::Negative && s_hi == Sign::Positive {
         return Err(PropsError::NappeSpanning);
     }
-    let half = T::from_f64(0.5);
-    let area = sin_a * du * ((hi.powi(2) - lo.powi(2)) * half).abs();
     let va = loop_vector_area(edges, apex)?;
-    let flux = (apex - Point3::origin()).dot(va);
-    Ok(FaceContribution { flux, area })
+    Ok(FaceContribution {
+        flux: (apex - Point3::origin()).dot(va),
+        area: (axis.dot(va) / sin_a).abs(),
+    })
 }
 
 /// Classify a cone face's boundary into (rims, signed slant levels) —
-/// the shared parse consumed by the flux closed form,
+/// the shared parse consumed by [`cone_face_closed_form`],
 /// [`boundary_material_sign`] and [`require_iso_rectangle`] — **with
 /// the apex folded in where the boundary needs it**
 /// ([`cone_apex_level`]).
 ///
-/// The fold lives here rather than in the flux lane because the cone's
-/// missing extreme needs no sense bit, so all three doors can and must
-/// read the SAME extent: the gate's `Encoded` side for an apex cap is
+/// The fold lives here because the cone's missing extreme needs no
+/// sense bit, so all three doors can and must read the SAME extent: the
+/// gate's `Encoded` side for an apex cap is
 /// what catches the inverted traversal at tier 3's check 6, and it can
 /// only be read against an extent the parse supplies. The sphere's
 /// pole fold is the other shape — it reads `Face::sense`, so it sits
@@ -1676,10 +1710,7 @@ fn cone<T: Decide>(
 /// **A folded extent carries its guard with it**, so there is no flag
 /// to return and no caller that can forget one: the fold refuses a rim
 /// that does not close around the apex ([`require_rim_only_closed`])
-/// rather than folding and leaving the check to whoever asked. Two of
-/// this fn's three callers did forget it — a half rim only answered
-/// `Ok(())` at the shape door and a definite `Encoded` side at the
-/// gate, for a boundary the flux lane refused.
+/// rather than folding and leaving the check to whoever asked.
 fn cone_boundary<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1742,10 +1773,10 @@ fn cone_boundary<T: Decide>(
             }
             Curve3::Ellipse { .. } => {
                 return Err(PropsError::NotIsoRectangle {
-                    what: "cone boundary carries an ellipse arc (a tilted-section cut) — the \
-                           class has no cone-chart image at all (azimuth-non-harmonic, \
-                           and no ring-computable fitted certificate either), so the \
-                           quadrature lane has nothing to consume",
+                    what: "cone boundary carries an ellipse arc (a tilted-section cut) — \
+                           not a rim or a generator, so this iso parse has no reading of \
+                           it (`cone_face_closed_form` admits such a face by its \
+                           edge endpoints instead)",
                 });
             }
             // A spiric lies on no cylinder or cone: refused beside the
