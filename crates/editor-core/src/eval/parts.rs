@@ -651,9 +651,11 @@ impl<T: Decide> Reached<T> {
 /// cache for**: the reference `id` instantiates, when `id` is an
 /// instantiate node. Both askers read it: the instantiate node's own op
 /// (`wire::wire_instantiate_part`) and the mate solve's reach over a
-/// member's instance (`mate::solve`'s `pair_reach`). The descent enters
-/// every reference it names before the document evaluates, and a nested
-/// cache refuses any other ask ([`PartFault::NotEntered`]).
+/// member's instance (`mate::solve`'s `part_of`, which the lever's
+/// `pair_reach` and a `FromFace` side's face pose both ask through).
+/// The descent enters every reference it names before the document
+/// evaluates, and a nested cache refuses any other ask
+/// ([`PartFault::NotEntered`]).
 pub(crate) fn instantiated<P>(doc: &crate::Doc<P>, id: RecipeNodeId) -> Option<DocRef> {
     match doc.node(id) {
         Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => Some(*doc_ref),

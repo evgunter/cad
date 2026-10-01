@@ -70,7 +70,7 @@
 //! correspondence is re-worded, the other when the word stops reaching
 //! the user.
 
-use geom_core::{Decide, Tol, Vec3};
+use geom_core::{Decide, Tol};
 use topo::query::DatumValue;
 use topo::splitting::SplitNaming;
 use topo::{Body, SplitPlane};
@@ -81,7 +81,7 @@ use crate::node::RecipeNodeId;
 
 /// The split's naming emitter: this node's id, the two sides (each
 /// present or empty), the birth record, the target's id, table and
-/// body, the tool plane's normal, and the tolerance, in.
+/// body, and the tolerance, in.
 pub(crate) type SplitEmitter<T> = fn(
     RecipeNodeId,
     Option<&Body<T>>,
@@ -90,7 +90,6 @@ pub(crate) type SplitEmitter<T> = fn(
     RecipeNodeId,
     &NameTable,
     &Body<T>,
-    Vec3<T>,
     Tol,
 ) -> Result<names::Emitted, NamingError>;
 
@@ -184,7 +183,7 @@ pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
 #[cfg(test)]
 #[allow(clippy::expect_used)] // a fixture that will not build is a failure, not a value
 mod tests {
-    use geom_core::{Band, Point3, UnitVec3};
+    use geom_core::{Band, Point3, UnitVec3, Vec3};
     use topo::DATUM_UNIT_NORM;
     use verbs::VerbKind;
 

@@ -486,3 +486,27 @@ exit's headline); one single FULL review of the combined head after.
 CI is red only on `reach_volume_backstop` at 1e-6/1e-12 — REACH's suite
 from #3611, which its own tolerance step never ran; REACH filed it
 (64a3eee23). This PR merges after REACH's fix lands.
+
+## Residue re-homed ahead of the walk (2026-10-01)
+
+`spiric-step-spline-bound-is-second-order` to EXPORT (its arm is in
+`step-export/src/writer.rs`); `c5-plane-torus-cone-cylinder-arms` to
+GERM (its live consumer is the lily's plane×torus germ frame; the Klein
+demo half waits on two filed doors); new on PROPS:
+`spiric-bounded-face-area-is-unimplemented`, the props door the sealed
+elbow and the vessel now stop at. Bookkeeping riding along: VGEOM's
+program status `active` → `ready` (Ev, in-chat). PR 3626 (the seams and
+the rim window) is reviewed MERGEABLE and green but for REACH's
+backstop rows, whose fix is REACH's PR 3636; it merges after that.
+## The equator seams and the rim window merged (2026-10-01) — the sealed elbow hollows
+
+PR 3626: the `RevolvedPoint` re-author turns the placement onto each
+moved corner's azimuth and reads the span from the moved ends; the
+spiric rim's window reads forward under a named decide instead of the
+sign of a zero at the branch cut. The sealed klein elbow now hollows
+to check 7's props door; the opened arm stops at SHELL's lift (filed on
+SHELL). Single full review (MERGEABLE, no correctness finding; it
+measured unmoved-seam bit-identity base vs head as identical), a
+four-item fix pass. Rider: the ellipse escalation's subject has one
+home. Filed: `reauthor-drops-the-sketch-plane-coordinate-of-segments-and-struts`.
+Merged after REACH's backstop fix (PR 3636) cleared the only red.

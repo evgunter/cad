@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{declared_union, failure, flush_pairs, run};
-use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus, rim_piece};
+use crate::emit_shared_rim_several::{Bx, document, is_rim_piece, permutations, probe_corpus};
 use crate::fixture::{ang, face_vertices, fname, insert, len, scl, table, wall};
 
 use editor_core::{
@@ -618,19 +618,21 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
     );
 }
 
-/// **A member flush with two others numbers its rim by the body, whoever
-/// holds each stretch.** `r2ends`: `a` = x 0..3 is flush with `b` over
-/// x 2..3 and with `c` over x 0..1. Its bottom start rim (x 0 → 3 at
-/// y = z = 0) is cut at x = 1 and 2 into three cells, so its pieces are
-/// `#k of 3` spanning x = k..k + 1 in every order: `a` always holds the
-/// middle one, and each end one when it was folded before that end's
-/// partner. Ranked over the pieces `a` keeps, `#0 of 2` was x = 0..1 in
-/// `[b, a, c]` and x = 1..2 in `[c, a, b]`.
+/// **A member flush with two others names its rim pieces by the body,
+/// whoever holds each stretch.** `r2ends`: `a` = x 0..3 is flush with
+/// `b` over x 2..3 and with `c` over x 0..1. Its bottom start rim (x 0 →
+/// 3 at y = z = 0) is cut at x = 1 and 2, so each piece of it `a` holds
+/// spans one of x = k..k + 1 in every order: `a` always holds the middle
+/// one, and each end one when it was folded before that end's partner.
+/// Ranked over the pieces `a` keeps, `#0 of 2` was once x = 0..1 in
+/// `[b, a, c]` and x = 1..2 in `[c, a, b]`; named by its ends, a piece
+/// is the same name wherever it is published.
 #[test]
-fn a_member_flush_with_two_others_numbers_its_rim_by_the_body() {
+fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
     let case = r2ends();
     let (doc, _) = document(&case.blocks, &case.creation);
     let mut fused = 0;
+    let mut named: BTreeMap<i64, StableName> = BTreeMap::new();
     runs(&r2ends(), |at, ev, ids, unions| {
         let union = unions[0].1;
         assert!(
@@ -651,31 +653,20 @@ fn a_member_flush_with_two_others_numbers_its_rim_by_the_body() {
         let geo = geometry(ev, union);
         let x = |k: i64| (k * 1_000_000, 0, 0);
         let mut held = Vec::new();
-        for k in 0..3 {
-            if let Some(sig) = geo.get(&rim_piece(union, a, &rim, Some((k, 3)))) {
-                assert_eq!(
-                    sig,
-                    &vec![x(k.into()), x(i64::from(k) + 1)],
-                    "{at}: #{k} of 3"
-                );
-                held.push(k);
+        for (n, sig) in &geo {
+            if !is_rim_piece(n, a, &rim) {
+                continue;
             }
+            let k = sig[0].0 / 1_000_000;
+            assert_eq!(sig, &vec![x(k), x(k + 1)], "{at}: {n:?} spans one cell");
+            if let Some(was) = named.insert(k, n.clone()) {
+                assert_eq!(&was, n, "{at}: x = {k}..{} is named one way", k + 1);
+            }
+            held.push(k);
         }
         assert!(
             held.contains(&1),
             "{at}: a does not hold its middle cell: {held:?}"
-        );
-        let pieces = geo
-            .keys()
-            .filter(|n| {
-                matches!(n.path.first(), Some(RoleSeg::FromMember { member, of })
-                    if *member == a && **of == rim)
-            })
-            .count();
-        assert_eq!(
-            pieces,
-            held.len(),
-            "{at}: a piece of a's rim outside the three cells"
         );
     });
     assert_eq!(fused, 6);
@@ -752,13 +743,13 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
 
 /// **`fam010`, the row's own case.** `a`'s bottom-y rim (segment 0,
 /// x = 0 → 1 at y = 0, z = 1) is cut by the body's vertices at 0.3, 0.4
-/// and 0.5 into four cells, numbered along +x whoever holds them: cell 1
-/// is inside `g`, and cell 3 is the stretch `a` runs flush with `b`,
-/// which `a` holds in `[a, b, g]` and `b` in `[b, a, g]`. On main the
-/// name `#1 of 2` was x = 0.5..1.0 in the first order and x = 0.4..0.5
-/// in the second.
+/// and 0.5: x = 0.3..0.4 is inside `g`, and x = 0.5..1.0 is the stretch
+/// `a` runs flush with `b`, which `a` holds in `[a, b, g]` and `b` in
+/// `[b, a, g]`. Each piece `a` holds in both orders is one name in both.
+/// Ranked over the pieces `a` kept, `#1 of 2` was once x = 0.5..1.0 in
+/// the first order and x = 0.4..0.5 in the second.
 #[test]
-fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
+fn fam010_names_a_rim_the_same_way_in_both_orders() {
     let g = ((0.3, 0.4), (-1.0, 0.5), (0.5, 3.0));
     let (doc, ids) = document(
         &[
@@ -777,7 +768,8 @@ fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
             crate::fixture::piece(&doc, a, 0, 0),
         )],
     };
-    let span = |order: [editor_core::RecipeNodeId; 3], rank| {
+    // x-span → the name of the piece of `a`'s rim there.
+    let pieces = |order: [editor_core::RecipeNodeId; 3]| {
         let (docx, union, _) =
             declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
@@ -786,19 +778,22 @@ fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
             "{order:?}: {:?}",
             failure(&ev, union)
         );
-        let geo = geometry(&ev, union);
-        let sig = geo
-            .get(&rim_piece(union, a, &rim, Some(rank)))
-            .unwrap_or_else(|| panic!("{order:?}: no piece {rank:?}"))
-            .clone();
-        sig.iter().map(|p| p.0).collect::<Vec<_>>()
+        geometry(&ev, union)
+            .into_iter()
+            .filter(|(n, _)| is_rim_piece(n, a, &rim))
+            .map(|(n, sig)| (sig.iter().map(|p| p.0).collect::<Vec<_>>(), n))
+            .collect::<BTreeMap<_, _>>()
     };
     let x = |a: f64, b: f64| vec![(a * 1e6).round() as i64, (b * 1e6).round() as i64];
-    for order in [[a, b, c], [b, a, c]] {
-        assert_eq!(span(order, (0, 4)), x(0.0, 0.3));
-        assert_eq!(span(order, (2, 4)), x(0.4, 0.5));
+    let (first, second) = (pieces([a, b, c]), pieces([b, a, c]));
+    for span in [x(0.0, 0.3), x(0.4, 0.5)] {
+        assert!(first.contains_key(&span), "[a, b, g]: no piece at {span:?}");
+        assert_eq!(first.get(&span), second.get(&span), "{span:?}");
     }
-    assert_eq!(span([a, b, c], (3, 4)), x(0.5, 1.0));
+    assert!(
+        first.contains_key(&x(0.5, 1.0)),
+        "[a, b, g]: a holds its flush stretch"
+    );
 }
 
 /// `h` of the review corpus: x 1.0..1.1, its x = 1.0 wall against `a`'s
