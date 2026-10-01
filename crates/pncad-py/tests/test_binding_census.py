@@ -2256,6 +2256,12 @@ NOT_BOUND = {
     # rows and the `Datum.direction` bullet's `UnitVec3Error` record,
     # one level in.
     "DirectionRefusal": SHAPE,
+    # `SnapshotError::InputList`'s payload: which of a node's own list
+    # or designation rules a file broke. It crosses as its carrier does,
+    # `PersistError.inner_variant == "input_list"` with the sentence in
+    # the message; the snapshot refusal's payload is the snapshot door's
+    # surface, as the `SnapshotError` row above says.
+    "ListFault": SHAPE,
     # `EditError::DocParamNotDeclared`'s second field: WHICH of the two
     # carry-forward doors was refused. It is `DirectionRefusal`'s row
     # one carrier over, and flattened for a reason of its own: a Python
