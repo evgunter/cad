@@ -5606,3 +5606,33 @@ The single full review is dispatched on the walk target, frozen
   admissible under D2 row 4;
 - order independence under shuffled face lists;
 - the GUARD gate edit.
+
+## PR 3669 reviewed: mergeable after small fixes; fix pass dispatched (2026-10-01)
+
+The single full review ran on the frozen head `561fca552d`. There was
+no MAJOR, and every executed claim held:
+- 230 valid calls across 10 face orders, including legitimate `Empty`
+  rings;
+- 1.6M+ fuzzed torn calls over 18 tear kinds, with zero cross-label
+  hops and zero order disagreement;
+- red-first at the real base;
+- M1–M4 reproduced exactly;
+- the empty-loop proof is the same decision as `kvfs`/`mekr`'s
+  (`LoopCycleBroken`).
+
+The review also corrected the PR body on D2: row 4 is `unreachable!`,
+and row 5 is `debug_assert`.
+
+**Ruled:**
+- **m1:** the in-call-proven cross-label invariant becomes
+  `unreachable!` with its premises named. A release build then no
+  longer silently drops the hop.
+- **m2:** `ops_two_ring_face` joins the valid row, so the `Many`
+  mutant reds inside the module.
+- **n1:** a foreign-`loop.face` tear joins the sweep, so M1 reds it.
+- **Text:** the comment names its premises; the receipt calls
+  `merge_faces` covered; the gate's stale path and its positional prose
+  are fixed.
+
+The fix pass is out on the walk target. It merges after CI and an
+orchestrator read.
