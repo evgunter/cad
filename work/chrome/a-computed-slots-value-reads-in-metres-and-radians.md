@@ -4,11 +4,16 @@ kind: issue
 title: viewer: a computed slot's value reads in metres and radians, whatever the document is written in
 status: open
 opened: 2026-09-29
+needs_ev: true
 priority: P3
 cost: M
 design: true
 refs: [a-driven-slots-field-draws-its-expression-source-at-any-width, the-gui-shows-no-measure-value-and-no-clearance]
 ---
+
+## Question
+
+In what notation should the viewer write a value no author wrote? This covers a driven slot's `= value`, the refusal affordance's "(currently …)", a measure's row, and both sides of an assertion's verdict. Today all of them read the canonical m/rad (`props::rendering_unit`), so `thickness * 2` over a 4 mm parameter reads `= 0.008 m`. The choice is where the notation comes from and who owns it: the document, the viewer per person, the expression itself, or canonical as now.
 
 
 Found by the review of `chrome/slot-width` (PR 3478).
