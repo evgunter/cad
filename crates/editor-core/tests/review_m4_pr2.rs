@@ -20,7 +20,11 @@ use fixture::{
 use geom_core::Tol;
 use topo::{Body, mass_properties};
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, parallel: bool) -> Evaluation<f64> {
+fn run(
+    doc: &editor_core::ProfileDoc,
+    prior: Option<&Evaluation<f64>>,
+    parallel: bool,
+) -> Evaluation<f64> {
     let opts = EvalOptions {
         parallel,
         ..EvalOptions::default()
@@ -237,12 +241,14 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     // One more hop: a transform downstream of the poisoned join.
     let (doc, tail) = insert(
         doc,
-        Node::Transform {
-            input: join,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            join,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     for parallel in [false, true] {
         let ev = run(&doc, None, parallel);
@@ -365,11 +371,15 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     // NAMES on both sides, so flush planes here could not even be
     // declared by name pair — the stressor shears all three axes so
     // no plane coincides and no declaration is needed.
-    let tr = |dx: f64, dy: f64, dz: f64| Node::Transform {
-        input: base,
-        translation: [len(dx), len(dy), len(dz)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
+    let tr = |dx: f64, dy: f64, dz: f64| {
+        Node::transform(
+            base,
+            editor_core::Step::Rigid {
+                translation: [len(dx), len(dy), len(dz)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        )
     };
     let (doc, t1) = insert(doc, tr(0.25, 0.125, 0.0625));
     let (doc, t2) = insert(doc, tr(-0.25, -0.125, -0.0625));
@@ -598,6 +608,14 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
     }
 }
 
+/// The class the revolve at `angle` refuses with, when it refuses.
+fn revolve_refusal(angle: f64) -> Option<editor_core::NodeErrorClass> {
+    let (doc, rev) = revolve_doc(angle);
+    run(&doc, None, false)
+        .node_error(rev)
+        .map(|e| e.kind.class())
+}
+
 /// R6: the τ-coincidence door, swept at ulp and band scale. The
 /// decision must be MARGINED (decided Zero band ⇒ Full; in-band ⇒
 /// typed escalation; definite ⇒ Partial), never a raw compare.
@@ -633,7 +651,11 @@ fn revolve_tau_door_is_margined_not_raw() {
     // silent guess either way. Geometric mean of the band edges.
     let in_band = (eps * kesc).sqrt();
     let e = revolve_volume(TAU - in_band).expect_err("in-band must escalate typed");
-    assert!(e.contains("Escalated"), "got {e}");
+    assert_eq!(
+        revolve_refusal(TAU - in_band),
+        Some(editor_core::NodeErrorClass::Escalated),
+        "got {e}"
+    );
     assert!(
         e.contains("revolve_full_vs_partial"),
         "predicate must be k_stats-named: {e}"
@@ -696,19 +718,23 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 // onto itself — same pocket — but through inexact
                 // sin/cos bits: the resulting subtract is the honest
                 // non-dyadic bracket of the same oracle.
-                Node::Transform {
-                    input: pip,
-                    translation: [len(1.0), len(1.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(std::f64::consts::FRAC_PI_2),
-                }
+                Node::transform(
+                    pip,
+                    editor_core::Step::Rigid {
+                        translation: [len(1.0), len(1.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(std::f64::consts::FRAC_PI_2),
+                    },
+                )
             } else {
-                Node::Transform {
-                    input: pip,
-                    translation: [len(1.0), len(1.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(0.0),
-                }
+                Node::transform(
+                    pip,
+                    editor_core::Step::Rigid {
+                        translation: [len(1.0), len(1.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                )
             },
         );
         // M4 PR 5: the pip's outer cap lies ON the cube's top —
@@ -916,7 +942,6 @@ fn datum_kind_is_key_separated() {
 /// behave exactly like the f64 lane: full reuse on an identical
 /// re-evaluation, full invalidation of the edited cone, enclosures
 /// bracketing the f64 result.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_memo_reuses_and_invalidates_like_f64() {
     use geom_core::{Bounds, Interval};

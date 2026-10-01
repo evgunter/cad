@@ -23,7 +23,7 @@ use super::{
     Discharge, INDET_PI, ParamSymbol, SESSION, Session, SymId, SymOp, early_form, indet_param,
     plain_form,
 };
-use crate::predicate::{Indeterminate, MarginDiag, Sign};
+use crate::predicate::{Decided, Indeterminate, Sign};
 
 /// How one decision at the symbolic scalar came out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -156,7 +156,7 @@ pub(super) fn active() -> bool {
 /// the tier answered it, if it did: an unconditional theorem, or one
 /// gated on a clause-3 sign read (rule C).
 pub(super) fn record(
-    numeric: &Result<Sign, Indeterminate>,
+    numeric: &Result<Decided, Indeterminate>,
     symbolic: Option<Discharge>,
     rendered: Option<Rendered>,
     enclosure: Option<(f64, f64)>,
@@ -168,9 +168,14 @@ pub(super) fn record(
         (Some(Discharge::Theorem), _) => ShapeOutcome::Theorem,
         (Some(Discharge::SignGated), _) => ShapeOutcome::SignGated,
         (Some(Discharge::Registered), _) => ShapeOutcome::Registered,
-        (None, Ok(Sign::Zero)) => ShapeOutcome::NumericZero,
-        (None, Ok(s)) => ShapeOutcome::Definite(*s),
-        (None, Err(e)) if matches!(e.margin, MarginDiag::Invalid) => ShapeOutcome::Invalid,
+        (
+            None,
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }),
+        ) => ShapeOutcome::NumericZero,
+        (None, Ok(Decided { sign, .. })) => ShapeOutcome::Definite(*sign),
+        (None, Err(e)) if e.margin.is_invalid() => ShapeOutcome::Invalid,
         (None, Err(_)) => ShapeOutcome::Indeterminate,
     };
     let (form, early_form, sizes, explain) = match rendered {

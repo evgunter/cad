@@ -47,10 +47,16 @@ use topo::{
 fn seed_face(surface: Surface<f64>) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
     let seed = body
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
-    body.set_face_surface(seed.face, FaceSurface::New(surface))
-        .expect("a live face takes a surface");
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface,
+            sense: true,
+        },
+    )
+    .expect("a live face takes a surface");
     (body, seed.face)
 }
 
@@ -149,7 +155,7 @@ fn face_carrier_kind_refuses_dangling_and_nothing_else() {
     // report.
     let mut bare = Body::<f64>::new();
     let seed = bare
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
     assert!(matches!(
         face_pose(&bare, seed.face),
@@ -167,7 +173,7 @@ fn face_carrier_kind_refuses_dangling_and_nothing_else() {
 fn line_edge() -> (Body<f64>, EdgeKey) {
     let mut body = Body::<f64>::new();
     let seed = body
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
     let seg = body
         .mev_line(
@@ -208,16 +214,19 @@ fn conic_edge(carrier: Curve3<f64>) -> (Body<f64>, EdgeKey) {
     let half = core::f64::consts::PI;
     let mut body = Body::<f64>::new();
     let seed = body
-        .mvfs(carrier.eval(0.0))
+        .mvfs(carrier.eval(0.0), true)
         .expect("mvfs has no preconditions");
     let plane = body
         .set_face_surface(
             seed.face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("a live face takes a surface");
     let made = body
@@ -347,7 +356,7 @@ fn edge_carrier_kind_refuses_dangling_and_no_carrier_and_nothing_else() {
 
     let mut scaffold = Body::<f64>::new();
     let seed = scaffold
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
     let null = scaffold
         .mev_null(

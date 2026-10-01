@@ -17,7 +17,7 @@
 //!   [`KnotVector::find_span`] — at a knot value, the span *starting*
 //!   there; last span closed. One span, always.
 //! - **`Probe`**: via its `f64` (it *is* an `f64` with a recorder).
-//! - **`Interval`** (feature `interval`): the inclusive hull of the
+//! - **`Interval`**: the inclusive hull of the
 //!   spans overlapped by `[lo, hi]` — sound containment (evaluating
 //!   every overlapped span's polynomial extension over the box and
 //!   hulling contains the true image; each span's extension agrees
@@ -94,13 +94,19 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// this holds nothing.
     fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a>;
 
-    /// Combines two per-span evaluation results into one enclosure —
-    /// invoked only when [`SpanLocate::locate_spans`] returned more
-    /// than one span (interval-natured scalars). Point scalars
-    /// (`f64`, `Probe`, `Dual<f64>`) never reach it by construction
-    /// (single span); their implementation is the poison value — a
-    /// hull of two distinct point results is not a point, and
-    /// answering one would fabricate data.
+    /// Combines two per-span evaluation results into one enclosure.
+    /// Through the evaluators it is invoked only when
+    /// [`SpanLocate::locate_spans`] returned more than one span
+    /// (interval-natured scalars), so a point scalar reaches it there
+    /// by no path. **It is not unreachable for a point scalar in
+    /// general**, and nothing here may be read as saying so: callers
+    /// hull two chart parameters directly — `topo`'s `chart_edge`
+    /// mints an `Envelope` image that way on both of its arms — and at
+    /// `f64`, `Probe` or `Dual<f64>` the answer is the poison value,
+    /// which then propagates through `Real::min`/`max` by the NaN
+    /// policy that `crate::real` pins. A hull of two distinct point
+    /// results is not a point, and answering one would fabricate data,
+    /// so poison is the honest reply at every reachable call.
     ///
     /// For `Interval` this is the convex hull with poison-first
     /// semantics (NaI/empty propagate, matching the tangent-hull

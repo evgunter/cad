@@ -152,10 +152,11 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// the old number.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
+    let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xeaea_81fa_b3df_29e3_u64),
-        ("part_select", 0xd31a_b4c8_da48_2cd5),
-        ("kitchen_sink", 0x8826_0b67_1ded_0c08),
+        ("cut_cylinder", 0xfeb1_3678_fb55_ee2e_u64),
+        ("part_select", 0x8eba_0145_3648_429a),
+        ("kitchen_sink", 0x08ed_78c4_461a_eb2a),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -185,11 +186,15 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
         );
         let got = digest(&ev);
         println!("seat8 {name}: {got:#018x}");
-        assert_eq!(
-            got, want,
-            "{name}'s evaluation moved — a side, its stamps or the name table"
-        );
+        if got != want {
+            moved.push(format!("{name}: {got:#018x} (want {want:#018x})"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "these documents' evaluations moved — a side, its stamps or the name table:\n{}",
+        moved.join("\n")
+    );
 }
 
 /// A unit cube on the xy frame, a plane datum at height `z` with `+z`
@@ -248,7 +253,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xb826_1654_e18b_d14a,
+        got, 0x4473_a7bf_5660_d102,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

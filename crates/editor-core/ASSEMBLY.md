@@ -207,21 +207,43 @@ the mounting session's question, not the memo's. An evaluation carries
 the id of the document it is of, and `SolvedPoses` the id of the
 document it solved (DI3); which doors read that identity is A2's.
 `refactor::split` cuts a node set closed under the DAG in both
-directions (a severed edge refuses) and a union of whole placement
-clusters (else `SplitError::TornCluster`) into a new document with a
-caller-supplied id, leaving one `InstantiatePart` behind; a cut of
-exactly one cluster hoists its frame onto the instance, any other cut
-moves placements verbatim. Remainder-side names re-anchor through the
-instance qualifier by recorded `Rebind`s; `refactor::inline` is the
-inverse. Both are pure, returning values plus edit lists. Acceptance:
+directions (a severed edge refuses, a kept instance or gauge that hangs
+from a cut gauge among them) into a new document with a caller-supplied
+id, leaving one `InstantiatePart` behind. The cut is a union of whole
+groups, so a placing mate never crosses it (else
+`SplitError::TornGroup`); every gauge reference leaving it lands on
+one anchor, a kept gauge or the world; and a declaring mate that would
+start placing once the instance sits on the anchor refuses. The
+instance names the anchor, and the cut's one placed thing gives it its
+offset: a cut that is exactly one gauge under the anchor gives that
+gauge's placement and leaves the gauge out of the part, a cut that is
+exactly one placed group gives its root's offset and lands the root at
+the empty chain, and any other cut moves verbatim at the empty offset.
+A cut group nothing places moves as it is, unless a dead reference
+unplaces it, and a cut of unplaced material alone refuses.
+Remainder-side names re-anchor through the instance qualifier by
+recorded `Rebind`s. `refactor::inline` is the inverse: the instance's
+frame becomes a gauge under the instance's gauge holding its offset,
+and the part's gauges and instances hang from it; no gauge is minted
+for the empty offset, nor for a part that is one group at the empty
+chain on its world, whose root takes the offset instead. An instance
+its mates place is inlined only when its part is one such group.
+Members the instance placed through mates move onto the new gauge with
+their mates, and one that carries a further offset refuses. A mate
+side crosses the seam only when its coordinates do not change (the
+instance it reads is its group's root, on the part's world, at the
+empty chain) and the placing mates of one pair still read one pair;
+otherwise the mate refuses, named. Neither computes a frame. Both are
+pure, returning values plus edit lists. Acceptance:
 split-then-evaluate equals unsplit evaluation at structural and
-name-resolution identity, not bit identity. A mate whose two
+name-resolution identity, not bit identity, and inline-of-split returns
+the document split was given, up to node ids. A mate whose two
 `InstantiatePart` heads fall on opposite sides of a cut is an
 `InterfaceCrossing::Mate` in the instance's `InterfaceRecord`, which
 feeds the content key; evaluation refuses
 `NodeErrorKind::CrossingUnverified` when a crossing's part-side name no
-longer resolves in the pinned product. No split reaches that record
-today (AQ8).
+longer resolves in the pinned product; a declaring mate crossing a cut
+fills that record (AQ8).
 
 **A13 — Update granularity.** The primitive is
 `DocEdit::UpdateReference { node, new_pin }`: per reference, recorded,
@@ -237,8 +259,10 @@ re-evaluation, which re-verifies crossings (A4).
 **A5 — The at-rest gate.** `assembly::assemble` gathers the product
 (`product::product_recorded`), mints every solved mate's declaration as
 a `MintedDeclaration` (declaring mates mint like determining ones), and
-runs the scalar's at-rest policy, `topo::validate_pseudomanifold`, over
-body plus records. Minting resolves each reference against the
+runs the scalar's at-rest policy, `topo::validate_pseudomanifold`'s
+verdict, over body plus records. The gather's own tier-3 verdict rides
+on the product's body (`topo::AtRestBody`), so the gate runs tier 3′'s
+census over it rather than the local battery a second time. Minting resolves each reference against the
 product's table and, when that is silent, asks the operand the mate
 reads at whether the name is spelled in its own table — a name spelled
 there at a node the product does not list refuses
@@ -291,9 +315,12 @@ declaration C6 above describes, are not implemented.
 
 **A6 — Mirror and improper frames.** `Frame` stores a general linear
 part so an improper frame (det = −1) is representable, and it is
-refused: `DocEdit::SetPlacement` refuses `EditError::ImproperPlacement`
-for det ≤ 0 and the load validator refuses the same. Mirrored instances
-are not implemented; STEP import refuses a mirroring placement.
+refused wherever a document admits a frame, by one predicate
+(`Frame::admission_fault`): `DocEdit::SetPlacement`'s frame, an
+explicit placement rule's listed frames and a transform's literal
+steps refuse `EditError::ImproperPlacement` for det ≤ 0, naming which
+frame, and the load validator refuses the same. Mirrored instances are
+not implemented; STEP import refuses a mirroring placement.
 
 ## Interchange
 
@@ -316,11 +343,12 @@ declarations are not exported.
 **A9 — Relative freedom is component structure.** Two instances are
 relatively unconstrained exactly when they lie in different connected
 components of the DAG under consuming ∪ reading edges
-(`relative_freedom_components`); no solver, no geometry. Anchor frames
-are never erased, so evaluation stays one deterministic body. The
-viewer's free-move probe is display state, never persisted; it admits
-only an instance no mate names (`crates/viewer/src/display.rs`),
-stricter than the whole-component drag this decision permits.
+(`relative_freedom_components`); no solver, no geometry. Evaluation
+stays deterministic, and every placed group has a world pose, so the
+placed part of an assembly is one body. A group nothing places lives in
+its own space (A11 (2)): nothing outside it is compared with it, and it
+is not part of that body. The viewer's free-move probe is display state,
+never persisted; it admits a whole group (`crates/viewer/src/display.rs`).
 
 **A10 — Explicit product roots.** `Doc::roots` is an ordered list of
 node ids, document data. Invariants (`roots::check`): coverage (every
@@ -350,32 +378,52 @@ refused at the insert door (`EditError::MateRefused`, carrying the
 solve's fault); the doors decide edits and the solve decides states,
 so a verdict about the pair, and a state a mate comes to hold after
 insert (a head a rebind or a shrunk pattern strands, a re-pointed
-`Part`, a loaded snapshot), stay the solve's. (2) Placement lives on the
-cluster: clusters are connected components of the instance–mate graph
-(`clusters`); `Doc::placements` holds at most one `Frame` per cluster,
-keyed by its gauge, a missing entry being the identity, so zero- and
-multi-anchor states are unrepresentable; `reconcile` re-keys records
-when an edit joins or splits clusters
-(`ClusterMaintenance::{Join, Split, GaugeRewrite}`, gauge-exact in
-bits). When a gauge moves the maintenance solves the prior document
-with the mated parts' reach (`apply` takes it) to mint the new gauge's
-frame from its solved pose, and asks nothing otherwise; a solve that
-reaches no verdict refuses the edit typed
-(`EditError::MaintenanceRefused`). The rows ride the logged edit
-(`LoggedEdit`), and replay re-applies them without solving. (3) The
-gauge is the cluster's earliest instance in document
-order, a convention, not data; pattern-placed instances are
-gauge-ineligible. (4) `solve_document` takes the deterministic spanning
-tree rooted at the gauge: tree mates DETERMINE and must fold to
+`Part`, a loaded snapshot), stay the solve's. (2) Placement lives on a
+gauge. A gauge is a document node that holds a placement and denotes no
+body; each instance names its gauge, the world by default, and may carry
+an offset in it, and an instance's world pose is its gauge's frame
+composed with its offset. A gauge names its parent gauge in turn, the
+world by default, and its frame is its parent's frame composed with its
+placement, so gauges nest. A
+placement is parametric (Ev, `[ev]` #3437, 2026-09-29): a chain of
+steps, each either a rigid step of `Expr`s (the translation, rotation
+axis and rotation angle `Node::Transform` holds, and `Node::Transform`
+holds the same type) or a literal proper matrix held to A6, so a
+document parameter can drive where a group of parts sits. Mates place
+instances relative to one another only within one gauge; contact
+between groups on different gauges is declared and verified at the
+at-rest gate, never placed, and copying one part's gauge to another
+and mating them is one edit. A further statement of where a placed
+instance sits is verified against the solve, never trusted and never
+silently ignored. No edit records a frame: deleting a mate, an instance
+or a gauge is never refused for the placement it removes, what is placed
+is recomputed from what remains, and replay re-applies the edits alone,
+without solving. A group nothing places (its gauge, its placed member
+or its placing mate deleted) lives in its own space until it is placed
+again (Ev, `[ev]` #3441, 2026-09-29): it keeps its shape and is
+evaluated in its own frame, with its earliest instance at that frame's
+origin, and nothing outside the group is compared with it, so the
+at-rest gate and cross-group measures do not ask, while everything
+inside it solves and checks as usual. STEP export refuses unplaced
+parts, naming how to place them. The viewer draws such a group where it
+was last shown, as display state that no logic reads (G3's free-move
+probe, widened to a whole group); placing it where it is shown is one
+edit whose frame the user supplies. (3) A
+cluster's tree is rooted at its placed member when it has one, and at
+its earliest instance in document order otherwise, a convention that
+decides nothing a user placed; pattern-placed instances are
+root-ineligible. (4) `solve_document` takes the deterministic spanning
+tree rooted at the cluster's root: tree mates DETERMINE and must fold to
 `Trivial` (an UNDER tree edge refuses naming the residual subgroup,
 recourse `UNDER_RECOURSE`); non-tree mates DECLARE and are only
 verified by the gate. No cycle is ever solved; an inconsistent loop
 dies at its closing mate's verification (`MateFault::Contradictory`,
 recourse `CONTRADICTORY_RECOURSE`). The solve is total and
 per-node: a refusing cluster faults its own mate and instances
-(`SolvedPoses::fault`), nothing else. (5) `SolvedPoses::placement`
-composes the cluster frame onto the solved relative pose; a singleton
-cluster returns its recorded frame bit for bit. It is one of A2a's
+(`SolvedPoses::fault`), nothing else. (5) A placed instance's world pose composes its gauge's frame and its
+root's offset onto the solved relative pose; a lone instance returns
+its placement's frame bit for bit. An unplaced instance has no world
+pose, only its pose in its group's own frame. It is one of A2a's
 pairing doors: the document it is handed must be the one solved, else
 `MateFault::PosesOfAnotherDocument` before any frame is read. A
 reference resolves by walking from its OPERAND down to a live
@@ -420,9 +468,13 @@ evaluated count, else `MateFault::DanglingHead` at the pattern), and a
 name is the authority; the `Part` is checked against it. A member's derived pose refuses in
 the PLACER's own voice: a pattern copy or a transform on the chain
 whose pose cannot be derived refuses `MateFault::PlacerRefused`,
-carrying the evaluation layer's own typed cause unaltered, because a
-mate fault poisons the document and the placer node never gets to
-state that cause itself.
+holding the evaluation layer's own typed cause unaltered. Where a
+cluster's fold derives the offset, the fault reaches the instance
+under the placer, so the placer is poisoned and never gets to state
+that cause itself: the fault carries it, drawn as its own line under
+the mate's. Where the solve reads one mate's references, the fault
+reaches that mate alone, the placer fails in its own right and states
+the cause on its own row, and the mate points there.
 
 ## Open questions
 
@@ -437,10 +489,10 @@ state that cause itself.
 - **AQ6 — cross-document `Rest` verification.** Answered in the kernel:
   the trilean verdict and the designed-clearance steer toward `Fit`
   (`fit_steer` in `crates/topo/src/boolean/contact_verify.rs`).
-- **AQ8 — the crossing record's reachability.** A crossing mate welds
-  its ends into one cluster and `TornCluster` refuses cutting through
-  one, so split never populates `InterfaceRecord`. The conversion door
-  (crossing mates passed at split and converted) is not implemented.
+- **AQ8 — the crossing record's reachability.** A placing mate welds
+  its ends into one group and never crosses a cut; a declaring mate
+  (its ends on different gauges) may, and populates `InterfaceRecord`,
+  so no conversion door is needed.
   **Only a mate EDGE can cross** (ruled, option (b) SKIP): a mate that
   is not an A12 edge — a head outside A11's member vocabulary, or a
   node not in the document — contributes no interface crossing however

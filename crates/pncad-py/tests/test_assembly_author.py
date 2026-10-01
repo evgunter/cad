@@ -936,12 +936,28 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, SEAT_A),
             )
         )
-        fault = solve_document(doc, resolver=self.ws).fault(mate)
+        solved = solve_document(doc, resolver=self.ws)
+        fault = solved.fault(mate)
         self.assertEqual(fault.variant, "mate_placer_refused")
         self.assertEqual(fault.placer, lifted)
         self.assertEqual(fault.error, "non_finite_direction")
         self.assertIsNone(fault.head)
-        self.assertIn("transform rotation axis", str(fault))
+        # The fault names the placer and points; the placer's own
+        # refusal is its typed cause, in the placer's own words.
+        self.assertIn(f"repair node {repr(lifted)[7:-1]}", str(fault))
+        self.assertNotIn("transform rotation axis", str(fault))
+        cause = fault.cause
+        self.assertIsInstance(cause, pncad.EvaluationError)
+        self.assertEqual(cause.node, lifted)
+        self.assertEqual(cause.kind, "non_finite_direction")
+        self.assertIn("transform rotation axis", str(cause))
+        self.assertIsNone(cause.document, "the placer is this document's own node")
+        # A raised `MateError` carries the same refusal as its cause.
+        with self.assertRaises(pncad.MateError) as caught:
+            solved.placement(doc, shelf_i)
+        raised = caught.exception.__cause__
+        self.assertIsInstance(raised, pncad.EvaluationError)
+        self.assertEqual((raised.node, str(raised)), (cause.node, str(cause)))
 
     def test_a_non_finite_frame_still_refuses_at_the_edit_door(self):
         """The axis is decided at the constructor now, so the frame a

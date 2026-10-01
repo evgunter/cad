@@ -40,7 +40,7 @@ use geom_core::Decide;
 use topo::readback::{self, Pose, ReadbackError};
 use topo::{Body, CurveKind};
 
-use crate::eval::{BooleanValue, Evaluation, NodeResult, SplitSide, ValuePayload};
+use crate::eval::{BooleanValue, Evaluation, NodeStanding, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityKind, Entry, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 
@@ -71,24 +71,9 @@ pub enum Denotation {
 /// Typed refusal of a name→geometry read (closed enum, D4 ¶3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InterrogateError {
-    /// The node has no result in this evaluation (canceled suffix or
-    /// a foreign node id).
-    NodeNotEvaluated {
-        /// The node.
-        node: RecipeNodeId,
-    },
-    /// The node failed; there is no table to read.
-    NodeFailed {
-        /// The failed node.
-        node: RecipeNodeId,
-    },
-    /// The node was poisoned by an upstream failure.
-    NodePoisoned {
-        /// The queried node.
-        node: RecipeNodeId,
-        /// The nearest failed ancestor.
-        through: RecipeNodeId,
-    },
+    /// The node has no value in this evaluation, so there is no table
+    /// to read.
+    Standing(NodeStanding),
     /// The node evaluated, and nothing in it answers to this name —
     /// a stale selection (the upstream edit removed what it named) or
     /// a name from another node.
@@ -135,34 +120,14 @@ pub enum InterrogateError {
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM in the name-door's own vocabulary — the node, the name,
-// the kind — plus the recourse where a caller has one. The three
-// node-state arms say what the hit-test door's identical arms say,
-// because it is the same fact about the same evaluation reached
-// through a different door. Kinds render through `EntityKind::noun`,
-// never `Debug`, and the `Readback` arm forwards the kernel's own
-// words rather than paraphrasing a layer it does not own.
+// the kind — plus the recourse where a caller has one, and names no
+// door: the door is its carrier's to prefix. So the `Standing` and
+// `Readback` arms forward their payload's own words. Kinds render
+// through `EntityKind::noun`, never `Debug`.
 impl core::fmt::Display for InterrogateError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeNotEvaluated { node } => write!(
-                f,
-                "node {} has no result in this evaluation — the name is against a \
-                 node this run did not produce (a canceled suffix, or an id from another \
-                 document)",
-                node.0
-            ),
-            Self::NodeFailed { node } => write!(
-                f,
-                "node {} failed, so it has no name table to read — fix the node's \
-                 own failure before asking about its names",
-                node.0
-            ),
-            Self::NodePoisoned { node, through } => write!(
-                f,
-                "node {} is poisoned by the failure at node {}, so it has no name \
-                 table to read — the repair is upstream, at node {}",
-                node.0, through.0, through.0
-            ),
+            Self::Standing(standing) => write!(f, "{standing}"),
             Self::NoSuchName => f.write_str(
                 "nothing in this node answers to that name — the selection is \
                  stale (an upstream edit removed what it named) or the name belongs to another \
@@ -202,6 +167,12 @@ impl core::fmt::Display for InterrogateError {
 
 impl core::error::Error for InterrogateError {}
 
+impl From<NodeStanding> for InterrogateError {
+    fn from(standing: NodeStanding) -> Self {
+        Self::Standing(standing)
+    }
+}
+
 impl From<ReadbackError> for InterrogateError {
     fn from(e: ReadbackError) -> Self {
         Self::Readback(e)
@@ -214,15 +185,13 @@ impl From<ReadbackError> for InterrogateError {
 ///
 /// # Errors
 ///
-/// The node ladder ([`InterrogateError::NodeNotEvaluated`],
-/// [`InterrogateError::NodeFailed`], [`InterrogateError::NodePoisoned`])
-/// and [`InterrogateError::NoSuchName`].
+/// The node's standing ([`InterrogateError::Standing`]) and [`InterrogateError::NoSuchName`].
 pub fn denotation<T: Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<Denotation, InterrogateError> {
-    match value_of(ev, node)?.name_table.lookup(name) {
+    match ev.usable(node)?.name_table.lookup(name) {
         None => Err(InterrogateError::NoSuchName),
         Some(Entry::Unique(_)) => Ok(Denotation::Unique),
         Some(Entry::Tied(candidates)) => Ok(Denotation::Tied {
@@ -242,7 +211,7 @@ pub fn denotation<T: Decide>(
 ///
 /// # Errors
 ///
-/// Every [`InterrogateError`]: the node ladder, `NoSuchName`,
+/// Every [`InterrogateError`]: the node's standing, `NoSuchName`,
 /// `WrongKind` for a non-face name, `Ambiguous` for an N2 tie among
 /// FACES, and the wrapped [`ReadbackError`]. The kind is asked first,
 /// so a non-face name is refused `WrongKind` whether or not it is
@@ -267,7 +236,7 @@ pub fn face_frame<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`face_frame`]: the node ladder, `NoSuchName`, `WrongKind` for
+/// As [`face_frame`]: the node's standing, `NoSuchName`, `WrongKind` for
 /// a non-face name, `Ambiguous`, and the wrapped [`ReadbackError`].
 pub fn face_carrier_kind<T: Decide>(
     ev: &Evaluation<T>,
@@ -307,7 +276,7 @@ pub fn edge_frame<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`face_frame`]: the node ladder, `NoSuchName`, `WrongKind` for
+/// As [`face_frame`]: the node's standing, `NoSuchName`, `WrongKind` for
 /// a non-edge name, `Ambiguous`, and the wrapped [`ReadbackError`].
 pub fn edge_carrier_kind<T: Decide>(
     ev: &Evaluation<T>,
@@ -385,7 +354,7 @@ pub(crate) fn entity_point<T: Decide>(
 ///
 /// # Errors
 ///
-/// The node ladder, then `NoSuchName`/`WrongKind`/`WholeBody`/`Ambiguous`
+/// The node's standing, then `NoSuchName`/`WrongKind`/`WholeBody`/`Ambiguous`
 /// through [`key_in`], which asks them in that order, then the output
 /// body, and the wrapped [`ReadbackError`] the kernel door refuses with.
 fn read<T: Decide, K: Denoted, R>(
@@ -394,7 +363,7 @@ fn read<T: Decide, K: Denoted, R>(
     name: &StableName,
     door: fn(&Body<T>, K) -> Result<R, ReadbackError>,
 ) -> Result<R, InterrogateError> {
-    let value = value_of(ev, node)?;
+    let value = ev.usable(node)?;
     let (index, key) =
         key_in::<K>(&value.name_table, name).map_err(|refusal| refusal.at(K::KIND))?;
     Ok(door(output_body(&value.payload, index)?, key)?)
@@ -445,14 +414,14 @@ impl TableRefusal {
 /// an edge name handed to a face door is not readable however few
 /// entities answer to it, so narrowing it is no recourse and
 /// `Ambiguous` would be the wrong word for the fault. The kind is the
-/// NAME's, which the table makes every candidate's kind —
-/// `NameTable::insert_ref` and `insert_tied_ref` refuse a row whose
-/// name's kind is not its key's, and they are the only two writers of
-/// a row — so a tie answers this as readily as a unique row does.
+/// NAME's, which the table makes every candidate's kind — every
+/// `NameTable` door that seats a row refuses one whose name's kind is
+/// not its key's — so a tie answers this as readily as a unique row
+/// does.
 /// `NoSuchName` still outranks it: nothing is said about what a name
 /// denotes here until the table answers to it.
 ///
-/// A unique row's KEY of another kind than its name's is that writers'
+/// A unique row's KEY of another kind than its name's is that seating
 /// rule broken: asserted in debug, and answered in release as what the
 /// key is, the one place the two can disagree.
 pub(crate) fn key_in<K: Denoted>(
@@ -479,7 +448,7 @@ pub(crate) fn key_in<K: Denoted>(
             debug_assert!(
                 false,
                 "the table holds a key whose kind is not its name's: \
-                 `NameTable::insert_ref` and `insert_tied_ref` admit a row only at \
+                 every `NameTable` door that seats a row admits it only at \
                  its name's kind"
             );
             Err(TableRefusal::Kind {
@@ -544,23 +513,6 @@ fn kind_mismatch(wanted: EntityKind, found: EntityKind) -> InterrogateError {
             wanted,
             found: other,
         },
-    }
-}
-
-/// The node's value, or the typed rung of the ladder it failed at
-/// (the same ladder `resolve::hit` walks, one direction over).
-pub(crate) fn value_of<T: Decide>(
-    ev: &Evaluation<T>,
-    node: RecipeNodeId,
-) -> Result<&crate::eval::NodeValue<T>, InterrogateError> {
-    match ev.nodes.get(&node) {
-        Some(NodeResult::Ok(v)) => Ok(v),
-        Some(NodeResult::Failed(_)) => Err(InterrogateError::NodeFailed { node }),
-        Some(NodeResult::Poisoned { through }) => Err(InterrogateError::NodePoisoned {
-            node,
-            through: *through,
-        }),
-        None => Err(InterrogateError::NodeNotEvaluated { node }),
     }
 }
 

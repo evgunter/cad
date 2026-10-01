@@ -18,6 +18,11 @@
 //! - [`ValuePayload::Split`] — both pieces, `above` then `below` (a
 //!   mold document wants both halves).
 //!
+//! Before any root is read, the recipe is checked for one body placed
+//! under two roots — two roots reaching one node through transforms
+//! and part selections alone, which would carry its names twice — and
+//! the gather refuses that shape as [`ProductError::PlacedUnderTwoRoots`].
+//!
 //! A root that denotes no body at all (a datum, a WIP profile tip, a
 //! declaration) contributes NOTHING and is not an error — A10 states
 //! that outright. An EMPTY boolean or split side is body-denoting and
@@ -40,11 +45,17 @@
 //! aggregate table of its own, and the per-node tables it reads are
 //! untouched).
 //!
-//! Validation is the same F8/D7 shape as the import loop: each source
-//! body is gated on its own when the product holds more than one solid
-//! (with one, the per-solid and aggregate subjects are the same body
-//! and the call is skipped as an identity, never as an exemption), then the
-//! aggregate is gated. Both gates go through the SCALAR'S at-rest
+//! Validation is the kernel's F8/D7 shape, gated once: the aggregate
+//! is gated at rest, and only when it refuses is each source body
+//! gated on its own, in gather order, so the refusal names every root
+//! and output index whose body fails ([`ProductError::RootInvalid`]).
+//! Attribution is paid for on the refusing path alone, so a successful
+//! gather runs the gate once (held by the source row in
+//! `tests/product_gate_attribution.rs`). Why a refusal re-gates rather
+//! than reading the aggregate's findings is `attribute_at_rest`'s doc.
+//! An aggregate refusal with every source clean is a graft defect
+//! ([`ProductError::ProductInvalid`]). Both
+//! gates go through the SCALAR'S at-rest
 //! policy ([`topo::AtRestPolicy`], `docs/DUAL-DESIGN.md` DL3):
 //! certifying scalars run [`topo::validate_geometric`] verbatim; at a
 //! dual the gates are structurally absent, and their success arm SAYS
@@ -53,34 +64,34 @@
 //! product is NOT a validated product — the base-scalar evaluation
 //! beside it, whose value channel is bit-identical, is the validation
 //! of record. Disjoint multi-solid bodies are tier-3 legal.
-//! Know what the aggregate gate proves: tier 3 is a LOCAL battery
-//! (per-face, per-edge, per-edge–face-pair, plus one whole-body signed
-//! volume that SUMS), so solids that OVERLAP pass THIS call undetected
-//! — inter-solid interference is not among its checks. Undeclared
+//! Know what the aggregate gate proves: tier 3 is a LOCAL battery in
+//! what it CHECKS (per-face, per-edge, per-edge–face-pair, plus each
+//! solid's signed volume, read on that solid's own faces), so no check
+//! compares one solid against another and solids that OVERLAP pass THIS
+//! call undetected — inter-solid interference is not among its checks.
+//! It is not local in what it REPORTS (`attribute_at_rest`). Undeclared
 //! cross-instance contact is A5's hard error and interference fits are
 //! C6's recorded-gate-skips territory; both are decided by the tier-3′
 //! door ([`topo::validate_pseudomanifold`]), which the ASSEMBLY gate
 //! runs over this gather's output ([`crate::assemble`]) and which this
-//! function does not.
+//! function does not. The aggregate gate's verdict rides on the
+//! product's body ([`topo::AtRestBody`]), so that gate pays tier 3′'s
+//! census over it and not the local battery a second time.
 //!
-//! **That is a division of labour, not a gap** (#382 closed at M9-2 —
-//! the census reaches the touching/overlap space and nothing in it
-//! validates silently). The gather stays on the local battery because
-//! tier 3′ is quadratic in the aggregate's entities, which a caller
-//! gathering on every edit cannot afford: the heat sink at 160 fins
-//! (161 solids / 991 faces) costs ~11.4 s there — refusing, with 125
-//! findings — where THIS gather costs ~250 ms and the whole check
-//! registry over a subject already gathered costs ~8 ms. The split is
-//! the reason a caller gathers ONCE: the gather, not the resident
-//! above it, is what a landing pays for. (That the doubled gather was
-//! therefore most of the doubled cost is an INFERENCE from those three
-//! numbers, not a fourth measurement: nothing here has timed a landing
-//! before and after.) The figures are a dev-profile wall clock and
-//! machine-dependent; the ones of record are hosted, re-taken by the
-//! `registry split` row of
-//! `crates/editor-core/tests/m4_pr8_latency.rs` on a nightly cron
-//! gated on `main` having moved, and appended to
-//! `docs/perf-data/rebuild-latency/`. What the gather
+//! **That is a division of labour, not a gap**: the census reaches the
+//! touching/overlap space and nothing in it validates silently. The
+//! gather stays on the local battery because the census refuses what a
+//! caller gathering on every edit must still be handed — the corpus
+//! heat sink at 160 fins (161 solids / 991 faces), whose fins meet the
+//! base, refuses there with 125 findings — and because it costs the
+//! same order as the gather itself. The gather, not the registry above
+//! it, is what a landing pays for, which is why a caller gathers ONCE.
+//! The terms are measured over that heat sink, not stated here: the
+//! `registry split` row of `crates/editor-core/tests/m4_pr8_latency.rs`
+//! appends `registry_split.gather_ms`, `checks_ms` (the registry over a
+//! subject already gathered) and `census_ms` (the assembly gate over
+//! the kept verdict) to `docs/perf-data/rebuild-latency/`, on a nightly
+//! cron gated on `main` having moved. What the gather
 //! DOES owe — [`topo::graft_disjoint_all_keyed`] asserts nothing about
 //! its operands, so every caller of it must establish disjointness —
 //! is discharged by [`crate::checks`]'s separation resident, which
@@ -94,9 +105,10 @@ use geom_core::Decide;
 use topo::{AtRestPolicy, Body, ContactRecords, ValidationError};
 
 use crate::doc::Doc;
-use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
+use crate::eval::{BooleanValue, Evaluation, NodeStanding, NodeValue, SplitSide, ValuePayload};
 use crate::names::{CarriedRows, EntityKey, NameTable, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
+use crate::sentence::{Labelled, Labels, Staged};
 use geom_core::Tol;
 
 /// Why [`product`] refused. Fail-loud and typed: a product is all of
@@ -114,50 +126,69 @@ pub enum ProductError {
         /// The document the handed evaluation is of.
         found: crate::ident::DocumentId,
     },
-    /// A root has no entry in this evaluation (never scheduled, or
-    /// past a cancelation's completed prefix).
-    UnknownNode {
-        /// The root that was asked for.
-        node: RecipeNodeId,
-    },
-    /// Name rows the gather carried would alias in the product table
-    /// — the same STRICT name twice, or two names on one aggregate
-    /// entity. Usually two ROOTS' rows, which is the only way a
-    /// document reaches it; the tie merge below the roots can raise it
-    /// too, and there the colliding rows belong to no one root (see
-    /// `node` below). An emission-level bug surfaced, never resolved
-    /// by picking one.
+    /// A root has no value in this evaluation, and its standing says
+    /// why and where the repair is: no entry (the run stopped before
+    /// it, or the id is not the document's), failed, or poisoned
+    /// through its nearest failed ancestor.
+    Root(NodeStanding),
+    /// One node's body is placed under two product roots: each root
+    /// reaches `placed` through transforms and part selections alone,
+    /// and the two select the same body of it (the whole value, or the
+    /// same half or instance).
     ///
-    /// A name that descends from an N2 TIE is not this: its candidates
-    /// are equally admissible and stay so in the product, so rows
-    /// arriving under one tied name MERGE into one `Entry::Tied`
-    /// (`carry_names`) rather than colliding — including the
-    /// candidates a split separated into two halves the gather then
-    /// carries as two sources. What that costs is stated where it
-    /// lands: the product genuinely holds two entities under the one
-    /// name, and a selection that matches both refuses
+    /// Raised from the recipe before any root's value is read, because
+    /// the shape alone decides it; why the shape cannot gather, and
+    /// which edges it follows, is `placed_under_two_roots`'s doc.
+    PlacedUnderTwoRoots {
+        /// The node whose body both roots place.
+        placed: RecipeNodeId,
+        /// Which body of `placed` both roots read: `None` when either
+        /// takes it whole, else the one selection they share.
+        select: Option<crate::node::PartSelect>,
+        /// The earlier of the two roots, in root-list order.
+        first: RecipeNodeId,
+        /// The later root.
+        second: RecipeNodeId,
+    },
+    /// Name rows the gather carried would alias in the product table:
+    /// one (name, candidate) pair carried twice (N4, "A tie's candidates
+    /// keep their identity") — the same STRICT name twice, since a
+    /// strict name is its own only candidate, or the same candidate of
+    /// a tie twice, the tied case of one entity placed twice. Raised by
+    /// the per-root carry (`carry_names`), so `node` is the root whose
+    /// row repeated the pair. Never resolved by picking one.
+    ///
+    /// Two roots that place one body through transforms and part
+    /// selections refuse earlier, as
+    /// [`ProductError::PlacedUnderTwoRoots`]. The routes a document
+    /// still has to this arm are two:
+    ///
+    /// - **A split's intact pass-through.** A split root beside another
+    ///   root over the split's target shares whichever of the target's
+    ///   entities the plane leaves uncut — geometry the recipe cannot
+    ///   see. The per-root carry refuses.
+    /// - **One instance index spelled two ways.** `Part` selections
+    ///   are compared as written, so `Instance(1)` beside
+    ///   `Instance(0 + 1)` passes the recipe check and the per-root
+    ///   carry refuses.
+    ///
+    /// DIFFERENT candidates of one tie arriving from different sources
+    /// MERGE into one `Entry::Tied` rather than colliding — which is
+    /// what a split ROOT hands the gather for a tie its plane
+    /// separates, since the split's own table keeps the tie across both
+    /// output bodies, and what the two halves hand it as two `Part`
+    /// roots, each keeping its candidate. What that costs is stated
+    /// where it lands: the product genuinely holds two entities under
+    /// the one name, and a selection that matches both refuses
     /// (`SelectRefusal::TiedDisagrees`) instead of the gather refusing
     /// for it.
     Naming {
-        /// The root whose rows collided — or, for a collision the
-        /// tie merge below the roots surfaced, the node that minted
-        /// the name (`product_recorded`'s flush).
+        /// The root whose row repeated the pair — or, for a collision
+        /// the final narrowing surfaced, the node that minted the name
+        /// (`product_recorded`'s flush; not reachable by construction).
         node: RecipeNodeId,
         /// The colliding name.
         name: Box<StableName>,
-    },
-    /// A root's node failed to evaluate (ask
-    /// [`Evaluation::node_error`] for the typed cause).
-    RootFailed {
-        /// The failed root.
-        node: RecipeNodeId,
-    },
-    /// A root never ran: ancestor failed.
-    RootPoisoned {
-        /// The poisoned root.
-        node: RecipeNodeId,
-        /// Its nearest failed ancestor.
-        through: RecipeNodeId,
     },
     /// No root denotes a body: there is no product for a door that
     /// needs one, and nothing has gone wrong. The reading, and the
@@ -171,20 +202,31 @@ pub enum ProductError {
         /// The kernel's own refusal.
         source: Box<topo::BooleanError>,
     },
-    /// A source body failed the at-rest validity gate on its own — a
-    /// multi-solid source is gated whole, as one body (only asked when
-    /// the product holds more than one solid).
-    SolidInvalid {
-        /// The root that contributed it.
-        node: RecipeNodeId,
-        /// Every failure the validator found.
-        errors: Vec<ValidationError>,
+    /// The gathered product failed the at-rest validity gate, and these
+    /// roots' bodies fail it on their own: one finding per failing
+    /// source body, in gather order, each carrying the validator's
+    /// findings about that body in that body's own keys.
+    ///
+    /// Every grafted source is re-gated when the aggregate refuses, so
+    /// the list names EVERY failing root, not only the one whose defect
+    /// the aggregate's list happened to report (`attribute_at_rest`
+    /// says why those differ). Non-empty. A per-entity local
+    /// verdict; inter-solid overlap is not among its checks (module
+    /// docs, issue #382).
+    RootInvalid {
+        /// Every failing source body, in gather order.
+        findings: Vec<SourceFinding>,
     },
-    /// The gathered product failed the at-rest validity gate — a
-    /// per-entity local verdict; inter-solid overlap is not among its
-    /// checks (module docs, issue #382).
+    /// The gathered product failed the at-rest validity gate while
+    /// EVERY source body passes it on its own — a graft defect.
+    ///
+    /// The battery is local in what it checks, and the graft
+    /// transplants each source verbatim, so every finding about the
+    /// aggregate is about entities some source holds unchanged; with
+    /// every source clean, the transplant is what changed them. The
+    /// findings are the aggregate's, in the aggregate's keys.
     ProductInvalid {
-        /// Every failure the validator found.
+        /// Every failure the validator found on the aggregate.
         errors: Vec<ValidationError>,
     },
     /// A source's declared contact record names an entity the graft's
@@ -214,57 +256,124 @@ impl From<crate::ident::Mispaired> for ProductError {
     }
 }
 
+/// One source body that fails the at-rest gate on its own, as
+/// [`ProductError::RootInvalid`] lists it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourceFinding {
+    /// The product root that contributed the body.
+    pub node: RecipeNodeId,
+    /// The body's output index within that root's value — the index
+    /// the root's name table keys its rows by.
+    pub output: u32,
+    /// Every failure the validator found on that body, in its own keys.
+    /// Non-empty.
+    pub errors: Vec<ValidationError>,
+}
+
+// One validity finding about one source, through the layer's one sink
+// ([`crate::finding`]): the root and output are the subject, the
+// kernel's finding is the story, FORWARDED verbatim, and the recourse
+// is `""` because the kernel's message ends in its own.
+struct SourceLine<'a> {
+    source: &'a SourceFinding,
+    error: &'a ValidationError,
+}
+
+impl crate::finding::Finding for SourceLine<'_> {
+    fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "root {} output {}",
+            self.source.node.0, self.source.output
+        )
+    }
+
+    fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.error)
+    }
+
+    fn recourse(&self) -> &str {
+        ""
+    }
+}
+
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM and FORWARDS its payload's own `Display` — the kernel's
 // refusals and validity findings both carry one, so no arm re-states
 // them (and none Debug-dumps them). A validity-finding list renders
-// one kernel finding per indented line through the finding sink's own
-// `render_lines`, which is where that shape lives for the whole layer;
-// node ids render plain, names as kind + minting node.
+// one kernel finding per indented line through the finding sink
+// ([`crate::finding`]): the aggregate's bare findings through
+// `render_lines`, a per-root list through `render_list`, each line
+// composed with its root and output as the subject. Node ids render
+// plain, names as kind + minting node.
 impl core::fmt::Display for ProductError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", Labelled(self, Labels::Kept))
+    }
+}
+
+// The gather's labels are its stage word and the `root N output M`
+// subject each listed finding opens with, legitimate where the gather's
+// refusal is drawn under its own name. The sentence a carrier that
+// names the stage renders ([`crate::PartFault::PartProduct`]'s
+// `message`) carries neither, and names the roots in its header.
+impl Staged for ProductError {
+    const STAGE: &'static str = "product";
+
+    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, labels: Labels) -> core::fmt::Result {
         let list = crate::finding::render_lines::<&ValidationError, _>;
         match self {
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
-                "product: the evaluation is of document {found}, not of \
+                "the evaluation is of document {found}, not of \
                  document {expected}",
             ),
-            Self::UnknownNode { node } => {
+            Self::Root(standing) => write!(f, "{}", standing.of_root()),
+            Self::PlacedUnderTwoRoots {
+                placed,
+                select,
+                first,
+                second,
+            } => {
+                let what = match select {
+                    None => format!("node {}'s body", placed.0),
+                    Some(crate::node::PartSelect::SplitHalf(SplitHalf::Above)) => {
+                        format!("the above half of node {}", placed.0)
+                    }
+                    Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
+                        format!("the below half of node {}", placed.0)
+                    }
+                    Some(crate::node::PartSelect::Instance(i)) => format!(
+                        "instance `{}` of node {}",
+                        crate::expr::unparse(i),
+                        placed.0
+                    ),
+                };
                 write!(
                     f,
-                    "product: root {} has no entry in this evaluation",
-                    node.0
+                    "{what} is placed under two roots, {} and {} — \
+                     a transform or part selection mints no name, so both \
+                     would carry its names. Recourse: place it under one \
+                     root, or union the two",
+                    first.0, second.0
                 )
             }
-            Self::RootFailed { node } => write!(
-                f,
-                "product: root {} failed to evaluate (ask \
-                 `Evaluation::node_error` for the typed cause)",
-                node.0
-            ),
-            Self::RootPoisoned { node, through } => write!(
-                f,
-                "product: root {} never ran — poisoned through \
-                 failed ancestor {}",
-                node.0, through.0
-            ),
             Self::NoBodyRoots => f.write_str(
-                "product: no product root denotes a body — this document \
+                "no product root denotes a body — this document \
                  has no body product",
             ),
             // TWO SENTENCES BECAUSE `node` CARRIES TWO MEANINGS (the
             // arm's own doc): the root whose rows were being carried,
-            // or — for the tie merge's collision, which happens after
-            // the last root and belongs to no one of them — the node
-            // that minted the name. The guard is what keeps the second
+            // or — for a collision of the final narrowing, which happens
+            // after the last root and belongs to no one of them — the
+            // node that minted the name. The guard is what keeps the second
             // from being announced as a root: on that path `node` IS
             // `name.node`, and the sentence below says only what is
             // then true. A carried row could reach it too, by naming
             // its own root's mint, and would be described correctly.
             Self::Naming { node, name } if *node != name.node => write!(
                 f,
-                "product: root {}'s {} name (minted by node {}) collides in the \
+                "root {}'s {} name (minted by node {}) collides in the \
                  product's name table",
                 node.0,
                 name.kind.noun(),
@@ -272,34 +381,63 @@ impl core::fmt::Display for ProductError {
             ),
             Self::Naming { name, .. } => write!(
                 f,
-                "product: the {} name minted by node {} collides in the \
+                "the {} name minted by node {} collides in the \
                  product's name table",
                 name.kind.noun(),
                 name.node.0
             ),
-            Self::Graft { node, source } => {
-                write!(f, "product: grafting root {} refused: {source}", node.0)
-            }
-            Self::SolidInvalid { node, errors } => {
-                write!(
-                    f,
-                    "product: root {}'s solid is not valid at rest ({} finding(s)):",
-                    node.0,
-                    errors.len()
-                )?;
-                list(f, errors)
+            Self::Graft { node, source } => write!(
+                f,
+                "the kernel could not graft root {}'s body: {source}",
+                node.0
+            ),
+            Self::RootInvalid { findings } => {
+                // Findings arrive in gather order, so one root's outputs
+                // are adjacent and `dedup` counts roots.
+                let mut roots: Vec<RecipeNodeId> = findings.iter().map(|s| s.node).collect();
+                roots.dedup();
+                match labels {
+                    Labels::Kept => {
+                        let noun = if roots.len() == 1 { "root" } else { "roots" };
+                        write!(f, "{} {noun} not valid at rest:", roots.len())?;
+                        let lines: Vec<SourceLine<'_>> = findings
+                            .iter()
+                            .flat_map(|source| {
+                                source
+                                    .errors
+                                    .iter()
+                                    .map(move |error| SourceLine { source, error })
+                            })
+                            .collect();
+                        crate::finding::render_list(f, &lines)
+                    }
+                    Labels::Stripped => {
+                        if let [root] = roots.as_slice() {
+                            write!(f, "root {} is not valid at rest:", root.0)?;
+                        } else {
+                            let named: Vec<String> =
+                                roots.iter().map(|r| r.0.to_string()).collect();
+                            write!(f, "roots {} are not valid at rest:", named.join(", "))?;
+                        }
+                        crate::finding::render_lines(
+                            f,
+                            findings.iter().flat_map(|source| &source.errors),
+                        )
+                    }
+                }
             }
             Self::ProductInvalid { errors } => {
                 write!(
                     f,
-                    "product: the gathered product is not valid at rest ({} finding(s)):",
+                    "the gathered product is not valid at rest though every root \
+                     is on its own — a graft defect ({} finding(s)):",
                     errors.len()
                 )?;
                 list(f, errors)
             }
             Self::ContactLineage { node, what } => write!(
                 f,
-                "product: root {}'s declared contact names a {what} the \
+                "root {}'s declared contact names a {what} the \
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
                  succeed",
@@ -321,9 +459,12 @@ impl core::error::Error for ProductError {}
 /// the error itself cannot: into a `Clone + PartialEq` refusal record,
 /// a hash key, a test assertion.
 ///
-/// One variant per [`ProductError`] arm, and [`ProductError::kind`]
-/// matches exhaustively — an arm added to the error reds `kind` itself,
-/// here in this crate.
+/// One variant per [`ProductError`] arm, except [`ProductError::Root`],
+/// whose standing decides which refusal it is to a caller: one variant
+/// per state the feature tree draws a root in — no entry, failed,
+/// poisoned. [`ProductError::kind`] matches exhaustively, the standing
+/// included, so an arm added to the error or a state added to
+/// [`NodeStanding`] reds `kind` itself, here in this crate.
 ///
 /// A variant HERE with no arm behind it is a phantom: nothing
 /// constructs it, so no test can reach it. This module's tests
@@ -338,20 +479,23 @@ impl core::error::Error for ProductError {}
 pub enum ProductErrorKind {
     /// [`ProductError::EvaluationOfAnotherDocument`].
     EvaluationOfAnotherDocument,
-    /// [`ProductError::UnknownNode`].
+    /// [`ProductError::Root`] with no entry for the root:
+    /// [`NodeStanding::NotEvaluated`] or [`NodeStanding::NotInDocument`].
     UnknownNode,
+    /// [`ProductError::Root`] carrying [`NodeStanding::Failed`].
+    RootFailed,
+    /// [`ProductError::Root`] carrying [`NodeStanding::Poisoned`].
+    RootPoisoned,
+    /// [`ProductError::PlacedUnderTwoRoots`].
+    PlacedUnderTwoRoots,
     /// [`ProductError::Naming`].
     Naming,
-    /// [`ProductError::RootFailed`].
-    RootFailed,
-    /// [`ProductError::RootPoisoned`].
-    RootPoisoned,
     /// [`ProductError::NoBodyRoots`].
     NoBodyRoots,
     /// [`ProductError::Graft`].
     Graft,
-    /// [`ProductError::SolidInvalid`].
-    SolidInvalid,
+    /// [`ProductError::RootInvalid`].
+    RootInvalid,
     /// [`ProductError::ProductInvalid`].
     ProductInvalid,
     /// [`ProductError::ContactLineage`].
@@ -397,11 +541,12 @@ impl ProductErrorKind {
             Self::NoBodyRoots => true,
             Self::EvaluationOfAnotherDocument
             | Self::UnknownNode
-            | Self::Naming
             | Self::RootFailed
             | Self::RootPoisoned
+            | Self::PlacedUnderTwoRoots
+            | Self::Naming
             | Self::Graft
-            | Self::SolidInvalid
+            | Self::RootInvalid
             | Self::ProductInvalid
             | Self::ContactLineage => false,
         }
@@ -419,13 +564,18 @@ impl ProductError {
             Self::EvaluationOfAnotherDocument { .. } => {
                 ProductErrorKind::EvaluationOfAnotherDocument
             }
-            Self::UnknownNode { .. } => ProductErrorKind::UnknownNode,
+            Self::Root(standing) => match standing {
+                NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+                    ProductErrorKind::UnknownNode
+                }
+                NodeStanding::Failed { .. } => ProductErrorKind::RootFailed,
+                NodeStanding::Poisoned { .. } => ProductErrorKind::RootPoisoned,
+            },
+            Self::PlacedUnderTwoRoots { .. } => ProductErrorKind::PlacedUnderTwoRoots,
             Self::Naming { .. } => ProductErrorKind::Naming,
-            Self::RootFailed { .. } => ProductErrorKind::RootFailed,
-            Self::RootPoisoned { .. } => ProductErrorKind::RootPoisoned,
             Self::NoBodyRoots => ProductErrorKind::NoBodyRoots,
             Self::Graft { .. } => ProductErrorKind::Graft,
-            Self::SolidInvalid { .. } => ProductErrorKind::SolidInvalid,
+            Self::RootInvalid { .. } => ProductErrorKind::RootInvalid,
             Self::ProductInvalid { .. } => ProductErrorKind::ProductInvalid,
             Self::ContactLineage { .. } => ProductErrorKind::ContactLineage,
         }
@@ -470,17 +620,20 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // Multi-output ops carry no records (the `OpOut` invariant):
         // "output body 0" names nothing here, so there is no home to
         // read from and none is invented.
+        //
+        // Cannot refuse: an instance list is minted by the pattern op,
+        // which refuses any index `names::output_body` does not fit, or
+        // by `Placeable::map`, which rebuilds an existing list one body
+        // for one.
         ValuePayload::Instances(bodies) => Some(
             bodies
                 .iter()
                 .enumerate()
                 .map(|(i, body)| {
-                    (
-                        u32::try_from(i).unwrap_or(u32::MAX),
-                        Arc::clone(body),
-                        none(),
-                        norows(),
-                    )
+                    let ix = crate::names::output_body(i).unwrap_or_else(|e| {
+                        unreachable!("instance {i} outlived its minting op's index refusal: {e}")
+                    });
+                    (ix, Arc::clone(body), none(), norows())
                 })
                 .collect(),
         ),
@@ -566,7 +719,7 @@ pub fn product<P, T: Decide + AtRestPolicy>(
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Body<T>, ProductError> {
-    product_recorded(doc, evaluation, tol).map(|p| p.body)
+    product_recorded(doc, evaluation, tol).map(|p| p.body.into_body())
 }
 
 /// The whole-document product, with everything the gather knows about
@@ -589,8 +742,10 @@ pub struct Product<T: Decide> {
     /// Written from `doc.id()` after the pairing door below, so it is
     /// the identity BOTH arguments agreed on.
     pub document: crate::ident::DocumentId,
-    /// The gathered aggregate.
-    pub body: Body<T>,
+    /// The gathered aggregate, with the at-rest gate's verdict on it
+    /// kept ([`topo::AtRestBody`]): [`crate::assemble_gathered`] reads
+    /// it and pays tier 3′'s census alone.
+    pub body: topo::AtRestBody<T>,
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
     pub names: NameTable,
     /// Its declared contacts, re-keyed onto the aggregate through the
@@ -670,15 +825,17 @@ pub struct SolidOrigin {
 ///
 /// Every arm of [`ProductError`], including
 /// [`ProductError::EvaluationOfAnotherDocument`] when `evaluation` is
-/// not an evaluation of `doc`, and [`ProductError::Naming`] when two
-/// roots' rows would name one aggregate entity or collide on one name
-/// — an aliasing bug surfaced, never resolved silently.
+/// not an evaluation of `doc`; [`ProductError::PlacedUnderTwoRoots`],
+/// from the recipe before any root is read, when two roots place one
+/// body through transforms and part selections; and
+/// [`ProductError::Naming`] when two roots' rows would still name one
+/// aggregate entity or collide on one name — never resolved silently.
 pub fn product_named<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<(Body<T>, NameTable), ProductError> {
-    product_recorded(doc, evaluation, tol).map(|p| (p.body, p.names))
+    product_recorded(doc, evaluation, tol).map(|p| (p.body.into_body(), p.names))
 }
 
 /// The document's product with its name table AND its declared contact
@@ -717,6 +874,12 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     if let Some(m) = crate::ident::mispaired(doc.id(), evaluation.document) {
         return Err(m.into());
     }
+    // The recipe's own refusal, before any value is read: a body two
+    // roots both place is a fact of the DAG, and no evaluation makes
+    // it representable.
+    if let Some(err) = placed_under_two_roots(doc) {
+        return Err(err);
+    }
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have
     // supplied a body, so the whole list is read before anything is
@@ -724,19 +887,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     let mut sources: Vec<Source<T>> = Vec::new();
     let mut any_body_denoting = false;
     for &node in doc.roots() {
-        let result = evaluation
-            .result(node)
-            .ok_or(ProductError::UnknownNode { node })?;
-        let value = match result {
-            NodeResult::Ok(value) => value,
-            NodeResult::Failed(_) => return Err(ProductError::RootFailed { node }),
-            NodeResult::Poisoned { through } => {
-                return Err(ProductError::RootPoisoned {
-                    node,
-                    through: *through,
-                });
-            }
-        };
+        let value = evaluation.usable(node).map_err(ProductError::Root)?;
         let Some(bodies) = sources_of(value) else {
             continue;
         };
@@ -756,38 +907,15 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         return Err(ProductError::NoBodyRoots);
     }
 
-    // Pass 2: the per-source gate, asked only when the product holds
-    // more than one solid (this module's F8/D7 shape). The count is
-    // over SOLIDS, not sources: one source may itself carry several
-    // (an instantiated sub-assembly), and it is the product's solid
-    // count the rule speaks about.
-    let total_solids: usize = sources
-        .iter()
-        .map(|(_, _, b, _, _, _)| b.solids().count())
-        .sum();
-    if total_solids > 1 {
-        for (node, _, body, _, _, _) in &sources {
-            T::gate_at_rest(body.as_ref(), tol).map_err(|errors| ProductError::SolidInvalid {
-                node: *node,
-                errors,
-            })?;
-        }
-    }
-
-    // Pass 3: the graft, one call per SOURCE BODY, in list order, each
-    // carrying its source's name rows across on the key bridge. A
+    // Pass 2: the graft, one call per SOURCE BODY, in list order. A
     // source holding N solids goes through as one call: the keyed graft
     // is the N-solid door (#381), and its per-entity bridge is total
-    // over the source however many solids it spans, so the name carry
-    // is the same code for N as for 1.
+    // over the source however many solids it spans, so the carries
+    // below are the same code for N as for 1.
     let mut aggregate = Body::new();
-    let mut names = NameTable::new();
-    let mut contacts = ContactRecords::default();
-    let mut solid_roots: Vec<SolidOrigin> = Vec::new();
-    let mut carried: Vec<crate::assembly::CarriedDeclaration> = Vec::new();
-    let mut carried_unminted: Vec<crate::assembly::CarriedRefusal> = Vec::new();
-    let mut tie_rows = CarriedRows::default();
-    for (node, ix, body, table, records, rows) in &sources {
+    let mut grafted: Vec<(&Source<T>, topo::GraftKeys)> = Vec::with_capacity(sources.len());
+    for source in &sources {
+        let (node, _, body, _, _, _) = source;
         // An empty source contributes nothing; the graft door refuses a
         // solidless body, so the skip is here rather than there.
         if body.solids().next().is_none() {
@@ -799,37 +927,65 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
                 source: Box::new(source),
             },
         )?;
+        grafted.push((source, keys));
+    }
+
+    // The at-rest gate, ONCE, on the aggregate — before any name is
+    // carried, so a product that is not a valid body refuses as that
+    // before any naming collision is read. Only a refusal pays for
+    // attribution (`attribute_at_rest`). The verdict is kept with the
+    // body, so the assembly gate over this product pays the census
+    // alone.
+    let aggregate = match T::gate_at_rest_kept(aggregate, tol) {
+        Ok(gated) => gated,
+        Err(errors) => {
+            return Err(attribute_at_rest(
+                grafted.iter().map(|(source, _)| *source),
+                errors,
+                tol,
+            ));
+        }
+    };
+
+    // Pass 3: the carries, per grafted source, each across the key
+    // bridge its graft minted: the source's name rows, its contact
+    // records, and the declarations below it.
+    let mut names = NameTable::new();
+    let mut contacts = ContactRecords::default();
+    let mut solid_roots: Vec<SolidOrigin> = Vec::new();
+    let mut carried: Vec<crate::assembly::CarriedDeclaration> = Vec::new();
+    let mut carried_unminted: Vec<crate::assembly::CarriedRefusal> = Vec::new();
+    let mut tie_rows = CarriedRows::default();
+    for ((node, ix, _, table, records, rows), keys) in &grafted {
         solid_roots.extend(keys.solids().iter().map(|&solid| SolidOrigin {
             node: *node,
             output: *ix,
             solid,
         }));
-        carry_names(&mut names, &mut tie_rows, table, *node, *ix, &keys)?;
-        carry_contacts(&mut contacts, records, &keys)
+        carry_names(&mut tie_rows, table, *node, *ix, keys)?;
+        carry_contacts(&mut contacts, records, keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
-        carry_declarations(&mut carried, &rows.minted, &keys)
+        carry_declarations(&mut carried, &rows.minted, keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
         // A refusal names no entity — it is a mate that produced NO
         // record — so it carries with nothing to re-key.
         carried_unminted.extend(rows.unminted.iter().cloned());
     }
     // The name carry's second half, after the last source: every
-    // tie-descended row, narrowed ONCE over all of them (`carry_names`).
-    // A tie whose candidates the document separated into different
-    // SOURCES is one tie of the product — the product holds both faces
-    // — and this is where that is decided, because no single source
-    // can see it.
+    // carried row, narrowed ONCE over all of them (`carry_names`). A tie
+    // whose candidates the document separated into different SOURCES is
+    // one tie of the product — the product holds both faces — and this
+    // is where that is written, because no single source can see it.
     //
     // A refusal here names the node that MINTED the colliding name
-    // rather than a root: the collision is between rows that arrived
-    // from different sources, so no one root is its author.
+    // rather than a root: every repeated pair refused in the carry
+    // above, so what is left belongs to no one root.
     tie_rows
         .finish(&mut names)
         .map_err(|e| ProductError::Naming {
             node: e.name.node,
             name: e.name,
         })?;
-    T::gate_at_rest(&aggregate, tol).map_err(|errors| ProductError::ProductInvalid { errors })?;
     // Pass 4: MINTING (A3's "Declaration minting"). Every evaluated
     // product carries its own mates' declarations, so what a document
     // MEANS includes what its mates say about the material — which is
@@ -856,6 +1012,76 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     })
 }
 
+/// **The first body two roots both place**, in root-list order, as
+/// [`ProductError::PlacedUnderTwoRoots`]; `None` when every root places
+/// bodies no other root places.
+///
+/// A root's chain is the run of nodes it reaches through the
+/// name-carrying edges ([`crate::names::verbatim_edge`]) a recipe can
+/// decide on: a [`VerbatimEdge::Whole`] edge, which places its input
+/// whole, and a [`VerbatimEdge::Selected`] edge, which narrows it to
+/// one selection. The selection in effect rides down through the whole
+/// edges below a part, since a transform of an `Instances` value keeps
+/// its instance order. Any other node ends the chain: every other op
+/// re-mints what it carries (N1), and a [`VerbatimEdge::Intact`] edge
+/// carries a subset only its geometry decides.
+///
+/// [`VerbatimEdge::Whole`]: crate::names::VerbatimEdge::Whole
+/// [`VerbatimEdge::Selected`]: crate::names::VerbatimEdge::Selected
+/// [`VerbatimEdge::Intact`]: crate::names::VerbatimEdge::Intact
+///
+/// Neither edge mints a name (N1), so two chains that meet at one node
+/// with overlapping selections — either whole, or the same selection —
+/// both carry that node's names verbatim, and the product would hold
+/// two entities under each of them. The node reported is the one nearest the later root, which
+/// is the one nearest both: below a meeting point the two chains are
+/// one chain.
+///
+/// Selections are compared as written. Two `Instance` selections whose
+/// expressions differ but evaluate to one index are not seen here and
+/// refuse later, as [`ProductError::Naming`].
+fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
+    use crate::names::VerbatimEdge;
+    use crate::node::PartSelect;
+    let overlaps = |a: Option<&PartSelect>, b: Option<&PartSelect>| match (a, b) {
+        (Some(a), Some(b)) => a == b,
+        _ => true,
+    };
+    let mut seen: std::collections::HashMap<
+        RecipeNodeId,
+        Vec<(RecipeNodeId, Option<&PartSelect>)>,
+    > = std::collections::HashMap::new();
+    for &root in doc.roots() {
+        let mut at = root;
+        let mut select: Option<&PartSelect> = None;
+        loop {
+            let (next, narrowed) = match doc.node(at).and_then(crate::names::verbatim_edge) {
+                Some(VerbatimEdge::Whole { input }) => (input, select),
+                Some(VerbatimEdge::Selected { of, select: s }) => (of, Some(s)),
+                // The split's intact entities are a subset only its
+                // geometry decides, so the recipe cannot say two
+                // chains through it carry one name.
+                Some(VerbatimEdge::Intact) | None => break,
+            };
+            if let Some(&(first, earlier)) = seen
+                .get(&next)
+                .and_then(|rows| rows.iter().find(|(_, s)| overlaps(*s, narrowed)))
+            {
+                return Some(ProductError::PlacedUnderTwoRoots {
+                    placed: next,
+                    select: earlier.and(narrowed).cloned(),
+                    first,
+                    second: root,
+                });
+            }
+            seen.entry(next).or_default().push((root, narrowed));
+            at = next;
+            select = narrowed;
+        }
+    }
+    None
+}
+
 /// One body the gather will graft: which root contributed it, which
 /// OUTPUT-BODY index it occupies in that root's value (the index its
 /// name rows are keyed by), the body, the root's name table, the
@@ -869,6 +1095,48 @@ type Source<T> = (
     Arc<ContactRecords>,
     Arc<crate::assembly::CarriedDeclarations>,
 );
+
+/// **Which roots the aggregate's at-rest refusal is about**: every
+/// source body re-gated on its own, in gather order, and each that
+/// fails named with its own findings ([`ProductError::RootInvalid`]).
+/// When every source passes, the refusal is the aggregate's
+/// ([`ProductError::ProductInvalid`], a graft defect).
+///
+/// Re-gated rather than read off `aggregate`'s findings, for two
+/// reasons. Many [`ValidationError`] arms carry no key a solid can be
+/// recovered from, so a finding cannot always be mapped to the root
+/// that caused it. And the battery's early stops are body-wide, so the
+/// aggregate's list can omit one root's defect entirely: a structural
+/// finding anywhere stops every tier-3 check, and a finding of checks
+/// 1–6, 8 or 9 on any solid stops check 7 for every solid, so an
+/// inside-out solid beside it goes unreported. The battery is local in
+/// what it CHECKS, not in what it REPORTS. Each source gated alone
+/// reports what that source would have reported as the only body.
+///
+/// `grafted` is exactly the sources the graft put into the aggregate,
+/// in gather order.
+fn attribute_at_rest<'a, T: Decide + AtRestPolicy + 'a>(
+    grafted: impl Iterator<Item = &'a Source<T>>,
+    aggregate: Vec<ValidationError>,
+    tol: Tol,
+) -> ProductError {
+    let findings: Vec<SourceFinding> = grafted
+        .filter_map(|(node, output, body, _, _, _)| {
+            T::gate_at_rest(body.as_ref(), tol)
+                .err()
+                .map(|errors| SourceFinding {
+                    node: *node,
+                    output: *output,
+                    errors,
+                })
+        })
+        .collect();
+    if findings.is_empty() {
+        ProductError::ProductInvalid { errors: aggregate }
+    } else {
+        ProductError::RootInvalid { findings }
+    }
+}
 
 /// One body-denoting source as [`sources_of`] hands it back: output
 /// index, body, the records keyed in that body's arena, and the
@@ -969,19 +1237,18 @@ fn carry_declarations(
 /// The KEY MAP is this function's own — it is the graft's descendant
 /// map, plus the product's rule that a root body-row does not carry
 /// (see `product_named`: the product's own body is nobody's root
-/// body). WHICH ROWS go in strict and which are deferred is not: that
-/// is [`crate::names::CarriedRows`], the accumulate-then-narrow
-/// mechanism the emitters share, so the aggregate table narrows a tie
-/// by the one rule every other table narrows by.
+/// body). What a carried row may collide with is not: that is
+/// [`crate::names::CarriedRows`], the accumulate-then-narrow mechanism
+/// the emitters share, so the aggregate table narrows a tie by the one
+/// rule every other table narrows by.
 fn carry_names(
-    into: &mut NameTable,
     rows: &mut CarriedRows,
     from: &NameTable,
     node: RecipeNodeId,
     ix: u32,
     keys: &topo::GraftKeys,
 ) -> Result<(), ProductError> {
-    rows.carry(into, from, ix, |key| match key {
+    rows.carry(from, ix, |key| match key {
         EntityKey::Body => None,
         EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
         EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
@@ -993,22 +1260,35 @@ fn carry_names(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{ProductError, ProductErrorKind};
+    use super::{ProductError, ProductErrorKind, SourceFinding};
+    use crate::eval::NodeStanding;
     use crate::names::{EntityKind, StableName};
     use crate::node::RecipeNodeId;
+    use crate::sentence::Staged;
 
-    /// One error per [`ProductError`] arm — a CENSUS, not a sample:
-    /// every payload this error carries is constructible from here
-    /// (keys, ids, `&'static str`, empty finding lists, and one unit
-    /// arm of the kernel's own refusal), so no arm is left unbuilt.
+    /// One error per [`ProductError`] arm, and one per standing under
+    /// [`ProductError::Root`] — a CENSUS, not a sample: every payload
+    /// this error carries is constructible from here (keys, ids,
+    /// `&'static str`, empty finding lists, and one unit arm of the
+    /// kernel's own refusal), so no arm is left unbuilt.
     fn every_arm() -> Vec<ProductError> {
         let node = RecipeNodeId(3);
+        let through = RecipeNodeId(1);
         vec![
             ProductError::EvaluationOfAnotherDocument {
                 expected: crate::ident::DocumentId::derive("expected"),
                 found: crate::ident::DocumentId::derive("found"),
             },
-            ProductError::UnknownNode { node },
+            ProductError::Root(NodeStanding::NotEvaluated { node }),
+            ProductError::Root(NodeStanding::NotInDocument { node }),
+            ProductError::Root(NodeStanding::Failed { node }),
+            ProductError::Root(NodeStanding::Poisoned { node, through }),
+            ProductError::PlacedUnderTwoRoots {
+                placed: RecipeNodeId(1),
+                select: None,
+                first: node,
+                second: RecipeNodeId(4),
+            },
             ProductError::Naming {
                 node,
                 name: Box::new(StableName {
@@ -1017,19 +1297,17 @@ mod tests {
                     path: Vec::new(),
                 }),
             },
-            ProductError::RootFailed { node },
-            ProductError::RootPoisoned {
-                node,
-                through: RecipeNodeId(1),
-            },
             ProductError::NoBodyRoots,
             ProductError::Graft {
                 node,
                 source: Box::new(topo::BooleanError::UnrepresentableResult),
             },
-            ProductError::SolidInvalid {
-                node,
-                errors: Vec::new(),
+            ProductError::RootInvalid {
+                findings: vec![SourceFinding {
+                    node,
+                    output: 0,
+                    errors: Vec::new(),
+                }],
             },
             ProductError::ProductInvalid { errors: Vec::new() },
             ProductError::ContactLineage { node, what: "face" },
@@ -1048,55 +1326,60 @@ mod tests {
     /// Neither exhaustiveness objects to an arm PROJECTED to the wrong
     /// kind, which type-checks. That is what the errors below are for:
     /// each is built, projected, and its kind's name compared with the
-    /// variant name `Debug` prints for the error itself, so a
-    /// mis-projected arm and a mis-labelled arm both fail here with no
-    /// expected value written down twice.
+    /// class written beside it in [`every_arm`]'s order. The expected
+    /// classes are literals, not a reading of the error: a census that
+    /// derived them would restate the projection it checks. Two arms
+    /// projected onto one kind fail it too, because the literals differ.
     ///
     /// The census is complete as measured: every arm of
-    /// [`ProductError`] is built here, so no arm's projection is
-    /// unchecked today. What no guard closes is an arm added to the
-    /// error LATER, projected onto an existing kind and left out of
-    /// [`every_arm`] — neither exhaustiveness reds on that, and this
-    /// row accuses no author of anything it has not measured. The
-    /// distinctness assertion below is what makes the collision half
-    /// of it visible whenever the new arm IS built here.
+    /// [`ProductError`] and every standing is built here, so no
+    /// projection is unchecked today. What no guard closes is an arm
+    /// added to the error LATER, projected onto an existing kind and
+    /// left out of [`every_arm`] — neither exhaustiveness reds on that,
+    /// and this row accuses no author of anything it has not measured.
     #[test]
     fn each_kind_has_an_arm_and_each_built_arm_projects_to_its_own_kind() {
         fn label(kind: ProductErrorKind) -> &'static str {
             match kind {
                 ProductErrorKind::EvaluationOfAnotherDocument => "EvaluationOfAnotherDocument",
                 ProductErrorKind::UnknownNode => "UnknownNode",
+                ProductErrorKind::PlacedUnderTwoRoots => "PlacedUnderTwoRoots",
                 ProductErrorKind::Naming => "Naming",
                 ProductErrorKind::RootFailed => "RootFailed",
                 ProductErrorKind::RootPoisoned => "RootPoisoned",
                 ProductErrorKind::NoBodyRoots => "NoBodyRoots",
                 ProductErrorKind::Graft => "Graft",
-                ProductErrorKind::SolidInvalid => "SolidInvalid",
+                ProductErrorKind::RootInvalid => "RootInvalid",
                 ProductErrorKind::ProductInvalid => "ProductInvalid",
                 ProductErrorKind::ContactLineage => "ContactLineage",
             }
         }
-        /// The variant name `Debug` opens with.
-        fn variant_of(err: &ProductError) -> String {
-            format!("{err:?}")
-                .chars()
-                .take_while(|c| c.is_alphanumeric() || *c == '_')
-                .collect()
-        }
-        let built = every_arm();
-        let mut seen: Vec<ProductErrorKind> = Vec::new();
-        for err in &built {
+        let expected = [
+            "EvaluationOfAnotherDocument",
+            "UnknownNode",
+            "UnknownNode",
+            "RootFailed",
+            "RootPoisoned",
+            "PlacedUnderTwoRoots",
+            "Naming",
+            "NoBodyRoots",
+            "Graft",
+            "RootInvalid",
+            "ProductInvalid",
+            "ContactLineage",
+        ];
+        let arms = every_arm();
+        assert_eq!(
+            arms.len(),
+            expected.len(),
+            "one expected class per built arm"
+        );
+        for (err, class) in arms.iter().zip(expected) {
             assert_eq!(
                 label(err.kind()),
-                variant_of(err),
-                "kind() projects each arm to its own kind, and label names it"
+                class,
+                "kind() projects each arm to its own kind: {err:?}"
             );
-            assert!(
-                !seen.contains(&err.kind()),
-                "two arms project to {:?}",
-                err.kind()
-            );
-            seen.push(err.kind());
         }
     }
 
@@ -1138,10 +1421,45 @@ mod tests {
         );
     }
 
+    /// **The stage word is written once.** Each arm's sentence is the
+    /// gather's refusal without it, so a carrier that names the stage
+    /// itself draws it bare, and the gather's own rendering opens with
+    /// it exactly once.
+    #[test]
+    fn the_stage_word_opens_the_rendering_and_no_sentence() {
+        for err in every_arm() {
+            let sentence = err.sentence().to_string();
+            assert!(
+                !sentence.starts_with("product"),
+                "the sentence is the refusal without its stage word: {sentence}"
+            );
+            assert_eq!(
+                err.to_string().matches("product:").count(),
+                1,
+                "the rendering opens with the stage word once: {err}"
+            );
+        }
+    }
+
+    /// **A root with no value is refused with its standing**, under the
+    /// gather's subject: the standing names the node, its state and the
+    /// repair, so the gather adds only that the node is a root.
+    #[test]
+    fn a_root_without_a_value_renders_its_standing() {
+        let standing = NodeStanding::Poisoned {
+            node: RecipeNodeId(4),
+            through: RecipeNodeId(2),
+        };
+        assert_eq!(
+            ProductError::Root(standing).to_string(),
+            format!("product: root {standing}")
+        );
+    }
+
     /// **The refusal calls a node a ROOT only when it is one.**
     /// [`ProductError::Naming`]'s `node` is the carried root on the
-    /// per-source path and the MINTING node on the tie merge's, where
-    /// no one root authored the collision — so the rendering is
+    /// per-source path and the MINTING node on the final narrowing's,
+    /// where no one root authored the collision — so the rendering is
     /// guarded, and this is the guard's other side. The two renderings
     /// are asserted apart by the word the second must not use and by
     /// the id the first must not print twice.
@@ -1166,7 +1484,7 @@ mod tests {
         let merged = named(6, 6);
         assert!(
             !merged.contains("root"),
-            "the tie merge's collision has no one root to name, and must not invent one: {merged}"
+            "the final narrowing's collision has no one root to name, and must not invent one: {merged}"
         );
         assert!(
             merged.contains("node 6"),

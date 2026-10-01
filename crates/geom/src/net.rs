@@ -12,7 +12,7 @@
 use core::ops::{Mul, Sub};
 
 use geom_core::spline::SplineError;
-use geom_core::{CertifiedBounds, Point2, Point3, Real, RingInterval, Vec2, Vec3};
+use geom_core::{CertifiedBounds, Interval, Point2, Point3, Real, Vec2, Vec3};
 
 /// A control point as the rank-blind net helpers see it: coordinates
 /// addressed by index, and the displacement algebra the perturbation
@@ -74,6 +74,29 @@ impl<T: Real> ControlPoint<T> for Point3<T> {
     }
 }
 
+/// The count half of [`validate_counts`]: `control` points and
+/// `weights` weights against the `expected` control count, in that
+/// order. The one statement of the count rule, which
+/// [`crate::NurbsSurface::check_net_counts`] exposes.
+///
+/// # Errors
+///
+/// [`SplineError::ControlCountMismatch`], then
+/// [`SplineError::WeightCountMismatch`].
+pub(crate) fn check_counts(
+    expected: usize,
+    control: usize,
+    weights: usize,
+) -> Result<(), SplineError> {
+    if control != expected {
+        return Err(SplineError::ControlCountMismatch { control, expected });
+    }
+    if weights != control {
+        return Err(SplineError::WeightCountMismatch { weights, control });
+    }
+    Ok(())
+}
+
 /// Constructor validation: counts and weight positivity/finiteness.
 /// `expected` is the control count the knot structure demands — one
 /// knot vector's `control_count` for a curve, the product of the two
@@ -91,15 +114,7 @@ pub(crate) fn validate_counts(
     control: usize,
     weights: &[f64],
 ) -> Result<(), SplineError> {
-    if control != expected {
-        return Err(SplineError::ControlCountMismatch { control, expected });
-    }
-    if weights.len() != control {
-        return Err(SplineError::WeightCountMismatch {
-            weights: weights.len(),
-            control,
-        });
-    }
+    check_counts(expected, control, weights.len())?;
     for (index, w) in weights.iter().enumerate() {
         if !(*w > 0.0) {
             return Err(SplineError::NonPositiveWeight { index, weight: *w });
@@ -144,7 +159,7 @@ pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool
 /// (every channel of every point is poison), and so does a DESCRIBED
 /// net that carries poison anywhere — the two states a box must treat
 /// alike, because a box is a claim about where the locus is and a net
-/// with one poisoned bracket bounds its locus on no axis. That is the
+/// with one poisoned channel bounds its locus on no axis. That is the
 /// distinction a **box** needs; a consumer that must tell the three
 /// states apart asks `crate::NurbsSurface::net_state`, which reads
 /// this door and [`is_placeholder`] together and answers
@@ -159,33 +174,33 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
         .any(|p| p.channels().into_iter().any(Real::is_poison))
 }
 
-/// The net's coordinate channels as ring enclosures, in channel order
+/// The net's coordinate channels as certification enclosures, in channel order
 /// — `[x, y]` for a plane net, `[x, y, z]` for a space net, each in
 /// the net's own flat index order.
 ///
 /// **The bracket seam.** Knots, weights and degree are `f64`
 /// structure, so the only scalar-typed data in a payload is the
-/// control net — and a control point enters the C9 ring through its
+/// control net — and a control point enters certification arithmetic through its
 /// own bracket, never through an evaluation. At `f64` the bracket is
 /// the value (`lo` = `hi`), so this is bitwise what an `f64`-only form
 /// produces; at the interval scalar each coefficient carries its
 /// enclosure into the hull, which is what makes a composite bound over
 /// a lifted payload honest.
-pub(crate) fn ring_coords<T: CertifiedBounds, P: ControlPoint<T>>(
+pub(crate) fn certified_coords<T: CertifiedBounds, P: ControlPoint<T>>(
     control: &[P],
-) -> Vec<Vec<RingInterval>> {
+) -> Vec<Vec<Interval>> {
     // One lane per channel. The lane count is read off the channel
     // array of a point this impl mints itself, so it is the SAME
     // statement of the count every `channels()` below makes — one
     // array type, one length — and the zip cannot drop or pad.
-    let mut lanes: Vec<Vec<RingInterval>> = P::splat(T::zero())
+    let mut lanes: Vec<Vec<Interval>> = P::splat(T::zero())
         .channels()
         .into_iter()
         .map(|_| Vec::with_capacity(control.len()))
         .collect();
     for p in control {
         for (lane, c) in lanes.iter_mut().zip(p.channels()) {
-            lane.push(RingInterval::from_certified(c));
+            lane.push(Interval::from_certified(c));
         }
     }
     lanes

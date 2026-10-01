@@ -31,7 +31,7 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Point3, Sign};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 
-use super::axis::{AxisFrame, AxisRun, LoopClasses};
+use super::axis::{AxisFrame, AxisRun, LoopClasses, WallClass};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
 use super::surfaces::{revolved_strut_spec, wall_surface};
@@ -195,7 +195,7 @@ fn build_lamina<T: Decide>(
     // so a refusal on the way closes the scope by dropping it.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0])?;
+    let seed = body.mvfs(qs[0], true)?;
     let lamina = build_chain(
         &mut body,
         frame,
@@ -203,7 +203,12 @@ fn build_lamina<T: Decide>(
         seed.vertex,
         segs,
         &qs,
-        FaceSurface::New(Surface::nurbs_placeholder()),
+        // A placeholder has no chart normal to state a side against;
+        // the bit is provisional, and the disc is killed by the zip.
+        FaceSurface::New {
+            surface: Surface::nurbs_placeholder(),
+            sense: true,
+        },
         tol,
     )?;
     let hes = lamina.hes;
@@ -258,7 +263,10 @@ fn build_lamina<T: Decide>(
         EdgeCurveSpec::self_loop_circle_at(qs[0]),
         tol,
     )?;
-    body.kev(n0.he_plus)?;
+    // Each kill merges a copied vertex into its coincident original
+    // across a certified closing circle; the merged fan keeps its
+    // carriers, re-certified at the survivor under the run's band.
+    body.kev_describing(n0.he_plus, &[], tol)?;
     for j in 1..n {
         let (he1, he2) = (e_minus(&body, hes[j - 1])?, c_plus(&body, tops[j])?);
         let nj = body.mef(
@@ -267,7 +275,7 @@ fn build_lamina<T: Decide>(
             FaceSurface::Inherit,
             tol,
         )?;
-        body.kev(nj.he_plus)?;
+        body.kev_describing(nj.he_plus, &[], tol)?;
         let victim = c_plus(&body, tops[j - 1])?;
         body.kef(victim)?;
     }
@@ -367,7 +375,7 @@ fn build_wire<T: Decide>(
     // One surgery scope for the whole build — see `build_lamina`.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qw[0])?;
+    let seed = body.mvfs(qw[0], true)?;
     let mut hes = Vec::with_capacity(k);
     let first = body.mev(
         MevSite::Lone {
@@ -456,12 +464,19 @@ fn build_wire<T: Decide>(
                 })?
                 .he_minus
         };
-        let kind = cls.walls[wseg(i)].kind();
-        let surface = match (pair[i], i, kind) {
-            (true, 1.., _) => FaceSurface::Shared(face_surface_key(&body, faces[i - 1])?),
-            (_, _, Some(kind)) => FaceSurface::New(wall_surface(kind, &segs[wseg(i)], frame)),
+        // The wall states its classified sense — see
+        // `partial::sweep_loop`.
+        let surface = match (pair[i], i, cls.walls[wseg(i)]) {
+            (true, 1.., WallClass::Wall { sense, .. }) => FaceSurface::Shared {
+                key: face_surface_key(&body, faces[i - 1])?,
+                sense,
+            },
+            (_, _, WallClass::Wall { kind, sense }) => FaceSurface::New {
+                surface: wall_surface(&kind, &segs[wseg(i)], frame),
+                sense,
+            },
             // Unreachable: wire segments are off-axis by construction.
-            (_, _, None) => FaceSurface::Inherit,
+            (_, _, WallClass::OnAxis) => FaceSurface::Inherit,
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
@@ -469,12 +484,6 @@ fn build_wire<T: Decide>(
             surface,
             tol,
         )?;
-        // The honest orientation bit (M5 S11) — see
-        // `partial::sweep_loop`; the band-2 twins below inherit the
-        // same classification.
-        if cls.walls[wseg(i)].sense() == Some(false) {
-            body.set_face_sense(mef.face, false)?;
-        }
         faces.push(mef.face);
         tops.push(mef.edge);
     }
@@ -548,28 +557,17 @@ fn build_wire<T: Decide>(
             param_start: T::zero(),
             param_end: half.abs(),
         };
-        let carrier = face_surface_key(&body, faces[i])?;
-        let mef = body.mef(
-            MefSite::Chords { he1, he2 },
-            spec,
-            FaceSurface::Shared(carrier),
-            tol,
-        )?;
         // The band-2 wall is the same classified wall as its band-1
-        // twin (M5 S11): same surface, same material side, same sense.
-        if cls.walls[wseg(i)].sense() == Some(false) {
-            body.set_face_sense(mef.face, false)?;
-        }
+        // twin: same surface, same material side, same sense.
+        let twin = twin_wall(&body, faces[i])?;
+        let mef = body.mef(MefSite::Chords { he1, he2 }, spec, twin, tol)?;
         band2_faces.push(mef.face);
         rims2.push(Some(mef.edge));
     }
-    let wall0_key = face_surface_key(&body, faces[0])?;
-    body.set_face_surface(seed.face, FaceSurface::Shared(wall0_key))?;
     // The surviving wire face becomes segment 0's band-2 wall — it
-    // takes wall 0's sense along with its surface (M5 S11).
-    if cls.walls[wseg(0)].sense() == Some(false) {
-        body.set_face_sense(seed.face, false)?;
-    }
+    // takes wall 0's sense along with its surface.
+    let wall0 = twin_wall(&body, faces[0])?;
+    body.set_face_surface(seed.face, wall0)?;
 
     // Band-2 latitude joins (same surface-key pairs as band 1).
     for i in 1..k {
@@ -657,5 +655,23 @@ fn build_wire<T: Decide>(
             pi_meridians: pi_mer,
             pi_rims,
         },
+    })
+}
+
+/// The spec that puts a band-2 wall on its band-1 twin's surface with
+/// the twin's sense: one classified wall, one material side. The copy
+/// is the classification itself: band 1 minted the twin off the wire
+/// face's placeholder chart, where its classified bit is written as
+/// stated.
+fn twin_wall<T: Decide>(
+    body: &Body<T>,
+    twin: FaceKey,
+) -> Result<FaceSurface<T>, topo::EulerOpError> {
+    let face = body.get_face(twin).ok_or(topo::EulerOpError::StaleKey {
+        key: topo::EntityId::Face(twin),
+    })?;
+    Ok(FaceSurface::Shared {
+        key: face.surface,
+        sense: face.sense,
     })
 }

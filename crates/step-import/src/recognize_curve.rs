@@ -44,7 +44,7 @@
 //! [`compose::CompositeForm::sup_bound`] reads a certified sup off its
 //! coefficient hulls. Data in, bounds out: nothing is evaluated, no
 //! schedule exists to be data-dependent, and rational carriers are
-//! first-class (the weight channel is part of the form). Poison
+//! first-class (the weight channel is part of the form). A refusal
 //! anywhere yields `NaN`, which fails every `≤ ε` comparison (D4 ¶2).
 //!
 //! ## The dimension conversion, as an invariant
@@ -62,8 +62,8 @@
 //!   the divisor at least `r`. Conversion: `δ_s = S / r`.
 //! * **INV-C3 (zero-radius cylinder → distance to the LINE).** The
 //!   cylinder composite is `(|Q|² − (Q·â)² − r²)` with `Q = P − p₀`
-//!   and `â` the unit axis; at `r = 0` (an exact ring value —
-//!   `compose` forms `r²` as `RingInterval::point(0).sqr()`, the zero
+//!   and `â` the unit axis; at `r = 0` (an exact certification value —
+//!   `compose` forms `r²` as `Interval::point(0).sqr()`, the zero
 //!   interval, and refuses no radius) it is exactly `dist(P, line)²`,
 //!   meters². Conversion: `δ_line = √S` — no divisor, no hypothesis.
 //! * **INV-C4 (coverage — the locus is the WHOLE segment).** The
@@ -174,7 +174,7 @@
 //! individually turn by π or more is refused rather than analysed.
 
 use geom::{Curve3, NurbsCurve3};
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
 use geom_core::{Point3, Vec3};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
@@ -264,10 +264,10 @@ pub(crate) fn recognize(curve: &NurbsCurve3<f64>, eps_in: f64) -> CurveRecogniti
 
 /// The certified sup of `|f ∘ C|` over the whole domain, in the
 /// composite's OWN units (module docs' scaling conventions). `NaN` on
-/// every refusal and every poison path, which certifies nothing.
+/// every structural refusal and every refused hull, which certifies nothing.
 fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
-    let coords = curve.ring_coords();
-    let Ok(data) = CurveRingData::new(curve.knots(), curve.weights(), &coords) else {
+    let coords = curve.certified_coords();
+    let Ok(data) = CurveCertData::new(curve.knots(), curve.weights(), &coords) else {
         return f64::NAN;
     };
     match compose::implicit_composite(&data, surface) {
@@ -277,7 +277,7 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
 }
 
 // `!(a < b)` forms below are deliberate, NaN-catching negations: a
-// poisoned quantity must REFUSE, and the positive form would silently
+// NaN quantity must REFUSE, and the positive form would silently
 // accept it (the file's standing convention).
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 /// The line candidate (module docs; the locus certificate INV-C3,
@@ -304,7 +304,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     let dir = chord / len;
     // INV-C3: the zero-radius cylinder composite is `dist(P, line)²`
     // over the whole domain — meters², exact, whole-domain, no
-    // schedule. NaN (poison, or a structural refusal) fails the
+    // schedule. NaN (a refused hull, or a structural refusal) fails the
     // budget comparison below (D4 ¶2).
     let sup = composite_sup(
         curve,
@@ -1013,7 +1013,7 @@ mod tests {
     }
 
     /// The line pins' budget. The composite's certified sup carries
-    /// the ring arithmetic's rounding slack, and the `√sup` metre
+    /// the certification arithmetic's rounding slack, and the `√sup` metre
     /// conversion (INV-C3) turns a few-ulp slack on a centimetre-scale
     /// `dist²` into a ~2.5e-9 m FLOOR — an exact chord's certified
     /// residual is that floor, not zero (the dm1 census's measured
@@ -1222,7 +1222,7 @@ mod tests {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let (a, b) = (Point3::new(0.0, 0.0, 0.0), Point3::new(0.04, 0.0, 0.0));
         let mut tight_checks = 0;
-        // Deltas sit ABOVE the ring-slack floor (EPS_LINE's doc), so
+        // Deltas sit ABOVE the interval-slack floor (EPS_LINE's doc), so
         // the tightness half measures the certificate and not the
         // slack; below the floor only the soundness half is meaningful.
         for delta in [1e-8f64, 1e-7, 5e-7] {

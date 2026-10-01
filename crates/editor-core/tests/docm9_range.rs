@@ -23,7 +23,6 @@
 //! `NewFailure` needs a flip whose evidence carries a standing change,
 //! and no fixture reaches one
 //! (`work/props/coincidence-zone-priced-budget-at-the-floor`).
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -41,21 +40,13 @@ use editor_core::{
     RecipeNodeId, SlotId, StableName, evaluate,
 };
 
-use fixture::{Recorder, tol};
+use fixture::{Recorder, len, scl, tol, xy_frame};
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn lit(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length literal")
-}
-
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar literal")
-}
-
-fn param(n: &str) -> Expr {
+fn param(n: &'static str) -> Expr {
     Expr::param(name(n), Dimension::Length)
 }
 
@@ -70,14 +61,10 @@ fn budget(max_depth: u32, max_leaves: usize) -> DriveConfig {
 }
 
 fn frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [lit(0.0), lit(0.0), lit(0.0)],
-        u: [scalar(1.0), scalar(0.0), scalar(0.0)],
-        v: [scalar(0.0), scalar(1.0), scalar(0.0)],
-    }))
+    r.insert(xy_frame())
 }
 
-fn declare(r: &mut Recorder, n: &str, value: f64) {
+fn declare(r: &mut Recorder, n: &'static str, value: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(n),
         value: DocParam::continuous(Dimension::Length, value),
@@ -104,6 +91,7 @@ fn slab(depth: f64) -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -120,10 +108,11 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     let e = r.insert(Node::Extrude {
         profile: p,
-        distance: lit(depth),
+        distance: len(depth),
     });
     (r.doc, e)
 }
@@ -145,11 +134,12 @@ fn two_param_slab() -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![LoopProgram::polygon_expr([
-            [lit(0.0), lit(0.0)],
-            [param("side"), lit(0.0)],
+            [len(0.0), len(0.0)],
+            [param("side"), len(0.0)],
             [param("side"), param("side")],
-            [lit(0.0), param("side")],
+            [len(0.0), param("side")],
         ])],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -165,17 +155,18 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     let e = r.insert(Node::Extrude {
         profile: p,
-        distance: lit(0.5),
+        distance: len(0.5),
     });
     let pat = r.insert(Node::Pattern {
         input: e,
         count: Expr::count(3),
         kind: PatternKind::Linear {
-            direction: [scalar(1.0), scalar(0.0), scalar(0.0)],
-            spacing: lit(2.0),
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(2.0),
         },
     });
     (r.doc, pat)
@@ -201,7 +192,7 @@ fn failing(ev: &Evaluation<f64>) -> BTreeSet<RecipeNodeId> {
 
 /// The PROBE's question at one value of one parameter: does this
 /// document fail anywhere the document at the nominal did not?
-fn no_new_failure(doc: &ProfileDoc, p: &str, value: f64) -> bool {
+fn no_new_failure(doc: &editor_core::ProfileDoc, p: &'static str, value: f64) -> bool {
     let baseline = failing(&f64_run(doc));
     let moved = editor_core::apply(
         doc,
@@ -250,7 +241,12 @@ fn standings_and_names(
     (standings, names)
 }
 
-fn range_of(doc: &ProfileDoc, p: &str, seed: RangeSeed, config: &DriveConfig) -> CertifiedRange {
+fn range_of(
+    doc: &editor_core::ProfileDoc,
+    p: &'static str,
+    seed: RangeSeed,
+    config: &DriveConfig,
+) -> CertifiedRange {
     certified_range(doc, &RangeField::Param(name(p)), seed, config, tol())
         .expect("the fixture has an axis and a witness that builds")
 }
@@ -757,41 +753,107 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
     );
 }
 
-/// The synthetic parameter's name is the query's, and a document that
-/// has already taken it is refused rather than quietly widened
-/// through somebody else's parameter.
+/// A slot's label is prose for a person — a profile step argument's
+/// is `loop L step S · <arg>` — and the query's synthetic name is not
+/// spelled from it, so a profile step argument widens like any other
+/// continuous literal slot.
 #[test]
-fn a_taken_synthetic_name_refuses() {
-    let (doc, node) = slab_slot(1.0);
-    let taken = format!(
-        "query:certified-range:{}:{}",
-        node.0,
-        SlotId::Distance.label()
-    );
-    let doc = editor_core::apply(
-        &doc,
-        &DocEdit::SetDocParam {
-            name: name(&taken),
-            value: DocParam::continuous(Dimension::Length, 3.0),
-        },
-        tol(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the parameter declares")
-    .doc;
-    assert_eq!(
-        derive(
-            &doc,
-            &RangeField::Slot {
-                node,
-                slot: SlotId::Distance
-            },
-            RangeSeed::symmetric(0.25),
-            tol()
-        ),
-        Err(RangeRefusal::SyntheticNameTaken {
-            param: name(&taken)
+fn a_profile_step_argument_widens() {
+    let mut r = Recorder::new();
+    let f = frame(&mut r);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        plane: f,
+        loops: vec![unit_square()],
+        ids: Vec::new(),
+    }));
+    r.insert(Node::Extrude {
+        profile: p,
+        distance: len(1.0),
+    });
+    let doc = r.doc;
+    let profile = doc.node(p).expect("the profile");
+    let slot = profile
+        .slots()
+        .into_iter()
+        .find(|s| {
+            matches!(s, SlotId::Profile { .. })
+                && profile.expr(*s).and_then(Expr::literal_value).is_some()
         })
+        .expect("the square carries a literal step argument");
+    assert!(
+        ParamName::new(slot.label().replace(' ', "_")).is_err(),
+        "the fixture's premise: the label {:?} is not an identifier",
+        slot.label()
+    );
+    let derived = derive(
+        &doc,
+        &RangeField::Slot { node: p, slot },
+        RangeSeed::symmetric(0.1),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the {} slot widens: {e}", slot.label()));
+    assert_eq!(
+        derived.doc.node(p).and_then(|n| n.expr(slot)),
+        Some(&Expr::param(derived.axis.clone(), slot.dimension())),
+        "the slot names the synthetic parameter"
+    );
+}
+
+/// The synthetic name is fresh: a document that already declares the
+/// query's spellings keeps its parameters as they were, and the slot
+/// is widened through the first spelling nobody declared, never
+/// through a parameter the caller authored.
+#[test]
+fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
+    let (mut doc, node) = slab_slot(1.0);
+    let base = format!("query_certified_range_{}", node.0);
+    let declared = [
+        base.clone(),
+        format!("{base}_1"),
+        format!("{base}_distance"),
+    ];
+    for (i, spelled) in declared.iter().enumerate() {
+        doc = editor_core::apply(
+            &doc,
+            &DocEdit::SetDocParam {
+                name: ParamName::new(spelled.clone()).expect("an author can type it"),
+                value: DocParam::continuous(Dimension::Length, 3.0 + i as f64),
+            },
+            tol(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the parameter declares")
+        .doc;
+    }
+    let derived = derive(
+        &doc,
+        &RangeField::Slot {
+            node,
+            slot: SlotId::Distance,
+        },
+        RangeSeed::symmetric(0.25),
+        tol(),
+    )
+    .expect("the slot widens through a fresh name");
+    assert_eq!(
+        derived.axis.as_str(),
+        format!("{base}_2"),
+        "the first spelling the document does not declare"
+    );
+    for spelled in &declared {
+        assert_eq!(
+            derived.doc.params().get(spelled.as_str()),
+            doc.params().get(spelled.as_str()),
+            "{spelled} is the author's and is left as declared"
+        );
+    }
+    assert_eq!(
+        derived
+            .doc
+            .node(node)
+            .and_then(|n| n.expr(SlotId::Distance)),
+        Some(&Expr::param(derived.axis.clone(), Dimension::Length)),
+        "the slot reads the synthetic parameter, not an authored one"
     );
 }
 

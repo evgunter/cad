@@ -137,14 +137,16 @@ meters conversion"; `plane_torus_section` answers
 `SectionError::RoutesToGeneralRung` there (trilean 2's definite
 `pt_axis_plane_gap`). The block is real and it is ONE function:
 `geom-brep/src/ssi/enclose.rs:implicit_enclosure` (and its gradient
-twin) return `RingInterval::poison()` for `Surface::Torus` because
-the torus residual `((ρ − R)² + h² − r²)/2r` carries `ρ = |w|`, a
-square root the C9 ring does not provide (`geom-core/src/
-ring_interval.rs` module doc; README clause C9). Note for Q3(ii):
-the same tree already carries an outward-rounded bracket square root
-— `geom/src/curves/boxes.rs:Brk::sqrt_nonneg` — because `f64::sqrt`
-is IEEE correctly rounded; the ring's omission is a ratified
-minimalism, not an obstacle.
+twin) refuse `Surface::Torus`. The torus residual
+`((ρ − R)² + h² − r²)/2r` is written with `ρ = |w|`, but the square root
+is in that spelling, not in the surface: with the torus quartic
+`F = A² − 4R²ρ²`, `A = |q|² + R² − r²`, the residual is
+`m = F / (2r·(A + 2Rρ))`, and `A ≥ R² − r² > 0` on a ring torus, so
+exclusion reads the sign of `F`, the between-samples bound is
+`sup|F∘C| / (2r·inf A∘C)`, and the tube gradient `∇F/(4rA)` is the unit
+normal on the surface — root-free throughout. What certification
+arithmetic may take (C9's operation list, including `√`) is its own
+clause in `crates/geom-brep/README.md`.
 
 **Held: `Curve3` has no quartic kind** — `geom/src/curves.rs:Curve3`
 is `Line | Circle | Ellipse | Nurbs`.
@@ -275,7 +277,7 @@ the list below is the non-test set), and what each costs a spiric:
 | STEP export | `step-export/src/writer.rs:edge_curve` (`EDGE_CURVE` with a bare curve; no `SURFACE_CURVE`/`PCURVE` written) | no ISO 10303-42 entity; genus 1 ⇒ no exact `B_SPLINE_CURVE`. Q4. Import (`step-import/src/adopt.rs`) would read a spline back; the adopted `Intersection{torus, plane}` with a `Nurbs` carrier passes `certify.rs`'s 9-sample gate but owes the C2 hull at rest, which the torus poison denies — a typed import refusal until Q3(ii) |
 | rigid transform / scalar lift | `topo/src/transform.rs:map_carrier`; `geom/src/scalar_lift.rs:map_scalar` | frame maps, mechanical |
 | props (+V, tier 3) | `geom-brep/src/props/curved.rs:torus_boundary` (circles only, else `NotIsoRectangle`/`Unimplemented`); `props/quad.rs` (cylinder-chart curved cuts only, C9 ring, harmonic pcurves) | **no lane; no elementary closed form** — §4.7 |
-| kind tables, census, readback, queries | `topo/src/chart_iso.rs:classify_kind`, `query.rs`, `readback.rs:edge_pose`, `chord_join.rs:between_edge_in_plane`, `merge_faces.rs:loop_winding`, `boolean/{contain,join,reduce,sectors}.rs`, `splitting/*.rs`, `replace_face.rs:{transport_curve,plan_edge}`, `editor-core/src/eval/measure.rs:curve_reach`, `props.rs:face_flux` | each an explicit arm: a spiric is neither line nor conic, so most refuse typed exactly as `Nurbs` does today, and each refusal is a named frontier |
+| kind tables, census, readback, queries | `topo/src/chart_iso.rs:classify_kind`, `query.rs`, `readback.rs:edge_pose`, `chord_join.rs:between_edge_in_plane`, `loop_winding.rs:planar_loop_winding`, `boolean/{contain,join,reduce,sectors}.rs`, `splitting/*.rs`, `replace_face.rs:{transport_curve,plan_edge}`, `editor-core/src/eval/measure.rs:curve_reach`, `props.rs:face_flux` | each an explicit arm: a spiric is neither line nor conic, so most refuse typed exactly as `Nurbs` does today, and each refusal is a named frontier |
 | the mint itself | `offset_axial.rs:mint_carrier` ("the carrier keeps its KIND and conventional frame") | **the law bends once**: the old rim is a `Circle` (meridian), the moved rim a spiric — the first kind-changing mint. It stays inside the door's inline-arithmetic fence (no section function called): a struct literal from the moved torus and the moved cap, then `param_on` and the midpoint meter verify it as for every other arm |
 
 ### 4.7 Props are elliptic integrals

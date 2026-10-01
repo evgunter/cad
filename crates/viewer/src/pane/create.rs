@@ -11,23 +11,27 @@ use pncad::select::SplitHalf;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
-use crate::combine::{DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
+use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PartSelectChoice, PatternKindChoice, ShapeEdits, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
+    PartSelectChoice, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
     split_half_label,
 };
 use crate::frame::{self, Tone};
+use crate::generation::Generation;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::render_number;
-use crate::seats::{Seat, seat_line};
-use crate::session::{FaceFrameFault, ProfilePlane, Selection, SessionOp, face_frame_seat};
+use crate::seats::{Seats, seat_line};
+use crate::session::{
+    DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection, SessionOp,
+    Standing, face_frame_seat_drawn,
+};
 use crate::sketch;
 use crate::theme::Theme;
-use crate::tools::ToolKind;
+use crate::tools::{ToolKind, ToolNotice};
 use crate::tree;
 use crate::widgets::{
     angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
@@ -139,6 +143,69 @@ pub(crate) fn duplicate_note() -> String {
     )
 }
 
+/// **A seated tool's held picks, drawn**: [`seat_line`] over the
+/// tool's own [`Seats`], in the advisory voice every tool panel says
+/// its picks in.
+///
+/// Takes the `Seats` rather than a line or a list of roles, so a panel
+/// has no roles to re-list and no line to compose; a free function over
+/// the `Ui` so a headless row can read what it paints
+/// (`crate::pane::headless`).
+pub(crate) fn seats_row(ui: &mut egui::Ui, seats: &Seats, theme: &Theme) {
+    crate::widgets::message_toned(ui, seat_line(seats), theme, Tone::Advisory);
+}
+
+/// **The offer to declare a refused contact, in the boolean tool** —
+/// its question, one line per pair accepting it declares, and the two
+/// answers: `Declare` queues [`DeclareOffer::accept`], `Decline` drops
+/// the offer and queues nothing.
+///
+/// Drawn only while the offer stands ([`DeclareOffer::is_for`]); one
+/// an edit, the picks or the operation moved past is dropped unshown. A
+/// free function over the `Ui` so a headless row can click it
+/// (`crate::pane::headless`).
+pub(crate) fn declare_offer_rows(
+    ui: &mut egui::Ui,
+    held: &mut Option<DeclareOffer>,
+    (now, op, tool): (Generation, BooleanOp, BooleanTool),
+    ops: &mut Vec<SessionOp>,
+    theme: &Theme,
+) {
+    let Some(offer) = held.as_ref() else {
+        return;
+    };
+    if !offer.is_for(now, op, tool.a(), tool.b()) {
+        *held = None;
+        return;
+    }
+    crate::widgets::message_toned(ui, Refusal::declare_question(offer), theme, Tone::Advisory);
+    for finding in offer.findings() {
+        crate::widgets::message_toned(
+            ui,
+            Refusal::declare_pair_wording(finding),
+            theme,
+            Tone::Advisory,
+        );
+    }
+    let mut declined = false;
+    ui.horizontal(|ui| {
+        if ui.button(DeclareOffer::ACCEPT_LABEL).clicked() {
+            ops.push(offer.accept());
+        }
+        declined = ui.button(DeclareOffer::DECLINE_LABEL).clicked();
+    });
+    if declined {
+        *held = None;
+    }
+}
+
+/// **The mate tool's held picks, drawn** — [`MateToolState::line`],
+/// the seated tools' line over the mate's two sides, in the same voice
+/// as [`seats_row`].
+pub(crate) fn mate_picks_row(ui: &mut egui::Ui, state: &MateToolState, theme: &Theme) {
+    crate::widgets::message_toned(ui, state.line(), theme, Tone::Advisory);
+}
+
 /// **The smallest pattern count the form offers.**
 ///
 /// A pattern of zero instances refuses at evaluation
@@ -218,26 +285,30 @@ fn part_window(opener: &egui::Ui) -> egui::Window<'static> {
         .max_width(width)
 }
 
-/// **One part the chooser offers**: its pick button, and the
-/// document's id on a line of its own under it. Answers whether the
-/// button was clicked.
+/// **One part the chooser offers**: its pick button and file name on
+/// one line, and the document's id on a line of its own under it.
+/// Answers whether the button was clicked.
 ///
-/// The id is a VALUE, not a sentence: 32 hex digits, bounded by its
-/// source and with no space to break at, so wrapping it at the region
-/// would split one id into two tokens. It is drawn whole or, in a
-/// window narrower than it, elided with the whole id on hover —
-/// egui's own truncation, which never breaks it. The file name above
-/// it is what a reader picks by (`crate::parts::catalogue` sorts on
-/// it); the id tells two same-named files apart.
+/// The file name and the id are NAMES, not sentences, so neither
+/// wraps: each is drawn whole or, in a window narrower than it, elided
+/// with the whole text on hover — egui's own truncation. The file name
+/// is the user's and nothing here bounds it, which is why it is not
+/// the button's label: a button lays its text out on one line at any
+/// width, and the window would take that width. The file name is what
+/// a reader picks by (`crate::parts::catalogue` sorts on it); the id
+/// tells two same-named files apart.
 ///
 /// An entry that cannot be picked stays VISIBLE and disabled, carrying
 /// the op's own refusal — read off the entry, not minted here.
 fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
     let refusal = entry.refusal();
-    let mut pick = ui.add_enabled(refusal.is_none(), egui::Button::new(entry.file_name()));
-    if let Some(refusal) = refusal {
-        pick = pick.on_disabled_hover_text(refusal.to_string());
-    }
+    let picked = ui
+        .horizontal(|ui| {
+            let picked = crate::app::refusable_button(ui, PICK_PART, refusal.as_ref());
+            ui.add(egui::Label::new(entry.file_name()).truncate());
+            picked
+        })
+        .inner;
     ui.add(
         egui::Label::new(crate::app::toned(
             entry.id.to_string(),
@@ -246,8 +317,34 @@ fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
         ))
         .truncate(),
     );
-    pick.clicked()
+    picked
 }
+
+/// What [`part_entry`]'s pick button says.
+const PICK_PART: &str = "add";
+
+/// What the button that opens the part chooser says.
+pub(crate) const ADD_PART: &str = "Add part…";
+
+/// What the extrude form's commit button says, before the profile's
+/// number once one is selected.
+pub(crate) const EXTRUDE: &str = "Extrude";
+
+/// What the add-datum form's commit button says.
+pub(crate) const ADD_DATUM: &str = "Add datum";
+
+/// What the add-profile form's commit button says.
+pub(crate) const ADD_PROFILE: &str = "Add profile";
+
+/// The heading of the section that makes a body out of nothing.
+pub(crate) const ADD_FEATURE: &str = "Add feature";
+
+/// The heading of the section whose tools take bodies that exist and
+/// make another one.
+pub(crate) const COMBINE_BODIES: &str = "Combine bodies";
+
+/// The heading of the section whose tools reshape a body's edges.
+pub(crate) const BLEND_EDGES: &str = "Blend edges";
 
 /// **What the add-profile form calls the frame it offers to mint.**
 ///
@@ -307,16 +404,176 @@ pub(crate) fn profile_plane_row(
     );
 }
 
+/// **The chooser's answer, drawn**: the directory it read, then the
+/// parts on offer or what it has to say instead — and the entry that
+/// was clicked, when one was.
+///
+/// How loud the answer is, is the chooser's to say
+/// ([`PartChooser::tone`]), read once for the two arms that draw a
+/// sentence rather than a list.
+///
+/// A chooser with no directory draws no header line: it has refused
+/// for exactly that reason ([`crate::session::Refusal::NoDocumentDirectory`],
+/// minted from the same resolver its directory is), and a quiet "no
+/// directory" above the loud refusal would be one fact in two voices.
+///
+/// A free function over the `Ui` so a headless drive can reach it
+/// (`crate::pane::headless`).
+fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Option<DocumentId> {
+    if let Some(dir) = chooser.dir() {
+        crate::widgets::message_toned(
+            ui,
+            format!("parts in {}", dir.display()),
+            theme,
+            Tone::Advisory,
+        );
+    }
+    let mut chosen = None;
+    match chooser.offered() {
+        // An EMPTY listing is not "no parts here": `PartChooser::tone`
+        // says why, and why it is loud. The sentence says it to the
+        // reader.
+        Ok([]) => {
+            crate::widgets::message_toned(
+                ui,
+                "this directory holds no documents at all — not even the open document's own \
+                 file, which has gone from it",
+                theme,
+                chooser.tone(),
+            );
+        }
+        Ok(entries) => {
+            for entry in entries {
+                if part_entry(ui, theme, entry) {
+                    chosen = Some(entry.id);
+                }
+            }
+        }
+        // The refusing layer's own sentence — the store's or the
+        // directory rule's — never one composed here.
+        Err(refusal) => {
+            crate::widgets::message_toned(ui, refusal.to_string(), theme, chooser.tone());
+        }
+    }
+    chosen
+}
+
+/// **A face-frame fault under the datum form**, in the voice the fault
+/// gives itself ([`FaceFrameFault::tone`]) — or nothing, where this
+/// pane already says the fact elsewhere, because it says a fact once:
+///
+/// - `NoFace` is the form's unmet seat, which the form has already
+///   asked for in the same words from its one home;
+/// - `Unresolved`, when `said_by_selection`: the form's latched face IS
+///   the selection, and the selection's own verdict
+///   (`pane::properties::standing_verdict`, in this pane) is already
+///   saying, loud, that it does not resolve. A latched face that is no
+///   longer selected has nobody else to say it, so the form does.
+///
+/// A free function over the `Ui` so a headless drive can reach it.
+fn face_frame_fault(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    fault: &FaceFrameFault,
+    said_by_selection: bool,
+) {
+    let said_elsewhere = match fault {
+        FaceFrameFault::NoFace => true,
+        FaceFrameFault::Unresolved { .. } => said_by_selection,
+        FaceFrameFault::NotLanded
+        | FaceFrameFault::NotOneBody { .. }
+        | FaceFrameFault::NotPlanar { .. }
+        | FaceFrameFault::NotDrawn => false,
+    };
+    if !said_elsewhere {
+        crate::widgets::message_toned(ui, fault.to_string(), theme, fault.tone());
+    }
+}
+
+/// **Whether the selection's verdict is already saying that the form's
+/// latched face does not resolve**: the latched face is the one
+/// selected, and the selection carries an unresolved verdict
+/// ([`Standing::unresolved`]). A selected face that resolves, or has no
+/// evaluation behind it yet, says no such thing, so the form's own
+/// refusal is the only place a reader would learn it.
+fn selection_says_unresolved(standing: &Standing, latched: Option<&FaceSelection>) -> bool {
+    match standing {
+        Standing::Face { face, .. } => Some(face) == latched && standing.unresolved().is_some(),
+        Standing::Empty
+        | Standing::Node { .. }
+        | Standing::Param { .. }
+        | Standing::Edge { .. } => false,
+    }
+}
+
+/// **Why the add-profile button is withheld**, when it is — and how loud
+/// that is, which depends on which of two things it is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Withheld {
+    /// The form is waiting for its next input: a frame, a shape, a
+    /// first step. The form asking, [`Tone::Advisory`].
+    Waiting(&'static str),
+    /// An input the reader gave is refused, and the button stays shut
+    /// until they change it: [`Tone::Actionable`].
+    Refused(&'static str),
+}
+
+impl Withheld {
+    fn words(self) -> &'static str {
+        match self {
+            Self::Waiting(words) | Self::Refused(words) => words,
+        }
+    }
+
+    fn tone(self) -> Tone {
+        match self {
+            Self::Waiting(_) => Tone::Advisory,
+            Self::Refused(_) => Tone::Actionable,
+        }
+    }
+}
+
+/// **The one reason the add-profile button is withheld for**, out of every
+/// reason the form found, handed over in the form's own top-to-bottom
+/// order.
+///
+/// A refused input outranks the form waiting for one: a missing frame,
+/// shape or first step shows in the form itself (an empty picker, no
+/// shape chosen, an empty chain), while a refused value looks like any
+/// other number in its field and has no other voice. Between two of
+/// one kind the earlier in the form is said, so the first thing a
+/// person is asked for is the first thing the form lacks.
+fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
+    holds.into_iter().reduce(|said, next| match (said, next) {
+        (Withheld::Waiting(_), Withheld::Refused(_)) => next,
+        _ => said,
+    })
+}
+
+/// **What a bored circle withholds the button for**: a bore at least as
+/// wide as the radius, which is an input the reader gave and the form
+/// refuses — [`Withheld::Refused`], not a request for the next input.
+fn bore_withholds(bored: bool, bore: f64, radius: f64) -> Option<Withheld> {
+    (bored && bore >= radius).then_some(Withheld::Refused(
+        "the bore must be smaller than the radius — which loop is the hole is decided by \
+         containment, so a larger bore would swap the roles rather than refuse",
+    ))
+}
+
+/// The withheld button's reason, drawn in its own voice. A free function
+/// over the `Ui` so a headless drive can reach it.
+fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
+    crate::widgets::message_toned(ui, withheld.words(), theme, withheld.tone());
+}
+
 impl ViewerBehavior<'_> {
-    /// The creation section (GAUTH-1): the add-datum, add-profile and
-    /// extrude forms plus the modal revolve tool. Each form is
-    /// minimal — its few required fields with sensible defaults — and
-    /// emits exactly one creation op; the property panel is the
-    /// editor for everything after the insert — for a profile, through
-    /// this section's own path editor opened on the node
-    /// ([`Self::edit_profile_ui`]).
+    /// The creation sections. Each form is minimal — its few required
+    /// fields with sensible defaults — and emits exactly one creation
+    /// op; the property panel is the editor for everything after the
+    /// insert — for a profile, through this section's own path editor
+    /// opened on the node ([`Self::edit_profile_ui`]).
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
-        ui.collapsing("Add feature", |ui| {
+        ui.collapsing(ADD_FEATURE, |ui| {
             self.add_datum_ui(ui);
             ui.separator();
             self.add_profile_ui(ui);
@@ -325,10 +582,10 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.revolve_tool_ui(ui);
         });
-        // The combining tools sit in their own section (GAUTH-4):
+        // The combining tools sit in their own section:
         // everything above makes a body out of nothing, everything
         // here takes bodies that exist and makes another one.
-        ui.collapsing("Combine bodies", |ui| {
+        ui.collapsing(COMBINE_BODIES, |ui| {
             self.boolean_tool_ui(ui);
             ui.separator();
             self.split_tool_ui(ui);
@@ -345,11 +602,11 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.duplicate_tool_ui(ui);
         });
-        // The blend tools sit in their own section (GAUTH-5): they
+        // The blend tools sit in their own section: they
         // take a body that exists and reshape its EDGES, which is a
         // third kind of move again — and the only one whose picks are
         // a set rather than a seat.
-        ui.collapsing("Blend edges", |ui| {
+        ui.collapsing(BLEND_EDGES, |ui| {
             self.blend_tool_ui(ui);
         });
         ui.separator();
@@ -364,7 +621,7 @@ impl ViewerBehavior<'_> {
         // copy stays in the application and is only ever REPLACED
         // whole (activation, deactivation), never edited here.
         let Some(tool) = self.tools.mate().cloned() else {
-            if ui.button("Mate tool…").clicked() {
+            if ui.button(ToolKind::Mate.button()).clicked() {
                 // ONE modal tool at a time — `Tools::open` closes
                 // whatever was open, the rule and its argument living
                 // in that value rather than at each activation.
@@ -373,22 +630,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
-        match tool.state() {
-            MateToolState::Idle => {
-                ui.weak("no picks yet");
-            }
-            MateToolState::One(a) => {
-                ui.weak(format!("pick a: face of node {}", a.node.0));
-            }
-            MateToolState::Two { a, b } => {
-                crate::widgets::message_toned(
-                    ui,
-                    format!("pick a: node {}; pick b: node {}", a.node.0, b.node.0),
-                    &self.theme,
-                    Tone::Advisory,
-                );
-            }
-        }
+        mate_picks_row(ui, tool.state(), &self.theme);
         // The class choice, offered THROUGH the kernel's admission
         // table: each class is shown with its verdict, and the
         // deferral (Fit and every future class) is a sentence here
@@ -410,7 +652,10 @@ impl ViewerBehavior<'_> {
                     "admission: {}",
                     match entry.admission {
                         pncad::document::ClassAdmission::Mints => "mints an at-rest record",
-                        other => other.no_record_reason(),
+                        caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
+                        | pncad::document::ClassAdmission::NotAdmitted) => {
+                            caveat.no_record_reason()
+                        }
                     }
                 ),
                 &self.theme,
@@ -425,7 +670,7 @@ impl ViewerBehavior<'_> {
         ui.checkbox(&mut self.drafts.mate_opposed, "axes opposed");
         let mut close = false;
         ui.horizontal(|ui| {
-            if ui.button("Commit mate").clicked() {
+            if ui.button(ToolKind::Mate.commit()).clicked() {
                 match (
                     classes.get(self.drafts.mate_class),
                     self.session.landed_pair(),
@@ -451,14 +696,17 @@ impl ViewerBehavior<'_> {
                                 close = true;
                             }
                             Err(error) => {
-                                self.notices
-                                    .push(frame::tool_news(ToolKind::Mate.says(&error)));
+                                self.notices.push(frame::tool_news(
+                                    ToolKind::Mate.says(&error),
+                                    frame::Retold::Again,
+                                ));
                             }
                         }
                     }
                     _ => {
                         self.notices.push(frame::tool_news(
                             ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
+                            frame::Retold::Again,
                         ));
                     }
                 }
@@ -489,7 +737,7 @@ impl ViewerBehavior<'_> {
     pub(crate) fn add_part_ui(&mut self, ui: &mut egui::Ui) {
         if self.part_chooser.is_none() {
             if ui
-                .button("Add part…")
+                .button(ADD_PART)
                 .on_hover_text("insert an instance of another document in this one's directory")
                 .clicked()
             {
@@ -510,50 +758,7 @@ impl ViewerBehavior<'_> {
         let mut close = false;
         if let Some(chooser) = self.part_chooser.as_ref() {
             part_window(ui).show(ui.ctx(), |ui| {
-                match chooser.dir() {
-                    Some(dir) => {
-                        crate::widgets::message_toned(
-                            ui,
-                            format!("parts in {}", dir.display()),
-                            &self.theme,
-                            Tone::Advisory,
-                        );
-                    }
-                    None => {
-                        ui.weak("no directory");
-                    }
-                }
-                match chooser.offered() {
-                    // An EMPTY listing is not "no parts here": a
-                    // saved session's own file is in its own
-                    // directory, so the only way to scan clean and
-                    // find nothing is for that file to have gone
-                    // away underneath the session. Say that, since
-                    // it is also why the instances already placed
-                    // will stop resolving.
-                    Ok([]) => {
-                        crate::widgets::message_toned(
-                            ui,
-                            "this directory holds no documents at all — not even the open \
-                                 document's own file, which has gone from it",
-                            &self.theme,
-                            Tone::Advisory,
-                        );
-                    }
-                    Ok(entries) => {
-                        for entry in entries {
-                            if part_entry(ui, &self.theme, entry) {
-                                chosen = Some(entry.id);
-                            }
-                        }
-                    }
-                    // The refusing layer's own sentence — the
-                    // store's or the directory rule's — never one
-                    // composed here.
-                    Err(refusal) => {
-                        crate::widgets::message(ui, refusal.to_string());
-                    }
-                }
+                chosen = part_listing(ui, &self.theme, chooser);
                 ui.horizontal(|ui| {
                     if ui
                         .button("Rescan")
@@ -671,15 +876,25 @@ impl ViewerBehavior<'_> {
         }
         // The face-frame gate, on the kind that has one, asked ONCE:
         // its `Ok` is the pair the spec is lowered from and its `Err`
-        // is the sentence over the held button, so the button is gated
-        // by the same computation it commits. A second derivation of
-        // the picks would gate on one and commit the other.
-        let seat = (kind == DatumKindChoice::FaceFrame)
-            .then(|| face_frame_seat(self.session.landed_pair(), self.drafts.datum_face.as_ref()));
+        // is the sentence over the withheld button, so the button is
+        // gated by the same computation it commits. A second
+        // derivation of the picks would gate on one and commit the
+        // other. The kind test is not `held_face`'s: under another
+        // kind there is no gate to ask, where `held_face`'s `None`
+        // would ask it and read "no face".
+        let on_screen = crate::pane::viewport::drawn_index(self.index, self.scene_key)
+            .map(|index| (index, self.display));
+        let seat = (kind == DatumKindChoice::FaceFrame).then(|| {
+            face_frame_seat_drawn(
+                self.session.landed_pair(),
+                self.drafts.held_face(),
+                on_screen,
+            )
+        });
         let refused = seat.as_ref().and_then(|seat| seat.as_ref().err());
         // Lowered every frame, so the button's enabling and its commit
         // read one value: `Ok(None)` is a seat still unfilled, and it
-        // is what holds the button. The sentence over it follows the
+        // is what withholds the button. The sentence over it follows the
         // KIND — the two picking kinds want different things from
         // different places, so one sentence for the form would be
         // false of whichever is not showing.
@@ -692,16 +907,12 @@ impl ViewerBehavior<'_> {
         }
         // `NoFace` is the unmet seat above, in the same words from its
         // one home: the sentence asking for the pick is drawn once.
-        if let Some(fault) = refused
-            && *fault != FaceFrameFault::NoFace
-        {
-            crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
+        if let Some(fault) = refused {
+            let said = selection_says_unresolved(&self.session.standing(), self.drafts.held_face());
+            face_frame_fault(ui, &self.theme, fault, said);
         }
         if ui
-            .add_enabled(
-                !unpicked && refused.is_none(),
-                egui::Button::new("Add datum"),
-            )
+            .add_enabled(!unpicked && refused.is_none(), egui::Button::new(ADD_DATUM))
             .clicked()
         {
             match datum {
@@ -711,8 +922,10 @@ impl ViewerBehavior<'_> {
                 // no `ToolKind` to compose the prefix — the form's own
                 // name is the sentence's subject here.
                 Err(error) => {
-                    self.notices
-                        .push(frame::tool_news(format!("add datum: {error}")));
+                    self.notices.push(frame::tool_news(
+                        format!("add datum: {error}"),
+                        frame::Retold::Again,
+                    ));
                 }
             }
         }
@@ -730,7 +943,7 @@ impl ViewerBehavior<'_> {
     /// moves the seat, and nothing else clears it.
     ///
     /// Only the picks are decided here. Whether the face may carry a
-    /// frame at all is [`face_frame_seat`]'s answer, rendered by the
+    /// frame at all is [`face_frame_seat_drawn`]'s answer, rendered by the
     /// caller over the button it holds.
     fn datum_face_frame_rows(&mut self, ui: &mut egui::Ui) {
         if let Selection::Face(face) = self.session.selection() {
@@ -738,7 +951,7 @@ impl ViewerBehavior<'_> {
         }
         ui.horizontal(|ui| {
             ui.label("face");
-            match &self.drafts.datum_face {
+            match self.drafts.held_face() {
                 // The drawn body a pick is on, in the one sentence
                 // this crate names that scope with
                 // (`Display for BlendTarget`): a target that grew a
@@ -874,17 +1087,17 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.profile_plane,
         );
         let shape = self.drafts.profile_shape;
-        let mut blocked: Option<&'static str> = None;
-        // Stated before the shape check so the FIRST thing a person is
-        // told is the thing they have to do first.
+        // Every reason the button is withheld, in the form's order; which
+        // one is said is `withheld_for`'s to decide, not any one arm's.
+        let mut withholds: Vec<Withheld> = Vec::new();
         if self.drafts.profile_plane.is_none() {
-            blocked = Some("pick a frame to draw on");
+            withholds.push(Withheld::Waiting("pick a frame to draw on"));
         }
         match shape {
             // No shape chosen: the form is at rest. It says what it is
             // waiting for and draws nothing — no fields to fill in for
             // a shape nobody picked, and no preview in the viewport.
-            None => blocked = blocked.or(Some("choose a shape to add")),
+            None => withholds.push(Withheld::Waiting("choose a shape to add")),
             Some(ShapeKind::Circle) => {
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
@@ -912,15 +1125,11 @@ impl ViewerBehavior<'_> {
                         unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_bore);
                     }
                 });
-                if self.drafts.profile_bored
-                    && self.drafts.profile_bore >= self.drafts.profile_radius
-                {
-                    blocked = Some(
-                        "the bore must be smaller than the radius — which loop is the \
-                         hole is decided by containment, so a larger bore would swap \
-                         the roles rather than refuse",
-                    );
-                }
+                withholds.extend(bore_withholds(
+                    self.drafts.profile_bored,
+                    self.drafts.profile_bore,
+                    self.drafts.profile_radius,
+                ));
             }
             Some(ShapeKind::Rectangle) => {
                 let unit = self.drafts.length_unit.def();
@@ -949,25 +1158,27 @@ impl ViewerBehavior<'_> {
                     &mut self.drafts.length_unit,
                     &mut self.drafts.angle_unit,
                 );
-                path_steps_ui(
+                if let Some(row) = path_steps_ui(
                     ui,
                     "path",
                     self.session.tol(),
                     (self.drafts.length_unit.def(), self.drafts.angle_unit.def()),
-                    ShapeEdits::Free,
                     &mut self.drafts.profile_path,
-                );
+                ) {
+                    row.apply(&mut self.drafts.profile_path);
+                }
                 // A chain with no steps is a form waiting for its
                 // first one, not a chain that fails to close. Without
                 // this the empty list drew the lattice's own refusal
                 // about a program nobody had started writing.
                 if self.drafts.profile_path.is_empty() {
-                    blocked = Some("add a step to the chain");
+                    withholds.push(Withheld::Waiting("add a step to the chain"));
                 }
             }
         }
-        if let Some(reason) = blocked {
-            crate::widgets::message_toned(ui, reason, &self.theme, Tone::Advisory);
+        let blocked = withheld_for(withholds);
+        if let Some(withheld) = blocked {
+            withheld_line(ui, &self.theme, withheld);
         }
         // **What the loops would draw, said before they are
         // authored.** The preview ran the commit door's own ladder,
@@ -990,7 +1201,7 @@ impl ViewerBehavior<'_> {
         if ui
             .add_enabled(
                 blocked.is_none() && !refused,
-                egui::Button::new("Add profile"),
+                egui::Button::new(ADD_PROFILE),
             )
             .clicked()
         {
@@ -1006,12 +1217,16 @@ impl ViewerBehavior<'_> {
                 // condition and its commit are two pieces of code, and
                 // this one does not assume the other got it right.
                 (None, _) => {
-                    self.notices
-                        .push(frame::tool_news("add profile: no frame picked"));
+                    self.notices.push(frame::tool_news(
+                        "add profile: no frame picked",
+                        frame::Retold::Again,
+                    ));
                 }
                 (_, Err(error)) => {
-                    self.notices
-                        .push(frame::tool_news(format!("add profile: {error}")));
+                    self.notices.push(frame::tool_news(
+                        format!("add profile: {error}"),
+                        frame::Retold::Again,
+                    ));
                 }
             }
         }
@@ -1037,7 +1252,7 @@ impl ViewerBehavior<'_> {
         match self.session.selection().node() {
             Some(node) => {
                 if ui
-                    .button(format!("Extrude {}", tree::node_number(node)))
+                    .button(format!("{EXTRUDE} {}", tree::node_number(node)))
                     .clicked()
                 {
                     match self.drafts.length(self.drafts.extrude_distance) {
@@ -1046,14 +1261,16 @@ impl ViewerBehavior<'_> {
                             distance,
                         }),
                         Err(error) => {
-                            self.notices
-                                .push(frame::tool_news(format!("extrude: {error}")));
+                            self.notices.push(frame::tool_news(
+                                format!("extrude: {error}"),
+                                frame::Retold::Again,
+                            ));
                         }
                     }
                 }
             }
             None => {
-                ui.add_enabled(false, egui::Button::new("Extrude"))
+                ui.add_enabled(false, egui::Button::new(EXTRUDE))
                     .on_disabled_hover_text("select the profile to extrude first");
             }
         }
@@ -1068,7 +1285,7 @@ impl ViewerBehavior<'_> {
         // closing the tool; the authoritative copy is only ever
         // replaced whole.
         let Some(tool) = self.tools.revolve() else {
-            if ui.button("Revolve tool…").clicked() {
+            if ui.button(ToolKind::Revolve.button()).clicked() {
                 // ONE modal tool at a time — `Tools::open` closes
                 // whatever was open, the rule and its argument living
                 // in that value rather than at each activation.
@@ -1080,15 +1297,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Revolve.says(&"pick the profile, then the axis"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::RevolveProfile, tool.profile()),
-                (Seat::RevolveAxis, tool.axis()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("angle");
             unit_field(
@@ -1099,7 +1308,7 @@ impl ViewerBehavior<'_> {
             );
             angle_picker(ui, "revolve_angle", &mut self.drafts.angle_unit);
         });
-        self.tool_commit_row(ui, "Commit revolve", ToolKind::Revolve, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Revolve, |drafts| {
             Ok(tool.op(drafts.angle(drafts.revolve_angle)?)?)
         });
     }
@@ -1112,7 +1321,7 @@ impl ViewerBehavior<'_> {
     /// is which cannot author the operation they mean.
     pub(crate) fn boolean_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.boolean() else {
-            if ui.button("Boolean tool…").clicked() {
+            if ui.button(ToolKind::Boolean.button()).clicked() {
                 self.tools.open(ToolKind::Boolean);
             }
             return;
@@ -1121,12 +1330,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Boolean.says(&"pick the first body, then the second"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[(Seat::OperandA, tool.a()), (Seat::OperandB, tool.b())]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("operation");
             // One button per operation the KERNEL has, in its order:
@@ -1143,16 +1347,23 @@ impl ViewerBehavior<'_> {
                 Tone::Advisory,
             );
         }
-        self.tool_commit_row(ui, "Commit boolean", ToolKind::Boolean, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Boolean, |drafts| {
             Ok(tool.op(drafts.boolean_op)?)
         });
+        declare_offer_rows(
+            ui,
+            &mut self.drafts.declare_offer,
+            (self.session.generation(), self.drafts.boolean_op, tool),
+            self.ops,
+            &self.theme,
+        );
     }
 
     /// The split tool's panel: a body pick, a datum-plane pick, and
     /// the one committed edit.
     pub(crate) fn split_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.split() else {
-            if ui.button("Split tool…").clicked() {
+            if ui.button(ToolKind::Split.button()).clicked() {
                 self.tools.open(ToolKind::Split);
             }
             return;
@@ -1161,34 +1372,21 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Split.says(&"pick the body, then the datum plane"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::SplitTarget, tool.target()),
-                (Seat::SplitPlane, tool.plane()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
-        self.tool_commit_row(ui, "Commit split", ToolKind::Split, |_| Ok(tool.op()?));
+        seats_row(ui, tool.seats(), &self.theme);
+        self.tool_commit_row(ui, ToolKind::Split, |_| Ok(tool.op()?));
     }
 
     /// The transform tool's panel: one body pick plus the placement
     /// fields, and the one committed edit.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.transform() else {
-            if ui.button("Transform tool…").clicked() {
+            if ui.button(ToolKind::Transform.button()).clicked() {
                 self.tools.open(ToolKind::Transform);
             }
             return;
         };
         crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[(Seat::TransformBody, tool.input())]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             unit_vec3_row(
                 ui,
@@ -1215,7 +1413,7 @@ impl ViewerBehavior<'_> {
             );
             angle_picker(ui, "transform_angle", &mut self.drafts.angle_unit);
         });
-        self.tool_commit_row(ui, "Commit transform", ToolKind::Transform, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Transform, |drafts| {
             Ok(tool.op(
                 drafts.lengths(drafts.transform_translation)?,
                 scalars(drafts.transform_axis)?,
@@ -1234,7 +1432,7 @@ impl ViewerBehavior<'_> {
     /// boolean seat refuses.
     pub(crate) fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.pattern() else {
-            if ui.button("Pattern tool…").clicked() {
+            if ui.button(ToolKind::Pattern.button()).clicked() {
                 self.tools.open(ToolKind::Pattern);
             }
             return;
@@ -1243,15 +1441,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Pattern.says(&"pick the body, then (circular) the axis"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::PatternBody, tool.input()),
-                (Seat::PatternAxis, tool.axis()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("rule");
             for (kind, label) in PatternKindChoice::ALL {
@@ -1306,24 +1496,19 @@ impl ViewerBehavior<'_> {
                 });
             }
         }
-        self.tool_commit_row(
-            ui,
-            "Commit pattern",
-            ToolKind::Pattern,
-            |drafts| match drafts.pattern_kind {
-                PatternKindChoice::Linear => Ok(tool.linear_op(
-                    drafts.pattern_output,
-                    drafts.pattern_count,
-                    scalars(drafts.pattern_direction)?,
-                    drafts.length(drafts.pattern_spacing)?,
-                )?),
-                PatternKindChoice::Circular => Ok(tool.circular_op(
-                    drafts.pattern_output,
-                    drafts.pattern_count,
-                    drafts.angle(drafts.pattern_step)?,
-                )?),
-            },
-        );
+        self.tool_commit_row(ui, ToolKind::Pattern, |drafts| match drafts.pattern_kind {
+            PatternKindChoice::Linear => Ok(tool.linear_op(
+                drafts.pattern_output,
+                drafts.pattern_count,
+                scalars(drafts.pattern_direction)?,
+                drafts.length(drafts.pattern_spacing)?,
+            )?),
+            PatternKindChoice::Circular => Ok(tool.circular_op(
+                drafts.pattern_output,
+                drafts.pattern_count,
+                drafts.angle(drafts.pattern_step)?,
+            )?),
+        });
     }
 
     /// The projection tool's panel — [`crate::combine::PartTool`],
@@ -1344,7 +1529,7 @@ impl ViewerBehavior<'_> {
     /// rather than having one silently substituted.
     pub(crate) fn projection_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.part() else {
-            if ui.button("Projection tool…").clicked() {
+            if ui.button(ToolKind::Part.button()).clicked() {
                 self.tools.open(ToolKind::Part);
             }
             return;
@@ -1356,15 +1541,7 @@ impl ViewerBehavior<'_> {
                   of",
             ),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::PartSplit, tool.split()),
-                (Seat::PartInstance, tool.pattern()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         part_selector_rows(
             ui,
             &self.theme,
@@ -1372,7 +1549,7 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.part_half,
             &mut self.drafts.part_instance,
         );
-        self.tool_commit_row(ui, "Commit projection", ToolKind::Part, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Part, |drafts| {
             Ok(match drafts.part_select {
                 PartSelectChoice::Half => tool.half_op(drafts.part_half)?,
                 PartSelectChoice::Instance => tool.instance_op(drafts.part_instance)?,
@@ -1390,22 +1567,15 @@ impl ViewerBehavior<'_> {
     /// which [`duplicate_note`] states.
     pub(crate) fn duplicate_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.duplicate() else {
-            if ui.button("Duplicate tool…").clicked() {
+            if ui.button(ToolKind::Duplicate.button()).clicked() {
                 self.tools.open(ToolKind::Duplicate);
             }
             return;
         };
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[(Seat::DuplicateBody, tool.input())]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
-        self.tool_commit_row(ui, "Commit duplicate", ToolKind::Duplicate, |_| {
-            Ok(tool.op()?)
-        });
+        self.tool_commit_row(ui, ToolKind::Duplicate, |_| Ok(tool.op()?));
     }
 
     /// The blend tool's panel: activation, the freeze sentence, the
@@ -1425,7 +1595,7 @@ impl ViewerBehavior<'_> {
         // door is re-borrowed at the click.
         let Some((target, count)) = self.tools.blend().map(|tool| (tool.target(), tool.count()))
         else {
-            if ui.button("Blend tool…").clicked() {
+            if ui.button(ToolKind::Blend.button()).clicked() {
                 self.tools.open(ToolKind::Blend);
             }
             return;
@@ -1504,7 +1674,7 @@ impl ViewerBehavior<'_> {
             .and_then(|tool| tool.load_all_edges(target, eval, index));
         if let Some(event) = event {
             self.notices
-                .push(frame::tool_news(ToolKind::Blend.says(&event)));
+                .push(frame::tool_notice(&ToolNotice::Blend(event)));
         }
     }
 
@@ -1525,7 +1695,7 @@ impl ViewerBehavior<'_> {
     pub(crate) fn blend_commit_row(&mut self, ui: &mut egui::Ui, count: usize) {
         let mut close = false;
         ui.horizontal(|ui| {
-            if ui.button("Commit blend").clicked() {
+            if ui.button(ToolKind::Blend.commit()).clicked() {
                 match self.drafts.length(self.drafts.blend_size) {
                     Ok(size) => {
                         let op: Option<Result<SessionOp, BlendError>> =
@@ -1536,22 +1706,23 @@ impl ViewerBehavior<'_> {
                         match op {
                             Some(Ok(op)) => self.ops.push(op),
                             Some(Err(error)) => {
-                                self.notices
-                                    .push(frame::tool_news(ToolKind::Blend.says(&error)));
+                                self.notices.push(frame::tool_news(
+                                    ToolKind::Blend.says(&error),
+                                    frame::Retold::Again,
+                                ));
                             }
                             None => {}
                         }
                     }
                     Err(error) => {
-                        self.notices
-                            .push(frame::tool_news(ToolKind::Blend.says(&error)));
+                        self.notices.push(frame::tool_news(
+                            ToolKind::Blend.says(&error),
+                            frame::Retold::Again,
+                        ));
                     }
                 }
             }
-            if ui
-                .add_enabled(count > 0, egui::Button::new("Clear picks"))
-                .on_hover_text("drop every picked edge and start on any body")
-                .clicked()
+            if clear_picks_button(ui, count)
                 && let Some(tool) = self.tools.blend_mut()
             {
                 tool.clear();
@@ -1577,17 +1748,17 @@ impl ViewerBehavior<'_> {
     pub(crate) fn tool_commit_row(
         &mut self,
         ui: &mut egui::Ui,
-        label: &str,
         kind: ToolKind,
         op: impl FnOnce(&Drafts) -> Result<SessionOp, CommitFault>,
     ) {
         let mut close = false;
         ui.horizontal(|ui| {
-            if ui.button(label).clicked() {
+            if ui.button(kind.commit()).clicked() {
                 match op(self.drafts) {
                     Ok(op) => self.ops.push(op),
                     Err(error) => {
-                        self.notices.push(frame::tool_news(kind.says(&error)));
+                        self.notices
+                            .push(frame::tool_news(kind.says(&error), frame::Retold::Again));
                     }
                 }
             }
@@ -1601,6 +1772,26 @@ impl ViewerBehavior<'_> {
     }
 }
 
+/// **The blend tool's `Clear picks`**, live while `count` edges are
+/// held. No operation stands behind it — clearing is tool state — so
+/// with nothing held there is no refusal to read, and the literal here
+/// is the sentence: each state carries its own on the hook egui shows
+/// in that state.
+///
+/// Answers whether it was clicked, which a disabled button never is.
+fn clear_picks_button(ui: &mut egui::Ui, count: usize) -> bool {
+    let button = ui.add_enabled(count > 0, egui::Button::new("Clear picks"));
+    if count > 0 {
+        button
+            .on_hover_text("drop every picked edge and start on any body")
+            .clicked()
+    } else {
+        button
+            .on_disabled_hover_text("no edge is picked, so there is nothing to clear")
+            .clicked()
+    }
+}
+
 /// **The creation forms' own widgets, driven** —
 /// `crate::pane::headless` carries the harness and what it can and
 /// cannot reach.
@@ -1610,16 +1801,78 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::RecipeNodeId;
-
+    use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
+    use pncad::geom_core::Tol;
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::SplitHalf;
 
     use super::{
-        NEW_XY_LABEL, ProfilePlane, duplicate_note, part_selector_rows, profile_plane_row,
+        NEW_XY_LABEL, ProfilePlane, clear_picks_button, duplicate_note, mate_picks_row,
+        part_selector_rows, profile_plane_row, seats_row,
     };
+    use crate::combine::BooleanTool;
     use crate::forms::PartSelectChoice;
-    use crate::pane::headless::{painted_after_clicking, painted_text};
+    use crate::matetool::MateToolState;
+    use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
+    use crate::session::FaceSelection;
     use crate::theme::Theme;
+
+    /// A face pick on the body of `node`.
+    fn face_on(node: u64) -> FaceSelection {
+        FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(node),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: RecipeNodeId(node),
+            body: 0,
+        }
+    }
+
+    /// **The mate panel's picks, painted**: the seated tools' line —
+    /// one `role: pick` item per side, `—` for the open one, the
+    /// seated line's empty sentence — with a pick called the face of a
+    /// FEATURE, which is what every other panel calls a node.
+    #[test]
+    fn the_mate_panel_says_its_picks_in_the_seated_panels_line() {
+        let painted =
+            |state: &MateToolState| painted_text(|ui| mate_picks_row(ui, state, &Theme::DEFAULT));
+        assert_eq!(painted(&MateToolState::Idle), "no picks yet");
+        assert_eq!(
+            painted(&MateToolState::One(face_on(3))),
+            "pick a: face of feature 3; pick b: —"
+        );
+        assert_eq!(
+            painted(&MateToolState::Two {
+                a: face_on(3),
+                b: face_on(5),
+            }),
+            "pick a: face of feature 3; pick b: face of feature 5"
+        );
+    }
+
+    /// **A seated panel's picks, painted in its tool's role order**:
+    /// the boolean's first pick is the operand a subtraction KEEPS,
+    /// and the line says so before the second is picked.
+    #[test]
+    fn the_boolean_panel_says_which_operand_each_pick_is() {
+        let doc = Doc::<ProfileProgram>::empty_derived("seats-row", Tol::witness());
+        let mut tool = BooleanTool::new();
+        let painted =
+            |tool: &BooleanTool| painted_text(|ui| seats_row(ui, tool.seats(), &Theme::DEFAULT));
+        assert_eq!(painted(&tool), "no picks yet");
+        tool.pick(&doc, RecipeNodeId(3));
+        assert_eq!(
+            painted(&tool),
+            "first operand: feature 3; second operand: —"
+        );
+        tool.pick(&doc, RecipeNodeId(5));
+        assert_eq!(
+            painted(&tool),
+            "first operand: feature 3; second operand: feature 5"
+        );
+    }
 
     /// The part form's selector rows, driven: the half choice paints
     /// the kernel's own two sides and no index field.
@@ -1834,6 +2087,34 @@ mod tests {
         );
         assert!(!drawn.contains("pick one"), "{drawn}");
     }
+
+    /// **`Clear picks` says why while it is disabled** — hovered with
+    /// nothing held, it paints its own sentence, and not the enabled
+    /// one that egui would have shown nobody.
+    #[test]
+    fn clear_picks_with_nothing_held_says_there_is_nothing_to_clear() {
+        let hovered = painted_while_hovering("Clear picks", 0, |ui| {
+            clear_picks_button(ui, 0);
+        });
+        assert!(
+            hovered.contains("no edge is picked, so there is nothing to clear"),
+            "{hovered}"
+        );
+        assert!(!hovered.contains("drop every picked edge"), "{hovered}");
+    }
+
+    /// And holding picks, the same hover paints what a click does.
+    #[test]
+    fn clear_picks_with_picks_held_says_what_it_drops() {
+        let hovered = painted_while_hovering("Clear picks", 0, |ui| {
+            clear_picks_button(ui, 3);
+        });
+        assert!(
+            hovered.contains("drop every picked edge and start on any body"),
+            "{hovered}"
+        );
+        assert!(!hovered.contains("nothing to clear"), "{hovered}");
+    }
 }
 
 /// **Where this pane's sentences LAND** — each measured in a pane
@@ -1858,6 +2139,7 @@ mod layout_tests {
     use super::{NO_FRAMES, frame_picker, part_entry, part_window};
     use crate::pane::headless::{
         SLACK, assert_inside, assert_own_lines, assert_under, drawn_in, find, landed_after,
+        painted_while_hovering,
     };
     use crate::parts::PartEntry;
     use crate::theme::Theme;
@@ -1886,7 +2168,7 @@ mod layout_tests {
     }
 
     #[test]
-    fn a_parts_id_is_said_under_its_pick_button_inside_the_pane() {
+    fn a_parts_id_is_said_under_its_file_name_inside_the_pane() {
         let entry = PartEntry {
             id: DocumentId(0x0123_4567_89ab_cdef_0123_4567_89ab_cdef),
             path: PathBuf::from("outer-enclosure-lid.pncad"),
@@ -1922,6 +2204,37 @@ mod layout_tests {
             id.rows
         );
         assert_inside(region, id);
+    }
+
+    /// **A part's file name is bounded by the pane, and whole on
+    /// hover**: one line inside the pane however long the name, and the
+    /// full name in the tooltip of a pointer resting on it.
+    #[test]
+    fn a_long_file_name_is_elided_inside_the_pane_and_whole_on_hover() {
+        let entry = PartEntry {
+            id: DocumentId(7),
+            path: PathBuf::from(
+                "outer-enclosure-lid-with-the-long-hinge-and-the-second-gasket-groove.pncad",
+            ),
+            open_document: false,
+        };
+        let (region, painted) = drawn_in(REGION, |ui| {
+            part_entry(ui, &Theme::DEFAULT, &entry);
+        });
+        let name = find(&painted, &entry.file_name());
+        assert_eq!(name.rows.len(), 1, "one line, not {:?}", name.rows);
+        assert_inside(region, name);
+
+        let hovered = painted_while_hovering(&entry.file_name(), 0, |ui| {
+            ui.allocate_ui(egui::vec2(REGION, 800.0), |ui| {
+                part_entry(ui, &Theme::DEFAULT, &entry);
+            });
+        });
+        assert_eq!(
+            hovered.matches(&entry.file_name()).count(),
+            2,
+            "the elided name and the whole one in its tooltip: {hovered}"
+        );
     }
 
     /// **The chooser's window takes the width of the pane that opens
@@ -1977,5 +2290,503 @@ mod layout_tests {
         // text does: the window sits wherever egui places it.
         let pane = egui::Rect::from_min_size(egui::pos2(left, 0.0), egui::vec2(REGION, 1.0));
         assert_inside(pane, said);
+    }
+}
+
+/// **How loud this pane's verdicts are drawn**, read off the paint and
+/// held against fixed colours ([`crate::pane::headless::Voices`]),
+/// through the free functions the pane calls — so a literal tone put
+/// back at a draw site, or a value that answers the wrong tone, turns
+/// a row red.
+#[cfg(test)]
+mod tone_tests {
+    use std::path::PathBuf;
+
+    use pncad::document::{DocumentId, RecipeNodeId};
+    use pncad::prelude::SurfaceKind;
+
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+    use pncad::select::{InterrogateError, Resolution};
+
+    use super::{
+        Withheld, bore_withholds, face_frame_fault, part_listing, selection_says_unresolved,
+        withheld_for, withheld_line,
+    };
+    use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
+    use crate::parts::{PartCensus, PartChooser, PartEntry};
+    use crate::session::{FaceFrameFault, FaceSelection, Refusal, Standing};
+    use crate::theme::Theme;
+
+    fn listed(
+        dir: Option<&str>,
+        offered: Result<Vec<PartEntry>, Refusal>,
+    ) -> (Vec<Landed>, Voices) {
+        let chooser = PartChooser::opened(PartCensus::taken(dir.map(PathBuf::from), offered));
+        landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            part_listing(ui, theme, &chooser);
+        })
+    }
+
+    /// **A chooser with no directory says so once, loud** — the
+    /// refusal's own sentence, and no quiet "no directory" over it.
+    #[test]
+    fn a_chooser_with_no_directory_says_so_once_and_loud() {
+        let (painted, voices) = listed(None, Err(Refusal::NoDocumentDirectory));
+        assert_eq!(
+            find_opening(&painted, "save the document first").ink,
+            Some(voices.actionable)
+        );
+        assert_eq!(
+            painted.len(),
+            1,
+            "one line: {:?}",
+            painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+        );
+    }
+
+    /// **An empty listing is loud**: the open document's own file has
+    /// gone, and what is placed will stop resolving. The directory it
+    /// read is a report, and quiet.
+    #[test]
+    fn an_empty_listing_is_drawn_loud_under_a_quiet_header() {
+        let (painted, voices) = listed(Some("/parts"), Ok(Vec::new()));
+        assert_eq!(
+            find_opening(&painted, "this directory holds no documents at all").ink,
+            Some(voices.actionable)
+        );
+        assert_eq!(find(&painted, "parts in /parts").ink, Some(voices.weak));
+    }
+
+    /// **A listing is a report**, and its entries' ids are quiet.
+    #[test]
+    fn a_listing_is_drawn_quiet() {
+        let id = DocumentId(7);
+        let (painted, voices) = listed(
+            Some("/parts"),
+            Ok(vec![PartEntry {
+                id,
+                path: PathBuf::from("/parts/bracket.pncad"),
+                open_document: false,
+            }]),
+        );
+        assert_eq!(find(&painted, "parts in /parts").ink, Some(voices.weak));
+        assert_eq!(find(&painted, &id.to_string()).ink, Some(voices.weak));
+    }
+
+    fn latched() -> FaceSelection {
+        FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(1),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: RecipeNodeId(2),
+            body: 0,
+        }
+    }
+
+    fn unresolved() -> FaceFrameFault {
+        FaceFrameFault::Unresolved {
+            error: InterrogateError::NoSuchName,
+        }
+    }
+
+    /// **A face-frame fault about the pick is loud**, a stale latched
+    /// pick included; one about a seat not yet answerable is quiet.
+    #[test]
+    fn a_face_frame_fault_takes_the_voice_the_fault_gives_it() {
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            face_frame_fault(
+                ui,
+                theme,
+                &FaceFrameFault::NotPlanar {
+                    carrier: SurfaceKind::Cylinder,
+                },
+                false,
+            );
+            face_frame_fault(
+                ui,
+                theme,
+                &FaceFrameFault::NotOneBody {
+                    at: RecipeNodeId(4),
+                },
+                false,
+            );
+            face_frame_fault(ui, theme, &unresolved(), false);
+            face_frame_fault(ui, theme, &FaceFrameFault::NotLanded, false);
+        });
+        assert_eq!(
+            find_opening(&painted, "a sketch frame is read off a PLANAR face").ink,
+            Some(voices.actionable)
+        );
+        assert_eq!(
+            find_opening(&painted, "feature 4's value is several bodies").ink,
+            Some(voices.actionable)
+        );
+        assert_eq!(
+            find_opening(&painted, "that face does not resolve: ").ink,
+            Some(voices.actionable)
+        );
+        assert_eq!(
+            find_opening(&painted, "the document has not evaluated yet").ink,
+            Some(voices.weak)
+        );
+    }
+
+    /// **A stale pick the selection is already calling gone is not said
+    /// a second time** by the form; one the selection is not about is.
+    #[test]
+    fn a_stale_latched_face_is_said_once_in_the_pane() {
+        let (said_once, _) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            face_frame_fault(ui, theme, &unresolved(), true);
+        });
+        assert!(
+            said_once.is_empty(),
+            "{:?}",
+            said_once.iter().map(|l| &l.text).collect::<Vec<_>>()
+        );
+        // Only `Unresolved` is the selection's to say.
+        let (planar, _) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            face_frame_fault(
+                ui,
+                theme,
+                &FaceFrameFault::NotPlanar {
+                    carrier: SurfaceKind::Cylinder,
+                },
+                true,
+            );
+        });
+        assert_eq!(planar.len(), 1);
+    }
+
+    /// **The selection says a latched face does not resolve exactly when
+    /// it IS that face and no longer denotes** — the one case the form
+    /// leaves the sentence to it.
+    #[test]
+    fn the_selection_speaks_for_the_latched_face_only_when_it_is_that_face_and_gone() {
+        let face = |resolution: Option<Resolution>| Standing::Face {
+            face: latched(),
+            resolution: resolution.map(Box::new),
+        };
+        let gone = face(Some(Resolution::Failed(pncad::select::ResolutionFailure {
+            error: pncad::select::ResolveError::NodeGone {
+                name: latched().name,
+                edit: editor_core::RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(1),
+                },
+            },
+            offers: Vec::new(),
+        })));
+        assert!(selection_says_unresolved(&gone, Some(&latched())));
+        // Another face, or nothing latched: the form must say it.
+        let other = FaceSelection {
+            node: RecipeNodeId(9),
+            ..latched()
+        };
+        assert!(!selection_says_unresolved(&gone, Some(&other)));
+        assert!(!selection_says_unresolved(&gone, None));
+        // The latched face selected with no evaluation behind it: the
+        // selection says "no evaluation yet", not that it is gone.
+        assert!(!selection_says_unresolved(&face(None), Some(&latched())));
+        // A node selected: the header is about the node.
+        assert!(!selection_says_unresolved(
+            &Standing::Node {
+                node: RecipeNodeId(2),
+                present: false,
+            },
+            Some(&latched())
+        ));
+    }
+
+    /// **A bore at least as wide as the radius is a refused input**, and
+    /// loud — not the form asking for its next one.
+    #[test]
+    fn a_bore_as_wide_as_the_radius_is_refused() {
+        assert!(matches!(
+            bore_withholds(true, 0.01, 0.01),
+            Some(Withheld::Refused(_))
+        ));
+        assert_eq!(bore_withholds(true, 0.005, 0.01), None);
+        assert_eq!(bore_withholds(false, 0.02, 0.01), None);
+    }
+
+    /// **Which withholding reason is said**: a refused input over the form
+    /// waiting for one, wherever it came in the form; between two of
+    /// one kind, the earlier.
+    #[test]
+    fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
+        let frame = Withheld::Waiting("pick a frame to draw on");
+        let chain = Withheld::Waiting("add a step to the chain");
+        let bore = Withheld::Refused("the bore is too wide");
+        let wider = Withheld::Refused("the bore is wider still");
+        assert_eq!(withheld_for([frame, chain]), Some(frame));
+        assert_eq!(withheld_for([frame, bore]), Some(bore));
+        assert_eq!(withheld_for([bore, frame]), Some(bore));
+        assert_eq!(withheld_for([frame, bore, chain]), Some(bore));
+        assert_eq!(withheld_for([bore, wider]), Some(bore));
+        assert_eq!(withheld_for([]), None);
+    }
+
+    /// **The add-profile form's withholding reason**: a refused input is loud,
+    /// the form waiting for one is quiet.
+    #[test]
+    fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            withheld_line(ui, theme, Withheld::Refused("the bore is too wide"));
+            withheld_line(ui, theme, Withheld::Waiting("choose a shape to add"));
+        });
+        assert_eq!(
+            find(&painted, "the bore is too wide").ink,
+            Some(voices.actionable)
+        );
+        assert_eq!(
+            find(&painted, "choose a shape to add").ink,
+            Some(voices.weak)
+        );
+    }
+}
+
+/// **The declared union, driven through the boolean panel**: the
+/// flush boss-on-a-face union from its refusal to one undo, and the
+/// panel's two other answers. Each row performs the op the panel
+/// QUEUED, so what is asserted is what a click reaches. The rows that
+/// never touch the panel are `tests/combine_ops.rs`'s.
+#[cfg(test)]
+mod declared_union {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use pncad::document::{BooleanOp, Node, RecipeNodeId};
+    use pncad::geom_core::Tol;
+    use pncad::prelude::{CapEnd, RoleSeg};
+    use pncad::select::ContactClass;
+
+    use super::declare_offer_rows;
+    use crate::combine::BooleanTool;
+    use crate::frame;
+    use crate::pane::headless::{painted_after_clicking, painted_text};
+    use crate::session::{DeclareOffer, DocSession, ProfilePlane, Refusal, SessionOp};
+    use crate::test_support::{
+        boss_on_block, boss_on_block_union_volume, evaluated_insert, evaluated_volume,
+    };
+    use crate::theme::Theme;
+    use crate::tree;
+
+    /// The boss scene in a session, landed.
+    fn scene(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+        let (doc, block, boss) = boss_on_block("declared-union", tol);
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        (session, block, boss)
+    }
+
+    /// The boolean tool holding `a` then `b`.
+    fn holding(session: &DocSession, a: RecipeNodeId, b: RecipeNodeId) -> BooleanTool {
+        let mut tool = BooleanTool::new();
+        tool.pick(session.committed_doc(), a);
+        tool.pick(session.committed_doc(), b);
+        tool
+    }
+
+    /// The union the tool holds, performed: its refusal and the offer
+    /// the frame loop reads off it.
+    fn refused_union(session: &mut DocSession, tool: BooleanTool) -> (Refusal, DeclareOffer) {
+        let op = tool.op(BooleanOp::Union).expect("both operands are picked");
+        let refusal = session.perform(op).refusal.expect("the union refuses");
+        let offer = frame::declare_offer(Some(&refusal))
+            .unwrap_or_else(|| panic!("an offer from the refusal: {refusal}"));
+        (refusal, offer)
+    }
+
+    /// **The panel over `offer`** at the session's generation, with
+    /// the tool open on `op`, after clicking `click` if one is given:
+    /// what it painted, the offer it leaves held, and the ops it queued.
+    fn panel(
+        session: &DocSession,
+        offer: DeclareOffer,
+        (op, tool): (BooleanOp, BooleanTool),
+        click: Option<&str>,
+    ) -> (String, Option<DeclareOffer>, Vec<SessionOp>) {
+        let mut held = Some(offer);
+        let mut ops = Vec::new();
+        let draw = |ui: &mut eframe::egui::Ui| {
+            declare_offer_rows(
+                ui,
+                &mut held,
+                (session.generation(), op, tool),
+                &mut ops,
+                &Theme::DEFAULT,
+            );
+        };
+        let painted = match click {
+            Some(target) => painted_after_clicking(target, draw),
+            None => painted_text(draw),
+        };
+        (painted, held, ops)
+    }
+
+    /// **Refusal → offer → Declare → one undo**, as the panel drives
+    /// it. Red if the flush union commits instead of refusing; if the
+    /// status line says anything but the kernel's own sentence; if the
+    /// offer is not the kernel's pair at the two picks, `Rest` as found;
+    /// if the panel paints anything else; if Declare queues anything but
+    /// the offer; if accepting lands other than one `Declare` and one
+    /// union naming it in one history step; if the union is not block
+    /// plus boss; or if one undo does not return the document the union
+    /// was refused on.
+    #[test]
+    fn a_flush_union_is_declared_through_its_refusals_offer_as_one_undo() {
+        let tol = Tol::witness();
+        let (mut session, block, boss) = scene(tol);
+        let before = session.committed_doc().clone();
+        let steps = session.history().len();
+        let tool = holding(&session, block, boss);
+
+        let (refusal, offer) = refused_union(&mut session, tool);
+        let plain = Node::Boolean {
+            op: BooleanOp::Union,
+            a: block,
+            b: boss,
+            declare: None,
+        };
+        let (eval, union) = evaluated_insert(&before, plain, tol);
+        let kernel = tree::own_error(union, &eval).expect("the plain union fails");
+        assert_eq!(
+            refusal.to_string(),
+            kernel.kind.to_string(),
+            "the status line says the kernel's refusal, whole"
+        );
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "a refused union commits nothing"
+        );
+        assert_eq!(session.history().len(), steps, "and records no step");
+        let [finding] = offer.findings() else {
+            panic!("one refusal reports one pair: {:?}", offer.findings());
+        };
+        assert_eq!(
+            (finding.pair.0.at, finding.pair.1.at),
+            (block, boss),
+            "each side is sited at the operand that holds it"
+        );
+        assert_eq!(
+            (&finding.pair.0.name.path, &finding.pair.1.name.path),
+            (
+                &vec![RoleSeg::Cap(CapEnd::End)],
+                &vec![RoleSeg::Cap(CapEnd::Start)]
+            ),
+            "the block's top cap against the boss's bottom cap"
+        );
+        assert_eq!(finding.class, ContactClass::Rest);
+
+        let op = (BooleanOp::Union, tool);
+        let (painted, _, _) = panel(&session, offer.clone(), op, None);
+        assert_eq!(
+            painted,
+            format!(
+                "declare this contact and commit the boolean?\n\
+                 a face of {} against a face of {} — {} contact\n\
+                 Declare\nDecline",
+                tree::node_number(block),
+                tree::node_number(boss),
+                ContactClass::Rest.name()
+            )
+        );
+
+        let (_, held, ops) = panel(
+            &session,
+            offer.clone(),
+            op,
+            Some(DeclareOffer::ACCEPT_LABEL),
+        );
+        assert_eq!(
+            held.as_ref(),
+            Some(&offer),
+            "accepting leaves the offer to the landing"
+        );
+        let [accept] = <[SessionOp; 1]>::try_from(ops).expect("Declare queues one op");
+        let outcome = session.perform(accept);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let [declare, union] = outcome.minted[..] else {
+            panic!("a Declare and a union: {:?}", outcome.minted);
+        };
+        assert_eq!(session.history().len(), steps + 1, "one action, one step");
+        let doc = session.committed_doc();
+        assert!(matches!(
+            doc.node(declare),
+            Some(Node::Declare { pairs }) if pairs[..] == [(finding.pair.clone(), ContactClass::Rest)]
+        ));
+        assert!(matches!(
+            doc.node(union),
+            Some(Node::Boolean { op: BooleanOp::Union, a, b, declare: Some(d) })
+                if (*a, *b, *d) == (block, boss, declare)
+        ));
+        session.pump();
+        let got = evaluated_volume(session.evaluation().expect("landed"), union, tol);
+        let want = boss_on_block_union_volume();
+        assert!(
+            ((got - want) / want).abs() < 1e-9,
+            "the union is block plus boss: {got} vs {want}"
+        );
+
+        let undone = session.perform(SessionOp::Undo);
+        assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "one undo takes the Declare and the union together"
+        );
+    }
+
+    /// **Declining changes nothing.** Red if Decline queues an op or
+    /// leaves the offer held.
+    #[test]
+    fn declining_the_offer_drops_it_and_queues_nothing() {
+        let tol = Tol::witness();
+        let (mut session, block, boss) = scene(tol);
+        let tool = holding(&session, block, boss);
+        let (_, offer) = refused_union(&mut session, tool);
+        let (_, held, ops) = panel(
+            &session,
+            offer,
+            (BooleanOp::Union, tool),
+            Some(DeclareOffer::DECLINE_LABEL),
+        );
+        assert_eq!(held, None, "the offer is dropped");
+        assert!(ops.is_empty(), "and nothing is queued: {ops:?}");
+    }
+
+    /// **An offer is dropped unshown once the picks, the operation or
+    /// the document move past it**: its pairs are sited at operands the
+    /// tool no longer holds, it would commit an operation nobody chose,
+    /// or it was found on a document a commit would no longer edit. Red
+    /// if the panel draws any of the three, or keeps it.
+    #[test]
+    fn an_offer_the_picks_the_op_or_an_edit_moved_past_is_dropped_unshown() {
+        let tol = Tol::witness();
+        let (mut session, block, boss) = scene(tol);
+        let tool = holding(&session, block, boss);
+        let (_, offer) = refused_union(&mut session, tool);
+        let (painted, held, _) = panel(&session, offer.clone(), (BooleanOp::Union, tool), None);
+        assert!(!painted.is_empty(), "the premise: a live offer is drawn");
+        assert!(held.is_some(), "and kept");
+
+        let swapped = holding(&session, boss, block);
+        for (what, op) in [
+            ("other picks", (BooleanOp::Union, swapped)),
+            ("another operation", (BooleanOp::Subtract, tool)),
+        ] {
+            let (painted, held, _) = panel(&session, offer.clone(), op, None);
+            assert_eq!(painted, "", "{what}: nothing is drawn");
+            assert_eq!(held, None, "{what}: the offer is dropped");
+        }
+
+        let edited = session.perform(SessionOp::AddDatum {
+            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+        });
+        assert!(edited.refusal.is_none(), "{:?}", edited.refusal);
+        let (painted, held, _) = panel(&session, offer, (BooleanOp::Union, tool), None);
+        assert_eq!(painted, "", "an edit since: nothing is drawn");
+        assert_eq!(held, None, "an edit since: the offer is dropped");
     }
 }

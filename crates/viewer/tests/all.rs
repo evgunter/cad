@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does NOT keep is a `mod <helper>;` line of its
 //! own: the shared helper trees are declared once, below, as modules of
 //! THIS root, and a suite that wants one says `use crate::<helper>;`.
@@ -92,6 +92,8 @@ mod docm1_face_frame;
 mod docm9_range_vs_probe;
 #[path = "edge_pick.rs"]
 mod edge_pick;
+#[path = "edit_maintenance.rs"]
+mod edit_maintenance;
 #[path = "error_display.rs"]
 mod error_display;
 #[path = "eval_seam.rs"]
@@ -125,6 +127,8 @@ mod msolve5_read_below_a_root;
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
+#[path = "part_root_carried.rs"]
+mod part_root_carried;
 #[path = "path_authoring.rs"]
 mod path_authoring;
 #[path = "pick3_acceptance.rs"]
@@ -137,8 +141,6 @@ mod prefs;
 mod profile_draw;
 #[path = "profile_edit.rs"]
 mod profile_edit;
-#[path = "profile_edit_order.rs"]
-mod profile_edit_order;
 #[path = "refusal_concision_edits.rs"]
 mod refusal_concision_edits;
 #[path = "review_gui0_r1.rs"]
@@ -164,8 +166,6 @@ mod review_pick_r2;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
-#[path = "review_pick2_r1.rs"]
-mod review_pick2_r1;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "select_pick.rs"]

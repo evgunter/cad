@@ -45,7 +45,7 @@ const PITCH: f64 = 0.3125;
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("fins"),
+        name: ParamName::from_static("fins"),
         value: DocParam::Count { value: FINS },
     });
     let base_p = r.profile(
@@ -87,19 +87,21 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: pattern,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::new("fins"), Dimension::Count),
+        expr: Expr::param(ParamName::from_static("fins"), Dimension::Count),
     });
 
     // The explicit one-solid chain. Fin i sits at x = i·PITCH; every
     // fin overlaps the base by 1/16, so no union has a coincidence.
     let mut acc = base;
     for i in 0..FINS {
-        let tr = r.insert(Node::Transform {
-            input: fin,
-            translation: [len(i as f64 * PITCH), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        });
+        let tr = r.insert(Node::transform(
+            fin,
+            editor_core::Step::Rigid {
+                translation: [len(i as f64 * PITCH), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ));
         acc = r.insert(Node::Boolean {
             op: BooleanOp::Union,
             a: acc,
@@ -121,7 +123,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: fin,
             slot: SlotId::Distance,
-            expr: Expr::literal(0.6875, Dimension::Length).expect("dyadic length literal"),
+            expr: len(0.6875),
         },
         bump_root: fin,
     }

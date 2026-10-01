@@ -40,7 +40,7 @@ use editor_core::{
     RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind, face_frame, load,
     mate_reach, save,
 };
-use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
     at_the_door, gate, insert, len, on_frame, on_frame_keeping, run, solve, square, step, step_with,
 };
@@ -49,9 +49,9 @@ use geom_core::Tol;
 // ---- Substrate ----
 
 /// A square block of half-side `half` centred on the origin, extruded
-/// `height` along +z: the extrude is `PART_BODY`, and its cap faces are
+/// `height` along +z, and its body: the extrude, whose cap faces are
 /// the part's own rows at `RoleSeg::Cap(..)`.
-fn block(label: &str, half: f64, height: f64) -> ProfileDoc {
+fn block(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -60,22 +60,21 @@ fn block(label: &str, half: f64, height: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, half)],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(height),
         },
-    );
-    doc
+    )
 }
 
-/// The PART-LOCAL name of a block's cap face: the row the part's own
+/// The PART-LOCAL name of a cap face of `body`: the row the part's own
 /// table holds, with no instance wrapped round it.
-fn cap(end: CapEnd) -> StableName {
+fn cap(body: RecipeNodeId, end: CapEnd) -> StableName {
     StableName {
         kind: EntityKind::Face,
-        node: PART_BODY,
+        node: body,
         path: vec![RoleSeg::Cap(end)],
     }
 }
@@ -103,11 +102,15 @@ fn coincide(a: MateFrame, b: MateFrame) -> Alignment {
 }
 
 /// The mate `a` (its `End` cap) to `b` (its `Start` cap), at
-/// `alignment`.
-fn mate(a: RecipeNodeId, b: RecipeNodeId, alignment: Alignment) -> Node<ProfileProgram> {
+/// `alignment`, each instance given with its part's body.
+fn mate(
+    (a, a_body): (RecipeNodeId, RecipeNodeId),
+    (b, b_body): (RecipeNodeId, RecipeNodeId),
+    alignment: Alignment,
+) -> Node<ProfileProgram> {
     Node::Mate {
-        a: fixture::head(in_part(a, CapEnd::End)),
-        b: fixture::head(in_part(b, CapEnd::Start)),
+        a: fixture::head(in_part(a, a_body, CapEnd::End)),
+        b: fixture::head(in_part(b, b_body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment,
     }
@@ -117,12 +120,14 @@ fn mate(a: RecipeNodeId, b: RecipeNodeId, alignment: Alignment) -> Node<ProfileP
 /// instantiated after the post (so the post is the gauge), and the
 /// block SEATED on the post's cap — the post side names the cap FACE,
 /// the block side is its own origin frame. Returns the assembly, the
-/// two instances, the mate, the store's options and the post document
-/// as stored.
+/// two instances and their parts' bodies, the mate, the store's
+/// options and the post document as stored.
 struct Seat {
     doc: ProfileDoc,
     post_i: RecipeNodeId,
     block_i: RecipeNodeId,
+    post_body: RecipeNodeId,
+    block_body: RecipeNodeId,
     mate: RecipeNodeId,
     opts: EvalOptions,
     store: PartStore,
@@ -131,9 +136,10 @@ struct Seat {
 
 fn seat(label: &str, post_height: f64) -> Seat {
     let mut store = PartStore::new();
-    let post = block(&format!("{label}-post"), 0.5, post_height);
+    let (post, post_body) = block(&format!("{label}-post"), 0.5, post_height);
     let post_ref = store.insert(post.clone(), Tol::witness());
-    let block_ref = store.insert(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
+    let (block_ref, block_body) =
+        store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
     let opts = with_resolver(store.clone());
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -143,9 +149,9 @@ fn seat(label: &str, post_height: f64) -> Seat {
         doc,
         DocEdit::InsertNode {
             node: mate(
-                post_i,
-                block_i,
-                coincide(from_face(&cap(CapEnd::End)), identity()),
+                (post_i, post_body),
+                (block_i, block_body),
+                coincide(from_face(&cap(post_body, CapEnd::End)), identity()),
             ),
         },
         &reach,
@@ -154,6 +160,8 @@ fn seat(label: &str, post_height: f64) -> Seat {
         doc,
         post_i,
         block_i,
+        post_body,
+        block_body,
         mate: mate.expect("the mate is minted"),
         opts,
         store,
@@ -163,9 +171,9 @@ fn seat(label: &str, post_height: f64) -> Seat {
 
 /// The post's cap pose, read off the post document's OWN evaluation
 /// through the name door — the oracle every resolution is held to.
-fn cap_pose(post: &ProfileDoc, end: CapEnd) -> topo::readback::Pose<f64> {
+fn cap_pose(post: &ProfileDoc, body: RecipeNodeId, end: CapEnd) -> topo::readback::Pose<f64> {
     let ev = run(post, &EvalOptions::default());
-    face_frame(&ev, PART_BODY, &cap(end)).expect("the cap has a pose")
+    face_frame(&ev, body, &cap(body, end)).expect("the cap has a pose")
 }
 
 /// **The relative pose a frame coincidence on `pose` solves to** when
@@ -219,7 +227,7 @@ fn shorten_or_grow(s: &mut Seat, height: f64) {
     edit_the_post(
         s,
         DocEdit::SetParam {
-            node: PART_BODY,
+            node: s.post_body,
             slot: SlotId::Distance,
             expr: len(height),
         },
@@ -258,7 +266,7 @@ fn edit_the_post(s: &mut Seat, edit: DocEdit<ProfileProgram>) {
 #[test]
 fn a1_the_mate_follows_the_edited_face() {
     let mut s = seat("msolve9-a1", 1.0);
-    let before = cap_pose(&s.post, CapEnd::End);
+    let before = cap_pose(&s.post, s.post_body, CapEnd::End);
     assert_eq!(
         before.origin.z.to_bits(),
         1.0_f64.to_bits(),
@@ -285,7 +293,7 @@ fn a1_the_mate_follows_the_edited_face() {
     );
 
     shorten_or_grow(&mut s, 1.3);
-    let after = cap_pose(&s.post, CapEnd::End);
+    let after = cap_pose(&s.post, s.post_body, CapEnd::End);
     assert_eq!(
         after.origin.z.to_bits(),
         1.3_f64.to_bits(),
@@ -365,7 +373,7 @@ fn carrier(
 ) -> (ProfileDoc, StableName, topo::readback::Pose<f64>) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let doc = match wanted {
-        SurfaceKind::Plane => block(label, 0.5, 1.0),
+        SurfaceKind::Plane => block(label, 0.5, 1.0).0,
         // A rectangle revolved a full turn: a cylinder wall between
         // two planar ends.
         SurfaceKind::Cylinder => revolved(
@@ -420,6 +428,7 @@ fn revolved_program(doc: ProfileDoc, program: LoopProgram) -> ProfileDoc {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![program],
+            ids: Vec::new(),
         }),
     );
     let (doc, _) = insert(
@@ -453,16 +462,18 @@ fn resolve_through_the_solve(
     sense: AxisSense,
 ) -> Result<Frame, MateFault> {
     let mut store = PartStore::new();
+    let part_body = *part.roots().first().expect("a product root");
     let part_ref = store.insert(part, Tol::witness());
-    let block_ref = store.insert(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
+    let (block_ref, block_body) =
+        store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
     let opts = with_resolver(store);
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(part_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(block_ref));
     let node = Node::Mate {
-        a: fixture::head(in_part(a, CapEnd::End)),
-        b: fixture::head(in_part(b, CapEnd::Start)),
+        a: fixture::head(in_part(a, part_body, CapEnd::End)),
+        b: fixture::head(in_part(b, block_body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             sense,
@@ -746,7 +757,7 @@ fn a_face_frame_under_a_dual_evaluation_refuses_unpinned() {
         matches!(
             refusal.as_ref(),
             FaceRefusal::Unpinned { instance, face, .. }
-                if *instance == s.post_i && **face == cap(CapEnd::End)
+                if *instance == s.post_i && **face == cap(s.post_body, CapEnd::End)
         ),
         "{refusal:?}"
     );
@@ -772,7 +783,11 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let (named, fault) = at_the_door(
         &s.doc,
         &reach,
-        mate(s.post_i, s.block_i, coincide(from_face(&bogus), identity())),
+        mate(
+            (s.post_i, s.post_body),
+            (s.block_i, s.block_body),
+            coincide(from_face(&bogus), identity()),
+        ),
     )
     .expect_err("the part has no such face");
     let MateFault::FaceUnresolved {
@@ -902,9 +917,9 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
         &s.doc,
         &RefusingReach,
         mate(
-            s.post_i,
-            s.block_i,
-            coincide(from_face(&cap(CapEnd::End)), identity()),
+            (s.post_i, s.post_body),
+            (s.block_i, s.block_body),
+            coincide(from_face(&cap(s.post_body, CapEnd::End)), identity()),
         ),
     )
     .expect_err("no resolver, no face");
@@ -921,7 +936,7 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
                         fault: PartFault::NoResolver,
                     } if instance_named.is_none_or(|named| *instance == named)
                         && *part == post_ref
-                        && **face == cap(CapEnd::End)
+                        && **face == cap(s.post_body, CapEnd::End)
                 )
         )
     };
@@ -937,7 +952,8 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
     };
     let text = refusal.to_string();
     assert!(
-        text.contains(&cap(CapEnd::End).to_string()) && text.contains(&post_ref.to_string()),
+        text.contains(&cap(s.post_body, CapEnd::End).to_string())
+            && text.contains(&post_ref.to_string()),
         "the message names the face and the part: {text}"
     );
 }
@@ -995,14 +1011,14 @@ fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_
     // An edit to the part that leaves the face where it was: a datum
     // frame inserted into the post. The cap's pose is the same bits,
     // and the key moves anyway — the pin is the part's, not the face's.
-    let cap_before = cap_pose(&s.post, CapEnd::End);
+    let cap_before = cap_pose(&s.post, s.post_body, CapEnd::End);
     edit_the_post(
         &mut s,
         DocEdit::InsertNode {
             node: fixture::frame([0.0, 0.0, 5.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
         },
     );
-    let cap_after = cap_pose(&s.post, CapEnd::End);
+    let cap_after = cap_pose(&s.post, s.post_body, CapEnd::End);
     let pose_bits = |p: &topo::readback::Pose<f64>| {
         let u = p.u_ref.expect("a cap fixes its reference");
         [
@@ -1276,9 +1292,9 @@ fn a_face_side_authors_no_number_the_finiteness_door_sees() {
         .apply(
             &DocEdit::InsertNode {
                 node: mate(
-                    s.post_i,
-                    s.block_i,
-                    coincide(from_face(&cap(CapEnd::End)), poisoned),
+                    (s.post_i, s.post_body),
+                    (s.block_i, s.block_body),
+                    coincide(from_face(&cap(s.post_body, CapEnd::End)), poisoned),
                 ),
             },
             Tol::witness(),
@@ -1289,7 +1305,7 @@ fn a_face_side_authors_no_number_the_finiteness_door_sees() {
         matches!(err, EditError::NonFiniteAlignment { .. }),
         "the finiteness door, before the refusing reach is asked: {err:?}"
     );
-    assert!(coincide(from_face(&cap(CapEnd::End)), identity()).is_finite());
+    assert!(coincide(from_face(&cap(s.post_body, CapEnd::End)), identity()).is_finite());
 }
 
 /// A `SitedFace` is what a head is; this row pins that a frame's face

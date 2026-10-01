@@ -135,7 +135,7 @@ fn probe_sphere_rung_mm_vs_metre_twin() {
             outward: false,
         };
         match carrier_eq(&a, &b, declared(), 1.0, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(
                     d.predicate,
                     Some("carrier_sphere_radius"),
@@ -186,7 +186,7 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
     // Definite tilt: three orders above the escalate edge at the same
     // 1 m arm.
     match carrier_eq(&base, &tilt(b.escalate() * 1000.0), declared(), 1.0, band()).unwrap_err() {
-        CarrierEqError::Contradicted(d) => {
+        CarrierEqError::Contradicted { diag: d, .. } => {
             assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
         }
         other => panic!("expected Contradicted, got {other:?}"),

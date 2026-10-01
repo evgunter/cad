@@ -6,16 +6,10 @@
 //! where both exist" — rather than merely against "does it still
 //! poison at n.z = `[0,0]`".
 //!
-//! Run:  cargo run -p geom-core --features interval --example r2_onb_dl6
+//! Run:  cargo run -p geom-core --example r2_onb_dl6
 #![allow(clippy::print_stdout)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[cfg(not(feature = "interval"))]
-fn main() {
-    println!("needs --features interval");
-}
-
-#[cfg(feature = "interval")]
 fn main() {
     use geom_core::Vec3;
     use geom_core::interval::Interval;
@@ -48,7 +42,7 @@ fn main() {
         let n = Vec3::new(pt(0.6), pt(0.8), iv(lo, hi));
         let (b1, _) = n.orthonormal_basis();
         // The same construction with the correlation FULLY restored,
-        // exactly as `docs/PCURVE-P2-SPEC.md` item 1 spells it:
+        // exactly as PCURVE P-2's spec item 1 spelled it (`git show 2310b98bb:docs/PCURVE-P2-SPEC.md`):
         // "compute the magnitude `1 + |n.z|` and apply the sign".
         let s = Interval::one().copysign(n.z);
         let r_abs = Interval::one() / (Interval::one() + n.z.abs());
@@ -138,6 +132,5 @@ fn main() {
 /// `(0, 1]` at every input, so no component can be unbounded and none
 /// is decorated below `Def` by this construction." This is the direct
 /// test of that sentence.
-#[cfg(feature = "interval")]
 #[allow(dead_code)]
 fn r_claim() {}

@@ -1,5 +1,5 @@
 //! The cyl×cyl germ arm's BODY-LEVEL poses at the CERTIFIED scalar
-//! (feature `interval`).
+//!.
 //!
 //! **What this file pins, and what it does NOT.** Every row here drives
 //! whole BODIES through the public union door, so a row reaches a
@@ -37,26 +37,22 @@
 //! [`same_door_or_escalated`] carries the measurement and both
 //! narrowings.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Interval, Point2, Point3, Real, Tol, Vec3};
+use crate::common::interval::{iv, p2, p3, v3};
+use geom_core::{Affine3, Interval, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
 
 // NOT `common::germ_pair`: the `Interval`-typed twin of that fixture,
 // lifted at every literal — see that module's list.
 fn cyl(r: f64, h: f64) -> Body<Interval> {
     let tol = Tol::witness();
-    let lp = profile::circle(Point2::new(iv(0.0), iv(0.0)), iv(r), tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(-h))));
+    let lp = profile::circle(p2(0.0, 0.0), iv(r), tol).unwrap();
+    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -h)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(&vp, Extrusion::Distance(iv(2.0 * h)), tol)
         .unwrap()
@@ -66,36 +62,29 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {
     topo::transform_rigid(
         b,
-        &Affine3::rotation_about_axis(Point3::new(iv(0.0), iv(0.0), iv(0.0)), axis, iv(angle)),
+        &Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), axis, iv(angle)),
         Tol::witness(),
     )
     .unwrap()
 }
 
 fn x_axis() -> Vec3<Interval> {
-    Vec3::new(iv(1.0), iv(0.0), iv(0.0))
+    v3(1.0, 0.0, 0.0)
 }
 
 fn y_axis() -> Vec3<Interval> {
-    Vec3::new(iv(0.0), iv(1.0), iv(0.0))
+    v3(0.0, 1.0, 0.0)
 }
 
 fn z_axis() -> Vec3<Interval> {
-    Vec3::new(iv(0.0), iv(0.0), iv(1.0))
+    v3(0.0, 0.0, 1.0)
 }
 
 fn repose(b: &Body<Interval>) -> Body<Interval> {
-    let r = Affine3::rotation_about_axis(
-        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-        Vec3::new(iv(1.0), iv(2.0), iv(3.0)).normalize(),
-        iv(0.7),
-    );
+    let r = Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), v3(1.0, 2.0, 3.0).normalize(), iv(0.7));
     topo::transform_rigid(
         b,
-        &Affine3::from_parts(
-            r.linear,
-            r.translation + Vec3::new(iv(0.3), iv(-0.45), iv(0.6)),
-        ),
+        &Affine3::from_parts(r.linear, r.translation + v3(0.3, -0.45, 0.6)),
         Tol::witness(),
     )
     .unwrap()
@@ -215,7 +204,7 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), x_axis(), PI / 2.0),
-        &Affine3::translation(Vec3::new(iv(0.375), iv(0.0), iv(0.0))),
+        &Affine3::translation(v3(0.375, 0.0, 0.0)),
         Tol::witness(),
     )
     .unwrap();

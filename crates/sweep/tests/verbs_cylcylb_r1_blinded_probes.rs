@@ -18,34 +18,30 @@ use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// `bracket.py`'s `rounded_plate`, verbatim from the unit's fixture.
 fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     let tol = Tol::witness();
     let outline = profile::Open
-        .at(p2(w / 2.0, 0.0))
+        .at(Point2::new(w / 2.0, 0.0))
         .toward(1.0, 0.0, tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
         .toward(0.0, 1.0, tol)
         .unwrap()
-        .to(p2(w, h / 2.0), tol)
+        .to(Point2::new(w, h / 2.0), tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
         .toward(-1.0, 0.0, tol)
         .unwrap()
-        .to(p2(w / 2.0, h), tol)
+        .to(Point2::new(w / 2.0, h), tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
         .toward(0.0, -1.0, tol)
         .unwrap()
-        .to(p2(0.0, h / 2.0), tol)
+        .to(Point2::new(0.0, h / 2.0), tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()

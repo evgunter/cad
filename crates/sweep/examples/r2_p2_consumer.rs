@@ -12,6 +12,11 @@
 //!     (The whole-body mint refuses during the WALK, so no row in the
 //!     tree ever puts that output through `run_iso_checks`.)
 //!
+//! The fixture is built through public doors only: both re-charts go
+//! through `Body::set_face_surfaces_describing`, so the seam's
+//! description names the surface its bowed face wears. Q2's first call
+//! asks what `certify_general` does with no mate at all.
+//!
 //! Run: cargo run -p sweep --example r2_p2_consumer
 #![allow(clippy::print_stdout, clippy::too_many_lines)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -22,13 +27,43 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::RawLoop;
-use topo::{Body, FaceSurface, Pcurve};
+use profile::test_support::bulge_loop;
+use topo::{Body, Pcurve, Rechart};
+
+/// `face` onto a fresh chart, `surface`, outward-facing. Every edge the
+/// move would strand is restated as an image in the chart of its OTHER
+/// face, which does not move: the edges here are carried by NURBS
+/// curves, whose image in a plane is not derived, and the plane × NURBS
+/// intersection lane is `set_edge_curve_nurbs_lane`'s, which upgrades
+/// an edge afterwards. Returns the chart's key.
+fn recharted(
+    body: &mut Body<f64>,
+    face: topo::FaceKey,
+    surface: Surface<f64>,
+    tol: Tol,
+) -> Result<topo::SurfaceKey, topo::EulerOpError> {
+    let charts = vec![Rechart::new(surface, face, true)];
+    let mut specs = body.carried_redescriptions(&charts)?;
+    for (edge, spec) in &mut specs {
+        let e = body.get_edge(*edge).unwrap();
+        let (he, other) = [e.he_plus, e.he_minus]
+            .into_iter()
+            .map(|he| (he, body.face_of_half_edge(he).unwrap()))
+            .find(|(_, f)| *f != face)
+            .unwrap();
+        let mut image = EdgeDescriptionSpec::chart(body.get_face(other).unwrap().surface);
+        if let EdgeDescriptionSpec::Chart { image: slot, .. } = &mut image {
+            *slot = body.pcurve(he).map(|row| row.pcurve().clone());
+        }
+        spec.description = image;
+    }
+    Ok(body.set_face_surfaces_describing(charts, &specs, tol)?[0])
+}
 
 fn prism(scale: f64) -> Body<f64> {
     let square = move || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![profile::ProfileLoop::new(vec![
+        let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+        vec![bulge_loop(vec![
             v(-scale, -scale),
             v(scale, -scale),
             v(scale, scale),
@@ -132,22 +167,34 @@ fn main() {
         let (a, b) = c.params();
         (c.carrier().clone(), a, b)
     };
-    let plane = body
-        .set_face_surface(
-            flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -SCALE, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
-        )
-        .expect("flat wall restates as a plane");
+    // Widen the bowed wall's chart first, while the seam is an image in
+    // the flat wall's chart and so moves with neither; the minting pass
+    // restates the wall's rows in the widened chart.
+    let old_chart = match body.get_surface(bowed) {
+        Some(Surface::Nurbs(n)) => n.as_ref().clone(),
+        _ => panic!(),
+    };
+    let widened = widened_u_chart(&old_chart);
+    let bowed_face = body.faces().find(|(_, f)| f.surface == bowed).unwrap().0;
+    let new_key = recharted(&mut body, bowed_face, widened, tol).expect("rechart");
+    topo::mint_pcurves_of(&mut body, &[bowed_face], tol).expect("the widened wall mints");
+    let plane = recharted(
+        &mut body,
+        flat_face,
+        Surface::Plane {
+            origin: Point3::new(0.0, -SCALE, 0.0),
+            normal: Vec3::new(0.0, -1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        tol,
+    )
+    .expect("flat wall restates as a plane");
     body.set_edge_curve_nurbs_lane(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 s1: plane,
-                s2: bowed,
+                s2: new_key,
                 witness: carrier.eval((t0 + t1) * 0.5),
             },
             carrier,
@@ -159,16 +206,6 @@ fn main() {
     .expect("the seam re-describes");
     body.detach_pcurve(he_bowed);
 
-    // Widen the bowed wall's chart.
-    let old_chart = match body.get_surface(bowed) {
-        Some(Surface::Nurbs(n)) => n.as_ref().clone(),
-        _ => panic!(),
-    };
-    let widened = widened_u_chart(&old_chart);
-    let bowed_face = body.faces().find(|(_, f)| f.surface == bowed).unwrap().0;
-    let new_key = body
-        .set_face_surface(bowed_face, FaceSurface::New(widened))
-        .expect("rechart");
     let chart = match body.get_surface(new_key) {
         Some(Surface::Nurbs(n)) => n.as_ref().clone(),
         _ => panic!(),
@@ -238,7 +275,7 @@ fn main() {
             };
             let window = out.as_ref().unwrap().chart_box(ct0, ct1);
             let surf = Surface::Nurbs(Arc::new(chart.clone()));
-            // (a) with the mate the MINT would supply (None):
+            // (a) with no mate:
             let with_mint_mate = PcurveCache::certify_general(
                 Arc::clone(image),
                 ct0,
@@ -248,9 +285,10 @@ fn main() {
                 None,
                 window,
                 band,
+                <f64 as topo::AtRestPolicy>::fitted_lane(),
             );
             println!(
-                "Q2  certify_general(mate = what mint_face supplies) -> {:?}",
+                "Q2  certify_general(mate = None) -> {:?}",
                 with_mint_mate
                     .as_ref()
                     .map(|_| "Ok(cache)")
@@ -267,6 +305,7 @@ fn main() {
                 Some(&plane_surf),
                 window,
                 band,
+                <f64 as topo::AtRestPolicy>::fitted_lane(),
             );
             println!(
                 "Q2  certify_general(mate = hand-picked plane)        -> {}",
@@ -369,6 +408,7 @@ fn main() {
                         mate,
                         window,
                         band,
+                        <f64 as topo::AtRestPolicy>::fitted_lane(),
                     )
                 }
                 other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
@@ -414,7 +454,7 @@ fn main() {
             let cc = c.carrier().clone();
             let (label, r) = match p {
                 Pcurve::General(img) => (
-                    "General (mate = what mint_face supplies: None)",
+                    "General (mate = None)",
                     PcurveCache::certify_general(
                         Arc::clone(img),
                         *a,
@@ -424,6 +464,7 @@ fn main() {
                         None,
                         window,
                         band,
+                        <f64 as topo::AtRestPolicy>::fitted_lane(),
                     ),
                 ),
                 other => (

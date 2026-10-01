@@ -102,6 +102,7 @@ use pncad::select::{
     ContactClass, InterrogateError, Resolution, RoleSeg, RunCtx, face_frame, resolve,
 };
 
+use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
 
 /// One contact class and how far the vocabulary carries it — the
@@ -275,7 +276,13 @@ pub enum MateToolError {
     },
     /// A picked face's frame could not be derived — the interrogation
     /// door's own refusal (an unresolved name, an N2 tie, a NURBS
-    /// face with no canonical frame), unaltered.
+    /// face with no canonical frame), with a node that has no value
+    /// named as the feature tree names it
+    /// ([`crate::tree::interrogation_as_drawn`]).
+    ///
+    /// Its `through` may be a mate, which is not the DAG ancestor
+    /// `NodeStanding` documents
+    /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
     Frame {
         /// Which pick.
         side: MateSide,
@@ -315,14 +322,14 @@ impl core::fmt::Display for MateToolError {
             ),
             Self::NotAnInstancePick { side, node } => write!(
                 f,
-                "pick {} is on node {}, which is not a part instance or a copy of one",
+                "pick {} is on {}, which is not a part instance or a copy of one",
                 side.name(),
-                node.0
+                crate::tree::node_number(*node)
             ),
             Self::SamePick { head } => write!(
                 f,
-                "both picks name the same member (head: node {}); a mate relates a pair",
-                head.0
+                "both picks name the same member (head: {}); a mate relates a pair",
+                crate::tree::node_number(*head)
             ),
             Self::Frame { side, error } => write!(
                 f,
@@ -363,6 +370,48 @@ pub enum MateToolState {
     },
 }
 
+impl MateToolState {
+    /// The held picks, side `a` then side `b`, `None` for a side not
+    /// yet picked — what the panel's line says and the viewport marks.
+    pub fn picks(&self) -> [Option<&FaceSelection>; 2] {
+        match self {
+            Self::Idle => [None, None],
+            Self::One(a) => [Some(a), None],
+            Self::Two { a, b } => [Some(a), Some(b)],
+        }
+    }
+
+    /// **The line the mate panel shows for its held picks** — the
+    /// seated tools' line (`seats::picks_line`), with the
+    /// mate's two sides as its roles and each pick said as `face_of`
+    /// says it, the drop notice's phrase.
+    ///
+    /// The tool's state is not [`crate::seats::Seats`] (module docs:
+    /// neither the state nor the survival rule is shared), but the
+    /// line is the same sentence about the same thing — a role and
+    /// what fills it — so it is composed by the same door.
+    pub fn line(&self) -> String {
+        let [a, b] = self.picks();
+        crate::seats::picks_line(
+            [(MateSide::A, a), (MateSide::B, b)]
+                .map(|(side, pick)| (format!("pick {}", side.name()), pick.map(face_of))),
+        )
+    }
+}
+
+/// **What this tool calls a held pick**: `face of feature 3` — the
+/// face of the feature whose body the pick was taken on, the node
+/// spelled [`crate::tree::node_number`]'s way.
+///
+/// The panel item ([`MateToolState::line`]) and the drop notice
+/// ([`MateToolEvent`]) both say it, about the same pick on the same
+/// frame, so they read it here rather than each spelling it: two
+/// copies of one phrase is how a panel and its notice come to call
+/// one pick two things.
+fn face_of(pick: &FaceSelection) -> String {
+    format!("face of {}", crate::tree::node_number(pick.node))
+}
+
 /// A typed tool event the chrome renders — every state change that
 /// was not the direct echo of an op.
 #[derive(Debug)]
@@ -374,8 +423,13 @@ pub enum MateToolEvent {
         side: MateSide,
         /// The pick that was held.
         pick: FaceSelection,
-        /// The resolution machinery's own verdict (boxed for the same
-        /// width reason `Standing` boxes it).
+        /// The resolution machinery's own verdict, read as the feature
+        /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
+        /// for the same width reason `Standing` boxes it.
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         resolution: Box<Resolution>,
     },
 }
@@ -387,9 +441,9 @@ impl core::fmt::Display for MateToolEvent {
         match self {
             Self::PickLost { side, pick, .. } => write!(
                 f,
-                "pick {} (a face of node {}) no longer resolves; the tool dropped it",
+                "pick {} (a {}) no longer resolves; the tool dropped it",
                 side.name(),
-                pick.node.0
+                face_of(pick)
             ),
         }
     }
@@ -482,8 +536,9 @@ impl MateTool {
     ) -> Vec<MateToolEvent> {
         let mut events = Vec::new();
         let mut lost = |side: MateSide, pick: &FaceSelection| -> bool {
-            let verdict = resolve(RunCtx { doc, eval }, &pick.name);
-            if matches!(verdict, Resolution::Resolved(_)) {
+            let verdict =
+                crate::tree::resolution_as_drawn(resolve(RunCtx { doc, eval }, &pick.name), eval);
+            if resolves(&verdict) {
                 false
             } else {
                 events.push(MateToolEvent::PickLost {
@@ -545,10 +600,16 @@ impl MateTool {
         // refuses before any geometry is read, with the kernel's own
         // sentence.
         let admission = class_admission(choice.class);
-        if admission == ClassAdmission::NotAdmitted {
-            return Err(MateToolError::ClassRefused {
-                class: choice.class,
-            });
+        match admission {
+            ClassAdmission::NotAdmitted => {
+                return Err(MateToolError::ClassRefused {
+                    class: choice.class,
+                });
+            }
+            // The solve door takes both; a missing at-rest record is
+            // the mint door's refusal and the tree's caveat, not this
+            // door's.
+            ClassAdmission::Mints | ClassAdmission::NoAtRestRecord { .. } => {}
         }
         // The table door SECOND, still before any geometry: a
         // primitive-and-rider pair the table has no row for is a fact
@@ -574,8 +635,10 @@ impl MateTool {
             // it, refused here in the door's own words where it has
             // none. The pose itself is not kept — the frame is the
             // NAME, resolved by the solve.
-            face_frame(eval, member.instance, read)
-                .map_err(|error| MateToolError::Frame { side, error })?;
+            face_frame(eval, member.instance, read).map_err(|error| MateToolError::Frame {
+                side,
+                error: crate::tree::interrogation_as_drawn(error, eval),
+            })?;
             let local = part_local(member, read).ok_or(MateToolError::NotAnInstancePick {
                 side,
                 node: member.instance,

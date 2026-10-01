@@ -201,6 +201,14 @@ pub enum DimensionError {
         /// The unrecognized symbol.
         symbol: String,
     },
+    /// The expression would nest deeper than an expression may
+    /// (`expr::MAX_NESTING`): every door that mints an expression
+    /// refuses it, so every walk over one fits the smallest stack a
+    /// door runs on.
+    NestedTooDeep {
+        /// The deepest an expression may nest, in levels.
+        bound: usize,
+    },
 }
 
 // LIB-DOORS F6 (reopened on review): a human-readable rendering. The
@@ -249,6 +257,11 @@ impl core::fmt::Display for DimensionError {
             Self::UnknownDisplayUnit { symbol } => {
                 write!(f, "unknown display unit {symbol:?}")
             }
+            Self::NestedTooDeep { bound } => write!(
+                f,
+                "the expression nests deeper than {bound} levels. Recourse: regroup it to \
+                 nest less; `(a + b) + (c + d)` nests one level less than `a + b + c + d`"
+            ),
         }
     }
 }
@@ -258,13 +271,57 @@ impl core::error::Error for DimensionError {}
 /// A dimension-checked expression tree (ratified F7 shape).
 ///
 /// Construction goes through the smart constructors below, which run
-/// the F1 dimension checker; the fields are private so an
-/// ill-dimensioned tree cannot be built. The cached [`Self::dim`] is
-/// therefore trustworthy by construction.
+/// the F1 dimension checker and the nesting bound; the fields are
+/// private so an ill-dimensioned or over-deep tree cannot be built.
+/// The cached [`Self::dim`] is therefore trustworthy by construction.
+///
+/// **An expression nests at most 128 levels** along its longest chain
+/// from the root to a leaf, and a constructor that would pass that
+/// refuses with [`DimensionError::NestedTooDeep`]. The operators
+/// associate to the left, so a flat chain of more than 128 terms
+/// (`a + b + …`) refuses; grouped (`(a + b) + (c + d)`), the same terms
+/// nest less.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expr {
     dim: Dimension,
+    /// How many levels the tree nests, this node included (a leaf is
+    /// 1); never above [`MAX_NESTING`].
+    nesting: u8,
     kind: ExprKind,
+}
+
+/// **How deep an expression may nest**: the longest chain of nodes
+/// from the root to a leaf, both ends included. The one bound on an
+/// [`Expr`] and on a [`crate::MeasureExpr`], read by every door that
+/// mints one: the smart constructors refuse past it
+/// ([`DimensionError::NestedTooDeep`]), the text parser builds through
+/// them, and the load door refuses a file nested deeper than the bound
+/// lets a saved one be (`persist::nesting`).
+///
+/// It exists so that every walk over an expression that recurses once
+/// per level fits the smallest stack a door runs on: serde's in the
+/// save, load and content-pin doors, the derived impls, and this
+/// crate's own readers of the tree. The evaluators, the parser and
+/// `Drop` keep their own stack ([`crate::tree`]). A long expression
+/// regroups under it: `a + b + c + d` nests four levels and
+/// `(a + b) + (c + d)` three, so the bound limits how a long sum is
+/// grouped, not how many terms it has — but a flat chain of more than
+/// 128 terms refuses.
+pub(crate) const MAX_NESTING: usize = 128;
+
+const _: () = assert!(
+    MAX_NESTING <= u8::MAX as usize,
+    "an expression's nesting is stored in one byte"
+);
+
+/// The nesting of an operator node whose deepest child nests `below`
+/// levels, refused past [`MAX_NESTING`]: the one check both expression
+/// languages' constructors make.
+pub(crate) fn nesting_over(below: u8) -> Result<u8, DimensionError> {
+    match below.checked_add(1) {
+        Some(nesting) if usize::from(nesting) <= MAX_NESTING => Ok(nesting),
+        _ => Err(DimensionError::NestedTooDeep { bound: MAX_NESTING }),
+    }
 }
 
 /// The stored display-unit CODE — quantity's closed table as a one-
@@ -340,14 +397,30 @@ impl<'de> serde::Deserialize<'de> for UnitSym {
     /// it is checked where document invariants are, in the shared
     /// save/load validator (`persist::check::first_display_unit_fault`)
     /// — typed, and symmetric across both doors rather than load-only.
+    ///
+    /// The refusal is the SAME fact `persist::wire`'s rebuild raises
+    /// for an off-table symbol on an expression literal, so it leaves
+    /// by the same channel and reaches a caller as the same
+    /// `PersistError::Dimension`. Otherwise one fault would cross one
+    /// door under two classes with contradictory recourse: this route
+    /// used to answer "regenerate the file from its source recipe",
+    /// which is advice that reproduces the refusal.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let symbol = <String as serde::Deserialize>::deserialize(deserializer)?;
         match quantity::unit_by_symbol(&symbol) {
             Some(row) => Ok(Self::from_def(&row)),
-            None => Err(serde::de::Error::custom(format!(
-                "display unit {symbol:?} is not one of the {} rows quantity::UNITS carries",
-                quantity::UNITS.len()
-            ))),
+            None => {
+                // The typed refusal leaves through the frame; the serde
+                // message is the human half of the same fact
+                // (`persist::refusal`, which lists this recorder).
+                crate::persist::refusal::record(&DimensionError::UnknownDisplayUnit {
+                    symbol: symbol.clone(),
+                });
+                Err(serde::de::Error::custom(format!(
+                    "display unit {symbol:?} is not one of the {} rows quantity::UNITS carries",
+                    quantity::UNITS.len()
+                )))
+            }
         }
     }
 }
@@ -691,6 +764,30 @@ pub(crate) enum ExprKind {
     CountToScalar(Box<Expr>),
 }
 
+impl ExprKind {
+    /// Moves this node's children onto `out`, leaving a leaf behind.
+    fn detach_children(&mut self, out: &mut Vec<Expr>) {
+        match core::mem::replace(self, ExprKind::CountLiteral(0)) {
+            binary_kind!(a, b) => {
+                out.push(*a);
+                out.push(*b);
+            }
+            unary_kind!(a) => out.push(*a),
+            leaf_kind!() => {}
+        }
+    }
+}
+
+impl Drop for Expr {
+    /// Frees the tree from a heap stack (`crate::tree::free`), so no
+    /// drop recurses.
+    fn drop(&mut self) {
+        if !matches!(self.kind, leaf_kind!()) {
+            crate::tree::free(self, |e, out| e.kind.detach_children(out));
+        }
+    }
+}
+
 // The arithmetic constructors share names with the std ops traits on
 // purpose (they ARE the expression-level add/sub/…), but they cannot
 // implement those traits: they are FALLIBLE (the F1 dimension checker
@@ -709,6 +806,12 @@ impl Expr {
         &self.kind
     }
 
+    /// How many levels the tree nests, this node included: 1 for a
+    /// leaf, never above [`MAX_NESTING`].
+    pub(crate) fn nesting(&self) -> usize {
+        usize::from(self.nesting)
+    }
+
     /// A continuous dimensioned literal in canonical kernel units.
     /// Refuses [`Dimension::Count`] — Count literals are integers
     /// ([`Expr::count`]) — and NON-FINITE values (ruled door 1 of the
@@ -722,13 +825,13 @@ impl Expr {
         if !value.is_finite() {
             return Err(DimensionError::NonFiniteLiteral);
         }
-        Ok(Self {
+        Ok(Self::leaf(
             dim,
-            kind: ExprKind::Literal(Lit {
+            ExprKind::Literal(Lit {
                 value,
                 display_unit: UnitSym::canonical_for(dim),
             }),
-        })
+        ))
     }
 
     /// A continuous literal that REMEMBERS the display unit it was
@@ -852,20 +955,37 @@ impl Expr {
 
     /// A `Count` literal — an exact integer.
     pub fn count(value: i64) -> Self {
-        Self {
-            dim: Dimension::Count,
-            kind: ExprKind::CountLiteral(value),
-        }
+        Self::leaf(Dimension::Count, ExprKind::CountLiteral(value))
     }
 
     /// A document-parameter reference, recording the dimension the
     /// parameter is declared with; `apply` re-checks the record against
     /// the document's table (spec D6).
     pub fn param(name: ParamName, dim: Dimension) -> Self {
+        Self::leaf(dim, ExprKind::Param(name))
+    }
+
+    fn leaf(dim: Dimension, kind: ExprKind) -> Self {
         Self {
             dim,
-            kind: ExprKind::Param(name),
+            nesting: 1,
+            kind,
         }
+    }
+
+    /// An operator node over the children `kind` holds, refused when it
+    /// would nest past [`MAX_NESTING`].
+    fn over(dim: Dimension, kind: ExprKind) -> Result<Self, DimensionError> {
+        let below = match &kind {
+            binary_kind!(a, b) => a.nesting.max(b.nesting),
+            unary_kind!(a) => a.nesting,
+            leaf_kind!() => 0,
+        };
+        Ok(Self {
+            dim,
+            nesting: nesting_over(below)?,
+            kind,
+        })
     }
 
     fn same_dim(
@@ -881,10 +1001,7 @@ impl Expr {
                 right: b.dim,
             });
         }
-        Ok(Self {
-            dim: a.dim,
-            kind: make(Box::new(a), Box::new(b)),
-        })
+        Self::over(a.dim, make(Box::new(a), Box::new(b)))
     }
 
     /// Same-dimension addition (Count included: Count is closed under
@@ -899,11 +1016,13 @@ impl Expr {
     }
 
     /// Negation — any dimension (Count stays Count).
-    pub fn neg(a: Expr) -> Self {
-        Self {
-            dim: a.dim,
-            kind: ExprKind::Neg(Box::new(a)),
-        }
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NestedTooDeep`] alone: negation is total over
+    /// every dimension, so only the nesting bound refuses it.
+    pub fn neg(a: Expr) -> Result<Self, DimensionError> {
+        Self::over(a.dim, ExprKind::Neg(Box::new(a)))
     }
 
     /// Product. Permitted (F1): Count×Count → Count; otherwise at
@@ -922,10 +1041,7 @@ impl Expr {
             (Scalar, d) | (d, Scalar) => d,
             (l, r) => return Err(DimensionError::MulNeedsScalar { left: l, right: r }),
         };
-        Ok(Self {
-            dim,
-            kind: ExprKind::Mul(Box::new(a), Box::new(b)),
-        })
+        Self::over(dim, ExprKind::Mul(Box::new(a), Box::new(b)))
     }
 
     /// Quotient. The divisor must be `Scalar` (F1): Length/Length —
@@ -944,10 +1060,7 @@ impl Expr {
                 right: b.dim,
             });
         }
-        Ok(Self {
-            dim: a.dim,
-            kind: ExprKind::Div(Box::new(a), Box::new(b)),
-        })
+        Self::over(a.dim, ExprKind::Div(Box::new(a), Box::new(b)))
     }
 
     fn trig(
@@ -958,10 +1071,7 @@ impl Expr {
         if a.dim != Dimension::Angle {
             return Err(DimensionError::TrigNeedsAngle { op, found: a.dim });
         }
-        Ok(Self {
-            dim: Dimension::Scalar,
-            kind: make(Box::new(a)),
-        })
+        Self::over(Dimension::Scalar, make(Box::new(a)))
     }
 
     /// Sine of an `Angle` → `Scalar` (spec D4).
@@ -994,10 +1104,7 @@ impl Expr {
                 right: x.dim,
             });
         }
-        Ok(Self {
-            dim: Dimension::Angle,
-            kind: ExprKind::Atan2(Box::new(y), Box::new(x)),
-        })
+        Self::over(Dimension::Angle, ExprKind::Atan2(Box::new(y), Box::new(x)))
     }
 
     /// Same-dimension lattice minimum (value operation, never control
@@ -1017,10 +1124,7 @@ impl Expr {
         if a.dim != Dimension::Count {
             return Err(DimensionError::NotCount { found: a.dim });
         }
-        Ok(Self {
-            dim: Dimension::Scalar,
-            kind: ExprKind::CountToScalar(Box::new(a)),
-        })
+        Self::over(Dimension::Scalar, ExprKind::CountToScalar(Box::new(a)))
     }
 
     /// The child at ExprPath index `i` (spec D5: operands in argument
@@ -1070,6 +1174,23 @@ impl Expr {
             binary_kind!(a, b) => {
                 a.literal_bits(out);
                 b.literal_bits(out);
+            }
+        }
+    }
+
+    /// Sets every literal's display unit to its dimension's canonical
+    /// one, leaving every value: the expression `PartialEq` and
+    /// [`Expr::bit_eq`] see, as a value that serializes (D6: the display
+    /// unit is never identity).
+    pub(crate) fn erase_display_units(&mut self) {
+        let dim = self.dim;
+        match &mut self.kind {
+            ExprKind::Literal(lit) => lit.display_unit = UnitSym::canonical_for(dim),
+            ExprKind::CountLiteral(_) | ExprKind::Param(_) => {}
+            unary_kind!(a) => a.erase_display_units(),
+            binary_kind!(a, b) => {
+                a.erase_display_units();
+                b.erase_display_units();
             }
         }
     }
@@ -1124,7 +1245,7 @@ impl Expr {
             (K::Min(a, _), 1) => Self::min(other(a), rebuilt),
             (K::Max(_, b), 0) => Self::max(rebuilt, other(b)),
             (K::Max(a, _), 1) => Self::max(other(a), rebuilt),
-            (K::Neg(_), 0) => Ok(Self::neg(rebuilt)),
+            (K::Neg(_), 0) => Self::neg(rebuilt),
             (K::Sin(_), 0) => Self::sin(rebuilt),
             (K::Cos(_), 0) => Self::cos(rebuilt),
             (K::Tan(_), 0) => Self::tan(rebuilt),
@@ -1262,10 +1383,10 @@ pub enum EvalError {
     /// caller supplied the expression being evaluated ([`eval`]'s
     /// argument identifies it; PR 2's evaluation service attaches
     /// node/slot when it evaluates document slots). At certified
-    /// scalars this refuses POISON (NaI/empty/`Trv`-decorated
-    /// enclosures); legitimately unbounded-but-valid enclosures pass
-    /// (boundedness is the `Com`-decoration's business, not this
-    /// door's).
+    /// scalars this refuses what may not certify (NaI, empty and
+    /// `Trv`-decorated enclosures); legitimately unbounded-but-valid
+    /// enclosures pass (boundedness is the `Com`-decoration's business,
+    /// not this door's).
     NonFiniteResult,
 }
 
@@ -1327,15 +1448,15 @@ impl core::error::Error for EvalError {}
 /// values to decisions, spec D1's "for `Real`/`Decide`"): the ruled
 /// door-2 finiteness check on the FINAL value is a reified decision,
 /// so it goes through `sign_within`, never a raw comparison. The
-/// recursive evaluation itself needs only `Real` (see `eval_inner`).
+/// evaluation itself needs only `Real` (see `eval_inner`).
 pub fn eval<T: Decide>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
     refuse_non_finite(eval_inner(expr, params)?)
 }
 
 /// **Door 2, as a shared door.** The ruled non-finite check on a
 /// FINAL evaluated value: `value * 0` is EXACTLY zero for every finite
-/// value and poison (NaN / empty / Trv) otherwise, so any valid band
-/// classifies it identically — Zero passes, everything else is a
+/// value and NaN or refused (NaN / empty / Trv) otherwise, so any valid
+/// band classifies it identically — Zero passes, everything else is a
 /// non-finite result.
 ///
 /// It lives apart from [`eval`] because [`eval`] is not the only
@@ -1373,83 +1494,128 @@ pub(crate) fn refuse_non_finite<T: Decide>(value: T) -> Result<T, EvalError> {
     }
 }
 
-/// The recursive evaluation core — `Real` only (no decisions inside:
-/// poison FLOWS through values per the kernel policy; the single
-/// refusal door is [`eval`]'s final check).
-fn eval_inner<T: Real>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
+/// The evaluation core — `Real` only (no decisions inside: poison FLOWS
+/// through values per the kernel policy; the single refusal door is
+/// [`eval`]'s final check). The walk keeps its own stack
+/// ([`crate::tree::fold`]), so how deep the expression nests costs the
+/// thread's stack nothing.
+fn eval_inner<T: Real>(root: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
+    use crate::tree::{Operands as O, Visit};
     use ExprKind as K;
-    if expr.dim == Dimension::Count {
-        return Err(EvalError::CountExprInContinuousEval);
-    }
-    match &expr.kind {
-        // The display unit is presentation metadata: evaluation reads
-        // only the canonical value (DESIGN.md D6; LIB-SWITCH §4g).
-        K::Literal(lit) => Ok(T::from_f64(lit.value)),
-        K::CountLiteral(_) => Err(EvalError::CountExprInContinuousEval),
-        K::Param(name) => match params.bindings.get(name) {
-            None => Err(EvalError::UnknownParam(name.clone())),
-            Some(ParamValue::Continuous { dim, value }) if *dim == expr.dim => Ok(*value),
-            Some(bound) => Err(EvalError::ParamDimensionMismatch {
-                name: name.clone(),
-                expected: expr.dim,
-                found: bound.dim(),
-            }),
+    crate::tree::fold(
+        root,
+        |expr| {
+            if expr.dim == Dimension::Count {
+                return Err(EvalError::CountExprInContinuousEval);
+            }
+            Ok(match &expr.kind {
+                // The display unit is presentation metadata: evaluation
+                // reads only the canonical value (DESIGN.md D6;
+                // LIB-SWITCH §4g).
+                K::Literal(lit) => Visit::Value(T::from_f64(lit.value)),
+                K::CountLiteral(_) => return Err(EvalError::CountExprInContinuousEval),
+                K::Param(name) => match params.bindings.get(name) {
+                    None => return Err(EvalError::UnknownParam(name.clone())),
+                    Some(ParamValue::Continuous { dim, value }) if *dim == expr.dim => {
+                        Visit::Value(*value)
+                    }
+                    Some(bound) => {
+                        return Err(EvalError::ParamDimensionMismatch {
+                            name: name.clone(),
+                            expected: expr.dim,
+                            found: bound.dim(),
+                        });
+                    }
+                },
+                K::CountToScalar(a) => {
+                    let n = eval_count(a, params)?;
+                    // i32::try_from is total on i64 (no abs, no panic —
+                    // i64::MIN is a typed refusal); f64::from(i32) is exact.
+                    let small =
+                        i32::try_from(n).map_err(|_| EvalError::CountToScalarOutOfRange(n))?;
+                    Visit::Value(T::from_f64(f64::from(small)))
+                }
+                binary_kind!(a, b) => Visit::Two(a, b),
+                K::Neg(a) | K::Sin(a) | K::Cos(a) | K::Tan(a) => Visit::One(a),
+            })
         },
-        K::Add(a, b) => Ok(eval_inner(a, params)? + eval_inner(b, params)?),
-        K::Sub(a, b) => Ok(eval_inner(a, params)? - eval_inner(b, params)?),
-        K::Neg(a) => Ok(-eval_inner(a, params)?),
-        K::Mul(a, b) => Ok(eval_inner(a, params)? * eval_inner(b, params)?),
-        K::Div(a, b) => Ok(eval_inner(a, params)? / eval_inner(b, params)?),
-        K::Sin(a) => Ok(eval_inner(a, params)?.sin()),
-        K::Cos(a) => Ok(eval_inner(a, params)?.cos()),
-        K::Tan(a) => Ok(eval_inner(a, params)?.tan()),
-        K::Atan2(y, x) => Ok(eval_inner(y, params)?.atan2(eval_inner(x, params)?)),
-        K::Min(a, b) => Ok(eval_inner(a, params)?.min(eval_inner(b, params)?)),
-        K::Max(a, b) => Ok(eval_inner(a, params)?.max(eval_inner(b, params)?)),
-        K::CountToScalar(a) => {
-            let n = eval_count(a, params)?;
-            // i32::try_from is total on i64 (no abs, no panic —
-            // i64::MIN is a typed refusal); f64::from(i32) is exact.
-            let small = i32::try_from(n).map_err(|_| EvalError::CountToScalarOutOfRange(n))?;
-            Ok(T::from_f64(f64::from(small)))
-        }
-    }
+        |expr, operands| {
+            Ok(match (&expr.kind, operands) {
+                (K::Neg(_), O::One(a)) => -a,
+                (K::Sin(_), O::One(a)) => a.sin(),
+                (K::Cos(_), O::One(a)) => a.cos(),
+                (K::Tan(_), O::One(a)) => a.tan(),
+                (K::Add(..), O::Two(a, b)) => a + b,
+                (K::Sub(..), O::Two(a, b)) => a - b,
+                (K::Mul(..), O::Two(a, b)) => a * b,
+                (K::Div(..), O::Two(a, b)) => a / b,
+                (K::Atan2(..), O::Two(y, x)) => y.atan2(x),
+                (K::Min(..), O::Two(a, b)) => a.min(b),
+                (K::Max(..), O::Two(a, b)) => a.max(b),
+                (kind, _) => unreachable!(
+                    "{kind:?} is valued when visited, or combined from as many operands as it \
+                     has children"
+                ),
+            })
+        },
+    )
 }
 
 /// Evaluate a `Count` expression to an exact `i64` (spec D4: Count is
-/// integer-valued; arithmetic is checked, overflow a typed error).
-pub fn eval_count<T>(expr: &Expr, params: &ParamEnv<T>) -> Result<i64, EvalError> {
+/// integer-valued; arithmetic is checked, overflow a typed error). The
+/// walk keeps its own stack, as [`eval`]'s does.
+pub fn eval_count<T>(root: &Expr, params: &ParamEnv<T>) -> Result<i64, EvalError> {
+    use crate::tree::{Operands as O, Visit};
     use ExprKind as K;
-    if expr.dim != Dimension::Count {
-        return Err(EvalError::ContinuousExprInCountEval { found: expr.dim });
-    }
     let checked = |r: Option<i64>| r.ok_or(EvalError::CountOverflow);
-    match &expr.kind {
-        K::CountLiteral(n) => Ok(*n),
-        K::Param(name) => match params.bindings.get(name) {
-            None => Err(EvalError::UnknownParam(name.clone())),
-            Some(ParamValue::Count(n)) => Ok(*n),
-            Some(bound) => Err(EvalError::ParamDimensionMismatch {
-                name: name.clone(),
-                expected: Dimension::Count,
-                found: bound.dim(),
-            }),
+    crate::tree::fold(
+        root,
+        |expr| {
+            if expr.dim != Dimension::Count {
+                return Err(EvalError::ContinuousExprInCountEval { found: expr.dim });
+            }
+            Ok(match &expr.kind {
+                K::CountLiteral(n) => Visit::Value(*n),
+                K::Param(name) => match params.bindings.get(name) {
+                    None => return Err(EvalError::UnknownParam(name.clone())),
+                    Some(ParamValue::Count(n)) => Visit::Value(*n),
+                    Some(bound) => {
+                        return Err(EvalError::ParamDimensionMismatch {
+                            name: name.clone(),
+                            expected: Dimension::Count,
+                            found: bound.dim(),
+                        });
+                    }
+                },
+                K::Add(a, b) | K::Sub(a, b) | K::Mul(a, b) | K::Min(a, b) | K::Max(a, b) => {
+                    Visit::Two(a, b)
+                }
+                K::Neg(a) => Visit::One(a),
+                // Construction makes these unrepresentable at Count dimension.
+                K::Literal(_)
+                | K::Div(..)
+                | K::Sin(_)
+                | K::Cos(_)
+                | K::Tan(_)
+                | K::Atan2(..)
+                | K::CountToScalar(_) => {
+                    return Err(EvalError::ContinuousExprInCountEval { found: expr.dim });
+                }
+            })
         },
-        K::Add(a, b) => checked(eval_count(a, params)?.checked_add(eval_count(b, params)?)),
-        K::Sub(a, b) => checked(eval_count(a, params)?.checked_sub(eval_count(b, params)?)),
-        K::Neg(a) => checked(eval_count(a, params)?.checked_neg()),
-        K::Mul(a, b) => checked(eval_count(a, params)?.checked_mul(eval_count(b, params)?)),
-        K::Min(a, b) => Ok(eval_count(a, params)?.min(eval_count(b, params)?)),
-        K::Max(a, b) => Ok(eval_count(a, params)?.max(eval_count(b, params)?)),
-        // Construction makes these unrepresentable at Count dimension.
-        K::Literal(_)
-        | K::Div(..)
-        | K::Sin(_)
-        | K::Cos(_)
-        | K::Tan(_)
-        | K::Atan2(..)
-        | K::CountToScalar(_) => Err(EvalError::ContinuousExprInCountEval { found: expr.dim }),
-    }
+        |expr, operands| match (&expr.kind, operands) {
+            (K::Neg(_), O::One(a)) => checked(a.checked_neg()),
+            (K::Add(..), O::Two(a, b)) => checked(a.checked_add(b)),
+            (K::Sub(..), O::Two(a, b)) => checked(a.checked_sub(b)),
+            (K::Mul(..), O::Two(a, b)) => checked(a.checked_mul(b)),
+            (K::Min(..), O::Two(a, b)) => Ok(a.min(b)),
+            (K::Max(..), O::Two(a, b)) => Ok(a.max(b)),
+            (kind, _) => unreachable!(
+                "{kind:?} is refused or valued when visited, or combined from as many operands \
+                 as it has children"
+            ),
+        },
+    )
 }
 
 /// Binding level of a rendered expression, in the text grammar's own
@@ -1497,10 +1663,10 @@ fn precedence(expr: &Expr) -> u8 {
 /// [`crate::parse_expr`] reads back as this very expression.
 ///
 /// **The contract is the round trip, structurally**: for every `e`
-/// this crate's text door can build,
-/// `parse_expr(&unparse(&e), params)` is [`Expr::bit_eq`] to `e` —
-/// same tree, same literal BITS — and its literals remember the same
-/// display units (which `bit_eq` deliberately does not compare, being
+/// the constructors admit, `parse_expr(&unparse(&e), params)` is
+/// [`Expr::bit_eq`] to `e` — same tree, so the same nesting, and the
+/// same literal BITS — and its literals remember the same display
+/// units (which `bit_eq` deliberately does not compare, being
 /// presentation metadata). Parentheses are emitted where and only
 /// where the grammar needs them to reproduce the same tree, which is
 /// stricter than "the same value": the parser is left-associative, so
@@ -1517,16 +1683,10 @@ fn precedence(expr: &Expr) -> u8 {
 /// or an exponent, because a BARE integer is this grammar's spelling
 /// of a `Count`.
 ///
-/// **Two constructible expressions the grammar cannot spell**, stated
-/// rather than approximated:
-///
-/// * A literal with a NEGATIVE value. The grammar has no negative
-///   number token — `-` is always an operator — so the emitted
-///   `-25 mm` reads back as `Neg(25 mm)`: the same value written the
-///   only way this text has of writing it, one node deeper.
-/// * `Expr::count(i64::MIN)`, whose magnitude is one past `i64::MAX`
-///   and refuses as [`crate::ParseError::IntegerOverflow`] — the
-///   corner that refusal's own docs already record.
+/// A negative literal is written with its sign (`-25 mm`), which the
+/// parser reads as the literal's own; the negation of a non-negative
+/// literal is therefore bracketed (`-(25 mm)`), the one place a
+/// bracket around an atom is needed.
 pub fn unparse(expr: &Expr) -> String {
     let mut out = String::new();
     write_expr(expr, &mut out);
@@ -1580,14 +1740,20 @@ fn write_expr(expr: &Expr, out: &mut String) {
     match &expr.kind {
         K::Literal(lit) => out.push_str(&write_literal(lit, expr.dim)),
         K::CountLiteral(n) => out.push_str(&n.to_string()),
-        K::Param(name) => out.push_str(&name.0),
+        K::Param(name) => out.push_str(name.as_str()),
         K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, out),
         K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, out),
         K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, out),
         K::Div(a, b) => write_infix(a, "/", b, PREC_PRODUCT, out),
         K::Neg(a) => {
             out.push('-');
-            write_nested(a, PREC_UNARY, out);
+            if matches!(a.kind, K::Literal(_) | K::CountLiteral(_)) && precedence(a) == PREC_ATOM {
+                out.push('(');
+                write_expr(a, out);
+                out.push(')');
+            } else {
+                write_nested(a, PREC_UNARY, out);
+            }
         }
         K::Sin(a) => write_call("sin", &[a], out),
         K::Cos(a) => write_call("cos", &[a], out),
@@ -1652,5 +1818,41 @@ fn write_literal(lit: &Lit, dim: Dimension) -> String {
             "a stored literal is finite by construction, yet the display formatter refused: \
              {error}"
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    use crate::tree::raw_chain;
+
+    /// A negation over `e`, built past the constructors, which refuse
+    /// it past the bound.
+    fn raw_neg(e: Expr) -> Expr {
+        Expr {
+            dim: e.dim,
+            nesting: u8::MAX,
+            kind: ExprKind::Neg(Box::new(e)),
+        }
+    }
+
+    /// The evaluators and `Drop` cost the stack nothing per level: a
+    /// tree a million levels deep evaluates and frees on the wasm32
+    /// stack, where one frame per level would exhaust it a thousand
+    /// times over.
+    #[test]
+    fn evaluation_and_drop_keep_their_own_stack() {
+        test_utils::own_thread::on_the_smallest_stack(|| {
+            let levels = 1_000_000;
+            let half = Expr::literal(0.5, Dimension::Length).expect("a finite length");
+            let deep = raw_chain(half, levels, raw_neg);
+            assert_eq!(eval(&deep, &ParamEnv::<f64>::default()), Ok(-0.5));
+            let counted = raw_chain(Expr::count(3), levels, raw_neg);
+            assert_eq!(eval_count(&counted, &ParamEnv::<f64>::default()), Ok(-3));
+            drop((deep, counted));
+        });
     }
 }

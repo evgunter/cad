@@ -11,9 +11,8 @@
 //! face or edge pick reaches the node whose DRAWN body the ray met
 //! (`Selection::seat_node`). Everything before the commit is tool
 //! state; the document transition is one [`SessionOp`], committed
-//! through the session's ordinary commit door as one action — one
-//! `DocEdit::InsertNode` for every tool but the duplicate tool, whose
-//! op inserts a pattern and its two projections as one undo.
+//! through the session's ordinary commit door as one action
+//! ([`crate::tools`] says which actions take more than one edit).
 //!
 //! The seat vocabulary, the pick rule, the survival step and the
 //! id-reuse hazard it does not cover (issue #1384) are all
@@ -23,7 +22,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, Doc, Evaluation, Expr, Node, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+    BooleanOp, Doc, Evaluation, Expr, Node, NodeStanding, PartSelect, PatternKind, ProfileProgram,
+    RecipeNodeId,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::select::SplitHalf;
@@ -58,6 +58,12 @@ impl BooleanTool {
         }
     }
 
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
+    }
+
     /// The held first operand — the body a subtraction KEEPS.
     pub fn a(&self) -> Option<RecipeNodeId> {
         self.seats.held(0)
@@ -84,7 +90,9 @@ impl BooleanTool {
     }
 
     /// **The one committed edit**: the session op that inserts the
-    /// boolean node through the ordinary commit door.
+    /// boolean node through the ordinary commit door, declaring no
+    /// contact. A contact the door refuses is declared through the
+    /// offer its refusal makes ([`crate::session::DeclareOffer`]).
     ///
     /// # Errors
     ///
@@ -96,6 +104,7 @@ impl BooleanTool {
             op,
             a: self.seats.require(0)?,
             b: self.seats.require(1)?,
+            declare: Vec::new(),
         })
     }
 }
@@ -124,6 +133,12 @@ impl SplitTool {
         Self {
             seats: Seats::new([Seat::SplitTarget, Seat::SplitPlane]),
         }
+    }
+
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
     }
 
     /// The held target body.
@@ -183,6 +198,12 @@ impl TransformTool {
         Self {
             seats: Seats::one(Seat::TransformBody),
         }
+    }
+
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
     }
 
     /// The held body.
@@ -296,6 +317,12 @@ impl PatternTool {
         Self {
             seats: Seats::new([Seat::PatternBody, Seat::PatternAxis]),
         }
+    }
+
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
     }
 
     /// The held body.
@@ -450,26 +477,6 @@ fn rule_kind(rule: PatternRuleSpec) -> PatternKind {
     }
 }
 
-/// Lower one rigid placement to its node, placing the authored
-/// expressions in the [`Node::Transform`] slots (translation Length,
-/// rotation axis Scalar, rotation angle Angle).
-///
-/// Total, for the reason [`pattern_node`] is: slot dimensions are the
-/// edit door's question.
-pub fn transform_node(
-    input: RecipeNodeId,
-    translation: [Expr; 3],
-    rotation_axis: [Expr; 3],
-    rotation_angle: Expr,
-) -> Node<ProfileProgram> {
-    Node::Transform {
-        input,
-        translation,
-        rotation_axis,
-        rotation_angle,
-    }
-}
-
 /// **The part tool**: one pick of a multi-body value, committing one
 /// [`SessionOp::AddPart`].
 ///
@@ -500,6 +507,12 @@ impl PartTool {
         Self {
             seats: Seats::new([Seat::PartSplit, Seat::PartInstance]),
         }
+    }
+
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
     }
 
     /// The held split, if one was picked.
@@ -586,6 +599,12 @@ impl DuplicateTool {
         Self {
             seats: Seats::one(Seat::DuplicateBody),
         }
+    }
+
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
     }
 
     /// The held body.
@@ -675,12 +694,14 @@ pub enum DuplicateFault {
     /// the same id may name a different node altogether (issue #1384).
     Stale,
     /// The picture on screen — which answers the current document —
-    /// holds no value for the input: its evaluation failed, or was
-    /// poisoned by a failure upstream.
-    NoValue {
-        /// The node picked.
-        input: RecipeNodeId,
-    },
+    /// holds no value for the input, and the input's standing, as the
+    /// feature tree draws it ([`crate::tree::standing_as_drawn`]), says
+    /// why and where the repair is.
+    ///
+    /// Its `through` may be a mate, which is not the DAG ancestor
+    /// `NodeStanding` documents
+    /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
+    NoValue(NodeStanding),
     /// The input's VALUE is several bodies. A pattern of two over it
     /// would index the flat list of those bodies, so its two
     /// projections would select two of the ORIGINAL bodies in place and
@@ -719,11 +740,7 @@ impl core::fmt::Display for DuplicateFault {
                 "the picture is older than the document — wait for the latest edit to evaluate, \
                  so the copy's step is measured off the body as it now is",
             ),
-            Self::NoValue { input } => write!(
-                f,
-                "feature {} did not evaluate, so there is no body to copy",
-                input.0
-            ),
+            Self::NoValue(standing) => write!(f, "there is no body to copy: {standing}"),
             Self::NotOneBody { input } => write!(
                 f,
                 "feature {}'s value is several bodies; a duplicate copies ONE — project the one \
@@ -788,7 +805,9 @@ pub fn duplicate_step(
     input: RecipeNodeId,
     tol: Tol,
 ) -> Result<f64, DuplicateFault> {
-    let value = eval.value(input).ok_or(DuplicateFault::NoValue { input })?;
+    let value = eval.usable(input).map_err(|standing| {
+        DuplicateFault::NoValue(crate::tree::standing_as_drawn(standing, eval))
+    })?;
     let body = one_body(&value.payload).ok_or(DuplicateFault::NotOneBody { input })?;
     let measured = |chord: f64| {
         pncad::mesh::tessellate(body, chord, tol)
@@ -909,9 +928,6 @@ pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> Node<ProfileProgra
 /// among the bodies it collects, because collecting several is what it
 /// does. This answers the narrower question a single-body operand seat
 /// asks.
-///
-/// The match is exhaustive on purpose: a new node variant does not
-/// compile until someone decides which side of this line it is on.
 pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
     match node {
         Node::Extrude { .. }

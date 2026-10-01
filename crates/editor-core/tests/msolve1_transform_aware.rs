@@ -33,7 +33,7 @@ use std::sync::Arc;
 // ---- substrate ----
 
 /// A `wxwxh` block, as a whole part document.
-fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
+fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -42,18 +42,17 @@ fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (w, 0.0), (w, w), (0.0, w)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(h),
         },
-    );
-    doc
+    )
 }
 
 /// A `1x1xh` block, as a whole part document.
-fn block(label: &str, h: f64) -> ProfileDoc {
+fn block(label: &str, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -62,14 +61,13 @@ fn block(label: &str, h: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(h),
         },
-    );
-    doc
+    )
 }
 
 /// The `a` frame: a point ON the base's top cap, axis along that
@@ -138,6 +136,8 @@ struct Scene {
     opts: EvalOptions,
     base: RecipeNodeId,
     top: RecipeNodeId,
+    base_body: RecipeNodeId,
+    top_body: RecipeNodeId,
     /// The last node of `base`'s chain (the `a` operand).
     a_at: RecipeNodeId,
     /// The last node of `top`'s chain (the `b` operand).
@@ -153,11 +153,12 @@ type Step = ([f64; 3], [f64; 3], f64);
 /// innermost first.
 fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
     let mut store = PartStore::default();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
+    let (top_ref, top_body) =
+        store.insert_part(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -168,8 +169,8 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                crate::fixture::head_at(a_at, in_part(base, CapEnd::End)),
-                crate::fixture::head_at(b_at, in_part(top, CapEnd::Start)),
+                crate::fixture::head_at(a_at, in_part(base, base_body, CapEnd::End)),
+                crate::fixture::head_at(b_at, in_part(top, top_body, CapEnd::Start)),
             ),
         },
     );
@@ -178,6 +179,8 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
         opts,
         base,
         top,
+        base_body,
+        top_body,
         a_at,
         b_at,
         mate: mate.unwrap(),
@@ -215,10 +218,10 @@ impl Scene {
         run(&self.doc, &self.opts)
     }
     fn face_a(&self) -> StableName {
-        in_part(self.base, CapEnd::End)
+        in_part(self.base, self.base_body, CapEnd::End)
     }
     fn face_b(&self) -> StableName {
-        in_part(self.top, CapEnd::Start)
+        in_part(self.top, self.top_body, CapEnd::Start)
     }
     /// Every node evaluated, no mate fault, the mated faces seated in
     /// the product, and **the at-rest gate satisfied** — which is the
@@ -372,11 +375,12 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
     // at the pattern; the offset is M(1) ∘ T.
     {
         let mut store = PartStore::default();
-        let base_ref = store.insert(
+        let (base_ref, base_body) = store.insert_part(
             slab("msolve1-a3a-base", BASE_WIDTH, BASE_HEIGHT),
             Tol::witness(),
         );
-        let top_ref = store.insert(block("msolve1-a3a-top", TOP_HEIGHT), Tol::witness());
+        let (top_ref, top_body) =
+            store.insert_part(block("msolve1-a3a-top", TOP_HEIGHT), Tol::witness());
         let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3a"), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -397,8 +401,8 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 },
             },
         );
-        let a = in_part(base, CapEnd::End);
-        let b = in_copy(pattern, COPY, in_part(top, CapEnd::Start));
+        let a = in_part(base, base_body, CapEnd::End);
+        let b = in_copy(pattern, COPY, in_part(top, top_body, CapEnd::Start));
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
@@ -434,11 +438,12 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
     // slab, as in (a).
     {
         let mut store = PartStore::default();
-        let base_ref = store.insert(
+        let (base_ref, base_body) = store.insert_part(
             slab("msolve1-a3b-base", BASE_WIDTH, BASE_HEIGHT),
             Tol::witness(),
         );
-        let top_ref = store.insert(block("msolve1-a3b-top", TOP_HEIGHT), Tol::witness());
+        let (top_ref, top_body) =
+            store.insert_part(block("msolve1-a3b-top", TOP_HEIGHT), Tol::witness());
         let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3b"), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -463,8 +468,8 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
                 std::f64::consts::FRAC_PI_2,
             ),
         );
-        let a = in_part(base, CapEnd::End);
-        let b = in_copy(pattern, COPY, in_part(top, CapEnd::Start));
+        let a = in_part(base, base_body, CapEnd::End);
+        let b = in_copy(pattern, COPY, in_part(top, top_body, CapEnd::Start));
         let (doc, mate) = step(
             doc,
             DocEdit::InsertNode {
@@ -648,19 +653,20 @@ fn a4_a_placed_gauge_cluster_seats_through_both_chains() {
 /// square and the alignment fixes no roll the turn disturbs.
 fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeNodeId; 2]) {
     let mut store = PartStore::default();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
+    let (top_ref, top_body) =
+        store.insert_part(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let (doc, x1) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, x2) = insert(doc, xform(x1, second.0, second.1, second.2));
-    let a = in_part(base, CapEnd::End);
-    let b = in_part(top, CapEnd::Start);
+    let a = in_part(base, base_body, CapEnd::End);
+    let b = in_part(top, top_body, CapEnd::Start);
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
@@ -768,10 +774,13 @@ fn a5_two_operands_over_one_instance_are_two_members() {
 /// and a free direction never got the chance to absorb anything.
 #[test]
 fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
-    let residual = |label: &str, lift: bool| -> MateFault {
+    // Each document's refusal, with its `(base, top)` instances.
+    let residual = |label: &str, lift: bool| -> (MateFault, [RecipeNodeId; 2]) {
         let mut store = PartStore::default();
-        let base_ref = store.insert(block(&format!("{label}-base"), 1.0), Tol::witness());
-        let top_ref = store.insert(block(&format!("{label}-top"), 3.0), Tol::witness());
+        let (base_ref, base_body) =
+            store.insert_part(block(&format!("{label}-base"), 1.0), Tol::witness());
+        let (top_ref, top_body) =
+            store.insert_part(block(&format!("{label}-top"), 3.0), Tol::witness());
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
         let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -784,8 +793,8 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
             doc,
             DocEdit::InsertNode {
                 node: seat_with(
-                    crate::fixture::head(in_part(base, CapEnd::End)),
-                    crate::fixture::head_at(at, in_part(top, CapEnd::Start)),
+                    crate::fixture::head(in_part(base, base_body, CapEnd::End)),
+                    crate::fixture::head_at(at, in_part(top, top_body, CapEnd::Start)),
                     MatePrimitive::Coaxial,
                     Some(0.0),
                 ),
@@ -795,14 +804,15 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
             resolver: Some(Arc::new(store)),
             ..EvalOptions::default()
         };
-        solve(&doc, &o, Tol::witness())
+        let fault = solve(&doc, &o, Tol::witness())
             .fault(mate.unwrap())
             .cloned()
-            .expect("a residual tree edge refuses")
+            .expect("a residual tree edge refuses");
+        (fault, [base, top])
     };
     let plain = residual("msolve1-a6-plain", false);
     let lifted = residual("msolve1-a6-lifted", true);
-    for (what, fault) in [("plain", &plain), ("lifted", &lifted)] {
+    for (what, (fault, _)) in [("plain", &plain), ("lifted", &lifted)] {
         let MateFault::Under { residual, .. } = fault else {
             panic!("A6 {what}: expected Under, got {fault:?}");
         };
@@ -811,16 +821,25 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
             "A6 {what}: the residual is the prismatic one, got {residual:?}"
         );
     }
-    // The two refusals differ only in the mate's own node id (the
-    // lifted document has one node more): same parent, same child,
-    // same residual. A mate that never places is blind to nothing.
-    let parts = |f: &MateFault| match f {
+    // The two refusals differ only in the mate's own node: the same
+    // parent and child, each read as its document's `base` or `top`,
+    // and the same residual. A mate that never places is blind to
+    // nothing.
+    let parts = |(f, instances): &(MateFault, [RecipeNodeId; 2])| match f {
         MateFault::Under {
             parent,
             child,
             residual,
             ..
-        } => (*parent, *child, format!("{residual:?}")),
+        } => {
+            let role = |id: &RecipeNodeId| {
+                instances
+                    .iter()
+                    .position(|i| i == id)
+                    .expect("A6: the refusal names one of the document's two instances")
+            };
+            (role(parent), role(child), format!("{residual:?}"))
+        }
         other => panic!("expected Under, got {other:?}"),
     };
     assert_eq!(
@@ -878,8 +897,8 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
         .apply(
             &DocEdit::InsertNode {
                 node: seat(
-                    crate::fixture::head_at(ghost, in_part(s.base, CapEnd::End)),
-                    crate::fixture::head(in_part(s.top, CapEnd::Start)),
+                    crate::fixture::head_at(ghost, in_part(s.base, s.base_body, CapEnd::End)),
+                    crate::fixture::head(in_part(s.top, s.top_body, CapEnd::Start)),
                 ),
             },
             Tol::witness(),
@@ -937,8 +956,9 @@ fn a8c_the_content_key_separates_two_operands() {
     // Two documents with the SAME nodes; only the `b` operand moves.
     let key_of = |label: &str, at_transform: bool| -> editor_core::ContentKey {
         let mut store = PartStore::default();
-        let base_ref = store.insert(block("msolve1-a8c-base", 1.0), Tol::witness());
-        let top_ref = store.insert(block("msolve1-a8c-top", 3.0), Tol::witness());
+        let (base_ref, base_body) =
+            store.insert_part(block("msolve1-a8c-base", 1.0), Tol::witness());
+        let (top_ref, top_body) = store.insert_part(block("msolve1-a8c-top", 3.0), Tol::witness());
         let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -948,10 +968,10 @@ fn a8c_the_content_key_separates_two_operands() {
             doc,
             DocEdit::InsertNode {
                 node: seat(
-                    crate::fixture::head(in_part(base, CapEnd::End)),
+                    crate::fixture::head(in_part(base, base_body, CapEnd::End)),
                     crate::fixture::head_at(
                         if at_transform { xf } else { top },
-                        in_part(top, CapEnd::Start),
+                        in_part(top, top_body, CapEnd::Start),
                     ),
                 ),
             },
@@ -1017,11 +1037,12 @@ fn a8d_a_transform_operand_round_trips_through_persistence() {
 #[test]
 fn a10_a_nested_pattern_head_is_a_member() {
     let mut store = PartStore::default();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         slab("msolve1-a10-base", BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let top_ref = store.insert(block("msolve1-a10-top", TOP_HEIGHT), Tol::witness());
+    let (top_ref, top_body) =
+        store.insert_part(block("msolve1-a10-top", TOP_HEIGHT), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a10"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -1050,8 +1071,12 @@ fn a10_a_nested_pattern_head_is_a_member() {
             kind: rule([0.0, 1.0, 0.0]),
         },
     );
-    let a = in_part(base, CapEnd::End);
-    let nested = in_copy(outer, 1, in_copy(inner, 1, in_part(top, CapEnd::Start)));
+    let a = in_part(base, base_body, CapEnd::End);
+    let nested = in_copy(
+        outer,
+        1,
+        in_copy(inner, 1, in_part(top, top_body, CapEnd::Start)),
+    );
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -1112,7 +1137,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let local = product_face_frame(
         &alone,
         &run(&alone, &opts),
-        &in_part(top_alone, CapEnd::Start),
+        &in_part(top_alone, top_body, CapEnd::Start),
     );
     let offset = Affine3::translation(geom_core::Vec3::new(SPACING, SPACING, 0.0));
     let expected = offset * placement * local;
@@ -1168,8 +1193,8 @@ fn a8e_a_cut_that_would_sever_the_operand_refuses_at_the_precondition() {
 #[test]
 fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let mut store = PartStore::default();
-    let base_ref = store.insert(block("msolve1-a8f-base", 1.0), Tol::witness());
-    let top_ref = store.insert(block("msolve1-a8f-top", 3.0), Tol::witness());
+    let (base_ref, base_body) = store.insert_part(block("msolve1-a8f-base", 1.0), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(block("msolve1-a8f-top", 3.0), Tol::witness());
     // Local geometry FIRST, so the cut takes the low ids and the
     // instances and the mate all shift.
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a8f"), Tol::witness());
@@ -1194,8 +1219,8 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                crate::fixture::head(in_part(base, CapEnd::End)),
-                crate::fixture::head_at(xf, in_part(top, CapEnd::Start)),
+                crate::fixture::head(in_part(base, base_body, CapEnd::End)),
+                crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start)),
             ),
         },
     );
@@ -1336,7 +1361,8 @@ fn severed_operand_scene(
     RecipeNodeId,
 ) {
     let mut store = PartStore::default();
-    let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
+    let (top_ref, top_body) =
+        store.insert_part(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
     let _ = &store;
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -1366,11 +1392,12 @@ fn severed_operand_scene(
     let (doc, mate) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         seat(
-            crate::fixture::head_at(xf, in_part(top, CapEnd::Start)),
+            crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start)),
             crate::fixture::head(local_face),
         ),
         MateSide::B,
         top,
+        top_body,
     );
     let mut cut: std::collections::BTreeSet<RecipeNodeId> = [top, xf].into_iter().collect();
     if mate_in_cut {
@@ -1391,11 +1418,12 @@ fn severed_operand_scene(
 #[test]
 fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let mut store = PartStore::default();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         slab("msolve1-a11-base", BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let top_ref = store.insert(block("msolve1-a11-top", TOP_HEIGHT), Tol::witness());
+    let (top_ref, top_body) =
+        store.insert_part(block("msolve1-a11-top", TOP_HEIGHT), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a11"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -1422,8 +1450,12 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
             kind: rule([0.0, 1.0, 0.0], 20.0),
         },
     );
-    let a = in_part(base, CapEnd::End);
-    let nested = in_copy(outer, 1, in_copy(inner, 1, in_part(top, CapEnd::Start)));
+    let a = in_part(base, base_body, CapEnd::End);
+    let nested = in_copy(
+        outer,
+        1,
+        in_copy(inner, 1, in_part(top, top_body, CapEnd::Start)),
+    );
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -1451,7 +1483,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let local = product_face_frame(
         &alone,
         &run(&alone, &opts),
-        &in_part(top_alone, CapEnd::Start),
+        &in_part(top_alone, top_body, CapEnd::Start),
     );
     let m_o = Affine3::translation(geom_core::Vec3::new(0.0, 20.0, 0.0));
     let t_map = Affine3::rotation_about_axis(
@@ -1488,11 +1520,12 @@ enum PartCase {
 fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCase) {
     let label = format!("msolve1-a12-{k}-{j}-{i}-{via_transform}");
     let mut store = PartStore::default();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
+    let (top_ref, top_body) =
+        store.insert_part(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
@@ -1529,8 +1562,12 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
             select: editor_core::PartSelect::Instance(Expr::count(k)),
         },
     );
-    let a = in_part(base, CapEnd::End);
-    let nested = in_copy(outer, j, in_copy(inner, i, in_part(top, CapEnd::Start)));
+    let a = in_part(base, base_body, CapEnd::End);
+    let nested = in_copy(
+        outer,
+        j,
+        in_copy(inner, i, in_part(top, top_body, CapEnd::Start)),
+    );
     let node = seat(
         crate::fixture::head(a.clone()),
         crate::fixture::head_at(part, nested.clone()),

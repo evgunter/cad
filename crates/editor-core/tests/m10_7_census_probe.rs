@@ -1,7 +1,7 @@
 //! **M10-7's honesty instruments, as runnable evidence.**
 //!
 //! Two probes, both `#[ignore]`d because they REPORT rather than gate
-//! ([[test-suite-cost]]: a row that only prints cannot fail, so it must
+//! (implementer-discipline §8: a row that only prints cannot fail, so it must
 //! not sit in the ε matrix):
 //!
 //! - `census_which_predicates_decide_symbolically` names, per funnel
@@ -15,7 +15,7 @@
 //! **NO TEST IN THIS FILE IS EXECUTED BY CI**, and that is deliberate
 //! rather than a filter's accident: both rows are `#[ignore]`d evidence
 //! probes that print and assert nothing a gate could read, and the whole
-//! file is behind `#![cfg(all(feature = "interval", feature = "probe"))]`
+//! file is behind `#![cfg(feature = "probe")]`
 //! besides. They are run by hand when the census or the ceiling has to be
 //! re-measured — which is a unit's act, not a per-run one — and their
 //! output is quoted where it is read: `geom_core::sym`'s module docs and
@@ -26,10 +26,10 @@
 //! Run them:
 //!
 //! ```sh
-//! cargo test -p editor-core --features probe,interval --test all -- \
+//! cargo test -p editor-core --features probe --test all -- \
 //!   m10_7_census_probe:: --ignored --nocapture
 //! ```
-#![cfg(all(feature = "interval", feature = "probe"))]
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;

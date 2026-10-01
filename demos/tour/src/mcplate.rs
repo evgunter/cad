@@ -61,15 +61,13 @@
 //!
 //! Per `memories/demo-purpose.md`:
 //!
-//! 1. **The lane's own way of placing a sample is not reachable.**
+//! 1. **The lane's own way of placing a sample is not the cell's.**
 //!    `monte_carlo` puts a draw at `nominal + offset` through a
-//!    degenerate `ParamBox` axis, and `ParamBox`/`BoxAxis` are
-//!    `interval`-gated in the façade while `monte_carlo` is not. This
-//!    cell places each draw with an ordinary
-//!    `DocEdit::SetDocParamValue` instead. That the two coincide is
-//!    not assumed: `m10_6_mc_draws.rs` pins it in the library, and the
-//!    bit-equality above re-checks it here on real geometry. The
-//!    gating half of the issue is still open.
+//!    degenerate `ParamBox` axis; this cell places each draw with an
+//!    ordinary `DocEdit::SetDocParamValue` instead. That the two
+//!    coincide is not assumed: `m10_6_mc_draws.rs` pins it in the
+//!    library, and the bit-equality above re-checks it here on real
+//!    geometry.
 //!
 //!    The REDUCTION the bit-equality runs is the lane's own
 //!    (`analysis::summarize`) and not a transcription of it. It was a

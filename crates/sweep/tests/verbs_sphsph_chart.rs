@@ -38,7 +38,7 @@
 use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_core::{Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
 use topo::query::{self, SurfaceKindSet};
@@ -49,9 +49,9 @@ use topo::{Body, FaceContainment, FaceKey};
 /// meeting at the two poles: the iso-line class, with both latitude
 /// extremes AT a pole and no constraint on either side.
 fn lune(turn: Revolution<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(geom_core::Point2::new(0.0, -1.0), 1.0),
-        ProfileVertex::new(geom_core::Point2::new(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (geom_core::Point2::new(0.0, -1.0), 1.0),
+        (geom_core::Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -93,16 +93,16 @@ fn ball_with_a_near_polar_rim(u_r: f64) -> Body<f64> {
 /// `Intersection` description.
 fn rimmed_ball(u_r: f64, turn: Revolution<f64>) -> Body<f64> {
     let (rho, h) = (u_r.sin(), -u_r.cos());
-    let lp = ProfileLoop::new(vec![
+    let lp = bulge_loop(vec![
         // On the axis, at the rim's own height: the flat disc's centre.
-        ProfileVertex::new(geom_core::Point2::new(0.0, h), 0.0),
+        (geom_core::Point2::new(0.0, h), 0.0),
         // Out to the rim, then the long spherical arc to the north pole
         // (included angle `pi - u_r`, so nothing here is a sliver).
-        ProfileVertex::new(
+        (
             geom_core::Point2::new(rho, h),
             ((core::f64::consts::PI - u_r) / 4.0).tan(),
         ),
-        ProfileVertex::new(geom_core::Point2::new(0.0, 1.0), 0.0),
+        (geom_core::Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -502,13 +502,13 @@ fn the_solid_door_answers_around_a_rimmed_sphere_band() {
     // A spherical CAP: a radial segment out from the axis at y = 1/2, a
     // 60-degree arc of the unit circle up to the north pole, and the
     // axis back down. No joint is tangent, so nothing needs declaring.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(geom_core::Point2::new(0.0, 0.5), 0.0),
-        ProfileVertex::new(
+    let lp = bulge_loop(vec![
+        (geom_core::Point2::new(0.0, 0.5), 0.0),
+        (
             geom_core::Point2::new((0.75_f64).sqrt(), 0.5),
             (core::f64::consts::PI / 12.0).tan(),
         ),
-        ProfileVertex::new(geom_core::Point2::new(0.0, 1.0), 0.0),
+        (geom_core::Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -709,14 +709,19 @@ fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
         // The disc face carries the tilted circle's own plane, so the
         // pair the description names IS the edge's adjacent pair.
         let disc = flat_disc(&planted);
+        let sense = planted.get_face(disc).unwrap().sense;
+        // Lifts both refusals: the tilted disc plane is the planted non-iso boundary.
         let plane_key = planted
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 disc,
-                topo::FaceSurface::New(geom::Surface::Plane {
-                    origin: c,
-                    normal: m,
-                    u_ref: u,
-                }),
+                topo::FaceSurface::New {
+                    surface: geom::Surface::Plane {
+                        origin: c,
+                        normal: m,
+                        u_ref: u,
+                    },
+                    sense,
+                },
             )
             .unwrap();
         planted
@@ -806,9 +811,13 @@ fn a_full_period_azimuth_window_is_served_by_the_ray_lane_and_refused_by_the_fac
 /// class at both doors and for the same reason at both: the rectangle
 /// its outer boundary pins says nothing about the hole.
 ///
-/// Planted by `kfmrh`, which re-homes the flat disc's loop as a RING of
-/// the sphere face — the one public door that puts a ring on a curved
-/// face at all.
+/// Planted by `kfmrh`'s band door, which re-homes the flat disc's loop
+/// as a RING of the sphere face — `kfmrh` is the one public operator
+/// that puts a ring on a curved face at all. The sphere face arrives
+/// minted, so the keys-only door would refuse to leave it half-minted;
+/// the band door re-mints it with the ring walked in the sphere's
+/// chart, finds no row set that certifies, and leaves the face storing
+/// no row: unminted, never half-minted.
 #[test]
 fn a_ringed_sphere_face_refuses_at_both_doors() {
     let (b, t) = (band(), Tol::witness());
@@ -816,10 +825,36 @@ fn a_ringed_sphere_face_refuses_at_both_doors() {
     let f = sphere_faces(&planted)[0];
     let ch = chart(&planted, f);
     let disc = flat_disc(&planted);
+    let rows = |body: &Body<f64>| -> (usize, usize) {
+        let fd = body.get_face(f).unwrap();
+        let halves: Vec<_> = core::iter::once(fd.outer)
+            .chain(fd.rings.iter().copied())
+            .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+                topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
+                topo::LoopBoundary::Empty { .. } => None,
+            })
+            .flatten()
+            .collect();
+        let stored = halves
+            .iter()
+            .filter(|&&he| body.pcurve(he).is_some())
+            .count();
+        (stored, halves.len() - stored)
+    };
+    let (stored, missing) = rows(&planted);
+    assert!(
+        stored > 0 && missing == 0,
+        "the sphere face arrives complete: {stored}, {missing}"
+    );
     planted
-        .kfmrh(f, disc)
+        .kfmrh_minting(f, disc, t)
         .expect("the disc's loop re-homes as a ring");
     assert_eq!(planted.get_face(f).unwrap().rings.len(), 1);
+    assert_eq!(
+        rows(&planted).0,
+        0,
+        "the band door leaves the ringed face storing no row"
+    );
     assert_eq!(
         topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
         None

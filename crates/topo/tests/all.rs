@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does NOT keep is a `mod <helper>;` line of its
 //! own: the shared helper trees are declared once, below, as modules of
 //! THIS root, and a suite that wants one says `use crate::<helper>;`.
@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "axis_source_rows.rs"]
+mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
 mod bool4_material_containment;
 #[path = "bool4r1_probes.rs"]
@@ -71,12 +73,24 @@ mod bool4r1_probes;
 mod bool4r2_base_probe;
 #[path = "bool4r2_probes.rs"]
 mod bool4r2_probes;
+#[path = "boolean_discards.rs"]
+mod boolean_discards;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
 mod census_g2_carrier;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
+#[path = "contact1_touch_cones.rs"]
+mod contact1_touch_cones;
+#[path = "contact5_gate_and_beam.rs"]
+mod contact5_gate_and_beam;
+#[path = "contact7_touch_sweeps.rs"]
+mod contact7_touch_sweeps;
+#[path = "contact8_dangling_seam.rs"]
+mod contact8_dangling_seam;
+#[path = "contact9_side_codes.rs"]
+mod contact9_side_codes;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
@@ -87,6 +101,8 @@ mod cube_by_hand;
 mod cube_doors_agree;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "euler_site_pcurve_rows.rs"]
+mod euler_site_pcurve_rows;
 #[path = "geom_origin_rows.rs"]
 mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
@@ -227,6 +243,8 @@ mod review_s6_probe;
 mod review_ssiflat_r1_probes;
 #[path = "review_ssiflat_r2_probes.rs"]
 mod review_ssiflat_r2_probes;
+#[path = "rigid_map_near_eps_approx.rs"]
+mod rigid_map_near_eps_approx;
 #[path = "rim_dim_boolean_twins.rs"]
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
@@ -237,10 +255,14 @@ mod seat3_flush_detector;
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]
 mod shell_tolerance_chain;
+#[path = "shell_winding.rs"]
+mod shell_winding;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "split_edge_pcurve_rows.rs"]
 mod split_edge_pcurve_rows;
+#[path = "stated_general_image_mint.rs"]
+mod stated_general_image_mint;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "void_door.rs"]
@@ -277,6 +299,10 @@ mod r2_rim_probes;
 mod lane0_r2_probes;
 #[path = "lane2_r2_probes.rs"]
 mod lane2_r2_probes;
+#[path = "replace_face_band_probes.rs"]
+mod replace_face_band_probes;
 
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
+#[path = "split_tangent_spur.rs"]
+mod split_tangent_spur;

@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does NOT keep is a `mod <helper>;` line of its
 //! own: the shared helper trees are declared once, below, as modules of
 //! THIS root, and a suite that wants one says `use crate::<helper>;`.
@@ -53,8 +53,6 @@ mod common;
 
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
-#[path = "cert5_r1_import_probes.rs"]
-mod cert5_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
 mod cert_n2r2_consumer_probes;
 #[path = "coherence_channel.rs"]
@@ -63,6 +61,8 @@ mod coherence_channel;
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]
 mod curve_promotion_report;
+#[path = "cusp_round_trip.rs"]
+mod cusp_round_trip;
 #[path = "freecad.rs"]
 mod freecad;
 #[path = "geom_origin_import_arm.rs"]
@@ -83,6 +83,8 @@ mod onb_wild_normal_census;
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
+#[path = "per_part_gate_policy.rs"]
+mod per_part_gate_policy;
 #[path = "perf12_census_goldens.rs"]
 mod perf12_census_goldens;
 #[path = "poleguard.rs"]
@@ -109,8 +111,6 @@ mod probe_sense;
 mod probe_vol;
 #[path = "r1_dm1_probe.rs"]
 mod r1_dm1_probe;
-#[path = "r2_import_door.rs"]
-mod r2_import_door;
 #[path = "recognize_pins.rs"]
 mod recognize_pins;
 #[path = "rev_import_probe.rs"]
@@ -131,12 +131,15 @@ mod roundtrip;
 mod rw2_probes;
 #[path = "s58_iso_rectangle.rs"]
 mod s58_iso_rectangle;
+#[path = "spiric_roundtrip.rs"]
+mod spiric_roundtrip;
 #[path = "split_iso_side.rs"]
 mod split_iso_side;
 #[path = "tcost_k3_import_certificate.rs"]
 mod tcost_k3_import_certificate;
 #[path = "tier_gate.rs"]
 mod tier_gate;
+
 #[path = "verbs_chamfer_roundtrip.rs"]
 mod verbs_chamfer_roundtrip;
 #[path = "wall_column_structure.rs"]

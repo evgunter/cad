@@ -7,6 +7,7 @@
 
 use crate::fixture;
 
+use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
     DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
@@ -25,7 +26,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
+fn rerun(doc: &editor_core::ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         Some(prior),
@@ -108,13 +109,7 @@ fn set_appearance_validates_and_applies_purely() {
     let edge = minted(
         EntityKind::Edge,
         ext,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            editor_core::ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
-        ),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, ext, 0, 0)),
     );
     assert_eq!(
         doc.apply(
@@ -265,7 +260,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             node: doc3.node(plane).unwrap().clone(),
         },
         DocEdit::InsertNode {
-            node: doc3.node(p).unwrap().clone(),
+            node: crate::fixture::as_authored(doc3.node(p).unwrap()),
         },
         DocEdit::InsertNode {
             node: doc3.node(ext).unwrap().clone(),
@@ -324,7 +319,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     let (doc2, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
+            name: ParamName::from_static("pip_depth"),
             value: DocParam::continuous(Dimension::Length, DEPTH * 1.5),
         },
     );
@@ -367,12 +362,14 @@ fn transform_pass_through_carries_the_attribute_downstream() {
     );
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: ext,
-            translation: [len(4.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            ext,
+            editor_core::Step::Rigid {
+                translation: [len(4.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
@@ -458,7 +455,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetFailed { node: ext }
+        AppearanceLossCause::Indeterminate(NodeStanding::Failed { node: ext })
     );
     // Repair the parameter: the attribute resolves again, unchanged —
     // it was never dropped.
@@ -519,7 +516,10 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetPoisoned { through: a }
+        AppearanceLossCause::Indeterminate(NodeStanding::Poisoned {
+            node: uni,
+            through: a
+        })
     );
 }
 
@@ -669,17 +669,19 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     // Review A2 (adapted from the reviewer's transform-duplicate
     // probe): a tied name passed through a Transform appears in TWO
     // tables; the loss report stays per-name — exactly ONE Ambiguous
-    // row, `at` = the first carrying node in id order (the subtract),
-    // the rest derivable by table lookup.
+    // row, `at` = the first carrying node in id order, the rest
+    // derivable by table lookup.
     let (doc, sub) = tie_fixture();
-    let (doc, _moved) = insert(
+    let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: sub,
-            translation: [len(10.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            sub,
+            editor_core::Step::Rigid {
+                translation: [len(10.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     let ev = run(&doc);
     let tied = tied_name(&ev, sub);
@@ -694,7 +696,10 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     assert_eq!(ev.appearance.losses[0].name, tied);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::Ambiguous { at: sub, width: 2 }
+        AppearanceLossCause::Ambiguous {
+            at: sub.min(moved),
+            width: 2
+        }
     );
     assert!(ev.appearance.resolved.is_empty(), "ties are never painted");
 }
@@ -756,6 +761,6 @@ fn canceled_run_reports_not_evaluated_not_vanished() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetNotEvaluated
+        AppearanceLossCause::Indeterminate(NodeStanding::NotEvaluated { node: ext })
     );
 }

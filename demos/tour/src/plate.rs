@@ -9,14 +9,6 @@
 //! of the plate would let the picture and the report drift into being
 //! about two different studies, which is the one failure a density
 //! picture cannot survive.
-//!
-//! The split is also what makes the density cell REACHABLE. The
-//! tolerance cell is behind the `interval` feature, because its whole
-//! subject is the certified scalar's leaves; the Monte-Carlo lane is
-//! pure `f64` replay and is ungated on purpose
-//! (`crates/pncad/src/analysis.rs`, and the reason is written there),
-//! so its cell must be too — and it cannot be if the only spelling of
-//! the document sits inside a gated module.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -54,8 +46,8 @@ fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
-fn param(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn param(n: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
@@ -65,11 +57,17 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-fn declare(doc: &mut ProfileDoc, n: &str, value: f64, distribution: Distribution, tol: Tol) {
+fn declare(
+    doc: &mut ProfileDoc,
+    n: &'static str,
+    value: f64,
+    distribution: Distribution,
+    tol: Tol,
+) {
     let applied = apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::from_static(n),
             value: DocParam::continuous_with(Dimension::Length, value, distribution),
         },
         tol,
@@ -91,12 +89,7 @@ pub struct Plate {
     pub doc: ProfileDoc,
     /// The web `Measure` node — `distance(wall_a, wall_b) − r_a − r_b`.
     pub measure: RecipeNodeId,
-    /// The `Assertion` over it. Read by [`crate::tolerance`], which is
-    /// behind the `interval` feature, so a default build legitimately
-    /// has no consumer for it — the field is part of the document
-    /// either way and a cell that dropped it would be describing a
-    /// different one.
-    #[cfg_attr(not(feature = "interval"), allow(dead_code))]
+    /// The `Assertion` over it. Read by [`crate::tolerance`].
     pub assertion: RecipeNodeId,
     /// The two hole extrudes, in the order their centres run along
     /// `−x` then `+x`. Carried because a cell that DRAWS the study
@@ -158,6 +151,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
                 ])
                 .expect("finite plate corners"),
             ],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -170,7 +164,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
         tol,
     );
 
-    let hole = |doc: &mut ProfileDoc, centre: Expr, radius: &str, tol| {
+    let hole = |doc: &mut ProfileDoc, centre: Expr, radius: &'static str, tol| {
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
@@ -179,6 +173,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
                     centre: [centre, len(0.0)],
                     radius: param(radius),
                 }],
+                ids: Vec::new(),
             }),
             tol,
         );
@@ -230,7 +225,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
     // two parallel cylinder faces is their AXIS distance (the closed
     // form's own contract), so the subtraction of the radii is the
     // author's arithmetic and not a hidden convention.
-    let radius_of = |n: &str| MeasureExpr::value(param(n));
+    let radius_of = |n: &'static str| MeasureExpr::value(param(n));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),

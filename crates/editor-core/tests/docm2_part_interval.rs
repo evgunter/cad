@@ -13,7 +13,6 @@
 //! and every rung from ε/32 down certifies; the assertion row sits two
 //! rungs under that floor.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
@@ -65,7 +64,7 @@ fn widened_document(width: f64) -> ProfileDoc {
     apply(
         &cd.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(corpus::part_select::H),
+            name: ParamName::from_static(corpus::part_select::H),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,

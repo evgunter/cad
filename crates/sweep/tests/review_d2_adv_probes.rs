@@ -11,7 +11,7 @@
 //! and assert that every outcome is a value — `Ok` or a typed `Err`,
 //! never a panic.
 //!
-//! Shapes, per `memories/test-suite-cost.md`:
+//! Shapes, per implementer-discipline §8:
 //!
 //! - `d2_no_input_reaches_a_panic` is a **counterexample search**
 //!   (*for all sampled requests, the door returns a value*): the seed
@@ -55,6 +55,9 @@
 
 test_utils::gated_to![
     "crates/sweep/src/blend/",
+    // The vertex doors every blend corner reads its incident edges and
+    // faces through.
+    "crates/topo/src/body.rs",
     "crates/sweep/src/revolve/",
     "crates/topo/src/boolean/",
     "crates/sweep/src/test_support.rs",
@@ -68,7 +71,7 @@ use core::f64::consts::PI;
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -84,20 +87,16 @@ fn effort() -> usize {
     fuzz::scaled(24)
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())

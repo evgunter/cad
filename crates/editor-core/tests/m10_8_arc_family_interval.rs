@@ -27,14 +27,13 @@
 //!
 //! **NO TEST IN THIS FILE IS EXECUTED BY CI** — every row is an
 //! `#[ignore]`d evidence probe that prints and asserts nothing a gate
-//! could read ([[test-suite-cost]]); the positive pins the measurement
+//! could read (implementer-discipline §8); the positive pins the measurement
 //! justifies live in `m10_8_pins_interval.rs`. Run them:
 //!
 //! ```sh
-//! cargo test -p editor-core --features interval --test all -- \
+//! cargo test -p editor-core --test all -- \
 //!   m10_8_arc_family_interval:: --ignored --nocapture
 //! ```
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -111,7 +110,9 @@ pub(crate) fn documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
 }
 
 /// One replay at `Sym<Interval>` over `box_` with the shape report on:
-/// every decision recorded, and the first refusal, if any.
+/// every decision recorded, and the first refusal, if any, as its
+/// sentence and then its `Debug`, which names the predicate that ended
+/// the replay.
 pub(crate) fn replay(
     doc: &ProfileDoc,
     box_: &ParamBox,
@@ -119,7 +120,7 @@ pub(crate) fn replay(
     tol: Tol,
 ) -> (Vec<DecisionShape>, Option<String>, geom_core::SymCounts) {
     for name in box_.axes().keys() {
-        name_param(&name.0);
+        name_param(name.as_str());
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
@@ -131,7 +132,9 @@ pub(crate) fn replay(
         let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
             evaluate(doc, None, &CancelToken::new(), &opts, tol);
         ev.order.iter().find_map(|id| match ev.result(*id) {
-            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+            Some(NodeResult::Failed(e)) => {
+                Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+            }
             _ => None,
         })
     });

@@ -7,18 +7,22 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use eframe::egui;
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
+use pncad::prelude::StableName;
 
 use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
+use crate::display::DisplayView;
+use crate::drafts::ProfileDoors;
 use crate::frame;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
-use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
+use crate::input::{self, PickAction, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
 use crate::narrowing::Narrow;
 use crate::pickcache;
-use crate::pickindex::{PickIndex, PictureKey};
+use crate::pickindex::{PickError, PickIndex, PictureKey};
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 
@@ -47,20 +51,19 @@ fn push_segment(
 
 /// **One drawn loop, placed on its plane and appended to a lane.**
 ///
-/// A CLOSED loop's segment list wraps — the last point joins the
-/// first, which is the same thing `ProfileLoop` means by being closed
-/// by construction. An OPEN one's must not: the leg back to the start
-/// is the provisional close `sketch::preview` walked the chain under
-/// and nobody authored, so the wrap is dropped and what is drawn is the
-/// authored legs exactly. That is the whole of "a path draws while it
-/// is still being written".
+/// A loop that closes ([`sketch::LoopEnd::closes`]) wraps — the last
+/// point joins the first, which is the same thing `ProfileLoop` means
+/// by being closed by construction. One that does not must not: the
+/// leg back to the start is the provisional close `sketch::preview`
+/// walked the chain under and nobody authored, so the wrap is dropped
+/// and what is drawn is the authored legs exactly.
 fn push_loop(
     lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
     let points = &polyline.points;
-    let segments = if polyline.closed {
+    let segments = if polyline.end.closes() {
         points.len()
     } else {
         points.len().saturating_sub(1)
@@ -72,6 +75,115 @@ fn push_loop(
             points[index],
             points[(index + 1) % points.len()],
         );
+    }
+}
+
+/// **One drawn preview, placed on its plane and appended to a lane**:
+/// every loop's legs ([`push_loop`]) and the directed point at each of
+/// its steps, sized against `view` — or no marks at all without one.
+///
+/// **The directed point at each step.** A tip is a position and, once
+/// a verb has bound one, a direction — the pair the lattice calls a
+/// directed point, and the thing a person composing a chain is
+/// actually reasoning about. The polyline alone shows where the chain
+/// went and not where its steps ARE: an arc's flattening puts a dozen
+/// indistinguishable points along one leg, which is why
+/// [`PreviewLoop::vertices`] says which of them the loop owns. Each is
+/// a tick through the point, square to the path, with an arrowhead
+/// just ahead of it: "here, going that way". The heading is taken from
+/// the polyline itself rather than from bulge arithmetic: the next
+/// flattened point IS the tangent to within the chord tolerance, and a
+/// second derivation of a direction is a second thing to get wrong.
+///
+/// **A refused loop's tip is a cross instead** ([`sketch::LoopEnd::Refused`]),
+/// on the diagonals of the heading there, with no arrowhead: the chain
+/// goes nowhere from there, because the step that would have taken it
+/// on is the one refused. The tip is the last vertex drawn, or the
+/// start where the drawn steps close. An unfinished chain's tip keeps
+/// its arrowhead — it goes on from there as soon as the next step is
+/// written — so the two ends a reader must tell apart are drawn apart.
+fn push_preview(
+    lane: &mut marks::LegLane,
+    drawn: &sketch::ProfilePreview,
+    view: Option<datums::View>,
+) {
+    let plane = drawn.plane;
+    for polyline in &drawn.loops {
+        let points = &polyline.points;
+        push_loop(lane, &plane, polyline);
+        let refused_tip = match &polyline.end {
+            sketch::LoopEnd::Refused(cut) if cut.closes => polyline.vertices.first().copied(),
+            sketch::LoopEnd::Refused(_) => polyline.vertices.last().copied(),
+            sketch::LoopEnd::Closed | sketch::LoopEnd::Unfinished(_) => None,
+        };
+        for &at in &polyline.vertices {
+            let here = points[at];
+            let Some([dx, dy]) = heading(points, at, polyline.end.closes()) else {
+                continue;
+            };
+            let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
+            let Some(tick) = view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX)) else {
+                continue;
+            };
+            let (nx, ny) = (-dy, dx);
+            let at_offset = |along: f64, across: f64| {
+                [
+                    here[0] + dx * along * tick + nx * across * tick,
+                    here[1] + dy * along * tick + ny * across * tick,
+                ]
+            };
+            let mut segment = |a: [f64; 2], b: [f64; 2]| push_segment(lane, &plane, a, b);
+            if refused_tip == Some(at) {
+                segment(at_offset(-0.5, -0.5), at_offset(0.5, 0.5));
+                segment(at_offset(-0.5, 0.5), at_offset(0.5, -0.5));
+                continue;
+            }
+            // Across the heading, never along it: a tick along the
+            // chain would lie on the leg already drawn there.
+            segment(at_offset(0.0, -0.5), at_offset(0.0, 0.5));
+            let tip = at_offset(1.0, 0.0);
+            segment(tip, at_offset(0.2, 0.45));
+            segment(tip, at_offset(0.2, -0.45));
+        }
+    }
+}
+
+/// **The committed profiles, placed and appended to a lane**: every
+/// loop [`sketch::committed`] draws, leaving out `edited` — the node
+/// the edit door is previewing in its place
+/// ([`crate::drafts::Drafts::edited_in_place`]). Answers how many
+/// profiles could not be drawn.
+pub(crate) fn push_committed(
+    lane: &mut marks::LegLane,
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    chord: f64,
+    edited: Option<RecipeNodeId>,
+) -> usize {
+    let committed = sketch::committed(doc, evaluation, chord, edited);
+    for profile in &committed.drawn {
+        for polyline in &profile.loops {
+            push_loop(lane, &profile.plane, polyline);
+        }
+    }
+    committed.undrawn.len()
+}
+
+/// **Each door's preview that drew, appended to a lane**
+/// ([`push_preview`]). A door with no preview taken, or whose preview
+/// has nothing to draw, adds nothing; the form says why.
+pub(crate) fn push_previews(
+    lane: &mut marks::LegLane,
+    previews: &ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>,
+    view: Option<datums::View>,
+) {
+    let drawn = previews
+        .as_ref()
+        .into_array()
+        .into_iter()
+        .filter_map(|preview| preview.as_ref()?.as_ref().ok());
+    for drawn in drawn {
+        push_preview(lane, drawn, view);
     }
 }
 
@@ -101,6 +213,101 @@ pub(crate) fn land(
     // sentence and reaches the field directly, because a notice cannot
     // un-say anything.
     frame::deliver(notices, status, frame::fold_status(folded));
+}
+
+pub(crate) use composed::{Composed, frame_marks};
+
+/// **The marks a frame draws, and the one door that makes them.** A
+/// module of its own so that its fields are private even to the rest
+/// of this pane: [`Composed`] has no public constructor and no
+/// `Default`, so a frame cannot hand the renderer marks it did not
+/// gather held picks for.
+mod composed {
+    use crate::display::DisplayView;
+    use crate::drafts::Drafts;
+    use crate::marks::{self, EdgeOverlay, Highlight};
+    use crate::pickindex::PickIndex;
+    use crate::session::DocSession;
+    use crate::tools::Tools;
+
+    /// **What a frame marks, as the renderer takes it** — minted only by
+    /// [`frame_marks`]. A value per frame, never kept.
+    #[derive(Debug)]
+    pub(crate) struct Composed {
+        highlight: Highlight,
+        edges: EdgeOverlay,
+    }
+
+    impl Composed {
+        /// The patch marks.
+        pub(crate) fn highlight(&self) -> &Highlight {
+            &self.highlight
+        }
+
+        /// The edge marks and the other world-space lanes.
+        pub(crate) fn edges(&self) -> &EdgeOverlay {
+            &self.edges
+        }
+
+        /// Add the lanes a pick implies nothing about — the datums,
+        /// the committed profiles and the preview — which the pane
+        /// composes itself.
+        pub(crate) fn with_lanes(
+            mut self,
+            datums: Vec<[f32; 3]>,
+            profiles: Vec<[f32; 3]>,
+            preview: Vec<[f32; 3]>,
+        ) -> Self {
+            self.edges.datums = datums;
+            self.edges.profiles = profiles;
+            self.edges.preview = preview;
+            self
+        }
+
+        /// Nothing marked and no lanes, for the renderer's own rows —
+        /// a test door, so a frame cannot reach it.
+        #[cfg(test)]
+        pub(crate) fn nothing() -> Self {
+            Self {
+                highlight: Highlight::default(),
+                edges: EdgeOverlay::default(),
+            }
+        }
+    }
+
+    /// **Everything this frame marks about picks**: [`marks::compose`]
+    /// over the session's selection and hover, and every pick a form or
+    /// a tool holds — gathered here and nowhere else.
+    ///
+    /// With no index for the picture on screen there is nothing to mark
+    /// against, and nothing is lit.
+    ///
+    /// The seated tools hold NODES, and no mark draws a held node
+    /// (`work/author/a-seated-tools-held-node-is-drawn-nowhere`).
+    pub(crate) fn frame_marks(
+        on_screen: Option<&PickIndex>,
+        display: &DisplayView,
+        session: &DocSession,
+        tools: &Tools,
+        drafts: &Drafts,
+    ) -> Composed {
+        let Some(index) = on_screen else {
+            return Composed {
+                highlight: Highlight::default(),
+                edges: EdgeOverlay::default(),
+            };
+        };
+        let [a, b] = tools
+            .mate()
+            .map_or([None, None], |tool| tool.state().picks());
+        let held = marks::Held {
+            faces: [drafts.held_face(), a, b],
+            edges: tools.blend().and_then(crate::blend::BlendTool::held_edges),
+        };
+        let (highlight, edges) =
+            marks::compose(index, display, session.selection(), session.hover(), &held);
+        Composed { highlight, edges }
+    }
 }
 
 /// The index the picture on screen was drawn FROM, or `None` when the
@@ -154,8 +361,89 @@ pub(crate) fn land(
 /// nothing to say; the pick path refuses TYPED, because a click is an
 /// act the user made and got nothing for
 /// ([`crate::pickcache::NotIndexed::AnotherPicture`]).
-fn drawn_index(index: Option<&PickIndex>, scene_key: Option<PictureKey>) -> Option<&PickIndex> {
+pub(crate) fn drawn_index(
+    index: Option<&PickIndex>,
+    scene_key: Option<PictureKey>,
+) -> Option<&PickIndex> {
     index.filter(|index| index.current_for(scene_key))
+}
+
+/// **Whether a pick action is skipped this frame**: a hover over an
+/// unchanged picture at an unmoved cursor, whose answer the session is
+/// taken to hold already. A click never skips: it is an ACTION, not an
+/// observation.
+fn skips_the_ray(action: PickAction, step: IdStep) -> bool {
+    step == IdStep::Hold && matches!(action, PickAction::Hover(_))
+}
+
+/// **Whether this frame's pick actions ask the ray at `cursor`**, and
+/// so say what it refuses there through [`frame::pick_refusal`].
+///
+/// The loop that performs the actions skips by [`skips_the_ray`] and
+/// this reads the same rule, so the two cannot disagree about which
+/// frames the pick path spoke on.
+fn ray_asked_at(actions: &[PickAction], step: IdStep, cursor: [f64; 2]) -> bool {
+    actions.iter().any(|&action| {
+        !skips_the_ray(action, step)
+            && match action {
+                PickAction::Hover(at) | PickAction::Select(at) => at == cursor,
+                // Clearing the hover asks the ray nothing.
+                PickAction::ClearHover => false,
+            }
+    })
+}
+
+/// Everything the ray path is asked beside the index: one cursor over
+/// one evaluation, through one camera, under one display view.
+#[derive(Clone, Copy)]
+struct RayQuestion<'a> {
+    eval: &'a Evaluation<f64>,
+    camera: &'a Camera,
+    viewport: ViewportSize,
+    cursor: [f64; 2],
+    display: &'a DisplayView,
+}
+
+/// **What the cursor comparison says this frame**: the two picking
+/// paths' disagreement, the ray path's refusal, or nothing.
+///
+/// The ray answer travels to [`idpass::disagreement`] typed, because a
+/// refusal is not a miss: that function reads a refused ray path as no
+/// verdict rather than as "the ray named nothing".
+///
+/// **A refusal no pick action said this frame is said here.** The
+/// refusal is the ray path's news, and it has words already
+/// ([`frame::pick_refusal`]); the pick loop says them whenever it asks
+/// the ray at this cursor, because `hovered_for` seeds through the
+/// same un-projection and hit test as `faces_under_cursor`. It does
+/// not ask on a frame it skips ([`skips_the_ray`]), and the skip reads
+/// only the cursor and the picture — so a camera that moved under a
+/// still cursor gets a ray nobody else asked. `ray_asked` is the pick
+/// loop's own record of that ([`ray_asked_at`]), which is what keeps
+/// the refusal said exactly once a frame: by the pick path when it
+/// asked, here when it did not.
+fn cursor_news(
+    index: &PickIndex,
+    question: RayQuestion<'_>,
+    answer: u64,
+    outstanding: Option<u32>,
+    ray_asked: bool,
+) -> Option<frame::Message> {
+    let RayQuestion {
+        eval,
+        camera,
+        viewport,
+        cursor,
+        display,
+    } = question;
+    let from_ray: Result<Vec<StableName>, PickError> = index
+        .faces_under_cursor(eval, camera, viewport, cursor, display)
+        .map(|faces| faces.into_iter().map(|face| face.name).collect());
+    match &from_ray {
+        Err(refusal) if !ray_asked => Some(frame::pick_refusal(refusal)),
+        _ => idpass::disagreement(index, answer, outstanding, from_ray.as_deref())
+            .map(|report| report.notice()),
+    }
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -478,9 +766,11 @@ impl ViewerBehavior<'_> {
         // still describes this cursor and this picture; a message
         // about what was under the cursor is stale on exactly that
         // judgement, so `frame::cursor_status` reads it. It only ever
-        // expires — what the cursor has to SAY is raised below, where
-        // the two picking paths are compared.
-        frame::apply(self.status, frame::cursor_status(step));
+        // expires today — what the cursor has to SAY is raised below,
+        // where the two picking paths are compared — and it goes
+        // through the policies' door all the same, because that is the
+        // only door a policy's verdict fits.
+        frame::deliver(self.notices, self.status, frame::cursor_status(step));
 
         // The cursor path: actions in, session operations out. Every
         // step of it — the un-projection, the ray service, the miss
@@ -502,13 +792,13 @@ impl ViewerBehavior<'_> {
         // 2026-09-15 ruling — the pick itself, which would otherwise
         // answer about geometry the screen is not showing.
         let on_screen = drawn_index(self.index, self.scene_key);
+        // Read before the loop spends `actions`: whether a pick action
+        // below asks the ray at this frame's cursor, and so words its
+        // refusal itself ([`cursor_news`] reads it).
+        let ray_asked = cursor_px.is_some_and(|cursor| ray_asked_at(&actions, step, cursor));
         if let (Some(index), Some(eval)) = (on_screen, self.session.evaluation()) {
             for action in actions {
-                // A hover over an unchanged picture at an unmoved
-                // cursor asks a question whose answer the session
-                // already holds. A click never skips: it is an
-                // ACTION, not an observation.
-                if step == IdStep::Hold && matches!(action, input::PickAction::Hover(_)) {
+                if skips_the_ray(action, step) {
                     continue;
                 }
                 match index.op_under(eval, self.camera, viewport, action, self.display, kinds) {
@@ -536,22 +826,17 @@ impl ViewerBehavior<'_> {
             self.notices.push(frame::unindexed_refusal(&refusal));
         }
 
-        // What to mark, as a pure function of what is drawn and what is
-        // selected. Recomputed every frame; nothing retains it.
-        let highlight = on_screen
-            .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
-        // The edge half of the same question, and the same discipline:
-        // recomputed every frame from state that lives in one place.
-        let mut edges = on_screen
-            .map(|index| {
-                marks::edge_overlay(
-                    index,
-                    self.display,
-                    self.session.selection(),
-                    self.session.hover(),
-                )
-            })
-            .unwrap_or_default();
+        // What to mark, as a pure function of what is drawn, what is
+        // selected and what is held. Recomputed every frame; nothing
+        // retains it.
+        let composed = frame_marks(
+            on_screen,
+            self.display,
+            self.session,
+            self.tools,
+            self.drafts,
+        );
+        *self.held_edges_refused = composed.edges().held_refused.clone();
         // **The three lanes this pane composes itself**, each as the
         // value that owns the display seam's rule
         // ([`marks::LegLane`]) rather than as a bare `Vec` each block
@@ -566,20 +851,6 @@ impl ViewerBehavior<'_> {
         let mut datums = marks::LegLane::default();
         let mut profiles = marks::LegLane::default();
         let mut preview = marks::LegLane::default();
-        // **The open blend tool's held set is marked too** — all of
-        // it, because the set IS what the user is composing and a
-        // count alone cannot tell them WHICH twelve edges they hold.
-        //
-        // Marked as SELECTED, the mark meaning "a choice you have
-        // made". `BlendTool::mark_segments` applies the same (node,
-        // body) narrowing a single selection gets — one pass over the
-        // target's drawn edges, so the cost is the body's edge count
-        // and not its square.
-        if let (Some(index), Some(tool)) = (on_screen, self.tools.blend()) {
-            edges
-                .selected
-                .extend(tool.mark_segments(index, self.display));
-        }
         // **The document's construction geometry.** Which lane is drawn
         // over which is `marks::EdgeLane::DRAW_ORDER`'s, not the order
         // these blocks fill them in. Sized against the VIEW
@@ -641,22 +912,21 @@ impl ViewerBehavior<'_> {
         // nothing else would draw it. Not behind the datum toggle: a
         // profile is authored content, not construction geometry.
         //
-        // `except`: the profile the edit door is previewing, if any
+        // Left out: the profile the edit door is previewing, if any
         // ([`ViewerBehavior::profile_edited`]) — drawn by its live
-        // preview below and not also as it was committed, which would
-        // show two shapes where there is one. The create door's
+        // preview below, or by nothing while that preview has nothing
+        // to draw, and never also as it was committed. The create door's
         // profile is not a node while it is composed, and comes to
         // rest when its add is accepted (`Drafts::accepted`), so it
         // has nothing to leave out.
         if let Some((doc, evaluation)) = self.session.landed_pair() {
-            let committed =
-                sketch::committed(doc, evaluation, self.delta.get(), self.profile_edited);
-            *self.profiles_undrawn = committed.undrawn.len();
-            for profile in &committed.drawn {
-                for polyline in &profile.loops {
-                    push_loop(&mut profiles, &profile.plane, polyline);
-                }
-            }
+            *self.profiles_undrawn = push_committed(
+                &mut profiles,
+                doc,
+                evaluation,
+                self.delta.get(),
+                self.profile_edited,
+            );
         }
         // **The profile being authored, drawn where it would land.**
         //
@@ -668,89 +938,25 @@ impl ViewerBehavior<'_> {
         // relative to what is already there.
         //
         // Drawn in the probe mark, never the selection mark, because
-        // it is not in the document (`EdgeOverlay::preview`). A
-        // preview that failed to replay draws nothing and says why in
-        // the form; one that replayed but does not VALIDATE draws
-        // anyway, which is the case where looking at it is the whole
-        // point.
+        // it is not in the document (`EdgeOverlay::preview`). A loop
+        // whose replay refused a step draws the prefix before it, and
+        // one that replayed but does not VALIDATE draws whole: both
+        // are cases where looking at it is the whole point. A preview
+        // with nothing to draw says why in the form.
         // Both doors of the one profile editor draw the same way: the
         // add-profile form's loops and an edit's, each where it lands.
-        let previews = self
-            .profile_previews
-            .as_ref()
-            .into_array()
-            .into_iter()
-            .filter_map(|preview| preview.as_ref()?.as_ref().ok());
-        for drawn in previews {
-            let plane = drawn.plane;
-            // The marks are sized in pixels, read at each vertex's own
-            // depth — the same door the datum glyphs go through. A
-            // window this camera has no view of draws the chain and no
-            // marks; the projection refusal below is what says why.
-            let view = datum_view(self.camera, viewport).ok();
-            for polyline in &drawn.loops {
-                let points = &polyline.points;
-                push_loop(&mut preview, &plane, polyline);
-                let mut segment = |a: [f64; 2], b: [f64; 2]| {
-                    push_segment(&mut preview, &plane, a, b);
-                };
-                // **The directed point at each step.** A tip is a
-                // position and, once a verb has bound one, a
-                // direction — the pair the lattice calls a directed
-                // point, and the thing a person composing a chain is
-                // actually reasoning about. The polyline alone shows
-                // where the chain went and not where its steps ARE:
-                // an arc's flattening puts a dozen indistinguishable
-                // points along one leg, which is why
-                // `PreviewLoop::vertices` says which of them the loop
-                // owns.
-                //
-                // Each is drawn as a small cross with a tick along the
-                // heading. The heading is taken from the polyline
-                // itself rather than from bulge arithmetic: the next
-                // flattened point IS the tangent to within the chord
-                // tolerance, and a second derivation of a direction is
-                // a second thing to get wrong.
-                for &at in &polyline.vertices {
-                    let here = points[at];
-                    let Some([dx, dy]) = heading(points, at, polyline.closed) else {
-                        continue;
-                    };
-                    let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
-                    let Some(tick) =
-                        view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX))
-                    else {
-                        continue;
-                    };
-                    // Both marks are drawn ACROSS the heading, never
-                    // along it. A tick that ran along the chain would
-                    // lie on the leg already drawn there and be
-                    // invisible on every vertex but an open chain's
-                    // last — which is the one place a reader needs it
-                    // least.
-                    let (nx, ny) = (-dy, dx);
-                    let at_offset = |along: f64, across: f64| {
-                        [
-                            here[0] + dx * along * tick + nx * across * tick,
-                            here[1] + dy * along * tick + ny * across * tick,
-                        ]
-                    };
-                    // The position: a tick through the point, square
-                    // to the path.
-                    segment(at_offset(0.0, -0.5), at_offset(0.0, 0.5));
-                    // The direction: an arrowhead just ahead of it,
-                    // opening backward, so the pair reads as "here,
-                    // going that way".
-                    let tip = at_offset(1.0, 0.0);
-                    segment(tip, at_offset(0.2, 0.45));
-                    segment(tip, at_offset(0.2, -0.45));
-                }
-            }
-        }
+        // The marks are sized in pixels, read at each vertex's own
+        // depth — the same door the datum glyphs go through. A window
+        // this camera has no view of draws the chain and no marks; the
+        // projection refusal below is what says why.
+        let view = datum_view(self.camera, viewport).ok();
+        push_previews(&mut preview, self.profile_previews, view);
 
-        edges.datums = datums.into_segments();
-        edges.profiles = profiles.into_segments();
-        edges.preview = preview.into_segments();
+        let marks = composed.with_lanes(
+            datums.into_segments(),
+            profiles.into_segments(),
+            preview.into_segments(),
+        );
 
         // **Held, not said.** A view matrix that cannot be formed is
         // true of this camera on every frame until it moves somewhere
@@ -776,9 +982,9 @@ impl ViewerBehavior<'_> {
             }
         };
 
-        // The two paths' agreement, compared BY NAME (`frame::
-        // disagreement` says why ids are the wrong currency, and
-        // records the ray-authoritative role inversion against
+        // The two paths' agreement, compared BY NAME
+        // (`idpass::disagreement` says why ids are the wrong currency,
+        // and records the ray-authoritative role inversion against
         // GQ6-RESURVEY §3). Reported, never resolved.
         //
         // **The ray side of this comparison is the FACE under the
@@ -788,33 +994,31 @@ impl ViewerBehavior<'_> {
         // different one as soon as the priority rule picks an edge,
         // and feeding it would report a disagreement between two
         // questions on every frame the cursor came within
-        // `EDGE_PICK_RADIUS_PX` of an edge. So the face is re-derived
-        // through `face_under_cursor`, and only where there is a fresh
-        // answer waiting for it — `disagreement` still owns the
+        // `EDGE_PICK_RADIUS_PX` of an edge. So the faces are re-derived
+        // through `faces_under_cursor`, and only where there is a fresh
+        // answer waiting for them — `disagreement` still owns the
         // freshness rule, this only declines to do the work when no
-        // question is outstanding at all.
+        // question is outstanding at all. A ray path that could not be
+        // asked — no evaluation to ask it of — is no comparison either.
         let outstanding = self.id_log.outstanding();
-        let from_ray: Vec<_> = outstanding
-            .and_then(|_| {
-                let index = on_screen?;
-                let eval = self.session.evaluation()?;
-                index
-                    .faces_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
-                    .ok()
-            })
-            .unwrap_or_default()
-            .into_iter()
-            .map(|face| face.name)
-            .collect();
-        if let Some(report) = on_screen.and_then(|index| {
-            idpass::disagreement(
-                index,
+        let said = outstanding.and_then(|_| {
+            let question = RayQuestion {
+                eval: self.session.evaluation()?,
+                camera: self.camera,
+                viewport,
+                cursor: cursor_px?,
+                display: self.display,
+            };
+            cursor_news(
+                on_screen?,
+                question,
                 self.id_answer.load(Ordering::Relaxed),
                 outstanding,
-                &from_ray,
+                ray_asked,
             )
-        }) {
-            self.notices.push(report.notice());
+        });
+        if let Some(news) = said {
+            self.notices.push(news);
         }
 
         // **The pane's own numbers at the same seam the matrix just
@@ -877,8 +1081,7 @@ impl ViewerBehavior<'_> {
                 theme: self.theme,
                 viewport_px,
                 pixels_per_point: point_scale,
-                highlight: highlight.unwrap_or_default(),
-                edges,
+                marks,
                 id_query,
             },
         ));
@@ -902,22 +1105,26 @@ mod tests {
     use eframe::egui;
 
     use super::{
-        button_events, drawn_index, egui_buttons, land, push_loop, push_segment, scroll_event,
+        RayQuestion, button_events, cursor_news, drawn_index, egui_buttons, land, push_committed,
+        push_loop, push_preview, push_previews, push_segment, ray_asked_at, scroll_event,
         viewer_button, viewer_modifiers,
     };
-    use crate::camera::{Camera, CameraOp, fold_recorded};
+    use crate::camera::{self, Camera, CameraOp, fold_recorded};
+    use crate::display::DisplayView;
     use crate::frame::{self, product_badge};
-    use crate::idpass;
-    use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::idpass::{self, IdStep};
+    use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
     use crate::marks;
     use crate::pickcache::{self, NotIndexed};
-    use crate::pickindex::{IdMap, PickIndex, PictureKey};
+    use crate::pickindex::{IdMap, PickError, PickIndex, PictureKey};
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
-    use crate::sketch::PreviewLoop;
-    use pncad::document::SlotId;
+    use crate::sketch::{self, PreviewLoop, ProfilePreview, ProfileShape, TIP_MARK_PX};
+    use pncad::document::{Doc, ProfileProgram, SlotId};
     use pncad::geom_core::Tol;
+    use pncad::prelude::StableName;
+    use pncad::select::HitTestError;
 
     fn framed() -> Camera {
         Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("the plate frames")
@@ -942,8 +1149,11 @@ mod tests {
         // A message about the DOCUMENT: a clean fold retires what the
         // camera said and nothing else, so this row goes red if the
         // expiry reaches past its own subject.
-        let landing =
-            frame::Message::new(frame::Subject::Document, "product: the landing's own news");
+        let landing = frame::Message::new(
+            frame::Subject::Document,
+            "product: the landing's own news",
+            frame::Retold::Again,
+        );
         let mut status = Some(landing.clone());
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
@@ -973,7 +1183,8 @@ mod tests {
         let mut camera = framed();
         let refuses = CameraOp::Dolly { factor: 0.0 };
         let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
-        let older = frame::Message::new(frame::Subject::Document, "older news");
+        let older =
+            frame::Message::new(frame::Subject::Document, "older news", frame::Retold::Again);
         let mut status = Some(older.clone());
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
@@ -1062,11 +1273,9 @@ mod tests {
         // The fault is built by hand rather than provoked, and that is
         // the honest way round. A fault a document can REACH by an
         // ordinary edit — a root driven to a zero distance — is a
-        // failed root, which the feature tree badges at the node and
-        // `product_badge` therefore declines. The faults this channel
-        // is for are gather-level and emission-level: they are not
-        // authorable from the panels, which is exactly why nothing else
-        // reports them.
+        // failed root, which `frame::badge_site` sends to the feature
+        // tree. The ones it keeps for this channel are not authorable
+        // from the panels.
         let tol = Tol::witness();
         let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
         let mut session = DocSession::inline(doc, tol);
@@ -1111,6 +1320,7 @@ mod tests {
         let raised = frame::Message::new(
             frame::Subject::Document,
             "product: two roots collide in the name table",
+            frame::Retold::Again,
         );
         let mut status = Some(raised.clone());
         let mut notices = Vec::new();
@@ -1379,15 +1589,312 @@ mod tests {
 
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
-        let report =
-            idpass::disagreement(&index, nothing, Some(serial), std::slice::from_ref(&named))
-                .expect("nothing-under-the-cursor against a named face is a disagreement");
-        assert_eq!(report.from_gpu, None, "the id pass answered nothing");
+        let report = idpass::disagreement(
+            &index,
+            nothing,
+            Some(serial),
+            Ok(std::slice::from_ref(&named)),
+        )
+        .expect("nothing-under-the-cursor against a named face is a disagreement");
+        assert_eq!(
+            report.from_gpu,
+            idpass::IdAnswer::Nothing,
+            "the id pass answered nothing"
+        );
         assert_eq!(report.from_ray, vec![named], "the ray answered a face");
 
         assert!(
             drawn_index(Some(&index), None).is_none(),
             "a picture with no index behind it is compared against no index"
+        );
+    }
+
+    /// **A refused ray beside an id-pass face**: the plate's index, an
+    /// evaluation of ANOTHER document its hit test refuses before
+    /// reading a table (a distinct identity; a twin recipe derives the
+    /// same one), a framed cursor, and the channel word of an id-pass
+    /// answer naming a face the plate really draws.
+    struct RefusedRay {
+        index: PickIndex,
+        foreign: DocSession,
+        camera: Camera,
+        pane: ViewportSize,
+        cursor: [f64; 2],
+        named: StableName,
+        /// The id the named face is drawn under.
+        id: u32,
+        serial: u32,
+        answer: u64,
+    }
+
+    fn refused_ray() -> RefusedRay {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+        let mut foreign =
+            DocSession::inline(Doc::<ProfileProgram>::empty_derived("another", tol), tol);
+        foreign.pump();
+        let id = index.ids().ids().next().expect("the plate draws patches");
+        let named = index
+            .name_of(id)
+            .expect("an id of this index has an entry")
+            .as_ref()
+            .expect("and the plate's patches name cleanly")
+            .clone();
+        let serial = 7u32;
+        RefusedRay {
+            index,
+            foreign,
+            camera: framed(),
+            pane: ViewportSize {
+                width_px: 1600.0,
+                height_px: 900.0,
+            },
+            cursor: [800.0, 450.0],
+            named,
+            id,
+            serial,
+            answer: (u64::from(serial) << 32) | u64::from(id),
+        }
+    }
+
+    /// **A ray path that REFUSED is not a ray path that named
+    /// nothing**, at the comparison itself: the same id-pass face is no
+    /// verdict against the refusal and a disagreement against an empty
+    /// answer, so the type tells the two apart.
+    #[test]
+    fn a_refused_ray_path_is_no_verdict_against_a_named_face() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let refusal = fixture
+            .index
+            .faces_under_cursor(
+                foreign,
+                &fixture.camera,
+                fixture.pane,
+                fixture.cursor,
+                &DisplayView::none(),
+            )
+            .expect_err("an evaluation of another document is refused");
+        assert!(
+            matches!(
+                refusal,
+                PickError::HitTest(HitTestError::EvaluationOfAnotherDocument { .. })
+            ),
+            "the planted refusal is the kernel declining: {refusal:?}"
+        );
+        let (index, answer, serial) = (&fixture.index, fixture.answer, Some(fixture.serial));
+        assert_eq!(
+            idpass::disagreement(index, answer, serial, Err(&refusal)),
+            None,
+            "a refused ray path is compared against nothing"
+        );
+        assert_eq!(
+            idpass::disagreement(index, answer, serial, Ok(&[])),
+            Some(idpass::Disagreement {
+                from_gpu: idpass::IdAnswer::Named(fixture.named),
+                from_ray: Vec::new(),
+            }),
+            "while a ray path that answered nothing is contradicted by the face"
+        );
+    }
+
+    /// **A ray refusal is said exactly once a frame — by the pick path
+    /// when it asked, by the comparison when it did not — and never as
+    /// a disagreement.** This drives the pane's own wiring
+    /// (`ray_asked_at`, `cursor_news`) across the two frames the id
+    /// log distinguishes.
+    ///
+    /// The second frame is the one the pick path skips: the camera
+    /// orbits under a still cursor, which the id log reads as `Hold`,
+    /// so no hover asks the ray, while the comparison asks it through
+    /// the moved camera. The refusal a camera move ALONE can bring on
+    /// is the hit test's unnamed-entity arm, which nothing in this
+    /// crate can plant; the evaluation of another document stands in
+    /// for it, and what this row pins is who says a refusal on a frame
+    /// nobody else asked the ray, not which refusal it is.
+    #[test]
+    fn a_ray_refusal_the_pick_path_did_not_ask_for_is_said_by_the_comparison() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let display = DisplayView::none();
+        let at = fixture.cursor;
+        let actions = [input::PickAction::Hover(at)];
+        let subject = idpass::IdSubject {
+            revision: 1,
+            generation: Some(fixture.index.generation()),
+        };
+        let mut log = idpass::IdQueryLog::new();
+
+        // The cursor arrives: a new question, and the pick path asks
+        // the ray there — so it says the refusal, and the comparison
+        // says nothing.
+        let arrived = log.step(Some(at), subject);
+        let serial = match arrived {
+            IdStep::Ask { serial } => Some(serial),
+            IdStep::Hold | IdStep::Void => None,
+        }
+        .expect("a cursor arriving is a new question");
+        // The id pass's answer to THIS question, naming a face: fresh,
+        // so a ray answer read as empty would be a disagreement.
+        let answer = (u64::from(serial) << 32) | u64::from(fixture.id);
+        assert!(
+            ray_asked_at(&actions, arrived, at),
+            "the hover asks the ray"
+        );
+        let asked = RayQuestion {
+            eval: foreign,
+            camera: &fixture.camera,
+            viewport: fixture.pane,
+            cursor: at,
+            display: &display,
+        };
+        assert_eq!(
+            cursor_news(&fixture.index, asked, answer, log.outstanding(), true),
+            None,
+            "the pick path said this refusal; the comparison adds nothing"
+        );
+
+        // The camera orbits; the cursor does not move.
+        let moved = camera::apply(
+            &fixture.camera,
+            &CameraOp::Orbit {
+                yaw: 0.3,
+                pitch: 0.1,
+            },
+        )
+        .expect("the orbit applies");
+        let held = log.step(Some(at), subject);
+        assert_eq!(held, IdStep::Hold, "the id log does not read the camera");
+        assert!(
+            !ray_asked_at(&actions, held, at),
+            "so the hover skips the frame and nobody on the pick path asks the ray"
+        );
+        let unasked = RayQuestion {
+            camera: &moved,
+            ..asked
+        };
+        let refusal = fixture
+            .index
+            .faces_under_cursor(foreign, &moved, fixture.pane, at, &display)
+            .expect_err("the moved ray is refused");
+        assert_eq!(
+            cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
+            Some(frame::pick_refusal(&refusal)),
+            "the comparison says the refusal in the pick path's own words"
+        );
+    }
+
+    /// **What the pane says about an id the drawn index never
+    /// assigned**, through its own wiring (`cursor_news`) over a real
+    /// plate: the id, the ray's answer at the first cursor whose ray
+    /// answer `wanted` accepts, and the news.
+    ///
+    /// An unassigned id is what a corrupt readback looks like. Read as
+    /// the clear value, it was misreported both ways: as *id buffer
+    /// nothing* against a ray that named a face, and as silent
+    /// agreement against a ray that named nothing. The two rows below
+    /// each ask one of those cursors.
+    fn unassigned_id_news(
+        wanted: impl Fn(&[StableName]) -> bool,
+    ) -> (u32, Vec<StableName>, Option<frame::Message>) {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+        let eval = session.evaluation().expect("the plate lands");
+        let unassigned = index.ids().ids().max().expect("the plate draws patches") + 1;
+        assert!(
+            index.name_of(unassigned).is_none(),
+            "an id past the last assigned one is no entry of this index"
+        );
+        let camera = framed();
+        let pane = ViewportSize {
+            width_px: 1600.0,
+            height_px: 900.0,
+        };
+        let display = DisplayView::none();
+        // The pane's corner, then out from the plate's centre (its
+        // hole) along the horizontal.
+        let (cursor, from_ray) = std::iter::once([1.0, 1.0])
+            .chain((0..16).map(|step| [800.0 - 40.0 * f64::from(step), 450.0]))
+            .map(|cursor| {
+                let faces = index
+                    .faces_under_cursor(eval, &camera, pane, cursor, &display)
+                    .expect("the plate's ray path answers");
+                (
+                    cursor,
+                    faces.into_iter().map(|face| face.name).collect::<Vec<_>>(),
+                )
+            })
+            .find(|(_, names)| wanted(names))
+            .expect("some cursor's ray answer is the one asked for");
+
+        let mut log = idpass::IdQueryLog::new();
+        let subject = idpass::IdSubject {
+            revision: 1,
+            generation: Some(index.generation()),
+        };
+        let serial = match log.step(Some(cursor), subject) {
+            IdStep::Ask { serial } => Some(serial),
+            IdStep::Hold | IdStep::Void => None,
+        }
+        .expect("a cursor arriving is a new question");
+        let question = RayQuestion {
+            eval,
+            camera: &camera,
+            viewport: pane,
+            cursor,
+            display: &display,
+        };
+        let answer = (u64::from(serial) << 32) | u64::from(unassigned);
+        let news = cursor_news(&index, question, answer, log.outstanding(), true);
+        (unassigned, from_ray, news)
+    }
+
+    /// Over what the ray calls empty space, an unassigned id is said,
+    /// not agreed with.
+    #[test]
+    fn an_unassigned_id_over_empty_space_is_said_as_that_id() {
+        let (id, _, news) = unassigned_id_news(<[StableName]>::is_empty);
+        assert_eq!(
+            news,
+            Some(frame::Message::new(
+                frame::Subject::Cursor,
+                format!(
+                    "picking paths disagree at the cursor: id buffer id {id}, \
+                     which no patch of this picture draws, ray nothing"
+                ),
+                frame::Retold::Again,
+            )),
+        );
+    }
+
+    /// Against a ray that named a face, an unassigned id is said as the
+    /// id, not as the id buffer naming nothing.
+    #[test]
+    fn an_unassigned_id_against_a_named_face_is_said_as_that_id() {
+        let (id, from_ray, news) = unassigned_id_news(|names| names.len() == 1);
+        let named = from_ray
+            .first()
+            .expect("the helper returns the one-face answer it was asked for");
+        assert_eq!(
+            news.expect("an unassigned id against a named face is a disagreement")
+                .text(),
+            format!(
+                "picking paths disagree at the cursor: id buffer id {id}, \
+                 which no patch of this picture draws, ray {named} ({:?})",
+                named.path
+            ),
         );
     }
 
@@ -1770,7 +2277,7 @@ mod tests {
         let polyline = PreviewLoop {
             points: vec![[0.0, 0.0], [1.0, 0.0], [7.0e307, 0.0], [0.0, 1.0]],
             vertices: vec![0, 1, 2, 3],
-            closed: true,
+            end: sketch::LoopEnd::Closed,
         };
         let mut lane = marks::LegLane::default();
         push_loop(&mut lane, &plane, &polyline);
@@ -1779,6 +2286,490 @@ mod tests {
             lane.segments().len(),
             4,
             "the two legs between ordinary corners are drawn"
+        );
+    }
+
+    /// A view of the xy plane from a tenth of a metre, looking at the
+    /// centimetre square the preview rows below draw in.
+    fn a_view() -> crate::datums::View {
+        let camera = Camera::new(
+            pncad::geom_core::Point3::new(0.005, 0.005, 0.0),
+            0.1,
+            0.0,
+            1.0,
+            0.8,
+            0.05,
+        )
+        .expect("a camera");
+        crate::datums::datum_view(
+            &camera,
+            ViewportSize {
+                width_px: 800.0,
+                height_px: 600.0,
+            },
+        )
+        .expect("a view")
+    }
+
+    /// Every segment [`push_preview`] put in the lane for `drawn`, as
+    /// sketch-plane pairs (the plane is xy, so world x and y).
+    fn painted_preview(drawn: &ProfilePreview) -> Vec<[[f64; 2]; 2]> {
+        let mut lane = marks::LegLane::default();
+        push_preview(&mut lane, drawn, Some(a_view()));
+        lane.segments()
+            .chunks_exact(2)
+            .map(|pair| pair_2d([pair[0], pair[1]]))
+            .collect()
+    }
+
+    fn pair_2d(pair: [[f32; 3]; 2]) -> [[f64; 2]; 2] {
+        pair.map(|[x, y, _]| [f64::from(x), f64::from(y)])
+    }
+
+    /// Two plane points within what an `f32` vertex buffer keeps of
+    /// centimetre-scale coordinates.
+    fn near(a: [f64; 2], b: [f64; 2]) -> bool {
+        (a[0] - b[0]).hypot(a[1] - b[1]) < 1.0e-7
+    }
+
+    /// **What is marked at the tip `at`, arriving along `heading`**:
+    /// the strokes centred on it, each as its |cosine| to the heading
+    /// (a tick across the path is 0; a cross on its diagonals is
+    /// ~0.707), and how many segments end at the arrowhead point a
+    /// tick-length ahead of it.
+    fn tip_marks(painted: &[[[f64; 2]; 2]], at: [f64; 2], heading: [f64; 2]) -> (Vec<f64>, usize) {
+        let world = pncad::geom_core::Point3::new(at[0], at[1], 0.0);
+        let tick = a_view()
+            .screen_metres_at(world, TIP_MARK_PX)
+            .expect("a mark size at the tip");
+        let ahead = [at[0] + heading[0] * tick, at[1] + heading[1] * tick];
+        let centred = painted
+            .iter()
+            .filter(|[a, b]| near([(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0], at))
+            .map(|[a, b]| {
+                let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+                ((dx * heading[0] + dy * heading[1]) / dx.hypot(dy)).abs()
+            })
+            .collect();
+        let arrow = painted
+            .iter()
+            .filter(|[a, b]| near(*a, ahead) || near(*b, ahead))
+            .count();
+        (centred, arrow)
+    }
+
+    /// Whether a leg joins `a` and `b`, either way round.
+    fn joins(painted: &[[[f64; 2]; 2]], a: [f64; 2], b: [f64; 2]) -> bool {
+        painted
+            .iter()
+            .any(|[p, q]| near(*p, a) && near(*q, b) || near(*p, b) && near(*q, a))
+    }
+
+    /// `test_support::two_legs` from the origin, to [`TIP`] arriving
+    /// along `+y`, then `tail`.
+    fn chain(tail: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
+        let mut steps = crate::test_support::two_legs(0.0, 0.0);
+        steps.extend(tail);
+        path(steps)
+    }
+
+    /// The preview of one path loop on the xy plane, which draws.
+    fn path(steps: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
+        sketch::preview(
+            pncad::profile::SketchPlane::xy(),
+            &[ProfileShape::Path { steps }],
+            Tol::witness(),
+            1.0e-4,
+        )
+        .expect("the chain draws")
+    }
+
+    const TIP: [f64; 2] = [0.01, 0.01];
+    const ARRIVING: [f64; 2] = [0.0, 1.0];
+
+    /// **A step the author picked that refuses still leaves the chain
+    /// before it on screen, with a cross where it stops.** The
+    /// `arc_fillet_arc` the form hands an author who picks that verb
+    /// at this tip is refused on arrival; what is painted is the two
+    /// legs before it, not the provisional close back to the start,
+    /// and at the tip a cross on the heading's diagonals with no
+    /// arrowhead.
+    ///
+    /// Red if the refused loop draws nothing (the `expect` panics), if
+    /// it draws its provisional close, or if its tip is marked like any
+    /// other vertex.
+    #[test]
+    fn a_refused_step_paints_the_chain_before_it_and_a_cross_at_its_tip() {
+        use pncad::profile::{Step, Target, TipState, Verb};
+        let picked = sketch::fresh_step_at(Verb::ArcFilletArc, Some(TipState::DirectedPoint));
+        let drawn = chain(vec![picked, Step::LineTo(Target::Start)]);
+        assert!(
+            drawn.loops[0].end.refusal().is_some(),
+            "a fixture whose picked step refuses: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        assert!(joins(&painted, [0.0, 0.0], [0.01, 0.0]), "{painted:?}");
+        assert!(joins(&painted, [0.01, 0.0], TIP), "{painted:?}");
+        assert!(
+            !joins(&painted, TIP, [0.0, 0.0]),
+            "the provisional close is not painted: {painted:?}"
+        );
+        let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
+        assert_eq!(
+            centred.len(),
+            2,
+            "two strokes cross at the tip: {centred:?}"
+        );
+        assert!(
+            centred
+                .iter()
+                .all(|cos| (cos - core::f64::consts::FRAC_1_SQRT_2).abs() < 1.0e-3),
+            "both on the heading's diagonals: {centred:?}"
+        );
+        assert_eq!(arrow, 0, "no arrowhead: the chain goes nowhere from here");
+    }
+
+    /// **An unfinished chain's tip keeps its arrowhead and no cross** —
+    /// the same two legs as the row above with nothing after them, so
+    /// the only difference painted is the tip's.
+    ///
+    /// Red if the cross is drawn at every open tip rather than only a
+    /// refused one.
+    #[test]
+    fn an_unfinished_chains_tip_is_painted_going_on() {
+        let drawn = chain(Vec::new());
+        assert!(
+            drawn.loops[0].end.is_unfinished(),
+            "a fixture that is merely unfinished: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
+        assert_eq!(centred.len(), 1, "one tick through the tip: {centred:?}");
+        assert!(centred[0] < 1.0e-3, "square to the path: {centred:?}");
+        assert_eq!(arrow, 2, "an arrowhead ahead of it");
+    }
+
+    /// **A chain with an unclosable tip is painted as the legs before
+    /// it, going on** — at every state no `line_to` leaves, as the
+    /// lattice table lists them. The steps that put the tip there are
+    /// not a leg anybody can draw yet, so what is painted is the two
+    /// legs, not the provisional close, and the tip keeps its
+    /// arrowhead: the chain is unfinished, not refused.
+    ///
+    /// Red if such a chain draws nothing (the `expect` panics), if its
+    /// provisional close is painted, or if its tip is crossed.
+    #[test]
+    fn an_unclosable_tip_is_painted_as_the_legs_before_it_going_on() {
+        let mut walked = Vec::new();
+        for state in crate::test_support::unclosable_tips() {
+            let Some(way_in) = ::profile::test_support::way_in(state) else {
+                assert_eq!(
+                    state,
+                    pncad::profile::TipState::Entry,
+                    "only the entry has no way in"
+                );
+                continue;
+            };
+            let drawn = chain(way_in);
+            assert!(
+                matches!(
+                    drawn.loops[0].end.unfinished_refusal(),
+                    Some(sketch::PreviewError::Transition { state: at, verb: None, .. }) if *at == state
+                ),
+                "{state:?}: a fixture whose tip is unclosable: {drawn:?}"
+            );
+            let painted = painted_preview(&drawn);
+            assert!(joins(&painted, [0.0, 0.0], [0.01, 0.0]), "{state:?}");
+            assert!(joins(&painted, [0.01, 0.0], TIP), "{state:?}");
+            assert!(
+                !joins(&painted, TIP, [0.0, 0.0]),
+                "{state:?}: the provisional close is not painted"
+            );
+            let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
+            assert_eq!(centred.len(), 1, "{state:?}: one tick: {centred:?}");
+            assert_eq!(arrow, 2, "{state:?}: an arrowhead ahead of it");
+            walked.push(state);
+        }
+        assert!(
+            walked.contains(&pncad::profile::TipState::RadiusArrival),
+            "the census reads the table: {walked:?}"
+        );
+    }
+
+    /// **A chain cut at an unclosable tip whose last leg lands on its
+    /// start is painted closed.** The walked-back prefix is the square
+    /// the author's own legs close; its last leg is authored, not the
+    /// provisional close, so it is painted.
+    ///
+    /// Red if an unfinished loop is read as never closing.
+    #[test]
+    fn a_prefix_cut_at_an_unclosable_tip_that_lands_on_its_start_is_painted_closed() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let drawn = chain(vec![
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.0))),
+            Step::Turn(0.5),
+        ]);
+        assert!(
+            matches!(&drawn.loops[0].end, sketch::LoopEnd::Unfinished(Some(cut)) if cut.closes),
+            "a fixture whose drawn prefix closes: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        assert!(
+            joins(&painted, [0.0, 0.01], [0.0, 0.0]),
+            "the authored last leg is painted: {painted:?}"
+        );
+    }
+
+    /// **A chain that closed and then went on is painted closed, with
+    /// the cross at its start.** A square closed by `line_to Start`,
+    /// then one more `line_to`, which no closed loop takes: the four
+    /// authored legs are painted, the closing one included, and the
+    /// start — where the drawn steps end — carries the cross and no
+    /// arrowhead.
+    ///
+    /// Red if the drawn prefix is replayed only under the provisional
+    /// close (the closing leg goes unpainted and the cross lands on
+    /// `(0, 0.01)`).
+    #[test]
+    fn a_chain_that_closed_and_went_on_is_painted_closed() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let drawn = chain(vec![
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+            Step::LineTo(Target::Start),
+            Step::LineTo(Target::Point(Point2::new(0.005, 0.005))),
+        ]);
+        assert!(
+            drawn.loops[0].end.refusal().is_some(),
+            "a fixture whose last step refuses: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        assert!(
+            joins(&painted, [0.0, 0.01], [0.0, 0.0]),
+            "the authored close is painted: {painted:?}"
+        );
+        let (centred, arrow) = tip_marks(&painted, [0.0, 0.0], [1.0, 0.0]);
+        assert_eq!(centred.len(), 2, "the cross at the start: {centred:?}");
+        assert_eq!(arrow, 0, "no arrowhead at the start");
+    }
+
+    /// **A chain whose close is refused on its geometry is painted as
+    /// the legs written and no more** — at every shape of such a close
+    /// ([`crate::test_support::geometry_refused_closes`]). Every painted
+    /// stroke longer than a tip mark is one of those legs; the leg back
+    /// to the start is painted where the author's last leg lands there,
+    /// and nowhere else; and the tip keeps its arrowhead, since the
+    /// chain is unfinished: at the last leg's end, or at the start
+    /// where the loop closes.
+    ///
+    /// Red if such a chain paints nothing (the `expect` panics), if it
+    /// paints the close nobody wrote or a fillet resolved against it,
+    /// or if its tip is crossed.
+    #[test]
+    fn a_close_refused_on_its_geometry_is_painted_as_the_legs_written() {
+        for fixture in crate::test_support::geometry_refused_closes() {
+            let drawn = path(fixture.steps.clone());
+            let painted = painted_preview(&drawn);
+            let vertices = &fixture.vertices;
+            let mut written: Vec<[[f64; 2]; 2]> =
+                vertices.windows(2).map(|w| [w[0], w[1]]).collect();
+            let back = [vertices[vertices.len() - 1], vertices[0]];
+            if fixture.closes {
+                written.push(back);
+            } else {
+                assert!(!joins(&painted, back[0], back[1]), "{:?}", fixture.steps);
+            }
+            for [a, b] in &written {
+                assert!(joins(&painted, *a, *b), "{:?}: {a:?}-{b:?}", fixture.steps);
+            }
+            let tick = a_view()
+                .screen_metres_at(pncad::geom_core::Point3::new(0.0, 0.0, 0.0), TIP_MARK_PX)
+                .expect("a mark size");
+            for [p, q] in &painted {
+                let long = (q[0] - p[0]).hypot(q[1] - p[1]) > 2.0 * tick;
+                assert!(
+                    !long || written.iter().any(|[a, b]| joins(&[[*p, *q]], *a, *b)),
+                    "{:?}: a stroke nobody wrote, {p:?}-{q:?}",
+                    fixture.steps
+                );
+            }
+            let (tip, heading) = if fixture.closes {
+                ([0.0, 0.0], [1.0, 0.0])
+            } else {
+                (TIP, ARRIVING)
+            };
+            let (centred, arrow) = tip_marks(&painted, tip, heading);
+            assert_eq!(centred.len(), 1, "{:?}: {centred:?}", fixture.steps);
+            assert_eq!(arrow, 2, "{:?}: an arrowhead", fixture.steps);
+        }
+    }
+
+    /// **The cross sits on the step that refused**, after a last leg a
+    /// close would run tangent to, after a last leg onto the start by
+    /// an entry that opens with a direction, and after a fused entry's
+    /// last leg. Each is painted to the last leg's end and crossed
+    /// there — at the start where the leg lands on it.
+    ///
+    /// Red if any last leg is dropped (the cross then lands one vertex
+    /// early, on a step that is fine), or if a close nobody wrote is
+    /// painted closed.
+    #[test]
+    fn the_cross_sits_on_the_step_that_refused() {
+        use crate::test_support::{self, ill_typed};
+        let mut cases = test_support::tangent_closes();
+        let angle_first = test_support::geometry_refused_closes()
+            .into_iter()
+            .map(|fixture| fixture.steps)
+            .find(|steps| !matches!(steps[0], pncad::profile::Step::At(_)))
+            .expect("an entry that opens with a direction");
+        cases.push((angle_first, [0.0, 0.0]));
+        let fused = test_support::fused_entry_then(test_support::line_to(0.01, 0.003));
+        cases.push((fused, [0.01, 0.003]));
+        for (mut steps, tip) in cases {
+            steps.push(ill_typed());
+            let drawn = path(steps.clone());
+            let only = &drawn.loops[0];
+            assert!(only.end.refusal().is_some(), "{steps:?}");
+            let at = only
+                .vertices
+                .iter()
+                .copied()
+                .find(|&at| near(only.points[at], tip))
+                .expect("the tip is a vertex drawn");
+            let heading = sketch::heading(&only.points, at, only.end.closes()).expect("a heading");
+            let (centred, arrow) = tip_marks(&painted_preview(&drawn), tip, heading);
+            assert_eq!(centred.len(), 2, "{steps:?}: the cross: {centred:?}");
+            assert_eq!(arrow, 0, "{steps:?}: no arrowhead");
+        }
+    }
+
+    /// **An edit of a committed profile that a step refuses hides the
+    /// committed shape, whether or not anything before the refusal
+    /// draws** — Ev's ruling of 2026-09-30. A square on the xy frame,
+    /// held by the edit door; the drive is the frame's own, in order:
+    /// the edit door's preview, [`crate::drafts::Drafts::edited_in_place`]
+    /// on it, then the two lanes the viewport paints
+    /// ([`push_committed`], [`push_previews`]) and the form's sentence
+    /// ([`crate::pane::profile::preview_verdict`], headless).
+    ///
+    /// - Refused at step 1, nothing before it draws: no committed leg
+    ///   and no preview leg is painted, and the form says the refusal.
+    ///   Red if a preview with nothing to draw leaves the committed
+    ///   drawing up (the flip the ruling fixed).
+    /// - Refused at step 3, after two legs: no committed leg; the two
+    ///   legs are painted. Red if a refused preview stops standing in
+    ///   for the node.
+    #[test]
+    fn a_refused_edit_hides_the_committed_profile_with_or_without_a_prefix() {
+        use pncad::document::{CancelToken, Doc, EvalOptions, evaluate};
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, TipState, Verb};
+
+        use crate::drafts::{Drafts, ProfileDoors, RowEdit};
+        use crate::session::ProfilePlane;
+
+        let tol = Tol::witness();
+        let chord = 1.0e-4;
+        let side = 0.02;
+        let (doc, profile) = crate::test_support::framed_square(
+            &Doc::empty_derived("c5-refused-edit", tol),
+            side,
+            tol,
+        );
+        let evaluation = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let mut drafts = Drafts::default();
+        drafts
+            .profile_edit(&doc, profile)
+            .expect("the square is held");
+        let frame = match drafts.door_loops().edit.and_then(|held| held.plane) {
+            Some(ProfilePlane::Existing(frame)) => Some(frame),
+            _ => None,
+        }
+        .expect("the edit door draws on the square's own frame");
+        let placement = sketch::frame_placement(&doc, &evaluation, frame).expect("placed");
+        let segments = |lane: &marks::LegLane| -> Vec<[[f64; 2]; 2]> {
+            lane.segments()
+                .chunks_exact(2)
+                .map(|pair| pair_2d([pair[0], pair[1]]))
+                .collect()
+        };
+        // One frame with `loops` held by the edit door: its preview,
+        // the committed lane, the preview lane.
+        let mut frame_with = |loops: Vec<Step<f64>>| {
+            let edit = drafts.profile_edit.as_mut().expect("held");
+            edit.edit_row(0, RowEdit::Clear);
+            for (at, step) in loops.into_iter().enumerate() {
+                edit.edit_row(0, RowEdit::Insert { at, step });
+            }
+            let held = drafts.door_loops().edit.expect("held");
+            let preview = sketch::preview(placement, &held.loops, tol, chord);
+            let previews = ProfileDoors {
+                create: None,
+                edit: Some(preview.clone()),
+            };
+            let edited = drafts.edited_in_place(previews.edit.as_ref());
+            let mut committed = marks::LegLane::default();
+            let undrawn = push_committed(&mut committed, &doc, &evaluation, chord, edited);
+            assert_eq!(undrawn, 0, "the square draws when it is drawn at all");
+            let mut drawn = marks::LegLane::default();
+            push_previews(&mut drawn, &previews, None);
+            (preview, segments(&committed), segments(&drawn))
+        };
+
+        let mut control = marks::LegLane::default();
+        push_committed(&mut control, &doc, &evaluation, chord, None);
+        let control = segments(&control);
+        assert!(
+            joins(&control, [0.0, 0.0], [side, 0.0]),
+            "the control: the square is painted when nothing edits it: {control:?}"
+        );
+
+        let fused = |state| sketch::fresh_step_at(Verb::ArcFilletArc, state);
+        let (preview, committed, drawn) = frame_with(vec![
+            Step::At(Point2::origin()),
+            fused(Some(TipState::PlainPoint)),
+        ]);
+        let refusal = preview
+            .as_ref()
+            .expect_err("a fixture refused at step 1 with nothing to draw");
+        assert!(
+            committed.is_empty(),
+            "refused at step 1: the committed square is hidden: {committed:?}"
+        );
+        assert!(
+            drawn.is_empty(),
+            "refused at step 1: nothing is drawn: {drawn:?}"
+        );
+        let said = crate::pane::headless::painted_text(|ui| {
+            crate::pane::profile::preview_verdict(ui, crate::theme::Theme::DEFAULT, Some(&preview));
+        });
+        assert!(
+            said.contains(&refusal.to_string()),
+            "refused at step 1: the form says the refusal: {said:?}"
+        );
+
+        let mut steps = crate::test_support::two_legs(0.0, 0.0);
+        steps.push(fused(Some(TipState::DirectedPoint)));
+        let (preview, committed, drawn) = frame_with(steps);
+        assert!(
+            matches!(&preview, Ok(p) if p.loops[0].end.refusal().is_some()),
+            "a fixture refused at step 3 with two legs before it: {preview:?}"
+        );
+        assert!(
+            committed.is_empty(),
+            "refused at step 3: the committed square is hidden: {committed:?}"
+        );
+        assert!(
+            joins(&drawn, [0.0, 0.0], [0.01, 0.0]) && joins(&drawn, [0.01, 0.0], [0.01, 0.01]),
+            "refused at step 3: the legs before it are painted: {drawn:?}"
         );
     }
 }

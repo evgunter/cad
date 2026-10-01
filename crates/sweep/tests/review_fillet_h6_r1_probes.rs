@@ -21,19 +21,20 @@
 use crate::common::cap_rims::cap_rims;
 use geom_brep::EdgeDescription;
 use geom_core::{Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+use profile::{
+    Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
+};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::validate_geometric;
 
 fn rect(sx: f64, sy: f64) -> ValidatedProfile<f64> {
-    let p2 = Point2::<f64>::new;
     Profile::new(
         SketchPlane::xy(),
         vec![ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(sx, 0.0),
-            p2(sx, sy),
-            p2(0.0, sy),
+            Point2::new(0.0, 0.0),
+            Point2::new(sx, 0.0),
+            Point2::new(sx, sy),
+            Point2::new(0.0, sy),
         ])],
     )
     .validate(Tol::witness())
@@ -168,12 +169,11 @@ fn worst_admitted_obliquity_on_a_tight_rim_reads_the_band() {
 #[test]
 fn transverse_cap_rims_validate_at_rest() {
     let tol = Tol::witness();
-    let p2 = Point2::<f64>::new;
     let circle = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(-1.5, 0.0), 1.0),
-            ProfileVertex::new(p2(1.5, 0.0), 1.0),
+        vec![bulge_loop(vec![
+            (Point2::new(-1.5, 0.0), 1.0),
+            (Point2::new(1.5, 0.0), 1.0),
         ])],
     )
     .validate(tol)
@@ -206,17 +206,16 @@ fn revolve_refuses_an_in_band_second_order_at_the_door() {
     let tol = Tol::witness();
     let (eps, k) = (tol.eps(), tol.k());
     let r = ((1.0 + k) * eps).sqrt();
-    let p2 = Point2::<f64>::new;
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let profile = Profile::new(
         SketchPlane::xy(),
         vec![
-            ProfileLoop::new(vec![
-                ProfileVertex::new(p2(r, 0.0), 0.0),
-                ProfileVertex::new(p2(1.5, 0.0), 0.0),
-                ProfileVertex::new(p2(1.5, 2.0), 0.0),
-                ProfileVertex::new(p2(1.0 + r, 2.0), b),
-                ProfileVertex::new(p2(r, 1.0), 0.0),
+            bulge_loop(vec![
+                (Point2::new(r, 0.0), 0.0),
+                (Point2::new(1.5, 0.0), 0.0),
+                (Point2::new(1.5, 2.0), 0.0),
+                (Point2::new(1.0 + r, 2.0), b),
+                (Point2::new(r, 1.0), 0.0),
             ])
             .with_tangent_joints(vec![3, 4]),
         ],
@@ -224,7 +223,7 @@ fn revolve_refuses_an_in_band_second_order_at_the_door() {
     .validate(tol)
     .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     match revolve(&profile, axis, Revolution::Full, tol) {

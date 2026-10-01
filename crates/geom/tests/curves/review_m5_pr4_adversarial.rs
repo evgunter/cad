@@ -24,15 +24,17 @@ test_utils::gated_to![
     "crates/geom/src/curves/",
     "crates/geom/src/curves.rs",
     "crates/geom-core/src/spline/",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/linalg/",
     "crates/geom-core/src/predicate.rs",
 ];
 
 use geom::{NurbsCurve2, NurbsCurve3};
+use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
-use geom_core::{Point2, Point3, RingInterval};
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
+use geom_core::{Interval, Point2, Point3};
 use test_utils::fuzz;
 
 /// An inclusive integer draw in `lo..=hi`.
@@ -517,7 +519,7 @@ fn f3_rank_deficient_and_near_singular() {
 // F4: compose exactness (num/den evaluates to f∘C pointwise) and
 // containment fuzz across all five surfaces on random rational curves.
 // =====================================================================
-fn bernstein_eval_mid(coeffs: &[RingInterval], s: f64) -> f64 {
+fn bernstein_eval_mid(coeffs: &[Interval], s: f64) -> f64 {
     // de Casteljau on interval midpoints.
     let mut v: Vec<f64> = coeffs.iter().map(|c| 0.5 * (c.lo() + c.hi())).collect();
     let n = v.len();
@@ -614,8 +616,8 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
             .collect();
         let weights: Vec<f64> = (0..nctrl).map(|_| rng.range(0.5, 2.0)).collect();
         let curve = NurbsCurve3::new(kv.clone(), control, weights.clone()).unwrap();
-        let coords = curve.ring_coords();
-        let data = CurveRingData::new(curve.knots(), curve.weights(), &coords).unwrap();
+        let coords = curve.certified_coords();
+        let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
         let surfaces = [
             ImplicitSurface::Plane {
                 point: [rng.range(-1.0, 1.0), 0.3, -0.2],
@@ -647,7 +649,7 @@ fn f4_compose_exactness_and_containment_all_surfaces() {
             let bound = form.sup_bound();
             assert!(
                 bound.is_finite(),
-                "case {case}: poisoned bound for {surface:?} — {}",
+                "case {case}: refused bound for {surface:?} — {}",
                 fuzz::replay()
             );
             // Exactness: num/den midpoint evaluation == f(C(t)).
@@ -689,12 +691,12 @@ fn f4_sphere_composite_hand_check_degree1() {
     let c = [0.5, 0.25, -0.75];
     let r = 1.5;
     let coords = vec![
-        vec![RingInterval::point(a[0]), RingInterval::point(b[0])],
-        vec![RingInterval::point(a[1]), RingInterval::point(b[1])],
-        vec![RingInterval::point(a[2]), RingInterval::point(b[2])],
+        vec![Interval::point(a[0]), Interval::point(b[0])],
+        vec![Interval::point(a[1]), Interval::point(b[1])],
+        vec![Interval::point(a[2]), Interval::point(b[2])],
     ];
     let w = [1.0, 1.0];
-    let data = CurveRingData::new(&kv, &w, &coords).unwrap();
+    let data = CurveCertData::new(&kv, &w, &coords).unwrap();
     let form = compose::implicit_composite(
         &data,
         &ImplicitSurface::Sphere {
@@ -752,7 +754,7 @@ fn f4_binomial_row_exactness_probe() {
     // The MINOR-1 pin: the recurrence is exact through n = 54 and
     // FIRST inexact at n = 55 (the intermediate product exceeds 2^53
     // although C(55, 26) is representable) — which is why
-    // compose::binom_row documents BINOM_EXACT_MAX = 54 and poisons
+    // compose::binom_row documents BINOM_EXACT_MAX = 54 and refuses
     // beyond it rather than serving a rounded weight.
     match first_bad {
         None => panic!("[F4] recurrence unexpectedly exact through n = 60"),
@@ -891,8 +893,8 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
         assert!(!interior || cosine < 1e-9, "interior foot with bad cosine");
     }
     // Compose the cylinder residual of the FIT and hull-bound it.
-    let coords = fit.curve.ring_coords();
-    let data = CurveRingData::new(fit.curve.knots(), fit.curve.weights(), &coords).unwrap();
+    let coords = fit.curve.certified_coords();
+    let data = CurveCertData::new(fit.curve.knots(), fit.curve.weights(), &coords).unwrap();
     let cyl = ImplicitSurface::Cylinder {
         point: [0.0, 0.0, 0.0],
         axis: [0.0, 0.0, 1.0],
@@ -934,8 +936,8 @@ fn f9_e2e_cylinder_fit_project_certify_decide() {
     let rn = radial.norm();
     control[idx] = control[idx] + radial * (0.05 / rn);
     let corrupted = NurbsCurve3::new(kv.clone(), control, fit.curve.weights().to_vec()).unwrap();
-    let coords_c = corrupted.ring_coords();
-    let data_c = CurveRingData::new(corrupted.knots(), corrupted.weights(), &coords_c).unwrap();
+    let coords_c = corrupted.certified_coords();
+    let data_c = CurveCertData::new(corrupted.knots(), corrupted.weights(), &coords_c).unwrap();
     let hull_c = compose::implicit_composite(&data_c, &cyl)
         .unwrap()
         .sup_bound();

@@ -49,8 +49,3 @@ cargo clean >/dev/null 2>&1
 t "2b. clean cargo build --release --all-targets"       cargo build --release --workspace --all-targets
 
 echo
-echo "### the SECOND feature lane: --features interval (separate resolution)"
-cargo clean >/dev/null 2>&1
-t "6a. clean build --all-targets, default features"     cargo build --workspace --all-targets
-t "6b. THEN build --all-targets --features interval"    cargo build --workspace --all-targets --features interval
-t "6c. THEN build --all-targets, default (back-swap)"   cargo build --workspace --all-targets

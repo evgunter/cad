@@ -33,10 +33,15 @@ use crate::node::RecipeNodeId;
 /// 2. An honest in-band escalation: [`Self::Escalated`].
 /// 3. An ambient tolerance no discriminator can be built from:
 ///    [`Self::Band`], whose own doc draws the line the two below
-///    stand on — *nothing about the result body is wrong here*.
+///    stand on — *nothing about the result body is wrong here* — and
+///    [`Self::NarrowBand`], a band too narrow for one rule that needs
+///    more than it.
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
-///    [`Self::SharedRim`], [`Self::MergedChord`] and
-///    [`Self::MergedChordOffRim`], reached from recipes nothing is wrong with,
+///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
+///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
+///    [`Self::SeamLineSides`], [`Self::MemberEdgeTied`] and
+///    [`Self::SplitReference`], reached from
+///    recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
@@ -46,8 +51,8 @@ use crate::node::RecipeNodeId;
 /// Two framings are written once each — [`EMISSION_FRAMING`] and
 /// [`UNRULED_FRAMING`] — and each opens every refusal of its category:
 /// every category-1 variant opens with the emission framing, every
-/// category-4 variant with the missing-rule one. Categories 2 and 3
-/// each have one variant and a sentence of their own, and borrow
+/// category-4 variant with the missing-rule one. Category 2 has one
+/// variant and category 3 two, each with a sentence of its own, and borrow
 /// neither framing. So a reader tells a kernel bug from a MISSING RULE
 /// from everything else by the clause a refusal opens with: the first
 /// clause of this type's `Display`, which the node-level refusal
@@ -104,21 +109,14 @@ pub enum NamingError {
     /// [`Self::Emission`], carrying the one thing the repair needs
     /// that a sentence cannot supply: WHICH edge.
     ///
-    /// **Raised from two chases, one guarded and one not, and the
-    /// dividing line is WRITER ACCESS.** `emit_topo`'s `chase_b` is
-    /// guarded (`a_cycling_graft_map_refuses_in_the_b_lane`): it hops
-    /// through a graft map the CALLER supplies between provenance
-    /// reads, so a loop closes from outside `topo`.
-    /// `chase_edge_to_table` is not, because it advances only on
-    /// `Body::edge_provenance`, which is `pub(crate)` to `topo` and is
-    /// written by one door — `Body::split_edge`, recording the parent
-    /// on a child it has just minted, so a chain is strictly
-    /// decreasing in age and no caller can close it. That a cycling
-    /// lineage exists at all is real: `topo::props`' carrier-identity
-    /// fold documents it as what a graft aliases, and
-    /// `work/bool/graft-copies-provenance-keys-verbatim.md` records
-    /// `Body::split_root`'s cycle arm firing on real assembly
-    /// products — `topo`-internally, where this crate has no door.
+    /// **Unguardable from this crate, and the reason is WRITER
+    /// ACCESS.** A lineage chase advances only on
+    /// `Body::edge_provenance`, which is `pub(crate)` to `topo`: `Body::split_edge` records the parent on
+    /// a child it has just minted, so a chain is strictly decreasing in
+    /// age in the arena that wrote it; a graft forwards it injectively
+    /// (each source key to its own result key, live or dead on
+    /// arrival), which maps an acyclic chain to an acyclic one. No
+    /// caller can close it.
     SplitLineage(SplitLineageCycle),
     /// A face's FRAGMENT lineage cycles, caught where an emitter
     /// chased it to its root through a split's or a boolean's
@@ -162,6 +160,24 @@ pub enum NamingError {
     SeamVertexParentage {
         /// The result-body vertex whose parentage is not determined.
         vertex: VertexKey,
+    },
+    /// A seam vertex whose boolean contact records pair it with SEVERAL
+    /// differently named vertices of the other operand.
+    ///
+    /// The seam-vertex pass names a vertex with no seam structure of its
+    /// own by its contact-record partner. One partner — or several rows
+    /// naming the same one — decides it. Several distinct partners do
+    /// not, and no rule chooses among them, so the pass refuses rather
+    /// than take whichever row the reduction happened to write first.
+    /// A sibling word of [`Self::SeamVertexParentage`]: the same vertex
+    /// pass, a different structure to read (the contact rows, not the
+    /// incident edge roles).
+    SeamVertexPartners {
+        /// The result-body vertex.
+        vertex: VertexKey,
+        /// The distinct upstream names the contact rows pair it with,
+        /// in name order.
+        candidates: Vec<StableName>,
     },
     /// Two faces a boolean's seam-chord derivation believes meet along
     /// ONE edge of an operand body do not.
@@ -243,6 +259,86 @@ pub enum NamingError {
         /// The rim the read-through offered, in that operand's body.
         rim: EdgeKey,
     },
+    /// A boolean's chord from a MERGED face that holds SEVERAL
+    /// constituents on the side the chord reads through to — the third
+    /// case the merged-chord rules do not cover, a sibling word because
+    /// its subject is the merged face's constituents, not a rim.
+    ///
+    /// A chord between a merged face and an unmerged one is read
+    /// through to the merged face's one constituent on the other side.
+    /// A declared union can merge several faces of ONE operand into one
+    /// face — two members of an assembly glued across a declared wall,
+    /// say — and then nothing says which of them the chord lies on. The
+    /// body is sound; what is missing is a rule that picks the
+    /// constituent (a geometric one, as `chord_on_rim` is for a rim).
+    MergedChordConstituents {
+        /// The result-body edge.
+        edge: EdgeKey,
+        /// The merged face, a result-body key.
+        face: FaceKey,
+        /// How many distinct constituents it holds on that side.
+        several: usize,
+    },
+    /// A chain along a seam line whose direction cannot be read: the
+    /// two faces of the seam edge, as `node`'s table names them, do not
+    /// settle which of them is the `a` side of the pair the edge's name
+    /// records.
+    ///
+    /// A ranker that knows a seam only by its name orients it by that
+    /// pair's `n_a × n_b`, finding the pair's faces BY NAME through the
+    /// pass-through wrappers (`names::seam_pair`). Two causes leave the
+    /// sides unsettled:
+    /// - neither assignment fits: a face renamed by a node the wrapper
+    ///   list does not see through descends from neither side;
+    /// - both fit: each face is a merged face with constituents from
+    ///   both sides.
+    ///
+    /// A pair whose two sides carry the same NAME (two placements of one
+    /// prototype) is not this: it names no side, and its pieces rank
+    /// along their own carrier. The body is sound and the recipe legal;
+    /// what is missing is a rule, which is why this is not an
+    /// [`Self::Emission`].
+    SeamLineSides {
+        /// The node whose body holds `edge` — the boolean's own result
+        /// or one of its operands.
+        node: RecipeNodeId,
+        /// The seam edge, a key in that node's body.
+        edge: EdgeKey,
+    },
+    /// A union's member edge whose pieces cannot be ranked along it,
+    /// because a tie stands where one edge is needed: the member's own
+    /// table ties the edge's name to several edges, or the fold tied
+    /// two of its pieces under one name.
+    ///
+    /// The union ranks the pieces of each member edge against the cut
+    /// points of that ONE edge in the finished body (`emit_union`'s
+    /// member-edge ranker); a tie offers several edges or several
+    /// pieces and no rule picks one. Nothing about the result body is
+    /// wrong, so this is a missing rule and not an [`Self::Emission`].
+    MemberEdgeTied {
+        /// The member whose edge it is.
+        member: RecipeNodeId,
+        /// The edge, as the member's own table names it.
+        edge: Box<StableName>,
+    },
+    /// A group ranked along a seam line's `n_a × n_b`, where a side has
+    /// no one oriented plane: its carrier is curved, or a tie leaves it
+    /// as several faces on different carriers.
+    ///
+    /// The recipe is legal and the body sound; the naming has no rule
+    /// for a curved reference or for choosing among tied ones, so this
+    /// is a missing rule and not an [`Self::Emission`].
+    SplitReference {
+        /// The group being ranked along the seam line: the seam's
+        /// pieces, or the pieces or crossings of an edge that lies on it.
+        group: Box<StableName>,
+        /// The side without a plane, by the name the seam records it
+        /// under.
+        reference: Box<StableName>,
+        /// Whether the reference's carrier is curved; otherwise a tie
+        /// leaves it on several carriers.
+        curved: bool,
+    },
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -257,6 +353,22 @@ pub enum NamingError {
     /// relabelled as an emission inconsistency, which this is not:
     /// nothing about the result body is wrong here.
     Band(BandError),
+    /// The classification band is too narrow for a union to count a
+    /// member edge's cells: its escalation threshold is under twice its
+    /// coincidence threshold (the ambiguity K is below 2).
+    ///
+    /// The cell count joins the vertices on a member edge into places by
+    /// chains of coincident (`Zero`) gaps. Two gaps within the
+    /// coincidence threshold sum to at most twice it, which a band with
+    /// K ≥ 2 never decides as a definite separation, so a place is never
+    /// both one point and two. Below 2 it could be, and the count would
+    /// be a guess. Nothing about the result body is wrong here.
+    NarrowBand {
+        /// The band's coincidence threshold.
+        zero: f64,
+        /// Its escalation threshold.
+        escalate: f64,
+    },
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
     Escalated {
@@ -323,6 +435,22 @@ impl core::fmt::Display for RimShare {
 // op variants unaltered (`NodeErrorKind`'s Display note, D2), this is
 // editor-core's OWN error: rendering it IS the op's vocabulary, and
 // there is no other path by which it reaches a human.
+impl NamingError {
+    /// [`Self::SplitReference`]: the one spelling every seam ranker
+    /// refuses with.
+    pub(crate) fn split_reference(
+        group: &StableName,
+        reference: &StableName,
+        curved: bool,
+    ) -> Self {
+        Self::SplitReference {
+            group: Box::new(group.clone()),
+            reference: Box::new(reference.clone()),
+            curved,
+        }
+    }
+}
+
 impl core::fmt::Display for NamingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -384,10 +512,39 @@ impl core::fmt::Display for NamingError {
                  exactly one",
                 node.0
             ),
+            Self::SeamVertexPartners { vertex, candidates } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} coincides, in the boolean's contact \
+                 records, with {} differently named vertices of the other operand ({}), and \
+                 no rule chooses which one names it",
+                candidates.len(),
+                candidates
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ),
             Self::MergedChord { edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces and is \
                  the join's own edge, so neither face nor key says which operand's rim it is"
+            ),
+            Self::MergedChordConstituents {
+                edge,
+                face,
+                several,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam chord {edge:?} borders merged face {face:?}, which \
+                 holds {several} faces of the operand the chord reads through to, and no rule \
+                 picks the one it lies on"
+            ),
+            Self::SeamLineSides { node, edge } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam edge {edge:?} of node {}'s body has faces whose names do \
+                 not settle which is each side of its recorded pair (neither face descends from \
+                 a side, or both faces descend from both), so no direction orders a chain along it",
+                node.0
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
@@ -396,15 +553,45 @@ impl core::fmt::Display for NamingError {
                  through to",
                 node.0
             ),
+            Self::MemberEdgeTied { member, edge } => write!(
+                f,
+                "{UNRULED_FRAMING}: the pieces of member node {}'s edge (the {edge}) cannot be \
+                 ranked along it, because a tie stands where one edge is needed (the member ties \
+                 that name to several edges, or two of its pieces were tied)",
+                member.0
+            ),
+            Self::SplitReference {
+                group,
+                reference,
+                curved,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: the pieces of the {group} cannot be told apart against the \
+                 plane of the {reference}, {}",
+                if *curved {
+                    "whose carrier is not a plane"
+                } else {
+                    "which a tie leaves as several faces on different carriers"
+                }
+            ),
             Self::Band(error) => write!(
                 f,
                 "the naming band could not be built from the ambient tolerance, so no \
                  name can be decided: {error}"
             ),
-            Self::Escalated { predicate, source } => write!(
+            Self::NarrowBand { zero, escalate } => write!(
                 f,
-                "the discriminator {predicate} escalated (in-band indeterminacy): {source}"
+                "the naming band is too narrow to count a member edge's cells: its escalation \
+                 threshold {escalate} is under twice its coincidence threshold {zero} (an \
+                 ambiguity K below 2), so two coincidences in a row could be decided apart"
             ),
+            Self::Escalated { predicate, source } => {
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+                write!(
+                    f,
+                    "no name can be decided because {what} is too close to call: {source}"
+                )
+            }
         }
     }
 }
@@ -460,9 +647,21 @@ pub(crate) fn empty() -> Arc<NameTable> {
 /// placers and `Node::Part`, the emitters, the mate walk's `Part`
 /// agreement) and not a number silently narrowed.
 pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
-    u32::try_from(index).map_err(|_| NamingError::Emission {
-        what: "an output-body index exceeds the table's u32 row width",
-    })
+    to_u32(
+        index,
+        "an output-body index exceeds the table's u32 row width",
+    )
+}
+
+/// **A count or index, narrowed to the `u32` the name vocabulary and
+/// the table store**, or [`NamingError::Emission`] with `what` when it
+/// does not fit. The one spelling of that narrowing in `names/`: a
+/// saturating or truncating cast would hand two different values one
+/// stored number, so a name or row would silently alias another. No
+/// body this crate can hold reaches the bound, so meeting it is a
+/// kernel bug, reported loudly.
+pub(crate) fn to_u32(n: usize, what: &'static str) -> Result<u32, NamingError> {
+    u32::try_from(n).map_err(|_| NamingError::Emission { what })
 }
 
 /// **The placement-major layout**, the one home of its arithmetic:
@@ -622,10 +821,14 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                 .into_iter()
                 .filter_map(|e| mapped(e.key).map(|key| ent(0, key)))
                 .collect();
-            match moved.len() {
-                0 => {}
-                1 => t.insert(wrapped, moved[0])?,
-                _ => t.insert_tied(wrapped, moved)?,
+            // Empty for the prototype's BODY-kind rows: the fused body is
+            // this node's own, named above, so they have nothing to point
+            // at. A consumed candidate does not empty a row here — a placed
+            // union is gated to disjoint placements, where each instance's
+            // `GraftKeys` is total — so a tied row keeps every candidate
+            // and narrows through the one door.
+            if !moved.is_empty() {
+                super::defer::mint_into(&mut t, super::role::NameRef::new(wrapped), moved)?;
             }
         }
     }
@@ -799,7 +1002,24 @@ pub(crate) fn rim_between<T: geom_core::Real>(
     f: FaceKey,
     g: FaceKey,
 ) -> Result<Rim, NamingError> {
-    let mut found: Option<EdgeKey> = None;
+    Ok(match rims_between(body, f, g)?.as_slice() {
+        [] => Rim::NotOne(RimShare::NotAdjacent),
+        [e] => Rim::One(*e),
+        _ => Rim::NotOne(RimShare::Several),
+    })
+}
+
+/// EVERY edge face `f` and face `g` share, each once, in `f`'s
+/// half-edge order — the walk [`rim_between`] classifies, for a caller
+/// whose premise lets it choose among several by something else (the
+/// boolean pass's chord, [`crate::names::emit_topo`]). Structural
+/// corruption refuses exactly as [`rim_between`] documents.
+pub(crate) fn rims_between<T: geom_core::Real>(
+    body: &Body<T>,
+    f: FaceKey,
+    g: FaceKey,
+) -> Result<Vec<EdgeKey>, NamingError> {
+    let mut found: Vec<EdgeKey> = Vec::new();
     for he in face_half_edges(body, f)? {
         let mate = body.mate(he).ok_or(UNMATED)?;
         let mate_he = body.get_half_edge(mate).ok_or(DANGLING_MATE)?;
@@ -807,18 +1027,25 @@ pub(crate) fn rim_between<T: geom_core::Real>(
             .get_loop(mate_he.parent_loop)
             .ok_or(DANGLING_LOOP)?
             .face;
-        if other == g {
-            let edge = mate_he.edge;
-            if found.is_some_and(|e| e != edge) {
-                return Ok(Rim::NotOne(RimShare::Several));
-            }
-            found = Some(edge);
+        if other == g && !found.contains(&mate_he.edge) {
+            found.push(mate_he.edge);
         }
     }
-    Ok(match found {
-        Some(e) => Rim::One(e),
-        None => Rim::NotOne(RimShare::NotAdjacent),
-    })
+    Ok(found)
+}
+
+/// A vertex's point in `body` — the one reader of it in this module's
+/// emitters.
+pub(crate) fn vertex_point<T: geom_core::Real>(
+    body: &Body<T>,
+    v: VertexKey,
+) -> Result<geom_core::Point3<T>, NamingError> {
+    body.get_vertex(v)
+        .and_then(|vd| body.get_point(vd.point))
+        .copied()
+        .ok_or(NamingError::Emission {
+            what: "a vertex without a point",
+        })
 }
 
 /// All half-edges of a face (outer loop + rings), deterministic
@@ -938,7 +1165,14 @@ mod pattern_tests {
             .unwrap();
         let built =
             sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
-        let table = name_extrude(node, &built).unwrap();
+        let table = name_extrude(
+            node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
         (built.body, table)
     }
 
@@ -1225,9 +1459,10 @@ mod display_tests {
 
     fn escalation() -> Indeterminate {
         Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             band: Band::new(1e-9, 1e-6).unwrap(),
             predicate: Some("side_of_plane"),
+            terminal_sliver: false,
         }
     }
 
@@ -1241,7 +1476,7 @@ mod display_tests {
         let mut body = topo::Body::<f64>::new();
         let mut mint = |x: f64| {
             let born = body
-                .mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex");
             body.mev_line(
                 topo::MevSite::Lone {
@@ -1265,7 +1500,7 @@ mod display_tests {
     fn two_faces() -> (FaceKey, FaceKey) {
         let mut body = topo::Body::<f64>::new();
         let mut mint = |x: f64| {
-            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex")
                 .face
         };
@@ -1278,7 +1513,7 @@ mod display_tests {
     fn two_vertices() -> (VertexKey, VertexKey) {
         let mut body = topo::Body::<f64>::new();
         let mut mint = |x: f64| {
-            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex")
                 .vertex
         };
@@ -1413,6 +1648,19 @@ mod display_tests {
         // renders a constant where its subject belongs fails here.
         let vtx = two_vertices().0;
         let vtx_shown = format!("{vtx:?}");
+        // Two DIFFERENTLY named partners, as the refusal's premise has
+        // them: the same cap vertex of two different operands' sweeps.
+        let partner = |node| StableName {
+            kind: EntityKind::Vertex,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::CapVertex(
+                super::super::role::CapEnd::End,
+                super::super::role::ProfileVertexRef::Piece {
+                    step: crate::node::StepId(0),
+                    role: crate::names::PieceRole::Leg,
+                },
+            )],
+        };
         let pair = two_faces();
         assert_ne!(
             pair.0, pair.1,
@@ -1451,10 +1699,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: "side_of_plane",
+                    predicate: crate::names::discriminate::ORDER_ALONG,
                     source: escalation(),
                 },
-                vec!["side_of_plane"],
+                vec!["the order of two pieces along an edge"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {
@@ -1484,6 +1732,18 @@ mod display_tests {
                 vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
             ),
             (
+                NamingError::SeamVertexPartners {
+                    vertex: vtx,
+                    candidates: vec![partner(3), partner(4)],
+                },
+                vec![
+                    vtx_shown.as_str(),
+                    "2 differently named vertices",
+                    "vertex name minted by node 3",
+                    "vertex name minted by node 4",
+                ],
+            ),
+            (
                 NamingError::MergedChord {
                     edge: two_edges().0,
                 },
@@ -1498,6 +1758,41 @@ mod display_tests {
                 vec!["merged faces", "29", "does not lie within"],
             ),
             (
+                NamingError::SeamLineSides {
+                    node: RecipeNodeId(31),
+                    edge: two_edges().0,
+                },
+                vec!["31", "each side of its recorded pair"],
+            ),
+            (
+                NamingError::MergedChordConstituents {
+                    edge: two_edges().0,
+                    face: FaceKey::default(),
+                    several: 2,
+                },
+                vec!["merged face", "holds 2 faces", "no rule picks"],
+            ),
+            (
+                NamingError::MemberEdgeTied {
+                    member: RecipeNodeId(37),
+                    edge: Box::new(StableName {
+                        kind: EntityKind::Edge,
+                        node: RecipeNodeId(37),
+                        path: vec![RoleSeg::LateralEdge(
+                            super::super::role::ProfileVertexRef::Piece {
+                                step: crate::node::StepId(2),
+                                role: crate::names::PieceRole::Leg,
+                            },
+                        )],
+                    }),
+                },
+                vec![
+                    "member node 37",
+                    "edge name minted by node 37",
+                    "a tie stands",
+                ],
+            ),
+            (
                 // The band's subject is the pair of thresholds that
                 // could not separate: which end of the axis the ambient
                 // tolerance landed on is what tells the reader whether
@@ -1507,6 +1802,33 @@ mod display_tests {
                     escalate: 5e-324,
                 }),
                 vec!["5e-324"],
+            ),
+            (
+                NamingError::NarrowBand {
+                    zero: 1e-9,
+                    escalate: 1.5e-9,
+                },
+                vec!["0.0000000015", "0.000000001", "below 2"],
+            ),
+            (
+                NamingError::SplitReference {
+                    group: Box::new(StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(41),
+                        path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
+                    }),
+                    reference: Box::new(StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(43),
+                        path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
+                    }),
+                    curved: true,
+                },
+                vec![
+                    "face name minted by node 41",
+                    "face name minted by node 43",
+                    "not a plane",
+                ],
             ),
         ];
         // **The one place a variant's CATEGORY is written down**, and
@@ -1531,10 +1853,17 @@ mod display_tests {
                 | NamingError::SplitLineage(_)
                 | NamingError::FragmentLineage { .. } => Some(EMISSION_FRAMING),
                 NamingError::SeamVertexParentage { .. }
+                | NamingError::SeamVertexPartners { .. }
                 | NamingError::SharedRim { .. }
                 | NamingError::MergedChord { .. }
-                | NamingError::MergedChordOffRim { .. } => Some(UNRULED_FRAMING),
-                NamingError::Band(_) | NamingError::Escalated { .. } => None,
+                | NamingError::MergedChordOffRim { .. }
+                | NamingError::MergedChordConstituents { .. }
+                | NamingError::SeamLineSides { .. }
+                | NamingError::MemberEdgeTied { .. }
+                | NamingError::SplitReference { .. } => Some(UNRULED_FRAMING),
+                NamingError::Band(_)
+                | NamingError::NarrowBand { .. }
+                | NamingError::Escalated { .. } => None,
             }
         };
         let sampled = |err: &NamingError| -> usize {
@@ -1548,9 +1877,15 @@ mod display_tests {
                 NamingError::FragmentLineage { .. } => 6,
                 NamingError::SeamVertexParentage { .. } => 7,
                 NamingError::SharedRim { .. } => 8,
-                NamingError::MergedChord { .. } => 9,
-                NamingError::MergedChordOffRim { .. } => 10,
-                NamingError::Band(_) => 11,
+                NamingError::SeamVertexPartners { .. } => 9,
+                NamingError::MergedChord { .. } => 10,
+                NamingError::MergedChordOffRim { .. } => 11,
+                NamingError::Band(_) => 12,
+                NamingError::SeamLineSides { .. } => 13,
+                NamingError::MemberEdgeTied { .. } => 14,
+                NamingError::NarrowBand { .. } => 15,
+                NamingError::MergedChordConstituents { .. } => 16,
+                NamingError::SplitReference { .. } => 17,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
@@ -1918,6 +2253,35 @@ mod walk_tests {
         assert_eq!(
             walk(&r.without(EntityId::HalfEdge(next))),
             "edge ends: he_plus has no end"
+        );
+    }
+}
+
+#[cfg(test)]
+mod to_u32_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{NamingError, to_u32};
+
+    /// The last value a `u32` holds narrows exactly; the first one past
+    /// it is refused with the caller's own sentence, never saturated
+    /// onto `u32::MAX` where it would share that value's name.
+    #[test]
+    fn narrows_to_the_bound_and_refuses_past_it() {
+        let max = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
+        assert_eq!(to_u32(max, "unused").ok(), Some(u32::MAX));
+        assert_eq!(to_u32(0, "unused").ok(), Some(0));
+        let Some(past) = max.checked_add(1) else {
+            return; // a 32-bit usize holds no value past the bound
+        };
+        assert!(
+            matches!(
+                to_u32(past, "the caller's sentence"),
+                Err(NamingError::Emission {
+                    what: "the caller's sentence"
+                })
+            ),
+            "one past u32::MAX is refused, not saturated"
         );
     }
 }

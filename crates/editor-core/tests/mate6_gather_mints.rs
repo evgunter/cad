@@ -56,26 +56,30 @@ fn block(
     )
 }
 
-fn cube_part(label: &str) -> ProfileDoc {
-    let (doc, _) = block(
+fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    block(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
         1.0,
-    );
-    doc
+    )
 }
 
 /// The same reading, one level deeper: `instance`'s part is ITSELF an
 /// assembly, and the face wanted is the cap of the cube inside the
-/// sub-instance `sub` of that assembly.
-fn in_part_in_part(instance: RecipeNodeId, sub: RecipeNodeId, cap: CapEnd) -> StableName {
+/// sub-instance `sub` of that assembly, `body` the cube part's body.
+fn in_part_in_part(
+    instance: RecipeNodeId,
+    sub: RecipeNodeId,
+    body: RecipeNodeId,
+    cap: CapEnd,
+) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: in_part(sub, cap).into(),
+            of: in_part(sub, body, cap).into(),
         }],
     }
 }
@@ -114,7 +118,7 @@ fn classed_mate(
     }
 }
 
-/// A reference that resolves to NO product face: the part's node 1 has
+/// A reference that resolves to NO product face: the part's body has
 /// caps, but node 99 does not exist in it at all. The mate is still a
 /// LIVE value — the reference is resolved at the mint door, not the
 /// solve one — so it reaches [`mint`](editor_core::assemble) and is
@@ -137,10 +141,16 @@ fn dangling(instance: RecipeNodeId) -> StableName {
 /// **Issue 946's inner document**: a stand whose validity DEPENDS on
 /// its mate — two cubes seated one on the other, the contact declared
 /// by the mate and by nothing else. Its own `assemble` is green at
-/// `seat = 1.0`; at a larger seat the declaration is false.
+/// `seat = 1.0`; at a larger seat the declaration is false. `body` is
+/// `part`'s body.
 ///
 /// Returns the document, its two instance ids, and its mate's id.
-fn stand(label: &str, part: DocRef, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
+fn stand(
+    label: &str,
+    part: DocRef,
+    body: RecipeNodeId,
+    seat: f64,
+) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..2 {
@@ -152,8 +162,8 @@ fn stand(label: &str, part: DocRef, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[0], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 seat,
             ),
         },
@@ -219,8 +229,8 @@ fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<S
 #[test]
 fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-cube"), Tol::witness());
-    let (inner, _, _) = stand("mate6-stand", part, 1.0);
+    let (part, body) = store.insert_part(cube_part("mate6-cube"), Tol::witness());
+    let (inner, _, _) = stand("mate6-stand", part, body, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, ids) = row_of("mate6-row", inner_ref, 3, 4.0);
 
@@ -259,8 +269,8 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
 #[test]
 fn the_carry_survives_a_second_nesting_level() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-deep-cube"), Tol::witness());
-    let (inner, _, _) = stand("mate6-deep-stand", part, 1.0);
+    let (part, body) = store.insert_part(cube_part("mate6-deep-cube"), Tol::witness());
+    let (inner, _, _) = stand("mate6-deep-stand", part, body, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     // The MID document is a pair of stands, side by side and disjoint.
     let (mid, _) = row_of("mate6-deep-mid", inner_ref, 2, 4.0);
@@ -308,8 +318,8 @@ fn the_carry_survives_a_second_nesting_level() {
 #[test]
 fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-gap-cube"), Tol::witness());
-    let (inner, _, inner_mate) = stand("mate6-gap-stand", part, 1.5);
+    let (part, body) = store.insert_part(cube_part("mate6-gap-cube"), Tol::witness());
+    let (inner, _, inner_mate) = stand("mate6-gap-stand", part, body, 1.5);
     let inner_id = inner.id();
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, instances) = row_of("mate6-gap-row", inner_ref, 1, 4.0);
@@ -369,8 +379,8 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
 #[test]
 fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-outer-cube"), Tol::witness());
-    let (inner, subs, _) = stand("mate6-outer-stand", part, 1.0);
+    let (part, body) = store.insert_part(cube_part("mate6-outer-cube"), Tol::witness());
+    let (inner, subs, _) = stand("mate6-outer-stand", part, body, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
 
     // Two stands, and an OUTER mate seating the second stand's lower
@@ -387,8 +397,8 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part_in_part(ids[0], subs[1], CapEnd::End),
-                in_part_in_part(ids[1], subs[0], CapEnd::Start),
+                in_part_in_part(ids[0], subs[1], body, CapEnd::End),
+                in_part_in_part(ids[1], subs[0], body, CapEnd::Start),
                 2.5,
             ),
         },
@@ -424,8 +434,8 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
 #[test]
 fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-once-cube"), Tol::witness());
-    let (doc, _, mate) = stand("mate6-once-stand", part, 1.0);
+    let (part, body) = store.insert_part(cube_part("mate6-once-cube"), Tol::witness());
+    let (doc, _, mate) = stand("mate6-once-stand", part, body, 1.0);
 
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
@@ -455,7 +465,7 @@ fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
 #[test]
 fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-bare-cube"), Tol::witness());
+    let (part, _) = store.insert_part(cube_part("mate6-bare-cube"), Tol::witness());
     let (doc, _) = row_of("mate6-bare-row", part, 3, 4.0);
 
     let ev = run(&doc, &with_resolver(store));
@@ -481,14 +491,14 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
 #[test]
 fn mint_makes_distinct_face_patches_and_no_curve_records() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-shape-cube"), Tol::witness());
+    let (part, body) = store.insert_part(cube_part("mate6-shape-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-shape-row", part, 3, 4.0);
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[0], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 1.0,
             ),
         },
@@ -497,8 +507,8 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::End),
-                in_part(ids[2], CapEnd::Start),
+                in_part(ids[1], body, CapEnd::End),
+                in_part(ids[2], body, CapEnd::Start),
                 1.0,
             ),
         },
@@ -532,11 +542,11 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
 #[test]
 fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-tangent-cube"), Tol::witness());
-    let (doc, ids, _) = stand("mate6-tangent-stand", part, 1.0);
+    let (part, body) = store.insert_part(cube_part("mate6-tangent-cube"), Tol::witness());
+    let (doc, ids, _) = stand("mate6-tangent-stand", part, body, 1.0);
     let mut node = rest_mate(
-        in_part(ids[0], CapEnd::End),
-        in_part(ids[1], CapEnd::Start),
+        in_part(ids[0], body, CapEnd::End),
+        in_part(ids[1], body, CapEnd::Start),
         1.0,
     );
     if let Node::Mate { class, .. } = &mut node {
@@ -593,12 +603,12 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
 #[test]
 fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-tot-ref-cube"), Tol::witness());
+    let (part, body) = store.insert_part(cube_part("mate6-tot-ref-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-tot-ref-row", part, 3, 4.0);
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[0]), in_part(ids[1], CapEnd::Start), 1.0),
+            node: rest_mate(dangling(ids[0]), in_part(ids[1], body, CapEnd::Start), 1.0),
         },
     );
     let bad = bad.expect("the dangling mate is still a node");
@@ -606,8 +616,8 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::End),
-                in_part(ids[2], CapEnd::Start),
+                in_part(ids[1], body, CapEnd::End),
+                in_part(ids[2], body, CapEnd::Start),
                 1.0,
             ),
         },
@@ -648,7 +658,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
 #[test]
 fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-tot-class-cube"), Tol::witness());
+    let (part, body) = store.insert_part(cube_part("mate6-tot-class-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-tot-class-row", part, 3, 4.0);
     // Non-touching (seat 1.5) so the Tangent declares without seating
     // anything: this row is about the mint walk, not about geometry.
@@ -656,8 +666,8 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
         doc,
         DocEdit::InsertNode {
             node: classed_mate(
-                in_part(ids[0], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
             ),
@@ -668,8 +678,8 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::End),
-                in_part(ids[2], CapEnd::Start),
+                in_part(ids[1], body, CapEnd::End),
+                in_part(ids[2], body, CapEnd::Start),
                 1.0,
             ),
         },
@@ -710,14 +720,14 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
 #[test]
 fn every_unmintable_mate_gets_its_row_in_document_order() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("mate6-tot-order-cube"), Tol::witness());
+    let (part, body) = store.insert_part(cube_part("mate6-tot-order-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-tot-order-row", part, 3, 4.0);
     let (doc, first_bad) = step(
         doc,
         DocEdit::InsertNode {
             node: classed_mate(
-                in_part(ids[0], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
             ),
@@ -728,8 +738,8 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::End),
-                in_part(ids[2], CapEnd::Start),
+                in_part(ids[1], body, CapEnd::End),
+                in_part(ids[2], body, CapEnd::Start),
                 1.0,
             ),
         },
@@ -738,7 +748,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     let (doc, second_bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[2]), in_part(ids[0], CapEnd::Start), 1.0),
+            node: rest_mate(dangling(ids[2]), in_part(ids[0], body, CapEnd::Start), 1.0),
         },
     );
     let second_bad = second_bad.expect("the dangling mate is a node");

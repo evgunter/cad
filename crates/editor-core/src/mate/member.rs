@@ -17,12 +17,12 @@
 use geom_core::linalg::{Affine3, Point3};
 use geom_core::predicate::Band;
 
-use super::{MateFault, MateSide};
+use super::{MateFault, MateSide, PlacerRow};
 use crate::doc::Doc;
 use crate::eval::slots::{SlotValues, eval_slots};
 use crate::eval::{NodeErrorKind, NodeRefusal, Seated, SteppedOperands, need_scalar, need_vec3};
 use crate::expr::ParamEnv;
-use crate::names::RoleSeg;
+use crate::names::{RoleSeg, VerbatimEdge};
 use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 
 /// **The member a mate reference resolves to** (A11's member
@@ -173,24 +173,25 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
     let mut part: Option<RecipeNodeId> = None;
     loop {
         if at != name.node {
-            // Not the head yet: only a node that places or projects
-            // this body without renaming it may stand between an
-            // operand and the material it speaks about. A transform
-            // moves the body and contributes no `RolePath` segment; a
-            // `Part` selecting an instance moves nothing at all and
-            // carries every name VERBATIM. Anything else — a boolean,
-            // a union, a split, a `Part` naming a split HALF — is a
+            // Not the head yet: only a name-carrying edge
+            // ([`crate::names::verbatim_edge`]) that places or projects
+            // this body may stand between an operand and the material
+            // it speaks about. A whole edge moves the body and
+            // contributes no `RolePath` segment; a `Part` selecting an
+            // instance moves nothing at all and carries every name
+            // VERBATIM. Anything else — a boolean, a union, a split's
+            // intact pass-through, a `Part` naming a split HALF — is a
             // different body, not this one placed.
-            match doc.node(at) {
-                // A transform is shape-preserving over the value —
+            match doc.node(at).and_then(crate::names::verbatim_edge) {
+                // A whole edge is shape-preserving over the value —
                 // body `k` in, body `k` out — so a `Part` above it
                 // still selects body `k` of whatever stands below,
                 // and is carried down to the pattern it checks against.
-                Some(Node::Transform { input, .. }) => {
+                Some(VerbatimEdge::Whole { input }) => {
                     chain.push(Placer::Transform(at));
-                    at = *input;
+                    at = input;
                 }
-                Some(Node::Part {
+                Some(VerbatimEdge::Selected {
                     of,
                     select: PartSelect::Instance(_),
                 }) => {
@@ -201,9 +202,16 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                     // copy; this node is checked against it where the
                     // offset already evaluates ([`derived_offset`]).
                     part = Some(at);
-                    at = *of;
+                    at = of;
                 }
-                _ => return Err(at),
+                Some(
+                    VerbatimEdge::Selected {
+                        select: PartSelect::SplitHalf(_),
+                        ..
+                    }
+                    | VerbatimEdge::Intact,
+                )
+                | None => return Err(at),
             }
             continue;
         }
@@ -373,15 +381,19 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
         n: u32,
         part: Option<RecipeNodeId>,
     }
-    let refused = |node: RecipeNodeId, kind: NodeErrorKind| MateFault::PlacerRefused {
+    // This fault reaches the mate alone, so a placer is never poisoned
+    // by it: `States` where the placer's own evaluation raises the same
+    // refusal, `Silent` where its row would read otherwise.
+    let refused = |node: RecipeNodeId, kind: NodeErrorKind, placer_row| MateFault::PlacerRefused {
         mate,
         side,
         placer: node,
         error: NodeRefusal::from(kind),
+        placer_row,
     };
-    let count_of = |node: RecipeNodeId, expr: &crate::expr::Expr, slot: SlotId| {
+    let count_of = |node: RecipeNodeId, expr: &crate::expr::Expr, slot: SlotId, row| {
         crate::expr::eval_count(expr, env)
-            .map_err(|source| refused(node, NodeErrorKind::Expr { slot, source }))
+            .map_err(|source| refused(node, NodeErrorKind::Expr { slot, source }, row))
     };
     // The copy exists: the name's index against the evaluated count.
     let mut levels: Vec<Level> = Vec::new();
@@ -390,9 +402,13 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
             continue;
         };
         let Some(Node::Pattern { count, .. }) = doc.node(node) else {
-            return Err(refused(node, NodeErrorKind::MissingInput { input: node }));
+            return Err(refused(
+                node,
+                NodeErrorKind::MissingInput { input: node },
+                PlacerRow::Silent,
+            ));
         };
-        let n = count_of(node, count, SlotId::Count)?;
+        let n = count_of(node, count, SlotId::Count, PlacerRow::States)?;
         if i64::from(i) >= n {
             return Err(MateFault::DanglingHead {
                 mate,
@@ -412,6 +428,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
                     NodeErrorKind::Naming(crate::names::NamingError::Emission {
                         what: "a pattern's count exceeds the table's u32 row width",
                     }),
+                    PlacerRow::States,
                 )
             })?;
         levels.push(Level { node, i, n, part });
@@ -431,7 +448,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
                 break;
             }
             flat = crate::names::flat_body_index(flat, below.n, below.i)
-                .map_err(|e| refused(below.node, NodeErrorKind::Naming(e)))?;
+                .map_err(|e| refused(below.node, NodeErrorKind::Naming(e), PlacerRow::Silent))?;
         }
         let Some(Node::Part {
             select: PartSelect::Instance(index),
@@ -441,9 +458,12 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
             return Err(refused(
                 level.node,
                 NodeErrorKind::MissingInput { input: part },
+                PlacerRow::Silent,
             ));
         };
-        let selected = count_of(level.node, index, SlotId::Instance)?;
+        // The `Part`'s index, seated at the pattern, whose own row reads
+        // `Ok`.
+        let selected = count_of(level.node, index, SlotId::Instance, PlacerRow::Silent)?;
         if selected != i64::from(flat) {
             return Err(MateFault::PartSelectsAnotherCopy {
                 mate,
@@ -468,9 +488,9 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 /// - a pattern contributes [`crate::eval::stepped_rule_map`] at the
 ///   named index — THE evaluation's own stepped rule, fed the
 ///   pattern's authored slots evaluated in `env`;
-/// - a transform contributes [`crate::eval::transform_map`] — the
-///   same construction `wire_transform` places the body by, fed the
-///   node's own expressions in `env`.
+/// - a transform contributes its placement's motion — the construction
+///   `wire_transform` places the body by, fed the node's slots
+///   evaluated in `env` through the evaluation's own door.
 ///
 /// A `Part` contributes nothing at all — it selects a body, it does
 /// not move one. Whether it agrees with the name, and whether the
@@ -551,7 +571,7 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
         // ONE wrapping, at the arm's edge: the derivation answers with
         // the node that raised and the kind it raised, and this is
         // where those become the mate vocabulary.
-        let Some(map) = derived.map_err(|refused| refuse(mate, side, *refused))? else {
+        let Some(map) = derived.map_err(|refused| refuse(mate, side, node, *refused))? else {
             continue;
         };
         composed = Some(match composed {
@@ -566,9 +586,16 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
 /// no relabelling: an escalation is the SOLVE's own indeterminacy and
 /// says so, and everything else is carried exactly as the layer that
 /// raised it typed it, under the id of the node that raised it.
+///
+/// `on_chain` is the placer being derived. The fault reaches the
+/// instance under it, so a refusal seated there is one its poisoned row
+/// never states and the fault carries; one seated off the chain (an
+/// axis datum, a transform on the way to it) is its node's own, stated
+/// on that node's row.
 fn refuse(
     mate: RecipeNodeId,
     side: MateSide,
+    on_chain: RecipeNodeId,
     (at, kind): (RecipeNodeId, NodeErrorKind),
 ) -> Box<MateFault> {
     match kind {
@@ -581,6 +608,11 @@ fn refuse(
             side,
             placer: at,
             error: NodeRefusal::from(carried),
+            placer_row: if at == on_chain {
+                PlacerRow::Silent
+            } else {
+                PlacerRow::States
+            },
         }),
     }
 }
@@ -659,9 +691,10 @@ fn pattern_map<P: crate::ProfilePayload>(
     Ok(Some(crate::eval::stepped_rule_map(&ops, i64::from(i))))
 }
 
-/// **The map a transform contributes** — the same construction
-/// `wire_transform` places the body by, fed the node's own
-/// expressions in `env`.
+/// **The map a transform contributes** — its placement's motion, by
+/// the construction `wire_transform` places the body by
+/// (`Placement::motion`), fed the node's slots through the
+/// evaluation's own door ([`node_slots`]).
 ///
 /// # Errors
 ///
@@ -674,20 +707,11 @@ fn transform_map<P: crate::ProfilePayload>(
     band: Band,
 ) -> Result<Affine3<f64>, Seated> {
     let here = |kind| Box::new((node, kind));
-    let Some(transform @ Node::Transform { .. }) = doc.node(node) else {
+    let Some(transform @ Node::Transform { placement, .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
     };
     let vals = node_slots(transform, env).map_err(here)?;
-    Ok(crate::eval::transform_map(
-        need_vec3(&vals, SlotId::Translation).map_err(here)?,
-        crate::eval::unit_direction(
-            need_vec3(&vals, SlotId::RotationAxis).map_err(here)?,
-            crate::eval::TRANSFORM_AXIS_ROLE,
-            band,
-        )
-        .map_err(here)?,
-        need_scalar(&vals, SlotId::RotationAngle).map_err(here)?,
-    ))
+    placement.motion(&vals, band).map_err(here)
 }
 
 /// **The placer's slots, in `env`** — [`eval_slots`], the
@@ -759,9 +783,10 @@ mod tests {
     use super::*;
     use crate::edit::DocEdit;
     use crate::eval::{CancelToken, EvalOptions, NodeResult, evaluate};
-    use crate::expr::{Dimension, Expr};
+    use crate::expr::Expr;
     use crate::ident::DocumentId;
     use crate::program::{LoopProgram, ProfileProgram};
+    use crate::test_support::{ang, len, scl, xy_frame};
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
@@ -775,29 +800,15 @@ mod tests {
     const DANGLING: RecipeNodeId = RecipeNodeId(40);
     const MATE: RecipeNodeId = RecipeNodeId(50);
 
-    fn len(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Length).unwrap()
-    }
-    fn ang(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Angle).unwrap()
-    }
-    fn scl(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Scalar).unwrap()
-    }
     fn xf(input: RecipeNodeId) -> Node<ProfileProgram> {
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        }
-    }
-    fn frame_datum() -> Node<ProfileProgram> {
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        })
+            crate::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        )
     }
     fn axis_datum_node() -> Node<ProfileProgram> {
         Node::Datum(Datum::Axis {
@@ -833,7 +844,7 @@ mod tests {
             (a.doc, a.record.minted.unwrap())
         };
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (doc, plane) = ins(doc, frame_datum());
+        let (doc, plane) = ins(doc, xy_frame());
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
@@ -841,6 +852,7 @@ mod tests {
                 loops: vec![
                     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap(),
                 ],
+                ids: Vec::new(),
             }),
         );
         let (mut doc, body) = ins(
@@ -863,7 +875,7 @@ mod tests {
             doc.order.push(id);
         };
         push(AXIS, axis_datum_node());
-        push(FRAME2, frame_datum());
+        push(FRAME2, xy_frame());
         push(T1, xf(id(t1_in)));
         push(T2, xf(T1));
         push(
@@ -910,8 +922,18 @@ mod tests {
                 side,
                 placer,
                 error,
+                placer_row,
             } => {
                 assert_eq!((mate, side), (MATE, MateSide::A));
+                // The pattern is the chain's placer, poisoned through the
+                // instance the fault reaches; any other seat is off the
+                // chain and states the refusal on its own row.
+                let silent = if placer == PATTERN {
+                    PlacerRow::Silent
+                } else {
+                    PlacerRow::States
+                };
+                assert_eq!(placer_row, silent, "{placer:?}'s row");
                 (placer, error)
             }
             other => panic!("expected PlacerRefused, got {other:?}"),

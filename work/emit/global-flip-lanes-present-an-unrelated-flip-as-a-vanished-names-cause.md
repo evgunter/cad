@@ -2,11 +2,13 @@
 id: global-flip-lanes-present-an-unrelated-flip-as-a-vanished-names-cause
 kind: issue
 title: The Vanished ladder's global flip lanes report a flip anywhere in the document as the cause of a name's vanish, and its sentence says the flip was on the name's derivation path
-status: dispatched
+status: closed
 opened: 2026-09-23
 priority: P0
 cost: D
 branch: emit/local-flip-lanes
+closed: 2026-09-24
+pr: 3124
 ---
 
 
@@ -15,25 +17,25 @@ first reads flips on the vanished name's derivation path, then the
 doc-diff lanes on that path. When those come up empty, it falls to
 "global fallbacks (off-path evidence, in the same order)" and returns the
 FIRST recorded flip anywhere in the document as
-`Diagnosis::PredicateFlip { source: VerdictLog }`. That arm's sentence
-reads *"predicate {p} flipped from {from} to {to} on the name's
+`Diagnosis::PredicateFlip`. That arm's sentence
+reads *"the margin deciding {what} flipped from {from} to {to} on the name's
 derivation path"*, so the global lane asserts a location it did not
 check. The same lane also outranks every rung below `diagnose`:
-`qualifier_delta`, `group_resized` and the fallback.
+`border_delta` (then `qualifier_delta`), `group_resized` and the fallback.
 
 **Measured** (EMIT, 2026-09-23, f64, production sweep, scratch probe):
 
 - **Setup.** One document holds two independent copies of
-  `bool7_shadow_exec`'s slot scene: a plate with a bar subtracted across
+  `resolve_piece_ladder`'s slot scene (then `bool7_shadow_exec`'s): a plate with a bar subtracted across
   its cap. One sits at x = 0 (the cut at node 7) and one at x = 100
-  (the cut at node 11). The vanishing name is a `SideOf` cap fragment of
+  (the cut at node 11). The vanishing name is a cap piece (then `SideOf`-qualified) of
   the FIRST cut.
 - **Edit 1 alone** (slot 1's bar slid y → 2.5):
   `GroupResized { node: 7, was: 2, now: 1 }`, which is correct.
 - **The same edit plus an unrelated one** (slot 2's bar slid x → +5,
   which records a `bool_point_in_solid_plane` flip at node 11): the
   diagnosis becomes
-  `PredicateFlip { predicate: "bool_point_in_solid_plane", from: Negative, to: Positive, source: VerdictLog }`,
+  `PredicateFlip { predicate: "bool_point_in_solid_plane", from: Negative, to: Positive }`,
   and it renders as a flip "on the name's derivation path". Nothing on
   that name's path flipped. The flip is at node 11, which is not on the
   path.

@@ -43,6 +43,30 @@ pub fn caught<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> Resu
     }
 }
 
+/// The wasm32 build's default thread stack, 1 MiB: the smallest stack
+/// a kernel door runs on (the viewer's workers; a Rust test thread and a
+/// Python `threading.Thread` both get more). A row that pins "this door
+/// fits every stack it runs on" runs its subject on this one.
+pub const WASM_STACK: usize = 1 << 20;
+
+/// Runs `f` on a thread of [`WASM_STACK`] and returns what it produced.
+///
+/// # Panics
+///
+/// When the thread cannot start, or when `f` panics: the row's own
+/// assertion, carried out. A subject that overflows the stack aborts the
+/// process rather than panicking, which a test runner reports as the
+/// row's failure.
+#[allow(clippy::expect_used)]
+pub fn on_the_smallest_stack<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> R {
+    std::thread::Builder::new()
+        .stack_size(WASM_STACK)
+        .spawn(f)
+        .expect("a thread with the wasm32 stack starts")
+        .join()
+        .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

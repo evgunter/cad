@@ -8,7 +8,7 @@
 //! [`editor_core::eval::ContentBits`] feeding BOTH channels (DL2), and
 //! the scalar-policy seam that makes certified validation structurally
 //! absent at a dual (`topo::AtRestPolicy`, DL3). This suite pins that
-//! `Dual64` — and, under the `interval` feature, `Dual<Interval>` —
+//! `Dual64` — and `Dual<Interval>` —
 //! satisfies **every** bound `evaluate` asks for, so the door's state
 //! is a compiler fact rather than prose.
 //!
@@ -62,7 +62,13 @@
 //! shell door's call is now a VALUE the DL3 policy answers
 //! (`topo::AtRestPolicy::shell_door`), so the capability rides the
 //! `AtRestPolicy` term already in the list and the refusal a dual
-//! meets at a shell node is unchanged.
+//! meets at a shell node is unchanged. 2026-09-24: the set lost
+//! `geom_brep::PcurveFittedLane`, which it held as a supertrait of
+//! `AtRestPolicy` rather than as a listed term. Which scalars derive
+//! fitted pcurves is now a VALUE the same policy answers
+//! (`topo::AtRestPolicy::fitted_lane`), so the literal below is
+//! unchanged, and a dual's fitted-pcurve refusal is unchanged too:
+//! typed, at the fitted lane's check 4.
 
 use geom_core::Dual64;
 use geom_core::predicate::Decide;
@@ -157,9 +163,8 @@ fn dual64_meets_every_evaluate_bound() {
 }
 
 /// The derivative-enclosure instantiation (DL1's third use): the
-/// generic impls open the same door for `Dual<Interval>` under the
-/// `interval` feature, with nothing scalar-specific added.
-#[cfg(feature = "interval")]
+/// generic impls open the same door for `Dual<Interval>`, with nothing
+/// scalar-specific added.
 #[test]
 fn dual_interval_meets_every_evaluate_bound() {
     requires_every_evaluate_bound::<geom_core::DualInterval>();

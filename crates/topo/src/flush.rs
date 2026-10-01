@@ -120,7 +120,7 @@
 //! intent-recording property, and C4's verify-at-use backstops lies
 //! either way.
 
-use geom_core::{Band, BandError, Decide, Indeterminate, MarginDiag, Tol};
+use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
 
 use crate::body::Body;
 use crate::boolean::{
@@ -229,7 +229,7 @@ impl core::error::Error for FlushRefusal {}
 /// Everything — descriptions, oriented sources, AND the verification
 /// arm — comes from [`carrier_pair_relation`] (module docs). ONE
 /// call, in `declared: false` mode: its `Undeclared` refusal with the
-/// verifier's definite-zero encoding ([`MarginDiag::Invalid`]) is
+/// verifier's definite-zero encoding ([`MarginKind::Invalid`](geom_core::MarginKind::Invalid)) is
 /// precisely "would verify if declared", and the refusal itself
 /// carries the orientation the ladder decided — the same orientation
 /// verdict the declared rung re-decides deterministically at use, so
@@ -261,7 +261,7 @@ pub fn pair_finding<T: Decide>(
             rung: FlushRung::SharedSource,
         })),
         Err(CarrierEqError::Undeclared { diag, relation }) => {
-            if matches!(diag.margin, MarginDiag::Invalid) {
+            if diag.margin.is_invalid() {
                 // The verifier's definite-zero-offset encoding: the
                 // pair would verify if declared, with the orientation
                 // the refusal itself carries. A NaN-poisoned margin
@@ -286,9 +286,9 @@ pub fn pair_finding<T: Decide>(
                 Err(diag)
             }
         }
-        Err(CarrierEqError::Escalated(diag)) => Err(diag),
+        Err(CarrierEqError::Escalated { diag, .. }) => Err(diag),
         // Unreachable with `declared: false`; kept typed.
-        Err(CarrierEqError::Contradicted(diag)) => Err(diag),
+        Err(CarrierEqError::Contradicted { diag, .. }) => Err(diag),
     }
 }
 

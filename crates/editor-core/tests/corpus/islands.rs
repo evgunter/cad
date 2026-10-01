@@ -41,7 +41,7 @@
 //!   strictly inside both the tube's `[0.5,3]` and the pillar's
 //!   `[0.75,2.75]`, so the cross section is constant through it)
 
-use editor_core::{BooleanOp, Dimension, DocEdit, Expr, Node, RecipeNodeId, SlotId};
+use editor_core::{BooleanOp, DocEdit, Node, RecipeNodeId, SlotId};
 
 use crate::fixture::len;
 
@@ -105,7 +105,7 @@ pub fn document_105() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: pillar,
             slot: SlotId::Distance,
-            expr: Expr::literal(1.75, Dimension::Length).expect("dyadic length literal"),
+            expr: len(1.75),
         },
         bump_root: pillar,
     }
@@ -136,7 +136,7 @@ pub fn document_106_depth1() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: slab,
             slot: SlotId::Distance,
-            expr: Expr::literal(0.75, Dimension::Length).expect("dyadic length literal"),
+            expr: len(0.75),
         },
         bump_root: slab,
     }
@@ -178,7 +178,7 @@ pub fn document_106_depth2() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: pillar,
             slot: SlotId::Distance,
-            expr: Expr::literal(1.75, Dimension::Length).expect("dyadic length literal"),
+            expr: len(1.75),
         },
         bump_root: pillar,
     }

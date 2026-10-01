@@ -19,12 +19,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Point2, Sign, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Point2, Sign, Tol, Vec3};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    ball_poled_z, bored_cylinder, boss, prism, revolved_about_y, rim_arcs_at, z_rim,
+    ball_poled_y, ball_poled_z, bored_cylinder, boss, prism, revolved_about_y, rim_arcs_at, z_rim,
 };
 use sweep::{Extrusion, Revolution, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
@@ -58,20 +58,6 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     .clone()
 }
 
-/// A ball of radius `r` poled along `y` (the boss's axis), centred at
-/// `c` — so it meets a `y`-plane pole-on.
-fn ball_poled_y(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let b = revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-            ProfileVertex::new(Point2::new(0.0, r), 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    );
-    topo::transform_rigid(&b, &Affine3::translation(c), tol()).unwrap()
-}
-
 /// The two faces of an edge.
 fn faces_of(body: &Body<f64>, e: EdgeKey) -> [FaceKey; 2] {
     let ed = body.get_edge(e).unwrap();
@@ -99,7 +85,11 @@ fn refusal(err: BlendError) -> (&'static str, Sign, f64) {
         | BlendError::FaceClearanceUncertified { margin, .. } => margin,
         other => panic!("expected a clearance refusal, got {other:?}"),
     };
-    let v = margin.value().expect("a definite reading");
+    let v = margin
+        .reading
+        .diagnostic_f64_for_error_text()
+        .value()
+        .expect("a definite reading");
     (margin.predicate, margin.sign, v)
 }
 
@@ -181,9 +171,9 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
 fn dimpled_plate(rho: f64, a: f64, cx: f64, cy: f64) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     let s = 1.0 - rho;
-    let v = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
+    let v = |x: f64, y: f64, b: f64| (Point2::new(x, y), b);
     // Every joint is a line meeting a corner arc tangentially: declared.
-    let lp = ProfileLoop::new(vec![
+    let lp = bulge_loop(vec![
         v(-s, -1.0, 0.0),
         v(s, -1.0, q),
         v(1.0, -s, 0.0),
@@ -327,10 +317,7 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
 #[test]
 fn r1_diag_cylinder_pierces() {
     let cyl = prism(
-        vec![
-            ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
-            ProfileVertex::new(Point2::new(-1.0, 0.0), 1.0),
-        ],
+        vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)],
         1.0,
         tol(),
     );
@@ -376,20 +363,28 @@ fn r1_diag_cylinder_pierces() {
     try_cut(
         "cyl, y-poled ball off axis 0.75 @33.75",
         &cyl,
-        ball_poled_y(0.16, Vec3::new(0.75 * phi.cos(), 0.75 * phi.sin(), 1.0)),
+        ball_poled_y(
+            0.16,
+            Vec3::new(0.75 * phi.cos(), 0.75 * phi.sin(), 1.0),
+            tol(),
+        ),
     );
     let boss_b = repaired(true);
     try_cut(
         "repaired boss, y-poled ball off axis 0.75 @33.75",
         &boss_b,
-        ball_poled_y(0.16, Vec3::new(0.75 * phi.cos(), 1.0, 0.75 * phi.sin())),
+        ball_poled_y(
+            0.16,
+            Vec3::new(0.75 * phi.cos(), 1.0, 0.75 * phi.sin()),
+            tol(),
+        ),
     );
     let mut cylr = revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ],
         Revolution::Full,
         tol(),
@@ -398,12 +393,16 @@ fn r1_diag_cylinder_pierces() {
     try_cut(
         "repaired revolve cylinder, y-poled ball on axis",
         &cylr,
-        ball_poled_y(0.16, Vec3::new(0.0, 1.0, 0.0)),
+        ball_poled_y(0.16, Vec3::new(0.0, 1.0, 0.0), tol()),
     );
     try_cut(
         "repaired revolve cylinder, y-poled ball off axis 0.75 @33.75",
         &cylr,
-        ball_poled_y(0.16, Vec3::new(0.75 * phi.cos(), 1.0, 0.75 * phi.sin())),
+        ball_poled_y(
+            0.16,
+            Vec3::new(0.75 * phi.cos(), 1.0, 0.75 * phi.sin()),
+            tol(),
+        ),
     );
 }
 
@@ -421,7 +420,7 @@ fn r1_diag_cylinder_pierces() {
 #[test]
 fn r1_print_the_coaxial_refusal_readings() {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-    let v = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
+    let v = |x: f64, y: f64, b: f64| (Point2::new(x, y), b);
     let mut narrowed = revolved_about_y(
         vec![
             v(0.0, 0.0, 0.0),
@@ -475,15 +474,13 @@ fn r1_print_the_coaxial_refusal_readings() {
 mod recorded {
     use geom_core::k_stats::{self, Probe};
     use geom_core::{Point2, Tol};
-    use profile::ProfileVertex;
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{revolved_about_y_at, rim_arcs_at};
     use topo::Body;
 
     fn boss() -> Body<Probe> {
         let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-        let p =
-            |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(Probe(x), Probe(y)), Probe(b));
+        let p = |x: f64, y: f64, b: f64| (Point2::new(Probe(x), Probe(y)), Probe(b));
         let mut b = revolved_about_y_at(
             vec![
                 p(0.0, 0.0, 0.0),

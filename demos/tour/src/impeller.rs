@@ -108,7 +108,7 @@ struct Recipe {
 /// The parameter table every expression in this document resolves
 /// against — one entry, which is the scene's whole point.
 fn params() -> BTreeMap<ParamName, Dimension> {
-    [(ParamName::new("blades"), Dimension::Count)]
+    [(ParamName::from_static("blades"), Dimension::Count)]
         .into_iter()
         .collect()
 }
@@ -158,7 +158,7 @@ fn build_doc(tol: Tol) -> Recipe {
     let applied = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("blades"),
+            name: ParamName::from_static("blades"),
             value: DocParam::Count { value: COUNTS[0] },
         },
         tol,
@@ -183,6 +183,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Node::Profile(ProfileProgram {
             plane: hub_plane,
             loops: vec![hub_polygon()],
+            ids: Vec::new(),
         }),
     );
     let hub_e = insert(
@@ -199,6 +200,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Node::Profile(ProfileProgram {
             plane: blade_plane,
             loops: vec![blade_polygon()],
+            ids: Vec::new(),
         }),
     );
     let blade_e = insert(
@@ -279,7 +281,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         let applied = apply(
             &doc,
             &DocEdit::SetDocParamValue {
-                name: ParamName::new("blades"),
+                name: ParamName::from_static("blades"),
                 value: DocParamValue::Count(n),
             },
             tol,

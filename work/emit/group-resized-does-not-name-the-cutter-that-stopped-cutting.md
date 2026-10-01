@@ -2,10 +2,12 @@
 id: group-resized-does-not-name-the-cutter-that-stopped-cutting
 kind: issue
 title: GroupResized states that a fragment group changed size but not which cutter stopped (or started) cutting it, though the prior table's Seam rows name every cutter
-status: open
+status: closed
 opened: 2026-09-23
 priority: P2
 cost: D
+closed: 2026-09-25
+pr: 3205
 ---
 
 
@@ -25,8 +27,8 @@ What this row asks for: a field on the arm, say `cutters_gone:
 Vec<StableName>`, listing the cutters whose `Seam` row with the parent
 is present in the prior table at the minting node and absent in the
 current one (and the symmetric `cutters_new` for a group that grew).
-On the corpus row it would name B's cap vertex; on the bool7 slot's
-y 2.5 / 3.5 collapse (`bool7_shadow_exec::a_collapsed_sideof_group_is_diagnosed_group_resized_and_offers_the_survivor`)
+On the corpus row it would name B's cap vertex; on the ladder suite's slot
+y 2.5 / 3.5 collapse (`resolve_piece_ladder::a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor`)
 it would correctly name NONE, because the bar's walls still cut the
 cap there — a different and equally useful statement.
 

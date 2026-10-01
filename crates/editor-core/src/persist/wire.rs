@@ -7,7 +7,10 @@
 //! - [`Expr`] persists as a plain AST tree and is REBUILT through the
 //!   dimension-checking smart constructors on load — a corrupt or
 //!   hand-edited file can never smuggle an ill-dimensioned tree (or a
-//!   non-finite literal) past the construction door. The cached
+//!   non-finite literal) past the construction door, and the
+//!   checker's refusal reaches the caller WHOLE rather than as
+//!   prose — how a typed value leaves a `Deserialize` impl at all
+//!   is [`super::refusal`]'s subject. The cached
 //!   dimension is deliberately not persisted: it re-derives.
 //! - [`MeasureExpr`] is the same rule over the leaves the measurement
 //!   language adds, and a SEPARATE wire form for the reason the type is
@@ -26,6 +29,12 @@
 //! `profile::ProfileLoop`. The wire rebuilds the PROGRAM only; loops
 //! exist through the replay driver at evaluation and nowhere else
 //! (serde is transport, the driver is the door — LIB-SWITCH §4h).
+//! Unlike the two expression languages above, then, this rebuild
+//! TRUSTS the program's structure — only its slot expressions pass a
+//! constructor — and what re-checks it is the load door's snapshot
+//! program walk in `persist::check`, which refuses the lattice class
+//! alone ([`ProgramFault`](crate::ProgramFault)'s doc accounts for
+//! the rest).
 //!
 //! # Two KERNEL-FOREIGN tags
 //!
@@ -52,6 +61,8 @@ use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::node::RecipeNodeId;
+
+use super::nesting::Child;
 
 /// The persisted expression tree (spec D1: the recipe is the save; an
 /// expression is its constructor calls).
@@ -83,34 +94,34 @@ pub(crate) enum WireExpr {
         dim: Dimension,
     },
     /// Same-dimension addition.
-    Add(Box<WireExpr>, Box<WireExpr>),
+    Add(Child<WireExpr>, Child<WireExpr>),
     /// Same-dimension subtraction.
-    Sub(Box<WireExpr>, Box<WireExpr>),
+    Sub(Child<WireExpr>, Child<WireExpr>),
     /// Negation.
-    Neg(Box<WireExpr>),
+    Neg(Child<WireExpr>),
     /// Product.
-    Mul(Box<WireExpr>, Box<WireExpr>),
+    Mul(Child<WireExpr>, Child<WireExpr>),
     /// Quotient.
-    Div(Box<WireExpr>, Box<WireExpr>),
+    Div(Child<WireExpr>, Child<WireExpr>),
     /// Sine.
-    Sin(Box<WireExpr>),
+    Sin(Child<WireExpr>),
     /// Cosine.
-    Cos(Box<WireExpr>),
+    Cos(Child<WireExpr>),
     /// Tangent.
-    Tan(Box<WireExpr>),
+    Tan(Child<WireExpr>),
     /// Four-quadrant arctangent (y, x).
-    Atan2(Box<WireExpr>, Box<WireExpr>),
+    Atan2(Child<WireExpr>, Child<WireExpr>),
     /// Lattice minimum.
-    Min(Box<WireExpr>, Box<WireExpr>),
+    Min(Child<WireExpr>, Child<WireExpr>),
     /// Lattice maximum.
-    Max(Box<WireExpr>, Box<WireExpr>),
+    Max(Child<WireExpr>, Child<WireExpr>),
     /// Explicit Count→Scalar promotion.
-    CountToScalar(Box<WireExpr>),
+    CountToScalar(Child<WireExpr>),
 }
 
 impl From<&Expr> for WireExpr {
     fn from(e: &Expr) -> Self {
-        let b = |x: &Expr| Box::new(WireExpr::from(x));
+        let b = |x: &Expr| Child::new(WireExpr::from(x));
         match e.kind() {
             ExprKind::Literal(lit) => WireExpr::Literal {
                 value: lit.value,
@@ -158,7 +169,7 @@ impl WireExpr {
             WireExpr::Param { name, dim } => Ok(Expr::param(name.clone(), *dim)),
             WireExpr::Add(x, y) => Expr::add(b(x)?, b(y)?),
             WireExpr::Sub(x, y) => Expr::sub(b(x)?, b(y)?),
-            WireExpr::Neg(x) => Ok(Expr::neg(b(x)?)),
+            WireExpr::Neg(x) => Expr::neg(b(x)?),
             WireExpr::Mul(x, y) => Expr::mul(b(x)?, b(y)?),
             WireExpr::Div(x, y) => Expr::div(b(x)?, b(y)?),
             WireExpr::Sin(x) => Expr::sin(b(x)?),
@@ -181,8 +192,13 @@ impl Serialize for Expr {
 impl<'de> Deserialize<'de> for Expr {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let wire = WireExpr::deserialize(de)?;
-        wire.rebuild()
-            .map_err(|e| D::Error::custom(format!("ill-dimensioned expression refused: {e}")))
+        wire.rebuild().map_err(|e| {
+            // The typed refusal leaves through the slot; the serde
+            // message is the human half of the same fact
+            // (`persist::refusal`).
+            super::refusal::record(&e);
+            D::Error::custom(format!("ill-dimensioned expression refused: {e}"))
+        })
     }
 }
 
@@ -313,24 +329,24 @@ pub(crate) enum WireMeasureExpr {
     /// An ordinary document expression leaf.
     Value(Box<WireExpr>),
     /// Same-dimension addition.
-    Add(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Add(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Same-dimension subtraction.
-    Sub(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Sub(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Negation.
-    Neg(Box<WireMeasureExpr>),
+    Neg(Child<WireMeasureExpr>),
     /// Product (at least one Scalar operand).
-    Mul(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Mul(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Quotient (Scalar divisor).
-    Div(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Div(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Same-dimension minimum.
-    Min(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Min(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Same-dimension maximum.
-    Max(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Max(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
 }
 
 impl From<&MeasureExpr> for WireMeasureExpr {
     fn from(e: &MeasureExpr) -> Self {
-        let b = |x: &MeasureExpr| Box::new(WireMeasureExpr::from(x));
+        let b = |x: &MeasureExpr| Child::new(WireMeasureExpr::from(x));
         match e.kind() {
             MeasureKind::Primitive(p) => WireMeasureExpr::Primitive(*p),
             MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(WireExpr::from(v))),
@@ -356,7 +372,7 @@ impl WireMeasureExpr {
             WireMeasureExpr::Value(v) => Ok(MeasureExpr::value(v.rebuild()?)),
             WireMeasureExpr::Add(x, y) => MeasureExpr::add(b(x)?, b(y)?),
             WireMeasureExpr::Sub(x, y) => MeasureExpr::sub(b(x)?, b(y)?),
-            WireMeasureExpr::Neg(x) => Ok(MeasureExpr::neg(b(x)?)),
+            WireMeasureExpr::Neg(x) => MeasureExpr::neg(b(x)?),
             WireMeasureExpr::Mul(x, y) => MeasureExpr::mul(b(x)?, b(y)?),
             WireMeasureExpr::Div(x, y) => MeasureExpr::div(b(x)?, b(y)?),
             WireMeasureExpr::Min(x, y) => MeasureExpr::min(b(x)?, b(y)?),
@@ -375,6 +391,7 @@ impl<'de> Deserialize<'de> for MeasureExpr {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let wire = WireMeasureExpr::deserialize(de)?;
         wire.rebuild().map_err(|e| {
+            super::refusal::record(&e);
             D::Error::custom(format!("ill-dimensioned measure expression refused: {e}"))
         })
     }

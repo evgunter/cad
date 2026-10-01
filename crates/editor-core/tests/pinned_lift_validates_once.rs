@@ -22,28 +22,20 @@ use crate::corpus::documents;
 use editor_core::{
     CancelToken, Datum, DatumValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
 };
-use geom_core::{Real, Sign, Tol};
-use profile::{
-    Profile, ProfileLoop, ProfileVertex, RawLoop, SegmentKind, SketchPlane, ValidatedProfile,
-};
+use geom_core::{Arc2, Real, Sign, Tol};
+use profile::{Profile, ProfileLoop, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The `f64` loop embedded at `T` through `from_f64`, vertex by
 /// vertex, the declared joints carried — the raw profile the lane's
 /// own validation would run on.
 fn embed<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    ProfileLoop::new(
-        lp.vertices()
-            .iter()
-            .map(|v| ProfileVertex::new(v.pos().map(T::from_f64), T::from_f64(v.bulge())))
-            .collect(),
-    )
-    .with_tangent_joints(lp.tangent_joints().to_vec())
+    lp.map_scalar(T::from_f64)
 }
 
 /// Every scalar a validated profile stores, in one fixed order: the
-/// plane's placement, then per loop each vertex's position and bulge,
-/// then each segment's endpoints, bulge and (for an arc) center and
-/// radius. (`profile`'s `validated_map` suite carries the same walk:
+/// plane's placement, then per loop each vertex's position, then each
+/// segment's endpoints, bulge and (for an arc) center, radius and
+/// sweep. (`profile`'s `validated_map` suite carries the same walk:
 /// `test-utils` is a dependency-free leaf and cannot host a walk over
 /// `profile`'s types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
@@ -64,12 +56,21 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
     ];
     for lp in vp.loops() {
         for v in lp.vertices() {
-            out.extend([v.pos().x, v.pos().y, v.bulge()]);
+            out.extend([v.x, v.y]);
         }
         for s in lp.segments() {
             out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
-            if let SegmentKind::Arc { center, radius, .. } = s.kind {
-                out.extend([center.x, center.y, radius]);
+            if let SegmentKind::Arc {
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        sweep,
+                    },
+                ..
+            } = s.kind
+            {
+                out.extend([center.x, center.y, radius, sweep]);
             }
         }
     }
@@ -101,7 +102,8 @@ fn structure<T: Real>(vp: &ValidatedProfile<T>) -> String {
 /// comparison.
 type Channel<T> = (&'static str, fn(T) -> f64);
 
-fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(scalar: &str, channels: &[Channel<T>]) {
+fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>]) {
+    let scalar = T::NAME;
     let tol = Tol::witness();
     let mut profiles = 0usize;
     for d in documents() {
@@ -188,7 +190,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(scalar: &str, channels
 
 #[test]
 fn the_lifted_form_is_the_revalidated_form_at_f64() {
-    the_lifted_form_is_the_revalidated_form::<f64>("f64", &[("value", |x| x)]);
+    the_lifted_form_is_the_revalidated_form::<f64>(&[("value", |x| x)]);
 }
 
 /// At `Dual64` the derivative channel of a pinned profile is zero
@@ -200,7 +202,7 @@ fn the_lifted_form_is_the_revalidated_form_at_f64() {
 #[test]
 fn the_lifted_form_is_the_revalidated_form_at_dual() {
     use geom_core::Dual64;
-    the_lifted_form_is_the_revalidated_form::<Dual64>("Dual64", &[("value", |d| d.value)]);
+    the_lifted_form_is_the_revalidated_form::<Dual64>(&[("value", |d| d.value)]);
     for d in documents() {
         let ev = evaluate::<Dual64>(
             &d.doc,
@@ -223,14 +225,13 @@ fn the_lifted_form_is_the_revalidated_form_at_dual() {
     }
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn the_lifted_form_is_the_revalidated_form_at_interval() {
     use geom_core::Bounds;
-    the_lifted_form_is_the_revalidated_form::<geom_core::Interval>(
-        "Interval",
-        &[("lo", |i| i.lo()), ("hi", |i| i.hi())],
-    );
+    the_lifted_form_is_the_revalidated_form::<geom_core::Interval>(&[
+        ("lo", |i| i.lo()),
+        ("hi", |i| i.hi()),
+    ]);
 }
 
 /// **A margin definite at `f64` and indeterminate at `Interval` is
@@ -246,7 +247,6 @@ fn the_lifted_form_is_the_revalidated_form_at_interval() {
 /// under `Guided` the op's own replay at `Interval` re-verifies the
 /// junction and refuses the node with `path_junction_turn` escalated —
 /// that is where such a margin is meant to escalate (`ProfileLift`).
-#[cfg(feature = "interval")]
 #[test]
 fn a_margin_definite_at_f64_and_indeterminate_at_interval_is_pinned_and_guided_apart() {
     use crate::fixture::on_frame;

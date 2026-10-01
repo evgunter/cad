@@ -1,6 +1,4 @@
-//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16). These are
-//! **independent derivations**. Promoted per Ev's request (PR #17
-//! thread).
+//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16).
 //!
 //! Tier-1-INVALID bodies fed into the operators. The debug-vs-release
 //! expectations are split with `cfg(debug_assertions)` guards, so neither
@@ -17,17 +15,10 @@
 //! has.
 //!
 //! **That job is the only lane in the tree that compiles the
-//! `cfg(not(debug_assertions))` rows, and `local-scripts/ci-local.sh` is
-//! not a second one.** The hosted job pins
-//! `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`; the local
-//! `topo_release` row does not, so against the root `[profile.release]`'s
-//! `debug-assertions = true` it compiles the DEBUG arms of this file and
-//! the row below does not exist there at all. The local row also selects
-//! a subset — this module and one `review_m1_pr4` row, and no
-//! `review_d18`. So the local gate exercises the debug expectations a
-//! second time; the release expectations are the hosted job's alone.
-//! Both halves grep this sentence for the job's name, so renaming it here or
-//! there is loud.
+//! `cfg(not(debug_assertions))` rows.** It pins
+//! `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`; any other
+//! `--release` run, against the root `[profile.release]`'s
+//! `debug-assertions = true`, compiles the DEBUG arms of this file.
 //!
 //! # What of the contract is still ratified
 //!
@@ -83,6 +74,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixtures::deep_snapshot;
 use crate::{Body, EulerOpError, MefSite, MevSite};
 use geom_core::Point3;
 // Only the release-profile garbage-out test validates; guard the import
@@ -104,7 +96,7 @@ fn pillow(
     crate::MefCreated,
 ) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -182,7 +174,7 @@ fn large_torn_body_terminates_quickly() {
     let tol = Tol::witness();
     let n: i32 = if cfg!(debug_assertions) { 500 } else { 3000 };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -343,51 +335,70 @@ fn debug_postcondition_fires_on_corrupt_input() {
     );
 }
 
-/// Null-key mvfs spam plus interleaved failures on an empty body: the
-/// ops never panic on a fresh body either.
+/// Null-key calls on an empty body: each refuses without panicking and
+/// leaves the body as it was, key slots included.
 #[test]
 fn empty_body_error_paths() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    assert!(
-        body.mev_line(
-            MevSite::Lone {
-                r#loop: crate::LoopKey::default()
-            },
-            p(0.0),
-            tol,
-        )
-        .is_err()
-    );
-    assert!(
-        body.mef_chord(
-            MefSite::Lone {
-                r#loop: crate::LoopKey::default()
-            },
-            tol
-        )
-        .is_err()
-    );
-    assert!(
-        body.mev_line(
-            MevSite::Fan {
-                he1: crate::HalfEdgeKey::default(),
-                he2: crate::HalfEdgeKey::default(),
-            },
-            p(0.0),
-            tol,
-        )
-        .is_err()
-    );
-    assert!(
-        body.mef_chord(
-            MefSite::Chords {
-                he1: crate::HalfEdgeKey::default(),
-                he2: crate::HalfEdgeKey::default(),
-            },
-            tol
-        )
-        .is_err()
-    );
-    assert_eq!(body.vertices().count(), 0);
+    type Refusal = Box<dyn Fn(&mut Body<f64>) -> Option<EulerOpError>>;
+    let refusals: [(&str, Refusal); 4] = [
+        (
+            "mev lone",
+            Box::new(move |b| {
+                b.mev_line(
+                    MevSite::Lone {
+                        r#loop: crate::LoopKey::default(),
+                    },
+                    p(0.0),
+                    tol,
+                )
+                .err()
+            }),
+        ),
+        (
+            "mef lone",
+            Box::new(move |b| {
+                b.mef_chord(
+                    MefSite::Lone {
+                        r#loop: crate::LoopKey::default(),
+                    },
+                    tol,
+                )
+                .err()
+            }),
+        ),
+        (
+            "mev fan",
+            Box::new(move |b| {
+                b.mev_line(
+                    MevSite::Fan {
+                        he1: crate::HalfEdgeKey::default(),
+                        he2: crate::HalfEdgeKey::default(),
+                    },
+                    p(0.0),
+                    tol,
+                )
+                .err()
+            }),
+        ),
+        (
+            "mef chords",
+            Box::new(move |b| {
+                b.mef_chord(
+                    MefSite::Chords {
+                        he1: crate::HalfEdgeKey::default(),
+                        he2: crate::HalfEdgeKey::default(),
+                    },
+                    tol,
+                )
+                .err()
+            }),
+        ),
+    ];
+    for (call, refusal) in &refusals {
+        let before = deep_snapshot(&body);
+        assert!(refusal(&mut body).is_some(), "{call}: refuses");
+        assert_eq!(deep_snapshot(&body), before, "{call}: body changed on Err");
+    }
 }

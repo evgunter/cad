@@ -41,7 +41,7 @@
 use core::num::NonZeroUsize;
 use geom_core::exact::two_sum;
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Point3, Readable, Real, Vec3};
 
 use crate::net;
 
@@ -583,7 +583,9 @@ impl core::fmt::Display for KnotMirrorError {
         match self {
             KnotMirrorError::ReflectionNotFinite { lo, hi } => write!(
                 f,
-                "knot mirror: the domain [{lo}, {hi}] has no finite reflection sum"
+                "knot mirror: the domain [{}, {}] has no finite reflection sum",
+                Readable(*lo),
+                Readable(*hi)
             ),
             KnotMirrorError::AsymmetricPair {
                 index,
@@ -594,8 +596,11 @@ impl core::fmt::Display for KnotMirrorError {
                 hi,
             } if index == mirror_index => write!(
                 f,
-                "knot mirror: the middle knot {index} ({knot}) is not the midpoint \
-                 of [{lo}, {hi}]"
+                "knot mirror: the middle knot {index} ({}) is not the midpoint \
+                 of [{}, {}]",
+                Readable(*knot),
+                Readable(*lo),
+                Readable(*hi)
             ),
             KnotMirrorError::AsymmetricPair {
                 index,
@@ -606,9 +611,11 @@ impl core::fmt::Display for KnotMirrorError {
                 hi,
             } => write!(
                 f,
-                "knot mirror: knots {index} and {mirror_index} ({knot}, {mirror_knot}) \
+                "knot mirror: knots {index} and {mirror_index} ({}, {}) \
                  do not sum to {} exactly",
-                lo + hi
+                Readable(*knot),
+                Readable(*mirror_knot),
+                Readable(lo + hi)
             ),
         }
     }
@@ -673,6 +680,30 @@ impl<T: Real> NurbsSurface<T> {
             control,
             weights,
         })
+    }
+
+    /// The count rule [`Self::new`] holds a net to, without a net: a
+    /// row-major net over `knots_u × knots_v` has
+    /// `knots_u.control_count() · knots_v.control_count()` control
+    /// points and as many weights. For a reader that indexes a net by
+    /// counts taken from its knots and must refuse, not panic, on a
+    /// net that breaks them.
+    ///
+    /// # Errors
+    ///
+    /// [`SplineError::ControlCountMismatch`] for `control`, then
+    /// [`SplineError::WeightCountMismatch`] for `weights`.
+    pub fn check_net_counts(
+        knots_u: &KnotVector,
+        knots_v: &KnotVector,
+        control: usize,
+        weights: usize,
+    ) -> Result<(), SplineError> {
+        net::check_counts(
+            knots_u.control_count() * knots_v.control_count(),
+            control,
+            weights,
+        )
     }
 
     /// The "no description yet" placeholder payload for
@@ -1042,16 +1073,16 @@ impl<T: Real> NurbsSurface<T> {
     /// `lo + hi − v`. So every parameter already recorded against the
     /// old chart still means what it meant there and now names a
     /// different place on the surface. Re-attaching a reversed chart
-    /// through `set_face_surface` drops the face's pcurve rows (they
-    /// are stated in the chart, and the chart changed), so the face
-    /// arrives rowless and wants re-deriving; an edge description's
-    /// interval is not the setter's to touch and goes stale:
-    /// `topo::validate` stays green (nothing structural moved) while
-    /// the geometric-structural tier reports it on every edge the face
-    /// described. `set_face_surface`'s own warning is the contract —
-    /// attach surfaces BEFORE upgrading edge descriptions, and re-derive
-    /// pcurves after — and `crates/sweep/tests/vrev_reversed_chart_hazard.rs`
-    /// pins what a caller that does not sees.
+    /// drops the face's pcurve rows (they are stated in the chart, and
+    /// the chart changed), so the face arrives rowless and wants
+    /// re-deriving. An edge described against the old chart is the
+    /// re-chart's to answer for: `topo`'s keys-only `set_face_surface`
+    /// refuses a swap that would strand it, and the describing
+    /// `set_face_surfaces_describing` takes its re-description and
+    /// certifies it on the reversed chart. What a body that strands it
+    /// anyway looks like at rest — structural validation green, the
+    /// geometric-structural tier reporting every such edge — is pinned
+    /// by `crates/sweep/tests/vrev_reversed_chart_hazard.rs`.
     ///
     /// [`two_sum`]: geom_core::exact::two_sum
     pub fn reversed_v(&self) -> Result<Self, KnotMirrorError> {
@@ -1362,16 +1393,16 @@ impl<T: SpanLocate> NurbsSurface<T> {
 }
 
 impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
-    /// The control net lifted to ring points — the data-in shape of
+    /// The control net lifted to enclosure points — the data-in shape of
     /// `geom_core::spline::compose::tensor`: channel `d`, control
     /// index `i` in the row-major `iu·nv + iv` layout, as `[x, y, z]`
-    /// channels of ring enclosures. Pair with
+    /// channels of certification enclosures. Pair with
     /// [`Self::knots_u`]/[`Self::knots_v`]/[`Self::weights`] to build a
-    /// `SurfaceRingData` for composite residual bounds. The rank does
+    /// `SurfaceCertData` for composite residual bounds. The rank does
     /// not enter the lift, so this is the same body the curves use
-    /// (`net::ring_coords`).
-    pub fn ring_coords(&self) -> Vec<Vec<geom_core::RingInterval>> {
-        net::ring_coords(&self.control)
+    /// (`net::certified_coords`).
+    pub fn certified_coords(&self) -> Vec<Vec<geom_core::Interval>> {
+        net::certified_coords(&self.control)
     }
 }
 
@@ -1557,7 +1588,7 @@ mod reversal_tests {
     /// direction (`transposed().reversed_u()?.transposed()`), so the
     /// direct-permutation comparison is what says the conjugation
     /// composes to the map it claims. (One fixture, one build —
-    /// `memories/test-suite-cost`; every assertion is labelled so the
+    /// implementer-discipline §8; every assertion is labelled so the
     /// failing property is readable from the message.)
     #[test]
     fn reversed_v_agrees_with_a_direct_column_permutation_and_is_an_involution() {
@@ -1822,6 +1853,11 @@ mod reversal_tests {
             s.reversed_v().unwrap_err(),
             KnotMirrorError::ReflectionNotFinite { lo, hi },
             "the door refuses a reflection it cannot compute"
+        );
+        assert_eq!(
+            s.reversed_v().unwrap_err().to_string(),
+            "knot mirror: the domain [1e308, 1.5e308] has no finite reflection sum",
+            "the refusal names a domain at the ceiling of the range readably"
         );
         // And it refuses a vector that IS its own reflection in ℝ, for
         // the same reason: the test that would admit it cannot be run.

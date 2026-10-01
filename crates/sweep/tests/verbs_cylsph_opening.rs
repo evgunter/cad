@@ -37,7 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanError};
 
@@ -56,9 +56,9 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
 /// constructor chart — the same one SPHSPH measured on).
 fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-        ProfileVertex::new(Point2::new(0.0, r), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -260,27 +260,29 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
     }
 }
 
-/// **A torus operand stops at the pair gate, and the refusal ends on
-/// what the person can do.** The deferred fitted-chord join window
-/// (a `run_azimuth_window` / `chart_pcurve` analog for a
-/// cylinder×sphere fitted chord) is still unbuilt; that fact lives in
-/// `BooleanError::CurvedPairUnsupported`'s rustdoc, not in the
-/// sentence a user reads, so nothing about it is asserted here.
+/// **A torus operand passes the pair gate and refuses typed at the
+/// crossing layer.** The torus is on the union's KIND roster, so the
+/// cylinder×torus union is no longer the gate's to refuse. The
+/// cylinder's rim circles genuinely cross the tube (the ring passes
+/// through the cylinder's end caps at `(0, 0, ±2)`), and that
+/// circle×torus crossing has a root lane (`topo::boolean::circle_torus`)
+/// — so what refuses is the OTHER direction: a circle of the torus
+/// against the cylinder's wall, a circle×cylinder pair (a degree-2
+/// trigonometric residual) with no root lane, where the circle rung
+/// takes its typed frontier — never a body.
 ///
-/// **This row pins `CurvedPairUnsupported`, NOT
-/// `CurvedBooleanUnsupported`** — a torus operand is stopped at the
-/// pair/kind gate and never reaches the germ-pair join dispatch. The
-/// other variant's text is pinned by
-/// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below,
-/// which had to construct a different error to get at it.
+/// The pair gate's own sentence is pinned on a cone, the kind it still
+/// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
+/// join dispatch's text by
+/// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below.
 #[test]
-fn a_torus_operand_is_refused_at_the_pair_gate_with_its_recourse() {
+fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
     let torus = {
         // A torus operand reaches the pair/kind refusal, which is the
         // door that carries the fitted-chord sentence.
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(Point2::new(2.0, -0.3), 1.0),
-            ProfileVertex::new(Point2::new(2.0, 0.3), 1.0),
+        let lp = bulge_loop(vec![
+            (Point2::new(2.0, -0.3), 1.0),
+            (Point2::new(2.0, 0.3), 1.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())
@@ -294,21 +296,29 @@ fn a_torus_operand_is_refused_at_the_pair_gate_with_its_recourse() {
             .body
     };
     let err = topo::union(&cyl(1.0, -2.0, 2.0), &torus, Tol::witness())
-        .expect_err("a torus operand has no wired arm");
+        .expect_err("a torus circle crosses the cylinder wall, with no root lane");
+    // The TORUS's circle edge (operand B) against the CYLINDER's wall.
+    let BooleanError::CurvedPierceUnsupported {
+        operand: topo::Operand::B,
+        face,
+        ..
+    } = err
+    else {
+        panic!("expected the circle rung's curved-pierce frontier on B's edge, got {err:?}");
+    };
+    let a = cyl(1.0, -2.0, 2.0);
     assert!(
         matches!(
-            err,
-            BooleanError::CurvedPairUnsupported {
-                kind: geom_brep::SurfaceKind::Torus,
-                ..
-            }
+            a.get_face(face).and_then(|f| a.get_surface(f.surface)),
+            Some(geom::Surface::Cylinder { .. })
         ),
-        "expected the pair gate's refusal, got {err:?}"
+        "against the cylinder's wall: {err:?}"
     );
     let msg = format!("{err}");
     assert!(
-        msg.contains("move them so the torus face stays clear of the other solid"),
-        "the pair refusal must end on its recourse: {msg}"
+        msg.contains("an edge of the second operand touches or crosses a curved face")
+            && msg.contains("Recourse:"),
+        "the refusal names the crossing and ends on its recourse: {msg}"
     );
 }
 
@@ -319,7 +329,7 @@ fn a_torus_operand_is_refused_at_the_pair_gate_with_its_recourse() {
 /// The clause it replaces was created by this unit's own refusal-text
 /// sweep and was measured FALSE: it said the join dispatch wires
 /// `(Sphere, Sphere)` and a declared-coaxial `(Cylinder, Sphere)`. It
-/// does not. `join::join_germ_pair`'s match has three arms —
+/// does not. `join::bool_connect`'s match has three arms —
 /// `(Plane, Plane)`, `(Plane, Sphere) | (Plane, Cylinder)` and the
 /// mirror of the second — and its catch-all is the site that raises
 /// THIS variant, so a sphere pair or a cyl×sphere germ reaches the
@@ -348,11 +358,13 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     let a = cyl(1.0, -2.0, 2.0);
     let mut b = cyl(1.0, -0.5, 0.5);
     let (face, _) = b.faces().next().unwrap();
-    b.set_face_surface(
+    // Lifts both refusals: the relabelled face is the join dispatch's input.
+    b.set_face_surface_stranding_for_tests(
         face,
-        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::placeholder(),
-        ))),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
+            sense: true,
+        },
     )
     .unwrap();
     let err = topo::union(&a, &b, Tol::witness())

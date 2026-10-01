@@ -525,11 +525,12 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             side,
             placer,
             error,
+            ..
         } => MateFaultPayload {
             mate: Some(*mate),
             side: Some(*side),
             placer: Some(*placer),
-            error: Some(node_error_tag(error.kind())),
+            error: Some(node_error_tag(error.kind().class())),
             ..none
         },
         MateFault::PartSelectsAnotherCopy {

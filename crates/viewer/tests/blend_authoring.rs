@@ -5,8 +5,8 @@
 //!
 //! # The box every row is about
 //!
-//! [`boxed`] authors a 10 mm cube through the creation vocabulary
-//! alone (a rectangle profile, one extrude) — twelve edges, all
+//! A 10 mm cube authored through the creation vocabulary alone
+//! (`common::xy_box_in`: a rectangle profile, one extrude) — twelve edges, all
 //! straight, meeting three at a corner. Its whole-body blend is the
 //! shape a minimal instance has to take: the kernel's assembly admits
 //! only a fully-requested chain set, so a fillet of ONE box edge would
@@ -30,9 +30,10 @@
 
 use crate::common;
 
-use common::{ang, insert, len, len3, plate_index, scl3, shape};
+use common::{ang, len, len3, plate_index, scl3, session_insert};
 use pncad::document::{
-    Dimension, Doc, Node, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId, SlotId,
+    Dimension, Doc, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId,
+    SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
@@ -41,8 +42,8 @@ use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendT
 use viewer::display::DisplayView;
 use viewer::pickindex::PickKinds;
 use viewer::session::{
-    DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, ProfilePlane,
-    ProfileShape, Refusal, Selection, SessionOp,
+    DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, Refusal, Selection,
+    SessionOp,
 };
 use viewer::tools::{ToolKind, ToolNotice, Tools};
 use viewer::tree::{self, RowStatus};
@@ -58,28 +59,6 @@ const BOX_EDGES: usize = 12;
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {
     DocSession::inline(Doc::empty_derived("blend-start", tol), tol)
-}
-
-/// A cube of `side`, authored through the creation doors.
-fn boxed(session: &mut DocSession, side: f64) -> RecipeNodeId {
-    let plane = common::xy_frame_in(session);
-    let profile = insert(
-        session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: side,
-                height: side,
-            })],
-        },
-    );
-    insert(
-        session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(side),
-        },
-    )
 }
 
 /// Every drawn edge of a node's body 0, as the pick selections a
@@ -130,8 +109,13 @@ fn pick(tools: &mut Tools, doc: &Doc<ProfileProgram>, edge: &EdgeSelection) -> V
     tools.feed(doc, &[SessionOp::Select(Selection::Edge(edge.clone()))])
 }
 
-/// A node's single body's volume, with the seam pumped.
-fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
+/// A node's volume, with the seam pumped — **only if its value is a
+/// plain `ValuePayload::Body`**.
+///
+/// Narrower than `common::body_volume`, which also takes a boolean's
+/// body: a fillet or chamfer evaluates to a plain body, so a blend
+/// node answering a boolean value here is a failure, not a volume.
+fn plain_body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
     session.pump();
     let eval = session.evaluation().expect("the inline seam landed");
     let ValuePayload::Body(body) = &eval
@@ -185,7 +169,7 @@ fn commit(session: &mut DocSession, tools: &mut Tools, op: SessionOp) -> RecipeN
         tools.commits_open_tool(&op),
         "the op is the open tool's one committed edit"
     );
-    let node = insert(session, op);
+    let node = session_insert(session, op);
     tools.close();
     assert_eq!(tools.open_kind(), None, "a landed edit closes its tool");
     node
@@ -198,7 +182,7 @@ fn commit(session: &mut DocSession, tools: &mut Tools, op: SessionOp) -> RecipeN
 fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let mut tools = picked_all(&session, target);
     assert_eq!(blend(&tools).count(), BOX_EDGES, "twelve edges held");
@@ -237,7 +221,7 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
     assert_eq!(*selection, all_edge_names(&session, target));
 
     // And it is a solid: a filleted cube has less volume than the cube.
-    let filleted = body_volume(&mut session, fillet, tol);
+    let filleted = plain_body_volume(&mut session, fillet, tol);
     assert!(
         filleted < SIDE.powi(3) && filleted > 0.9 * SIDE.powi(3),
         "a 1 mm fillet takes a little off a 10 mm cube: {filleted}"
@@ -251,7 +235,7 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
 fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let mut tools = picked_all(&session, target);
 
@@ -286,9 +270,9 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
     // d does: the fillet keeps the quarter-disc the chamfer cuts flat
     // across. Asserted as an inequality between two authored solids
     // rather than against a recorded number.
-    let chamfered = body_volume(&mut session, chamfer, tol);
+    let chamfered = plain_body_volume(&mut session, chamfer, tol);
     let mut twin = session_with_fillet(tol);
-    let filleted = body_volume(&mut twin.0, twin.1, tol);
+    let filleted = plain_body_volume(&mut twin.0, twin.1, tol);
     assert!(
         chamfered < filleted,
         "chamfer {chamfered} vs fillet {filleted}"
@@ -299,7 +283,7 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
 /// against — same box, same set, same size.
 fn session_with_fillet(tol: Tol) -> (DocSession, RecipeNodeId) {
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let mut tools = picked_all(&session, target);
     let op = blend(&tools).fillet_op(len(BLEND)).expect("commits");
@@ -315,7 +299,7 @@ fn session_with_fillet(tol: Tol) -> (DocSession, RecipeNodeId) {
 fn the_all_edges_door_loads_the_set_twelve_clicks_would_have() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
 
     let mut tools = Tools::new();
@@ -345,8 +329,8 @@ fn the_all_edges_door_loads_the_set_twelve_clicks_would_have() {
 fn the_all_edges_door_refuses_a_target_with_no_edges() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
-    let datum = insert(
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
+    let datum = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Point {
@@ -380,8 +364,8 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
 fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let first = boxed(&mut session, SIDE);
-    let second = boxed(&mut session, SIDE * 0.5);
+    let first = common::xy_box_in(&mut session, [SIDE; 3]);
+    let second = common::xy_box_in(&mut session, [SIDE * 0.5; 3]);
     session.pump();
 
     let mut tools = picked_all(&session, first);
@@ -420,7 +404,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
 fn picking_a_held_edge_again_removes_it() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let edges = drawn_edges(&session, target);
 
@@ -445,7 +429,7 @@ fn picking_a_held_edge_again_removes_it() {
 fn losing_the_target_voids_the_whole_set_and_says_so() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let mut tools = picked_all(&session, target);
 
@@ -496,8 +480,8 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
 fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
-    let spare = boxed(&mut session, SIDE * 0.5);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
+    let spare = common::xy_box_in(&mut session, [SIDE * 0.5; 3]);
     session.pump();
 
     let mut selection = all_edge_names(&session, target);
@@ -508,7 +492,7 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
     selection.push(stray.clone());
     let wanted = selection.len();
 
-    let fillet = insert(
+    let fillet = session_insert(
         &mut session,
         SessionOp::AddFillet {
             target,
@@ -537,12 +521,16 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
         "expected a selection-resolve refusal, got {:?}",
         error.kind
     );
-    let rows = tree::rows(session.committed_doc(), Some(eval));
+    let rows = tree::rows(
+        session.committed_doc(),
+        Some(eval),
+        &viewer::parts::PartFiles::default(),
+    );
     let row = rows
         .iter()
         .find(|row| row.id == fillet)
         .expect("the fillet has a tree row");
-    let RowStatus::Failed { message } = &row.status else {
+    let RowStatus::Failed { message, .. } = &row.status else {
         panic!("the authored blend badges FAILED, got {:?}", row.status);
     };
     assert_eq!(
@@ -559,7 +547,7 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
 fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let mut tools = picked_all(&session, target);
 
@@ -580,13 +568,17 @@ fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
         "the kernel's own refusal, carried unaltered: {:?}",
         error.kind
     );
-    let rows = tree::rows(session.committed_doc(), Some(eval));
+    let rows = tree::rows(
+        session.committed_doc(),
+        Some(eval),
+        &viewer::parts::PartFiles::default(),
+    );
     let row = rows
         .iter()
         .find(|row| row.id == fillet)
         .expect("the fillet has a tree row");
     assert!(
-        matches!(&row.status, RowStatus::Failed { message } if *message == error.to_string()),
+        matches!(&row.status, RowStatus::Failed { message, .. } if *message == error.to_string()),
         "the badge renders the typed refusal: {:?}",
         row.status
     );
@@ -600,12 +592,12 @@ fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
 fn an_authored_blend_saves_and_reloads() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let mut tools = picked_all(&session, target);
     let op = blend(&tools).fillet_op(len(BLEND)).expect("commits");
     let fillet = commit(&mut session, &mut tools, op);
-    let volume = body_volume(&mut session, fillet, tol);
+    let volume = plain_body_volume(&mut session, fillet, tol);
 
     let dir = common::tempdir("gauth5-blend");
     let path = dir.join("blended.pncad");
@@ -625,7 +617,7 @@ fn an_authored_blend_saves_and_reloads() {
         session.committed_doc().bit_eq(&authored),
         "the reloaded document is the authored one, bit for bit"
     );
-    let reloaded = body_volume(&mut session, fillet, tol);
+    let reloaded = plain_body_volume(&mut session, fillet, tol);
     assert_eq!(
         volume.to_bits(),
         reloaded.to_bits(),
@@ -639,20 +631,11 @@ fn an_authored_blend_saves_and_reloads() {
 fn the_blend_door_refuses_a_target_that_is_not_a_body() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let selection = all_edge_names(&session, target);
     let plane = common::xy_frame_in(&mut session);
-    let profile = insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: SIDE,
-                height: SIDE,
-            })],
-        },
-    );
+    let profile = common::rectangle_in(&mut session, plane, SIDE, SIDE);
 
     for op in [
         SessionOp::AddFillet {
@@ -690,7 +673,7 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
 fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
 
     let mut tools = Tools::new();
@@ -717,7 +700,7 @@ fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
 
     // The op door itself admits one — a recipe is allowed to be
     // unfinished — and evaluation is where it refuses.
-    let fillet = insert(
+    let fillet = session_insert(
         &mut session,
         SessionOp::AddFillet {
             target,
@@ -775,7 +758,7 @@ fn the_blend_tool_takes_its_place_among_the_modal_tools() {
 fn only_the_open_blend_tool_accumulates_edges() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let edge = drawn_edges(&session, target)
         .into_iter()
@@ -826,8 +809,8 @@ fn the_kind_choice_names_what_the_one_field_means() {
 fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
-    let plane = insert(
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -836,7 +819,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
             },
         },
     );
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target,
@@ -874,13 +857,14 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
 }
 
 /// **The held set marks exactly the edges it names** — the value claim
-/// (`marks`) and the per-frame path (`mark_segments`) agree, so the
-/// fast one cannot drift from the one the rest of the crate reads.
+/// (`marks`) and the per-frame path (`held_edges`, walked by
+/// `HeldEdges::mark`) agree, so the fast one cannot drift from the
+/// one the rest of the crate reads.
 #[test]
 fn a_held_set_marks_exactly_the_edges_it_names() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let index = plate_index(&session);
     let display = DisplayView::none();
@@ -888,8 +872,7 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     assert!(
-        blend(&tools).marks().is_empty()
-            && blend(&tools).mark_segments(&index, &display).is_empty(),
+        blend(&tools).marks().is_empty() && blend(&tools).held_edges().is_none(),
         "a tool holding nothing marks nothing"
     );
 
@@ -911,7 +894,12 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
         }
     }
     assert!(!per_name.is_empty(), "five box edges draw segments");
-    assert_eq!(tool.mark_segments(&index, &display), per_name);
+    let held = tool.held_edges().expect("five edges are held");
+    assert_eq!(
+        held.mark(&index, &display),
+        (per_name, None),
+        "the same segments, and a box whose every edge is named refuses none"
+    );
 }
 
 /// **An upstream edit that strands a held edge drops it, loudly.**
@@ -926,9 +914,9 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
 fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let a = boxed(&mut session, SIDE);
-    let raw_b = boxed(&mut session, SIDE);
-    let b = insert(
+    let a = common::xy_box_in(&mut session, [SIDE; 3]);
+    let raw_b = common::xy_box_in(&mut session, [SIDE; 3]);
+    let b = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: raw_b,
@@ -937,12 +925,13 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
             rotation_angle: ang(0.0),
         },
     );
-    let union = insert(
+    let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: pncad::document::BooleanOp::Union,
             a,
             b,
+            declare: Vec::new(),
         },
     );
     session.pump();
@@ -1027,14 +1016,18 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
 /// **Nothing landed is not "it is gone"**, and a target that failed
 /// outright costs no picks: the strand test needs an evaluation with
 /// an answer, and a run that has none says nothing rather than
-/// emptying the set.
+/// emptying the set. Loading all its edges refuses under its
+/// standing, not as a body with no edges.
 #[test]
 fn the_strand_check_is_not_asked_without_an_answer() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let mut tools = picked_all(&session, target);
+    // The picture's index from the run in which the target built: a
+    // run with a failed root indexes nothing.
+    let index = plate_index(&session);
 
     // No landed pair at all.
     assert!(
@@ -1043,9 +1036,8 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     );
     assert_eq!(blend(&tools).count(), BOX_EDGES);
 
-    // A target that FAILS: the extrude's distance goes to zero, the
-    // node has no value, and `all_edges` answers empty for a reason
-    // that is not "the body lost every edge".
+    // A target that FAILS: the extrude's distance goes to zero and the
+    // node has no value.
     assert!(
         session
             .perform(SessionOp::SetSlot {
@@ -1069,6 +1061,36 @@ fn the_strand_check_is_not_asked_without_an_answer() {
         "a failed run costs no picks"
     );
     assert_eq!(blend(&tools).count(), BOX_EDGES, "the set is intact");
+
+    let standing = NodeStanding::Failed { node: target };
+    let refused = tools
+        .blend_mut()
+        .expect("the blend tool is open")
+        .load_all_edges(
+            whole(target),
+            session.evaluation().expect("the inline seam landed"),
+            &index,
+        );
+    assert_eq!(
+        refused,
+        Some(BlendEvent::TargetHasNoValue {
+            target: whole(target),
+            standing
+        }),
+        "the load says the target's standing"
+    );
+    assert_eq!(
+        refused.map(|event| event.to_string()),
+        Some(format!(
+            "{} has no edges to select: {standing}",
+            whole(target)
+        )),
+    );
+    assert_eq!(
+        blend(&tools).count(),
+        BOX_EDGES,
+        "a refused load costs no held edge"
+    );
 }
 
 /// **Un-picking the last edge releases the target**, so the next click
@@ -1078,8 +1100,8 @@ fn the_strand_check_is_not_asked_without_an_answer() {
 fn an_emptied_set_releases_its_target() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let first = boxed(&mut session, SIDE);
-    let second = boxed(&mut session, SIDE * 0.5);
+    let first = common::xy_box_in(&mut session, [SIDE; 3]);
+    let second = common::xy_box_in(&mut session, [SIDE * 0.5; 3]);
     session.pump();
     let one = drawn_edges(&session, first)
         .into_iter()
@@ -1124,7 +1146,7 @@ fn an_emptied_set_releases_its_target() {
 fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let target = boxed(&mut session, SIDE);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let index = plate_index(&session);
     let edge = drawn_edges(&session, target)

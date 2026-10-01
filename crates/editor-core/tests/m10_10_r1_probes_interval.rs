@@ -13,13 +13,12 @@
 //! and is the ceiling still a multiple of ε.
 //!
 //! EVERY ROW IS EVIDENCE-ONLY (`#[ignore]`d, prints, asserts nothing a
-//! gate could read — [[test-suite-cost]]). Run:
+//! gate could read — implementer-discipline §8). Run:
 //!
 //! ```sh
-//! cargo test -p editor-core --features interval --release --test all -- \
+//! cargo test -p editor-core --release --test all -- \
 //!   m10_10_r1_probes_interval:: --ignored --nocapture --test-threads 1
 //! ```
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
@@ -28,7 +27,7 @@ use std::time::Instant;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet,
     UnitSym, select_where,
@@ -36,7 +35,7 @@ use editor_core::{
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, scl, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{bound, dials, nominal_box, render_over_band};
 
@@ -50,16 +49,8 @@ const BORE_R: f64 = 0.3e-3;
 /// of this fixture died).
 const BULGE: f64 = 2.0;
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
-
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// **R1's circular-segment boss**, as a function of the SCALE of its
@@ -83,9 +74,9 @@ fn plen(n: &str) -> Expr {
 /// spellings rule D is about.
 pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,
@@ -112,13 +103,9 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         },
     );
 
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
 
-    let neg_c = Expr::neg(plen("chord_half"));
+    let neg_c = Expr::neg(plen("chord_half")).expect("a shallow negation");
     let seg_loop = LoopProgram::Chain(vec![
         ProgramStep::At([neg_c, len(0.0)]),
         ProgramStep::LineTo(ProgramTarget::Point([plen("chord_half"), len(0.0)])),
@@ -130,6 +117,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let seg_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![seg_loop],
+        ids: Vec::new(),
     }));
     let thickness = Expr::div(plen("chord_half"), scl(4.0)).expect("Length / Scalar");
     let seg = r.insert(Node::Extrude {
@@ -143,6 +131,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
             centre: [len(0.0), bore_centre_y],
             radius: plen("bore_r"),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,

@@ -142,6 +142,12 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 /// the document parameters it references, which is what tells a
 /// consumer when a value it displayed has gone stale.
 ///
+/// **It nests at most 128 levels** along its longest chain from the
+/// root to a leaf; a constructor that would nest deeper refuses
+/// `nested_too_deep`. The operators associate to the left, so a flat
+/// chain of more than 128 terms refuses, and the same terms grouped
+/// (`(a + b) + (c + d)`) nest less.
+///
 /// **No `__hash__`.** Equality is the kernel's own `PartialEq`, and
 /// that is an IEEE comparison of the literals inside — so `0.0` and
 /// `-0.0` are equal expressions while their bit patterns are not, and
@@ -515,12 +521,12 @@ pub(crate) fn eval_err(py: Python<'_>, err: &d::EvalError) -> PyErr {
     };
 
     let (name, expected, found, count) = match err {
-        E::UnknownParam(param) => (text(&param.0), none(), none(), none()),
+        E::UnknownParam(param) => (text(param.as_str()), none(), none(), none()),
         E::ParamDimensionMismatch {
             name,
             expected,
             found,
-        } => (text(&name.0), dim(*expected), dim(*found), none()),
+        } => (text(name.as_str()), dim(*expected), dim(*found), none()),
         E::ContinuousExprInCountEval { found } => (none(), none(), dim(*found), none()),
         E::CountToScalarOutOfRange(value) => (none(), none(), none(), int(*value)),
         E::CountExprInContinuousEval | E::CountOverflow | E::NonFiniteResult => {

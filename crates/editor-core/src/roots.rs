@@ -92,14 +92,16 @@ impl core::fmt::Display for RootFault {
 
 impl core::error::Error for RootFault {}
 
-/// The strict ancestors of `from`, visited depth-first over `inputs()`
-/// in deterministic order; `visit` sees each reached node once.
-fn walk_strict_ancestors<P: crate::ProfilePayload>(
+/// The strict ancestors of `from` in ONE document, visited
+/// depth-first over `inputs()` in deterministic order; `visit` sees
+/// each reached node once. The crate's one transitive walk over input
+/// edges — [`strict_ancestors`] is it with nothing to refuse.
+pub(crate) fn walk_strict_ancestors<P: crate::ProfilePayload, E>(
     doc: &Doc<P>,
     from: RecipeNodeId,
     seen: &mut std::collections::BTreeSet<RecipeNodeId>,
-    mut visit: impl FnMut(RecipeNodeId) -> Result<(), RootFault>,
-) -> Result<(), RootFault> {
+    mut visit: impl FnMut(RecipeNodeId) -> Result<(), E>,
+) -> Result<(), E> {
     let mut stack: Vec<RecipeNodeId> = doc.node(from).map(|n| n.inputs()).unwrap_or_default();
     while let Some(id) = stack.pop() {
         if !seen.insert(id) {
@@ -111,6 +113,20 @@ fn walk_strict_ancestors<P: crate::ProfilePayload>(
         }
     }
     Ok(())
+}
+
+/// Every node `from` depends on through input edges in `doc`, itself
+/// excluded — [`walk_strict_ancestors`] collected.
+pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    from: RecipeNodeId,
+) -> std::collections::BTreeSet<RecipeNodeId> {
+    let mut seen = std::collections::BTreeSet::new();
+    let walked: Result<(), core::convert::Infallible> =
+        walk_strict_ancestors(doc, from, &mut seen, |_| Ok(()));
+    match walked {
+        Ok(()) => seen,
+    }
 }
 
 /// Checks both root invariants plus the list's own well-formedness

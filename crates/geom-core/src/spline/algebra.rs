@@ -28,22 +28,24 @@
 //! # One schedule, two arithmetics
 //!
 //! An insertion plan is applied by [`CurvePlan::apply_points`] in the
-//! caller's scalar and by [`CurvePlan::apply_ring`] in the certification
+//! caller's scalar and by [`CurvePlan::apply_certified`] in the certification
 //! ring, off the SAME [`Step`] list — same targets, same sources, same
 //! order. The two differ in the coefficient the combination is taken
 //! with, and they must: the projective applier's `λ` is an `f64`
-//! quotient of weights, while the ring applier re-derives the Boehm
+//! quotient of weights, while interval arithmetic applier re-derives the Boehm
 //! ratios `α = (u − U_j)/Δ` and `β = (U_{j+p} − u)/Δ` from the knots
 //! they are made of ([`Step::Combo`]'s `ratio`) so that they round
 //! OUTWARD. A ring consumer that took the stored `λ` and padded it by a
 //! guessed number of ulps would be asserting a bound nobody derived;
-//! re-deriving the ratios in the ring makes the insertion widen like
-//! every other step of an enclosure. The ring applier takes HOMOGENEOUS
+//! re-deriving the ratios in certification arithmetic makes the insertion widen like
+//! every other step of an enclosure. Interval arithmetic applier takes HOMOGENEOUS
 //! coefficients, where the combination is the plain convex one and no
 //! `λ` is needed.
 
 use super::knots::{InteriorKnot, KnotVector, SplineError};
-use crate::ring_interval::RingInterval;
+use crate::interval::Interval;
+use crate::interval::certification::Certification;
+use crate::readable::Readable;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -96,19 +98,23 @@ impl core::fmt::Display for KnotAlgebraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             KnotAlgebraError::Structure(e) => write!(f, "the knot edit refused: {e}"),
-            KnotAlgebraError::ParameterOutsideDomain { u } => {
-                write!(f, "knot parameter {u} is not strictly inside the domain")
-            }
+            KnotAlgebraError::ParameterOutsideDomain { u } => write!(
+                f,
+                "knot parameter {} is not strictly inside the domain",
+                Readable(*u)
+            ),
             KnotAlgebraError::MultiplicityOverflow { u, have, budget } => write!(
                 f,
-                "inserting knot {u} (multiplicity {have}) exceeds the interior budget {budget}"
+                "inserting knot {} (multiplicity {have}) exceeds the interior budget {budget}",
+                Readable(*u)
             ),
             KnotAlgebraError::KnotNotPresent { u } => {
-                write!(f, "{u} is not an interior knot")
+                write!(f, "{} is not an interior knot", Readable(*u))
             }
             KnotAlgebraError::RemovalExceedsMultiplicity { u, have, requested } => write!(
                 f,
-                "removing knot {u} {requested} times exceeds its multiplicity {have}"
+                "removing knot {} {requested} times exceeds its multiplicity {have}",
+                Readable(*u)
             ),
             KnotAlgebraError::WeightCollapse { index } => write!(
                 f,
@@ -136,7 +142,7 @@ enum Src {
 /// Carried as INGREDIENTS and not as values, because the two appliers
 /// need them at two precisions: `f64`, folded into the projective `λ`
 /// below, and outward-rounded ring quotients for
-/// [`CurvePlan::apply_ring`]. A stored `f64` ratio would leave the ring
+/// [`CurvePlan::apply_certified`]. A stored `f64` ratio would leave interval arithmetic
 /// applier padding a rounded number by a guess.
 #[derive(Clone, Copy, Debug)]
 struct Ratio {
@@ -157,7 +163,7 @@ enum Step {
     /// is the projective form of a Boehm ratio. Removal and degree
     /// elevation combine with coefficients that are not ratios of
     /// knots at all, so they carry `None` and
-    /// [`CurvePlan::apply_ring`] refuses them.
+    /// [`CurvePlan::apply_certified`] refuses them.
     Combo {
         target: usize,
         x: Src,
@@ -254,14 +260,15 @@ impl CurvePlan {
     /// rounded, and every coefficient the caller handed in is widened
     /// by it rather than re-rounded to `f64`.
     ///
-    /// **Total, and poison is the refusal** (D4): a plan step with no
-    /// insertion ratio — degree elevation, knot removal — poisons its
+    /// **Total, and NaI is the refusal** (D4): a plan step with no
+    /// insertion ratio — degree elevation, knot removal — refuses its
     /// target, as does a malformed plan or a channel of the wrong
-    /// length. Poison then flows through every hull the caller reads.
-    pub fn apply_ring(&self, old: &[RingInterval]) -> Vec<RingInterval> {
+    /// length. The refusal then flows through every hull the caller
+    /// reads.
+    pub fn apply_certified(&self, old: &[Interval]) -> Vec<Interval> {
         let n_new = self.knots.control_count();
-        let mut new: Vec<Option<RingInterval>> = vec![None; n_new];
-        let fetch = |new: &[Option<RingInterval>], s: Src| -> Option<RingInterval> {
+        let mut new: Vec<Option<Interval>> = vec![None; n_new];
+        let fetch = |new: &[Option<Interval>], s: Src| -> Option<Interval> {
             match s {
                 Src::Old(i) => old.get(i).copied(),
                 Src::New(i) => new.get(i).copied().flatten(),
@@ -289,7 +296,7 @@ impl CurvePlan {
                                 // `α = (u − U_j)/Δ` with `Δ = U_{j+p} − U_j`,
                                 // positive by the insertion precondition
                                 // (`insert_once`'s band comment), so the
-                                // quotients never poison on a valid plan.
+                                // quotients never refuse on a valid plan.
                                 //
                                 // **The convex form, not the lerp form, and
                                 // the difference is WIDTH.** `x + (y − x)·α`
@@ -316,9 +323,8 @@ impl CurvePlan {
                                 // it is not is variation-diminishing in the
                                 // exact sense the reals give.
                                 // Fixed association (D9): `β·x + α·y`.
-                                let (lo, hi) =
-                                    (RingInterval::point(r.lo), RingInterval::point(r.hi));
-                                let u = RingInterval::point(r.inserted);
+                                let (lo, hi) = (Interval::point(r.lo), Interval::point(r.hi));
+                                let u = Interval::point(r.inserted);
                                 let span = hi - lo;
                                 let alpha = (u - lo) / span;
                                 let beta = (hi - u) / span;
@@ -331,7 +337,7 @@ impl CurvePlan {
             }
         }
         new.into_iter()
-            .map(|slot| slot.unwrap_or_else(RingInterval::poison))
+            .map(|slot| slot.unwrap_or_else(Interval::refused))
             .collect()
     }
 }
@@ -416,9 +422,9 @@ pub fn insert_knot_plan(
 /// **The Boehm structure is shared with [`super::compose`]'s
 /// `insert_once_ring`, and the two are now a FILED duplication rather
 /// than an argued one.** That function's own docs still argue the split
-/// on the ground that it "folds `RingInterval` coefficients with an
+/// on the ground that it "folds `Interval` coefficients with an
 /// outward-rounding quotient and has no weights to form `λ` from" —
-/// which is a description of [`CurvePlan::apply_ring`], so the argument
+/// which is a description of [`CurvePlan::apply_certified`], so the argument
 /// no longer separates them. What still does is the SHAPE of the
 /// schedule each needs: that one inserts to full interior multiplicity
 /// over a raw knot list, deliberately never rebuilding a [`KnotVector`]
@@ -529,12 +535,12 @@ pub fn refine_plan(
 /// sequence — the shape a HOMOGENEOUS net has, since `w` and each `w·P`
 /// channel of a rational description are themselves polynomial
 /// B-splines. The schedule is the arm a ring consumer wants
-/// ([`CurvePlan::apply_ring`]): the plan's own `λ` is then the
-/// `f64`-rounded insertion ratio, which the ring applier does not read.
+/// ([`CurvePlan::apply_certified`]): the plan's own `λ` is then the
+/// `f64`-rounded insertion ratio, which interval arithmetic applier does not read.
 ///
 /// Unit weights are the net's real weights and not a stand-in, and what
 /// they buy is the positivity precondition for free — nothing else, since
-/// [`CurvePlan::apply_ring`] reads neither the plan's weights nor its
+/// [`CurvePlan::apply_certified`] reads neither the plan's weights nor its
 /// `λ`.
 ///
 /// # Errors
@@ -545,6 +551,158 @@ pub fn refine_plan_homogeneous(
     new_knots: &[f64],
 ) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     refine_plan(kv, &vec![1.0; kv.control_count()], new_knots)
+}
+
+/// **The equal-split refinement schedule**: the interior points that
+/// cut every nonempty span of `kv` into `splits` equal pieces — the
+/// `new_knots` a caller hands [`refine_plan`] or
+/// [`refine_plan_homogeneous`] to refine uniformly within spans
+/// ([`equal_split_plan`] is the latter composition).
+///
+/// A point floating point collapses onto a span end is skipped rather
+/// than inserted: refinement is a tightening, never a correctness
+/// condition, so a dropped point costs a wider piece and never an
+/// invalid one, while an inserted collapse would raise an end knot's
+/// multiplicity. Points come out in ascending span order, ascending
+/// within a span; `splits` of 0 or 1 yields none.
+#[must_use]
+pub fn equal_split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
+    let mut add = Vec::new();
+    for span in kv.first_span()..=kv.last_span() {
+        if !kv.span_is_nonempty(span) {
+            continue;
+        }
+        // `span_is_nonempty` has just checked `span + 1` is in range.
+        let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
+        for k in 1..splits {
+            #[allow(clippy::cast_precision_loss)]
+            let f = k as f64 / splits as f64;
+            let u = lo + (hi - lo) * f;
+            if u > lo && u < hi {
+                add.push(u);
+            }
+        }
+    }
+    add
+}
+
+/// **The equal-split refinement chain**: the [`refine_plan_homogeneous`]
+/// plans that insert [`equal_split_points`]`(kv, splits)` — every
+/// nonempty span of `kv` cut into `splits` equal pieces, built from
+/// structure alone. One plan per inserted point, so the chain's length
+/// is the insertion count. A caller that needs the refined vector takes
+/// the last plan's knots, or `kv` when the chain is empty.
+///
+/// # Errors
+///
+/// As [`refine_plan`].
+pub fn equal_split_plan(
+    kv: &KnotVector,
+    splits: usize,
+) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
+    refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
+}
+
+/// How close a grid point may come to a knot before it is dropped
+/// instead of minting a hairline span or cell, in ulps of the range's
+/// own width — the clearance [`GridSkip::WithinUlps`] is spelled with.
+///
+/// A few ulps, because that is the whole width of the defect: the
+/// grid point and the knot are describing the same place, and the
+/// span between them is arithmetic noise rather than geometry. It is
+/// deliberately NOT a tolerance in the ε sense — no input's meaning
+/// depends on it, only whether one redundant subdivision is taken.
+pub const SLIVER_CLEARANCE_ULPS: u32 = 8;
+
+/// When a uniform grid ([`domain_grid_points`], [`range_grid_points`])
+/// counts a grid point as already one of the MANDATORY points it
+/// defers to — a vector's interior knots, or a caller's cut set — and
+/// skips it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GridSkip {
+    /// Skip a grid point that IS a mandatory point: `f64` equality, so
+    /// a knot one ulp off a grid point does not suppress it and both
+    /// reach the output's consumer. The same rule as `WithinUlps(0)`,
+    /// named for the reader.
+    BitEqual,
+    /// Skip a grid point within `ulps · ε · |hi − lo|` of a mandatory
+    /// point, `[lo, hi]` the grid's range: the mandatory point stands
+    /// and the hairline span the grid point would open beside it is
+    /// never minted. [`SLIVER_CLEARANCE_ULPS`] is the clearance the tree
+    /// uses.
+    WithinUlps(u32),
+}
+
+/// **The domain-uniform grid**: the interior points
+/// `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of the vector's DOMAIN
+/// `[lo, hi]`, ascending, minus every point `skip` finds on an interior
+/// knot — the `new_knots` a caller hands [`refine_plan`] or
+/// [`refine_plan_homogeneous`] to refine to at least `pieces` spans
+/// over the whole domain, or a break list for a per-span extraction.
+///
+/// **Not the equal-split schedule**: [`equal_split_points`] cuts each
+/// nonempty SPAN into equal pieces, so its grid restarts at every knot
+/// and a knot is a span end by construction. This grid is blind to
+/// where the knots fall, which is why it takes a `skip` rule and the
+/// per-span schedule does not.
+///
+/// It refines ANY vector, however fine already. A caller for whom a
+/// vector with `pieces + degree` or more control points is fine enough
+/// tests that itself and does not call; the grid does not decide it.
+/// `pieces` of 0 or 1 yields none.
+#[must_use]
+pub fn domain_grid_points(kv: &KnotVector, pieces: usize, skip: GridSkip) -> Vec<f64> {
+    let (lo, hi) = kv.domain();
+    let knots: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
+    range_grid_points(lo, hi, pieces, skip, &knots)
+}
+
+/// **The range-uniform grid** under [`domain_grid_points`]: the
+/// interior points `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of an
+/// arbitrary range `[lo, hi]`, ascending, minus every point that falls
+/// outside the open range or that `skip` finds on a point of
+/// `mandatory` — `skip`'s clearance scaled by `|hi − lo|`.
+///
+/// `mandatory` is whatever set the grid must defer to, and it is not
+/// the grid's to widen: [`domain_grid_points`] passes a vector's
+/// interior knots, and a caller cutting a sub-range on a raw knot
+/// slice passes its whole cut set, which carries the range's ends
+/// for completeness — the open-range test already keeps every grid
+/// point off them. The test is against `mandatory` alone, never
+/// against other grid points, so a point two grids share (a coarse
+/// grid's point is a fine grid's when the counts divide) is kept by
+/// both or dropped by both.
+///
+/// The clearance is `|hi − lo|·(ulps·ε)`: `ulps·ε` is exact, so the
+/// product rounds once and a finite width never overflows it to `∞`
+/// (which would drop every grid point beside any mandatory one).
+///
+/// `pieces` of 0 or 1 yields none.
+#[must_use]
+pub fn range_grid_points(
+    lo: f64,
+    hi: f64,
+    pieces: usize,
+    skip: GridSkip,
+    mandatory: &[f64],
+) -> Vec<f64> {
+    let sliver = match skip {
+        GridSkip::BitEqual => None,
+        GridSkip::WithinUlps(ulps) => Some((hi - lo).abs() * (f64::from(ulps) * f64::EPSILON)),
+    };
+    (1..pieces)
+        .filter_map(|k| {
+            #[allow(clippy::cast_precision_loss)]
+            let t = lo + (hi - lo) * (k as f64 / pieces as f64);
+            (t > lo
+                && t < hi
+                && mandatory.iter().all(|m| match sliver {
+                    None => *m != t,
+                    Some(sliver) => (t - *m).abs() > sliver,
+                }))
+            .then_some(t)
+        })
+        .collect()
 }
 
 /// **Knot merging (Book §5.3), the structure half: per vector, the
@@ -901,6 +1059,7 @@ fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::real::Bounds;
     use crate::spline::basis::basis_funs;
 
     /// 1-D rational evaluation oracle: x(t) = Σ N w x / Σ N w — the
@@ -929,6 +1088,153 @@ mod tests {
         (kv, w, x)
     }
 
+    /// The equal-split schedule's sliver guard: on the one-ulp span
+    /// `[1, tiny]` every `lo + (hi − lo)·k/n` rounds onto an end, and
+    /// none of those collapses reaches the output. The rest of the row
+    /// pins count and order — `n − 1` points per span wider than a
+    /// sliver, ascending, the grid restarting at every knot — against
+    /// values written out by hand rather than re-derived from the
+    /// implementation's expression.
+    #[test]
+    fn equal_split_points_skips_slivers_and_keeps_count_and_order() {
+        let tiny = f64::from_bits(1.0f64.to_bits() + 1);
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, tiny, 2.0, 2.0, 2.0], 2)
+            .unwrap();
+        let got = equal_split_points(&kv, 4);
+        // Three spans wider than a sliver — [0, 0.5], [0.5, 1], [tiny, 2] —
+        // at three points each.
+        assert_eq!(got.len(), 9, "{got:?}");
+        assert_eq!(got[..6], [0.125, 0.25, 0.375, 0.625, 0.75, 0.875]);
+        for (g, want) in got[6..].iter().zip([1.25, 1.5, 1.75]) {
+            assert!((g - want).abs() <= f64::EPSILON, "{g} vs {want}");
+        }
+        assert!(got.windows(2).all(|w| w[0] < w[1]), "{got:?}");
+        // A collapsed sliver point would land on `1.0` or `tiny`: no knot
+        // value is ever a split point.
+        assert!(got.iter().all(|u| !kv.knots().contains(u)), "{got:?}");
+        assert!(equal_split_points(&kv, 1).is_empty());
+        assert!(equal_split_points(&kv, 0).is_empty());
+    }
+
+    /// The equal-split chain inserts exactly the schedule's points, one
+    /// plan each, and lands on the vector that carries them: its last
+    /// plan's interior is the described interior merged with the
+    /// schedule, written out by hand. An empty schedule is an empty
+    /// chain.
+    #[test]
+    fn equal_split_plan_is_one_plan_per_schedule_point() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let plans = equal_split_plan(&kv, 4).unwrap();
+        assert_eq!(plans.len(), 6);
+        let last = plans.last().expect("six insertions");
+        assert_eq!(
+            last.knots.knots(),
+            [
+                0.0, 0.0, 0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0, 1.0, 1.0
+            ]
+        );
+        assert!(equal_split_plan(&kv, 1).unwrap().is_empty());
+    }
+
+    /// The domain-uniform grid runs over the whole domain, blind to
+    /// the spans: on `[0, 1]` with knots at `0.5` and one ulp above
+    /// `0.25`, the quarters grid is `0.25, 0.75` under the bit-equal
+    /// skip (`0.5` is a knot; `0.25` is not) and `0.75` alone under an
+    /// 8-ulp clearance. A vector already finer than the grid is still
+    /// given it, and `pieces` of 0 or 1 yields none.
+    #[test]
+    fn domain_grid_points_skip_rules_and_no_cut_off() {
+        let near = f64::from_bits(0.25f64.to_bits() + 1);
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        assert_eq!(domain_grid_points(&kv, 4, GridSkip::BitEqual), [0.25, 0.75]);
+        assert_eq!(
+            domain_grid_points(&kv, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
+            [0.75]
+        );
+        // The clearance scales with the domain's width: on `[0, 4]` a
+        // knot 4 ulps of `1.0` off the grid point `1.0` is inside it.
+        let off = f64::from_bits(1.0f64.to_bits() + 4);
+        let wide = KnotVector::clamped(vec![0.0, 0.0, off, 4.0, 4.0], 1).unwrap();
+        assert_eq!(
+            domain_grid_points(&wide, 4, GridSkip::BitEqual),
+            [1.0, 2.0, 3.0]
+        );
+        assert_eq!(
+            domain_grid_points(&wide, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
+            [2.0, 3.0]
+        );
+        // Ten spans, a grid of four: every quarter is still offered.
+        let fine = KnotVector::clamped(
+            vec![
+                0.0, 0.0, 0.05, 0.15, 0.35, 0.45, 0.55, 0.65, 0.8, 0.9, 0.95, 1.0, 1.0,
+            ],
+            1,
+        )
+        .unwrap();
+        assert_eq!(fine.control_count(), 11);
+        assert_eq!(
+            domain_grid_points(&fine, 4, GridSkip::BitEqual),
+            [0.25, 0.5, 0.75]
+        );
+        assert!(domain_grid_points(&kv, 1, GridSkip::BitEqual).is_empty());
+        assert!(domain_grid_points(&kv, 0, GridSkip::BitEqual).is_empty());
+        // A non-dyadic domain pins the grid ARITHMETIC: `lo + (hi − lo)·(k/n)`
+        // rounds to these values, and the counted-from-the-top form
+        // `hi − (hi − lo)·((n − k)/n)` to others (`0.15999999999999992`,
+        // `0.39999999999999997`, …). The knot at `0.4` is the grid's own
+        // point, so the bit-equal skip drops it.
+        let odd = KnotVector::clamped(vec![0.1, 0.1, 0.4, 0.7, 0.7], 1).unwrap();
+        assert_eq!(
+            domain_grid_points(&odd, 10, GridSkip::BitEqual),
+            [
+                0.16,
+                0.22,
+                0.28,
+                0.339_999_999_999_999_97,
+                0.459_999_999_999_999_96,
+                0.52,
+                0.58,
+                0.64
+            ]
+        );
+        // n = 13 separates the step forms that n = 10 does not:
+        // `lo + ((hi − lo)·k)/n` and `lo + k·((hi − lo)/n)` give
+        // `0.1923076923076923` at k = 2, `0.23846153846153845` at k = 3
+        // and `0.6538461538461537` at k = 12.
+        assert_eq!(
+            domain_grid_points(&odd, 13, GridSkip::BitEqual),
+            [
+                0.146_153_846_153_846_16,
+                0.192_307_692_307_692_32,
+                0.238_461_538_461_538_47,
+                0.284_615_384_615_384_6,
+                0.330_769_230_769_230_8,
+                0.376_923_076_923_076_9,
+                0.423_076_923_076_923,
+                0.469_230_769_230_769_23,
+                0.515_384_615_384_615_3,
+                0.561_538_461_538_461_5,
+                0.607_692_307_692_307_6,
+                0.653_846_153_846_153_9
+            ]
+        );
+        // A finite width near `f64::MAX`: the clearance is
+        // `|hi − lo|·(ulps·ε)`, finite, so a grid point clear of the
+        // knot stands. Spelled `(|hi − lo|·ulps)·ε` the product
+        // overflows to `∞` first and every point is dropped.
+        let big = f64::MAX / 2.0;
+        let huge = KnotVector::clamped(vec![-big, -big, 0.5 * big, big, big], 1).unwrap();
+        assert_eq!(
+            domain_grid_points(&huge, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
+            [-0.5 * big, 0.0]
+        );
+        // `WithinUlps(0)` is the bit-equal rule.
+        assert_eq!(
+            domain_grid_points(&odd, 10, GridSkip::WithinUlps(0)),
+            domain_grid_points(&odd, 10, GridSkip::BitEqual)
+        );
+    }
+
     fn apply_chain(plans: &[CurvePlan], x: &[f64]) -> Vec<f64> {
         let mut cur = x.to_vec();
         for plan in plans {
@@ -937,8 +1243,8 @@ mod tests {
         cur
     }
 
-    /// **The two arithmetics stay in step, and the ring one stays where
-    /// the described coefficients are.** The ring applier reads the SAME
+    /// **The two arithmetics stay in step, and the interval one stays where
+    /// the described coefficients are.** The interval applier reads the SAME
     /// [`Step`] list as the point applier, so "same targets, same
     /// sources" is structural rather than tested; what a row can break
     /// is the arithmetic that hangs off it, and these four claims are
@@ -948,11 +1254,11 @@ mod tests {
     ///    every degree and every split count.
     /// 2. **A carry is the coefficient itself**, bitwise: nothing is
     ///    combined, so nothing rounds, and an enclosure wider than a
-    ///    point would mean the ring applier had touched a carry.
+    ///    point would mean interval arithmetic applier had touched a carry.
     /// 3. **No slot leaves the described hull by more than the ratios'
     ///    own rounding.** In ℝ a refined coefficient is a convex
     ///    combination of the described ones, so it lies in their hull;
-    ///    in the ring the two ratios round outward independently and
+    ///    in certification arithmetic the two ratios round outward independently and
     ///    `α_hi + β_hi` exceeds 1, so a slot reaches a little past that
     ///    hull. The excursion is bounded by the same width claim 4
     ///    bounds, and it is that allowance — not a fresh tolerance —
@@ -991,46 +1297,31 @@ mod tests {
             let coeffs: Vec<f64> = (0..n)
                 .map(|i| if i % 2 == 0 { i as f64 } else { -(i as f64) })
                 .collect();
-            let input: Vec<RingInterval> =
-                coeffs.iter().copied().map(RingInterval::point).collect();
+            let input: Vec<Interval> = coeffs.iter().copied().map(Interval::point).collect();
             let input_hull = input
                 .iter()
                 .copied()
-                .reduce(RingInterval::hull)
+                .reduce(Interval::hull)
                 .expect("a clamped vector has control points");
             let scale = coeffs.iter().fold(0.0f64, |m, c| m.max(c.abs())).max(1.0);
             for splits in [2usize, 3, 8, 16] {
-                // Every nonempty span cut into `splits` equal pieces.
-                let mut add = Vec::new();
-                for span in kv.first_span()..=kv.last_span() {
-                    if !kv.span_is_nonempty(span) {
-                        continue;
-                    }
-                    let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
-                    for k in 1..splits {
-                        #[allow(clippy::cast_precision_loss)]
-                        let t = lo + (hi - lo) * (k as f64 / splits as f64);
-                        if t > lo && t < hi {
-                            add.push(t);
-                        }
-                    }
-                }
-                let plans = refine_plan_homogeneous(&kv, &add).unwrap();
+                let plans = equal_split_plan(&kv, splits).unwrap();
                 let f64_out = apply_chain(&plans, &coeffs);
                 let mut ring_out = input.clone();
                 for plan in &plans {
-                    ring_out = plan.apply_ring(&ring_out);
+                    ring_out = plan.apply_certified(&ring_out);
                 }
                 let tag = format!("p={p} interior={interior:?} splits={splits}");
                 assert_eq!(ring_out.len(), f64_out.len(), "{tag}: extent");
                 // ONE allowance, shared by claims 3 and 4: the width a
-                // non-inflating fold may accumulate over `add.len()`
-                // insertions, in ulps of the coefficient scale.
+                // non-inflating fold may accumulate over `plans.len()`
+                // insertions (one plan per insertion), in ulps of the
+                // coefficient scale.
                 #[allow(clippy::cast_precision_loss)]
-                let ceiling_ulps = 8.0 * (add.len() + 1) as f64;
+                let ceiling_ulps = 8.0 * (plans.len() + 1) as f64;
                 let slack = ceiling_ulps * scale * f64::EPSILON;
                 for (i, r) in ring_out.iter().enumerate() {
-                    assert!(!r.is_poison(), "{tag}: slot {i} poisoned");
+                    assert!(r.is_certified(), "{tag}: slot {i} refused");
                     assert!(
                         r.lo() >= input_hull.lo() - slack && r.hi() <= input_hull.hi() + slack,
                         "{tag}: slot {i} = [{:.17e}, {:.17e}] is outside the described hull \
@@ -1051,7 +1342,7 @@ mod tests {
                 }
                 // Claim 4, against the insertion count rather than a
                 // fixed number: a fold that inflated per step would be
-                // exponential in `add.len()` and blow through this.
+                // exponential in `plans.len()` and blow through this.
                 let worst = ring_out
                     .iter()
                     .fold(0.0f64, |m, r| m.max(r.width() / (scale * f64::EPSILON)));
@@ -1060,7 +1351,7 @@ mod tests {
                     "{tag}: widest refined coefficient is {worst:.1} ulps of the \
                      coefficient scale over {} insertions, above the {ceiling_ulps:.0} a \
                      non-inflating fold allows",
-                    add.len()
+                    plans.len()
                 );
             }
         }
@@ -1069,7 +1360,7 @@ mod tests {
 
     /// **The bulge, measured.** A refined coefficient is a convex
     /// combination of two described ones, so in ℝ it lies between them
-    /// — and with EQUAL adjacent coefficients it equals them. The ring
+    /// — and with EQUAL adjacent coefficients it equals them. Interval arithmetic
     /// applier cannot say that: `α` and `β` are outward-rounded
     /// independently, so `α_hi + β_hi` exceeds 1 and `β·c + α·c`
     /// comes out as a bracket straddling `c` rather than the point `c`.
@@ -1102,29 +1393,15 @@ mod tests {
             knots.extend_from_slice(interior);
             knots.extend(core::iter::repeat_n(1.0, p + 1));
             let kv = KnotVector::clamped(knots, p).unwrap();
-            let mut add = Vec::new();
-            for span in kv.first_span()..=kv.last_span() {
-                if !kv.span_is_nonempty(span) {
-                    continue;
-                }
-                let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
-                for k in 1..splits {
-                    #[allow(clippy::cast_precision_loss)]
-                    let t = lo + (hi - lo) * (k as f64 / splits as f64);
-                    if t > lo && t < hi {
-                        add.push(t);
-                    }
-                }
-            }
-            let plans = refine_plan_homogeneous(&kv, &add).unwrap();
-            let mut out: Vec<RingInterval> = vec![RingInterval::point(c); kv.control_count()];
+            let plans = equal_split_plan(&kv, splits).unwrap();
+            let mut out: Vec<Interval> = vec![Interval::point(c); kv.control_count()];
             for plan in &plans {
-                out = plan.apply_ring(&out);
+                out = plan.apply_certified(&out);
             }
             let mut outside = 0usize;
             let mut worst = 0.0f64;
             for r in &out {
-                assert!(!r.is_poison(), "p={p} c={c}: poisoned slot");
+                assert!(r.is_certified(), "p={p} c={c}: refused slot");
                 let excursion = (r.hi() - c).max(c - r.lo());
                 if excursion > 0.0 {
                     outside += 1;
@@ -1137,7 +1414,7 @@ mod tests {
                 "constant {c} at p={p}, {} insertions: {outside} of {} slots outside the \
                  degenerate hull, worst excursion {worst:.3e} ({ulps:.2} ulps of the \
                  coefficient)",
-                add.len(),
+                plans.len(),
                 out.len()
             );
             // The finding, asserted in the direction it is true in. An
@@ -1196,6 +1473,13 @@ mod tests {
         assert_eq!(
             insert_knot_plan(&kv, &w, 0.0, 1).unwrap_err(),
             KnotAlgebraError::ParameterOutsideDomain { u: 0.0 }
+        );
+        // The refusal names the parameter as a number a reader can
+        // see: at the ceiling of the range that is `1e308`, not the
+        // 309-digit positional expansion.
+        assert_eq!(
+            insert_knot_plan(&kv, &w, 1e308, 1).unwrap_err().to_string(),
+            "knot parameter 1e308 is not strictly inside the domain"
         );
         assert_eq!(
             insert_knot_plan(&kv, &w, 1.0, 2).unwrap_err(),

@@ -9,8 +9,7 @@
 //! goes with it, live where the trait is implemented —
 //! `crates/geom-core/src/interval.rs` — built out of `abs`, `hull` and
 //! negation from this module. Whether it belongs down here instead is
-//! part of the open `RingInterval`-vs-`Interval` question and is not
-//! settled by moving it.
+//! an open placement question, and moving it would not settle it.
 
 use crate::interval::{DInterval, Decoration};
 

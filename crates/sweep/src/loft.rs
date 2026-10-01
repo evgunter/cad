@@ -248,7 +248,7 @@ impl From<EulerOpError> for LoftError {
 /// The section was validated once, at the geometry door, and that
 /// verdict is what the walls were skinned from
 /// ([`LoftGeometry::canonical`]). Deciding the canonical form again
-/// here — loop roles, traversal sense, the lex-min start vertex, each
+/// here — loop roles, traversal sense, the start vertex, each
 /// segment's classification, each declared joint's tangency — would
 /// make the caps a SECOND canonicalization of the same data, agreeing
 /// with the walls' by determinism rather than by construction; and at
@@ -376,7 +376,7 @@ fn stacking_fold<T: Decide>(
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
-fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
+fn assemble<T: Decide + topo::AtRestPolicy>(
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
     tol: Tol,
@@ -460,7 +460,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     // (`topo::surgery`), and the tier-2 check below subsumes it.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0])?;
+    let seed = body.mvfs(qs[0], true)?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
         MevSite::Lone {
@@ -500,7 +500,11 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
             he2: first.he_plus,
         },
         placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0], tol),
-        FaceSurface::New(bottom_plane),
+        // Newell over the loop the cap runs: outward, as extrude's.
+        FaceSurface::New {
+            surface: bottom_plane,
+            sense: true,
+        },
         tol,
     )?;
     hes.push(close.he_plus);
@@ -558,7 +562,12 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                 he2: first.he_plus,
             },
             placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0], tol),
-            FaceSurface::Shared(bottom_surface),
+            // The disc is transient: `kfmrh` kills it at once, and
+            // nothing reads its bit.
+            FaceSurface::Shared {
+                key: bottom_surface,
+                sense: false,
+            },
             tol,
         )?;
         hole_hes.push(close.he_plus);
@@ -604,7 +613,12 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                     he2,
                 },
                 placed_segment_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to, tol),
-                FaceSurface::New(Surface::Nurbs(Arc::clone(&walls_t[li][j]))),
+                // The skinned chart's normal points out of the
+                // material (module docs).
+                FaceSurface::New {
+                    surface: Surface::Nurbs(Arc::clone(&walls_t[li][j])),
+                    sense: true,
+                },
                 tol,
             )?;
             if j == 0 {
@@ -627,7 +641,13 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     // ---- Phase 5: the swept seed face survives as the top cap. ----
     let far_loop = cap_points(&tloops[0], &tq[0], tplace);
     let top_plane = newell_plane(&far_loop, band).map_err(LoftError::CapPlane)?;
-    body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
+    body.set_face_surface(
+        top_face,
+        FaceSurface::New {
+            surface: top_plane,
+            sense: true,
+        },
+    )?;
 
     // Both cap planes exist now, so both rims are at REST in them and
     // stop leaning on the scaffolding door they had to be minted
@@ -695,30 +715,19 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 /// skinning degree in the section direction. Structure is `f64`
 /// (C6); the produced body is at `T`, lifted exactly.
 ///
-/// # Correspondence — read this before authoring a rotated section
+/// # Correspondence — the vertex order you wrote
 ///
-/// Sections are paired **by index over the CANONICAL loops**, not over
-/// the vertex order you wrote: [`profile::Profile::validate`] rotates every loop
-/// to its lex-min vertex first, and it is those loops
-/// [`loft_geometry`] matches like to like. Both halves are deliberate
-/// and each is documented at its own door; the consequence of the pair
-/// is not obvious and is worth stating here, because it is silent —
-/// the body builds and certifies at every tier.
-///
-/// **A section rotated relative to its neighbour can therefore be
-/// re-anchored, and the roll of the built body is the angle between
-/// CANONICAL loops rather than the angle you authored.** Worked
-/// example, executed rather than reasoned: the turning-orientation
-/// suite's authored-roll row lofts a square onto the same square
-/// rotated by `theta` about its own centre, and for `theta` in
-/// `(0, pi/2)` the rotation moves which vertex is lex-min, so the body
-/// rolls by `theta - pi/2` — a quarter turn nobody wrote.
-///
-/// If the correspondence matters to you, author it: place the sections
-/// so their canonical starts agree, or choose the vertex order that
-/// survives canonicalization. There is no argument to this door that
-/// states a pairing, by design — *"no honest way to guess a
-/// correspondence that was not given"* ([`loft_geometry`]).
+/// Sections are paired **by index over the canonical loops**, and the
+/// canonical form keeps each loop's AUTHORED start
+/// ([`profile::Profile::validate`] normalizes only the traversal sense),
+/// so segment `j` of every section is counted from the vertex you wrote
+/// first ([`loft_geometry`], "The correspondence is the author's").
+/// **A section rotated relative to its neighbour rolls the body by the
+/// angle you authored**: the turning-orientation suite's authored-roll
+/// row lofts a square onto the same square rotated by `theta` about its
+/// own centre, each written from the image of the other's start, and
+/// the body rolls by `theta`. To change the twist, start the section at
+/// a different vertex.
 ///
 /// **And the vertex order decides more than the pairing**: the whole
 /// surface's v-parameterization is the FIRST STRIP's, so a section
@@ -735,7 +744,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
-pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
@@ -753,9 +762,9 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 ///
 /// [`loft_body`]'s paragraph of that name applies, and lands softly
 /// here for a reason worth knowing: every section is the SAME profile,
-/// so canonicalization re-anchors all of them identically and the
-/// index pairing is the identity whatever the profile's vertex order
-/// was. What the canonical start still decides is which wall of the
+/// so every section canonicalizes identically and the index pairing is
+/// the identity whatever the profile's vertex order was. What the
+/// authored start still decides is which wall of the
 /// built body is which — the segment order the returned
 /// [`Lofted::side_faces`] is keyed in, and, through the first strip,
 /// the surface's v-parameterization ([`loft_body`]). The body's roll
@@ -778,7 +787,7 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 /// [`LoftError`] — every door named on the enum, with
 /// [`SkinError::PathTangentReversal`] arriving through
 /// [`LoftError::Skin`].
-pub fn sweep_body<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     profile: &[ProfileLoop<f64>],
     place: Affine3<f64>,
     path: &geom::NurbsCurve3<f64>,

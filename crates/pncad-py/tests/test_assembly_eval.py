@@ -76,11 +76,14 @@ generated under.
 
 import ast
 import atexit
+import json
 import math
 import operator
 import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -286,19 +289,23 @@ class TestTheResolutionRefusals(CorpusCase):
     """The seam's refusal family, each reached THROUGH `resolver=`.
 
     THREE arms are exercised here — `part_no_resolver` (the class
-    above), `part_pin_mismatch` and `part_unresolved`. The rest of the
-    family is typed and tagged but UNREACHED from Python today, each
+    above), `part_pin_mismatch` and `part_unresolved` — and two more
+    below: `part_root_failed` by `TestAPartWhoseRootFails` and
+    `part_root_poisoned` by `TestAPartWhoseRootIsPoisoned`. The rest of
+    the family is typed and tagged but UNREACHED from Python today, each
     for its own reason, and none of them is singled out:
     `part_epsilon_seam` needs a stored document recording a different
-    ε; `part_root_failed` and `part_product` need a part whose own
-    product is broken; `part_reference_cycle` needs an instantiate node
+    ε; `part_product` needs a part whose own product is broken for a
+    reason other than a failed or poisoned root;
+    `part_root_failure_unrecorded` and `part_not_entered` are
+    kernel bugs no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
     one at all, since a cycle with valid pins wants a content hash
     containing its own hash, and with invalid pins `part_pin_mismatch`
     fires first, so hand-crafted bytes do not get there either.
-    `part_depth_exceeded` is left UNCLAIMED: a hand-crafted acyclic
-    chain deep enough might reach it, and this unit did not establish
-    whether it does. Authoring any of these documents is G18b's half.
+    `part_depth_exceeded` is reached by `TestNestingPastTheBound`, with
+    an acyclic chain one document deeper than the bound. Authoring any
+    of the others is G18b's half.
     """
 
     def test_a_pin_that_moved_refuses_rather_than_retargeting(self):
@@ -337,6 +344,361 @@ class TestTheResolutionRefusals(CorpusCase):
         )
         self.assertEqual(
             sorted(r.reason for r in refusals.values()), ["node_failed", "poisoned"]
+        )
+
+    def test_a_missing_part_resolves_once_its_recourse_is_followed(self):
+        """The recourse the refusal states, followed word for word: the
+        part's file put in the store's directory, then the store opened
+        again. A `Workspace` holds the scan it was opened with, so the
+        file alone does not reach it."""
+        directory = self.scratch()
+        part = directory / f"{identities()['post']}.pncad"
+        kept = part.read_bytes()
+        part.unlink()
+        _, docs = opened()
+        store = Workspace(str(directory))
+
+        (refusal,) = [
+            r
+            for r in failures(evaluate(docs["layout"], resolver=store)).values()
+            if r.reason == "node_failed"
+        ]
+        self.assertIn(
+            "Recourse: put the part's file in this store's directory, "
+            "then open the store again",
+            str(refusal),
+        )
+
+        part.write_bytes(kept)
+        self.assertTrue(
+            failures(evaluate(docs["layout"], resolver=store)),
+            "the store opened before the file was put back does not see it",
+        )
+        store = Workspace(str(directory))
+        self.assertEqual(failures(evaluate(docs["layout"], resolver=store)), {})
+
+
+class TestAPartWhoseRootFails(unittest.TestCase):
+    """`part_root_failed`, reached: a part whose own product root
+    refuses, one document down and two.
+
+    The instance's message is its own short sentence: it names the
+    part's failed node and points at it, and never quotes that node's
+    refusal. The refusal crosses TYPED instead, as the exception's
+    `__cause__` — an `EvaluationError` for the part's node, raised the
+    way that node's own evaluation raises it — so a part inside a part
+    is a chain of causes, one per document.
+    """
+
+    #: The word budget a refusal the viewer draws is held to
+    #: (`test_utils::refusal::BUDGET`).
+    BUDGET = 75
+
+    def setUp(self):
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        self.store = Workspace(str(directory))
+        # The boss: its one root, an extrude, has no length to extrude.
+        boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.0)
+        self.store.create(boss)
+        self.boss_ref = DocRef(boss.id, pncad.content_pin(boss))
+        # The bracket: its one root instantiates the boss.
+        bracket = pncad.Doc("pncad-partroot-bracket")
+        self.bracket_root = bracket.insert(Node.instantiate_part(self.boss_ref))
+        self.store.create(bracket)
+        self.bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
+        self.assembly = pncad.Doc("pncad-partroot-assembly")
+        self.instance = self.assembly.insert(Node.instantiate_part(self.bracket_ref))
+
+    def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
+        bracket_root, instance = self.bracket_root, self.instance
+        refusal = failures(evaluate(self.assembly, resolver=self.store))[instance]
+        self.assertEqual(refusal.kind, "part_root_failed")
+        text = str(refusal)
+        self.assertLessEqual(len(text.split()), self.BUDGET, text)
+        self.assertIn(f"repair node {repr(bracket_root)[7:-1]}", text)
+
+        # One level down: the bracket's root, itself a part whose root
+        # failed — in the bracket's own id space.
+        bracket_refusal = refusal.__cause__
+        self.assertIsInstance(bracket_refusal, pncad.EvaluationError)
+        self.assertEqual(bracket_refusal.kind, "part_root_failed")
+        self.assertEqual(bracket_refusal.node, bracket_root)
+        self.assertNotIn(str(bracket_refusal), text, "the instance never quotes it")
+
+        # Two levels down: the boss's extrude, as its own tree draws it.
+        boss_refusal = bracket_refusal.__cause__
+        self.assertIsInstance(boss_refusal, pncad.EvaluationError)
+        self.assertEqual(boss_refusal.kind, "extrude")
+        self.assertIsNone(boss_refusal.__cause__, "the chain ends at the refusing node")
+        for level in (refusal, bracket_refusal, boss_refusal):
+            with self.subTest(level=str(level)):
+                self.assertLessEqual(len(str(level).split()), self.BUDGET)
+        self.assertNotIn(str(boss_refusal), str(bracket_refusal))
+
+        # Each level says which document its node is numbered in: the
+        # instance is the assembly's own, and each cause is its part's.
+        self.assertIsNone(refusal.document)
+        self.assertEqual(bracket_refusal.document, self.bracket_ref)
+        self.assertEqual(boss_refusal.document, self.boss_ref)
+
+    def test_a_node_poisoned_through_the_part_hands_on_its_cause(self):
+        moved = self.assembly.insert(
+            Node.transform(
+                self.instance,
+                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
+            )
+        )
+        refusal = failures(evaluate(self.assembly, resolver=self.store))[moved]
+        self.assertEqual(refusal.reason, "poisoned")
+        self.assertEqual(refusal.through, self.instance)
+        cause = refusal.__cause__
+        self.assertIsInstance(cause, pncad.EvaluationError)
+        self.assertEqual(
+            (cause.node, cause.document), (self.bracket_root, self.bracket_ref),
+            "the poisoned node hands on the chain its root cause carries",
+        )
+        self.assertEqual(cause.__cause__.document, self.boss_ref)
+
+
+class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
+    """`part_root_poisoned`, reached: a part whose extrude refuses and
+    whose one root, a transform over it, never runs.
+
+    The instance names the part's root and points at the extrude, the
+    node the author repairs; the extrude's refusal crosses TYPED as the
+    exception's `__cause__`, raised the way the part's own evaluation
+    raises it.
+    """
+
+    def setUp(self):
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        self.store = Workspace(str(directory))
+        part = pncad.Doc("pncad-partpoison-part")
+        profile = part.insert(
+            Node.polygon(
+                [
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(0.02, m), Expr.length_in(0, m)),
+                    (Expr.length_in(0.02, m), Expr.length_in(0.02, m)),
+                    (Expr.length_in(0, m), Expr.length_in(0.02, m)),
+                ],
+                plane=part.sketch_frame(elevation=Expr.length_in(0, m)),
+            )
+        )
+        # No length to extrude, so the extrude refuses.
+        self.extrude = part.insert(Node.extrude(profile, Expr.length_in(0.0, m)))
+        self.root = part.insert(
+            Node.transform(
+                self.extrude,
+                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
+            )
+        )
+        self.store.create(part)
+        self.part = part
+        self.part_ref = DocRef(part.id, pncad.content_pin(part))
+        self.assembly = pncad.Doc("pncad-partpoison-assembly")
+        self.instance = self.assembly.insert(Node.instantiate_part(self.part_ref))
+
+    def test_the_instance_carries_the_failure_that_poisoned_the_root(self):
+        refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
+        self.assertEqual(refusal.kind, "part_root_poisoned")
+        text = str(refusal)
+        self.assertIn(f"its root, node {repr(self.root)[7:-1]}", text)
+        self.assertIn(f"repair node {repr(self.extrude)[7:-1]}", text)
+
+        cause = refusal.__cause__
+        self.assertIsInstance(cause, pncad.EvaluationError)
+        self.assertEqual(cause.kind, "extrude")
+        self.assertEqual(
+            (cause.node, cause.document),
+            (self.extrude, self.part_ref),
+            "the cause is the extrude, in the part's id space",
+        )
+        self.assertIsNone(cause.__cause__, "the chain ends at the refusing node")
+        self.assertNotIn(str(cause), text, "the instance never quotes it")
+
+    def test_the_parts_own_gather_names_the_root_and_its_failed_ancestor(self):
+        """`ProductError.node` and `.through` are the standing's."""
+        with self.assertRaises(pncad.ProductError) as caught:
+            pncad.product(self.part, evaluate(self.part))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "root_poisoned")
+        self.assertEqual(
+            (refusal.node, refusal.through),
+            (self.root, self.extrude),
+            "the poisoned root, and the failed ancestor that poisoned it",
+        )
+
+    def test_two_documents_down_the_cause_chain_ends_at_the_failing_node(self):
+        """A bracket whose root is a transform over an instance of the
+        part: the bracket's root is poisoned through that failed
+        instance, and the chain runs instance, instance, extrude."""
+        bracket = pncad.Doc("pncad-partpoison-bracket")
+        inner = bracket.insert(Node.instantiate_part(self.part_ref))
+        bracket.insert(
+            Node.transform(
+                inner,
+                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
+            )
+        )
+        self.store.create(bracket)
+        bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
+        assembly = pncad.Doc("pncad-partpoison-deep-assembly")
+        instance = assembly.insert(Node.instantiate_part(bracket_ref))
+
+        refusal = failures(evaluate(assembly, resolver=self.store))[instance]
+        self.assertEqual(refusal.kind, "part_root_poisoned")
+        middle = refusal.__cause__
+        self.assertIsInstance(middle, pncad.EvaluationError)
+        self.assertEqual(middle.kind, "part_root_poisoned")
+        self.assertEqual((middle.node, middle.document), (inner, bracket_ref))
+        last = middle.__cause__
+        self.assertIsInstance(last, pncad.EvaluationError)
+        self.assertEqual(last.kind, "extrude")
+        self.assertEqual((last.node, last.document), (self.extrude, self.part_ref))
+        self.assertIsNone(last.__cause__, "the chain ends at the refusing node")
+
+
+#: The deepest nesting that evaluates: `part_depth_exceeded`'s sentence
+#: names it.
+DEPTH_BOUND = 1024
+
+#: The most causes a raised chain links (`LINKED_LEVELS` in the binding):
+#: deeper levels fold into the last one, one line each.
+LINKED_CAUSES = 256
+
+#: The child process `TestNestingPastTheBound` runs: a chain of
+#: `DEPTH_BOUND + 1` documents over the post, each instantiating the one
+#: below, stored in a `Workspace` and evaluated from the top. In mode
+#: `thread` it evaluates on a `threading.Thread` and prints what the
+#: top instance's refusal chain says, one JSON object; in mode
+#: `uncaught` it lets the refusal reach the interpreter's own
+#: excepthook. A crash prints nothing and dies on a signal.
+_PAST_THE_BOUND = """
+import json, shutil, sys, tempfile, threading
+from pathlib import Path
+
+import bench_scene
+from pncad import DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
+
+levels, mode = int(sys.argv[1]), sys.argv[2]
+directory = Path(tempfile.mkdtemp())
+try:
+    store = Workspace(str(directory))
+    below = bench_scene.post()
+    store.create(below)
+    first = None
+    for level in range(1, levels + 1):
+        doc = Doc(f"pncad-depth-level-{level}")
+        doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+        store.create(doc)
+        first = first or doc
+        below = doc
+    top = Doc("pncad-depth-top")
+    instance = top.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+    if mode == "uncaught":
+        evaluate(top, resolver=store).value(instance)
+    said = {}
+
+    def descend():
+        try:
+            evaluate(top, resolver=store).value(instance)
+        except EvaluationError as refusal:
+            chain = [refusal]
+            while chain[-1].__cause__ is not None:
+                chain.append(chain[-1].__cause__)
+            said["top"] = chain[0].kind
+            said["causes"] = len(chain) - 1
+            said["last"] = chain[-1].kind
+            said["last_lines"] = str(chain[-1]).splitlines()
+            said["in_the_first_level"] = chain[-1].document.id == first.id
+
+    thread = threading.Thread(target=descend)
+    thread.start()
+    thread.join()
+    print(json.dumps(said))
+finally:
+    shutil.rmtree(directory, ignore_errors=True)
+"""
+
+
+class TestNestingPastTheBound(unittest.TestCase):
+    """A chain one document past the bound refuses typed from a
+    `threading.Thread`, rather than killing the interpreter.
+
+    The evaluation runs in a child process because the failure this row
+    guards against is a dead process, which would take the suite with it
+    if it ran here.
+    """
+
+    def past_the_bound(self, mode):
+        return subprocess.run(
+            [sys.executable, "-c", _PAST_THE_BOUND, str(DEPTH_BOUND), mode],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+
+    def test_a_chain_one_past_the_bound_refuses_depth_exceeded_on_a_thread(self):
+        child = self.past_the_bound("thread")
+        self.assertEqual(
+            child.returncode,
+            0,
+            f"the interpreter survives the descent: {child.stderr[-2000:]}",
+        )
+        said = json.loads(child.stdout)
+        self.assertEqual(said["top"], "part_root_failed")
+        self.assertEqual(
+            said["causes"],
+            LINKED_CAUSES,
+            "the chain links as many causes as every interpreter can print",
+        )
+        self.assertEqual(said["last"], "part_depth_exceeded")
+        self.assertTrue(
+            said["in_the_first_level"],
+            "the last cause is raised for the refusing node, in the document "
+            "at the bound, the one instantiating the post",
+        )
+        sentence, *above = said["last_lines"]
+        self.assertIn(f"deeper than {DEPTH_BOUND} documents", sentence)
+        self.assertIn(
+            "Recourse: flatten the assembly so its parts nest fewer documents deep",
+            sentence,
+        )
+        self.assertEqual(
+            len(above) + LINKED_CAUSES,
+            DEPTH_BOUND,
+            "the last cause holds one line for each document it stands for",
+        )
+
+    def test_an_uncaught_refusal_one_past_the_bound_prints_every_level(self):
+        """The interpreter's own excepthook prints the whole refusal: the
+        sentence, and one line per document it was carried up through.
+        CPython 3.11's excepthook recurses once per linked cause and
+        prints nothing past its recursion limit; this row runs on the
+        interpreter the suite runs on."""
+        child = self.past_the_bound("uncaught")
+        self.assertEqual(child.returncode, 1, child.stderr[-2000:])
+        self.assertNotIn("lost sys.stderr", child.stderr)
+        self.assertIn(f"deeper than {DEPTH_BOUND} documents", child.stderr)
+        self.assertEqual(
+            child.stderr.count("the part's node 0 failed"),
+            DEPTH_BOUND,
+            "one line for the instance and one for each document above the bound",
+        )
+        self.assertTrue(
+            child.stderr.rstrip().splitlines()[-1].startswith("pncad.EvaluationError: node 0 failed"),
+            "the traceback ends at the refusal that was raised",
         )
 
 

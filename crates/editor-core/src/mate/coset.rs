@@ -402,9 +402,10 @@ fn parallel(
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
         Err(UnitVec3Error::Escalated(diag)) => Err(diag),
         Err(UnitVec3Error::NonFiniteLength) => Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             band,
             predicate: Some("mate_axes_parallel"),
+            terminal_sliver: false,
         }),
     }
 }

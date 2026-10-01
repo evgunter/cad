@@ -14,7 +14,13 @@
 //! The second row is the guard that is NOT retired by that: two roots
 //! that alias a STRICT name still refuse, because a row whose source
 //! entry is `Unique` goes through `NameTable::insert` exactly as
-//! before.
+//! before. Its document shares through a split's intact pass-through,
+//! the one sharing the recipe cannot decide, so it is the carry that
+//! refuses and not the recipe check ahead of it.
+//!
+//! The third row places the same tie with a placed union, the other
+//! op that carries several copies of a tie onto one body: disjoint
+//! instances keep every candidate, so each instance's tie stays tied.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -25,8 +31,8 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, NameTable, Node,
-    ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
+    BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Expr, NameTable, Node,
+    PatternKind, ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
 };
 use fixture::{ang, insert, len, on_frame, scl, table};
 use geom_core::Tol;
@@ -202,31 +208,98 @@ fn a_split_separating_a_tie_gathers_and_the_product_holds_one_tied_row() {
     }
 }
 
+/// The U-cutter subtract's tie, placed three times by a placed union
+/// whose instances are disjoint: each instance's tie keeps BOTH its
+/// candidates through the fuse, so the fused table carries one
+/// two-candidate `Tied` row per prototype tie per instance — the
+/// several-survivor branch of the placed union's narrowing, which no
+/// other row reaches.
 #[test]
-fn two_roots_aliasing_a_strict_name_still_refuse() {
-    // One block, two transforms of it: both roots carry the block's
-    // OWN names — a transform passes its operand's table through
-    // verbatim — so every carried row is a strict name arriving twice.
-    let doc = ProfileDoc::empty_derived("wire-product-gather-tie", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let shift = |doc: ProfileDoc, dx: f64| {
-        insert(
-            doc,
-            Node::Transform {
-                input: a,
-                translation: [len(dx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
+fn a_placed_union_carries_each_instances_tie_with_both_candidates() {
+    let (doc, sub) = u_cutter_subtract();
+    let (doc, group) = insert(
+        doc,
+        Node::placed_union(
+            sub,
+            Expr::count(3),
+            PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(10.0),
             },
         )
-    };
-    let (doc, t0) = shift(doc, 2.0);
-    let (doc, t1) = shift(doc, 4.0);
-    assert_eq!(doc.roots(), &[t0, t1][..], "both transforms root");
+        .unwrap(),
+    );
+    let ev = run(&doc);
+    let proto: Vec<usize> = table(&ev, sub)
+        .iter()
+        .filter_map(|(_, e)| match e {
+            Entry::Tied(c) => Some(c.len()),
+            Entry::Unique(_) => None,
+        })
+        .collect();
+    assert_eq!(proto, vec![2, 2], "the prototype's two-candidate ties");
+    let fused: Vec<usize> = table(&ev, group)
+        .iter()
+        .filter_map(|(_, e)| match e {
+            Entry::Tied(c) => Some(c.len()),
+            Entry::Unique(_) => None,
+        })
+        .collect();
+    assert_eq!(
+        fused,
+        vec![2; proto.len() * 3],
+        "one two-candidate tie per prototype tie per instance"
+    );
+}
+
+#[test]
+fn two_roots_aliasing_a_strict_name_still_refuse() {
+    // One block, split at x = 0.5 by one root and moved whole by
+    // another. The plane cuts the four walls it crosses and leaves the
+    // two x-facing walls intact, and an intact wall keeps the block's
+    // own name through the split — so the moved block's copy of it is
+    // a strict name arriving twice. Nothing in the recipe says which
+    // walls the plane leaves whole, so the recipe check passes this
+    // document and the carry is what refuses.
+    let doc = ProfileDoc::empty_derived("wire-product-gather-tie", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.5), len(0.0), len(0.0)],
+            normal: [scl(1.0), scl(0.0), scl(0.0)],
+        }),
+    );
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: a,
+            tool: plane,
+        },
+    );
+    let (doc, moved) = insert(
+        doc,
+        Node::transform(
+            a,
+            editor_core::Step::Rigid {
+                translation: [len(2.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
+    );
+    assert_eq!(
+        doc.roots(),
+        &[split, moved][..],
+        "the split and the move root"
+    );
     let ev = run(&doc);
     match product_named(&doc, &ev, Tol::witness()) {
         Err(ProductError::Naming { node, name }) => {
-            assert_eq!(node, t1, "the refusal names the root whose rows collided");
+            assert_eq!(
+                node, moved,
+                "the refusal names the root whose rows collided"
+            );
             assert_eq!(name.node, a, "and the name the block minted");
         }
         other => panic!(

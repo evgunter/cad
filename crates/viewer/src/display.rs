@@ -374,6 +374,9 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Re
 /// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotAnInstance`].
 pub fn instance_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(), AdmissionFault> {
     match doc.node(node) {
+        // Identity, not `session`'s "puts a part in" policy: the state
+        // is keyed on this variant, and a new kind has none until G3
+        // gives it some.
         Some(Node::InstantiatePart { .. }) => Ok(()),
         Some(_) => Err(AdmissionFault::NotAnInstance { node }),
         None => Err(AdmissionFault::NoSuchNode { node }),
@@ -395,7 +398,7 @@ fn instances_by_root(doc: &Doc<ProfileProgram>) -> Vec<(RecipeNodeId, BTreeSet<R
         .map(|&root| {
             let instances = ancestry(doc, root)
                 .into_iter()
-                .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+                .filter(|&id| instance_check(doc, id).is_ok())
                 .collect();
             (root, instances)
         })

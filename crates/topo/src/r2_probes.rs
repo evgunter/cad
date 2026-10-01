@@ -6,19 +6,16 @@
 //! the cusp/slit question from an independent datum — the body's own
 //! SIGNED VOLUME, and a point-membership test built from
 //! `implicit_residual` and the face sense bits — and then asks whether
-//! the validator's verdict agrees.
+//! the validator's verdict agrees: a jet-determinate cusp and its
+//! `revert` image, the slit, are both legal at rest (D1's second-order
+//! arm), so the kissing edge earns no refusal either way.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_brep::MaterialWedge;
 use geom_core::{Point3, Tol, Vec3};
 
-use crate::validate::{ValidationError, validate_geometric, validate_geometric_declared};
-
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
+use crate::validate::{ContactMark, ValidationError, validate_geometric};
 
 /// The face's sense bit, read off the body.
 fn sense_of(b: &crate::Body<f64>, f: crate::entity::FaceKey) -> bool {
@@ -54,16 +51,11 @@ fn r2_the_cusp_prisms_material_is_the_crescent_by_volume() {
         "crescent lip volume: got {}, hand-derived {expect}",
         props.volume
     );
-    // And the validator, asked the same body, calls the kissing edge a
-    // CUSP. The two agree.
-    let errs = validate_geometric(&p.body, tol).unwrap_err();
-    assert_eq!(
-        errs,
-        vec![ValidationError::UndeclaredCusp {
-            edge: p.ev[0],
-            wedge: MaterialWedge::Cusp,
-        }]
-    );
+    // And the validator, asked the same body, reads the kissing edge
+    // as a jet-determinate tangency and passes it: a legal cusp.
+    assert_eq!(validate_geometric(&p.body, tol), Ok(()));
+    let marks = crate::validate::contact_marks(&p.body, tol).unwrap();
+    assert_eq!(marks.get(p.ev[0]), Some(&ContactMark::Tangent));
 }
 
 /// **Oracle 2 — point membership at the kissing edge, from the sense
@@ -84,13 +76,13 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     let tol = Tol::witness();
     let p = crate::tier3_tests::cusp_prism(tol);
     let inner = Surface::Cylinder {
-        origin: pt(0.0, 1.0, 0.0),
+        origin: Point3::new(0.0, 1.0, 0.0),
         axis: Vec3::unit_z(),
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
     let outer = Surface::Cylinder {
-        origin: pt(0.0, 2.0, 0.0),
+        origin: Point3::new(0.0, 2.0, 0.0),
         axis: Vec3::unit_z(),
         radius: 2.0,
         u_ref: Vec3::unit_x(),
@@ -106,9 +98,9 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     // (0.0025, 0.005). Midpoint 0.00375 is material; 0.001 (below the
     // outer wall) and 0.01 (above the inner wall) are void.
     let x = 0.1;
-    let inside = pt(x, 0.00375, 0.5);
-    let below = pt(x, 0.001, 0.5);
-    let above = pt(x, 0.01, 0.5);
+    let inside = Point3::new(x, 0.00375, 0.5);
+    let below = Point3::new(x, 0.001, 0.5);
+    let above = Point3::new(x, 0.01, 0.5);
     assert!(
         material(inside, s_inner, s_outer),
         "the crescent is material"
@@ -128,80 +120,16 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     assert_eq!(r_inner, !s_inner);
     assert_eq!(r_outer, !s_outer);
     assert!(!material(inside, r_inner, r_outer));
-    // The reverted body's verdict is the SLIT, and the geometry agrees:
-    // the crescent is now void from both walls' point of view, so the
-    // material is everything else — wedge 2π.
+    // The reverted body's kissing edge is the SLIT, and the geometry
+    // agrees: the crescent is now void from both walls' point of view,
+    // so the material is everything else — wedge 2π, legal on the
+    // cusp's terms. What refuses is `revert`'s own ratified residue.
     let errs = validate_geometric(&r, tol).unwrap_err();
     assert_eq!(
         errs,
-        vec![ValidationError::UndeclaredCusp {
-            edge: p.ev[0],
-            wedge: MaterialWedge::Slit,
+        vec![ValidationError::NegativeVolume {
+            solid: r.solids().next().unwrap().0
         }]
-    );
-}
-
-/// **Probe — a declaration that names nothing real costs nothing.**
-/// The doc claims it; here it is executed on a real solid, and on the
-/// cusp prism where a foreign declaration must not legalize the kiss.
-#[test]
-fn r2_a_foreign_declaration_asserts_nothing() {
-    let tol = Tol::witness();
-    let p = crate::tier3_tests::cusp_prism(tol);
-    let mut d = vec![crate::contact::DeclaredContact {
-        a: p.face_top,
-        b: p.face_bottom,
-        class: crate::contact::ContactClass::Tangent,
-    }];
-    // Still refuses.
-    assert!(validate_geometric_declared(&p.body, &d, tol).is_err());
-    // Add the real one alongside: green, and the noise still costs
-    // nothing.
-    d.push(crate::contact::DeclaredContact {
-        a: p.face_side[0],
-        b: p.face_side[2],
-        class: crate::contact::ContactClass::Tangent,
-    });
-    assert_eq!(validate_geometric_declared(&p.body, &d, tol), Ok(()));
-}
-
-/// **Probe — the declaration gate, every axis at once.** The PR claims
-/// a `Rest` claim and a foreign pair both fail to legalize. Executed
-/// here with the ERROR VECTOR compared, not merely `is_err()`: the
-/// committed row only asserts `is_err()`, which a differently-typed
-/// refusal would also satisfy.
-#[test]
-fn r2_declaration_gating_is_by_class_and_by_pair_and_stays_the_same_refusal() {
-    let tol = Tol::witness();
-    let p = crate::tier3_tests::cusp_prism(tol);
-    let want = vec![ValidationError::UndeclaredCusp {
-        edge: p.ev[0],
-        wedge: MaterialWedge::Cusp,
-    }];
-    let mk = |a, b, class| [crate::contact::DeclaredContact { a, b, class }];
-    use crate::contact::ContactClass::{Rest, Tangent};
-    // Right pair, wrong class.
-    assert_eq!(
-        validate_geometric_declared(&p.body, &mk(p.face_side[0], p.face_side[2], Rest), tol)
-            .unwrap_err(),
-        want
-    );
-    // Right class, wrong pair (two other faces).
-    assert_eq!(
-        validate_geometric_declared(&p.body, &mk(p.face_top, p.face_bottom, Tangent), tol)
-            .unwrap_err(),
-        want
-    );
-    // Right class, HALF the right pair — one wall against a cap.
-    assert_eq!(
-        validate_geometric_declared(&p.body, &mk(p.face_side[0], p.face_top, Tangent), tol)
-            .unwrap_err(),
-        want
-    );
-    // Right class, right pair, order swapped: legal (unordered).
-    assert_eq!(
-        validate_geometric_declared(&p.body, &mk(p.face_side[2], p.face_side[0], Tangent), tol),
-        Ok(())
     );
 }
 

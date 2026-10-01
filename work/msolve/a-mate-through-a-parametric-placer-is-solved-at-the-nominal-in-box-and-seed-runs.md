@@ -1,0 +1,57 @@
+---
+id: a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs
+kind: issue
+title: A mate read through a parametric Transform or Pattern is solved at the nominal in a box or seed run, while the placer's own map widens
+status: open
+opened: 2026-09-29
+priority: P2
+cost: M
+---
+
+Filed by the EDIT orchestrator from the design-fork review of the
+placement unit (`work/edit/placement-is-spelled-three-ways-node-registry-and-rule`,
+`[ev]` PR on branch `edit/ev-placement-design`). Both designers
+found it independently. They disagreed only on whether the fix is a clause of
+that unit or a row of its own; it is filed here because the class
+predates the unit.
+
+## The finding (read, not yet probed)
+
+- **Every lane runs the mate solve at the nominal.**
+  `evaluate` solves once, at `doc.param_env::<f64>()`
+  (`crates/editor-core/src/eval/mod.rs:2971`, `:2989`,
+  `crate::mate::solve_with_env(doc, &nominal_env, ..)`). That holds in
+  a box (interval) run and in a seed (derivative) run too.
+- **Every instance reads its pose as that f64 frame.**
+  `wire.rs:338` calls `env.poses.placement(doc, id)`, and
+  `wire_instantiate_part` lifts the frame into the lane's scalar.
+  `mate/` has no box or seed handling.
+- **So the mated part's pose never widens.** Take a mate whose placer
+  offset is read through a `Transform` or `Pattern` whose slots
+  reference a parameter the box or seed binds. The placer's own map
+  widens in the lane, but the solved relative pose stays the nominal's.
+- **So the enclosure can omit the true pose.** A box run then reports
+  an enclosure that may not contain where the mated part sits at some
+  parameter value in the box, and a seed run reports a zero sensitivity
+  for the mated part's pose.
+- **This contradicts what `refuse_param_box` promises**
+  (`eval/mod.rs:3131-3133`: "an `f64` run that silently ignored its box
+  would report the nominal build's answer for a question about a box").
+
+## The fix both designers named
+
+- **Refuse typed** when the run's box or seed binds a parameter that a
+  conjugated placer reads. This is a structural check: the bound names
+  intersected with the names the placer references.
+  - Once the placement unit lands, the check also covers a parametric
+    cluster placement.
+  - The placement unit must not ship a parametric placement into the
+    lanes before this refusal exists. They land together, or this row
+    lands first.
+- **Later, lift the refusal** by re-composing the relative pose at the
+  lane's scalar over the f64 solve's tree (a "guided" re-composition).
+
+**First step:** a red probe. Take a box run over a document whose mate
+reads through a parametric `Transform`, and show the mated part's
+enclosure omitting its pose at a box corner.
+

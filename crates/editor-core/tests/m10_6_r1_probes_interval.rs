@@ -2,7 +2,7 @@
 //! `bf67a734`). Independent derivations, written against the unit's
 //! claims rather than against its own fixtures.
 //!
-//! Row shapes, per `memories/test-suite-cost.md`: every row is a
+//! Row shapes, per implementer-discipline §8: every row is a
 //! written-down witness (a static fixture) — no sampling, no seeds.
 //! Rows whose subject was a finding red at that head arrived
 //! `#[ignore]`d with the finding named. **The fix pass un-ignored
@@ -43,7 +43,6 @@
 //! 8. The MC lane over a `min_clearance` document.
 //! 9. An end-to-end consumer walk on a bracket (post over base), through
 //!    the public doors: drive, stackup, fold, histogram, MC, budget.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -66,7 +65,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -82,16 +81,12 @@ fn numeric_lane() -> DriveConfig {
     }
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 fn half() -> f64 {
     Tol::witness().eps() / 64.0
-}
-
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
 fn eval_over<T: editor_core::EvalScalar>(
@@ -132,7 +127,7 @@ fn measure_value<T: geom_core::Decide>(
     }
 }
 
-fn param(r: &mut Recorder, n: &str, value: f64, dist: Option<Distribution>) {
+fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distribution>) {
     r.push(DocEdit::SetDocParam {
         name: name(n),
         value: DocParam::Continuous {
@@ -145,12 +140,14 @@ fn param(r: &mut Recorder, n: &str, value: f64, dist: Option<Distribution>) {
 }
 
 fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Expr; 3]) -> RecipeNodeId {
-    r.insert(Node::Transform {
+    r.insert(Node::transform(
         input,
-        translation: t,
-        rotation_axis: [scalar(0.0), scalar(0.0), scalar(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    })
+        editor_core::Step::Rigid {
+            translation: t,
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ))
 }
 
 fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64) -> RecipeNodeId {
@@ -158,6 +155,7 @@ fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(corners.iter().copied()).expect("finite corners")],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile,
@@ -479,8 +477,14 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ],
         )
         .expect("in range"),
@@ -608,12 +612,13 @@ fn report_key_tells_two_budgets_apart() {
             hi: 40.0 * eps,
         }),
     );
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("square"),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -763,8 +768,14 @@ fn neck_dir(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(wall_b))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
+                ),
             ],
         )
         .expect("in range"),
@@ -923,8 +934,14 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ],
         )
         .expect("in range"),
@@ -1025,7 +1042,8 @@ fn bracket(
             len(0.0),
             Expr::sub(
                 len(1.0),
-                Expr::neg(Expr::param(name("lift"), Dimension::Length)),
+                Expr::neg(Expr::param(name("lift"), Dimension::Length))
+                    .expect("a shallow negation"),
             )
             .expect("length"),
         ],
@@ -1035,8 +1053,11 @@ fn bracket(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(post, fixture::fname(post_solid, fixture::wall(3))),
-                SitedRef::at_mint(fixture::fname(base, fixture::wall(3))),
+                SitedRef::new(
+                    post,
+                    fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
+                ),
+                SitedRef::at_mint(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
             ],
         )
         .expect("in range"),
@@ -1229,7 +1250,7 @@ fn the_bracket_walk_through_the_public_doors() {
     }
 }
 
-fn node_named(doc: &ProfileDoc, pick: usize) -> RecipeNodeId {
+fn node_named(doc: &editor_core::ProfileDoc, pick: usize) -> RecipeNodeId {
     let mut transforms: Vec<RecipeNodeId> = doc
         .order()
         .iter()
@@ -1292,7 +1313,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     for n in ["hole_a_r", "hole_b_r"] {
         param(&mut r, n, RADIUS, Some(Distribution::Normal { sigma }));
     }
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -1304,18 +1325,20 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
             ])
             .expect("plate"),
         ],
+        ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(1.0e-3),
     });
-    let hole = |r: &mut Recorder, centre: Expr, radius: &str| {
+    let hole = |r: &mut Recorder, centre: Expr, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
                 radius: Expr::param(name(radius), Dimension::Length),
             }],
+            ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,
@@ -1353,7 +1376,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
+    let radius_of = |n: &'static str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),

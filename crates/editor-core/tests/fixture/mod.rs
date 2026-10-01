@@ -59,9 +59,9 @@ pub mod value_channel;
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
     Entry, EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MateReach, NameTable, Node,
-    ParamName, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId,
-    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
-    solve_document,
+    ParamName, ProfileDoc, ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef,
+    RecipeNodeId, RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate,
+    mate_reach, solve_document,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -71,7 +71,7 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 /// `f64` with a fresh cancel token and the witness tolerance, which
 /// is what every suite here wants and what none of them should spell
 /// for itself.
-pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
+pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
 }
 
@@ -81,7 +81,7 @@ pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 /// row that solves with a store it does not hand here levers nothing:
 /// every mate on a part faults in the resolver's voice, which is the
 /// kernel's answer and not a fixture default.
-pub fn solve(doc: &ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
+pub fn solve(doc: &editor_core::ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
     let reach = mate_reach::<f64>(o, tol);
     solve_document(doc, &reach, tol)
 }
@@ -92,7 +92,7 @@ pub fn solve(doc: &ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
 /// # Errors
 ///
 /// The gate's own refusal, unaltered.
-pub fn gate(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
+pub fn gate(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
     assemble(doc, ev, Tol::witness()).map(|_| ())
 }
 
@@ -157,12 +157,14 @@ pub fn xform(
     axis: [f64; 3],
     angle: f64,
 ) -> Node<ProfileProgram> {
-    Node::Transform {
+    Node::transform(
         input,
-        translation: translation.map(len),
-        rotation_axis: axis.map(scl),
-        rotation_angle: Expr::literal(angle, Dimension::Angle).expect("an angle literal"),
-    }
+        editor_core::Step::Rigid {
+            translation: translation.map(len),
+            axis: axis.map(scl),
+            angle: ang(angle),
+        },
+    )
 }
 
 /// The pip depth the document's `pip_depth` parameter starts at.
@@ -185,15 +187,11 @@ pub fn band() -> geom_core::Band {
     geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
 }
 
-pub fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-pub fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-pub fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
+/// The literal of each dimension, a point of two lengths, and the
+/// frame a sketch is drawn on — `editor_core::test_support`'s, which the
+/// crate's own unit-test modules read too, re-exported so a suite
+/// imports them from here beside the rest of its authoring doors.
+pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 
 /// Applies an edit, returning the new doc and any minted id.
 ///
@@ -214,6 +212,23 @@ pub fn step_with(
 ) -> (ProfileDoc, Option<RecipeNodeId>) {
     let applied = doc.apply(&edit, Tol::witness(), reach).unwrap();
     (applied.doc, applied.record.minted)
+}
+
+/// **The id `doc`'s next insert would mint**, read by making that
+/// insert on a copy: an id no node of `doc` holds, whatever the mint.
+pub fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
+    insert(doc.clone(), xy_frame()).1
+}
+
+/// **The last node in `doc.order()`** — the one a just-applied
+/// `InsertNode` minted, for a row that pushes an insert through a door
+/// that hands back only the document.
+///
+/// # Panics
+///
+/// If `doc` holds no live node.
+pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
+    *doc.order().last().expect("the document holds a node")
 }
 
 pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
@@ -248,7 +263,10 @@ pub fn at_the_door(
 
 /// [`at_the_door`] for a mate the door refuses on the datum alone,
 /// through the refusing reach: the fault it carries.
-pub fn door_refusal(doc: &ProfileDoc, node: Node<ProfileProgram>) -> editor_core::MateFault {
+pub fn door_refusal(
+    doc: &editor_core::ProfileDoc,
+    node: Node<ProfileProgram>,
+) -> editor_core::MateFault {
     match at_the_door(doc, &RefusingReach, node) {
         Err((_, fault)) => fault,
         Ok(_) => panic!("the door admitted a mate it refuses on its own datum"),
@@ -274,12 +292,14 @@ pub fn door_refusal(doc: &ProfileDoc, node: Node<ProfileProgram>) -> editor_core
 ///
 /// `side` is the head that resolves to nothing, spelled in `node` as
 /// it is meant to read — at its own mint, which is where the rebind
-/// leaves it.
+/// leaves it. `anchor_body` is the body node of `anchor`'s part
+/// document.
 pub fn insert_mate_with_stranded_head(
     doc: ProfileDoc,
     node: Node<ProfileProgram>,
     side: editor_core::MateSide,
     anchor: RecipeNodeId,
+    anchor_body: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
     let Node::Mate {
         a,
@@ -301,7 +321,11 @@ pub fn insert_mate_with_stranded_head(
             },
         },
     );
-    let stand_in = in_copy(scratch, 1, resolver::in_part(anchor, CapEnd::End));
+    let stand_in = in_copy(
+        scratch,
+        1,
+        resolver::in_part(anchor, anchor_body, CapEnd::End),
+    );
     let (stranded, a, b) = match side {
         editor_core::MateSide::A => (a, head(stand_in.clone()), b),
         editor_core::MateSide::B => (b, a, head(stand_in.clone())),
@@ -338,19 +362,6 @@ pub fn insert_mate_with_stranded_head(
     (doc, mate)
 }
 
-/// The frame datum a profile is drawn on, as a node to insert.
-///
-/// The components `desc` used to bake into a `SketchPlane` are the
-/// frame's own slots now, spelled the same way round: an origin and
-/// the two directions sketch +x and +y point.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
-    Node::Datum(editor_core::Datum::Frame {
-        origin: origin.map(len),
-        u: u.map(scl),
-        v: v.map(scl),
-    })
-}
-
 /// **The `SketchPlane` a frame NODE denotes**, read out of a document.
 ///
 /// A test that builds a `profile::Profile` by hand needs the plane the
@@ -365,7 +376,7 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram>
 ///
 /// If `plane` is not a `Datum::Frame`, if its components are not
 /// literals, or if `u` and `v` span no plane.
-pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
+pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
     let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
         panic!("node {} is not a Datum::Frame", plane.0)
     };
@@ -424,7 +435,14 @@ pub struct Swept {
 pub fn wall_row(id: &str, loops: Vec<LoopProgram>) -> Swept {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, plane) = insert(doc, xy_frame());
-    let (doc, profile) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+    );
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
@@ -474,18 +492,6 @@ impl Swept {
     }
 }
 
-/// The world xy frame as a node — origin at the world origin, sketch
-/// +x along world +x, sketch +y along world +y.
-///
-/// The `SketchPlane::xy()` constant most of these suites used, spelled
-/// as the node a profile now names. One per document, shared by every
-/// sketch on it: that is what "the same plane" is once the plane is a
-/// node, where the constant left each profile holding its own copy of
-/// identical floats.
-pub fn xy_frame() -> Node<ProfileProgram> {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
-}
-
 /// A profile program on `plane`, from polygon corner lists
 /// (LIB-SWITCH §4i: the corpus's polygon choke point — under v4 each
 /// loop is a chain program, `At(p0), LineTo(p1), …, LineTo(Start)`,
@@ -501,7 +507,11 @@ pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram 
         .into_iter()
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
-    ProfileProgram { plane, loops }
+    ProfileProgram {
+        plane,
+        loops,
+        ids: Vec::new(),
+    }
 }
 
 /// **A frame and a profile on it, inserted in that order** — the whole
@@ -715,7 +725,7 @@ pub fn die() -> Die {
     let mut r = Recorder::new();
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("pip_depth"),
+        name: ParamName::from_static("pip_depth"),
         value: DocParam::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
@@ -738,7 +748,11 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),
+            distance: Expr::neg(Expr::param(
+                ParamName::from_static("pip_depth"),
+                Dimension::Length,
+            ))
+            .expect("a shallow negation"),
         });
         masters.push((ext, u, v, pips));
     }
@@ -757,12 +771,7 @@ pub fn die() -> Die {
     // faces() order: -z, +x, -x, +y, -y, +z against the cube extrude's
     // roles (profile (0,0)->(2,0)->(2,2)->(0,2): wall seg 0 = -y,
     // 1 = +x, 2 = +y, 3 = -x; caps: Bottom = -z, Top = +z).
-    let wall = |seg: u32| {
-        RoleSeg::Lateral(ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        })
-    };
+    let wall = |seg: u32| wall(&r.doc, cube, seg);
     let mut cube_face_names: [StableName; 6] = [
         face_name(cube, RoleSeg::Cap(CapEnd::Start)),
         face_name(cube, wall(1)),
@@ -780,12 +789,14 @@ pub fn die() -> Die {
                 a * u[1] + b * v[1],
                 a * u[2] + b * v[2],
             ];
-            let tr = r.insert(Node::Transform {
-                input: ext,
-                translation: [len(t[0]), len(t[1]), len(t[2])],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            });
+            let tr = r.insert(Node::transform(
+                ext,
+                editor_core::Step::Rigid {
+                    translation: [len(t[0]), len(t[1]), len(t[2])],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ));
             // The pip master extrudes INWARD (negative distance), so
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane).
@@ -989,6 +1000,27 @@ pub fn count(t: &NameTable, seg: fn(&RoleSeg) -> bool) -> usize {
     t.iter().filter(|(n, _)| seg(&n.path[0])).count()
 }
 
+/// **`names`, faces of `node`'s body, ordered left to right** by the
+/// least x any of the face's vertices stands at: a geometric order for
+/// rows that mean "the left fragment", which name order does not give
+/// (a name's order follows the ids it spells).
+pub fn left_to_right(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    mut names: Vec<StableName>,
+) -> Vec<StableName> {
+    let body = crate::corpus::body_of(ev, node);
+    let t = table(ev, node);
+    let least_x = |n: &StableName| {
+        face_vertices(body, face_of(t, "a fragment", n))
+            .into_iter()
+            .map(|v| point(body, v).x)
+            .fold(f64::INFINITY, f64::min)
+    };
+    names.sort_by(|a, b| least_x(a).total_cmp(&least_x(b)));
+    names
+}
+
 /// Where a vertex stands.
 pub fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
     topo::readback::vertex_point(body, v).expect("a live vertex")
@@ -1048,42 +1080,152 @@ pub fn face_edges(body: &Body<f64>, f: FaceKey) -> HashSet<EdgeKey> {
 ///
 /// Authored, not queried: a selection FREEZES, so a corpus document
 /// states the set it means rather than asking an evaluation.
-pub fn prism_edges(node: RecipeNodeId, n: u32) -> Vec<StableName> {
+pub fn prism_edges(doc: &editor_core::ProfileDoc, node: RecipeNodeId, n: u32) -> Vec<StableName> {
     let mut out = Vec::new();
-    for seg in 0..n {
-        let e = ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        };
+    for seg in 0..n as usize {
+        let e = piece(doc, node, 0, seg);
         out.push(rim_edge(node, CapEnd::Start, e));
         out.push(rim_edge(node, CapEnd::End, e));
-        out.push(ename(
-            node,
-            RoleSeg::LateralEdge(ProfileVertexRef {
-                loop_index: 0,
-                vertex: seg,
-            }),
-        ));
+        out.push(ename(node, RoleSeg::LateralEdge(vpiece(doc, node, 0, seg))));
     }
     out
 }
 
-/// A wall (lateral) role for outer-loop segment `seg`.
-pub fn wall(seg: u32) -> RoleSeg {
-    RoleSeg::Lateral(ProfileEdgeRef {
-        loop_index: 0,
-        segment: seg,
-    })
+/// **The piece every canonical position of the profile at `profile`
+/// is**, under the document's current values — what a sweep over it
+/// names each wall, rim and vertex by.
+///
+/// # Panics
+///
+/// If `profile` is not a profile node, or its program does not replay
+/// and validate.
+pub fn pieces(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> ProfilePieces {
+    match doc.node(profile) {
+        Some(Node::Profile(p)) => p
+            .pieces(&doc.param_env::<f64>(), Tol::witness())
+            .expect("the profile's program replays and validates"),
+        other => panic!("node {} is not a profile: {other:?}", profile.0),
+    }
+}
+
+/// **The profile a sweep node sweeps** — an extrude's or a revolve's
+/// operand, or the node itself where it IS a profile; any other node
+/// is read through its first input, so a row spelling a wall-shaped
+/// name in a downstream node's space spells it with the pieces of the
+/// sweep underneath.
+///
+/// # Panics
+///
+/// If `node` is not live, or no sweep is upstream of it along first
+/// inputs.
+pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
+    match doc.node(node) {
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
+        Some(Node::Profile(_)) => node,
+        Some(other) => match other.inputs().first() {
+            Some(&input) => swept(doc, input),
+            None => panic!("node {} sweeps no profile: {other:?}", node.0),
+        },
+        None => panic!("node {} is not live", node.0),
+    }
+}
+
+/// **The piece canonical segment `k` of canonical loop `l` is**, on the
+/// profile `sweep` sweeps (or `sweep` itself, a profile).
+///
+/// # Panics
+///
+/// Where [`pieces`] does, or where the position is past the profile.
+pub fn piece(
+    doc: &editor_core::ProfileDoc,
+    sweep: RecipeNodeId,
+    l: usize,
+    k: usize,
+) -> ProfileEdgeRef {
+    pieces(doc, swept(doc, sweep))
+        .edge(l, k)
+        .expect("the canonical position is the profile's")
+}
+
+/// **The piece starting at canonical vertex `v` of canonical loop
+/// `l`**, on the profile `sweep` sweeps.
+///
+/// # Panics
+///
+/// Where [`piece`] does.
+pub fn vpiece(
+    doc: &editor_core::ProfileDoc,
+    sweep: RecipeNodeId,
+    l: usize,
+    v: usize,
+) -> ProfileVertexRef {
+    pieces(doc, swept(doc, sweep))
+        .vertex(l, v)
+        .expect("the canonical position is the profile's")
+}
+
+/// **The leg step `step` draws**, spelled without a document — for a
+/// row whose names are compared, sorted or carried and never resolved.
+pub fn leg(step: u64) -> ProfileEdgeRef {
+    ProfileEdgeRef::Piece {
+        step: editor_core::StepId(step),
+        role: editor_core::PieceRole::Leg,
+    }
+}
+
+/// **A live node as an author inserts it**: a profile program enters
+/// the document without step ids — the insert door mints them — so a
+/// row that rebuilds a document by re-inserting its nodes clears them;
+/// re-inserted in the same order, they are minted the same.
+pub fn as_authored(node: &Node<ProfileProgram>) -> Node<ProfileProgram> {
+    let mut node = node.clone();
+    if let Node::Profile(program) = &mut node {
+        program.ids = Vec::new();
+    }
+    node
+}
+
+/// **A piece no profile draws, spelled without a document**: step id
+/// 0 in a role no verb gives it — a well-formed locator that denotes
+/// nothing, since `Piece(7)` is no verb's role. Whether a document's
+/// mint log holds id 0 is a matter of what its chain drew, so a row
+/// whose name passes a door that checks the log uses [`no_piece_of`],
+/// which spells a step the document minted.
+pub fn no_piece() -> ProfileEdgeRef {
+    ProfileEdgeRef::Piece {
+        step: editor_core::StepId(0),
+        role: editor_core::PieceRole::Piece(7),
+    }
+}
+
+/// **A piece no profile of `doc` draws**: the least step id `doc` has
+/// minted, in a role no verb gives it — a locator that is well formed,
+/// spells a minted step, and denotes nothing.
+pub fn no_piece_of(doc: &editor_core::ProfileDoc) -> ProfileEdgeRef {
+    ProfileEdgeRef::Piece {
+        step: *doc
+            .step_mint()
+            .log()
+            .first()
+            .expect("the document has minted a step"),
+        role: editor_core::PieceRole::Piece(7),
+    }
+}
+
+/// A wall (lateral) role for outer-loop canonical segment `seg` of the
+/// profile the extrude `ext` sweeps, spelled by the piece it is.
+pub fn wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleSeg {
+    RoleSeg::Lateral(piece(doc, ext, 0, seg as usize))
 }
 
 /// **The four flush families two x-offset blocks share** — the walls
 /// y0/y1 (segments 0/2, the `square`/`desc` corner order) and both
 /// caps — in ONE place, so a suite that names them and a suite that
 /// declares them cannot disagree about which four they are.
-pub fn flush_segs() -> [RoleSeg; 4] {
+pub fn flush_segs(doc: &editor_core::ProfileDoc, ext: RecipeNodeId) -> [RoleSeg; 4] {
     [
-        wall(0),
-        wall(2),
+        wall(doc, ext, 0),
+        wall(doc, ext, 2),
         RoleSeg::Cap(CapEnd::Start),
         RoleSeg::Cap(CapEnd::End),
     ]
@@ -1094,15 +1236,17 @@ pub fn flush_segs() -> [RoleSeg; 4] {
 /// name is the one the extrude `ext` minted, which a pass-through op
 /// carries verbatim (N1).
 pub fn flush_pairs(
+    doc: &ProfileDoc,
     (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
     (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
 ) -> Vec<(SitedRef, SitedRef)> {
-    flush_segs()
+    flush_segs(doc, a_ext)
         .into_iter()
-        .map(|seg| {
+        .zip(flush_segs(doc, b_ext))
+        .map(|(a, b)| {
             (
-                SitedRef::new(a_at, fname(a_ext, seg.clone())),
-                SitedRef::new(b_at, fname(b_ext, seg)),
+                SitedRef::new(a_at, fname(a_ext, a)),
+                SitedRef::new(b_at, fname(b_ext, b)),
             )
         })
         .collect()
@@ -1164,10 +1308,8 @@ pub fn declare_x_offset_flush_at(
 ) -> (ProfileDoc, RecipeNodeId) {
     // Each name is sited at the OPERAND whose table holds it, which
     // is what says which side of the boolean it is read on.
-    insert(
-        doc,
-        Node::declare_rest(flush_pairs((a_at, a_ext), (b_at, b_ext))),
-    )
+    let pairs = flush_pairs(&doc, (a_at, a_ext), (b_at, b_ext));
+    insert(doc, Node::declare_rest(pairs))
 }
 
 /// **What every at-rest finding says about a declaration, in one
@@ -1284,9 +1426,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::CornerFace(x)
         | RoleSeg::BandTrim { edge: x, .. }
         | RoleSeg::BandFoot(x)
-        | RoleSeg::BandCross(x)
         | RoleSeg::BandCut(x)
-        | RoleSeg::BandSlit(x)
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
         | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
@@ -1301,7 +1441,10 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
-        RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            std::iter::once(edge.as_ref()).chain(band).collect()
+        }
+        RoleSeg::Fragment(Qualifier::Borders(v)) => v.iter().collect(),
         RoleSeg::Fragment(Qualifier::OrderAlong { .. })
         | RoleSeg::OutputBody
         | RoleSeg::Cap(_)
@@ -1319,6 +1462,65 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
         | RoleSeg::SplitBody(_)
-        | RoleSeg::SectionFace { .. } => Vec::new(),
+        | RoleSeg::SectionFace { .. }
+        | RoleSeg::LoftWall(_)
+        | RoleSeg::LoftSeam(_) => Vec::new(),
     }
+}
+
+/// **A run on a rayon pool of exactly `threads` workers** — `install`
+/// binds the pool for the closure, so every `par_iter` under it (the
+/// evaluator's level map, the driver's leaf map) runs on that pool.
+/// A width-blind row cannot tell an ordered fold from a lucky
+/// schedule; a row that names the width can.
+pub fn on_pool<R: Send>(threads: usize, run: impl Fn() -> R + Send + Sync) -> R {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build()
+        .expect("the pool builds")
+        .install(run)
+}
+
+/// **Two overlapping unit blocks on two frames, and their union** — the
+/// smallest document whose level schedule and serial order DISAGREE,
+/// which is what a row about the parallel node map needs.
+///
+/// The blocks overlap in all three axes and share no plane, so the union
+/// is a generic one and decides at every scalar the evaluator runs.
+/// Inserted as frame, profile, extrude, frame, profile, extrude, union,
+/// so the serial order (Kahn, least id first) finishes the first block
+/// before starting the second, while the levels are the two frames, the
+/// two profiles, the two extrudes, then the union: every level but the
+/// last holds two independent nodes, and a fold that recorded level by
+/// level would interleave the blocks. Returns the document and the
+/// union's id.
+pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let block = |doc: ProfileDoc, [x, y, z]: [f64; 3]| {
+        let (doc, p) = on_frame(
+            doc,
+            [0.0, 0.0, z],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(x, y, 0.5)],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: p,
+                distance: len(1.0),
+            },
+        )
+    };
+    let doc = ProfileDoc::empty_derived(label, Tol::witness());
+    let (doc, a) = block(doc, [0.0, 0.0, 0.0]);
+    let (doc, b) = block(doc, [0.5, 0.25, 0.5]);
+    insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a,
+            b,
+            declare: None,
+        },
+    )
 }

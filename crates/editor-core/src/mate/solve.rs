@@ -636,15 +636,14 @@ fn derived_direction(
 /// derivation of the part a mate reads: the lever's ([`pair_reach`]),
 /// a face side's ([`resolve_side`]), and the part pin a face side's
 /// memo key carries (`eval`'s `SolveAnswer`), so the key and the solve
-/// cannot come to name two different parts for one side.
+/// cannot come to name two different parts for one side. It reads the
+/// part cache's own census ([`crate::eval::parts::instantiated`]), so
+/// every part a mate asks for is one the descent has entered.
 pub(crate) fn part_of<P>(
     doc: &Doc<P>,
     member: &Member,
 ) -> Result<crate::ident::DocRef, RecipeNodeId> {
-    match doc.node(member.instance) {
-        Some(Node::InstantiatePart { doc_ref, .. }) => Ok(*doc_ref),
-        _ => Err(member.instance),
-    }
+    crate::eval::parts::instantiated(doc, member.instance).ok_or(member.instance)
 }
 
 /// **One side's frame as the solve reads it** — the two arms of
@@ -1823,7 +1822,7 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::predicate::MarginDiag;
+    use geom_core::ErrorTextReading;
 
     const SITE: &str = "solve_test_direction";
 
@@ -1850,7 +1849,9 @@ mod tests {
             panic!("an in-band length escalates with its diagnostic: {in_band:?}");
         };
         assert_eq!(diag.predicate, Some(SITE));
-        assert!(matches!(diag.margin, MarginDiag::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9));
+        assert!(
+            matches!(diag.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if (m - 3.0 * eps).abs() <= eps * 1e-9)
+        );
         assert_eq!(
             derived_direction(Vec3::new(0.5 * eps, 0.0, 0.0), SITE, band()).unwrap_err(),
             FrameError::Degenerate {

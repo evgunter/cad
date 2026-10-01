@@ -303,9 +303,10 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     // "the question cannot be posed here", not "the answer is no".
     if s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some() {
         return Err(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("dihedral_wedge"),
+            terminal_sliver: false,
         });
     }
     let mut all_transverse = true;
@@ -328,9 +329,10 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         // Corner at one station, tangency at another: not one contact,
         // and no single routing is honest for it.
         return Err(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some("dihedral_wedge"),
+            terminal_sliver: false,
         });
     }
 
@@ -363,7 +365,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         // and keeping the pairing's escalation ahead of this one.
         let so = geom_brep::tangent_second_order(s_plus, s_minus, p, dir, extent, band);
         let jet = so.jet;
-        match so.verdict? {
+        match so.verdict?.sign {
             geom_core::Sign::Positive => {}
             geom_core::Sign::Zero | geom_core::Sign::Negative => {
                 jet_determinate = false;
@@ -384,9 +386,10 @@ pub(crate) fn classify_shared_rim<T: Decide>(
             // never swallowed.
             geom_core::Sign::Zero => {
                 return Err(Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
+                    margin: geom_core::MarginDiag::INVALID,
                     band,
                     predicate: Some("material_cusp_side"),
+                    terminal_sliver: false,
                 });
             }
         };
@@ -406,9 +409,10 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         MaterialArmOutcome::Wedge(w) => Ok(RimRouting::Cusp(w)),
         MaterialArmOutcome::Lamina => Ok(RimRouting::Lamina),
         MaterialArmOutcome::Split { predicate } => Err(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+            margin: geom_core::MarginDiag::INVALID,
             band,
             predicate: Some(predicate),
+            terminal_sliver: false,
         }),
     }
 }

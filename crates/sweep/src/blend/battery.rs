@@ -44,6 +44,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey}
 use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
+use super::build::fan_at;
 use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, decide};
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
@@ -52,8 +53,8 @@ use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, de
 ///
 /// `f64` and `Interval` present a thin reading identically (`lo ==
 /// hi`) and spell it differently: `f64::sign_within` reports a reading
-/// it cannot classify as [`MarginDiag::Value`], `Interval`'s reports
-/// one as [`MarginDiag::Enclosure`] even when the enclosure is a point
+/// it cannot classify as [`MarginKind::Value`](geom_core::MarginKind::Value), `Interval`'s reports
+/// one as [`MarginKind::Enclosure`](geom_core::MarginKind::Enclosure) even when the enclosure is a point
 /// (`geom-core`'s interval suite pins the pair `Value(m)` /
 /// `Enclosure { lo: m, hi: m }` for one margin at the two scalars). So
 /// the shape cannot be read off the bracket, and the payload has to
@@ -120,11 +121,11 @@ enum Spelling {
 pub(crate) fn measured<T: Bounds>(value: T) -> MarginDiag {
     let (lo, hi) = (value.lo(), value.hi());
     if lo.is_nan() || hi.is_nan() {
-        return MarginDiag::Invalid;
+        return MarginDiag::INVALID;
     }
     match holds_enclosures::<T>() {
-        Spelling::Value => MarginDiag::Value(lo),
-        Spelling::Enclosure => MarginDiag::Enclosure { lo, hi },
+        Spelling::Value => MarginDiag::value(lo),
+        Spelling::Enclosure => MarginDiag::enclosure(lo, hi),
     }
 }
 
@@ -151,11 +152,10 @@ pub(crate) fn classified<T: Bounds>(
     }
 }
 
-/// The number of interior samples the chain predicates take along
-/// each link. Nine, matching the certification schedule's
-/// `CERT_SAMPLES` — the battery and the certificate look at the same
-/// places, on purpose.
-pub const CHAIN_SAMPLES: u32 = 9;
+/// The number of samples, ends included, the chain predicates take
+/// along each link: the certification schedule's, so the battery and
+/// the certificate look at the same places.
+pub const CHAIN_SAMPLES: u32 = geom_brep::CERT_SAMPLES;
 
 /// Which way the material wedge turns along a chain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -465,19 +465,12 @@ fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T,
 
 /// Sample `i` of the battery's per-link parameter schedule — the
 /// [`CHAIN_SAMPLES`] places every chain predicate looks along
-/// `[t0, t1]`, spelled once. The two ends are the interval bounds
-/// EXACTLY (not `t0 + span·1` arithmetic, which can miss `t1` by an
-/// ulp): the lever arm's reduction to the endpoint chord on straight
-/// edges is bit-exact because sample 0 IS `t0` and the last sample
-/// IS `t1`.
+/// `[t0, t1]`, on the kernel's one uniform schedule
+/// ([`geom_brep::schedule_param`]). Its ends are the interval bounds
+/// exactly, so the lever arm's reduction to the endpoint chord on
+/// straight edges is bit-exact.
 fn chain_sample_at<T: Decide>(t0: T, t1: T, i: u32) -> T {
-    if i == 0 {
-        t0
-    } else if i == CHAIN_SAMPLES - 1 {
-        t1
-    } else {
-        t0 + (t1 - t0) * T::from_f64(f64::from(i) / f64::from(CHAIN_SAMPLES - 1))
-    }
+    geom_brep::schedule_param(t0, t1, i, CHAIN_SAMPLES)
 }
 
 /// The midpoint parameter of a link — the dihedral classifier's
@@ -559,7 +552,10 @@ pub fn radius_headroom<T: Decide + Bounds>(
             detail: "a support face's stored surface, for the curvature headroom predicate",
         });
     };
-    let arm = geom_brep::curvature_lever_arm(s, p);
+    // The ball must fit inside the TIGHTEST bend, so the arm is the
+    // smallest radius of curvature, not the chart's scale (they differ
+    // on a fat torus, and a horn or spindle one has no bound at all).
+    let arm = geom_brep::min_radius_of_curvature(s, p);
     // `(1 − r/arm)·r`, written so a plane's unbounded arm saturates
     // at `r` rather than dividing by an infinity.
     let margin = radius - radius.powi(2) / arm;
@@ -663,9 +659,10 @@ pub fn convexity_at<T: Decide + Bounds>(
             return Err(esc(
                 site,
                 Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: Some("fillet3_chain_arm"),
+                    terminal_sliver: false,
                 },
             ));
         }
@@ -727,9 +724,10 @@ pub fn chain_g1<T: Decide + Bounds>(
             return Err(esc(
                 site,
                 Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: Some("fillet3_chain_arm"),
+                    terminal_sliver: false,
                 },
             ));
         }
@@ -1413,21 +1411,6 @@ pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
     chains
 }
 
-/// The vertex's incident edges (its orbit) — the valence predicate 6
-/// classifies.
-fn vertex_edges<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
-    let v = body.get_vertex(vertex)?;
-    let he = v.emanating?;
-    let orbit = body.vertex_orbit(he)?;
-    let mut edges: Vec<EdgeKey> = orbit
-        .iter()
-        .filter_map(|h| body.get_half_edge(*h).map(|x| x.edge))
-        .collect();
-    edges.sort_unstable();
-    edges.dedup();
-    Some(edges)
-}
-
 /// **Run the battery** — C8's six predicates over the request's
 /// inputs, in C8's order, before any construction.
 ///
@@ -1800,7 +1783,7 @@ pub(super) fn cap_incidence<T: Decide>(
     face_a: FaceKey,
     face_b: FaceKey,
 ) -> Option<(EdgeKey, EdgeKey, FaceKey)> {
-    let incident = vertex_edges(body, vertex)?;
+    let incident = fan_at(body.edges_of_vertex(vertex))?;
     let [_, _, _] = incident[..] else {
         return None;
     };
@@ -1855,7 +1838,11 @@ fn corner_at<T: Decide + Bounds>(
 ) -> Result<Option<CornerConfig>, BlendError> {
     let indeterminate =
         || super::surgery::unbuilt_corner_config(vertex, CornerConfig::Indeterminate);
-    let edges = vertex_edges(body, vertex).ok_or_else(indeterminate)?;
+    // In key order, so the supports below are gathered — and their
+    // normals reach the independence determinant — in an order that
+    // does not depend on where the vertex's orbit starts.
+    let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(indeterminate)?;
+    edges.sort_unstable();
     let valence = edges.len();
     // A chart seam crossing a smooth rim is NOT a corner, so it is
     // recognized before the valence is read as a corner configuration —

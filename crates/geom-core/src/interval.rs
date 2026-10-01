@@ -1,10 +1,11 @@
-//! The [`Interval`] scalar over the in-repo `interval-transcendentals`
-//! crate — Q1's certified instantiation of [`Real`] and [`Decide`].
-//! This module compiles in every build; what the `interval` cargo
-//! feature gates is the lane-trait impls in the crates above this one
-//! and the interval test files — not the type, and not a kernel body
-//! bounded by [`Real`]/[`Decide`]/[`Bounds`] alone, which instantiates
-//! at this scalar in a default build.
+//! The [`Interval`] scalar over the in-repo `interval-transcendentals` crate
+//! — Q1's certified instantiation of [`Real`] and [`Decide`], and the
+//! enclosure certification arithmetic is built from
+//! (`crates/geom-brep/README.md` C9): one type in both roles, read by
+//! certification code through the
+//! [`Certification`](certification::Certification) doors of the child module
+//! [`certification`], imported by name. It compiles in every build, and so do
+//! the lane-trait impls at it in the crates above this one.
 //!
 //! An `Interval` is a machine-representable enclosure `[lo, hi]` of the
 //! **true real value** of a computation: every operation returns an
@@ -34,17 +35,21 @@
 //! enclosures keep computing) but never through *decisions*, the same
 //! policy [`crate::real`] states for NaN at `f64`.
 //!
-//! There are **two** doors where a decoration turns into a refusal, and
-//! they ask the same question through [`Interval::is_certified`]:
-//! [`Decide::sign_within`], which will not branch, and
-//! [`crate::CertifiedEnclosure::certified_bracket`], which will not hand
-//! the value to certification arithmetic. [`Bounds`] is deliberately
-//! **not** one of them: it answers "what bracket does this carry?", and a
-//! clamped enclosure carries a perfectly sound one — reporting its
-//! endpoints is right, and containment properties written against
-//! `Bounds` depend on it.
+//! Every door where a decoration turns into a refusal asks the same question
+//! through [`Interval::is_certified`]: [`Decide::sign_within`], which will
+//! not branch; [`crate::CertifiedEnclosure::certified_bracket`], which will
+//! not hand the value to certification arithmetic; the cap
+//! [`Interval::from_certified`] puts on a crossing; and the
+//! [`Certification`](certification::Certification) doors that arithmetic
+//! builds its brackets through, which refuse a value that is not certified
+//! whatever its endpoints say. [`Bounds`] is deliberately **not** one of
+//! them: it answers "what bracket does this carry?", and a clamped enclosure
+//! carries a perfectly sound one — reporting its endpoints is right, and
+//! containment properties written against `Bounds` depend on it. So a site
+//! that reads one endpoint of a certification bracket and compares it asks
+//! `is_certified()` first.
 //!
-//! Both doors refuse below `Def`, so the backend's one operation whose
+//! Every door refuses below `Def`, so the backend's one operation whose
 //! result always carries `Trv` — `DInterval::intersection` — would be
 //! refused on every result if this scalar ever exposed it. It does not,
 //! and nothing here calls one.
@@ -130,9 +135,11 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use interval_transcendentals::{DInterval, Decoration};
 
 use crate::dual::KinkJacobian;
-use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
-use crate::real::{Bounds, Real};
+use crate::predicate::{Band, Decide, Decided, Indeterminate, MarginDiag, Sign};
+use crate::real::{Bounds, CertifiedBounds, Real};
 use crate::tolerance::Tol;
+
+pub mod certification;
 
 /// An enclosure of a true real value: the interval scalar over
 /// [`interval_transcendentals::DInterval`] (see the [module docs](self)
@@ -164,9 +171,14 @@ impl Interval {
     /// round trip mid-pipeline discards the decoration history: a `Trv`
     /// (domain-violated) enclosure re-enters as a fresh `Com`, scrubbed of
     /// its poison — the one genuine laundering door around the decoration
-    /// channel. `from_bounds` exists to materialize the driver's parameter
-    /// sub-boxes; it is never for reconstructing values that came out of
-    /// [`Bounds`] mid-computation.
+    /// channel. So a rebuild from another enclosure's endpoints is written
+    /// behind that enclosure's own [`Interval::is_certified`] check, or
+    /// argued safe by construction at the site (certification code does both
+    /// where it pads, splits or re-centres a bracket), and a narrowing that
+    /// keeps the decoration is
+    /// [`Certification::clamped_to`](certification::Certification::clamped_to);
+    /// an unguarded rebuild of a value that came out of [`Bounds`]
+    /// mid-computation is the laundering itself.
     pub fn from_bounds(lo: f64, hi: f64) -> Self {
         Self(DInterval::from_bounds(lo, hi))
     }
@@ -207,12 +219,19 @@ impl Interval {
     /// enclosure was **defined on the whole input box** — `Decoration::Def`
     /// or better.
     ///
-    /// The one spelling of that threshold. Both doors that turn an enclosure
-    /// into a commitment ask through this: [`Decide::sign_within`], which
-    /// will not branch on an uncertified value, and
-    /// [`crate::CertifiedEnclosure::certified_bracket`], which will not hand one to
-    /// certification arithmetic. They are the same question — *may this
-    /// decide anything?* — and they must not be able to drift apart.
+    /// The one spelling of that threshold, and the refusal predicate
+    /// certification arithmetic asks by name. Every door that turns an
+    /// enclosure into a commitment asks through this:
+    /// [`Decide::sign_within`], which will not branch on an uncertified
+    /// value, [`crate::CertifiedEnclosure::certified_bracket`], which will
+    /// not hand one to certification arithmetic, and the
+    /// [`Certification`](certification::Certification) doors, which refuse
+    /// one. They are the same question — *may this decide anything?* — and
+    /// they must not be able to drift apart.
+    ///
+    /// It is not [`Real::is_poison`], which at this scalar is NaI or empty
+    /// only: a `Trv` enclosure with real endpoints is not poison to
+    /// evaluation code and is a refusal here.
     ///
     /// `Def` is the threshold rather than `Dac` or `Com` because it is
     /// exactly the claim a sound commitment needs: continuity and
@@ -228,6 +247,57 @@ impl Interval {
     #[must_use]
     pub fn is_certified(self) -> bool {
         self.0.decoration() >= Decoration::Def
+    }
+
+    /// Reads a scalar's bracket into certification arithmetic through
+    /// the **certified** door, carrying the refusal in the DECORATION
+    /// rather than in the endpoints — the crossing from a lane scalar
+    /// (`f64`, [`crate::Probe`], [`crate::Sym`], or this scalar itself)
+    /// into the enclosures certificates are built from.
+    ///
+    /// A scalar that may not certify crosses as its own bracket capped at
+    /// `Trv` — endpoints intact, the refusal recorded where every
+    /// [`Certification`](certification::Certification) door reads it. The
+    /// scalar records a domain violation in its decoration, not in its
+    /// endpoints (`sqrt([−1, 4])` is `[0, 2]` at `Trv`), so the violation has
+    /// to be read HERE, and carried on in the channel the
+    /// [`Certification`](certification::Certification) doors read. Whatever
+    /// is built from the crossing is a certificate, so a scalar carrying a
+    /// sound bracket its computation is not entitled to stays a refusal,
+    /// rather than becoming a plausible bound nothing downstream can
+    /// question.
+    ///
+    /// A scalar that does certify crosses capped at `Def` — unless its
+    /// bracket is no interval at all: `f64::INFINITY` certifies as `[∞, ∞]`,
+    /// which [`Interval::from_bounds`] mints as NaI, so that crossing
+    /// refuses, in the safe direction. The cap is exactly what
+    /// [`certified_bracket`](crate::CertifiedEnclosure::certified_bracket)
+    /// promises and no more: the door's verdict is two-valued, and most of
+    /// its implementors (`f64`, `Probe`, `Sym`) have no decoration to carry,
+    /// so `Def` is the strongest claim every implementor makes. A bound built
+    /// from an `f64` is then exactly as strong as the identical bound built
+    /// from an `Interval`, and none of the
+    /// [`Certification`](certification::Certification) doors reads a
+    /// decoration above `Def`.
+    ///
+    /// The endpoints are [`Bounds`]'s, and the verdict is the certified
+    /// door's; that is why the parameter is [`CertifiedBounds`], both
+    /// doors under one name. At `f64` and `Probe` a refusal IS a NaN, so
+    /// the crossing is NaI there; at the interval scalar it keeps the
+    /// sound endpoints the clamp left.
+    ///
+    /// [`Interval::from_bounds`] over `lo()`/`hi()` is the *driver's*
+    /// spelling: reading a bracket is not certifying it, and that
+    /// spelling mints a fresh `Com`/`Dac` with no claim about the
+    /// computation behind it.
+    #[must_use]
+    pub fn from_certified<T: CertifiedBounds>(x: T) -> Self {
+        let cap = if x.certified_bracket().is_some() {
+            Decoration::Def
+        } else {
+            Decoration::Trv
+        };
+        Self(DInterval::from_bounds(Bounds::lo(x), Bounds::hi(x)).with_dec_capped(cap))
     }
 }
 
@@ -288,6 +358,8 @@ impl Real for Interval {
     /// theorem-vs-numeric contradiction is ASSERTED at.
     const WITNESS: crate::real::Witness = crate::real::Witness::Exact;
 
+    const NAME: &'static str = "interval";
+
     /// The point enclosure `[x, x]` with decoration `Com` — an exact
     /// embedding for every *finite* `f64`. NaN and ±∞ are not real
     /// numbers and have no enclosure: they map to NaI, explicitly —
@@ -333,8 +405,6 @@ impl Real for Interval {
         Self(self.0.abs())
     }
 
-    /// NaI and the empty interval are both poison (the [`Bounds`]
-    /// convention: neither stands for any real number).
     /// **The witness over a box** ([`Real::register_equal`]): two
     /// certified enclosures of one real MEET, so a claim whose two
     /// sides are disjoint over this leaf's box is refused typed. An
@@ -380,6 +450,17 @@ impl Real for Interval {
         }
     }
 
+    /// NaI and the empty interval are both poison (the [`Bounds`]
+    /// convention: neither stands for any real number).
+    ///
+    /// **This is not the certification refusal.** A bracket that may
+    /// not certify — a quotient by a divisor not proven away from zero,
+    /// a `sqrt` of a bracket reaching below zero — carries decoration
+    /// `Trv` and ordinary endpoints, and this answers `false` for it.
+    /// On a certification value the refusal is
+    /// `!`[`Interval::is_certified`], which is what every certification
+    /// door reads; a site with `Real` in scope that asks this instead
+    /// compiles and takes the certifying branch.
     fn is_poison(self) -> bool {
         self.0.is_nai() || self.0.is_empty()
     }
@@ -431,7 +512,7 @@ impl Real for Interval {
             Self(cap_decoration(-mag, sign.0.decoration()))
         } else {
             // Zero-containing sign: hull of ±|self|, decoration ≤ Def.
-            let hulled = tangent_hull(mag, -mag);
+            let hulled = enclosure_hull_of(mag, -mag);
             Self(cap_decoration(
                 hulled,
                 sign.0.decoration().min(Decoration::Def),
@@ -549,7 +630,7 @@ impl Real for Interval {
 /// through `Bounds`, on purpose: failing certification outranks
 /// IEEE 1788 representational honesty. (Code that needs to tell them
 /// apart is driver/diagnostic code, which sees the decoration through
-/// [`Decide::sign_within`]'s [`MarginDiag::Invalid`], not through this
+/// [`Decide::sign_within`]'s [`MarginKind::Invalid`](crate::MarginKind::Invalid), not through this
 /// trait.)
 impl Bounds for Interval {
     fn lo(self) -> f64 {
@@ -564,25 +645,19 @@ impl Bounds for Interval {
 /// The certified door, refusing exactly where [`Decide::sign_within`]
 /// does ([`Interval::is_certified`]).
 ///
-/// This is the seam the C9 ring reads an evaluation scalar through. A
-/// `Trv` enclosure with finite endpoints — `sqrt([−1, 4])` clamping to
+/// A `Trv` enclosure with finite endpoints — `sqrt([−1, 4])` clamping to
 /// `[0, 2]` — is the case that needs it: it is a perfectly sound
 /// bracket, so [`Bounds`] reports it unchanged and must, while
 /// certification has to see the violation.
 ///
-/// The ring's own refusal channel is a decoration too, so the crossing
-/// carries both halves rather than collapsing them:
-/// `crossing_bracket` hands over the sound endpoints and the certified
-/// door hands over the verdict, and the ring caps its decoration with
-/// it. Nothing is laundered — the value arrives at `Trv`, which is the
-/// ring's poison.
+/// [`Interval::from_certified`] reads both halves rather than collapsing
+/// them: [`Bounds`] hands over the sound endpoints and this door hands
+/// over the verdict, which caps the crossing's decoration. Nothing is
+/// laundered — a refused value arrives at `Trv`, which every
+/// certification door refuses.
 impl crate::real::CertifiedEnclosure for Interval {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.is_certified().then(|| (self.0.lo(), self.0.hi()))
-    }
-
-    fn crossing_bracket(self) -> (f64, f64) {
-        (self.0.lo(), self.0.hi())
     }
 }
 
@@ -604,10 +679,11 @@ impl crate::spline::SpanLocate for Interval {
     }
 
     fn enclosure_hull(self, other: Self) -> Self {
-        // The convex hull with poison-first semantics — the same
-        // convention as the kink tangent hull below (NaI/empty
-        // propagate; 1788's empty-absorbing hull would drop poison).
-        Self(tangent_hull(self.0, other.0))
+        // The convex hull with poison-first semantics — the
+        // evaluation hull `enclosure_hull_of` below, which this calls
+        // (NaI/empty propagate; 1788's empty-absorbing hull would drop
+        // poison).
+        Self(enclosure_hull_of(self.0, other.0))
     }
 }
 
@@ -616,7 +692,7 @@ impl crate::spline::SpanLocate for Interval {
 /// to decisions.
 ///
 /// **Poison first**: a decoration below [`Decoration::Def`] refuses to
-/// classify at all, yielding [`MarginDiag::Invalid`]. This covers NaI
+/// classify at all, yielding [`MarginKind::Invalid`](crate::MarginKind::Invalid). This covers NaI
 /// (`Ill`), the empty enclosure (`Trv`), and — the crucial case — a
 /// *plausible-looking* enclosure whose computation violated a domain
 /// somewhere (`Trv` via clamping, e.g. `sqrt([-1, 4]) = [0, 2]`). The
@@ -633,7 +709,7 @@ impl crate::spline::SpanLocate for Interval {
 /// - `lo ≥ escalate` — every enclosed value has full clearance —
 ///   [`Sign::Positive`]; mirrored for [`Sign::Negative`];
 /// - anything else is [`Indeterminate`] with
-///   [`MarginDiag::Enclosure`] carrying the exact bounds.
+///   [`MarginKind::Enclosure`](crate::MarginKind::Enclosure) carrying the exact bounds.
 ///
 /// Consequences, both deliberate: an enclosure *straddling* a region
 /// boundary is indeterminate (subdivide and re-run — Q1's driver), and a
@@ -644,12 +720,12 @@ impl crate::spline::SpanLocate for Interval {
 /// changes nothing.
 ///
 /// **Driver termination rule.** The second consequence generalizes: an
-/// [`MarginDiag::Enclosure`] lying **wholly inside one open sliver band**
+/// [`MarginKind::Enclosure`](crate::MarginKind::Enclosure) lying **wholly inside one open sliver band**
 /// `(zero, escalate)` — or its mirror `(-escalate, -zero)` — is
 /// **terminal**. No subdivision refines it: the band is semantically
 /// indeterminate at *any* width, down to a point, so the driver escalates
 /// it as a genuine D4 ¶3 sliver, never retries it as a resolution
-/// failure. [`MarginDiag::Invalid`] outcomes split for the driver too: a
+/// failure. [`MarginKind::Invalid`](crate::MarginKind::Invalid) outcomes split for the driver too: a
 /// domain-clamp `Invalid` (`Trv` from partial clamping) may cure under
 /// subdivision — the violating sub-box shrinks away — while a NaI
 /// `Invalid` never cures.
@@ -659,28 +735,36 @@ impl Decide for Interval {
         self.certified_bracket()
     }
 
-    fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
+    fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         if !self.is_certified() {
             return Err(Indeterminate {
-                margin: MarginDiag::Invalid,
+                margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             });
         }
         let (lo, hi) = (self.0.lo(), self.0.hi());
-        if -band.zero() <= lo && hi <= band.zero() {
-            Ok(Sign::Zero)
+        let margin = MarginDiag::enclosure(lo, hi);
+        let sign = if -band.zero() <= lo && hi <= band.zero() {
+            Sign::Zero
         } else if lo >= band.escalate() {
-            Ok(Sign::Positive)
+            Sign::Positive
         } else if hi <= -band.escalate() {
-            Ok(Sign::Negative)
+            Sign::Negative
         } else {
-            Err(Indeterminate {
-                margin: MarginDiag::Enclosure { lo, hi },
+            // The curability verdict: wholly inside one open sliver
+            // band, no subdivision decides it.
+            let (zero, escalate) = (band.zero(), band.escalate());
+            let terminal_sliver = (zero < lo && hi < escalate) || (-escalate < lo && hi < -zero);
+            return Err(Indeterminate {
+                margin,
                 band,
                 predicate: None,
-            })
-        }
+                terminal_sliver,
+            });
+        };
+        Ok(Decided { sign, margin })
     }
 }
 
@@ -694,16 +778,23 @@ fn cap_decoration(x: DInterval, floor: Decoration) -> DInterval {
     x.with_dec_capped(floor)
 }
 
-/// The convex hull of two decorated tangents, decorated with the *minimum*
+/// The evaluation hull over the wrapped value — the operation
+/// [`crate::SpanLocate::enclosure_hull`] names at this scalar, shared by
+/// `copysign` and the kink selectors; certification's refusing hull is
+/// [`Certification::hull`](certification::Certification::hull), a
+/// different operation under a different name.
+///
+/// The convex hull of two decorated values, decorated with the *minimum*
 /// of their decorations — deliberately NOT IEEE 1788's set-operation
 /// convention (which would drop to `Trv` unconditionally): the hull here
 /// is not a set operation on unrelated intervals but the subgradient
-/// convention for a tie region (see [`KinkJacobian`]), and each branch's
-/// tangent keeps its own computation history. Poison first: either
+/// convention for a tie region (see [`KinkJacobian`]) — at the kink
+/// selectors the two values are the branches' tangents — and each
+/// operand keeps its own computation history. Poison first: either
 /// operand NaI ⇒ NaI, either empty ⇒ empty (1788's "empty absorbs into
 /// the hull" would *drop* a poisoned tangent — the opposite of poison
 /// propagation).
-fn tangent_hull(x: DInterval, y: DInterval) -> DInterval {
+fn enclosure_hull_of(x: DInterval, y: DInterval) -> DInterval {
     if x.is_nai() || y.is_nai() {
         return DInterval::nai();
     }
@@ -764,7 +855,7 @@ impl KinkJacobian for Interval {
     /// tangent, `other` certainly below takes the other's); any overlap —
     /// including a single shared endpoint, and in particular equal point
     /// values with different tangents — hulls both tangents
-    /// ([`tangent_hull`]). Strictness is deliberate: with touching
+    /// ([`enclosure_hull_of`]). Strictness is deliberate: with touching
     /// enclosures the minimum can sit *at* the tie, where the true
     /// one-sided derivatives are both branches' — only strict separation
     /// certifies a single branch. Empty/NaI **values** poison the tangent
@@ -783,7 +874,7 @@ impl KinkJacobian for Interval {
         } else if other.0.hi() < self.0.lo() {
             other_deriv.0
         } else {
-            tangent_hull(self_deriv.0, other_deriv.0)
+            enclosure_hull_of(self_deriv.0, other_deriv.0)
         };
         Self(cap_decoration(
             chosen,
@@ -890,7 +981,7 @@ impl KinkJacobian for Interval {
         } else if other.0.lo() > self.0.hi() {
             other_deriv.0
         } else {
-            tangent_hull(self_deriv.0, other_deriv.0)
+            enclosure_hull_of(self_deriv.0, other_deriv.0)
         };
         Self(cap_decoration(
             chosen,
@@ -1168,11 +1259,12 @@ mod tests {
 
         let band = band_1e9();
         assert_eq!(
-            x.sign_within(band),
+            x.sign_within(band).map(|d| d.sign),
             Err(Indeterminate {
-                margin: MarginDiag::Invalid,
+                margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             })
         );
     }
@@ -1259,11 +1351,12 @@ mod tests {
         // and a poisoned computation never takes a branch.
         for poisoned in [clamped, shifted] {
             assert_eq!(
-                poisoned.sign_within(band),
+                poisoned.sign_within(band).map(|d| d.sign),
                 Err(Indeterminate {
-                    margin: MarginDiag::Invalid,
+                    margin: MarginDiag::INVALID,
                     band,
                     predicate: None,
+                    terminal_sliver: false,
                 })
             );
         }
@@ -1281,11 +1374,12 @@ mod tests {
 
         // ...and the decision refuses, with the poison diagnostic.
         assert_eq!(
-            downstream.sign_within(band),
+            downstream.sign_within(band).map(|d| d.sign),
             Err(Indeterminate {
-                margin: MarginDiag::Invalid,
+                margin: MarginDiag::INVALID,
                 band,
                 predicate: None,
+                terminal_sliver: false,
             })
         );
     }
@@ -1299,15 +1393,27 @@ mod tests {
         let band = band_1e9();
         let indeterminate = |lo: f64, hi: f64| {
             Err(Indeterminate {
-                margin: MarginDiag::Enclosure { lo, hi },
+                margin: MarginDiag::enclosure(lo, hi),
                 band,
                 predicate: None,
+                terminal_sliver: false,
+            })
+        };
+        // Wholly inside one open sliver band: the classifier records it
+        // terminal.
+        let sliver = |lo: f64, hi: f64| {
+            Err(Indeterminate {
+                margin: MarginDiag::enclosure(lo, hi),
+                band,
+                predicate: None,
+                terminal_sliver: true,
             })
         };
         let invalid = Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             band,
             predicate: None,
+            terminal_sliver: false,
         });
 
         // First representable values beyond the thresholds.
@@ -1327,9 +1433,9 @@ mod tests {
             (iv(-2e-9, 2e-9),       indeterminate(-2e-9, 2e-9), "symmetric straddle of the coincidence region"),
             // -- Inside the ambiguity band: indeterminate EVEN FOR POINTS
             //    (the sliver band is semantic — ratified reading (b)).
-            (Interval::from_f64(5e-9), indeterminate(5e-9, 5e-9), "a point in the sliver band stays indeterminate"),
-            (iv(2e-9, 3e-9),        indeterminate(2e-9, 3e-9), "an enclosure wholly inside the band"),
-            (Interval::from_f64(-5e-9), indeterminate(-5e-9, -5e-9), "sliver point, negative side"),
+            (Interval::from_f64(5e-9), sliver(5e-9, 5e-9), "a point in the sliver band stays indeterminate"),
+            (iv(2e-9, 3e-9),        sliver(2e-9, 3e-9), "an enclosure wholly inside the band"),
+            (Interval::from_f64(-5e-9), sliver(-5e-9, -5e-9), "sliver point, negative side"),
             // -- Straddling the escalate threshold: indeterminate.
             (iv(below_escalate, 1.0), indeterminate(below_escalate, 1.0), "lo one ulp short of escalate"),
             (iv(-1.0, -below_escalate), indeterminate(-1.0, -below_escalate), "hi one ulp short of -escalate"),
@@ -1353,7 +1459,7 @@ mod tests {
 
         for (x, expected, why) in table {
             assert_eq!(
-                x.sign_within(band),
+                x.sign_within(band).map(|d| d.sign),
                 *expected,
                 "enclosure [{:e}, {:e}]: {why}",
                 x.lo(),
@@ -1424,7 +1530,7 @@ mod tests {
         let selected = clean.min_deriv(tangent, iv(10.0, 11.0), iv(9.0, 9.0));
         assert_eq!(selected.0.decoration(), Decoration::Com);
         // The hull's decoration is the min of the tangents' (deliberately
-        // NOT 1788's unconditional Trv for set ops — doc on tangent_hull):
+        // NOT 1788's unconditional Trv for set ops — doc on enclosure_hull_of):
         // a Trv tangent hulled with a Com one yields Trv.
         let trv_tangent = iv(-1.0, 4.0).sqrt();
         let hulled = clean.min_deriv(trv_tangent, iv(1.0, 3.0), tangent);
@@ -1491,7 +1597,10 @@ mod tests {
         assert_eq!(stepped.0.decoration(), Decoration::Def);
         // Def still classifies: a stepped floor is honest discreteness,
         // not a domain violation.
-        assert_eq!(stepped.sign_within(band_1e9()), Ok(Sign::Positive));
+        assert_eq!(
+            stepped.sign_within(band_1e9()).map(|d| d.sign),
+            Ok(Sign::Positive)
+        );
         // Negative side.
         let negative = iv(-2.3, -2.1).floor();
         assert_eq!((negative.lo(), negative.hi()), (-3.0, -3.0));
@@ -1751,13 +1860,13 @@ mod tests {
         ) {
             let band = Band::new(zero, zero * ratio).unwrap();
             let m = t * band.escalate();
-            let at_f64 = m.sign_within(band);
-            let at_interval = Interval::from_f64(m).sign_within(band);
+            let at_f64 = m.sign_within(band).map(|d| d.sign);
+            let at_interval = Interval::from_f64(m).sign_within(band).map(|d| d.sign);
             match (at_f64, at_interval) {
                 (Ok(a), Ok(b)) => prop_assert_eq!(a, b),
                 (Err(e_f), Err(e_i)) => {
-                    prop_assert_eq!(e_f.margin, MarginDiag::Value(m));
-                    prop_assert_eq!(e_i.margin, MarginDiag::Enclosure { lo: m, hi: m });
+                    prop_assert_eq!(e_f.margin, MarginDiag::value(m));
+                    prop_assert_eq!(e_i.margin, MarginDiag::enclosure(m, m));
                     prop_assert_eq!(e_i.band, band);
                 }
                 (a, b) => prop_assert!(

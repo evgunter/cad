@@ -1,9 +1,7 @@
 //! Lifting exactly-known `f64` geometry onto the interval scalar.
 //!
 //! One function under three shapes — a coordinate, a vector, a point —
-//! all of them `Interval::from_f64` applied componentwise. Every caller
-//! is inside an `#[cfg(feature = "interval")]` suite or module, so the
-//! module is gated the same way.
+//! all of them `Interval::from_f64` applied componentwise.
 //!
 //! **What this module does NOT absorb.** `revolved_point_anchor.rs`'s
 //! `w(c)` widens a coordinate into `[c - half, c + half]`: that is the
@@ -18,10 +16,10 @@ pub(crate) fn iv(x: f64) -> Interval {
 
 /// An exactly-known vector, componentwise.
 pub(crate) fn iv3(v: Vec3<f64>) -> Vec3<Interval> {
-    Vec3::new(iv(v.x), iv(v.y), iv(v.z))
+    v.map(iv)
 }
 
 /// An exactly-known point, componentwise.
 pub(crate) fn ip(p: Point3<f64>) -> Point3<Interval> {
-    Point3::new(iv(p.x), iv(p.y), iv(p.z))
+    p.map(iv)
 }

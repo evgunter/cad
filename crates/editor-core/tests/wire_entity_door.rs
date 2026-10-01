@@ -43,7 +43,7 @@ use crate::fixture;
 use editor_core::measure::{MeasureExpr, MeasurePrimitive};
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult,
-    ProfileDoc, ProfileVertexRef, RecipeNodeId, SitedRef, StableName, evaluate,
+    ProfileDoc, RecipeNodeId, SitedRef, StableName, evaluate,
 };
 use fixture::{ang, fname, insert, len, on_frame, square, wall};
 use geom_core::Tol;
@@ -51,14 +51,11 @@ use geom_core::Tol;
 /// A vertex name at `node` — the extrude's own END cap vertex on the
 /// document's one outer loop, so the name RESOLVES and the refusal is
 /// about its kind rather than about a name that names nothing.
-fn end_cap_vertex(node: RecipeNodeId, vertex: u32) -> StableName {
+fn end_cap_vertex(doc: &editor_core::ProfileDoc, node: RecipeNodeId, vertex: u32) -> StableName {
     fixture::cap_vertex(
         node,
         CapEnd::End,
-        ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        },
+        crate::fixture::vpiece(doc, node, 0, vertex as usize),
     )
 }
 
@@ -80,14 +77,14 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
             distance: len(1.0),
         },
     );
-    let face = fname(body, wall(2));
-    let edge = fixture::prism_edges(body, 4).remove(2);
-    let vertex = end_cap_vertex(body, 0);
+    let face = fname(body, wall(&doc, body, 2));
+    let edge = fixture::prism_edges(&doc, body, 4).remove(2);
+    let vertex = end_cap_vertex(&doc, body, 0);
     (doc, body, face, edge, vertex)
 }
 
 /// The refusal `node` evaluates to, rendered.
-fn refusal(doc: &ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
+fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
     let mut ev = evaluate::<f64>(
         doc,
         None,
@@ -110,12 +107,12 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
         (
             "an edge",
             EntityKind::Edge,
-            "the shell open-face name minted by node 2 denotes an edge, not a face",
+            "the shell open-face name minted by node {n} denotes an edge, not a face",
         ),
         (
             "a vertex",
             EntityKind::Vertex,
-            "the shell open-face name minted by node 2 denotes a vertex, not a face",
+            "the shell open-face name minted by node {n} denotes a vertex, not a face",
         ),
     ] {
         let (doc, body, _, edge, vertex) = solid();
@@ -130,7 +127,11 @@ fn a_shell_designation_of_another_kind_refuses_naming_what_it_found() {
             matches!(got, NodeErrorKind::ShellOpenKind { .. }),
             "{what}: the shell's own refusal, not another road's: {got:?}"
         );
-        assert_eq!(got.to_string(), want, "{what}");
+        assert_eq!(
+            got.to_string(),
+            want.replace("{n}", &body.0.to_string()),
+            "{what}"
+        );
     }
 }
 
@@ -143,12 +144,12 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
         (
             "fillet",
             Node::fillet as fn(RecipeNodeId, editor_core::Expr, Vec<StableName>) -> _,
-            "the fillet selection name minted by node 2 denotes a face, not an edge",
+            "the fillet selection name minted by node {n} denotes a face, not an edge",
         ),
         (
             "chamfer",
             Node::chamfer as fn(RecipeNodeId, editor_core::Expr, Vec<StableName>) -> _,
-            "the chamfer selection name minted by node 2 denotes a face, not an edge",
+            "the chamfer selection name minted by node {n} denotes a face, not an edge",
         ),
     ] {
         let (doc, body, face, _, _) = solid();
@@ -158,7 +159,11 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
             matches!(got, NodeErrorKind::BlendSelectionKind { .. }),
             "{what}: the blend's own refusal: {got:?}"
         );
-        assert_eq!(got.to_string(), want, "{what}");
+        assert_eq!(
+            got.to_string(),
+            want.replace("{n}", &body.0.to_string()),
+            "{what}"
+        );
     }
 }
 
@@ -167,11 +172,11 @@ fn a_blend_selection_of_another_kind_refuses_under_its_verb() {
 /// that answered one refusal for both would lose.
 #[test]
 fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
-    let (doc, _, _, edge, _) = solid();
+    let (doc, body, _, edge, _) = solid();
     let (doc, frame) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: RecipeNodeId(2),
+            at: body,
             face: edge,
             spin: ang(0.0),
         }),
@@ -183,7 +188,10 @@ fn a_derived_frame_named_on_another_kind_refuses_in_its_own_words() {
     );
     assert_eq!(
         got.to_string(),
-        "the derived frame's name minted by node 2 denotes an edge, not a face"
+        format!(
+            "the derived frame's name minted by node {} denotes an edge, not a face",
+            body.0
+        )
     );
 }
 
@@ -280,9 +288,9 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
 ///   before either name is resolved, because a pair the vocabulary
 ///   has no step for is unsupported however many entities answer to
 ///   either name, so no key exists yet to read the word off. The name
-///   table makes the two sources agree (`insert_ref` and
-///   `insert_tied_ref` are its only writers and both refuse a row
-///   whose name's kind is not its key's); the one place they could
+///   table makes the two sources agree (every `NameTable` door that
+///   seats a row refuses one whose name's kind is not its key's); the
+///   one place they could
 ///   differ is a broken table, which that door answers off the KEYS
 ///   under a `debug_assert!`. What this row still cannot see is the
 ///   site at all.
@@ -366,6 +374,16 @@ mod source_rules {
                 answers.push((variant.expect("a field sits inside a variant"), tail));
             }
         }
+        assert!(
+            !all.is_empty(),
+            "eval/mod.rs: `NodeErrorKind`'s body yielded no variant at all — the enum moved \
+             or the scan drifted from its layout"
+        );
+        assert!(
+            !answers.is_empty(),
+            "eval/mod.rs: `NodeErrorKind` declares no `found:` field at all — the refusal \
+             vocabulary moved or the scan drifted from its layout"
+        );
         (all, answers)
     }
 
@@ -406,17 +424,7 @@ mod source_rules {
     fn every_found_answer_is_built_by_a_door() {
         let mod_code = source::blanked(source::code_only, "eval/mod.rs", MOD);
         let (all, answers) = variants(&mod_code);
-        assert!(
-            !all.is_empty(),
-            "`eval/mod.rs`'s `NodeErrorKind` body yielded no variant at all — the enum moved \
-             and this row is reading the wrong file"
-        );
         let mut declared: Vec<&str> = answers.iter().map(|(n, _)| *n).collect();
-        assert!(
-            !declared.is_empty(),
-            "`eval/mod.rs` declares no `found:` field at all — the refusal vocabulary moved \
-             and this row is reading the wrong file"
-        );
         let code = wire_code();
         let operand = source::sentinel_region(
             WIRE,
@@ -460,11 +468,6 @@ mod source_rules {
                 built.push(name);
             }
         }
-        assert!(
-            !built.is_empty(),
-            "no `NodeErrorKind` with a `found` field is built in `eval/wire.rs` at all — the \
-             walk read nothing and would pass over every answer `eval/mod.rs` declares"
-        );
         declared.sort_unstable();
         built.sort_unstable();
         assert_eq!(

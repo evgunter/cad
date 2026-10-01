@@ -33,7 +33,7 @@ itself part of the enclosure. Two spellings reach the same defect:
    different curve from `x + (y − x)·λ`. Rounding the RATIO is the same
    defect as rounding the coefficients; the fix is to re-derive the
    ratio from the knots it is made of, which is what
-   `geom_core::spline::CurvePlan::apply_ring` now does.
+   `geom_core::spline::CurvePlan::apply_certified` now does.
 
 ## The sites
 
@@ -73,7 +73,7 @@ grepping for `alpha` and `lambda` beside `RingInterval` across
 
 The machinery exists now: `geom_core::spline::algebra`'s
 `refine_plan_homogeneous` builds the schedule and
-`CurvePlan::apply_ring` applies it with both Boehm ratios re-derived
+`CurvePlan::apply_certified` applies it with both Boehm ratios re-derived
 from their knots, `TensorNet::refine_u`/`refine_v` lift it to a net.
 Each site above is a substitution, plus a re-baselining of whatever
 figures move. `compose.rs`'s site is a two-line change to the
@@ -89,3 +89,71 @@ refinement (Book A5.4 / Oslo) would compute each refined coefficient as
 one convex combination of `p + 1` described ones and pay ~`p`. That is
 a different algorithm, not a fix to any site above, and it would tighten
 every rational certificate in the tree.
+
+## The `compose.rs` site is what refuses the offset fit at tight ε (ENCL, 2026-09-25)
+
+Measured by ENCL's `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart`
+lane. This is the evidence for that row's proposal, and it moves this
+site from "costs width" to "decides a user-visible refusal".
+
+**The mechanism.** `offset_fit::Composite::build` decomposes every net
+(the fit, the base, the base's derivatives) through `PatchSpans::decompose`,
+so `to_bezier_spans_extra` inserts each of the fit's interior knots to
+full multiplicity in the lerp form. The fold runs in ascending knot
+order, so the width it multiplies up collects at the HIGH end of each
+direction, and on a refined fit the `(u, v) → (1, 1)` corner cell's
+`Ẽ` coefficients carry it. Measured on `bowed()` at `d = 0.05`, the
+certified sup's cell at each round, coefficient midpoints against the
+widest coefficient radius:
+
+| round | grid | sup cell | `Ẽ_x` radius | `Y` midpoint max | `Y` radius | `hull_sup` | on-locus |
+|---|---|---|---|---|---|---|---|
+| 0 | 4×4 | (0,0) | 2.2e-16 | 2.7e-8 | 2.2e-16 | 4.39e-7 | 1.28e-7 |
+| 5 | 17×17 | (9,4) | 2.5e-14 | 6.9e-12 | 2.5e-14 | 6.88e-11 | 4.02e-11 |
+| 6 | 27×27 | (23,23), `[0.958,1]²` | 1.4e-10 | 6.9e-13 | 1.4e-10 | 1.78e-10 | 6.11e-12 |
+| 7 | 32×32 | (28,28), `[0.979,1]²` | 2.0e-9 | 4.3e-14 | 2.0e-9 | 2.49e-9 | 6.11e-12 |
+
+From round 6 the certified bound is the enclosure's own radius, three
+to five orders above the polynomial it encloses, and it GROWS with
+refinement. The refinement loop therefore cannot cross it at any budget
+(budget raised to 30: `RefinementStalled` at round 7, 2.49e-9).
+
+**The A/B.** The convex form `c_{j−1}·β + c_j·α`, with
+`β = (U_{j+p} − u)/(U_{j+p} − U_j)` formed as a ring quotient like `α`,
+and nothing else changed, with the budget and cap raised so the loop can
+run:
+
+| fixture | target | lerp (shipped) | convex |
+|---|---|---|---|
+| `bowed()`, `d = 0.05` | 1e-12 | stalls at round 7, 2.49e-9 | certifies at round 9, 49×49, 7.92e-13 (bound ≤ 2.1× on-locus every round) |
+| twisted-loft saddle wall, `d = 0.05` | 1e-9 | bound bottoms out at 1.15e-9 (round 8), rises to 9.2e-9, stalls | certifies at round 9, 49×26, 3.87e-10 |
+| same | 1e-12 | as above | certifies at round 16, 187×96, 6.40e-13 (41 s: release, one traced run, 4-core container shared with two other lanes) |
+| same wall, `d = 5e-10` | 1e-14 | stalls at round 4, 1.29e-11 | certifies at round 3, 7.99e-15 |
+
+Rounds 0–5 are bit-for-bit or last-digit identical under both forms on
+every fixture; the forms part only once the fold is deep enough for the
+width to reach the residual. The two-line change is exactly this row's
+"cheapest of the five", and it is now the one with a consumer waiting on
+it. What it moves elsewhere (every composite bound in the tree reads this
+fold) has not been measured here; that re-baseline is the fix's own.
+
+**A consumer that moves with it (ENCL, PR 3294):** `geom-brep`'s `tests/offset_fit.rs` `the_second_non_improving_round_is_the_stalls_face` pins `RefinementStalled` on the saddle wall at `d = ±5e-10` and `1e-6`, target 1e-14; if the convex form makes those requests certify, re-find a stalling request, and failing that, drive the loop with a `#[cfg(test)]` scripted-bound seam (`work/encl/offset-fit-stall-face-has-no-fixture.md`'s option) rather than deleting the row.
+
+## A second ENCL consumer: rigid maps at 1e-12 (ENCL, 2026-09-28)
+
+Measured by ENCL's `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12` lane. The 93-map probe was not committed. Subject: `topo::fixtures::bowed_patch` at `d = ±0.05`, ε = 1e-12, fitted in 3 rounds over 64 cells, `hull_sup` 3.652e-13. Rotating it drifts the re-derived bound up to ×3.10, and on 4 maps a fresh re-fit stalls at 1.04–1.08e-12 (`RefinementStalled`).
+
+The width is in `Ẽ` before `X = Ẽ·Ẽ − d²w̃²` is formed:
+- Even unrotated, `Ẽ_x` carries a radius of about 2.85e-13, about 2600 ulps of its 0.5-sized coordinate. There it multiplies a tiny `|E_x|`.
+- A rotation spreads that radius over channels whose `|E_c|` is about 0.03. `X`'s radius then grows to 6× its own midpoint (4.8e-14 against 7.9e-15), and `tau` doubles too (2.86e-13 → 6.1e-13).
+- `tau` is about 97% rounding width even unrotated.
+
+A/B with one change, `insert_once_ring` from the lerp form to the convex form `c_{i−1}·β + c_i·α` (β a ring quotient):
+- The `Ẽ` radius falls about 100× to ≤2.5e-15.
+- The bound becomes frame-invariant: 8.34e-14 unrotated, 8.43e-14 and 8.40e-14 on the two worst maps.
+- Of the 93 maps, 0 refuse and 0 re-fits stall; the worst drift is ×1.014.
+- The fixture's own `hull_sup` drops 4.4×.
+
+At only 3 rounds deep, this contradicts the reading above that rounds 0–5 barely differ between the forms: on a fit this shallow the convex form already changes the certified bound by 4×.
+
+Consequence: a rigid map of a body that validates at 1e-12 can refuse (`ApproxRecertify { RefinementStalled }`) until this site is fixed. The ENCL row is parked on this one.

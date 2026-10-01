@@ -81,10 +81,10 @@ use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
     Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, remap_carried, remap_contacts, volume_backstop,
+    merge_rows, remap_carried, remap_contacts,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
-use super::reduce::{face_plane, face_plane_source};
+use super::reduce::{face_oriented_source, face_plane};
 use super::zip::{ZipReport, zip_seam};
 use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
@@ -141,7 +141,7 @@ struct Segment {
 /// The `Decide + Bounds` compound bound is the boolean-seam bound
 /// (ratified 2026-07-29 — see geom-core `real.rs`, Bounds scope
 /// rule); this module is part of that seam alongside `ops`/`reduce`.
-pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     mut red: BooleanReduction<T>,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
@@ -253,6 +253,9 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // ---- 6. Graft B whole (disjoint interiors: nothing discarded),
     // then glue every patch pair in BFS order. ----
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
+    // The contact patches are the faces this union discards; A's keys
+    // are the result's, so its rows are taken here, before the zip.
+    let mut discards = patch_discards(&red.a, &a_patch, Operand::A, &|u, w| Ok((u, w)))?;
     // The zip, the merge and the closing mint are one door's surgery
     // (`crate::surgery`): tier 1 is paid once, over the body `gate`
     // below certifies, rather than once per operator. The guard owns
@@ -262,6 +265,16 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let mut body = zipped.begin_surgery();
     let solid = single_solid(&body).map_err(|_| desync("REST lane: operand A not one solid"))?;
     let graft = graft_solid(&mut body, solid, &red.b, tol)?;
+    let graft_end = |v: VertexKey| {
+        graft
+            .vertices
+            .get(v)
+            .copied()
+            .ok_or_else(|| desync("REST lane: a patch vertex is missing from the graft"))
+    };
+    discards.extend(patch_discards(&red.b, &b_patch, Operand::B, &|u, w| {
+        Ok((graft_end(u)?, graft_end(w)?))
+    })?);
 
     // Result-key views of the correspondence and the patch pairs.
     let mut vmap: SecondaryMap<VertexKey, VertexKey> = SecondaryMap::new();
@@ -342,13 +355,14 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body.sweep_and_close();
     let body = zipped;
     gate(&body)?;
-    volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
-    let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);
+    T::gate_volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
+    let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
         b_keys: OperandKeys::Grafted,
         graft_vertices,
         graft_edges,
+        graft_dead_edges,
         graft_faces,
         seam_edges,
         vertex_merges,
@@ -357,6 +371,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         face_fragments_a: a_fragments,
         face_fragments_b: b_fragments,
         reduction_contacts,
+        discards,
     };
     Ok(Some(BooleanResult::Body(BooleanBody {
         body,
@@ -364,6 +379,23 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         contacts,
         naming,
     })))
+}
+
+/// One operand's discarded faces (`boolean::discard`): its contact
+/// patch, removed as interior by the glue. A patch face borders a kept
+/// face along a seam segment, whose ends `result_ends` maps into result
+/// keys.
+fn patch_discards<T: Decide>(
+    body: &Body<T>,
+    patch: &[FaceKey],
+    operand: Operand,
+    result_ends: &dyn Fn(VertexKey, VertexKey) -> Result<(VertexKey, VertexKey), BooleanError>,
+) -> Result<Vec<super::DiscardRow>, BooleanError> {
+    let kept_across = |f: FaceKey| !patch.contains(&f);
+    patch
+        .iter()
+        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends))
+        .collect()
 }
 
 // ---------------------------------------------------------------
@@ -423,7 +455,7 @@ fn enumerate_segments<T: Decide>(
             });
         }
     }
-    let escalate = |diag| BooleanError::Escalated { diag };
+    let escalate = BooleanError::coincidence;
     let mut segments = Vec::new();
     loop {
         // Globally nearest mutually-facing unused pair (the join's
@@ -499,7 +531,7 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 
 /// **The one flush-pair door**: the C4 verify ladder for a single
 /// cross-body face pair — descriptions through [`face_plane`]
-/// (outward, sense-folded), identity through [`face_plane_source`]
+/// (outward, sense-folded), identity through [`face_oriented_source`]
 /// (oriented sources, S10: the descriptions compared are the two
 /// faces' OUTWARD normals, so rung 1's `orient` tags carry the face
 /// senses too — REST contact is precisely the `SameOpposite`
@@ -536,7 +568,7 @@ pub fn flush_pair_relation<T: Decide>(
     band: Band,
 ) -> Option<Result<PlaneRelation, PlaneEqError>> {
     let (pa, pb) = (face_plane(a, fa)?, face_plane(b, fb)?);
-    let (ga, gb) = (face_plane_source(a, fa), face_plane_source(b, fb));
+    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
     let id = PlaneIdentity {
         s1: ga.as_ref(),
         s2: gb.as_ref(),
@@ -638,7 +670,7 @@ pub fn carrier_pair_verdict<T: Decide>(
     band: Band,
 ) -> Option<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>> {
     let (ca, cb) = (face_carrier(a, fa)?, face_carrier(b, fb)?);
-    let (ga, gb) = (face_plane_source(a, fa), face_plane_source(b, fb));
+    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
     let id = PlaneIdentity {
         s1: ga.as_ref(),
         s2: gb.as_ref(),
@@ -994,7 +1026,7 @@ fn verify_declared_pairs<T: Decide>(
                     what: "REST lane: declared rung returned Distinct instead of contradicting",
                 });
             }
-            Err(PlaneEqError::Contradicted(diag)) => {
+            Err(PlaneEqError::Contradicted { fact, diag }) => {
                 // C4's verify-at-use: the refusal names the pair, the
                 // CLASS that was claimed and the margin that decided —
                 // and steers to the class that would fit when the
@@ -1005,12 +1037,17 @@ fn verify_declared_pairs<T: Decide>(
                         b: fb,
                         class: ContactClass::Rest,
                     },
-                    steer: super::contact_verify::fit_steer(&diag),
+                    steer: super::contact_verify::fit_steer(fact),
+                    fact: Some(fact),
                     margin: diag,
                 });
             }
-            Err(PlaneEqError::Escalated(diag)) => {
-                return Err(BooleanError::Escalated { diag });
+            Err(PlaneEqError::Escalated { rung, diag }) => {
+                return Err(BooleanError::plane_identity(
+                    rung,
+                    super::PlaneDoor::Declared,
+                    diag,
+                ));
             }
             Err(PlaneEqError::Undeclared { diag, relation }) => {
                 // Unreachable with declared=true; refuse loudly anyway.
@@ -1773,7 +1810,7 @@ fn slit_zip<T: Decide>(
             ed.he_plus
         }
     };
-    body.kef(fb_half)
+    body.kef_minting(fb_half, tol)
         .map_err(|_| desync("REST lane: run kef refused"))?;
     for &he in run.iter().skip(1) {
         // The shared vertex with the previous (now dead) run edge is
@@ -1880,7 +1917,7 @@ fn slit_zip<T: Decide>(
                 let ring = loop_of(body, ring_half)?;
                 body.mfkrh(ring, FaceSurface::Inherit)
                     .map_err(|_| desync("REST lane: band run mfkrh refused"))?;
-                body.kef(ring_half)
+                body.kef_minting(ring_half, tol)
                     .map_err(|_| desync("REST lane: band run kef refused"))?;
             }
         }
@@ -1979,7 +2016,7 @@ fn zip_folded<T: Decide>(
             report
                 .seam_edges
                 .push(if b_edges.contains_key(e0) { e1 } else { e0 });
-            body.kef(b_half)
+            body.kef_minting(b_half, tol)
                 .map_err(|_| desync("REST lane: final slit kef refused"))?;
             break;
         }
@@ -2030,11 +2067,14 @@ fn zip_folded<T: Decide>(
             FaceSurface::Inherit,
             tol,
         )?;
-        body.kev(made.he_plus)
+        // The fuse merges the b copy into the a copy across a certified
+        // circle: the merged fan keeps its carriers, re-certified at the
+        // a copy under the run's band.
+        body.kev_describing(made.he_plus, &[], tol)
             .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
         report.vertex_merges.push((eb, sa));
         report.seam_edges.push(edge_of(body, ha)?);
-        body.kef(hb)
+        body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
     Ok(())

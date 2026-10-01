@@ -33,6 +33,7 @@ use geom_core::{Band, Decide};
 use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
+use super::discard::{DiscardRow, discard_row};
 use super::join::CompletedPolygonPair;
 use super::solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 use super::{BooleanError, BooleanOp, BooleanReduction, ContactRecords, Operand, SideCode};
@@ -41,6 +42,7 @@ use crate::entity::{FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The finish product: the combined result body (still un-zipped) plus
 /// the seam bookkeeping the zip consumes.
@@ -55,6 +57,8 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub vertex_map: SecondaryMap<VertexKey, VertexKey>,
     /// The B-side graft bridge (contact-record remapping).
     pub graft: GraftMap,
+    /// The faces the selection discarded (`BooleanNaming::discards`).
+    pub discards: Vec<DiscardRow>,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -394,10 +398,91 @@ pub(super) fn setopfinish<T: Decide>(
         }
     }
 
+    // A kept vertex in result keys: A's survive the carve in place,
+    // B's through the graft.
+    let a_kept = |v: VertexKey| body.get_vertex(v).is_some().then_some(v);
+    let b_kept = |v: VertexKey| graft.vertices.get(v).copied();
+    let mut discards = discarded(&red, a_solid, &a_kept_shells, &a_sides, Operand::A, &a_kept)?;
+    discards.extend(discarded(
+        &red,
+        b_solid,
+        &b_kept_shells,
+        &b_sides,
+        Operand::B,
+        &b_kept,
+    )?);
+
     Ok(FinishOut {
         body,
         seams,
         vertex_map,
         graft,
+        discards,
     })
+}
+
+/// The discarded faces of one operand solid (`boolean::discard`): every
+/// face of a shell the selection dropped, the section faces aside. A
+/// stretch it bordered a kept face along runs along a section face; the
+/// kept side's copy of each end is the other end of one of that end's
+/// null edges — the one end among them that survived into the result,
+/// which `kept_vertex` reads in result keys, as the seam vertex map
+/// picks its survivor.
+fn discarded<T: Decide>(
+    red: &BooleanReduction<T>,
+    solid: SolidKey,
+    kept: &[ShellKey],
+    sides: &SecondaryMap<FaceKey, SideCode>,
+    operand: Operand,
+    kept_vertex: &dyn Fn(VertexKey) -> Option<VertexKey>,
+) -> Result<Vec<DiscardRow>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let body = match operand {
+        Operand::A => &red.a,
+        Operand::B => &red.b,
+    };
+    let mut copy: BTreeMap<VertexKey, BTreeSet<VertexKey>> = BTreeMap::new();
+    for r in red.null_edges.iter().filter(|r| r.operand == operand) {
+        copy.entry(r.attr.below_end)
+            .or_default()
+            .insert(r.attr.above_end);
+        copy.entry(r.attr.above_end)
+            .or_default()
+            .insert(r.attr.below_end);
+    }
+    let kept_end = |v: VertexKey| -> Result<VertexKey, BooleanError> {
+        let survivors: BTreeSet<VertexKey> = copy
+            .get(&v)
+            .ok_or_else(|| desync("a section vertex has no null-edge copy"))?
+            .iter()
+            .filter_map(|&k| kept_vertex(k))
+            .collect();
+        match survivors.first() {
+            Some(&k) if survivors.len() == 1 => Ok(k),
+            _ => Err(desync(
+                "a section vertex's null-edge copies have not exactly one kept end",
+            )),
+        }
+    };
+    let kept_ends = |u, w| Ok((kept_end(u)?, kept_end(w)?));
+    let kept_across = |f: FaceKey| sides.contains_key(f);
+    let mut out = Vec::new();
+    for &shell in body
+        .shells_of_solid(solid)
+        .ok_or_else(|| desync("an operand solid no longer resolves"))?
+    {
+        if kept.contains(&shell) {
+            continue;
+        }
+        for &face in &body
+            .get_shell(shell)
+            .ok_or_else(|| desync("a discarded shell no longer resolves"))?
+            .faces
+        {
+            if !sides.contains_key(face) {
+                out.push(discard_row(body, face, operand, &kept_across, &kept_ends)?);
+            }
+        }
+    }
+    Ok(out)
 }

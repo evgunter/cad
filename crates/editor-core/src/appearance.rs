@@ -52,6 +52,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::eval::NodeStanding;
 use crate::meta::MetaValue;
 use crate::names::{Entry, NameTable, RoleSeg, StableName};
 use crate::node::RecipeNodeId;
@@ -189,21 +190,10 @@ pub enum AppearanceLossCause {
     /// `DeleteNode` stranded it — N5's `NodeGone` semantics; the
     /// repair is `Rebind` (PR 4) or `ClearAppearance`).
     NodeGone,
-    /// The name's minting node failed this evaluation; the attachment
-    /// is indeterminate, not retired — it resolves again when the
-    /// node evaluates.
-    TargetFailed {
-        /// The failed node (= the name's `node`).
-        node: RecipeNodeId,
-    },
-    /// The name's minting node was poisoned by an upstream failure.
-    TargetPoisoned {
-        /// The nearest failed ancestor (walkable in the result DAG).
-        through: RecipeNodeId,
-    },
-    /// The name's minting node has no result in this evaluation (a
-    /// canceled run's incomplete suffix).
-    TargetNotEvaluated,
+    /// The name's minting node has no value in this evaluation — its
+    /// standing says why. The attachment is indeterminate, not
+    /// retired: it resolves again when the node evaluates.
+    Indeterminate(NodeStanding),
     /// The name's node evaluated, but no table in the evaluation
     /// carries the name — the entity's derivation no longer produces
     /// it (N5 `Vanished`: a verdict flip, structural-parameter
@@ -302,39 +292,27 @@ impl AppearanceResolution {
     }
 }
 
-/// One node's result as appearance resolution sees it (a thin view of
-/// the result DAG, T-erased: names and tables are scalar-independent,
+/// One node's result as appearance resolution sees it: its name table,
+/// or its standing (T-erased: names and tables are scalar-independent,
 /// so f64/Interval agree here whenever the tables agree — pinned by
 /// the interval lane's tests).
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum NodeState<'a> {
-    /// The node evaluated; its name table.
-    Ok(&'a NameTable),
-    /// The node failed.
-    Failed,
-    /// The node was poisoned through the given failed ancestor.
-    Poisoned {
-        /// The nearest failed ancestor.
-        through: RecipeNodeId,
-    },
-}
+pub(crate) type NodeState<'a> = Result<&'a NameTable, NodeStanding>;
 
 /// Resolves the document's appearance store against one evaluation's
 /// tables (total: every entry lands in `resolved` or in `losses` —
 /// never both silently dropped, never panicking).
 ///
-/// `is_live` answers "is this node in the document" (NodeGone
-/// detection); `states` holds the evaluation's per-node outcomes —
-/// nodes absent from `states` but live are a canceled run's
-/// unevaluated suffix.
+/// `states` holds every live node of the document — a canceled run's
+/// unevaluated suffix with its standing like any other — so a name
+/// whose node it does not hold names a node the document no longer
+/// has.
 pub(crate) fn resolve(
     appearance: &AppearanceMap,
-    is_live: impl Fn(RecipeNodeId) -> bool,
     states: &BTreeMap<RecipeNodeId, NodeState<'_>>,
 ) -> AppearanceResolution {
     let mut resolution = AppearanceResolution::default();
     for (name, rec) in appearance {
-        if !is_live(name.node) {
+        let Some(target) = states.get(&name.node) else {
             resolution.losses.push(AppearanceLoss {
                 name: name.clone(),
                 attrs: rec.attrs.clone(),
@@ -342,7 +320,7 @@ pub(crate) fn resolve(
                 cause: AppearanceLossCause::NodeGone,
             });
             continue;
-        }
+        };
         // A name resolves in EVERY table that carries it: pass-through
         // ops (Transform) keep upstream names, so downstream outputs
         // inherit the attachment through the SAME name — no policy,
@@ -354,7 +332,7 @@ pub(crate) fn resolve(
         // defining site; the others are derivable by lookup.
         let mut tie: Option<(RecipeNodeId, usize)> = None;
         for (&id, state) in states {
-            let NodeState::Ok(table) = state else {
+            let Ok(table) = state else {
                 continue;
             };
             match table.lookup(name) {
@@ -390,13 +368,9 @@ pub(crate) fn resolve(
         if hit {
             continue;
         }
-        let cause = match states.get(&name.node) {
-            None => AppearanceLossCause::TargetNotEvaluated,
-            Some(NodeState::Failed) => AppearanceLossCause::TargetFailed { node: name.node },
-            Some(NodeState::Poisoned { through }) => {
-                AppearanceLossCause::TargetPoisoned { through: *through }
-            }
-            Some(NodeState::Ok(_)) => AppearanceLossCause::Vanished {
+        let cause = match target {
+            Err(standing) => AppearanceLossCause::Indeterminate(*standing),
+            Ok(_) => AppearanceLossCause::Vanished {
                 candidates: vanished_candidates(name, states),
             },
         };
@@ -432,7 +406,7 @@ fn vanished_candidates(
     }
     let mut out = Vec::new();
     for state in states.values() {
-        let NodeState::Ok(table) = state else {
+        let Ok(table) = state else {
             continue;
         };
         for (candidate, _) in table.iter() {
@@ -491,7 +465,7 @@ mod tests {
         let mut t = NameTable::new();
         t.insert(merged.clone(), ent(0)).unwrap();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(9), NodeState::Ok(&t));
+        states.insert(RecipeNodeId(9), Ok(&t));
         // Appearance rides constituent `a`, whose node (7) is live but
         // whose name is in no table.
         let mut appearance = AppearanceMap::new();
@@ -499,8 +473,8 @@ mod tests {
         // Node 7 evaluated Ok with an empty table (its face was
         // absorbed downstream).
         let empty = NameTable::new();
-        states.insert(RecipeNodeId(7), NodeState::Ok(&empty));
-        let r = resolve(&appearance, |_| true, &states);
+        states.insert(RecipeNodeId(7), Ok(&empty));
+        let r = resolve(&appearance, &states);
         assert!(r.resolved.is_empty());
         assert_eq!(r.losses.len(), 1);
         let loss = &r.losses[0];
@@ -523,10 +497,10 @@ mod tests {
         let merged = body_name(9, vec![RoleSeg::Merged(vec![a.clone(), b.clone()])]);
         let empty = NameTable::new();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(9), NodeState::Ok(&empty));
+        states.insert(RecipeNodeId(9), Ok(&empty));
         let mut appearance = AppearanceMap::new();
         appearance.insert(merged.clone(), color());
-        let r = resolve(&appearance, |_| true, &states);
+        let r = resolve(&appearance, &states);
         assert_eq!(r.losses.len(), 1);
         assert_eq!(
             r.losses[0].cause,
@@ -542,10 +516,10 @@ mod tests {
         let mut t = NameTable::new();
         t.insert_tied(tied.clone(), vec![ent(0), ent(1)]).unwrap();
         let mut states = BTreeMap::new();
-        states.insert(RecipeNodeId(3), NodeState::Ok(&t));
+        states.insert(RecipeNodeId(3), Ok(&t));
         let mut appearance = AppearanceMap::new();
         appearance.insert(tied.clone(), color());
-        let r = resolve(&appearance, |_| true, &states);
+        let r = resolve(&appearance, &states);
         assert!(r.resolved.is_empty(), "a tie must never be painted");
         assert_eq!(r.losses.len(), 1);
         assert_eq!(

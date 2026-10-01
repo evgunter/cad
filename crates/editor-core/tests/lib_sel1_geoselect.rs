@@ -25,12 +25,12 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
-    Expr, GeomPred, NamePat, Node, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
+    GeomPred, NamePat, Node, NodeStanding, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
     SelectRefusal, Selector, SurfaceKindSet, evaluate, select, select_where,
 };
 use geom_brep::SurfaceKind;
 
-use fixture::{insert, len, on_frame};
+use fixture::{ang, insert, len, on_frame};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
@@ -402,7 +402,7 @@ fn a_non_length_value_refuses() {
     let bad = [GeomPred::DatumDistance {
         datum,
         cmp: Cmp::Approx,
-        value: Expr::literal(1.0, Dimension::Angle).unwrap(),
+        value: ang(1.0),
     }];
     assert!(matches!(
         select_where(
@@ -440,7 +440,8 @@ fn a_non_datum_reference_refuses() {
         }
         other => panic!("expected NotADatum, got {other:?}"),
     }
-    // An unevaluated node id, same door.
+    // An unevaluated node id, same door: a node with no value is its
+    // own refusal, carrying the standing rather than a word for it.
     let ghost = at(RecipeNodeId(9999), Cmp::Approx, 0.0);
     assert!(matches!(
         select_where(
@@ -451,7 +452,11 @@ fn a_non_datum_reference_refuses() {
             &no_params(),
             Tol::witness()
         ),
-        Err(SelectRefusal::NotADatum { .. })
+        Err(SelectRefusal::DatumHasNoValue(
+            NodeStanding::NotInDocument {
+                node: RecipeNodeId(9999)
+            }
+        ))
     ));
 }
 
@@ -615,7 +620,7 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
     materialized.sort();
     materialized.dedup();
 
-    let mut authored = corpus::die_composed::selection(cube, ball, pipped);
+    let mut authored = corpus::die_composed::selection(&doc.doc, cube, ball, pipped);
     authored.sort();
     authored.dedup();
     assert_eq!(authored.len(), 14, "the document's own count");

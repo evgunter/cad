@@ -8,11 +8,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::three_arc;
 use geom_core::{Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
 use sweep::blend::{BlendError, BlendSite};
-use sweep::test_support::{disc_of_arcs, sketch_from_axes};
+use sweep::test_support::{disc_of_arcs, extruded, sketch_from_axes};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceSurface};
 
@@ -22,10 +23,6 @@ fn tol() -> Tol {
 
 fn in_band() -> f64 {
     5.0 * tol().eps()
-}
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
 }
 
 /// The three-arc cylinder `m5_pr12_refusals` builds too: the homed
@@ -99,8 +96,15 @@ fn tilt_raised_cap(
         normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
         u_ref,
     };
-    body.set_face_surface(cap, FaceSurface::New(tilted))
-        .expect("a plane for a planar cap");
+    // Lifts both refusals: the tilted cap plane is the unit's tilt.
+    body.set_face_surface_stranding_for_tests(
+        cap,
+        FaceSurface::New {
+            surface: tilted,
+            sense: true,
+        },
+    )
+    .expect("a plane for a planar cap");
     (body, rim, cap, axis, lever)
 }
 
@@ -216,7 +220,9 @@ fn r1_the_coaxiality_predicate_is_the_first_to_speak_on_the_tilted_cap() {
             source,
         }) => {
             assert_eq!(source.predicate, Some("fillet3_support_coaxiality"));
-            let geom_core::MarginDiag::Value(v) = source.margin else {
+            let geom_core::ErrorTextReading::Value(v) =
+                source.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("an f64 reading")
             };
             assert!(
@@ -375,7 +381,7 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
     // extent (≈ d / L · h). Separating them by L and h puts the
     // first definitely off zero and the second in band.
     for (d, l, h) in [(in_band(), 1.0, 1.0), (1e-6, 10.0, 0.05), (1e-6, 10.0, 0.5)] {
-        let lp = ProfileLoop::new(
+        let lp = bulge_loop(
             [
                 (0.0, 0.0),
                 (1.0, 0.0),
@@ -384,7 +390,7 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
                 (0.0, 1.0),
             ]
             .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
         );
         let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
@@ -481,10 +487,10 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
 #[test]
 fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
     let base = {
-        let lp = ProfileLoop::new(
+        let lp = bulge_loop(
             [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
                 .into_iter()
-                .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+                .map(|(x, y)| (Point2::new(x, y), 0.0))
                 .collect(),
         );
         let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -510,20 +516,12 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let u = Vec3::new(1.0, 0.0, 0.0);
         let v = Vec3::new(0.0, theta.cos(), theta.sin());
         let plane = sketch_from_axes(geom_core::Point3::new(0.0, 0.0, z0), u, v, Tol::witness());
-        let b120 = (core::f64::consts::PI / 6.0).tan();
-        let at = |deg: f64| {
-            let th: f64 = deg.to_radians();
-            p2(0.25 * th.cos(), 0.25 * th.sin())
-        };
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(at(0.0), b120),
-            ProfileVertex::new(at(120.0), b120),
-            ProfileVertex::new(at(240.0), b120),
-        ]);
-        let profile = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-        let boss = extrude(&profile, Extrusion::Distance(1.0), tol())
-            .expect("a boss on a tilted plane")
-            .body;
+        let boss = extruded(
+            plane,
+            vec![three_arc(Point2::new(0.0, 0.0), 0.25, 0.0)],
+            1.0,
+            tol(),
+        );
         let r = topo::boolean::union(&base, &boss, tol());
         match r {
             Ok(out) => {

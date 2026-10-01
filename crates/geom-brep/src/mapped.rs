@@ -28,15 +28,15 @@
 //! - [`MappedCurve::RevolvedPoint`] — a sketch point's trajectory under
 //!   a rotation family: revolve latitude arcs (circles).
 //!
-//! Sketch segments use the ratified zero-redundancy bulge form
-//! (endpoints + bulge = tan(θ/4), the `profile` crate's convention,
-//! restated here without a dependency on that crate — the sweep maps
-//! `profile`'s validated segments into this form field-for-field). The
+//! Sketch segments use the profile's canonical segment form: the
+//! endpoints stored verbatim, and an arc's carrier and signed sweep as
+//! the one arc value the `profile` crate's segments also hold
+//! ([`geom_core::Arc2`]), so the sweep hands a validated arc across
+//! whole. The
 //! **line/arc split is structural** ([`SketchSegment`]), mirroring the
 //! upstream trilean classification: by the time a description exists,
 //! straightness was already *decided* (profile validation), so
-//! evaluation here never re-decides it (no value branch, and the arc
-//! closed forms may divide by the definitely-nonzero bulge).
+//! evaluation here never re-decides it (no value branch).
 //!
 //! # Natural parameterization (the certification contract)
 //!
@@ -48,11 +48,35 @@
 //! is a construction invariant — and certification is exactly what
 //! makes it checked rather than trusted.
 
-use geom_core::{Affine3, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Real, Vec3};
 
-/// A 2-D sketch-plane segment in the zero-redundancy bulge form (module
-/// docs). The line/arc split is structural — decided upstream, never
-/// re-decided here.
+/// A 2-D sketch-plane segment in the canonical form (module docs):
+/// verbatim endpoints, and for an arc its carrier and signed sweep. The
+/// line/arc split is structural — decided upstream, never re-decided
+/// here.
+///
+/// An arc's fields are redundant by design — the endpoints lie on the
+/// carrier, and the sweep turns `a` into `b` about the centre — and
+/// **nothing checks that redundancy at this type's door**. What reads
+/// each field:
+///
+/// - [`SketchSegment::eval`] (and so certification, which meters the
+///   description against its carrier through it) reads `a`, the centre
+///   and the sweep only, through [`Arc2::point_from`]. It reads neither
+///   `b` nor the radius: the locus it describes is `a` turned about the
+///   centre.
+/// - [`SketchSegment::restrict`] reads what `eval` reads and carries
+///   the radius through.
+/// - `sweep::skin::segment_curve`, public through `sweep` and `pncad`,
+///   builds its NURBS from `a`, `b` and every field of the arc, and
+///   trusts the radius. A segment whose radius disagrees with
+///   `|a − centre|` converts to a different circle from the one `eval`
+///   describes, and nothing refuses it.
+///
+/// A segment the sweep mints from a validated profile carries the
+/// profile's carrier, whose consistency validation owns (the
+/// endpoint-on-carrier check `store-constructed-carriers` adds). A
+/// segment built by hand is only as consistent as its author made it.
 #[derive(Clone, Copy, Debug)]
 pub enum SketchSegment<T: Real> {
     /// The straight chord from `a` to `b`; `s` sweeps it affinely.
@@ -62,29 +86,27 @@ pub enum SketchSegment<T: Real> {
         /// End point (s = 1).
         b: Point2<T>,
     },
-    /// The circular arc from `a` to `b` with bulge = tan(θ/4)
-    /// (DXF-compatible; positive sweeps counterclockwise — the
-    /// `profile` crate's ratified semantics). The bulge is definitely
-    /// nonzero by upstream classification; evaluation divides by it.
+    /// The circular arc from `a` to `b` on `arc`'s carrier, turning
+    /// through its signed sweep (positive counterclockwise), in
+    /// (−2π, 2π) \ {0}.
     Arc {
-        /// Start point (s = 0).
+        /// Start point (s = 0), stored verbatim.
         a: Point2<T>,
-        /// End point (s = 1).
+        /// End point (s = 1), stored verbatim.
         b: Point2<T>,
-        /// tan(θ/4) of the signed included angle θ ∈ (−2π, 2π) \ {0}.
-        bulge: T,
+        /// The carrier and the signed sweep from `a` to `b`.
+        arc: Arc2<T>,
     },
 }
 
 impl<T: Real> SketchSegment<T> {
     /// The sub-segment covering `[s0, s1]` of this segment,
-    /// reparameterized to `[0, 1]` (M3 PR 1, for `split_edge`):
-    /// endpoints by [`SketchSegment::eval`]; an arc's bulge becomes
-    /// `tan(atan(bulge)·(s1 − s0))` — the sub-arc's `tan(θ′/4)` with
-    /// `θ′ = θ·(s1 − s0)` (finite and nonzero for `0 ≤ s0 < s1 ≤ 1`,
-    /// since `|θ′/4| < π/2` and `θ ≠ 0`). Fixed evaluation order (D9);
-    /// total — degenerate inputs yield degenerate data, caught by the
-    /// caller's certification.
+    /// reparameterized to `[0, 1]` (for `split_edge`): endpoints by
+    /// [`SketchSegment::eval`]; an arc keeps its carrier (centre and
+    /// radius pass through unchanged) and its sweep becomes
+    /// `sweep·(s1 − s0)`. Fixed evaluation order (D9); total —
+    /// degenerate inputs yield degenerate data, caught by the caller's
+    /// certification.
     ///
     /// **Coverage**: the arc lane runs end-to-end. Curved booleans and
     /// the fillet verbs split revolve meridians mid-operation, before
@@ -98,72 +120,38 @@ impl<T: Real> SketchSegment<T> {
     /// Each restriction re-derives the endpoints through
     /// [`SketchSegment::eval`], so at `T = Interval` the sub-arc's
     /// stored endpoints inherit that evaluation's enclosure width and
-    /// successive splits compound it — see `eval`'s anchoring note for
-    /// why the evaluation is written to keep that width at the
-    /// endpoints' own scale.
+    /// successive splits compound it — see [`Arc2::point_from`]'s
+    /// anchoring note for why the evaluation is written to keep that
+    /// width at the endpoints' own scale.
     pub fn restrict(&self, s0: T, s1: T) -> Self {
         match *self {
             SketchSegment::Line { .. } => SketchSegment::Line {
                 a: self.eval(s0),
                 b: self.eval(s1),
             },
-            SketchSegment::Arc { bulge, .. } => SketchSegment::Arc {
+            SketchSegment::Arc { arc, .. } => SketchSegment::Arc {
                 a: self.eval(s0),
                 b: self.eval(s1),
-                bulge: (bulge.atan() * (s1 - s0)).tan(),
+                arc: Arc2 {
+                    sweep: arc.sweep * (s1 - s0),
+                    ..arc
+                },
             },
         }
     }
 
     /// The point at normalized parameter `s ∈ [0, 1]` (module docs).
     ///
-    /// Line: `lerp(a, b, s)`. Arc: rotate `a` about the bulge-derived
-    /// center by `s·θ`, θ = 4·atan(bulge) (the closed forms of the
-    /// profile conventions: center = midpoint + n̂·(L·(1 − b²)/(4b)),
-    /// n̂ the left normal of the chord direction). Fixed orders as
-    /// written (D9); total — degenerate data (coincident endpoints)
-    /// yields poison values, caught by certification.
-    ///
-    /// **The rotation is anchored on `a`, not on the center**: the
-    /// evaluated form is `a + (R − I)·v` (v = a − center, R the
-    /// rotation by s·θ), which is the identity `center + R·v` over the
-    /// reals — the same locus, the same closed forms — but does not
-    /// mention `center` outside a factor that vanishes with the
-    /// rotation. `cos − 1` is spelled `−2·sin²(s·θ/2)` so it carries no
-    /// cancellation of its own. The center-anchored form adds and
-    /// subtracts `center`, and at `T = Interval` that cancellation does
-    /// not happen: the enclosure pays `width(center)` twice, and
-    /// `width(center)` itself carries the chord's relative width
-    /// amplified by the radius — a factor ∝ 1/sin(θ/2), unbounded for
-    /// short sub-arcs, which [`SketchSegment::restrict`] then stores
-    /// back into the endpoints so successive splits compound it. The
-    /// anchored form is exactly `width(a)` wide at s = 0 (R − I is
-    /// identically zero there), never wider than the center-anchored
-    /// form at s = 0, and tighter wherever `|s·θ|` is small, because
-    /// `|R − I| = 2·|sin(s·θ/2)|` scales the center's width down
-    /// instead of doubling it.
+    /// Line: `lerp(a, b, s)`. Arc: `a` rotated about the centre by
+    /// `s·sweep`, [`Arc2::point_from`] — exact at `s = 0`, within the
+    /// rotation's rounding of `b` at `s = 1`. Endpoint authority is
+    /// held elsewhere: the topology's endpoints are the vertices, never
+    /// this evaluation, and certification meters the evaluation
+    /// against the carrier at every sample, `s = 1` included.
     pub fn eval(&self, s: T) -> Point2<T> {
         match *self {
             SketchSegment::Line { a, b } => a.lerp(b, s),
-            SketchSegment::Arc { a, b, bulge } => {
-                let half = T::from_f64(0.5);
-                let two = T::from_f64(2.0);
-                let four = T::from_f64(4.0);
-                let chord = b - a;
-                let len = chord.norm();
-                let unit = chord / len;
-                let n = Vec2::new(-unit.y, unit.x); // left normal
-                let mid = a.lerp(b, half);
-                let apothem = len * (T::one() - bulge.powi(2)) / (four * bulge);
-                let center = mid + n * apothem;
-                let theta = four * bulge.atan();
-                let sin = (s * theta).sin();
-                // cos(s·θ) − 1, in the half-angle form that is exact at
-                // s = 0 and free of the 1 − cos cancellation.
-                let cos_m1 = -(two * (s * theta * half).sin().powi(2));
-                let v = a - center;
-                a + Vec2::new(v.x * cos_m1 - v.y * sin, v.x * sin + v.y * cos_m1)
-            }
+            SketchSegment::Arc { a, arc, .. } => arc.point_from(a, s),
         }
     }
 }
@@ -307,46 +295,99 @@ mod tests {
         assert_eq!((pm.x, pm.y), (2.0, 0.0));
     }
 
-    #[test]
-    fn arc_segment_matches_bulge_closed_forms() {
-        // Quarter circle from (1,0) to (0,1) on the unit circle,
-        // counterclockwise: θ = π/2, bulge = tan(π/8).
-        let bulge = (PI / 8.0).tan();
-        let seg = SketchSegment::Arc {
+    /// The quarter circle from (1, 0) to (0, 1) on the unit circle,
+    /// counterclockwise (`sweep = π/2`), or its clockwise mirror about
+    /// the unit circle centred at (1, 1) (`sweep = −π/2`).
+    fn quarter(ccw: bool) -> SketchSegment<f64> {
+        SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            bulge,
-        };
-        // Endpoints reproduce exactly-ish.
+            arc: Arc2 {
+                centre: if ccw {
+                    Point2::new(0.0, 0.0)
+                } else {
+                    Point2::new(1.0, 1.0)
+                },
+                radius: 1.0,
+                sweep: if ccw { FRAC_PI_2 } else { -FRAC_PI_2 },
+            },
+        }
+    }
+
+    #[test]
+    fn arc_segment_turns_the_start_about_the_carrier() {
+        let seg = quarter(true);
+        // The start comes back as stored, bit for bit; the end is the
+        // start turned by the whole sweep.
         let p0 = seg.eval(0.0);
-        assert!((p0.x - 1.0).abs() < 1e-15 && p0.y.abs() < 1e-15);
+        assert_eq!((p0.x, p0.y), (1.0, 0.0));
         let p1 = seg.eval(1.0);
-        assert!(p1.x.abs() < 1e-12 && (p1.y - 1.0).abs() < 1e-12);
+        assert!(p1.x.abs() < 1e-15 && (p1.y - 1.0).abs() < 1e-15);
         // Midpoint is the arc apex at 45°.
         let pm = seg.eval(0.5);
         let r = (FRAC_PI_2 / 2.0).cos(); // cos(π/4)
-        assert!((pm.x - r).abs() < 1e-12 && (pm.y - r).abs() < 1e-12);
+        assert!((pm.x - r).abs() < 1e-15 && (pm.y - r).abs() < 1e-15);
         // Every sample lies on the unit carrier circle.
         for i in 0..=8 {
             let p = seg.eval(f64::from(i) / 8.0);
-            assert!((p.x * p.x + p.y * p.y - 1.0).abs() < 1e-12);
+            assert!((p.x * p.x + p.y * p.y - 1.0).abs() < 1e-15);
         }
-        // Negative bulge mirrors: the clockwise arc's carrier is the
-        // unit circle centered at (1, 1), and its apex bows toward the
-        // origin (an arc bows away from its center — the profile
-        // crate's ratified sign semantics).
-        let neg = SketchSegment::Arc {
-            a: Point2::new(1.0, 0.0),
-            b: Point2::new(0.0, 1.0),
-            bulge: -bulge,
-        };
+        // The clockwise mirror: its carrier is the unit circle centred
+        // at (1, 1), and its apex bows toward the origin.
+        let neg = quarter(false);
         let pm_neg = neg.eval(0.5);
         let d_center = pm_neg.distance(Point2::new(1.0, 1.0));
-        assert!((d_center - 1.0).abs() < 1e-12);
+        assert!((d_center - 1.0).abs() < 1e-15);
         assert!(pm_neg.x * pm_neg.x + pm_neg.y * pm_neg.y < 1.0);
-        // Endpoints unchanged under the mirror.
         let p1 = neg.eval(1.0);
-        assert!(p1.x.abs() < 1e-12 && (p1.y - 1.0).abs() < 1e-12);
+        assert!(p1.x.abs() < 1e-15 && (p1.y - 1.0).abs() < 1e-15);
+    }
+
+    /// A restriction keeps the carrier bit for bit, scales the sweep,
+    /// and evaluates as the parent does at the mapped parameter.
+    #[test]
+    fn restricted_arc_keeps_its_carrier_and_scales_its_sweep() {
+        for ccw in [true, false] {
+            let seg = quarter(ccw);
+            let sub = seg.restrict(0.25, 0.75);
+            let (
+                SketchSegment::Arc {
+                    arc:
+                        Arc2 {
+                            centre,
+                            radius,
+                            sweep,
+                        },
+                    ..
+                },
+                SketchSegment::Arc {
+                    arc:
+                        Arc2 {
+                            centre: c2,
+                            radius: r2,
+                            sweep: w2,
+                        },
+                    a,
+                    ..
+                },
+            ) = (seg, sub)
+            else {
+                panic!("an arc restricts to an arc");
+            };
+            assert_eq!((c2.x, c2.y, r2), (centre.x, centre.y, radius));
+            assert_eq!(w2, sweep * 0.5);
+            let p = seg.eval(0.25);
+            assert_eq!(
+                (a.x, a.y),
+                (p.x, p.y),
+                "the sub-arc starts where it was cut"
+            );
+            for i in 0..=4 {
+                let s = f64::from(i) / 4.0;
+                let (q, r) = (sub.eval(s), seg.eval(0.25 + 0.5 * s));
+                assert!(q.distance(r) < 1e-15, "ccw {ccw}, s = {s}");
+            }
+        }
     }
 
     #[test]

@@ -40,7 +40,7 @@ use geom_core::Tol;
 use topo::Body;
 
 /// The two spellings of the registry over one document.
-fn both_ways(doc: &ProfileDoc, ev: &Evaluation<f64>) -> (ChecksReport, ChecksReport) {
+fn both_ways(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> (ChecksReport, ChecksReport) {
     let cfg = ChecksConfig::default();
     let tol = Tol::witness();
     let wrapped = run_checks(doc, ev, &cfg, tol).expect("the registry runs over the corpus");
@@ -95,10 +95,10 @@ fn a_document_with_no_body_denoting_root_is_the_no_body_roots_subject() {
 /// `Subject::Unavailable`, and the door raises it AFTER the residents
 /// that read no subject have answered.**
 ///
-/// The reachable gather refusal over one well-formed document is the
-/// naming collision the spec names: two `Transform`s of one extrude are
-/// two roots carrying one extrude's minted names into one product
-/// table. Connectedness reads the evaluation and answers first (it has
+/// The reachable gather refusal over one well-formed document is one
+/// body placed under two roots: two `Transform`s of one extrude are two
+/// roots that would carry one extrude's minted names into one product
+/// table, which the gather refuses from the recipe. Connectedness reads the evaluation and answers first (it has
 /// nothing to say here); the separation resident reads the subject,
 /// finds none, and the door refuses `Product` carrying the gather's own
 /// sentence. Nothing is run and discarded, and no arm claims the
@@ -106,11 +106,11 @@ fn a_document_with_no_body_denoting_root_is_the_no_body_roots_subject() {
 #[test]
 fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_residents() {
     let tol = Tol::witness();
-    let doc = naming_collision("docm5-collide");
+    let doc = one_body_under_two_roots("docm5-collide");
     let ev: Evaluation<f64> = corpus::eval(&doc);
-    let refusal = product_recorded(&doc, &ev, tol).expect_err("two roots collide");
+    let refusal = product_recorded(&doc, &ev, tol).expect_err("one body under two roots");
     assert!(
-        matches!(refusal, ProductError::Naming { .. }),
+        matches!(refusal, ProductError::PlacedUnderTwoRoots { .. }),
         "the premise: {refusal:?}"
     );
 
@@ -196,7 +196,7 @@ fn a_run_that_needs_no_subject_does_not_gather() {
 
     // A document that would NOT gather: the refusal never arises,
     // because the gather never runs.
-    let collide = naming_collision("docm5-lazy-collide");
+    let collide = one_body_under_two_roots("docm5-lazy-collide");
     let ev: Evaluation<f64> = corpus::eval(&collide);
     assert!(
         product_recorded(&collide, &ev, tol).is_err(),
@@ -308,7 +308,7 @@ fn a_root_without_a_value_refuses_as_the_registrys_own_precondition() {
         "and the gather refuses this pair too, so the two arms compete"
     );
     match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("refuses") {
-        ChecksError::Root { node } => assert_eq!(node, root),
+        ChecksError::Root(standing) => assert_eq!(standing.node(), root),
         other => panic!("expected the registry's own precondition, got {other}"),
     }
 }
@@ -622,7 +622,7 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
     let doc = editor_core::apply(
         &entry.doc,
         &editor_core::DocEdit::SetDocParam {
-            name: editor_core::ParamName::new("fins"),
+            name: editor_core::ParamName::from_static("fins"),
             value: editor_core::DocParam::Count { value: 160 },
         },
         tol,
@@ -639,12 +639,11 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
     );
 }
 
-/// Two `Transform`s of one extrude, both roots: each carries the same
-/// extrude's minted names, so the two roots' rows collide in the
-/// product's one name table (`ProductError::Naming` — the refusal the
-/// spec names, and the only gather refusal reachable over a document
-/// whose roots all evaluate).
-fn naming_collision(id: &str) -> ProfileDoc {
+/// Two `Transform`s of one extrude, both roots: each would carry the
+/// same extrude's minted names into the product's one name table, so
+/// the gather refuses the shape (`ProductError::PlacedUnderTwoRoots`),
+/// a refusal reachable over a document whose roots all evaluate.
+fn one_body_under_two_roots(id: &str) -> ProfileDoc {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
     let (doc, profile) = on_frame(
@@ -664,12 +663,14 @@ fn naming_collision(id: &str) -> ProfileDoc {
     let moved = |doc, dx: f64| {
         insert(
             doc,
-            Node::Transform {
-                input: extrude,
-                translation: [len(dx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                extrude,
+                editor_core::Step::Rigid {
+                    translation: [len(dx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         )
     };
     let (doc, _) = moved(doc, 3.0);

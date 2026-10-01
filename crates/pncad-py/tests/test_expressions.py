@@ -20,7 +20,10 @@ asserts a message; every refusal is checked by its stable tag and its
 payload, which is the contract.
 """
 
+import json
 import math
+import subprocess
+import sys
 import unittest
 
 from pncad import (
@@ -413,6 +416,110 @@ class TestTheAuthoringHalfIsStillClosed(unittest.TestCase):
         derived = plate().parse_expr("width / 2.0")
         with self.assertRaises(TypeError):
             DocParam.length(derived)
+
+
+# The deepest an expression nests, in levels: the refusal names it.
+NESTING_BOUND = 128
+
+_NESTED = """
+import json, sys, threading
+
+from pncad import Doc, Expr, LiteralError, MeasureExpr, Node, ParseError, evaluate, load, m
+
+bound, far = int(sys.argv[1]), int(sys.argv[2])
+said = {}
+
+
+def run():
+    doc = Doc("pncad-expr-nesting")
+    corners = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    square = doc.insert(
+        Node.polygon(
+            [(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners],
+            plane=doc.sketch_frame(),
+        )
+    )
+    at_the_bound = doc.parse_expr(" + ".join(["1 m"] + ["0 m"] * (bound - 1)))
+    box = doc.insert(Node.extrude(square, at_the_bound))
+    said["volume"] = evaluate(doc).value(box).body().mass_properties().volume
+    said["loaded_volume"] = (
+        evaluate(load(doc.save()).doc).value(box).body().mass_properties().volume
+    )
+    negative = doc.parse_expr(" + ".join(["-1 m"] + ["0 m"] * (bound - 1)))
+    said["negative_reads_back"] = doc.parse_expr(negative.text) == negative
+    said["brackets"] = doc.parse_expr("(" * far + "1" + ")" * far).text
+    refusals = {}
+    for label, text in [
+        ("one past", "+".join(["1"] * (bound + 1))),
+        ("signs", "-" * far + "1"),
+        ("terms", "+".join(["1"] * far)),
+    ]:
+        try:
+            doc.parse_expr(text)
+            refusals[label] = None
+        except ParseError as refusal:
+            refusals[label] = [refusal.variant, refusal.kind, str(refusal)]
+    said["parse"] = refusals
+    measure = MeasureExpr.value(doc.parse_expr("1 m"))
+    try:
+        for _ in range(far):
+            measure = MeasureExpr.neg(measure)
+        said["measure"] = None
+    except LiteralError as refusal:
+        said["measure"] = refusal.kind
+
+
+thread = threading.Thread(target=run)
+thread.start()
+thread.join()
+print(json.dumps(said))
+"""
+
+
+class TestNestingBound(unittest.TestCase):
+    """An expression nested to the bound passes every door from a
+    `threading.Thread`, its text included when its deepest leaf is a
+    negative literal, and text or a measurement nested past it refuses
+    typed there rather than killing the interpreter. Brackets nest no
+    expression, so a literal in a hundred thousand of them reads.
+
+    The rows run in a child process because the failure they guard
+    against is a dead process, which would take the suite with it if
+    it ran here.
+    """
+
+    def test_the_bound_holds_on_a_thread(self):
+        child = subprocess.run(
+            [sys.executable, "-c", _NESTED, str(NESTING_BOUND), "100000"],
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+        self.assertEqual(
+            child.returncode,
+            0,
+            f"the interpreter survives: {child.stderr[-2000:]}",
+        )
+        said = json.loads(child.stdout)
+        self.assertEqual(said.get("volume"), 1.0, child.stderr[-2000:])
+        self.assertEqual(
+            said.get("loaded_volume"),
+            1.0,
+            f"a slot at the bound saves and loads back: {child.stderr[-2000:]}",
+        )
+        self.assertTrue(
+            said.get("negative_reads_back"),
+            "a sum at the bound over a negative literal reads back from its text",
+        )
+        self.assertEqual(said.get("brackets"), "1", "brackets nest nothing")
+        for label, refusal in said["parse"].items():
+            with self.subTest(text=label):
+                self.assertIsNotNone(refusal, "the text door refuses")
+                variant, kind, message = refusal
+                self.assertEqual((variant, kind), ("dimension", "nested_too_deep"))
+                self.assertIn(f"deeper than {NESTING_BOUND} levels", message)
+        self.assertEqual(said["measure"], "nested_too_deep")
 
 
 if __name__ == "__main__":

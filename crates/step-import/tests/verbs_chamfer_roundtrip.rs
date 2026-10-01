@@ -18,7 +18,7 @@ use crate::common;
 
 use common::arena_census;
 use geom_core::{Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use step_import::{ImportOptions, StepImport, import_step};
 use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
@@ -30,10 +30,10 @@ const D: f64 = 0.1;
 /// A unit cube with all twelve edges chamfered, built through the
 /// public doors a consumer would use.
 fn chamfered_cube() -> topo::Body<f64> {
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         [(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

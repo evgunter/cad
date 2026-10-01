@@ -35,7 +35,7 @@ use geom_core::sym::with_session_rules;
 use geom_core::{
     Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymCounts, SymRules, Tol, Vec2,
 };
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis};
 
 fn budget() -> SymBudget {
@@ -52,11 +52,11 @@ fn budget() -> SymBudget {
 fn stadium_extrude<T: Decide>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(lit(-1.0), lit(0.0) - r), lit(0.0)),
-        ProfileVertex::new(Point2::new(lit(1.0), lit(0.0) - r), lit(0.5)),
-        ProfileVertex::new(Point2::new(lit(1.0), r), lit(0.0)),
-        ProfileVertex::new(Point2::new(lit(-1.0), r), lit(0.5)),
+    let lp = bulge_loop(vec![
+        (Point2::new(lit(-1.0), lit(0.0) - r), lit(0.0)),
+        (Point2::new(lit(1.0), lit(0.0) - r), lit(0.5)),
+        (Point2::new(lit(1.0), r), lit(0.0)),
+        (Point2::new(lit(-1.0), r), lit(0.5)),
     ]);
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -71,7 +71,7 @@ fn stadium_extrude<T: Decide>(d: T, r: T) -> Result<usize, String> {
 /// revolved a full turn about the sketch's y axis: every vertex is a
 /// latitude carrier whose rim identity `revolve::full` /
 /// `revolve::surfaces` register.
-fn washer_revolve<T: Decide + geom_brep::PcurveFittedLane>(d: T, r: T) -> Result<usize, String> {
+fn washer_revolve<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
     let lp = ProfileLoop::polygon([
@@ -129,15 +129,9 @@ struct Lane {
 }
 
 /// One (ε, `d`) point at all four lanes.
-///
-/// `exact` is read only on the `interval` legs, where the row that
-/// drives that lane compiles; `#[allow(dead_code)]` says so rather
-/// than the field being dropped, because the table is one measurement
-/// and a column that exists in half the builds is a second table.
 struct Cell {
     bare: Lane,
     inexact: Lane,
-    #[cfg_attr(not(feature = "interval"), allow(dead_code))]
     exact: Lane,
 }
 
@@ -238,7 +232,7 @@ fn outcome(r: &Result<usize, String>) -> String {
 fn build_all<T>(d: Sym<T>, r: Sym<T>) -> [Result<usize, String>; 3]
 where
     T: Real + Decide,
-    Sym<T>: geom_brep::PcurveFittedLane,
+    Sym<T>: topo::AtRestPolicy,
 {
     [
         stadium_extrude(d, r * Sym::from_f64(0.5)),
@@ -260,8 +254,8 @@ struct Built {
 /// ([`test_utils::own_thread`], which keeps the panic's own message).
 fn drive_on_a_thread<T>(d: f64, lift: fn(f64) -> (Sym<T>, Sym<T>)) -> Result<Built, String>
 where
-    T: Real + Decide + geom_brep::PcurveFittedLane + Send + 'static,
-    Sym<T>: geom_brep::PcurveFittedLane,
+    T: Real + Decide + topo::AtRestPolicy + Send + 'static,
+    Sym<T>: topo::AtRestPolicy,
 {
     test_utils::own_thread::caught(move || {
         let (outcomes, counts) = with_session_rules(budget(), SymRules::shipped(), || {
@@ -380,7 +374,6 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_probe() {
 /// count is zero in every cell because `Interval::WITNESS` is `Exact`,
 /// which routes a contradiction to the `debug_assert!` and never to
 /// the column, so a count here is that const having moved.
-#[cfg(feature = "interval")]
 #[test]
 fn sym11_the_far_placement_never_contradicts_at_sym_interval() {
     use geom_core::Interval;

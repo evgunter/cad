@@ -67,3 +67,28 @@ VNEWS's: `crates/viewer/src/pane/properties.rs` and
 `crates/viewer/src/session/refuse.rs` are both in this program's
 `paths`. `crates/viewer/src/session.rs` is read, not edited — the door
 already raises the right variant.
+
+## The tone half is settled, and one spelling is gone (2026-09-25)
+
+The two chrome spellings were also drawn in two TONES in one frame —
+`Actionable` for `standing_ui`'s, `Advisory` for the panel's
+`"that parameter is gone"`. PR #3230 settled it by the rule that the
+pane says a fact once: the panel's `"that parameter is gone"` line is
+**deleted**, since the header above it already says the same fact, loud
+(`pane::properties::standing_verdict`, reading `Standing::tone()`). Two
+spellings are left — the header's `"parameter {name} is no longer
+declared"` and the session refusal's — and which words they share is
+still this row's question.
+
+## Evidence 2026-09-24 (`chrome/subset-policy`, PR 3140)
+
+There is a fourth reading of the same fact, and it disagrees with the
+wording. `frame::creation_offer` is now exhaustive over `Refusal`
+(through `Refusal::parse_error`). Written out, it shows that
+`Refusal::NoSuchParam` gets **no** creation offer: only the parse door's
+`ParseError::UnknownParam` prefills the add-parameter affordance. Yet
+`NoSuchParam`'s sentence ends *"— declare it first"*. So a drag or a
+range probe on an undeclared parameter tells the reader to declare it,
+and the chrome does not offer the door to do so. That PR left the
+answer unchanged, since the answer is behaviour, and whoever settles the
+wording here also settles whether the offer follows it.

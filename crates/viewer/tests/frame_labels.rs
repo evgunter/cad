@@ -42,11 +42,7 @@ use viewer::tree;
 /// that one.
 fn frame_at(origin: [f64; 3]) -> Node<ProfileProgram> {
     let (_, u, v) = ProfilePlane::xy_numbers();
-    Node::Datum(Datum::Frame {
-        origin: common::len3(origin),
-        u: common::scl3(u),
-        v: common::scl3(v),
-    })
+    common::frame(origin, u, v)
 }
 
 /// The label for one node, through the home the picker and the tree
@@ -112,7 +108,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
         origin: [
             common::len(0.0),
             common::len(0.0),
-            Expr::param(ParamName::new("height"), Dimension::Length),
+            Expr::param(ParamName::from_static("height"), Dimension::Length),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
@@ -129,11 +125,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
 /// plane** — the label says less rather than something else.
 #[test]
 fn an_oblique_frame_is_not_called_a_world_plane() {
-    let node = Node::Datum(Datum::Frame {
-        origin: common::len3([0.0, 0.0, 0.0]),
-        u: common::scl3([1.0, 1.0, 0.0]),
-        v: common::scl3([0.0, 1.0, 0.0]),
-    });
+    let node = common::frame([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
     let shown = label(&node, 1);
     assert!(
         !shown.contains("xy"),
@@ -170,21 +162,9 @@ fn a_face_frame_names_the_node_its_face_is_read_off() {
 fn the_tree_rows_tell_two_frames_apart() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-labels", tol);
-    let (doc, _) = common::edited(
-        &doc,
-        DocEdit::InsertNode {
-            node: frame_at([0.0, 0.0, 0.0]),
-        },
-        tol,
-    );
-    let (doc, _) = common::edited(
-        &doc,
-        DocEdit::InsertNode {
-            node: frame_at([0.0, 0.0, 0.01]),
-        },
-        tol,
-    );
-    let poses: Vec<Option<String>> = tree::rows(&doc, None)
+    let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.0]), tol);
+    let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.01]), tol);
+    let poses: Vec<Option<String>> = tree::rows(&doc, None, &viewer::parts::PartFiles::default())
         .into_iter()
         .map(|row| row.pose)
         .collect();
@@ -205,21 +185,19 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("unused"),
+            name: ParamName::from_static("unused"),
             value: DocParam::continuous(Dimension::Length, 0.001),
         },
         tol,
     );
-    let (doc, _) = common::edited(
+    let (doc, _) = common::inserted(
         &doc,
-        DocEdit::InsertNode {
-            node: Node::Datum(Datum::Point {
-                position: common::len3([1.0, 2.0, 3.0]),
-            }),
-        },
+        Node::Datum(Datum::Point {
+            position: common::len3([1.0, 2.0, 3.0]),
+        }),
         tol,
     );
-    let rows = tree::rows(&doc, None);
+    let rows = tree::rows(&doc, None, &viewer::parts::PartFiles::default());
     let point = rows.last().expect("the point's row");
     assert_eq!(point.kind, "Datum point");
     assert_eq!(point.pose, None);

@@ -29,10 +29,14 @@ pub mod viewport;
 /// that gap is where a labelling helper gets to be correct and dead at
 /// the same time.
 ///
-/// **What it still cannot reach is a pane METHOD**: `create_ui`,
-/// `feature_row` and the rest hang off `ViewerBehavior`, which borrows
-/// the whole application. A row a test must drive is therefore a free
-/// function over the `Ui`, and the method's job is to call it.
+/// **A pane METHOD is reached through the whole app, not through
+/// this module**: `create_ui`, `properties_ui` and the rest hang off
+/// `ViewerBehavior`, which borrows the whole application, so a row that
+/// drives one runs real frames of `ViewerApp` in
+/// `app::properties_pane_tests` (`app_frame`, `Driven`) and reads what
+/// they painted with [`headless::landed_in`]. What this module drives
+/// is a free function over the `Ui`, which is the cheaper row where a
+/// method's work can be one.
 #[cfg(test)]
 pub(crate) mod headless {
     // Panicking is a test harness's failure mechanism, as it is a
@@ -64,21 +68,29 @@ pub(crate) mod headless {
     /// Panics when `target` was not painted at all — a click at a
     /// guessed position would otherwise read as a widget that did not
     /// open.
-    pub(crate) fn painted_after_clicking(
+    pub(crate) fn painted_after_clicking(target: &str, draw: impl FnMut(&mut egui::Ui)) -> String {
+        painted_after_clicking_nth(target, 0, draw)
+    }
+
+    /// [`painted_after_clicking`] on the `nth` (zero-based) painting of
+    /// `target` — for a control every row of a list carries.
+    ///
+    /// Panics when `target` was painted fewer than `nth + 1` times.
+    pub(crate) fn painted_after_clicking_nth(
         target: &str,
+        nth: usize,
         mut draw: impl FnMut(&mut egui::Ui),
     ) -> String {
         let ctx = egui::Context::default();
         let run = |input: egui::RawInput, draw: &mut dyn FnMut(&mut egui::Ui)| {
-            let mut output = ctx.run_ui(input, |ui| draw(ui));
-            let landed = landed_in(&output.shapes);
-            let at = hit(&landed, target);
+            let landed = frame(&ctx, input, draw);
+            let at = hit(&landed, target, nth);
             let text: Vec<String> = landed.into_iter().map(|landed| landed.text).collect();
-            output.textures_delta.clear();
             (text, at)
         };
         let (_, at) = run(egui::RawInput::default(), &mut draw);
-        let at = at.unwrap_or_else(|| panic!("`{target}` was never painted"));
+        let at =
+            at.unwrap_or_else(|| panic!("`{target}` was painted fewer than {} times", nth + 1));
         let click = egui::RawInput {
             events: vec![
                 egui::Event::PointerMoved(at),
@@ -100,6 +112,51 @@ pub(crate) mod headless {
         let (clicked, _) = run(click, &mut draw);
         let (after, _) = run(egui::RawInput::default(), &mut draw);
         [clicked.join("\n"), after.join("\n")].join("\n")
+    }
+
+    /// Everything `draw` paints while the pointer RESTS on the `nth`
+    /// (zero-based) painting of the text `target` — for what a widget
+    /// says only on hover. egui draws that through two hooks, one read
+    /// only while the widget takes input and one only while it does
+    /// not, so a row asserting a control's words hovers it in the
+    /// state it asserts about.
+    ///
+    /// Frames on ONE context, at a clock this drive sets: one to lay
+    /// out and find where `target` was painted, one that moves the
+    /// pointer there, and then frames with the pointer still until
+    /// well past egui's tooltip delay — a tooltip's area spends the
+    /// first frame it appears sizing itself, invisible. The answer is
+    /// what the last frame painted.
+    ///
+    /// Panics when `target` was painted fewer than `nth + 1` times.
+    pub(crate) fn painted_while_hovering(
+        target: &str,
+        nth: usize,
+        mut draw: impl FnMut(&mut egui::Ui),
+    ) -> String {
+        let ctx = egui::Context::default();
+        let delay = f64::from(ctx.global_style().interaction.tooltip_delay);
+        let run = |seconds: f64, events: Vec<egui::Event>, draw: &mut dyn FnMut(&mut egui::Ui)| {
+            let input = egui::RawInput {
+                time: Some(seconds),
+                events,
+                ..Default::default()
+            };
+            frame(&ctx, input, draw)
+        };
+        let laid_out = run(0.0, Vec::new(), &mut draw);
+        let at = hit(&laid_out, target, nth)
+            .unwrap_or_else(|| panic!("`{target}` was painted fewer than {} times", nth + 1));
+        run(1.0, vec![egui::Event::PointerMoved(at)], &mut draw);
+        let mut rested = Vec::new();
+        for rest in 1..=3 {
+            rested = run(1.0 + 2.0 * delay * f64::from(rest), Vec::new(), &mut draw);
+        }
+        rested
+            .into_iter()
+            .map(|landed| landed.text)
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// **What one frame PAINTED and WHERE** — one entry per
@@ -128,6 +185,18 @@ pub(crate) mod headless {
         /// they differ on purpose — a row measuring where a sentence
         /// is READ must not count an indent as text, and a click must.
         pub(crate) rows: Vec<egui::Rect>,
+        /// **The colour its glyphs were painted in**, when one colour
+        /// painted all of them — the SALIENCE a reader sees, which
+        /// is what a row asserting a tone compares against a fixed
+        /// colour. `None` for a galley painted in more than one.
+        ///
+        /// Read as the painter reads it: the shape's override first,
+        /// then each section's own colour, with egui's placeholder
+        /// standing for the shape's fallback.
+        pub(crate) ink: Option<egui::Color32>,
+        /// **The clip rect it was painted under**: a row's part
+        /// outside it is not on screen.
+        pub(crate) clip: egui::Rect,
     }
 
     /// [`Landed`] for every `Shape::Text` in a tree of shapes.
@@ -136,7 +205,20 @@ pub(crate) mod headless {
     /// what it answers, so a shape kind that starts nesting text is
     /// taught to one `match` rather than to three.
     pub(crate) fn landed_in(shapes: &[egui::epaint::ClippedShape]) -> Vec<Landed> {
-        fn walk(shape: &egui::Shape, out: &mut Vec<Landed>) {
+        fn ink(text: &egui::epaint::TextShape) -> Option<egui::Color32> {
+            let mut colours = text.galley.job.sections.iter().map(|section| {
+                text.override_text_color.unwrap_or(
+                    if section.format.color == egui::Color32::PLACEHOLDER {
+                        text.fallback_color
+                    } else {
+                        section.format.color
+                    },
+                )
+            });
+            let first = colours.next()?;
+            colours.all(|colour| colour == first).then_some(first)
+        }
+        fn walk(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<Landed>) {
             match shape {
                 egui::Shape::Text(text) => out.push(Landed {
                     text: text.galley.text().to_owned(),
@@ -150,10 +232,12 @@ pub(crate) mod headless {
                                 .translate(text.pos.to_vec2())
                         })
                         .collect(),
+                    ink: ink(text),
+                    clip,
                 }),
                 egui::Shape::Vec(inner) => {
                     for shape in inner {
-                        walk(shape, out);
+                        walk(shape, clip, out);
                     }
                 }
                 _ => {}
@@ -161,18 +245,32 @@ pub(crate) mod headless {
         }
         let mut out = Vec::new();
         for clipped in shapes {
-            walk(&clipped.shape, &mut out);
+            walk(&clipped.shape, clipped.clip_rect, &mut out);
         }
         out
     }
 
-    /// One headless frame of `draw`, and [`landed_in`] over what it
-    /// painted.
+    /// **One frame of `draw` on `ctx`, fed `input`**, and [`landed_in`]
+    /// over what it painted.
     ///
-    /// **The module's one drive.** The `textures_delta.clear()` is
+    /// **This module's one drive.** The `textures_delta.clear()` is
     /// the reason it is one: no painter took the frame's font atlas,
     /// and `TexturesDelta` panics on drop until one does — a detail
-    /// of epaint that no caller should have to remember.
+    /// of epaint that no caller should have to remember. Test rows
+    /// elsewhere in the crate still spell the pair inline
+    /// (`work/vnews/a-gated-button-with-a-reason-is-spelled-five-ways`).
+    fn frame(
+        ctx: &egui::Context,
+        input: egui::RawInput,
+        draw: &mut dyn FnMut(&mut egui::Ui),
+    ) -> Vec<Landed> {
+        let mut output = ctx.run_ui(input, |ui| draw(ui));
+        let landed = landed_in(&output.shapes);
+        output.textures_delta.clear();
+        landed
+    }
+
+    /// One headless frame of `draw`, and what it painted.
     pub(crate) fn landed(draw: impl FnOnce(&mut egui::Ui)) -> Vec<Landed> {
         let mut draw = Some(draw);
         landed_after(1, |ui| {
@@ -180,6 +278,73 @@ pub(crate) mod headless {
                 draw(ui);
             }
         })
+    }
+
+    /// **The two voices a [`crate::frame::Tone`] is drawn in**, as the
+    /// fixed colours a row holds [`Landed::ink`] against — never read
+    /// back through `app::toned`, which is the mapping under test.
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct Voices {
+        /// egui's own weak text on the frame that was drawn: the
+        /// `Advisory` voice.
+        pub(crate) weak: egui::Color32,
+        /// The actionable colour of the theme the draw was handed: the
+        /// `Actionable` voice.
+        pub(crate) actionable: egui::Color32,
+    }
+
+    /// One headless frame of `draw` handed `theme`, on a context set to
+    /// that theme's polarity as the application sets it, and the
+    /// [`Voices`] of the frame it drew.
+    ///
+    /// Panics when the frame was drawn in the other polarity, or when
+    /// the two voices are one colour, since then no row could tell them
+    /// apart.
+    pub(crate) fn landed_voiced(
+        theme: &crate::theme::Theme,
+        draw: impl FnOnce(&mut egui::Ui, &crate::theme::Theme),
+    ) -> (Vec<Landed>, Voices) {
+        let ctx = egui::Context::default();
+        crate::app::apply_polarity(&ctx, theme.polarity);
+        let weak = core::cell::Cell::new(egui::Color32::PLACEHOLDER);
+        let mut draw = Some(draw);
+        let painted = frame(&ctx, egui::RawInput::default(), &mut |ui| {
+            assert_eq!(
+                ui.visuals().dark_mode,
+                theme.polarity == crate::theme::Polarity::Dark,
+                "{}: the frame is drawn in the theme's polarity",
+                theme.name,
+            );
+            weak.set(ui.visuals().weak_text_color());
+            if let Some(draw) = draw.take() {
+                draw(ui, theme);
+            }
+        });
+        let voices = Voices {
+            weak: weak.get(),
+            actionable: crate::app::chrome(theme.actionable),
+        };
+        assert_ne!(
+            voices.weak, voices.actionable,
+            "the two voices a tone is drawn in"
+        );
+        (painted, voices)
+    }
+
+    /// The entry in `painted` whose text starts with `opening` — for a
+    /// sentence whose tail is another layer's payload.
+    ///
+    /// Panics when nothing painted opens with it.
+    pub(crate) fn find_opening<'a>(painted: &'a [Landed], opening: &str) -> &'a Landed {
+        painted
+            .iter()
+            .find(|landed| landed.text.starts_with(opening))
+            .unwrap_or_else(|| {
+                panic!(
+                    "nothing painted opens with `{opening}`: {:?}",
+                    painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+                )
+            })
     }
 
     /// [`landed`] over the LAST of `passes` frames of `draw` on one
@@ -190,9 +355,7 @@ pub(crate) mod headless {
         let ctx = egui::Context::default();
         let mut out = Vec::new();
         for _ in 0..passes {
-            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| draw(ui));
-            out = landed_in(&output.shapes);
-            output.textures_delta.clear();
+            out = frame(&ctx, egui::RawInput::default(), &mut draw);
         }
         out
     }
@@ -289,13 +452,14 @@ pub(crate) mod headless {
         landed(draw).into_iter().map(|landed| landed.text).collect()
     }
 
-    /// The centre of the text `target`, where it was painted — the
-    /// [`Landed::allocated`] box, because this is the position a
-    /// synthesized click is aimed at.
-    fn hit(landed: &[Landed], target: &str) -> Option<egui::Pos2> {
+    /// The centre of the `nth` (zero-based) painting of the text
+    /// `target` — the [`Landed::allocated`] box, because this is the
+    /// position a synthesized pointer is aimed at.
+    fn hit(landed: &[Landed], target: &str, nth: usize) -> Option<egui::Pos2> {
         landed
             .iter()
-            .find(|landed| landed.text == target)
+            .filter(|landed| landed.text == target)
+            .nth(nth)
             .map(|landed| landed.allocated.center())
     }
 }

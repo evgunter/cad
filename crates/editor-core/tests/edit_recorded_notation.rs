@@ -45,6 +45,7 @@ test_utils::gated_to![
     "crates/editor-core/src/persist/",
     "crates/editor-core/src/program.rs",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::fixture;
@@ -57,9 +58,20 @@ use editor_core::{
 use geom_core::{Point2, Tol};
 use profile::{Open, Start, Step};
 
-/// Every document below is a frame and then the profile drawn on it.
-const PLANE: RecipeNodeId = RecipeNodeId(0);
-const PROFILE: RecipeNodeId = RecipeNodeId(1);
+/// Every document below is a frame and then the profile drawn on it:
+/// the frame's id, as the insert door mints it into the empty document.
+fn plane() -> RecipeNodeId {
+    fixture::insert(empty(), fixture::xy_frame()).1
+}
+
+/// The profile of a document [`doc_of`] built: its second node.
+fn profile(doc: &ProfileDoc) -> RecipeNodeId {
+    doc.order()[1]
+}
+
+fn empty() -> ProfileDoc {
+    ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness())
+}
 
 /// The leg this suite is about: step 1's target, the corner a path
 /// author writes as `line_to((25 mm, 0 mm))`.
@@ -72,10 +84,6 @@ const PROFILE: RecipeNodeId = RecipeNodeId(1);
 /// and a derivation that picked a different step is a failure rather
 /// than a shared mistake.
 const LEG: u32 = 1;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 /// A square of side `side` METRES, recorded through the path algebra
 /// exactly as a caller writes it: `At(p0)`, three `LineTo`s, the
@@ -91,17 +99,17 @@ fn square_authored(side: f64, roles: &[StepArg]) -> (Vec<Step<f64>>, RecordedNot
     let t = Tol::witness();
     let mut n = RecordedNotation::new();
     let path = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(side, 0.0), t)
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(side, 0.0), t)
         .expect("a leg of a square");
     for &arg in roles {
         n.set_after(path.recorded(), arg, quantity::MM.def())
             .expect("mm measures a length, and a target coordinate is one");
     }
     let program = path
-        .line_to(p2(side, side), t)
+        .line_to(Point2::new(side, side), t)
         .expect("a leg of a square")
-        .line_to(p2(0.0, side), t)
+        .line_to(Point2::new(0.0, side), t)
         .expect("a leg of a square")
         .line_to(Start, t)
         .expect("the square closes")
@@ -123,7 +131,7 @@ fn in_millimetres() -> (Vec<Step<f64>>, RecordedNotation) {
 
 /// The document a lifted program reaches: a frame, then the profile.
 fn doc_of(program: LoopProgram) -> ProfileDoc {
-    let mut doc = ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness());
+    let mut doc = empty();
     for edit in edits_of(program) {
         doc = doc
             .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
@@ -141,16 +149,17 @@ fn edits_of(program: LoopProgram) -> [DocEdit<ProfileProgram>; 2] {
         },
         DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: PLANE,
+                plane: plane(),
                 loops: vec![program],
+                ids: Vec::new(),
             }),
         },
     ]
 }
 
-fn slot(step: u32, arg: StepArg) -> ExprPath {
+fn slot(doc: &ProfileDoc, step: u32, arg: StepArg) -> ExprPath {
     ExprPath {
-        node: PROFILE,
+        node: profile(doc),
         slot: SlotId::Profile {
             loop_: 0,
             step,
@@ -162,8 +171,8 @@ fn slot(step: u32, arg: StepArg) -> ExprPath {
 
 /// What a reader asking the document what one argument says gets back:
 /// the canonical value, and the notation it was written in.
-fn read_back(doc: &ProfileDoc, step: u32, arg: StepArg) -> (f64, &'static str) {
-    let Some(e) = doc.expr_at(&slot(step, arg)) else {
+fn read_back(doc: &editor_core::ProfileDoc, step: u32, arg: StepArg) -> (f64, &'static str) {
+    let Some(e) = doc.expr_at(&slot(doc, step, arg)) else {
         panic!("the document addresses ({step}, {arg:?})")
     };
     let Some(v) = e.literal_value() else {
@@ -193,7 +202,7 @@ fn arg_bits(program: LoopProgram) -> Vec<(u32, StepArg, Option<f64>, Option<&'st
     addresses
         .into_iter()
         .map(|(step, arg)| {
-            let Some(e) = doc.expr_at(&slot(step, arg)) else {
+            let Some(e) = doc.expr_at(&slot(&doc, step, arg)) else {
                 panic!("step_args names ({step}, {arg:?}), so the document addresses it")
             };
             (
@@ -210,7 +219,7 @@ fn arg_bits(program: LoopProgram) -> Vec<(u32, StepArg, Option<f64>, Option<&'st
 /// means where two documents are compared.
 fn vertex_bits(doc: &ProfileDoc) -> Vec<(u64, u64)> {
     let ev = fixture::run(doc, &EvalOptions::default());
-    let Some(v) = ev.value(PROFILE) else {
+    let Some(v) = ev.value(profile(doc)) else {
         panic!("the profile evaluates")
     };
     let ValuePayload::Profile(pv) = &v.payload else {
@@ -219,7 +228,7 @@ fn vertex_bits(doc: &ProfileDoc) -> Vec<(u64, u64)> {
     pv.validated.loops()[0]
         .vertices()
         .iter()
-        .map(|vx| (vx.pos().x.to_bits(), vx.pos().y.to_bits()))
+        .map(|vx| (vx.x.to_bits(), vx.y.to_bits()))
         .collect()
 }
 
@@ -329,12 +338,14 @@ fn two_notations_of_one_leg_are_one_program_and_one_geometry() {
         "the two recordings really do say different things about their notation"
     );
     let a = ProfileProgram {
-        plane: PLANE,
+        plane: plane(),
         loops: vec![millimetres.clone()],
+        ids: Vec::new(),
     };
     let b = ProfileProgram {
-        plane: PLANE,
+        plane: plane(),
         loops: vec![metres.clone()],
+        ids: Vec::new(),
     };
     assert!(a == b, "bit equality is blind to the notation");
     assert_eq!(
@@ -403,7 +414,7 @@ fn a_recorded_notation_round_trips_through_save_and_load() {
 #[test]
 fn a_carrier_form_takes_its_notation_at_step_zero() {
     let t = Tol::witness();
-    let circle = profile::circle(p2(0.0, 0.0), 0.025, t).expect("a circle");
+    let circle = profile::circle(Point2::new(0.0, 0.0), 0.025, t).expect("a circle");
     let mut n = RecordedNotation::new();
     // A carrier's whole recording is its one step, so the derived
     // door addresses step 0 without the author saying so.
@@ -460,7 +471,7 @@ fn an_angle_role_and_a_length_role_on_one_program() {
     let q = std::f64::consts::FRAC_PI_2;
     let mut n = RecordedNotation::new();
     let path = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .expect("a departure direction")
         .line(l, t)
@@ -514,10 +525,12 @@ fn the_derived_door_writes_the_leg_the_author_had_just_recorded() {
     let t = Tol::witness();
     let mut n = RecordedNotation::new();
     let path = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(0.025, 0.0), t)
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(0.025, 0.0), t)
         .expect("the first leg");
-    let path = path.line_to(p2(0.025, 0.025), t).expect("the second leg");
+    let path = path
+        .line_to(Point2::new(0.025, 0.025), t)
+        .expect("the second leg");
     for arg in [StepArg::TargetX, StepArg::TargetY] {
         n.set_after(path.recorded(), arg, quantity::MM.def())
             .expect("mm measures a length, and a target coordinate is one");
@@ -560,10 +573,10 @@ fn the_derived_door_writes_the_leg_the_author_had_just_recorded() {
 fn a_hand_counted_index_that_is_off_by_one_lands_on_the_wrong_leg() {
     let t = Tol::witness();
     let steps = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(0.025, 0.0), t)
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(0.025, 0.0), t)
         .expect("the first leg")
-        .line_to(p2(0.025, 0.025), t)
+        .line_to(Point2::new(0.025, 0.025), t)
         .expect("the second leg")
         .line_to(Start, t)
         .expect("the chain closes")
@@ -624,8 +637,8 @@ fn the_derived_door_refuses_a_recording_with_no_last_step() {
 fn the_derived_door_refuses_a_unit_that_does_not_measure_the_role() {
     let t = Tol::witness();
     let path = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(0.025, 0.0), t)
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(0.025, 0.0), t)
         .expect("the first leg");
     let mut n = RecordedNotation::new();
     let refused = n
@@ -648,10 +661,12 @@ fn the_derived_door_refuses_a_unit_that_does_not_measure_the_role() {
 fn the_derived_door_still_refuses_a_role_the_last_step_does_not_carry() {
     let t = Tol::witness();
     let path = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(0.025, 0.0), t)
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(0.025, 0.0), t)
         .expect("the first leg");
-    let path = path.line_to(p2(0.025, 0.025), t).expect("the second leg");
+    let path = path
+        .line_to(Point2::new(0.025, 0.025), t)
+        .expect("the second leg");
     let last = u32::try_from(path.recorded().len() - 1).expect("a short recording");
     let mut n = RecordedNotation::new();
     n.set_after(path.recorded(), StepArg::ViaX, quantity::MM.def())
@@ -807,15 +822,15 @@ fn the_derived_index_tracks_every_verb_including_fused_ones() {
     let path = Open
         .arc_fillet_arc(
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
+                p: Point2::new(5.0, 0.0),
             },
             0.5,
             Center {
-                c: p2(0.0, 7.0),
+                c: Point2::new(0.0, 7.0),
                 winding: ArcSweep::Cw,
-                p: p2(0.0, 4.0),
+                p: Point2::new(0.0, 4.0),
             },
             t,
         )
@@ -838,7 +853,9 @@ fn the_derived_index_tracks_every_verb_including_fused_ones() {
     n.set_after(path.recorded(), StepArg::Radius, quantity::MM.def())
         .expect("its fillet radius is a length too");
 
-    let path = path.at(p2(-2.0, 2.0), t).expect("the arrival anchor");
+    let path = path
+        .at(Point2::new(-2.0, 2.0), t)
+        .expect("the arrival anchor");
     assert_eq!(path.recorded().len(), 3);
     n.set_after(path.recorded(), StepArg::PointX, quantity::MM.def())
         .expect("a point coordinate is a length");
@@ -885,7 +902,7 @@ fn a_fillet_binder_is_the_last_recorded_step() {
     let t = Tol::witness();
     let mut n = RecordedNotation::new();
     let path = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .expect("a departure")
         .arc_to(
@@ -907,7 +924,7 @@ fn a_fillet_binder_is_the_last_recorded_step() {
         "the binder is step three, and the author counted nothing"
     );
     let closed = path
-        .at(p2(4.0, 3.0), t)
+        .at(Point2::new(4.0, 3.0), t)
         .expect("the anchor after the fillet")
         .toward(0.0, 1.0, t)
         .expect("the departure after it")
@@ -939,7 +956,10 @@ fn an_arrival_states_author_reaches_the_derived_door() {
     use profile::{ArcSide, Radius};
     let t = Tol::witness();
     let mut n = RecordedNotation::new();
-    let path = Open.at(p2(0.0, 0.0)).angle(0.0, t).expect("a departure");
+    let path = Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .expect("a departure");
     let arrival = path
         .fillet_arc(
             0.25,
@@ -965,7 +985,7 @@ fn an_arrival_states_author_reaches_the_derived_door() {
     let prefix = format!("{:?}", arrival.recorded());
 
     let closed = arrival
-        .at(p2(6.0, 1.0))
+        .at(Point2::new(6.0, 1.0))
         .toward(0.0, 1.0, t)
         .expect("the arrival's director, which resolves the fillet")
         // The arrival leaves the tip tangent-continuous, so the
@@ -1000,10 +1020,10 @@ fn an_arrival_states_author_reaches_the_derived_door() {
 fn after_the_closer_the_recording_is_the_finished_loops_program() {
     let t = Tol::witness();
     let closed = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(0.025, 0.0), t)
+        .at(Point2::new(0.0, 0.0))
+        .line_to(Point2::new(0.025, 0.0), t)
         .expect("a leg")
-        .line_to(p2(0.025, 0.025), t)
+        .line_to(Point2::new(0.025, 0.025), t)
         .expect("a leg")
         .line_to(Start, t)
         .expect("the chain closes");

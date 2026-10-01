@@ -40,7 +40,7 @@ use geom_core::Tol;
 /// with the EXTRUDE's id, which only the rows that need a SLOT to
 /// break read.
 fn with_depth_and_extrude() -> (ProfileDoc, ParamName, RecipeNodeId) {
-    let name = ParamName::new("depth");
+    let name = ParamName::from_static("depth");
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("payload-param-ref"),
@@ -115,7 +115,7 @@ fn undeclare(text: &str, name: &ParamName) -> String {
             .as_object_mut()
             .expect("the params are a map");
         assert!(
-            params.remove(&name.0).is_some(),
+            params.remove(name.as_str()).is_some(),
             "the surgery is aimed at the declaration the payload reads"
         );
     })
@@ -126,7 +126,7 @@ fn undeclare(text: &str, name: &ParamName) -> String {
 /// declaration and the dimension an expression reads it at.
 fn retype_to_angle(text: &str, name: &ParamName) -> String {
     doctored(text, |wire| {
-        let decl = &mut wire["snapshot"]["params"][&name.0]["Continuous"];
+        let decl = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"];
         assert_eq!(
             decl["dim"],
             serde_json::json!("Length"),
@@ -151,7 +151,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
     let (doc, name, measure) = measuring_depth();
 
     // The edit door, over the node as written.
-    let missing = ParamName::new("nowhere");
+    let missing = ParamName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -249,7 +249,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
     };
     let (doc, assertion) = insert(doc, bound(&name));
 
-    let missing = ParamName::new("nowhere");
+    let missing = ParamName::from_static("nowhere");
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -303,7 +303,7 @@ fn a_payload_reference_the_table_answers_round_trips() {
 /// read off the loaded document rather than off the wire, because the
 /// claim is about the value that reaches memory, and by BITS, which is
 /// the only comparison that can tell `-0.0` from `0.0`.
-fn signed_zero_leaf(doc: &ProfileDoc, measure: RecipeNodeId) -> bool {
+fn signed_zero_leaf(doc: &editor_core::ProfileDoc, measure: RecipeNodeId) -> bool {
     let node = doc.node(measure).expect("the measure survived");
     editor_core::node::payload_exprs(node)
         .into_iter()
@@ -424,7 +424,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
             .as_object_mut()
             .expect("the params are a map");
         assert!(
-            params.remove(&name.0).is_some(),
+            params.remove(name.as_str()).is_some(),
             "the surgery also removes the declaration the bound reads"
         );
     });
