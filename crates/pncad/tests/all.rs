@@ -3050,12 +3050,8 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
-    let text = pncad::document::save(
-        &origin,
-        std::slice::from_ref(&edit),
-        Tol::witness(),
-    )
-    .expect("the logged document saves");
+    let text = pncad::document::save(&origin, std::slice::from_ref(&edit), Tol::witness())
+        .expect("the logged document saves");
     dir.write("logged.pncad", &text);
     let replayed = pncad::document::apply(
         &origin,
@@ -3437,6 +3433,51 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
         pncad::export::export_document_step(&ev, &doc, &StepOptions::default(), Tol::witness())
             .expect("the assembly exports");
     assert!(step.contains("MANIFOLD_SOLID_BREP"));
+}
+
+/// **STEP refuses unplaced parts** (A11 (2)): STEP writes one world,
+/// and an instance whose offset was cleared lives in its group's own
+/// space. The whole-document door and the per-node door both refuse,
+/// naming the part, its group's root and the cause, with how to place
+/// it — and the placed instance beside it still exports alone.
+#[test]
+fn step_export_refuses_an_unplaced_part_naming_it_and_the_cause() {
+    use pncad::document::{DocEdit, Unplaced};
+    let dir = WsDir::new("p2-step-unplaced");
+    let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "p2-step-unplaced-part");
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let (doc, ids) = asm2a_assembly("p2-step-unplaced", doc_ref, 2);
+    let doc = pncad::document::apply(
+        &doc,
+        &DocEdit::SetOffset {
+            instance: ids[1],
+            offset: None,
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("an offset clears")
+    .doc;
+    let ev = asm2a_eval(&doc, &ws);
+    let opts = StepOptions::default();
+    for err in [
+        pncad::export::export_document_step(&ev, &doc, &opts, Tol::witness())
+            .expect_err("the document holds an unplaced part"),
+        pncad::export::step_for_node(&ev, ids[1], &opts, Tol::witness())
+            .expect_err("the unplaced instance alone"),
+    ] {
+        let pncad::export::ExportError::Unplaced { parts } = &err else {
+            panic!("expected the unplaced refusal, got {err:?}")
+        };
+        assert_eq!(parts, &vec![(ids[1], ids[1], Unplaced::NoOffset)]);
+        let text = err.to_string();
+        assert!(
+            text.contains(pncad::document::UNPLACED_RECOURSE),
+            "the refusal says how to place it: {text}"
+        );
+    }
+    pncad::export::step_for_node(&ev, ids[0], &opts, Tol::witness())
+        .expect("the placed instance exports");
 }
 
 /// Row 5b (E2E) — A4's pin gate observed end to end: the part document

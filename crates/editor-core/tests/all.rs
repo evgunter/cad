@@ -445,6 +445,8 @@ mod name_depth;
 mod names_verbatim_edge_evaluator;
 #[path = "node_standing.rs"]
 mod node_standing;
+#[path = "p2_gauges.rs"]
+mod p2_gauges;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
