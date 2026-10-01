@@ -5,6 +5,8 @@ title: geom-brep: PcurveCertifyError::FittedCertificate is over 50 words (Ev's c
 status: open
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+cost: E
+priority: P4
 ---
 
 
