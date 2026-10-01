@@ -245,7 +245,10 @@ fn row1c_the_three_refusals_each_name_their_subject() {
             assert_eq!(node, ids[0]);
             assert_eq!(pin, v1);
             let msg = EditError::PinUnchanged { node, pin }.to_string();
-            assert!(msg.contains(&format!("node {:012x}", node.0)), "{msg}");
+            assert!(
+                msg.contains(&format!("node {}", test_utils::refusal::tag(node.0))),
+                "{msg}"
+            );
             assert!(msg.contains(&pin.hex()), "{msg}");
         }
         other => panic!("a same-pin update must refuse PinUnchanged, got {other:?}"),
@@ -263,7 +266,10 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         Err(EditError::UpdateOnNonInstance { node }) => {
             assert_eq!(node, profile);
             let msg = EditError::UpdateOnNonInstance { node }.to_string();
-            assert!(msg.contains(&format!("node {:012x}", node.0)), "{msg}");
+            assert!(
+                msg.contains(&format!("node {}", test_utils::refusal::tag(node.0))),
+                "{msg}"
+            );
         }
         other => panic!("a non-instance target must refuse UpdateOnNonInstance, got {other:?}"),
     }
@@ -281,7 +287,10 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         Err(EditError::UnknownNode { id }) => {
             assert_eq!(id, ghost);
             let msg = EditError::UnknownNode { id }.to_string();
-            assert!(msg.contains(&format!("node {:012x}", id.0)), "{msg}");
+            assert!(
+                msg.contains(&format!("node {}", test_utils::refusal::tag(id.0))),
+                "{msg}"
+            );
         }
         other => panic!("an unknown node must refuse UnknownNode, got {other:?}"),
     }

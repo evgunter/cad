@@ -43,7 +43,7 @@ fn wall(
     segment: usize,
 ) -> StableName {
     let Some(Node::Extrude { profile, .. }) = doc.node(node) else {
-        panic!("node {:012x} is an extrude", node.0);
+        panic!("node {} is an extrude", test_utils::refusal::tag(node.0));
     };
     let Some(Node::Profile(program)) = doc.node(*profile) else {
         panic!("an extrude's operand is a profile");

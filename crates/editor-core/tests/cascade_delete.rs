@@ -153,13 +153,17 @@ fn the_dangle_refusal_states_the_remedy() {
     let sentence = refusal.to_string();
     assert!(
         sentence.contains(&format!(
-            "node {:012x} is still an input to node {:012x}",
-            profile.0, body.0
+            "node {} is still an input to node {}",
+            test_utils::refusal::tag(profile.0),
+            test_utils::refusal::tag(body.0)
         )),
         "the direction of the reference is stated: {sentence}"
     );
     assert!(
-        sentence.contains(&format!("delete node {:012x} first", body.0)),
+        sentence.contains(&format!(
+            "delete node {} first",
+            test_utils::refusal::tag(body.0)
+        )),
         "and the immediate remedy: {sentence}"
     );
     assert!(

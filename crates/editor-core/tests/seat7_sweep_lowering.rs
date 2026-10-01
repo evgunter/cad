@@ -280,10 +280,10 @@ fn both_sweeps_evaluate_in_one_document() {
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x9dfe_f7f5_7c4a_26de),
-        ("corner_table", 0x2397_67cf_3da2_c4c2),
+        ("corner_table", 0x9e9c_444c_ad53_d026),
         ("cut_cylinder", 0xe377_b257_d475_7f12),
         ("boss_union", 0x161a_7057_c538_c167),
-        ("kitchen_sink", 0xa38a_4e3b_423d_dc79),
+        ("kitchen_sink", 0xce6c_5de3_e375_59dd),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

@@ -823,8 +823,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on Extrude {:012x}, which failed — {consequence}",
-            extrude.0
+            "pick index: waits on Extrude {}, which failed — {consequence}",
+            test_utils::refusal::tag(extrude.0)
         ),
         "the row the tree blames, not the root the build refused on"
     );
@@ -874,8 +874,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on Extrude {:012x}, which failed — {consequence}",
-            broken.0
+            "pick index: waits on Extrude {}, which failed — {consequence}",
+            test_utils::refusal::tag(broken.0)
         )
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
@@ -883,9 +883,9 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         badge.detail(),
         Some(
             format!(
-                "pick index: root {0:012x} could not be indexed: pick: node {0:012x} failed, so \
+                "pick index: root {0} could not be indexed: pick: node {0} failed, so \
                  it has no value — fix the node's own failure",
-                broken.0
+                test_utils::refusal::tag(broken.0)
             )
             .as_str()
         ),
@@ -974,9 +974,9 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on Mate {:012x}, which failed — until the index builds, no pick \
+            "pick index: waits on Mate {}, which failed — until the index builds, no pick \
              is answered and the picture is not redrawn",
-            offender.0
+            test_utils::refusal::tag(offender.0)
         ),
         "the mate the tree blames, not the root the index's words name"
     );
@@ -3184,9 +3184,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         panic!("a discarded placement is news, not silence: {verdict:?}");
     };
     assert!(
-        message
-            .text()
-            .contains(&format!("instance {:012x}", bench.post_b.0)),
+        message.text().contains(&format!(
+            "instance {}",
+            test_utils::refusal::tag(bench.post_b.0)
+        )),
         "the line names which of the user's placements went: {message}"
     );
     assert_eq!(
@@ -3232,8 +3233,8 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
     let (post, mate_node) = (
-        format!("{:012x}", bench.post_b.0),
-        format!("{:012x}", landed.0),
+        test_utils::refusal::tag(bench.post_b.0),
+        test_utils::refusal::tag(landed.0),
     );
     assert_eq!(
         line.text(),

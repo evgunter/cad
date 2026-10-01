@@ -495,11 +495,11 @@ fn overlapping_roots_are_one_finding_naming_both() {
     // is about.
     let rendered = report.findings[0].to_string();
     assert!(
-        rendered.contains(&format!("root {:012x}", a.0)),
+        rendered.contains(&format!("root {}", test_utils::refusal::tag(a.0))),
         "{rendered}"
     );
     assert!(
-        rendered.contains(&format!("root {:012x}", b.0)),
+        rendered.contains(&format!("root {}", test_utils::refusal::tag(b.0))),
         "{rendered}"
     );
     // And it denies the CERTIFICATE — it never claims the two overlap,

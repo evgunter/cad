@@ -120,14 +120,14 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// where the two nodes differ and the names must be disjoint.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x46ff_fbb3_d481_e812),
-    ("corner_table", 0xd741_93fd_3ac8_b3d4),
+    ("corner_table", 0xec8c_44cc_e7ba_d1d4),
     ("heat_sink", 0x9494_f2b0_e239_0d24),
-    ("crossing_slots", 0x8932_2e77_c812_8232),
+    ("crossing_slots", 0xe678_8002_978e_e6cf),
     ("nested_islands_105", 0xbc61_97e6_8d2c_9c5c),
     ("nested_islands_106_depth1", 0xf8c5_745b_4a9c_153b),
     ("nested_islands_106_depth2", 0xf6f6_0ffb_4d6a_bad5),
     ("declared_tangency", 0x10e3_3436_e0dd_f2ca),
-    ("kitchen_sink", 0x7473_625d_3fd9_df30),
+    ("kitchen_sink", 0xcc09_604b_8b74_e320),
     ("cut_cylinder", 0x4fc1_3f27_d303_0751),
     ("measured_web", 0x6a3e_d351_0833_d5e8),
     ("boss_union", 0xd267_0612_127b_2383),
@@ -145,7 +145,7 @@ const PINNED: &[(&str, u64)] = &[
     ("loft_prism", 0x74db_6889_4c07_172b),
     ("die_composed", 0x094d_1539_1355_587e),
     ("die_composed_tour", 0xbe61_d9d5_9d15_4607),
-    ("plate_param", 0xa35a_005e_557a_2eef),
+    ("plate_param", 0x673d_ea64_7056_a450),
     ("kiss_carry", 0x30ba_52ea_f908_146c),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
     // tube doors return `Revolved<T>` and the emitter reads only

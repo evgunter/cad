@@ -116,11 +116,11 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "node {:012x} failed: the mate solve refused: mate {:012x}'s a reference has no derived pose: \
-             node {p:012x}, which places it, refuses — repair node {p:012x}",
-            mate.0,
-            mate.0,
-            p = pattern.0,
+            "node {} failed: the mate solve refused: mate {}'s a reference has no derived pose: \
+             node {p}, which places it, refuses — repair node {p}",
+            test_utils::refusal::tag(mate.0),
+            test_utils::refusal::tag(mate.0),
+            p = test_utils::refusal::tag(pattern.0),
         ),
         "the row names the placer the evaluation typed"
     );
@@ -132,9 +132,9 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         &vec![viewer::tree::CarriedLine {
             document: viewer::tree::THIS_DOCUMENT.to_owned(),
             line: format!(
-                "node {:012x} failed: the pattern direction has no finite length (a component \
+                "node {} failed: the pattern direction has no finite length (a component \
                  overflows the norm or is not a number). Recourse: {}",
-                pattern.0,
+                test_utils::refusal::tag(pattern.0),
                 geom_core::RANGE_RECOURSE
             ),
         }],

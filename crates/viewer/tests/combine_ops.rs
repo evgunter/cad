@@ -301,9 +301,9 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         refused.refusal.as_ref().expect("refused").to_string(),
         format!(
             "the edit was refused: the node this edit writes would be invalid: \
-             node {:012x} is taken as an input twice — a node's inputs are pairwise \
+             node {} is taken as an input twice — a node's inputs are pairwise \
              distinct. Recourse: replace one of the two with a different node",
-            a.0
+            test_utils::refusal::tag(a.0)
         )
     );
     // And the kind gate speaks FIRST: two profiles in both seats is

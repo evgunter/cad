@@ -231,9 +231,15 @@ mod tests {
         assert_eq!(kind, "Datum frame");
         let spoken = doc.spoken(id);
         assert_eq!((spoken.id(), spoken.kind()), (id, Some("Datum frame")));
-        assert_eq!(spoken.to_string(), format!("Datum frame {:012x}", id.0));
+        assert_eq!(
+            spoken.to_string(),
+            format!("Datum frame {}", test_utils::refusal::tag(id.0))
+        );
         let gone = empty.spoken(id);
         assert_eq!(gone.kind(), None);
-        assert_eq!(gone.to_string(), format!("node {:012x}", id.0));
+        assert_eq!(
+            gone.to_string(),
+            format!("node {}", test_utils::refusal::tag(id.0))
+        );
     }
 }

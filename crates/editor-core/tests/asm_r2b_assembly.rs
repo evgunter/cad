@@ -645,7 +645,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     // only has the Display still learns which mate is wrong.
     let msg = err.to_string();
     assert!(
-        msg.contains(&format!("mate {:012x}", mate.0)),
+        msg.contains(&format!("mate {}", test_utils::refusal::tag(mate.0))),
         "the rendering names the mate: {msg}"
     );
     // The other side of the split: a REFUTED declaration is a finding
@@ -855,7 +855,10 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     // REMAINDER, `inner` in the part), so the rendering tells them
     // apart.
     assert!(
-        err.contains(&format!("minted by node {:012x}", outer_probe.node.0)),
+        err.contains(&format!(
+            "minted by node {}",
+            test_utils::refusal::tag(outer_probe.node.0)
+        )),
         "the refusal names the crossing by its `outer`: {err}"
     );
     assert_ne!(

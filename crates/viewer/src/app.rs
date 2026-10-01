@@ -3617,7 +3617,10 @@ mod properties_pane_tests {
             vec![Selection::Node(body)]
         });
         // The startup body is an extrude, spoken by its kind and tag.
-        let line = format!("first operand: Extrude {:012x}; second operand: —", body.0);
+        let line = format!(
+            "first operand: Extrude {}; second operand: —",
+            test_utils::refusal::tag(body.0)
+        );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 
@@ -3629,7 +3632,10 @@ mod properties_pane_tests {
         let (body, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |body| {
             vec![Selection::Face(cap_of(body, pncad::prelude::CapEnd::End))]
         });
-        let line = format!("pick a: face of Extrude {:012x}; pick b: —", body.0);
+        let line = format!(
+            "pick a: face of Extrude {}; pick b: —",
+            test_utils::refusal::tag(body.0)
+        );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 

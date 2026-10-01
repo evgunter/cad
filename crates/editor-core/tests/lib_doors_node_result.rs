@@ -195,7 +195,10 @@ fn refusals_render_as_prose_not_debug_guts() {
     let error = ev.node_error(cut).expect("the Boolean failed");
     let message = error.to_string();
     assert!(
-        message.starts_with(&format!("node {:012x} failed: ", cut.0)),
+        message.starts_with(&format!(
+            "node {} failed: ",
+            test_utils::refusal::tag(cut.0)
+        )),
         "{message}"
     );
     assert!(

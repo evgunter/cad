@@ -2014,7 +2014,7 @@ mod tests {
     /// A stand-in labeller: the number alone, so a row asserting on
     /// the pose half is asserting on text this closure did not write.
     fn numbers(id: &RecipeNodeId) -> String {
-        format!("node {:012x}", id.0)
+        format!("node {}", test_utils::refusal::tag(id.0))
     }
 
     /// The add-profile form's plane row, on an EMPTY document, offers
@@ -2084,7 +2084,12 @@ mod tests {
     #[test]
     fn the_plane_row_draws_the_name_it_is_handed() {
         let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(4)));
-        let names = |id: &RecipeNodeId| format!("node {:012x} — xy at (0, 0, 0) m", id.0);
+        let names = |id: &RecipeNodeId| {
+            format!(
+                "node {} — xy at (0, 0, 0) m",
+                test_utils::refusal::tag(id.0)
+            )
+        };
         let drawn = painted_text(|ui| {
             profile_plane_row(ui, &Theme::DEFAULT, &[RecipeNodeId(4)], &names, &mut picked)
         });
@@ -2179,7 +2184,7 @@ mod layout_tests {
                 "salt",
                 &[],
                 &mut picked,
-                |id| format!("node {:012x}", id.0),
+                |id| format!("node {}", test_utils::refusal::tag(id.0)),
             );
         });
         let empty = find(&painted, NO_FRAMES);
@@ -2707,10 +2712,10 @@ mod declared_union {
             painted,
             format!(
                 "declare this contact and commit the boolean?\n\
-                 a face of Extrude {:012x} against a face of Extrude {:012x} — {} contact\n\
+                 a face of Extrude {} against a face of Extrude {} — {} contact\n\
                  Declare\nDecline",
-                block.0,
-                boss.0,
+                test_utils::refusal::tag(block.0),
+                test_utils::refusal::tag(boss.0),
                 ContactClass::Rest.name()
             )
         );

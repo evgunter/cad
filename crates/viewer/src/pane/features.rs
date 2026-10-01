@@ -837,7 +837,10 @@ mod tests {
         let value = find(&painted, "0.0125 m");
         let kind = find(
             &painted,
-            &format!("Measure {:012x} {GLYPH_ROOT}", fixture.distance.0),
+            &format!(
+                "Measure {} {GLYPH_ROOT}",
+                test_utils::refusal::tag(fixture.distance.0)
+            ),
         );
         assert!(
             (value.rows[0].center().y - kind.rows[0].center().y).abs() <= SLACK
@@ -943,7 +946,10 @@ mod tests {
         });
         let line = find(&painted, &reason);
         assert_under(
-            find(&painted, &format!("Measure {:012x}", fixture.clearance.0)),
+            find(
+                &painted,
+                &format!("Measure {}", test_utils::refusal::tag(fixture.clearance.0)),
+            ),
             line,
         );
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
@@ -968,7 +974,7 @@ mod tests {
         assert_eq!(
             drawn,
             vec![
-                format!("Measure {:012x}", fixture.failed.0),
+                format!("Measure {}", test_utils::refusal::tag(fixture.failed.0)),
                 "FAILED".to_owned(),
                 message.clone()
             ],
@@ -1053,7 +1059,10 @@ mod tests {
         });
         let kind = find(
             &painted,
-            &format!("Assertion {:012x} {GLYPH_ROOT}", fixture.holds.0),
+            &format!(
+                "Assertion {} {GLYPH_ROOT}",
+                test_utils::refusal::tag(fixture.holds.0)
+            ),
         );
         let state = find(&painted, state_of(&fixture, fixture.holds));
         let comparison = find(
@@ -1105,7 +1114,11 @@ mod tests {
         assert_eq!(
             texts(&painted),
             vec![
-                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.violated.0).as_str(),
+                format!(
+                    "Assertion {} {GLYPH_ROOT}",
+                    test_utils::refusal::tag(fixture.violated.0)
+                )
+                .as_str(),
                 state,
                 &compared(&fixture, fixture.violated, "0.0125 m", "0.02 m"),
             ],
@@ -1215,7 +1228,11 @@ mod tests {
         assert_eq!(
             texts(&painted),
             vec![
-                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.indeterminate.0).as_str(),
+                format!(
+                    "Assertion {} {GLYPH_ROOT}",
+                    test_utils::refusal::tag(fixture.indeterminate.0)
+                )
+                .as_str(),
                 state,
                 reason.as_str()
             ],
@@ -1244,12 +1261,18 @@ mod tests {
             other => panic!("the premise: `min_clearance` has no value at f64: {other:?}"),
         };
         let row = fixture.row(fixture.unavailable);
-        let pointer = format!("see Measure {:012x}", fixture.clearance.0);
+        let pointer = format!(
+            "see Measure {}",
+            test_utils::refusal::tag(fixture.clearance.0)
+        );
         let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert_eq!(
             drawn,
             vec![
-                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.unavailable.0),
+                format!(
+                    "Assertion {} {GLYPH_ROOT}",
+                    test_utils::refusal::tag(fixture.unavailable.0)
+                ),
                 state_of(&fixture, fixture.unavailable).to_owned(),
                 pointer.clone()
             ],
@@ -1279,11 +1302,14 @@ mod tests {
         assert_eq!(
             drawn,
             vec![
-                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.poisoned.0),
+                format!(
+                    "Assertion {} {GLYPH_ROOT}",
+                    test_utils::refusal::tag(fixture.poisoned.0)
+                ),
                 "POISONED".to_owned(),
                 format!(
-                    "upstream failure at Measure {:012x} — that row carries the cause",
-                    fixture.failed.0
+                    "upstream failure at Measure {} — that row carries the cause",
+                    test_utils::refusal::tag(fixture.failed.0)
                 )
             ],
         );

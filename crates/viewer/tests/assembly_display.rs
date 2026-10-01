@@ -403,9 +403,11 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
     assert_eq!(
         fault.to_string(),
         format!(
-            "instance {:012x}'s geometry is fused into node {:012x} together with instance(s) {:012x} — \
+            "instance {}'s geometry is fused into node {} together with instance(s) {} — \
              a display operation cannot address it separately",
-            a.0, weld.0, b.0
+            test_utils::refusal::tag(a.0),
+            test_utils::refusal::tag(weld.0),
+            test_utils::refusal::tag(b.0)
         )
     );
 
@@ -547,7 +549,10 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     );
     assert_eq!(
         wrong_kind_says,
-        format!("node {:012x} is not a part instance", mate.0),
+        format!(
+            "node {} is not a part instance",
+            test_utils::refusal::tag(mate.0)
+        ),
         "the wrong-kind sentence says something IS there and is the \
          wrong thing"
     );
