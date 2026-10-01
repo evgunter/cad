@@ -109,7 +109,7 @@ fn pfold(a: f64, b: f64, f: fn(f64, f64) -> f64) -> f64 {
 }
 
 /// Angular slack (radians) added on BOTH sides of the window every
-/// span-membership test below hands [`crate::angle_window_may_hold`],
+/// span-membership test below hands [`crate::periodic_window_may_hold`],
 /// which takes a window's ends as given: it absorbs `libm::atan2`'s deviation from the exact
 /// value (observed ≤ 4 ulps in the geom-core census — this is 6+ orders
 /// more) plus the membership arithmetic's own rounding. Slack only ever
@@ -274,10 +274,11 @@ fn axis_extremum(min: &mut f64, max: &mut f64, c: Brk, u: Brk, v: Brk, r: Brk, l
     let (include_max, include_min) = match extremal_angle_interval(u, v) {
         None => (true, true),
         Some((p_lo, p_hi)) => (
-            crate::angle_window_may_hold((p_lo, p_hi), (lo, hi)),
-            crate::angle_window_may_hold(
+            crate::periodic_window_may_hold((p_lo, p_hi), (lo, hi), core::f64::consts::TAU),
+            crate::periodic_window_may_hold(
                 (p_lo + core::f64::consts::PI, p_hi + core::f64::consts::PI),
                 (lo, hi),
+                core::f64::consts::TAU,
             ),
         ),
     };

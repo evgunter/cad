@@ -2284,11 +2284,14 @@ impl<T: Real> CircleFrame<T> {
 
 impl<T: Bounds> CircleFrame<T> {
     /// **Whether the arc over `(ta, tb)` certainly misses the circle
-    /// point `q`**: `q`'s angle, read past `ta` ([`Self::past`]) so its
-    /// branch cut sits on the window's start, certainly lies outside
-    /// the window — asked of the one home of that question,
-    /// [`geom::angle_window_may_hold`], with the angle's and the
-    /// window's brackets as they stand.
+    /// point `q`**: `q`'s angle past `ta` ([`Self::past`], read in
+    /// `(0, τ]` with its branch cut on the window's start) certainly
+    /// lies outside the window `[0, tb − ta]` relative to that start —
+    /// asked of [`geom::periodic_window_may_hold`]. In that frame the
+    /// home's first translate is the bracket itself, so the answer is
+    /// `past.lo > (tb − ta).hi` and `past.hi < τ` exactly: `ta`'s own
+    /// bracket enters only through the window's width, never through
+    /// the angle.
     ///
     /// **A bracket read whose branch reaches a decision, sound by
     /// value-channel delegation** (DL5(b), `geom_core::real`'s
@@ -2316,8 +2319,17 @@ impl<T: Bounds> CircleFrame<T> {
     ///   on it the choice moves no tangent — what the locally-constant
     ///   condition of DL5(b) exists to guarantee.
     fn misses(self, (ta, tb): (T, T), q: Point3<T>) -> bool {
-        let phi = ta + self.past(ta, q);
-        !geom::angle_window_may_hold((phi.lo(), phi.hi()), (ta.lo(), tb.hi()))
+        Self::past_misses(self.past(ta, q), (ta, tb))
+    }
+
+    /// [`Self::misses`] on the angle `past` already read: whether it
+    /// certainly lies outside `[0, tb − ta]` and short of a whole turn.
+    fn past_misses(past: T, (ta, tb): (T, T)) -> bool {
+        !geom::periodic_window_may_hold(
+            (past.lo(), past.hi()),
+            (0.0, (tb - ta).hi()),
+            core::f64::consts::TAU,
+        )
     }
 
     /// **How near and how far the arc over `(ta, tb)` comes to `c`**.
@@ -4826,5 +4838,62 @@ mod tests {
             piece_along(&line, (1.0, 2.0), o, Vec3::new(1.0, 0.0, 0.0)).expect("line");
         close(low, 1.0, "a segment's low is an end");
         close(high, 2.0, "and its high the other");
+    }
+
+    /// **`CircleFrame::misses` is the bracket read it always was**: the
+    /// window's start enters only through the window's width, so the
+    /// answer is exactly `(past − (tb − ta)).lo() > 0` and
+    /// `(τ − past).lo() > 0`, at `f64` and at the interval scalar —
+    /// on a far window start with `past` a whole turn (an angle read as
+    /// `ta + past` rounds that to the window's far side), and over wide
+    /// `ta` brackets (where `ta + past` carries `ta`'s width into the
+    /// angle).
+    #[test]
+    fn misses_is_the_relative_bracket_read() {
+        use super::CircleFrame;
+        use geom_core::{Bounds, Interval, Real};
+        fn old<T: Bounds>(past: T, (ta, tb): (T, T)) -> bool {
+            (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
+        }
+        let tau = core::f64::consts::TAU;
+        // The far window start with the point at it: `past` a whole
+        // turn, which the arc holds.
+        let (ta, tb) = (1e6, 1e6 + 2.0);
+        assert!(!CircleFrame::<f64>::past_misses(tau, (ta, tb)));
+        assert!(!old(tau, (ta, tb)));
+        let (tai, tbi) = (Interval::from_f64(ta), Interval::from_f64(tb));
+        assert!(!CircleFrame::past_misses(Interval::tau(), (tai, tbi)));
+        // A deterministic spread of angles in `(0, τ]` and just past
+        // either end, at both scalars, over sharp and wide window starts.
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        for i in 0..40_000 {
+            let ta = (next() - 0.5) * 2e6;
+            let w = next() * 7.0;
+            // Every fourth angle sits within a few ulps of an end.
+            let past = match i % 4 {
+                0 => w * (1.0 + (next() - 0.5) * 1e-15),
+                1 => tau * (1.0 - next() * 1e-15),
+                _ => next() * tau,
+            };
+            let tb = ta + w;
+            assert_eq!(
+                CircleFrame::<f64>::past_misses(past, (ta, tb)),
+                old(past, (ta, tb)),
+                "ta {ta}, tb {tb}, past {past}"
+            );
+            let wide = next() * 1e-3;
+            let tai = Interval::from_bounds(ta - wide, ta + wide);
+            let tbi = tai + Interval::from_f64(w);
+            let pi = Interval::from_bounds(past, past + next() * 1e-3);
+            assert_eq!(
+                CircleFrame::past_misses(pi, (tai, tbi)),
+                old(pi, (tai, tbi)),
+                "ta {ta} ±{wide}, width {w}, past {past}"
+            );
+        }
     }
 }
