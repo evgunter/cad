@@ -18,7 +18,7 @@ use crate::fixture;
 use editor_core::{
     CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Node, PatternKind, PersistError,
     ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, RootFault, SnapshotError,
-    content_pin, evaluate, load, save,
+    SpokenNode, content_pin, evaluate, load, save,
 };
 use fixture::{desc, insert, len, on_frame, scl, square, step, xy_frame};
 use geom_core::Tol;
@@ -227,16 +227,22 @@ fn row2a_ancestor_freedom_names_both() {
     assert_eq!(
         err,
         editor_core::EditError::Roots(RootFault::Ancestor {
-            ancestor: profile,
-            descendant: extrude,
+            ancestor: doc.spoken(profile),
+            descendant: doc.spoken(extrude),
         })
     );
-    // The prose names both too (the bindings' message surface).
+    // The prose speaks both too (the bindings' message surface), by
+    // kind and tag.
     let text = format!("{err}");
     assert!(
-        text.contains(&format!("root {}", test_utils::refusal::tag(profile.0)))
-            && text.contains(&format!("root {}", test_utils::refusal::tag(extrude.0))),
-        "both nodes must be named: {text}"
+        text.contains(&format!(
+            "root Profile {}",
+            test_utils::refusal::tag(profile.0)
+        )) && text.contains(&format!(
+            "root Extrude {}",
+            test_utils::refusal::tag(extrude.0)
+        )),
+        "both nodes must be spoken: {text}"
     );
 }
 
@@ -261,10 +267,12 @@ fn row2b_coverage_refuses_on_a_crafted_save() {
     match load(&crafted, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::Roots(RootFault::Uncovered { node }))) => {
             assert!(
-                node != a,
-                "the stranded chain is b's, not a's (got node {})",
-                node.0
+                node.id() != a,
+                "the stranded chain is b's, not a's (got {node})"
             );
+            // The bytes are not a document yet, so the load door
+            // speaks the node by its tag alone.
+            assert_eq!(node, SpokenNode::absent(node.id()), "{node}");
         }
         other => panic!("a crafted uncovered document must refuse, got {other:?}"),
     }
@@ -287,7 +295,9 @@ fn row2c_duplicate_entry_refuses() {
         .expect_err("a duplicate must refuse");
     assert_eq!(
         err,
-        editor_core::EditError::Roots(RootFault::Duplicate { root: a })
+        editor_core::EditError::Roots(RootFault::Duplicate {
+            root: doc.spoken(a)
+        })
     );
     // And a dead entry refuses too.
     let ghost = RecipeNodeId(9_999);
@@ -298,7 +308,9 @@ fn row2c_duplicate_entry_refuses() {
             &editor_core::RefusingReach
         )
         .expect_err("a dead entry must refuse"),
-        editor_core::EditError::Roots(RootFault::NotLive { root: ghost })
+        editor_core::EditError::Roots(RootFault::NotLive {
+            root: SpokenNode::absent(ghost)
+        })
     );
 }
 

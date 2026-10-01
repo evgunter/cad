@@ -362,18 +362,3 @@ mod tests {
         );
     }
 }
-#[cfg(test)]
-mod kref_tmp {
-    #[test]
-    fn kref_sizes() {
-        eprintln!("StableName {}", core::mem::size_of::<crate::StableName>());
-        eprintln!("EditError {}", core::mem::size_of::<crate::EditError>());
-        eprintln!(
-            "PersistError {}",
-            core::mem::size_of::<crate::PersistError>()
-        );
-        eprintln!("Maintenance {}", core::mem::size_of::<crate::Maintenance>());
-        eprintln!("SplitError {}", core::mem::size_of::<crate::SplitError>());
-        eprintln!("InlineError {}", core::mem::size_of::<crate::InlineError>());
-    }
-}

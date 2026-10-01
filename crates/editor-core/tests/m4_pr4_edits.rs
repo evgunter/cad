@@ -121,7 +121,9 @@ fn rebind_rewrites_declare_sites_one_shot() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindNoReferences { name: cap(t.b) }
+        EditError::RebindNoReferences {
+            name: applied.doc.spoken_name(&cap(t.b))
+        }
     );
     // Purity: the input document is untouched.
     let Some(Node::Declare { pairs }) = t.doc.node(t.decl) else {
@@ -189,7 +191,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindIdentity { name: cap(t.b) }
+        EditError::RebindIdentity {
+            name: t.doc.spoken_name(&cap(t.b))
+        }
     );
     // Kind mismatch: a face reference cannot become a body.
     let body_c = StableName {
@@ -226,7 +230,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindTargetMissingNode { name: cap(t.c) }
+        EditError::RebindTargetMissingNode {
+            name: doc_del.spoken_name(&cap(t.c))
+        }
     );
     // Never-minted source id: a typo, not a NodeGone repair.
     let foreign = cap(RecipeNodeId(9999));
@@ -241,7 +247,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindUnknownName { name: foreign }
+        EditError::RebindUnknownName {
+            name: t.doc.spoken_name(&foreign)
+        }
     );
     // Zero document sites.
     assert_eq!(
@@ -270,7 +278,9 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                 &editor_core::RefusingReach
             )
             .unwrap_err(),
-        EditError::RebindNoReferences { name: cap(t.c) }
+        EditError::RebindNoReferences {
+            name: t.doc.spoken_name(&cap(t.c))
+        }
     );
 }
 

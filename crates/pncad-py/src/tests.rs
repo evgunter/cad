@@ -2613,11 +2613,11 @@ fn edit_inner_variant_tags_are_stable() {
     // ways the D7 producer convention was broken.
     assert_eq!(
         pair(&EditError::MetaUnversioned {
-            name: StableName {
+            name: pncad::document::SpokenName::absent(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(7),
                 path: vec![RoleSeg::OutputBody],
-            },
+            }),
             key: "fit".to_owned(),
             error: MetaVersionError::VersionNotInt,
         }),
@@ -2627,7 +2627,7 @@ fn edit_inner_variant_tags_are_stable() {
     // `PlacementRule` does one carrier over.
     assert_eq!(
         pair(&EditError::Roots(RootFault::Duplicate {
-            root: RecipeNodeId(1)
+            root: pncad::document::SpokenNode::absent(RecipeNodeId(1))
         })),
         ("root_duplicate", None)
     );
@@ -2668,10 +2668,12 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     let id = |n: u64| RecipeNodeId(n);
     let sp = |n: u64| pncad::document::SpokenNode::absent(id(n));
     let param = || ParamName::from_static("bore");
-    let named = || StableName {
-        kind: EntityKind::Face,
-        node: RecipeNodeId(7),
-        path: vec![RoleSeg::OutputBody],
+    let named = || {
+        pncad::document::SpokenName::absent(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(7),
+            path: vec![RoleSeg::OutputBody],
+        })
     };
     let carries = |err: &E, want: &[&str]| {
         assert_eq!(
@@ -3025,15 +3027,19 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     assert_eq!(payload.path, Some(&[0u8, 1][..]));
 
     // ---- the product-root invariants ----
-    carries(&E::Roots(RootFault::NotLive { root: id(1) }), &["node"]);
-    carries(&E::Roots(RootFault::Duplicate { root: id(1) }), &["node"]);
-    carries(&E::Roots(RootFault::Uncovered { node: id(1) }), &["node"]);
-    carries(
-        &E::Roots(RootFault::Ancestor {
-            ancestor: id(1),
-            descendant: id(2),
-        }),
-        &["node", "referenced_by"],
+    carries(&E::Roots(RootFault::NotLive { root: sp(1) }), &["node"]);
+    carries(&E::Roots(RootFault::Duplicate { root: sp(1) }), &["node"]);
+    carries(&E::Roots(RootFault::Uncovered { node: sp(1) }), &["node"]);
+    let ancestor = E::Roots(RootFault::Ancestor {
+        ancestor: sp(1),
+        descendant: sp(2),
+    });
+    carries(&ancestor, &["node", "referenced_by"]);
+    let payload = edit_payload(&ancestor);
+    assert_eq!(
+        (payload.node, payload.referenced_by),
+        (Some(id(1)), Some(id(2))),
+        "the machine channel carries the spoken nodes' ids"
     );
 
     // ---- the arms that carry a nested refusal, and the empty one ----
