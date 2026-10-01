@@ -4,6 +4,8 @@ kind: issue
 title: ssi: the transversality-death refusal says 'lower the tolerance' unconditionally, unvalued
 status: open
 opened: 2026-09-28
+cost: M
+priority: P1
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3382.) The rule is D4 ¶1 (i)
