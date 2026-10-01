@@ -166,6 +166,8 @@ mod review_pick_r2;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "r2_place2_probes.rs"]
+mod r2_place2_probes;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "select_pick.rs"]
