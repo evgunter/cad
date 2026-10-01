@@ -2,13 +2,14 @@
 id: plain-transform-rigid-still-refuses-the-m7-8-class
 kind: issue
 title: transform_rigid_via gives the capability but the plain door still refuses an M7-8 body, and closing that gap needs a compound-bound ratification
-status: dispatched
+status: review
 opened: 2026-09-12
 refs: [2418, graft-recertifies-through-the-narrow-lane]
 priority: P0
 cost: M
 parent: graft-recertifies-through-the-narrow-lane
 branch: cleave/nurbs-lane
+pr: 3678
 ---
 
 
