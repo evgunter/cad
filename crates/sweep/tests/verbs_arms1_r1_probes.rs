@@ -414,6 +414,7 @@ fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     else {
         panic!("the band is a torus");
     };
+    // Lifts both refusals: the in-band torus is what tier 3 must escalate.
     out.body
         .set_face_surface_stranding_for_tests(
             band_face,

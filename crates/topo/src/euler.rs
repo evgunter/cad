@@ -705,12 +705,35 @@ pub enum EulerOpError {
     /// description is adjacency-coherent now and would not be once the
     /// face moves, which tier 3 reports at rest as
     /// `DescriptionNotAdjacent`. Every one is named, in edge-arena
-    /// order, because the caller re-describes the whole list — through
+    /// order, because the caller re-describes the whole list. The
+    /// lever is the chart and the descriptions: leave the face on the
+    /// chart they name, or re-describe them on the new chart through
     /// [`Body::set_face_surfaces_describing`], which takes a band and
     /// the re-descriptions. Raised in the plan phase, so the body is
     /// untouched.
     RechartStrandsDescriptions {
         /// The stranded edges, in edge-arena order.
+        edges: Vec<EdgeKey>,
+    },
+    /// The keys-only [`Body::set_face_surface`] would move `face` onto
+    /// another chart with these certified boundary edges naming no key
+    /// the face wears after the swap, so nothing vouches that they, and
+    /// the vertices they end at, lie on the new chart — on a plane,
+    /// tier 3's `PlanarBoundaryResidual` / `PlanarFaceResidual` at
+    /// rest. Every one is named, in edge-arena order. The lever is the
+    /// chart and the descriptions: move the face onto a chart its
+    /// certified edges name, or re-describe them on the new chart
+    /// through [`Body::set_face_surfaces_describing`], which certifies
+    /// every re-description it is handed. That door asks the boundary's
+    /// own residuals only on a plane: onto a curved chart, handed no
+    /// re-descriptions, it asks nothing
+    /// (`work/restfront/validate-tier3-curved-boundary-containment`,
+    /// #638). Raised in the plan phase, so the body is untouched.
+    RechartUnvouched {
+        /// The moved face.
+        face: FaceKey,
+        /// The certified edges on it that name no key it wears after
+        /// the swap, in edge-arena order.
         edges: Vec<EdgeKey>,
     },
     /// [`Body::set_face_surfaces_describing`] was handed no
@@ -1206,8 +1229,17 @@ impl EulerOpError {
             Self::RechartStrandsDescriptions { edges } => format!(
                 "set_face_surface: the swap would leave edges {edges:?} described against a \
                  surface their faces no longer wear, and the keys-only door takes no band to \
-                 re-describe them (set_face_surfaces_describing takes one, and their \
-                 re-descriptions)"
+                 re-describe them. Recourse: leave the face on the chart those edges name, \
+                 or re-describe them on the chart it moves onto (set_face_surfaces_describing \
+                 takes their re-descriptions under a band, and carried_redescriptions states \
+                 the stored ones there)"
+            ),
+            Self::RechartUnvouched { face, edges } => format!(
+                "set_face_surface: face {face:?} would move onto a chart that its certified \
+                 edges {edges:?} do not name, so nothing vouches that its boundary lies on \
+                 that chart. Recourse: move the face onto a chart its certified edges name, \
+                 or re-describe them on the new chart (set_face_surfaces_describing certifies \
+                 each re-description it is handed against that chart)"
             ),
             Self::RechartUndescribed { edges } => format!(
                 "set_face_surfaces_describing: the move would leave edges {edges:?} described \
@@ -1455,6 +1487,10 @@ pub(crate) fn every_euler_op_error_once()
             edge: ek,
             error: CertifyError::Unimplemented,
         },
+        EulerOpError::RechartUnvouched {
+            face: fc,
+            edges: vec![ek],
+        },
         EulerOpError::RechartUndescribed { edges: vec![ek] },
         EulerOpError::RechartOffBoundary {
             face: fc,
@@ -1633,6 +1669,7 @@ impl EulerOpError {
             | Self::DuplicateRedescription { .. }
             | Self::DescriptionNotAdjacent { .. }
             | Self::RechartStrandsDescriptions { .. }
+            | Self::RechartUnvouched { .. }
             | Self::RechartUndescribed { .. }
             | Self::RechartFalsifies { .. }
             | Self::RechartOffBoundary { .. }
