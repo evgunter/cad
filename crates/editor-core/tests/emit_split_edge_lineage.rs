@@ -164,7 +164,7 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_ranks_its_crossing
                     body: 0,
                     key: EntityKey::Edge(e),
                 })
-                .is_some_and(|n| rim(n))
+                .is_some_and(&rim)
         })
         .expect("the extrude's start rim Piece(0)");
     let start = point(ext_body, crate::fixture::ends(ext_body, rim_edge)[0]);
