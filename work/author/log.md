@@ -1590,3 +1590,13 @@ The AUTHOR design row closes. Its work is on the owners' slates:
 - CARVE `revolve-angle-is-a-signed-size-beside-a-directed-axis` and EDIT `pattern-spacing-is-a-signed-size-beside-a-direction` (design).
 
 Fork-log row 22's decision half is filled in. Ev took A's first recommendation, which B also reached in round 1. Mapping: A=Opus, B=Fable.
+
+## 2026-10-01 — Ev ruled #3571 (face naming): 1 yes, 2 (a)
+
+Ev's ruling:
+- A face is told apart by its leaf role in words, not its pose, and the agent-written "never renders the role path" comment is rewritten.
+- `StableName`'s own `Display` carries the role.
+
+The names-layer half is filed on EDIT as `names-render-a-faces-leaf-role-in-words` (P1). AUTHOR's `face-pick-cannot-name-which-face` stays open as the viewer half (one composer, five sites, the offer hover mark), blocked on it.
+
+Fork-log row 23's decision half is filled in. Both designers had agreed on their first reports. Mapping: A=Opus, B=Fable.

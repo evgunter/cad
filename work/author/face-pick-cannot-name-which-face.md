@@ -7,7 +7,7 @@ opened: 2026-09-21
 priority: P1
 cost: D
 refs: [add-profile-mints-no-frame, 2955]
-needs_ev: true
+blocked_on: [names-render-a-faces-leaf-role-in-words]
 ---
 
 ## What
@@ -134,4 +134,18 @@ Two designers weighed this independently and reached the same final state in the
 - A tie (two faces sharing one name) cannot be told apart in words, because the kernel refuses it as `Ambiguous` too.
 - "Start/end" is the sweep's vocabulary, and a person may not hold that in their head. The mark closes that gap.
 
-**Open question: does the name's own `Display` carry the role?** Both designers say yes. The alternative is an adapter that each composer opts into. That keeps refusal sentences short, but the five gaps above show that opt-in recurs.
+**Whether the name's own `Display` carries the role.** Both designers say yes. The alternative is an adapter that each composer opts into. That keeps refusal sentences short, but the five gaps above show that opt-in recurs.
+
+## Ruled 2026-10-01 (Ev, #3571)
+
+1. **A face is told apart by its leaf role in words, not by its pose.** The words come from one public renderer in the names layer, promoted from `resolve::role_words`. The "prose never renders the role path" comment becomes "the path as a structure is the machine channel; a person reads its leaf in words".
+2. **(a): `StableName`'s own `Display` carries the role**, as kind, minting node and leaf role, so every refusal that forwards a name tells faces apart.
+
+**Where the work is:**
+- **EDIT `names-render-a-faces-leaf-role-in-words` (P1).** This is the names layer: the public renderer, `StableName`'s `Display`, the comment and the `display_contract` test, `SelectRefusal`'s `named` forwarding to it, `descent_leaf` derived from `SegOrigin`, and how a profile step is spelled. It also re-baselines the goldens that embed "name minted by node".
+- **This row: the viewer half, blocked on EDIT's.**
+  - One composer for a face in a sentence, beside `tree::node_number`. It names the minting feature, plus "on feature M" where the drawn body differs, which settles the three meanings of "feature N".
+  - The five sites route through it: the add-datum pick, the declare offer, the mate panel line and drop notice, the property header, and a face-frame datum's tree row.
+  - `BlendTarget::of_face` goes.
+  - A hover mark lights each line of the declare offer.
+- `committed-nodes-do-not-light-the-faces-they-reference` (P3) stays its own row: it is the picture half for committed nodes.
