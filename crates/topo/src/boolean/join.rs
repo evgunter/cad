@@ -453,6 +453,58 @@ pub(super) fn bool_connect<T: Decide>(
                     sb.aux_partner.insert(germ.a_face, k);
                 }
             }
+            // **The sphere pair rides its RADICAL PLANE.** Two spheres
+            // meet in a circle lying in the one plane both residuals
+            // agree on, so on each side the section is that sphere cut
+            // by that plane: the wall-side chord lane of the plane×sphere
+            // pair above, run on BOTH sides against the same plane. The
+            // plane is computed ONCE from the pair's own C5 Circle, so
+            // the two sides' chords are sections of one datum. The
+            // arc-side rule's polar premise is the plane×sphere arm's own
+            // gate in `chord_join::section_case`, now live for this pair:
+            // a radical plane tilted against either chart's polar axis
+            // refuses there, typed.
+            (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
+                let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
+                    Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
+                        center,
+                        axis,
+                        ..
+                    })) => SplitPlane {
+                        origin: center,
+                        normal: axis,
+                    },
+                    Ok(_) => {
+                        return Err(desync(
+                            "germ pair's sphere×sphere section is not a circle",
+                        ));
+                    }
+                    Err(geom_brep::SectionError::Escalated(diag)) => {
+                        return Err(BooleanError::coincidence(diag));
+                    }
+                    Err(_) => return Err(desync("germ pair's section refused at join time")),
+                };
+                let mut ctx_a = SectionCtx {
+                    plane: radical,
+                    plane_key: sa.aux_partner.get(&germ.b_face).copied(),
+                };
+                sa.joiner
+                    .join(&mut red.a, a1, a2, JoinLane::Split(&mut ctx_a), tol)
+                    .map_err(BooleanError::Join)?;
+                if let Some(k) = ctx_a.plane_key {
+                    sa.aux_partner.insert(germ.b_face, k);
+                }
+                let mut ctx_b = SectionCtx {
+                    plane: radical,
+                    plane_key: sb.aux_partner.get(&germ.a_face).copied(),
+                };
+                sb.joiner
+                    .join(&mut red.b, b1, b2, JoinLane::Split(&mut ctx_b), tol)
+                    .map_err(BooleanError::Join)?;
+                if let Some(k) = ctx_b.plane_key {
+                    sb.aux_partner.insert(germ.a_face, k);
+                }
+            }
             (a_s, b_s) => {
                 // No wired join arm for this germ pair (cyl×cyl's
                 // equal-radius ellipse pair, cyl×sphere's rung-3

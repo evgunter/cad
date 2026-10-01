@@ -1397,7 +1397,11 @@ fn curved_face_arm<T: Decide>(
                 // than reaching them. That makes those arms structurally
                 // line-only, which they assert.
                 Ok(Sign::Zero | Sign::Negative) | Err(_)
-                    if !covered && matches!(surface, geom::Surface::Torus { .. }) => {}
+                    if !covered
+                        && matches!(
+                            surface,
+                            geom::Surface::Torus { .. } | geom::Surface::Sphere { .. }
+                        ) => {}
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
                 Err(diag) => return Err(BooleanError::coincidence(diag)),
             }
@@ -1612,7 +1616,7 @@ fn curved_face_arm<T: Decide>(
         // absence of one is no event HERE, and an uncertain count keeps
         // the door.
         (Sign::Positive, Sign::Positive) | (Sign::Negative, Sign::Negative)
-            if matches!(surface, geom::Surface::Torus { .. }) =>
+            if !on_line || matches!(surface, geom::Surface::Torus { .. }) =>
         {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
@@ -1890,6 +1894,36 @@ fn wall_crossing<T: Decide>(
             line_wall_root_count(origin, dir, surface, &mut roots, band)?,
             T::one(),
         ),
+        // The circle × sphere first harmonic ([`super::circle_sphere`]).
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } if matches!(surface, geom::Surface::Sphere { .. }) => {
+            let geom::Surface::Sphere {
+                center: s_center,
+                radius: s_radius,
+                ..
+            } = *surface
+            else {
+                return Ok(SpanVerdict::Unsettled);
+            };
+            use super::circle_sphere::CircleSphereRoots;
+            match super::circle_sphere::circle_sphere_roots(
+                center, axis, radius, u_ref, t0, t1, s_center, s_radius, band,
+            )
+            .map_err(BooleanError::coincidence)?
+            {
+                CircleSphereRoots::Two(thetas) => {
+                    roots[..2].copy_from_slice(&thetas);
+                    (Ok(2), radius)
+                }
+                CircleSphereRoots::Coaxial => (Err(SpanVerdict::Constant), radius),
+                CircleSphereRoots::Miss => (Err(SpanVerdict::Miss), radius),
+                CircleSphereRoots::Uncertain => (Err(SpanVerdict::Unsettled), radius),
+            }
+        }
         // The circle × torus quartic ([`super::circle_torus`]). A circle
         // against any other kind has no root lane here, and the door
         // says so (`Uncertain`).
@@ -2025,11 +2059,11 @@ fn line_wall_root_count<T: Decide>(
     roots: &mut [T; 4],
     band: Band,
 ) -> Result<Result<usize, SpanVerdict<T>>, BooleanError> {
-    // The certified roots, per kind. Both lanes answer the same three
+    // The certified roots, per kind. Every lane answers the same three
     // ways — a certified root set, a definite miss, or no certain
     // count — and the cylinder adds a fourth, the axis-parallel line
-    // whose residual is constant. A line never lies on a torus, so the
-    // torus has no such case.
+    // whose residual is constant. A line never lies on a torus or a
+    // sphere, so neither has such a case.
     Ok(match *surface {
         geom::Surface::Cylinder {
             origin: c_origin,
@@ -2087,8 +2121,21 @@ fn line_wall_root_count<T: Decide>(
                 });
             }
         },
-        // A sphere face: no root lane here, and inventing one is not
-        // this function's business.
+        // The quadratic, the ray lane's own. No line lies on a sphere,
+        // so it has no constant case either.
+        geom::Surface::Sphere { center, radius, .. } => {
+            match super::solid_contain::line_sphere_roots(origin, dir, center, radius, band)
+                .map_err(BooleanError::coincidence)?
+            {
+                super::solid_contain::WallRoots::Two(ts) => {
+                    roots[..2].copy_from_slice(&ts);
+                    Ok(2)
+                }
+                super::solid_contain::WallRoots::Tangent => return Ok(Err(SpanVerdict::Unsettled)),
+                super::solid_contain::WallRoots::AxisParallel
+                | super::solid_contain::WallRoots::Miss => return Ok(Err(SpanVerdict::Miss)),
+            }
+        }
         _ => return Ok(Err(SpanVerdict::Unsettled)),
     })
 }
