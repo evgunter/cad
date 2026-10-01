@@ -304,7 +304,7 @@ schedule's.
 
 **Consumers, after the variant** (the 13 external sites): `pcurves.rs:chart_edge`
 (no arm, above); `chart_region.rs:pcurve_entry` R "Spiric image is not a straight
-segment" (the planar trim inventory); `boolean/boxes.rs:harmonic_extent`,
+segment" (the planar trim inventory); `pcurve_cache.rs:Pcurve::harmonic_span_box`,
 `harmonic_travel`, `solid_contain.rs:torus_chart_windows`, `chord_join.rs:chart_azimuth_range`
 `None` (the torus window walk refuses typed — the operand gate refuses the kind
 first); `mesh/trimmed.rs:trim_polygon` admits the closed form (unreachable until the

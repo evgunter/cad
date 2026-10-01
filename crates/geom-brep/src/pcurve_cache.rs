@@ -4829,8 +4829,7 @@ mod tests {
     /// sampled range: each end lies within `min(M·h²/8, 2M)` of the
     /// sampled extreme (`M = hypot(a, b)` per channel) — the chord
     /// arm's dip and the ball arm's full swing. A linear channel has
-    /// `M = 0`, so its box is its endpoint hull: a ball about the
-    /// constant term (`p0 ± |pl|·max|t|`) fails that on the first row.
+    /// `M = 0`, so its box is exactly its endpoint hull.
     #[test]
     fn the_harmonic_span_box_encloses_its_image_and_is_no_looser_than_its_charge() {
         for row in &SPAN_BOX_ROWS {
