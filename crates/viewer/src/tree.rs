@@ -551,24 +551,26 @@ pub fn headline(spoken: &SpokenNode, pose: Option<&str>) -> Headline {
 }
 
 /// **The label a create form proposes** for a new node of kind `noun`
-/// ([`node_kind_noun`]'s word): `Extrude 3` when two extrudes in `doc`
-/// carry labels — counted among that kind's labels at this moment, and
-/// counting past any `Kind N` already taken, so the proposal repeats
-/// no label of its kind. Only a proposal: the kernel mints no label,
-/// and this is stored only if the person commits it. `None` for a
-/// `noun` no label can hold (one with a control character).
+/// ([`node_kind_noun`]'s word): `Kind N`, where N counts the live nodes
+/// of that kind at this moment, plus one — three extrudes, labelled or
+/// not, propose `Extrude 4` — stepping past any N whose `Kind N` a node
+/// of that kind already carries, so the proposal repeats no label of
+/// its kind. Only a proposal: the kernel mints no label, and this is
+/// stored only if the person commits it. `None` for a `noun` no label
+/// can hold (one with a control character).
 #[must_use]
 pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
-    let taken: Vec<&str> = doc
-        .labels()
-        .iter()
-        .filter(|(id, _)| {
+    let of_kind = || {
+        doc.order().iter().filter(|id| {
             doc.node(**id)
                 .is_some_and(|node| node_kind_noun(node) == noun)
         })
-        .map(|(_, label)| label.as_str())
+    };
+    let taken: Vec<&str> = of_kind()
+        .filter_map(|id| doc.label(*id))
+        .map(Label::as_str)
         .collect();
-    let text = (taken.len() + 1..)
+    let text = (of_kind().count() + 1..)
         .map(|n| format!("{noun} {n}"))
         .find(|text| !taken.contains(&text.as_str()))?;
     Label::new(text).ok()

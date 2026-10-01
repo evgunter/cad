@@ -19,7 +19,7 @@ branch: emit/node-labels
 - Split and inline carry labels on the nodes they move; an instance left by split is unlabelled.
 - One spoken-node type (id, kind, label), built by the frame that owns the document when a sentence is made (edit refusals at the raise site; evaluation's node errors in the node frame), never inside a value the evaluation memo reuses. One `Display`: `Extrude "base plate" (3fa9c1d2a0b1)`, `Extrude 3fa9c1d2a0b1` when unlabelled, `node 3fa9c1d2a0b1` when gone. The kind noun moves from `viewer::tree::node_kind` into editor-core.
 - Python: `NodeId` repr is the full 16 hex digits; `doc.label(node)`, `DocEdit.set_label`, `label=` on insert helpers.
-- Viewer: a labelled row's headline is its label, with kind and tag muted beside it; an unlabelled row shows kind, pose and tag. Create forms propose an editable "Kind N", stored only when committed. Rename is a `SetLabel`.
+- Viewer: a labelled row's headline is its label, with kind and tag muted beside it; an unlabelled row shows kind, pose and tag. Create forms propose an editable "Kind N", stored only when committed; N is the number of live nodes of that kind plus one, stepping past any N whose "Kind N" that kind already carries (ruled in PR 3713's review: three unlabelled extrudes propose "Extrude 4"). Rename is a `SetLabel`.
 
 Sequencing: PR 3631 landed the unlabelled slice first (the spoken node, the tag, the full id on machine channels, the viewer's rows and pickers), before `sibling-branches-mint-one-node-id-for-different-nodes` unit 2 (PR 3594), and took that much of its unit 3. The rest of this row — the label and everything below — lands after PR 3594.
 

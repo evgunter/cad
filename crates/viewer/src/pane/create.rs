@@ -1839,14 +1839,14 @@ impl ViewerBehavior<'_> {
     /// **A create form's commit, with its label**: `op` queued as
     /// [`SessionOp::CreateLabelled`] when the form's label field holds
     /// a label — the insert and the label as one undo — or alone when
-    /// it is blank. The field's draft is spent either way, so the next
-    /// creation of this kind proposes afresh. A text the label rule
-    /// refuses queues nothing and is said on the status line.
+    /// it is blank. The field's draft is kept until the creation
+    /// commits (`Drafts::creation_landed`), so a refused creation does
+    /// not cost what was typed. A text the label rule refuses queues
+    /// nothing and is said on the status line.
     fn push_labelled(&mut self, noun: &'static str, op: SessionOp) {
         let text = self.creation_label_text(noun);
         match crate::drafts::label_typed(&text) {
             Ok(label) => {
-                self.drafts.creation_labels.remove(noun);
                 match (label, Creation::of(op)) {
                     (Some(label), Ok(creation)) => {
                         self.ops.push(SessionOp::CreateLabelled { creation, label });

@@ -750,6 +750,11 @@ impl Drafts {
     /// untouched again, and still open on the node, which is where the
     /// person is still working.
     pub(crate) fn accepted(&mut self, op: &SessionOp, minted: &[RecipeNodeId]) {
+        // A labelled creation settles the form its creation came from.
+        let op = match op {
+            SessionOp::CreateLabelled { creation, .. } => creation.op(),
+            op => op,
+        };
         let SessionOp::AddProfile { plane, .. } = op else {
             return;
         };
@@ -761,6 +766,20 @@ impl Drafts {
             && let Some(frame) = minted.first()
         {
             self.profile_plane = Some(ProfilePlane::Existing(*frame));
+        }
+    }
+
+    /// **A creation landed**: the label its form held is spent, so the
+    /// next creation of that kind proposes afresh. The form is found by
+    /// the kind noun of the last node the action minted — the noun a
+    /// form's label field is keyed by, which is that node's kind
+    /// (`each_datum_choices_noun_is_the_kind_of_the_node_it_commits`,
+    /// `creation_nouns`). Called only for an op that committed, so a
+    /// refused creation keeps what was typed.
+    pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
+        if let Some(node) = minted.last().and_then(|id| doc.node(*id)) {
+            self.creation_labels
+                .remove(pncad::document::node_kind_noun(node));
         }
     }
 
@@ -1106,6 +1125,51 @@ mod tests {
             "the frame the action minted, not the profile and not `NewXy` again"
         );
         assert_eq!(drafts.profile_shape, None, "the shape still rests");
+    }
+
+    /// A labelled creation settles its form as the bare creation does,
+    /// and spends the label draft of the kind it minted — only once it
+    /// has landed, and only that kind's.
+    #[test]
+    fn a_landed_creation_spends_its_kinds_label_draft_and_settles_its_form() {
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("drafts-creation-landed", tol);
+        let (doc, frame) = inserted(&doc, xy_frame(), tol);
+        let mut drafts = Drafts {
+            profile_plane: Some(ProfilePlane::NewXy),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+        drafts
+            .creation_labels
+            .insert("Datum frame", "floor".to_owned());
+        drafts.creation_labels.insert("Extrude", "plate".to_owned());
+        let loops = drafts
+            .profile_programs(Notation::DEFAULT)
+            .expect("the default circle lowers");
+        let creation = crate::session::Creation::of(SessionOp::AddProfile {
+            plane: ProfilePlane::NewXy,
+            loops,
+        })
+        .expect("adding a profile creates a node");
+        drafts.accepted(
+            &SessionOp::CreateLabelled {
+                creation,
+                label: pncad::document::Label::new("sketch").expect("a label"),
+            },
+            &[frame],
+        );
+        assert_eq!(
+            drafts.profile_plane,
+            Some(ProfilePlane::Existing(frame)),
+            "the labelled add settles the form as the bare one does"
+        );
+        drafts.creation_landed(&doc, &[frame]);
+        assert_eq!(
+            drafts.creation_labels.keys().copied().collect::<Vec<_>>(),
+            vec!["Extrude"],
+            "the frame's draft is spent, the extrude's kept"
+        );
     }
 
     /// An accepted add on an EXISTING frame leaves the pick where it

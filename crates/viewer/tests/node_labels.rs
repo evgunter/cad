@@ -2,7 +2,7 @@
 //! rename is one `SetLabel` and one undo, a labelled creation is the
 //! insert and its label as one undo, a labelled row leads with its
 //! label, and a create form proposes `Kind N` counted among that kind's
-//! labels.
+//! nodes.
 
 #![allow(clippy::expect_used, clippy::panic)]
 
@@ -160,42 +160,52 @@ fn a_labelled_rows_headline_is_its_label_with_kind_and_tag_muted() {
     );
 }
 
-/// The proposal counts the labels its kind carries now, skips any
-/// `Kind N` already taken by that kind, and ignores other kinds'.
+/// The proposal counts the live nodes of its kind, labelled or not,
+/// steps past any `Kind N` a node of that kind already carries, and
+/// ignores other kinds' labels.
 #[test]
-fn a_create_form_proposes_kind_n_counted_among_that_kinds_labels() {
+fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
     let tol = Tol::witness();
     let (doc, first) = extruded("viewer-node-labels-proposal", tol);
     let proposal = |doc: &Doc<ProfileProgram>| {
         proposed_label(doc, "Extrude").map(|label| label.as_str().to_owned())
     };
+    assert_eq!(proposal(&doc).as_deref(), Some("Extrude 2"), "one extrude");
+    let another = |doc: &Doc<ProfileProgram>| {
+        let (doc, profile) = common::framed_square(doc, 0.01, tol);
+        let (doc, extrude) = common::inserted(
+            &doc,
+            Node::Extrude {
+                profile,
+                distance: common::len(0.02),
+            },
+            tol,
+        );
+        (doc, profile, extrude)
+    };
+    let (doc, _, second) = another(&doc);
+    let (doc, profile, _) = another(&doc);
     assert_eq!(
         proposal(&doc).as_deref(),
-        Some("Extrude 1"),
-        "none labelled"
-    );
-
-    let (doc, profile) = common::framed_square(&doc, 0.01, tol);
-    let (doc, second) = common::inserted(
-        &doc,
-        Node::Extrude {
-            profile,
-            distance: common::len(0.02),
-        },
-        tol,
+        Some("Extrude 4"),
+        "three unlabelled extrudes"
     );
     let doc = relabelled(&doc, first, "base", tol);
-    assert_eq!(proposal(&doc).as_deref(), Some("Extrude 2"), "one labelled");
-    let doc = relabelled(&doc, second, "Extrude 3", tol);
     assert_eq!(
         proposal(&doc).as_deref(),
         Some("Extrude 4"),
-        "two labelled, and `Extrude 3` taken"
+        "a label does not change the count"
     );
-    let doc = relabelled(&doc, profile, "Extrude 4", tol);
+    let doc = relabelled(&doc, second, "Extrude 4", tol);
     assert_eq!(
         proposal(&doc).as_deref(),
-        Some("Extrude 4"),
+        Some("Extrude 5"),
+        "`Extrude 4` is taken by an extrude"
+    );
+    let doc = relabelled(&doc, profile, "Extrude 5", tol);
+    assert_eq!(
+        proposal(&doc).as_deref(),
+        Some("Extrude 5"),
         "a profile's label is not an extrude's"
     );
     assert_eq!(
