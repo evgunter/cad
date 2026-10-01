@@ -86,3 +86,21 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   Review: **dual**, because it reshapes a certification surface shared
   crate-wide. The mint-door collapse (`set_edge_curve` reading the
   policy, 46 call sites) follows as a second unit.
+- Section rings: PR 3658. Measured on main:
+  - The U-cutter's `LoopRoleInverted` no longer reproduces; CONTACT-6
+    fixed the sense bit. The cancelling-face encoding remains.
+  - The steep ringed-cap row comes from the join order: `u` was compared
+    bit-exactly, so crossings that are equal in truth were visited
+    outer, outer, ring, ring.
+  - The square-plus-disc row comes from the finish, which never nested
+    holes.
+
+  Both are fixed: column order in `order.rs`, and `nest_hole_sections`
+  in `finish.rs`, which falls back to the old encoding when it cannot
+  place a hole. The lane filed `split-pairs-curved-face-crossings-across-the-wrong-arc`
+  and `plane-section-reports-hole-polygons-clockwise-with-no-role`.
+  The first head was red only on `reach_volume_backstop` at 1e-12. That
+  is main's red, fixed by PR 3636, and merging main brought the fix in.
+  A dual review is dispatched on the frozen head `6ceb56ffb`.
+- The tangency lane stays held. Ev has not answered PR 3642, and the
+  build box is full (nurbs-lane, two fix passes, a dual).
