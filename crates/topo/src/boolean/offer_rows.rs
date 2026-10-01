@@ -179,11 +179,15 @@ cases! {
         Withdrawn(Because::Refuses("ContactContradicted")) =>
         arc_against_a_wall(1.0 + D, Some(ContactClass::Rest));
     thin_wedge_on_a_block: "Coincidence(Sectors)", true, Public, Valued =>
-        wedge_on_a_block(super::super::BooleanOp::Union);
+        wedge_on_a_block(super::super::BooleanOp::Union, 5.0, D);
     thin_wedge_cut_from_a_block: "Coincidence(Sectors)", true, Public, Valued =>
-        wedge_on_a_block(super::super::BooleanOp::Subtract);
+        wedge_on_a_block(super::super::BooleanOp::Subtract, 5.0, D);
     thin_wedge_meeting_a_block: "Coincidence(Sectors)", true, Public, Valued =>
-        wedge_on_a_block(super::super::BooleanOp::Intersect);
+        wedge_on_a_block(super::super::BooleanOp::Intersect, 5.0, D);
+    // Tilted past the band at the arm, so the normals decide it off, while
+    // its bounds still read On: the bounds' margin decides it.
+    thinner_wedge_tilted_past_the_band: "Coincidence(Sectors)", true, Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Union, 2.0, 1.5e-8);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
     tangent_screen_of_a_tilted_block: "Coincidence(Planes)", true, Public,
@@ -504,11 +508,15 @@ fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), Boolean
     .map(|_: CurvedEvent<f64>| ())
 }
 
-/// A wedge-cornered block of opening 5° whose bottom face is tilted by
-/// `D` about one wedge edge, its corner on a block's top face: `op`.
-fn wedge_on_a_block(op: super::super::BooleanOp) -> Result<(), BooleanError> {
+/// A wedge-cornered block of opening `opening_deg` whose bottom face is
+/// tilted by `tilt` about one wedge edge, its corner on a block's top
+/// face: `op`.
+fn wedge_on_a_block(
+    op: super::super::BooleanOp,
+    opening_deg: f64,
+    tilt: f64,
+) -> Result<(), BooleanError> {
     use crate::test_support_fixtures::{brick, mapped_cube};
-    let (opening_deg, tilt) = (5.0_f64, D);
     let tol = Tol::witness();
     let phi = opening_deg.to_radians();
     let (ea, eb) = (

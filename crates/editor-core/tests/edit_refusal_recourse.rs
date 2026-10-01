@@ -284,7 +284,6 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "bool_point_in_solid_denom",
             "bool_point_in_solid_infinity",
             "bool_point_in_solid_order",
-            "bool_sector_coplanar",
             "carrier_endpoint_end",
             "carrier_endpoint_start",
             "carrier_matches_mapped_source",
