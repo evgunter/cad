@@ -2,7 +2,10 @@
 id: curved-escalations-offer-a-declaration-the-door-cannot-take
 kind: issue
 title: curved: an ellipse carrier's escalation offers 'declare the coincidence' and 'construct the Circle carrier' at a split, which takes neither
-status: open
+status: closed
+closed: 2026-10-01
+pr: 3626
+branch: curved/equator-seam
 opened: 2026-09-29
 priority: P2
 cost: E
@@ -43,3 +46,7 @@ declare, and no door the user reaches builds a carrier. The routing can
 live here or at `SplitJoinError::Section` (REACH/TANG ground, which
 already routes `NO_DECLARATION_RECOURSE` for its own escalations). See
 `sweep::blend::BlendError::Escalated`'s `Display` for the shape.
+
+## Closed (2026-10-01)
+
+Merged in PR 3626 (single full Opus review, MERGEABLE; outside the suspended A/B protocol, no row).

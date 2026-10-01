@@ -32,7 +32,7 @@ use crate::fixture::{
 
 use editor_core::{
     BooleanOp, BooleanValue, CapEnd, EntityKey, EntityKind, Entry, Evaluation, NameRef, Node,
-    ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, ValuePayload,
+    ProfileDoc, ProfileVertexRef, Qualifier, RecipeNodeId, RoleSeg, StableName, ValuePayload,
 };
 use geom_core::Tol;
 use topo::BooleanResultKind;
@@ -530,8 +530,14 @@ fn a_b_edge_split_in_a_b_clone_descends_to_its_b_edge() {
 }
 
 /// A name with its node erased, optionally with its sides exchanged:
-/// `FromA` ↔ `FromB` and `Seam{a, b}` → `Seam{b, a}` at the head.
+/// `FromA` ↔ `FromB` and `Seam{a, b}` → `Seam{b, a}` at the head. An
+/// edge piece's ends are the node's own vertex names, so they are
+/// spelled the same way and put back in order.
 fn spelled(n: &StableName, swap: bool) -> String {
+    format!("{:?}", respelled(n, swap))
+}
+
+fn respelled(n: &StableName, swap: bool) -> StableName {
     let mut n = n.clone();
     n.node = RecipeNodeId(0);
     if swap && let Some(h) = n.path.first_mut() {
@@ -542,7 +548,12 @@ fn spelled(n: &StableName, swap: bool) -> String {
             o => o,
         };
     }
-    format!("{n:?}")
+    if let Some(RoleSeg::Fragment(Qualifier::Ends(ends))) = n.path.last_mut() {
+        let mut out: Vec<StableName> = ends.iter().map(|e| respelled(e, swap)).collect();
+        out.sort();
+        *ends = out;
+    }
+    n
 }
 
 fn micro(x: f64) -> i64 {
