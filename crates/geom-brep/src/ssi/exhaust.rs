@@ -345,9 +345,7 @@ impl ExhaustivenessRefusal {
     }
 }
 
-/// Which length a [`FloorRefusal`] is about: one of the subdivision's
-/// two floors, or the march's settling tolerance, which the same rule
-/// ([`resolves`]) refuses.
+/// Which of the subdivision's two floors a [`FloorRefusal`] is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FloorKind {
     /// The seeding floor, a fraction of the caller's extent
@@ -356,11 +354,6 @@ pub enum FloorKind {
     /// The accounting floor, a multiple of ε ([`SSI_FLOOR`]): the proof
     /// obligation's.
     Accounting,
-    /// The march's settling tolerance, [`SSI_NEWTON_TOL`]·ε: the
-    /// residual Newton refinement settles every marched state to.
-    ///
-    /// [`SSI_NEWTON_TOL`]: super::SSI_NEWTON_TOL
-    Settling,
 }
 
 impl FloorKind {
@@ -368,7 +361,6 @@ impl FloorKind {
         match self {
             Self::Seeding => "seeding floor",
             Self::Accounting => "accounting floor",
-            Self::Settling => "march's settling tolerance",
         }
     }
 }
@@ -409,9 +401,6 @@ pub enum FloorFault {
 /// floor. A floor no cell can reach would leave the cell budget to
 /// answer in its place. That is the wrong diagnosis: the floor was
 /// never usable, and the refusal says why by the rate that crossed it.
-/// The march's settling tolerance is refused by the same rule
-/// ([`FloorKind::Settling`]), where Newton would otherwise answer that
-/// the march lost its branch.
 #[derive(Clone, Copy, Debug)]
 pub struct FloorRefusal {
     /// Which lane's domain, and on the chart lane the rate the metres
@@ -452,7 +441,7 @@ impl FloorRefusal {
 
 /// The ℝ³ lane's floor is finer than the slab's coordinates resolve:
 /// the geometry sits too far from the origin for ε.
-const R3_SCALE: SizedDecision = SizedDecision {
+pub(super) const R3_SCALE: SizedDecision = SizedDecision {
     lever: "move the geometry nearer the origin, within the model's size range, where its \
             coordinates resolve the tolerance",
     size: "scale",
@@ -464,7 +453,7 @@ const R3_SCALE: SizedDecision = SizedDecision {
 /// The chart lane's floor is finer than the wall's parameters resolve:
 /// the wall moves more than the floor across the smallest step of its
 /// parameters.
-const CHART_SCALE: SizedDecision = SizedDecision {
+pub(super) const CHART_SCALE: SizedDecision = SizedDecision {
     lever: "bring the spline face within the model's size range, or move its parameter domain \
             nearer zero, so the face moves less than the tolerance across the finest step of \
             its parameters",
@@ -515,25 +504,12 @@ impl core::fmt::Display for FloorRefusal {
                 ", over a domain whose largest coordinate is not a finite number, which has \
                  no resolution to compare it with"
             ),
-            FloorFault::BelowResolution { resolution, reach } => {
-                write!(
-                    f,
-                    ", which the domain cannot resolve: where it reaches {reach:e} {unit} from \
-                     zero "
-                )?;
-                match self.floor {
-                    FloorKind::Seeding | FloorKind::Accounting => write!(
-                        f,
-                        "the finest cell bisection can cut is {resolution:e} {unit} wide, so \
-                         the subdivision could never refine to the floor"
-                    ),
-                    FloorKind::Settling => write!(
-                        f,
-                        "adjacent coordinates are {resolution:e} {unit} apart, so no marched \
-                         state could settle to it"
-                    ),
-                }
-            }
+            FloorFault::BelowResolution { resolution, reach } => write!(
+                f,
+                ", which the domain cannot resolve: where it reaches {reach:e} {unit} from \
+                 zero the finest cell bisection can cut is {resolution:e} {unit} wide, so the \
+                 subdivision could never refine to the floor"
+            ),
         }
     }
 }
@@ -588,7 +564,11 @@ impl<C: SweepCell> SweepFloor<C> {
     ///
     /// # Errors
     ///
-    /// [`SsiError::FloorUnresolvable`] as [`resolves`].
+    /// [`SsiError::FloorUnresolvable`] when `meters` is not a positive
+    /// finite length, when `width` is not finite, or when `width` is
+    /// below the width of the finest cell bisection can cut at the
+    /// root's largest coordinate — the exact boundary, below which the
+    /// split of that cell returns the cell itself.
     fn mint(
         root: C,
         lane: ExhaustLane,
@@ -596,7 +576,29 @@ impl<C: SweepCell> SweepFloor<C> {
         meters: f64,
         width: f64,
     ) -> Result<Self, SsiError> {
-        resolves(root, lane, floor, meters, width)?;
+        let refuse = |fault| {
+            Err(SsiError::FloorUnresolvable(FloorRefusal {
+                lane,
+                floor,
+                meters,
+                width,
+                fault,
+            }))
+        };
+        if !(meters.is_finite() && meters > 0.0) {
+            return refuse(FloorFault::NotALength);
+        }
+        if !width.is_finite() {
+            return refuse(FloorFault::Overflows);
+        }
+        let reach = root.reach();
+        if !reach.is_finite() {
+            return refuse(FloorFault::DomainUnreadable);
+        }
+        let resolution = C::finest_at(reach).width();
+        if width < resolution {
+            return refuse(FloorFault::BelowResolution { resolution, reach });
+        }
         Ok(Self { root, lane, width })
     }
 
@@ -606,83 +608,16 @@ impl<C: SweepCell> SweepFloor<C> {
     }
 }
 
-/// **The one resolution rule**, which every floor and the march's
-/// settling tolerance pass: `meters`, which is `width` in `lane`'s
-/// units, is a positive finite length, and `width` is no narrower than
-/// the finest cell bisection can cut at `root`'s largest coordinate —
-/// the exact boundary, below which the split of that cell returns the
-/// cell itself, and the gap between the two floats there.
-///
-/// # Errors
-///
-/// [`SsiError::FloorUnresolvable`], naming `floor`, when `meters` is
-/// not a positive finite length, when `width` is not finite, when the
-/// root's largest coordinate is not, or when `width` is below that
-/// finest cell's width.
-fn resolves<C: SweepCell>(
-    root: C,
-    lane: ExhaustLane,
-    floor: FloorKind,
-    meters: f64,
-    width: f64,
-) -> Result<(), SsiError> {
-    let refuse = |fault| {
-        Err(SsiError::FloorUnresolvable(FloorRefusal {
-            lane,
-            floor,
-            meters,
-            width,
-            fault,
-        }))
-    };
-    if !(meters.is_finite() && meters > 0.0) {
-        return refuse(FloorFault::NotALength);
-    }
-    if !width.is_finite() {
-        return refuse(FloorFault::Overflows);
-    }
+/// The spacing of adjacent floats where `root` reaches furthest from
+/// zero, in the lane's units, with that reach: the width of the finest
+/// cell bisection can cut there, which the floors are held to. The gap
+/// is `NaN` where the reach is not finite.
+pub(super) fn coordinate_gap<C: SweepCell>(root: C) -> (f64, f64) {
     let reach = root.reach();
     if !reach.is_finite() {
-        return refuse(FloorFault::DomainUnreadable);
+        return (reach, f64::NAN);
     }
-    let resolution = C::finest_at(reach).width();
-    if width < resolution {
-        return refuse(FloorFault::BelowResolution { resolution, reach });
-    }
-    Ok(())
-}
-
-/// The march's settling tolerance `meters` against the ℝ³ box `reach`
-/// the traced locus lies in: every marched state's residual is
-/// evaluated at coordinates there ([`resolves`]).
-///
-/// # Errors
-///
-/// [`SsiError::FloorUnresolvable`] naming [`FloorKind::Settling`].
-pub(crate) fn settles_r3(reach: Box3, meters: f64) -> Result<(), SsiError> {
-    resolves(reach, ExhaustLane::R3, FloorKind::Settling, meters, meters)
-}
-
-/// The march's settling tolerance `meters` against a NURBS operand's
-/// chart `root`, crossed into chart units by `speed`: Newton moves the
-/// state through those parameters ([`resolves`]).
-///
-/// # Errors
-///
-/// [`SsiError::FloorUnresolvable`] naming [`FloorKind::Settling`].
-pub(crate) fn settles_chart(
-    root: UvRect,
-    meters: f64,
-    speed: SupSpeed<f64>,
-) -> Result<(), SsiError> {
-    let lane = ExhaustLane::Chart { speed };
-    resolves(
-        root,
-        lane,
-        FloorKind::Settling,
-        meters,
-        speed.to_param(meters),
-    )
+    (reach, C::finest_at(reach).width())
 }
 
 /// **Which of the subdivision's two duties the caller is asking for.**

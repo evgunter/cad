@@ -1949,6 +1949,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::CellBudget { .. }
         | E::StepBudget { .. }
         | E::FloorUnresolvable(_)
+        | E::SettlingUnresolvable(_)
         | E::StepCollapsed { .. }
         | E::StepUnusable { .. }
         | E::SeedRefinementFailed { .. }

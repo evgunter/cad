@@ -40,7 +40,8 @@
 //! 6. Advance by the cubic approximant, then **Newton refinement** to
 //!    the surface pair: a fixed [`SSI_NEWTON_ITERS`] cap of
 //!    minimum-norm corrections, early-exiting on
-//!    [`SSI_NEWTON_TOL`]·ε (an f64 structure branch, C6 lane).
+//!    [`SSI_NEWTON_TOL`]·ε, or the coordinates' noise where that is larger
+//!    (`Readout`; an f64 structure branch, C6 lane).
 //!
 //! # The idealized stepper (the differential spec, T4/PERF-PLAN §4.4)
 //!
@@ -110,7 +111,7 @@ use crate::dihedral::{decide, decide_positive, decide_reported};
 use crate::recourse::Refused;
 
 use super::enclose::Box3;
-use super::exhaust::{self, UvRect};
+use super::exhaust::{self, ExhaustLane, UvRect};
 use super::system::LocalSystem;
 use super::{SsiError, TraceDecision};
 
@@ -135,7 +136,80 @@ use super::{SsiError, TraceDecision};
 /// ([`MarchTol::decoupled`]), and only that one door reaches for it;
 /// every certifying door derives its own from the run band.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct MarchTol(f64);
+pub(crate) struct MarchTol {
+    /// The tolerance, in metres.
+    meters: f64,
+    /// The residual Newton settles every state to, in metres.
+    settle: f64,
+}
+
+/// **How finely a march's residual can be read**, where its states
+/// reach furthest: the spacing of adjacent floats there, and the noise
+/// the lane's evaluation carries on top of it, in ulps of that spacing.
+/// A Newton target below that noise is one no state reliably reaches,
+/// so [`MarchTol`] settles to whichever is larger.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Readout {
+    /// Whose coordinates bind: the ℝ³ box the residual is evaluated in,
+    /// or a NURBS operand's chart Newton moves through.
+    lane: ExhaustLane,
+    /// Their largest magnitude, in the lane's units.
+    reach: f64,
+    /// The spacing of adjacent floats there, in the lane's units.
+    gap: f64,
+    /// The residual noise, in metres.
+    noise: f64,
+}
+
+impl Readout {
+    /// The residual evaluated at coordinates in `reach`, with `ulps` of
+    /// their spacing as noise.
+    pub(crate) fn spatial(reach: Box3, ulps: f64) -> Self {
+        let (reach, gap) = exhaust::coordinate_gap(reach);
+        Self {
+            lane: ExhaustLane::R3,
+            reach,
+            gap,
+            noise: ulps * gap,
+        }
+    }
+
+    /// The louder of this readout and a NURBS operand's chart `root`,
+    /// whose parameter spacing crosses into metres at `speed`, with
+    /// `ulps` of it as noise.
+    pub(crate) fn or_chart(self, root: UvRect, speed: SupSpeed<f64>, ulps: f64) -> Self {
+        let (reach, gap) = exhaust::coordinate_gap(root);
+        let noise = ulps * speed.to_meters(gap);
+        if noise <= self.noise {
+            return self;
+        }
+        Self {
+            lane: ExhaustLane::Chart { speed },
+            reach,
+            gap,
+            noise,
+        }
+    }
+}
+
+/// Why the march cannot settle its states finely enough for the run's
+/// tolerance ([`SsiError::SettlingUnresolvable`]): the coordinates the
+/// residual is read in are too coarse, where they reach furthest, for a
+/// settled state to sit well inside ε.
+#[derive(Clone, Copy, Debug)]
+pub struct SettlingRefusal {
+    /// Whose coordinates bind, and on the chart lane the rate their
+    /// spacing crossed into metres by.
+    pub lane: ExhaustLane,
+    /// Their largest magnitude, in the lane's units.
+    pub reach: f64,
+    /// The spacing of adjacent floats there, in the lane's units.
+    pub gap: f64,
+    /// The residual the march can settle to there, in metres.
+    pub settle: f64,
+    /// The run's tolerance, in metres.
+    pub tolerance: f64,
+}
 
 impl MarchTol {
     /// The generator's tolerance derived from the run's band — the run
@@ -148,54 +222,41 @@ impl MarchTol {
     /// accounting floor and the certificate's floors are one number by
     /// enforcement rather than by intent.
     ///
-    /// `reach` is the ℝ³ box the traced locus lies in.
-    ///
     /// # Errors
     ///
-    /// [`SsiError::FloorUnresolvable`] naming
-    /// [`FloorKind::Settling`](super::FloorKind::Settling) when the
-    /// coordinates in `reach` cannot resolve the residual Newton
-    /// settles to ([`MarchTol::settling`]).
-    pub(crate) fn from_band(band: Band, reach: Box3) -> Result<Self, SsiError> {
-        Self::mint(band.zero(), reach)
+    /// [`SsiError::SettlingUnresolvable`] as [`MarchTol::settling`].
+    pub(crate) fn from_band(band: Band, readout: Readout) -> Result<Self, SsiError> {
+        Self::mint(band.zero(), readout)
     }
 
     /// Whether this is the run band's own tolerance.
     #[must_use]
     pub(crate) fn is_of(self, band: Band) -> bool {
-        self.0 == band.zero()
+        self.meters == band.zero()
     }
 
-    /// The tolerance, once its settling tolerance is a length the
-    /// coordinates in `reach` resolve, by the floors' own rule.
-    fn mint(meters: f64, reach: Box3) -> Result<Self, SsiError> {
-        let tol = Self(meters);
-        if tol.settling() <= 0.0 {
-            return Err(SsiError::InvalidMarchTol { value: meters });
+    /// The tolerance, settling to the larger of [`SSI_NEWTON_TOL`] of it
+    /// and the `readout`'s noise, refused where that is not within
+    /// [`SSI_SETTLE_MAX`] of it.
+    fn mint(meters: f64, readout: Readout) -> Result<Self, SsiError> {
+        let settle = Real::max(SSI_NEWTON_TOL * meters, readout.noise);
+        if settle.is_nan() || settle > SSI_SETTLE_MAX * meters {
+            return Err(SsiError::SettlingUnresolvable(SettlingRefusal {
+                lane: readout.lane,
+                reach: readout.reach,
+                gap: readout.gap,
+                settle,
+                tolerance: meters,
+            }));
         }
-        exhaust::settles_r3(reach, tol.settling())?;
-        Ok(tol)
+        Ok(Self { meters, settle })
     }
 
     /// The residual, in metres, Newton refinement settles every state
-    /// to: [`SSI_NEWTON_TOL`] of the tolerance.
+    /// to.
     #[must_use]
     pub(crate) fn settling(self) -> f64 {
-        SSI_NEWTON_TOL * self.0
-    }
-
-    /// The same tolerance, once its settling tolerance is also a length
-    /// a NURBS operand's chart `root` resolves at `speed`: Newton moves
-    /// the state through those parameters.
-    ///
-    /// # Errors
-    ///
-    /// [`SsiError::FloorUnresolvable`] naming
-    /// [`FloorKind::Settling`](super::FloorKind::Settling) on the chart
-    /// lane.
-    pub(crate) fn over_chart(self, root: UvRect, speed: SupSpeed<f64>) -> Result<Self, SsiError> {
-        exhaust::settles_chart(root, self.settling(), speed)?;
-        Ok(self)
+        self.settle
     }
 
     /// A generator tolerance **deliberately decoupled** from the run
@@ -218,18 +279,18 @@ impl MarchTol {
     ///
     /// [`SsiError::InvalidMarchTol`] when `meters` is not finite and
     /// strictly positive — a typed refusal, never a silent clamp — and
-    /// [`MarchTol::from_band`]'s refusal over `reach`.
-    pub(super) fn decoupled(meters: f64, reach: Box3) -> Result<Self, SsiError> {
+    /// [`MarchTol::from_band`]'s refusal.
+    pub(super) fn decoupled(meters: f64, readout: Readout) -> Result<Self, SsiError> {
         if !(meters.is_finite() && meters > 0.0) {
             return Err(SsiError::InvalidMarchTol { value: meters });
         }
-        Self::mint(meters, reach)
+        Self::mint(meters, readout)
     }
 
     /// The tolerance in meters — the `f64` the untrusted lane consumes.
     #[must_use]
     pub(crate) fn meters(self) -> f64 {
-        self.0
+        self.meters
     }
 }
 
@@ -237,9 +298,28 @@ impl MarchTol {
 pub const SSI_NEWTON_ITERS: usize = 8;
 
 /// Newton's early-exit residual, as a fraction of ε: refinement stops
-/// once the state satisfies both surfaces two orders inside tolerance.
+/// once the state satisfies both surfaces two orders inside tolerance,
+/// where the coordinates resolve that (`Readout`).
 /// A structure branch on `f64` (C6's lane), not a predicate.
 pub const SSI_NEWTON_TOL: f64 = 1.0e-2;
+
+/// The coarsest residual, as a fraction of ε, a march may settle its
+/// states to. The certificate bounds the fitted carrier against ε, so
+/// samples settled much coarser than this leave it no room: measured on
+/// the threaded cylinder × sphere at ε = 1e-9, states settled to 0.47ε
+/// certify and states settled to 0.93ε escalate limb 2; the plane ×
+/// wall at ε = 1e-12 reads the same (0.45ε certifies, 0.91ε escalates).
+pub const SSI_SETTLE_MAX: f64 = 0.5;
+
+/// A quadric pair's residual noise, in ulps of its coordinates: twice
+/// the measured need. The threaded cylinder × sphere settles at every
+/// reach to 1e6 m at ε = 1e-9 with one ulp.
+pub const SSI_QUADRIC_NOISE_ULPS: f64 = 2.0;
+
+/// A spline pair's residual noise, in ulps of its coordinates: twice
+/// the measured need. The plane × wall at 20–1000 m and ε = 1e-12 loses
+/// its branch settling to two ulps and settles at four.
+pub const SSI_SPLINE_NOISE_ULPS: f64 = 8.0;
 
 /// Hoffmann's "keep the higher contributions small" (p. 215) as a named
 /// constant: the quadratic and cubic terms of the approximant may each
@@ -709,7 +789,7 @@ where
 }
 
 /// Minimum-norm Newton onto `F = 0`, fixed cap, early exit at
-/// [`SSI_NEWTON_TOL`]·ε. `None` when the iteration poisons or fails to
+/// [`MarchTol::settling`]. `None` when the iteration poisons or fails to
 /// settle — never a best-effort state.
 pub(crate) fn newton_refine<const M: usize, const N: usize, S>(
     sys: &S,
@@ -970,15 +1050,25 @@ where
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        Box3, LocalSystem, MarchContext, MarchTol, NormalPair, SSI_NEWTON_TOL, SsiError, StepFault,
-        StepperMode, TraceDecision, TransversalityData, march,
+        Box3, LocalSystem, MarchContext, MarchTol, NormalPair, Readout, SSI_NEWTON_TOL,
+        SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SsiError, StepFault, StepperMode, TraceDecision,
+        TransversalityData, march,
     };
-    use crate::ssi::{FloorFault, FloorKind};
+    use crate::ssi::ExhaustLane;
     use geom_core::{Band, Point3, Vec3};
 
-    /// The box `[-r, r]³`.
-    fn reaching(r: f64) -> Box3 {
-        Box3::around(Point3::new(0.0, 0.0, 0.0), r)
+    /// A quadric pair's residual read in the box of half-width `r`
+    /// around `(x, 0, 0)`.
+    fn read_at(x: f64, r: f64) -> Readout {
+        Readout::spatial(
+            Box3::around(Point3::new(x, 0.0, 0.0), r),
+            SSI_QUADRIC_NOISE_ULPS,
+        )
+    }
+
+    /// The same, about the origin.
+    fn reaching(r: f64) -> Readout {
+        read_at(0.0, r)
     }
 
     /// A two-plane system in ℝ³ whose locus is the `x` axis, with the
@@ -1314,9 +1404,7 @@ mod tests {
     /// length is a caller error, not a value to repair silently.
     #[test]
     fn a_decoupled_march_tolerance_refuses_typed_on_a_non_length() {
-        // The least subnormal is a length, but its settling residual
-        // underflows to zero.
-        for bad in [0.0_f64, -1.0e-9, f64::NAN, f64::INFINITY, f64::from_bits(1)] {
+        for bad in [0.0_f64, -1.0e-9, f64::NAN, f64::INFINITY] {
             match MarchTol::decoupled(bad, reaching(1.0)) {
                 Err(SsiError::InvalidMarchTol { value }) => {
                     assert!(value.is_nan() || value == bad, "{value:e} vs {bad:e}");
@@ -1335,34 +1423,41 @@ mod tests {
         );
     }
 
-    /// **A march tolerance whose settling residual the coordinates
-    /// cannot resolve refuses where it is minted**, by the floors' own
-    /// rule, on both doors that mint one. Newton settles every state to
-    /// `SSI_NEWTON_TOL`·ε, which no state at `1e8` m reaches at ε =
-    /// `1e-9`: adjacent floats there are `1.49e-8` m apart. Near the
-    /// origin the same ε mints.
+    /// **The march settles to what its coordinates resolve, and refuses
+    /// by name where that is not well inside ε.** Near the origin it
+    /// settles to `SSI_NEWTON_TOL`·ε; where the coordinates' noise is
+    /// larger it settles to the noise; where the noise passes
+    /// `SSI_SETTLE_MAX`·ε, at `1e8` m against ε = `1e-9`, both doors
+    /// refuse by the scale.
     #[test]
-    fn a_settling_tolerance_the_coordinates_cannot_resolve_refuses_by_name() {
+    fn the_march_settles_to_what_its_coordinates_resolve() {
         let band = Band::new(1.0e-9, 1.0e-8).unwrap();
-        let far = Box3::around(Point3::new(1.0e8, 0.0, 0.0), 1.0);
+        let near = MarchTol::from_band(band, reaching(1.0)).unwrap();
+        assert_eq!(
+            near.settling(),
+            SSI_NEWTON_TOL * band.zero(),
+            "near the origin"
+        );
+        let mid = MarchTol::from_band(band, read_at(1.0e5, 1.0)).unwrap();
+        let gap = 1.0e5f64 - 1.0e5f64.next_down();
+        assert!(
+            mid.settling() > SSI_NEWTON_TOL * band.zero()
+                && mid.settling() >= SSI_QUADRIC_NOISE_ULPS * gap,
+            "at 1e5 m it settles to the noise: {:e}",
+            mid.settling()
+        );
         for minted in [
-            MarchTol::from_band(band, far),
-            MarchTol::decoupled(band.zero(), far),
+            MarchTol::from_band(band, read_at(1.0e8, 1.0)),
+            MarchTol::decoupled(band.zero(), read_at(1.0e8, 1.0)),
         ] {
-            let Err(SsiError::FloorUnresolvable(r)) = minted else {
+            let Err(SsiError::SettlingUnresolvable(r)) = minted else {
                 panic!("expected the settling door, got {minted:?}");
             };
-            assert_eq!(r.floor, FloorKind::Settling);
-            assert_eq!(
-                r.meters,
-                SSI_NEWTON_TOL * band.zero(),
-                "the settling residual"
+            assert!(matches!(r.lane, ExhaustLane::R3), "{r:?}");
+            assert!(
+                r.reach > 1.0e8 && r.gap > 1.0e-8 && r.settle > SSI_SETTLE_MAX * band.zero(),
+                "{r:?}"
             );
-            let FloorFault::BelowResolution { resolution, reach } = r.fault else {
-                panic!("{r:?}");
-            };
-            assert!(reach > 1.0e8 && resolution > 1.0e-8, "{r:?}");
         }
-        assert!(MarchTol::from_band(band, reaching(1.0e3)).is_ok());
     }
 }

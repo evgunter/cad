@@ -100,8 +100,8 @@ use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
     self, ChartAxis, ChartSpeedRefusal, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES,
-    SSI_SEED_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiTube,
-    TraceDecision, TubeScale,
+    SSI_SEED_FLOOR, SSI_SETTLE_MAX, SSI_TUBE_RADIUS, SettlingRefusal, SsiDomain, SsiError, SsiLimb,
+    SsiOperand, SsiTube, TraceDecision, TubeScale,
 };
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
@@ -3133,27 +3133,9 @@ fn a_floor_no_bisection_reaches_refuses_by_name_on_both_lanes() {
     );
 }
 
-/// **A march tolerance no coordinate there resolves refuses by name, on
-/// both lanes, before any march.** Newton settles every marched state
-/// to `SSI_NEWTON_TOL`·ε; at `1e8` m adjacent floats are `1.49e-8` m
-/// apart, wider than that at every ε of the battery. With accounting
-/// floors the domain does resolve (`1e-7` m on ℝ³; the wall's own
-/// chart on ℝ⁴), the floor doors pass, and the march refused
-/// `StepRefinementFailed` ("lost the branch") on both, where the cause
-/// is the scale.
-///
-/// The wall's chart is the other place Newton must resolve the
-/// residual: a wall near the origin scaled to `ε·2.5e14` m moves about
-/// `ε·1e15` m per chart unit, so the accounting floor of ε is about
-/// `1e-15` chart units, which `[0, 1]` resolves, and the settling
-/// residual about `1e-17`, which it does not.
-#[test]
-fn a_march_tolerance_no_coordinate_there_resolves_refuses_by_name() {
-    use geom_brep::recourse::Reading;
-    use geom_brep::ssi::SSI_NEWTON_TOL;
-    use geom_brep::{ExhaustLane, FloorFault, FloorKind};
-
-    let x = 1.0e8;
+/// The threaded cylinder × unit sphere, both translated to `x` along the
+/// first axis, with the slab centred there.
+fn far_cylinder_sphere(x: f64) -> (Surface<f64>, Surface<f64>, SsiDomain) {
     let at = Point3::new(x, 0.0, 0.0);
     let far = Surface::Sphere {
         center: at,
@@ -3177,11 +3159,14 @@ fn a_march_tolerance_no_coordinate_there_resolves_refuses_by_name() {
     };
     let domain = SsiDomain {
         center: at,
-        floor_scale: SsiDomain::floor_scale_for(1.0e-7, band()),
         ..slab()
     };
-    let r3 = ssi::cylinder_sphere_ssi(&cylinder, &far, domain, band());
+    (cylinder, far, domain)
+}
 
+/// The cutting plane and the certifiable wall, both translated to `x`
+/// along the first axis.
+fn far_plane_wall(x: f64) -> (Surface<f64>, NurbsSurface<f64>) {
     let wall = wall_from_cols(certifiable_cols().map(|(u, v)| (u + x, v)));
     let plane = match cutting_plane() {
         Surface::Plane {
@@ -3195,50 +3180,130 @@ fn a_march_tolerance_no_coordinate_there_resolves_refuses_by_name() {
         },
         other => panic!("{other:?}"),
     };
-    let chart = ssi::plane_nurbs_ssi(&plane, &wall, wall_domain(), band());
+    (plane, wall)
+}
 
-    for (lane, r) in [("ℝ³", r3), ("ℝ⁴", chart)] {
-        let Err(ref err @ SsiError::FloorUnresolvable(f)) = r else {
-            panic!("{lane} at 1e8 m: expected the settling door, got {r:?}");
-        };
-        assert_eq!(f.floor, FloorKind::Settling, "{lane}: {f:?}");
-        assert!(matches!(f.lane, ExhaustLane::R3), "{lane}: {f:?}");
-        assert_eq!(f.meters, SSI_NEWTON_TOL * band().zero(), "{lane}");
-        let FloorFault::BelowResolution { resolution, reach } = f.fault else {
-            panic!("{lane}: {f:?}");
-        };
-        assert!(
-            reach >= x && resolution > f.meters && resolution < 2.0e-8,
-            "{lane}: {f:?}"
+/// The run's band shape at tolerance `eps`: the same `K`.
+fn band_at(eps: f64) -> geom_core::Band {
+    geom_core::Band::new(eps, eps * band().escalate() / band().zero()).unwrap()
+}
+
+/// `r`'s settling refusal, read on `lane`, with the scale's ending.
+fn settling_refusal(what: &str, r: Result<geom_brep::SsiOutcome, SsiError>) -> SettlingRefusal {
+    use geom_brep::recourse::Reading;
+    let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
+        panic!("{what}: expected the settling door, got {r:?}");
+    };
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains(&format!(
+            "the march can settle a state no finer than {:e} m",
+            s.settle
+        )) && shown.contains("Recourse: "),
+        "{what}: {shown}"
+    );
+    s
+}
+
+/// **A quadric pair far from the origin certifies wherever its
+/// coordinates resolve the march, and refuses by its scale past that.**
+/// The march settles to the larger of `SSI_NEWTON_TOL`·ε and
+/// `SSI_QUADRIC_NOISE_ULPS` of the coordinates' spacing, and refuses
+/// where that passes `SSI_SETTLE_MAX`·ε: at ε = `1e-9`, from reach
+/// `2²¹` m (2.1e6). Measured at the merge base, which settled to
+/// `SSI_NEWTON_TOL`·ε alone: 1e5 and 1.3e5 m certified, and from 3e5 m
+/// the march "lost the branch" (`StepRefinementFailed`).
+///
+/// The pins either side of the boundary: at 2e6 m the states settle to
+/// 0.47ε and both branches certify; at 2.2e6 m they would settle to
+/// 0.93ε, which escalated limb 2 (the hull bound) when let through.
+#[test]
+fn a_far_quadric_pair_certifies_where_its_coordinates_resolve_the_march() {
+    let b = band_at(1.0e-9);
+    for x in [1.0e5, 1.3e5, 2.0e6] {
+        let (c, s, d) = far_cylinder_sphere(x);
+        match ssi::cylinder_sphere_ssi(&c, &s, d, b) {
+            Ok(o) => assert_eq!(o.branches.len(), 2, "at {x:e} m"),
+            Err(e) => panic!("at {x:e} m: expected both loops certified, got {e:?}"),
+        }
+    }
+}
+
+/// **The same pair past the boundary, and at `1e8` m, refuses by its
+/// scale**, never "lost the branch". At `1e8` m the accounting floor is
+/// stated as `1e-7` m so the floor door passes and the march's own door
+/// is what refuses.
+#[test]
+fn a_far_quadric_pair_past_what_its_coordinates_resolve_refuses_by_scale() {
+    let b = band_at(1.0e-9);
+    let (c, s, d) = far_cylinder_sphere(2.2e6);
+    let r = settling_refusal("2.2e6 m", ssi::cylinder_sphere_ssi(&c, &s, d, b));
+    assert!(matches!(r.lane, geom_brep::ExhaustLane::R3), "{r:?}");
+    assert!(
+        r.settle > SSI_SETTLE_MAX * b.zero() && r.settle <= b.zero(),
+        "just past the boundary: {r:?}"
+    );
+    let (c, s, d) = far_cylinder_sphere(1.0e8);
+    let d = SsiDomain {
+        floor_scale: SsiDomain::floor_scale_for(1.0e-7, b),
+        ..d
+    };
+    let r = settling_refusal("1e8 m", ssi::cylinder_sphere_ssi(&c, &s, d, b));
+    assert!(r.reach > 1.0e8 && r.gap > 1.0e-8, "{r:?}");
+}
+
+/// **A plane × NURBS wall far from the origin traces and certifies
+/// where its coordinates resolve the march, and refuses by its scale
+/// past that**, never "lost the branch". The spline lane settles to
+/// `SSI_SPLINE_NOISE_ULPS` of the spacing, so at ε = `1e-12` it refuses
+/// from reach `2⁹` m. Measured at the merge base: from 20 m the march
+/// refused `StepRefinementFailed`.
+///
+/// The pins either side of the boundary: at 500 m the states settle to
+/// 0.45ε and the branch certifies; at 520 m they would settle to 0.91ε,
+/// which escalated limb 2 (the hull bound) when let through.
+#[test]
+fn a_far_plane_wall_pair_certifies_or_refuses_by_scale() {
+    let b = band_at(1.0e-12);
+    for x in [20.0, 40.0, 60.0, 500.0] {
+        let (p, w) = far_plane_wall(x);
+        match ssi::plane_nurbs_ssi(&p, &w, wall_domain(), b) {
+            Ok(o) => assert_eq!(o.branches.len(), 1, "at {x} m"),
+            Err(e) => panic!("at {x} m: expected the branch certified, got {e:?}"),
+        }
+    }
+    for x in [520.0, 1.0e8] {
+        let (p, w) = far_plane_wall(x);
+        let r = settling_refusal(
+            &format!("{x:e} m"),
+            ssi::plane_nurbs_ssi(&p, &w, wall_domain(), b),
         );
-        let shown = err.render(Reading::Build);
         assert!(
-            shown.contains(&format!(
-                "march's settling tolerance {:e} m, which the domain cannot resolve",
-                f.meters
-            )) && shown.contains("Recourse: move the geometry nearer the origin"),
-            "{lane}: {shown}"
+            matches!(r.lane, geom_brep::ExhaustLane::R3) && r.reach > x,
+            "{r:?}"
         );
     }
+}
 
-    let m = band().zero() * 2.5e14;
+/// **A wall whose own chart is too coarse for the march refuses by that
+/// chart's scale.** A wall near the origin scaled to `ε·1e15` m moves
+/// about `3ε·1e15` m per chart unit, so the accounting floor of ε is a
+/// third of `1e-15` chart units, which `[0, 1]` resolves, while a chart
+/// step there is several ε in metres.
+#[test]
+fn a_wall_whose_chart_cannot_settle_the_march_refuses_by_its_chart() {
+    use geom_brep::recourse::Reading;
+
+    let m = band().zero() * 1.0e15;
     let wide = wall_from_cols(certifiable_cols().map(|(u, v)| (u * m, v * m)));
     let r = ssi::plane_nurbs_ssi(&cutting_plane(), &wide, wall_domain(), band());
-    let Err(ref err @ SsiError::FloorUnresolvable(f)) = r else {
+    let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
         panic!("the {m:e} m wall: expected the settling door, got {r:?}");
     };
-    assert_eq!(f.floor, FloorKind::Settling, "{f:?}");
-    let ExhaustLane::Chart { speed } = f.lane else {
-        panic!("the chart's settling refused on the ℝ³ lane: {f:?}");
+    let geom_brep::ExhaustLane::Chart { speed } = s.lane else {
+        panic!("the chart's settling refused on the ℝ³ lane: {s:?}");
     };
-    assert_eq!(f.meters, SSI_NEWTON_TOL * band().zero());
-    assert_eq!(
-        f.fault,
-        FloorFault::BelowResolution {
-            resolution: 1.0 - 1.0f64.next_down(),
-            reach: 1.0
-        }
-    );
+    assert_eq!(s.reach, 1.0, "the wall's knot domain");
     let shown = err.render(Reading::Build);
     assert!(
         shown.contains(&format!(

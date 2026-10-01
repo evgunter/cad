@@ -26,7 +26,7 @@ check, not a ruling):
 | `CellBudget` | the subdivision's cell budget spent | last resort, as `FitSampleBudget` |
 | `StepBudget` | one branch's step budget spent | last resort, or the domain and extent |
 | `SeedRefinementFailed` | a seed outside every basin | swallowed by both certifying doors; reaches a caller only at `idealized_trace_r3` and `trace_plane_nurbs_uncertified`, where the seed is the caller's |
-| `StepRefinementFailed` | a step that would not settle | the march's limit (last resort) now that the scale case refuses at the settling door |
+| `StepRefinementFailed` | a step that would not settle | the march's limit (last resort). The march now settles to what its coordinates resolve and refuses `SettlingUnresolvable` where that is not well inside ε, which removed the far-from-origin cases measured on the cylinder × sphere and the plane × wall; a step that still will not settle is not known to be the scale |
 | `TubeLadderEmpty` | every ladder rung below the floor | the carrier's extent against ε (a scale lever) |
 | `TubeProbeSilent` | no rung answered | kernel defect or last resort |
 | `FootPointInconclusive` | a certified foot point would not converge | last resort (the projection is an approximation) |
@@ -37,7 +37,7 @@ check, not a ruling):
 | `Band(BandError)` | the band could not be built | the caller's knobs |
 | `InvalidMarchTol` | the uncertified door's march tolerance is not a length | the caller's knob; its `Display` also carries developer advice (`MarchTol::from_band`, a crate-private name) that belongs in rustdoc |
 
-`ChartSpeed`, `OperandNotFinite`, `DomainUnusable`, `FloorUnresolvable`,
+`ChartSpeed`, `OperandNotFinite`, `DomainUnusable`, `FloorUnresolvable`, `SettlingUnresolvable`,
 `BranchUndersampled`, `StepCollapsed`, `StepUnusable`, `FitSampleBudget`,
 `TransversalityBand`, `PairTangent`, `SelfCrossingLocus`,
 `CertificateLimb`, `TubeStraddles`, `CertificateEscalated`, `Escalated`
