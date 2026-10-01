@@ -1983,8 +1983,7 @@ impl crate::finding::Finding for UndeclaredCoincidenceFinding<'_> {
             match self.finding.evidence.relation {
                 topo::PlaneRelation::SameOpposite => "coincident and opposed (a resting contact)",
                 topo::PlaneRelation::SameOriented => {
-                    "coincident and co-oriented (a continuation: one surface carried on across \
-                     the seam)"
+                    "coincident and co-oriented (a continuation of one surface)"
                 }
                 // `topo::flush::finding` refuses to mint one; rendered
                 // honestly anyway.
