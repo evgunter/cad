@@ -1674,8 +1674,7 @@ fn precedence(expr: &Expr) -> u8 {
 /// evaluates identically.
 ///
 /// A literal is written in the display unit it REMEMBERS
-/// ([`Expr::display_unit`]), and in the canonical unit (`m`/`rad`)
-/// when it remembers none — through [`quantity::fmt_length`]/
+/// ([`Expr::display_unit`]) — through [`quantity::fmt_length`]/
 /// [`quantity::fmt_angle`], whose own pin is that the digits multiply
 /// back to the exact bits, and which fall back to the canonical unit
 /// for the values that have no preimage in the asked-for one. A
