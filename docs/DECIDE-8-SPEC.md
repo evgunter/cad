@@ -15,7 +15,7 @@ set by what Phase 1 finds (§Review).
 - `[ev]` #3186's body and Ev's ruling: route B for `b`'s sign, and this
   item on its own;
 - `crates/sweep/src/swept.rs`: `turn_negates`, `turn_axis`,
-  `centre_on_material_side`, `turned_span`, `placed_segment_spec`, and
+  `centre_on_material_side`, `arc_span`, `placed_segment_spec`, and
   the closed forms at lines 410–420 (`apothem = len·(1 − b²)/(4b)`);
 - `crates/profile/src/path/family.rs`'s `bulge_carrier`: what the
   profile decides about an arc (`path_arc_bulge`, `SegmentKind::Arc

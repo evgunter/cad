@@ -86,7 +86,11 @@ fn decide_3_no_predicate_loses_a_decision() {
             //
             // `carrier_on_surface_2` is rule G's trade: with G and the
             // read shut this predicate proves 88 theorems, with them on
-            // 84 (and 8 through the door). The whole measurement, the
+            // 84 (and 10 through the door; 8 until the certification
+            // schedule began assigning its end samples exactly,
+            // `geom_brep::schedule_param`, which moved two of this
+            // predicate's numeric decisions into the door on the shipped
+            // side and none on the G-shut side). The whole measurement, the
             // remedy record, and DECIDE-5's re-take of it, is
             // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
             // At the DOCUMENT level rule G is a gain here —
@@ -113,7 +117,7 @@ fn decide_3_no_predicate_loses_a_decision() {
             // is pinned where the ladder is:
             // `sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`.
             let rebaselined: Option<([u64; 4], [u64; 4])> = match (*name, *p) {
-                ("r2_link", "carrier_on_surface_2") => Some(([88, 0, 0, 20], [84, 0, 8, 16])),
+                ("r2_link", "carrier_on_surface_2") => Some(([88, 0, 0, 20], [84, 0, 10, 14])),
                 ("r2_link", "carrier_matches_mapped_source") => {
                     Some(([108, 0, 60, 12], [108, 0, 50, 22]))
                 }

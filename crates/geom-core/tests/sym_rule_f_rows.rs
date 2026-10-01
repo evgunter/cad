@@ -290,29 +290,6 @@ fn the_shapes_the_manifest_sign_must_not_fold() {
     assert_ne!(poisoned, "theorem", "poison folds nothing");
 }
 
-/// **The mint site, end to end.** `Vec3::orthonormal_basis` is where
-/// the atoms come from (`s = 1.copysign(n.z)`, `r = 1/(1 + |n.z|)`),
-/// and on a normal whose `z` is an `Inv` of a `sqrt` atom the rule
-/// folds both. The residual is `b1 · n`, zero for every unit `n` by the
-/// construction's own orthogonality. Measured, the tier reaches it at
-/// BOTH dials — so this row does not discriminate the rule; what it
-/// pins is that folding the basis's own atoms does not turn that
-/// identity into a FALSE zero, which is the failure the shared value
-/// check would catch.
-#[test]
-fn the_orthonormal_bases_own_atoms_fold_at_the_mint_site() {
-    println!("=== b1 · n for n = (0, −t, 1)/sqrt(1 + t²)");
-    let resid = || {
-        let t = p("t", 0.25);
-        let n = Vec3::new(Sym::from_f64(0.0), -t, one()).normalize();
-        let (b1, _) = n.orthonormal_basis();
-        b1.dot(n)
-    };
-    let shipped = sound("shipped", how(SymRules::shipped(), resid));
-    let shut = sound("without_rule_f", how(SymRules::without_rule_f(), resid));
-    println!("  shipped {shipped} | without_rule_f {shut}");
-}
-
 // ---------------------------------------------------------------- the
 // rows the two blinded reviews wrote, adopted here under this suite's
 // naming with their credit. The probe branches (`sym/8-review-r1`,

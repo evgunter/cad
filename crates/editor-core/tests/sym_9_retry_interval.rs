@@ -400,6 +400,19 @@ fn sym_9_what_each_retry_recovers() {
 /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
 /// renders each).
 ///
+/// When the certification schedule began assigning its end samples
+/// exactly (`geom_brep::schedule_param`), the link moved again:
+/// without the ladder `[545, 0, 108, 509]` → `[545, 0, 110, 507]`, and
+/// with it `[549, 0, 120, 493]` → `[547, 0, 122, 493]`, retried 16 → 14,
+/// `carrier_on_surface_2` with the ladder `[88, 0, 8, 12]` →
+/// `[86, 0, 10, 12]`. Two decisions the first attempt left numeric, and
+/// the ladder used to recover as theorems, are now registered by the
+/// door on the first attempt, so the ladder is never asked them. No
+/// decision is lost, and `numeric` with the ladder is unchanged; the
+/// claim on those two is now the door's axiom and not a theorem.
+/// Measured by restoring the old end samples on a probe, which
+/// restores every old number.
+///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
 /// the same replay without it, so a decision that moved DOWN reds; and
@@ -428,7 +441,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
             [1105, 21, 150, 777],
             6,
         ),
-        ("r2_link", [545, 0, 108, 509], [549, 0, 120, 493], 16),
+        ("r2_link", [545, 0, 110, 507], [547, 0, 122, 493], 14),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -444,7 +457,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         if link {
             let t = split(&shapes);
             for (pred, want) in [
-                ("carrier_on_surface_2", [88, 0, 8, 12]),
+                ("carrier_on_surface_2", [86, 0, 10, 12]),
                 ("witness_on_surface_2", [16, 0, 0, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 4]);

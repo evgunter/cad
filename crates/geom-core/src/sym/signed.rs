@@ -18,10 +18,19 @@
 //! a parameter axis already holds `(lo, hi)` as two `f64`s), and the
 //! candidate `R` is enclosed over those brackets in the always-compiled,
 //! outward-rounded [`Interval`](crate::interval::Interval). No type is punned, no feature is
-//! gated, no bound is added: `R` is a polynomial in the parameters and
-//! `π`, evaluated in certification arithmetic; a form with any other indeterminate (an
-//! opaque real, an atom, a frozen node) is not enclosable and the fold
-//! declines.
+//! gated, no bound is added. What a form may carry and still be
+//! enclosed depends on the read:
+//!
+//! - rule C's fold encloses a polynomial in the parameters and `π`
+//!   alone (`enclose`); any other indeterminate (an opaque real, an
+//!   atom, a frozen node) is not enclosable there and the fold
+//!   declines;
+//! - the decision read and rule G's side condition enclose through the
+//!   session's atoms as well (`enclose_deep`): a `sqrt`, `abs`, `min`
+//!   or `max` atom is entered and its argument enclosed in turn, to
+//!   `ENCLOSE_DEPTH` levels. An opaque real, a frozen node, any other
+//!   atom, or an atom past that depth is not enclosable, and the read
+//!   declines.
 //!
 //! # Why it is sound (clause 3 of the theorem)
 //!

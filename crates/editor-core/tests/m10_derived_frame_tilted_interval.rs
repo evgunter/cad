@@ -1088,23 +1088,25 @@ fn sym8_phase1_the_tilt_u_ladder() {
 /// from it, a `FaceFrame` on its cap, the boss on that) at
 /// `half = 1e-3` under `Guided`:
 ///
-/// - with rule F SHUT the boss refuses `carrier_endpoint_end`, whose
-///   split is 24/0/0/1 — the residual is a `sqrt` over a FROZEN
+/// - on SYM-5's tier (rules F, G and the decision read shut,
+///   `SymRules::without_rules_f_g_and_the_read`) the boss refuses
+///   `carrier_endpoint_end`, whose split is 24/0/0/1 — the residual is
+///   a `sqrt` over a FROZEN
 ///   `Powi ^2` whose kid is 440 terms at degree 27 and `440² >
 ///   MAX_TERMS`;
-/// - with rule F ON that square is built and, with the decision read
-///   settling the frame's conditioning comparisons,
+/// - on the shipped tier that square is built and, with the decision
+///   read settling the frame's conditioning comparisons,
 ///   `carrier_endpoint_end` is 32/16/0/0 — nothing numeric — and the
 ///   document CERTIFIES: the `newell_plane_residual` straddle that
 ///   used to be the next wall
 ///   (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`) is
 ///   proved once the frame is no longer opaque.
 ///
-/// The F-off half now measures THREE rules off, not one:
-/// `SymRules::without_rule_f` shuts rule G and the decision read with
-/// rule F, because SYM-5's tier — the tier that constructor names —
-/// had none of the three. Its refusal is asserted by name, so the day
-/// any of them moves it this reds and says which.
+/// The contrast is three rules, not rule F alone: with rule F alone shut
+/// (`SymRules::without_rule_f`) the document reads what the shipped
+/// tier reads, because the basis mints no `copysign` for rule F to fold.
+/// The SYM-5-tier refusal is asserted by name, so the day any of the
+/// three moves it this reds and says which.
 ///
 /// Cost: two evaluations of a small document, well under a second each
 /// in release and about four seconds in the test profile — the split
@@ -1116,8 +1118,8 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
     let doc = r2_document(1.0e-3, Base::TiltU, Place::Derived(1));
     let mut seen = Vec::new();
     for (label, rules) in [
-        ("F-off", SymRules::without_rule_f()),
-        ("F-on", shipped_with_rule_f()),
+        ("SYM-5 tier", SymRules::without_rules_f_g_and_the_read()),
+        ("shipped", shipped_with_rule_f()),
     ] {
         start_shape_report();
         let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
@@ -1139,7 +1141,8 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
     assert_eq!(
         *off_split,
         [24, 0, 0, 1],
-        "with rule F shut the carrier endpoint is one decision short of the theorem"
+        "on SYM-5's tier (rules F, G and the read shut) the carrier endpoint is one \
+         decision short of the theorem"
     );
     assert_eq!(
         off_fails.len(),
@@ -1148,12 +1151,12 @@ fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
     );
     assert!(
         off_fails[0].contains("carrier_endpoint_end"),
-        "the wall rule F is measured against is the carrier endpoint: {off_fails:?}"
+        "the wall the three rules are measured against is the carrier endpoint: {off_fails:?}"
     );
     assert_eq!(
         *on_split,
         [32, 16, 0, 0],
-        "rule F and the decision read take the whole predicate between them: nothing here \
+        "the shipped tier's theorems and the decision read take the whole predicate between them: nothing here \
          is numeric, and the sixteen the read answers are the frame's conditioning \
          comparisons, which no form settles"
     );
@@ -1299,8 +1302,7 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 /// Measured at the merge of `main` into `props/sign-hull` (1e-9): all
 /// three read `572 / 400 sign_gated / 510` with `carrier_endpoint_end`
 /// `[32, 16, 0, 0]` and `newell_plane_residual` `[24, 24, 0, 0]`, at
-/// both dials. Rule F's arms shut alone is not `without_rule_f`, which
-/// shuts rule G and the decision read with them.
+/// both dials.
 ///
 /// Cost: six evaluations of three small documents with the shape
 /// report installed.
@@ -1308,10 +1310,7 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert() {
     use geom_core::sym::report::{start_shape_report, take_shape_report};
     let doc_of = |base, place| r2_document(1.0e-3, base, place);
-    let f_shut = SymRules {
-        manifest_sign: false,
-        ..shipped_with_rule_f()
-    };
+    let f_shut = SymRules::without_rule_f();
     let read = |doc: &ProfileDoc, rules: SymRules| {
         start_shape_report();
         let (fails, counts) = sym(doc, ProfileLift::Guided, rules, budget());
@@ -1388,10 +1387,7 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
 #[ignore = "evidence-only: rule F on the reviews' two negative-n.z documents"]
 fn sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents() {
     use geom_core::sym::report::{start_shape_report, take_shape_report};
-    let f_shut = SymRules {
-        manifest_sign: false,
-        ..shipped_with_rule_f()
-    };
+    let f_shut = SymRules::without_rule_f();
     let read = |doc: &ProfileDoc, lift, rules| {
         start_shape_report();
         let (fails, counts) = sym(doc, lift, rules, budget());

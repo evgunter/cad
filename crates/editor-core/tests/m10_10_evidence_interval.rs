@@ -392,16 +392,11 @@ fn rules_named(name: &str) -> SymRules {
         // for bit.
         "no_e" => SymRules::without_rule_e(),
         // SYM-8's differential: the shipped set with rule F (the
-        // manifest sign) SHUT, which is SYM-5's tier bit for bit.
+        // manifest sign, both arms) SHUT and nothing else.
         "no_f" => SymRules::without_rule_f(),
-        // Rule F's two arms shut and NOTHING else: rule G and the read
-        // stay on, where `no_f` shuts them with it. The differential for
-        // rule F's denominator clause as DECIDE-3's `definite_quadratic`
-        // widens it.
-        "f_shut" => SymRules {
-            manifest_sign: false,
-            ..SymRules::shipped()
-        },
+        // SYM-5's tier bit for bit: rules F, G and the decision read
+        // shut together.
+        "sym5" => SymRules::without_rules_f_g_and_the_read(),
         // DECIDE-3's differential for the decision read: the shipped set
         // with the read shut and rule G on.
         "no_reads" => SymRules::without_the_reads(),
@@ -448,7 +443,7 @@ fn rules_named(name: &str) -> SymRules {
             ..SymRules::without_the_algebra()
         },
         other => panic!(
-            "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f | f_shut \
+            "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f | sym5 \
              | no_reads | no_q | d_only | ab_only | top_only | d_top_only"
         ),
     }

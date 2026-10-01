@@ -470,7 +470,7 @@
 //! digest-identical — which is the same statement as "it fires nowhere
 //! on them", and is not a pin on the order.
 //!
-//! **What it reaches, measured** (the tilt-`u` derived frame,
+//! **What it reached, measured on Duff's basis** (the tilt-`u` derived frame,
 //! `editor-core/tests/m10_derived_frame_tilted_interval`'s
 //! `sym8_phase1_*` rows — the document SYM-5's rule E turned a DEGREE
 //! wall into a TERM wall on and stopped). At `half = 1e-3` under
@@ -593,7 +593,8 @@
 //! 0.21 → 0.20 and 0.59 → 0.58 seconds a probe. The rule is free to
 //! within the measurement's noise and slightly cheaper on most
 //! documents — it removes indeterminates and mints none.
-//! [`SymRules::without_rule_f`] is SYM-5's tier bit for bit.
+//! [`SymRules::without_rules_f_g_and_the_read`] is SYM-5's tier bit for bit;
+//! [`SymRules::without_rule_f`] shuts rule F alone.
 //!
 //! **The negative arm's cost on the same instrument** (SYM-12, release,
 //! one whole-box leaf, rule F shut → shipped with both arms, on a box
@@ -1917,8 +1918,8 @@ impl SymRules {
     /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
-    /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | free to the measurement's noise and cheaper on most — the six leaf numbers live once, in the module header's rule-F section | **yes**, with the pad's four `symbolic_zero` → `registered` ratified as a spec deviation |
-    /// | F's NEGATIVE arm (the same dial, SYM-12) | none, on all EIGHT measured documents, to the digit, splits and ceilings both, and the walk ledger unmoved; the tilt-`u` cube's START cap and its `FlipZ` twin read the end cap's rule-F-on state by name and by count (`carrier_endpoint_end` 33/0/0/0, the refusal moved to the Newell straddle; `Pinned` the start cap 108 decisions out of `numeric` at 12.2 → 1.0 s, `FlipZ` 122 at 7.8 → 1.2 s) | the arm fires on none of the eight (no `copysign` atom reaches a decision there, and no `abs` atom's argument is manifestly signed), so what it costs there is one coefficient-sign scan per `abs`/`copysign` node the positive arm declined, and a negation plus the predicate only on a numerator whose every coefficient is negative; the release leaf instrument's reading is in the header's cost paragraph below the rule-F section, the one place those numbers live | **yes** |
+    /// | F, the manifest sign (`manifest_sign`, SYM-8) | none: shut alone (every other rule as shipped) it moves no receipt, split or ceiling on the eight measured documents, the five `m10_9` studies or the tilted-frame family. It was measured on Duff's basis, whose `copysign(1, n.z)` it folded (the tilt-`u` frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 then); the axis-order basis mints no `copysign`, and on this tree the rule has no measured document consumer (`work/sym/the-negative-arm-lost-its-document-consumer`) | one coefficient-sign scan per `abs`/`copysign` node; the six leaf numbers live once, in the module header's rule-F section | **yes** |
+    /// | F's NEGATIVE arm (the same dial, SYM-12) | none, as rule F: the tilt-`u` cube's START cap and its `FlipZ` twin certify as the end cap does with the dial on or off (`m10_derived_frame_tilted_interval`'s `m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert`); its Duff-era reach is in the module header | a negation plus the predicate only on a numerator whose every coefficient is negative; the release leaf instrument's reading is in the header's cost paragraph below the rule-F section, the one place those numbers live | **yes** |
     /// | G, the canonical root (`canonical_root`, DECIDE-3) | the tilted derived boss certifies at both halves and both lifts and the tilt-`u` one outright; the link, the bracket and the pad gain theorems and the plate's ledger loses its `Early/Assertion` and `Door/Decision` freezes | the differential is `without_canonical_root`; the numbers live in the PR that shipped it and in [`root`] | **yes** |
     /// | G's exact quotient (`root_quotient`, DECIDE-4) | R1's boss at bulge 2 `1.0309e3 · ε` → **0.5024 / 0.7267 / 0.7271 of its REAL study** at ε = 1e-6 / 1e-9 / 1e-12, bounded by `dihedral_wedge` (a real margin), its `arc_span` 5/0/0/1 → 6/0/0/0; no other split moves at the nominal on the plate, bracket, annulus, link, both D-tabs or the two controls; it trades the split spelling `sqrt(N)/sqrt(D)` of a re-keyed root (no measured document moves on it) | one whole-box leaf, release, best of 3, off → on: plate 0.339 → 0.349 s, plate at its real study 0.342 → 0.346, annulus 0.364 → 0.364, bracket 3.81 → 3.82, link 19.4 → 19.3, pad 144.5 → 145.7, boss 0.245 → 0.250; every receipt but the boss's unmoved | **yes**, with the bracket, the pad and the link over the 1.6 s line either way |
     /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles: `sign_gated` where it fires and never `symbolic_zero` | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
@@ -2036,7 +2037,7 @@ impl SymRules {
     /// the differential every claim about what rule E costs and what it
     /// buys is measured against ([`Self::common_factor`]). Rule F, rule
     /// G and the decision read are shut with it, because M10-10's tier
-    /// had none of the three; [`Self::without_rule_f`] is the other
+    /// had none of the three; [`Self::without_rules_f_g_and_the_read`] is the other
     /// half of the pair and keeps rule E on.
     #[must_use]
     pub const fn without_rule_e() -> Self {
@@ -2104,16 +2105,26 @@ impl SymRules {
         }
     }
 
-    /// **The shipped set with rule F SHUT** — the `copysign` and `abs`
-    /// atoms of a manifestly SIGNED argument (either arm) left opaque:
-    /// SYM-5's tier exactly, bit for bit, because neither arm existed
-    /// there, and the differential every claim about what rule F costs
-    /// and what it buys is measured against ([`Self::manifest_sign`]).
-    /// Rule G and the decision read are shut with it, for the same
-    /// reason rule E's constructor shuts rule F: SYM-5's tier had
-    /// neither.
+    /// **The shipped set with rule F SHUT and nothing else** — the
+    /// `copysign` and `abs` atoms of a manifestly SIGNED argument (either
+    /// arm) left opaque, every other rule as shipped: the differential
+    /// every claim about what rule F costs and what it buys is measured
+    /// against ([`Self::manifest_sign`]).
     #[must_use]
     pub const fn without_rule_f() -> Self {
+        Self {
+            manifest_sign: false,
+            ..Self::shipped()
+        }
+    }
+
+    /// **The shipped set with rule F, rule G and the decision read
+    /// SHUT** — SYM-5's tier exactly, bit for bit, because it had none
+    /// of the three. Not a differential of any one rule; it is the tier
+    /// a row compares against when its claim is about what the three
+    /// bought together ([`Self::without_rule_f`] is rule F alone).
+    #[must_use]
+    pub const fn without_rules_f_g_and_the_read() -> Self {
         Self {
             manifest_sign: false,
             canonical_root: false,

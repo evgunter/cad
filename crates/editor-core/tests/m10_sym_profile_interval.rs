@@ -255,19 +255,26 @@ fn eps_row(eps: f64) -> usize {
 }
 
 /// The slab's walk ledger at its nominal, per ε row.
+///
+/// Re-captured when the certification schedule began assigning its end
+/// samples (`geom_brep::schedule_param`: `t₀` and `t₁` themselves): the
+/// `Plain/Decision` walk builds 260 fewer forms (9686 → 9426) and its
+/// digest moves at every row; calls, every other line and the receipt
+/// are unchanged. Measured by restoring the old end samples on a probe,
+/// which restores the old line.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9686 frozen 0 digest 4c206fa8091829f2e72e255bfcf8cb34\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 03f37caff1322731ed06355f6880c51c\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest ec472ae73ea4c7420d838e1560bb36d0",
     "\
-     Plain/Decision calls 980 forms 9686 frozen 0 digest 68a31dec794118be1e5494c295c01a77\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest d6944216b808695de65a32c884bbff84\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest e83eae7723869354725ac1ce959e7302",
     "\
-     Plain/Decision calls 980 forms 9686 frozen 0 digest b2316116afff13c352e218269a06ec67\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest fffa8447b6a8ffd4d42e7d855abb8194\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest 171de8349a6fabdbdc04441d2abb73b7",
@@ -343,6 +350,15 @@ const SLAB_LEDGER: [&str; 3] = [
 /// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
 /// The plate's receipt is `[811, 0, 140, 462]` either way, and the
 /// `*/Report` rows stay absent.
+///
+/// **When the certification schedule began assigning its end samples**
+/// (`geom_brep::schedule_param`: `t₀` and `t₁` themselves) the decision
+/// walks build fewer forms — `Plain/Decision` 15046 → 14609,
+/// `Early/Decision` 7995 → 7741, `Door/Decision` 11864 → 11548 — and
+/// those three digests move; calls, frozen counts, the assertion lines
+/// and the receipt are unchanged, and the slab's `Plain/Decision` line
+/// moves the same way. Measured by restoring the old end samples on a
+/// probe, which restores both old ledgers.
 const SLAB_MAX_TERMS: usize = 6;
 const PLATE_MAX_TERMS: usize = 252;
 
@@ -364,11 +380,11 @@ const PLATE_MAX_TERMS: usize = 252;
 /// +16 each, door forms −20, one fewer assertion form. Calls, frozen
 /// counts and every decision count are unchanged.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15046 frozen 672 digest 6415eaec93432ac12af91088c80a9985\n\
+     Plain/Decision calls 951 forms 14609 frozen 672 digest 1f63d89b7861ebd33ee849ed644feeef\n\
      Plain/Assertion calls 462 forms 2593 frozen 372 digest 771924744255ffeab43da670146d0474\n\
-     Early/Decision calls 320 forms 7995 frozen 8 digest 84927d1c87bf1e02d9af597fd0da07eb\n\
+     Early/Decision calls 320 forms 7741 frozen 8 digest e2497345ecc7b9bd3ff556e19f14da91\n\
      Early/Assertion calls 462 forms 3405 frozen 104 digest 211f100613cd5c088b49af722692ffd1\n\
-     Door/Decision calls 330 forms 11864 frozen 104 digest c650e3d3d1c22f741b7427328b256d9a\n\
+     Door/Decision calls 330 forms 11548 frozen 104 digest 1a8ab6ce2e774fa235a0bb82804923e7\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

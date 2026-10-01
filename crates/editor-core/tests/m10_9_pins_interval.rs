@@ -104,8 +104,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // On the tier without rule G the same span read 110 / 505
             // (20 decisions into the door, ten of them out of
             // `symbolic_zero`); with rule G in, none of that trade
-            // shows.
-            registered: 108,
+            // shows. 108 -> 110, out of `numeric` (509 -> 507), when
+            // the certification schedule began assigning its end samples
+            // exactly (`geom_brep::schedule_param`): two end residuals
+            // the door now recognises. Measured by restoring the old end
+            // samples on a probe, which restores 108.
+            registered: 110,
             symbolic_zero: 545,
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
@@ -186,9 +190,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 925 theorems, 0 `sign_gated`, 1004 `numeric` — every
             // column up. With the read on, 32 of those 925 are answered
             // by the read before their form reduces, so they count
-            // `sign_gated` (34) and not `symbolic_zero` (893): 4 of them
-            // stand without the must-carry gate's stations, 28 come
-            // with them. The decisions stay discharged; the claim on
+            // `sign_gated` (34) and not `symbolic_zero` (893). The tree
+            // without the must-carry gate's stations reads 4 such (894
+            // with the read shut, 890 with it on), so 28 of the 32 are
+            // INFERRED to be the stations' — 925 − 894 = 31 = 28
+            // station theorems + 3 run-outs — not read off a split,
+            // which was not taken. The decisions stay discharged; the claim on
             // those 32 is the read's, not a theorem
             // (`work/decide/the-decision-read-answers-theorems-the-must-carry-stations-would-prove`).
             registered: 150,
@@ -507,34 +514,25 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
     }
 }
 
-/// **THE PAD'S FOUR, AT BOTH DIALS** (adopted from SYM-8's review R2,
+/// **THE PAD AT BOTH RULE-F DIALS** (adopted from SYM-8's review R2,
 /// `sym8_r2_the_pads_four_re_taken`). The row above pins the shipped
-/// side; this one is the DIFFERENTIAL that says what rule F
-/// (`SymRules::manifest_sign`) did to it. At the scale the pad
-/// certifies whole at, over its analyzed box, rule F off → on:
-/// `symbolic_zero` 889 → 885, `registered` 104 → 128, `numeric`
-/// 1078 → 1058, `frozen` 2750 either way — the same 2071 decisions, 24
-/// of them moving into the door, twenty out of `numeric` and FOUR out
-/// of `symbolic_zero`. Those are the STORED tuples; the replay
-/// currently measures `numeric` 8 higher and `frozen` 2722 at both
-/// dials, a drift that predates the stored values and is not yet
-/// attributed
-/// (`work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`),
-/// so this row is red until it is.
-///
-/// No decision is lost and the document certifies whole at both dials,
-/// which is asserted here; what moved is the STRENGTH of four claims.
-/// The spec's Phase-1.3 stop clause reads on that, and shipping rule F
-/// on anyway is a ratified spec deviation, not a disclosure
-/// (`work/decide/SYM-8.md`).
+/// side; this one is the DIFFERENTIAL for rule F alone
+/// (`SymRules::without_rule_f`: both arms shut, every other rule as
+/// shipped). On Duff's basis rule F moved four of the pad's theorems
+/// into the door. The axis-order basis mints no `copysign` for rule F
+/// to fold, and at the scale the pad certifies whole at, over its
+/// analyzed box, the two dials now read the same receipt —
+/// `symbolic_zero` 893, `sign_gated` 34, `registered` 150, `numeric`
+/// 1002, `frozen` 2577 — and both certify
+/// (`work/sym/the-negative-arm-lost-its-document-consumer`).
 ///
 /// `#[ignore]`d: it is two whole-box replays of the heaviest of the
-/// five documents (~2 min locally), on top of the one the gating row
-/// above already pays, and the shipped side of it is now pinned there
-/// by `Study::symbolic_zero`. Re-take it by running this row.
+/// five documents, on top of the one the gating row above already
+/// pays, and the shipped side of it is pinned there by
+/// `Study::symbolic_zero`. Re-take it by running this row.
 #[test]
 #[ignore = "evidence-only: two whole-box pad replays; the shipped side is pinned by the row above"]
-fn m10_9_the_pads_four_at_both_dials() {
+fn m10_9_the_pad_at_both_rule_f_dials() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let study = measured_studies(tol)
@@ -546,8 +544,8 @@ fn m10_9_the_pads_four_at_both_dials() {
     let box_ = ParamBox::of(&analyzed);
     let mut got = Vec::new();
     for (label, rules) in [
-        ("F-off", SymRules::without_rule_f()),
-        ("F-on ", SymRules::shipped()),
+        ("rule F shut", SymRules::without_rule_f()),
+        ("shipped    ", SymRules::shipped()),
     ] {
         let t0 = std::time::Instant::now();
         let (refusal, c) = replay_counts(&doc, &box_, rules, tol);
@@ -559,16 +557,21 @@ fn m10_9_the_pads_four_at_both_dials() {
             refusal.is_none(),
             "{label}: the pad certifies whole at this scale: {refusal:?}"
         );
-        got.push((c.symbolic_zero, c.registered, c.numeric, c.frozen));
+        got.push((
+            c.symbolic_zero,
+            c.sign_gated,
+            c.registered,
+            c.numeric,
+            c.frozen,
+        ));
     }
-    // Each side carries +28 `symbolic_zero` and +84 `numeric` from the
-    // must-carry rule's per-station dihedral gate, and +3 of each from
-    // the fillet run outs' carrier decision (`path_run_out_carrier`).
-    assert_eq!(got[0], (889, 104, 1078, 2750), "rule F off");
-    assert_eq!(got[1], (885, 128, 1058, 2750), "rule F on");
     assert_eq!(
-        got[0].0 + got[0].1 + got[0].2,
-        got[1].0 + got[1].1 + got[1].2,
-        "the same decisions, re-attributed: no decision is lost"
+        got[0],
+        (893, 34, 150, 1002, 2577),
+        "rule F shut: the pad's receipt"
+    );
+    assert_eq!(
+        got[1], got[0],
+        "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
     );
 }
