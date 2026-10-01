@@ -1086,10 +1086,14 @@ pub enum EditError {
     },
     /// A `SetExpression` path runs off the expression tree (spec D5).
     PathOffTree {
-        /// The node the path addresses (`path.node`), spoken.
+        /// The node whose slot the path addresses.
         node: SpokenNode,
-        /// The offending address.
-        path: ExprPath,
+        /// The slot.
+        slot: SlotId,
+        /// The AST-child indices that run off the tree
+        /// ([`ExprPath::path`]); with `node` and `slot`, the whole
+        /// address.
+        path: Vec<u8>,
     },
     /// Replacing the subtree broke an ancestor's dimension check.
     Dimension(DimensionError),
@@ -1439,10 +1443,9 @@ pub enum EditError {
     /// same text again, or a clear of a node with none. Refused rather
     /// than recorded, so a log's label edit always moved a label.
     LabelUnchanged {
-        /// The node.
+        /// The node, with the label it already has
+        /// ([`SpokenNode::label`], `None` for none).
         node: SpokenNode,
-        /// The label it already has, `None` for none.
-        label: Option<crate::Label>,
     },
 }
 
@@ -2022,14 +2025,14 @@ impl EditError {
                     format_args!("offer a value of the declared kind, or redeclare the parameter"),
                 )
             }
-            Self::PathOffTree { node, path } => {
-                let steps: Vec<String> = path.path.iter().map(u8::to_string).collect();
+            Self::PathOffTree { node, slot, path } => {
+                let steps: Vec<String> = path.iter().map(u8::to_string).collect();
                 write!(
                     f,
                     "the expression path [{}] in {}'s {} slot runs off the tree",
                     steps.join(", "),
                     node,
-                    path.slot.label()
+                    slot.label()
                 )?;
                 tail.recourse(
                     f,
@@ -2340,8 +2343,8 @@ impl EditError {
                     ),
                 }
             }
-            Self::LabelUnchanged { node, label } => {
-                match label {
+            Self::LabelUnchanged { node } => {
+                match node.label() {
                     Some(_) => write!(f, "{node} already has that label")?,
                     None => write!(f, "{node} has no label to clear")?,
                 }
@@ -3856,8 +3859,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             let rebuilt = root
                 .with_replaced(&path.path, expr.clone())
                 .ok_or_else(|| EditError::PathOffTree {
-                    node: new.spoken(path.node),
-                    path: path.clone(),
+                    node: doc.spoken(path.node),
+                    slot: path.slot,
+                    path: path.path.clone(),
                 })?
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
@@ -4197,7 +4201,6 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             if new.labels.get(node) == label.as_ref() {
                 return Err(EditError::LabelUnchanged {
                     node: doc.spoken(*node),
-                    label: label.clone(),
                 });
             }
             match label {

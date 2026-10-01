@@ -2659,7 +2659,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
-        DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
+        DocumentId, EditError as E, Frame, MeasureNodeFault, MetaVersionError, ParamName,
         RecipeNodeId, RootFault, SlotId, StepId, StepIdFault,
     };
     use pncad::prelude::StableName;
@@ -3015,11 +3015,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // different address in a different tree.
     let off_tree = E::PathOffTree {
         node: sp(5),
-        path: ExprPath {
-            node: id(5),
-            slot: SlotId::Distance,
-            path: vec![0, 1],
-        },
+        slot: SlotId::Distance,
+        path: vec![0, 1],
     };
     carries(&off_tree, &["node", "slot", "path"]);
     let payload = edit_payload(&off_tree);

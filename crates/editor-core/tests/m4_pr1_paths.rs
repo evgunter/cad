@@ -304,7 +304,8 @@ fn set_expression_path_off_tree_rejected() {
         err,
         EditError::PathOffTree {
             node: doc.spoken(extrude),
-            path: bad
+            slot: bad.slot,
+            path: bad.path
         }
     );
 }

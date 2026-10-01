@@ -275,7 +275,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
 
         | EditError::NonFiniteAlignment { node }
         | EditError::UpdateOnNonInstance { node }
-        | EditError::LabelUnchanged { node, label: _ } => EditPayload {
+        | EditError::LabelUnchanged { node } => EditPayload {
             node: Some(node.id()),
             ..none
         },
@@ -449,10 +449,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The expression address decomposes into the two attributes
         // that already name its halves, plus the child indices below
         // the slot.
-        EditError::PathOffTree { node, path } => EditPayload {
+        EditError::PathOffTree { node, slot, path } => EditPayload {
             node: Some(node.id()),
-            slot: Some(slot_id_tag(&path.slot)),
-            path: Some(&path.path),
+            slot: Some(slot_id_tag(slot)),
+            path: Some(path),
             ..none
         },
         EditError::Dimension(_) => none,

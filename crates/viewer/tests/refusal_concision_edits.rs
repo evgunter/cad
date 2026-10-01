@@ -20,9 +20,9 @@
 use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, Dimension, DimensionError, DistributionFault, DistributionField,
-    DocumentId, EditError, EntityKind, EvalError, ExprPath, FrameSite, Label, MateFault,
-    MeasureNodeFault, MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId,
-    SpokenNode, StableName, StepIdFault,
+    DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault, MeasureNodeFault,
+    MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, SpokenNode,
+    StableName, StepIdFault,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -309,11 +309,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "PathOffTree",
             EditError::PathOffTree {
                 node: s(5),
-                path: ExprPath {
-                    node: n(5),
-                    slot: SlotId::Distance,
-                    path: vec![0, 3],
-                },
+                slot: SlotId::Distance,
+                path: vec![0, 3],
             },
         ),
         (
