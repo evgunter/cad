@@ -110,7 +110,10 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::interval::norm_sup;
-use geom_core::spline::algebra::{GridSkip, domain_grid_points};
+use geom_core::spline::KnotVector;
+use geom_core::spline::algebra::{
+    GridSkip, SLIVER_CLEARANCE_ULPS, domain_grid_points, range_grid_points,
+};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Real, Sign, SupSpeed, Vec3,
@@ -536,11 +539,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     .map_err(|_| SsiError::UnsupportedCertificate {
         what: "the NURBS operand's enclosure data is malformed",
     })?;
-    let (t0c, t1c) = carrier.domain();
-    #[allow(clippy::cast_precision_loss)]
-    let extra: Vec<f64> = (1..SSI_CERT_SPANS)
-        .map(|i| t0c + (t1c - t0c) * (i as f64 / SSI_CERT_SPANS as f64))
-        .collect();
+    let extra = chart_breaks(carrier.knots(), pcurve.knots());
     let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &extra)
         .map_err(|_| SsiError::UnsupportedCertificate {
             what: "the tensor composite refused the carrier/pcurve pair (mismatched \
@@ -564,6 +563,28 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             cause,
         }),
     }
+}
+
+/// The uniform breaks limb 2's composite is cut at: the carrier
+/// domain's `SSI_CERT_SPANS` grid, minus every point within
+/// [`SLIVER_CLEARANCE_ULPS`] of an interior knot of EITHER curve. The
+/// composite merges both curves' knots into its break list, so a grid
+/// point a few ulps off either one's knot would open a hairline span
+/// beside it.
+fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
+    let (lo, hi) = carrier.domain();
+    let knots: Vec<f64> = carrier
+        .interior_knots()
+        .chain(pcurve.interior_knots())
+        .map(|(k, _)| k)
+        .collect();
+    range_grid_points(
+        lo,
+        hi,
+        SSI_CERT_SPANS,
+        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
+        &knots,
+    )
 }
 
 /// The box chain covering a carrier: one padded box per span of the
@@ -1224,6 +1245,21 @@ mod tests {
         want.extend([1.0, 1.0, 1.0]);
         want.sort_by(f64::total_cmp);
         assert_eq!(fine.knots().knots(), want);
+    }
+
+    /// `chart_breaks` skips a grid point beside a knot of either curve:
+    /// a carrier knot one ulp above `2/32` drops `2/32`, a pcurve knot
+    /// one ulp below `12/32` drops `12/32`, and every other 32nd stays.
+    #[test]
+    fn chart_breaks_skip_a_grid_point_beside_either_curves_knot() {
+        let above = f64::from_bits(0.0625f64.to_bits() + 1);
+        let below = f64::from_bits(0.375f64.to_bits() - 1);
+        let breaks = super::chart_breaks(carrier(&[above]).knots(), carrier(&[below]).knots());
+        let want: Vec<f64> = (1..32)
+            .filter(|&k| k != 2 && k != 12)
+            .map(|k| f64::from(k) / 32.0)
+            .collect();
+        assert_eq!(breaks, want);
     }
 
     /// `refined`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`

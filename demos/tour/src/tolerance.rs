@@ -322,7 +322,7 @@ fn real_study(tol: Tol) {
                  {:.4} of the study's mass, is VIOLATED on {:.4} (the web is under \
                  {:.4} mm there, certified), and is undecided on {:.4}; {:.4} of the mass \
                  is in leaves the budget left unresolved",
-                assertion.0,
+                assertion,
                 describe(&decided),
                 masses.holds,
                 masses.violated,
@@ -527,7 +527,7 @@ fn certified_study(tol: Tol) {
     println!(
         "   the assertion node {} is the recorded requirement, and THIS is what the CI \
          row gates on: {}",
-        assertion.0,
+        assertion,
         describe(&decided)
     );
     // What the captions above claim, asserted (stop 1 says why). The

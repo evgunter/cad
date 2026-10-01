@@ -262,6 +262,12 @@ fn eps_row(eps: f64) -> usize {
 /// digest moves at every row; calls, every other line and the receipt
 /// are unchanged. Measured by restoring the old end samples on a probe,
 /// which restores the old line.
+///
+/// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
+/// edges' mid-parameter points are the lever — every witness is minted
+/// and certified at [`geom::mid_param`], and its spelling,
+/// `(t₀ + t₁)·½`, builds different forms from `t₀ + (t₁ − t₀)·½` for
+/// the same point, which reads here as `Plain/Decision` forms alone.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 980 forms 9852 frozen 0 digest 470abc12bada3dcd9f6cc5ecc9b8c3a4\n\
@@ -379,7 +385,8 @@ const PLATE_MAX_TERMS: usize = 252;
 ///
 /// What moves it: any change to the forms the walks meet, or the order
 /// they meet them in — a loop's start vertex, how a sketch segment or
-/// an arc apex is pushed forward, where a curve is sampled. A change
+/// an arc apex is pushed forward, where a curve is sampled, how an
+/// edge's mid parameter is spelled ([`geom::mid_param`]). A change
 /// that moves only digests reorders the forms; one that moves counts
 /// changes what is built.
 const PLATE_LEDGER: &str = "\

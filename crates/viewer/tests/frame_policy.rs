@@ -641,6 +641,9 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
 /// Unfalsifiable before: a badge had no subject to get wrong.
 #[test]
 fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
+    // The badges here carry no node, so the document they speak in
+    // holds none.
+    let nodeless: Doc<ProfileProgram> = Doc::empty_derived("badges", Tol::witness());
     let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
@@ -678,7 +681,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             "a scene the rebuild refused ends when a rebuild lands",
         ),
         (
-            frame::index_badge(Some(&build), None),
+            frame::index_badge(Some(&build), &nodeless, None),
             frame::Subject::Display,
             "a held pick-index refusal ends when a build lands",
         ),
@@ -758,7 +761,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     );
     assert_eq!(
         frame::unindexed_refusal(&pickcache::NotIndexed::Building).subject(),
-        frame::index_badge(Some(&build), None)
+        frame::index_badge(Some(&build), &nodeless, None)
             .expect("a held refusal badges")
             .subject(),
         "and one seam does not speak with two voices: the click it \
@@ -780,7 +783,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     // rest of the family's.
     assert_eq!(frame::scene_badge(None), None, "a scene that built");
     assert_eq!(
-        frame::index_badge(None, None),
+        frame::index_badge(None, &nodeless, None),
         None,
         "a cache holding no refusal"
     );
@@ -815,12 +818,12 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
         .expect_err("a poisoned root refuses the index");
-    let badge = frame::index_badge(Some(&refusal), session.evaluation())
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.evaluation())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on feature {}, which failed — {consequence}",
+            "pick index: waits on Extrude {:012x}, which failed — {consequence}",
             extrude.0
         ),
         "the row the tree blames, not the root the build refused on"
@@ -866,12 +869,12 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
         .expect_err("one failed root refuses the whole index");
-    let badge = frame::index_badge(Some(&refusal), session.evaluation())
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.evaluation())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on feature {}, which failed — {consequence}",
+            "pick index: waits on Extrude {:012x}, which failed — {consequence}",
             broken.0
         )
     );
@@ -880,8 +883,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         badge.detail(),
         Some(
             format!(
-                "pick index: root {0} could not be indexed: pick: node {0} failed, so it has \
-                 no value — fix the node's own failure",
+                "pick index: root {0:012x} could not be indexed: pick: node {0:012x} failed, so \
+                 it has no value — fix the node's own failure",
                 broken.0
             )
             .as_str()
@@ -896,10 +899,11 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         node: RecipeNodeId(3),
         body: 0,
     };
-    let badge = frame::index_badge(Some(&own), session.evaluation()).expect("it badges");
+    let badge =
+        frame::index_badge(Some(&own), session.doc(), session.evaluation()).expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(badge.label(), format!("pick index: {own}"));
-    let unread = frame::index_badge(Some(&refusal), None).expect("it badges");
+    let unread = frame::index_badge(Some(&refusal), session.doc(), None).expect("it badges");
     assert_eq!(unread.tone(), frame::Tone::Actionable);
     assert_eq!(unread.label(), format!("pick index: {refusal}"));
 
@@ -919,13 +923,14 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         node: absent,
         error: NodePickError::Standing(NodeStanding::NotEvaluated { node: absent }),
     };
-    let badge = frame::index_badge(Some(&never_ran), session.evaluation()).expect("it badges");
+    let badge = frame::index_badge(Some(&never_ran), session.doc(), session.evaluation())
+        .expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(
         badge.label(),
-        "pick index: root 99 could not be indexed: pick: node 99 has no result in this \
-         evaluation: the run was canceled before it reached the node — re-evaluate the \
-         document to completion"
+        "pick index: root 000000000063 could not be indexed: pick: node 000000000063 has no \
+         result in this evaluation: the run was canceled before it reached the node — \
+         re-evaluate the document to completion"
     );
 }
 
@@ -958,7 +963,7 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     else {
         panic!("the root is Failed in the evaluation, not poisoned: {refusal:?}");
     };
-    let badge = frame::index_badge(Some(&refusal), session.evaluation())
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.evaluation())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         (*root, *failed),
@@ -969,7 +974,7 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on feature {}, which failed — until the index builds, no pick \
+            "pick index: waits on Mate {:012x}, which failed — until the index builds, no pick \
              is answered and the picture is not redrawn",
             offender.0
         ),
@@ -3181,7 +3186,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert!(
         message
             .text()
-            .contains(&format!("instance {}", bench.post_b.0)),
+            .contains(&format!("instance {:012x}", bench.post_b.0)),
         "the line names which of the user's placements went: {message}"
     );
     assert_eq!(
@@ -3226,7 +3231,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // The fault is said twice, once as why the drag refused and once
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
-    let (post, mate_node) = (bench.post_b.0, landed.0);
+    let (post, mate_node) = (
+        format!("{:012x}", bench.post_b.0),
+        format!("{:012x}", landed.0),
+    );
     assert_eq!(
         line.text(),
         format!(
@@ -3272,7 +3280,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
         tool: ToolKind::Revolve,
         event: SeatEvent::PickLost {
             seat: Seat::RevolveProfile,
-            node: RecipeNodeId(4),
+            node: viewer::test_support::spoken(RecipeNodeId(4), None),
         },
     });
     let panel = frame::tool_news(
@@ -3288,9 +3296,9 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     };
     assert_eq!(
         all.text(),
-        "blend tool: the held edges are on feature 3 body 0, so the edge on feature 5 body 0 \
+        "blend tool: the held edges are on node 000000000003 body 0, so the edge on node 000000000005 body 0 \
          was not taken; cancel to start on another body \u{2022} revolve tool: the profile \
-         pick (feature 4) is no longer in the document; the tool dropped it \u{2022} mate tool: \
+         pick (node 000000000004) is no longer in the document; the tool dropped it \u{2022} mate tool: \
          no landed evaluation to derive frames from"
     );
 
@@ -3303,7 +3311,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     };
     assert_eq!(
         line.text(),
-        "nothing to undo \u{2022} revolve tool: the profile pick (feature 4) is no longer in the \
+        "nothing to undo \u{2022} revolve tool: the profile pick (node 000000000004) is no longer in the \
          document; the tool dropped it"
     );
 }
@@ -3475,6 +3483,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
                 side: MateSide::B,
+                node: viewer::test_support::spoken(RecipeNodeId(3), None),
                 pick: FaceSelection {
                     name: face.clone(),
                     node: RecipeNodeId(3),
@@ -3494,7 +3503,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
                 tool: ToolKind::Boolean,
                 event: SeatEvent::PickLost {
                     seat: Seat::OperandA,
-                    node: RecipeNodeId(3),
+                    node: viewer::test_support::spoken(RecipeNodeId(3), None),
                 },
             },
             frame::Retold::Never,
@@ -3592,10 +3601,10 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
     };
     assert_eq!(
         line.text(),
-        "nothing to undo \u{2022} free move: a committed placement was discarded — node 4 is \
+        "nothing to undo \u{2022} free move: a committed placement was discarded — node 000000000004 is \
          not in the document \u{2022} hide: a hide was dropped with the instance it was on — \
-         node 5 is not in the document \u{2022} free move: the drag in flight was ended — node \
-         6 is not in the document"
+         node 000000000005 is not in the document \u{2022} free move: the drag in flight was ended — node \
+         000000000006 is not in the document"
     );
 }
 
