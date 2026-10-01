@@ -3287,6 +3287,11 @@ MEMBERS_BOUND_AS = {
     # a crossing carries no provenance); the shape that hid it is
     # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
+    # --- a wrapping arm flattened into its payload's words ---------
+    # `BooleanCoincidence::Contact(ContactClass)` crosses as the
+    # contact class's own words beside `Continuation`: the Python enum
+    # is flat, `Rest`, `Tangent`, `Continuation` (`Rest` named here).
+    "BooleanCoincidence::Contact": "BooleanCoincidence.Rest",
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",

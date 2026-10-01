@@ -1892,10 +1892,13 @@ class TestCrosslapGlued(unittest.TestCase):
     the candidate declaration attached). The recourse the menu names
     is executed: detect, INSPECT (the joint's mate is the
     resting-contact class — the notch floor/ceiling and the four
-    crossing walls, all `SameOpposite`), declare, and the SAME union
-    glues through the declared-REST zip at the scene's exact oracle
+    crossing walls, all `SameOpposite`), declare. The beams' tops and
+    bottoms carry on into each other across the notch edges —
+    continuations — so the mate alone still refuses, naming one; with
+    them declared too, the kernel glues at the scene's exact oracle
     2·(BEAM_VOL − NOTCH_VOL) = 1.875 (`demos/tour/src/crosslap.rs`
-    asserts the same both ways).
+    asserts it), and the document layer stops at the naming wall the
+    next test pins.
 
     The inspection step EARNS ITS KEEP here, and honestly: the
     detector also reports the beams' coplanar exteriors (bottoms at
@@ -1936,19 +1939,33 @@ class TestCrosslapGlued(unittest.TestCase):
 
         # The menu's declare arm, executed: the detector reports the
         # joint's whole flush inventory, the menu's own finding among
-        # them. The INSPECTION narrows to the mate itself — the
-        # resting-contact class, a typed field, no name ever read:
-        # the notch floor/ceiling and the four crossing walls.
+        # them — the mate itself (the resting-contact class: the notch
+        # floor/ceiling and the four crossing walls) and the beams'
+        # exteriors, whose tops and bottoms carry on into each other
+        # across the notch edges: continuations. Declaring the mate
+        # alone leaves those continuations undeclared, and the union
+        # refuses on one of them, which is the menu it carries.
         findings = ev.find_flush_candidates(beam_a, beam_b)
         self.assertIn(menu, findings)
+        self.assertEqual(menu.class_, BooleanCoincidence.Continuation)
         mate = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
         self.assertEqual(len(mate), 5)
+        self.assertTrue(all(f.class_ == BooleanCoincidence.Rest for f in mate))
         decl = doc.declare_all(mate)
-        glued = doc.insert(
+        mate_only = doc.insert(
             Node.boolean(BooleanOp.Union, beam_a, beam_b, declare=decl)
         )
-        # 2·(4·0.5·0.5 − 0.5·0.5·0.25) = 1.875, exactly (dyadic).
-        self.assertEqual(volume_of(doc, glued), 1.875)
+        ev = evaluate(doc)
+        with self.assertRaises(EvaluationError) as caught:
+            ev.value(mate_only)
+        self.assertEqual(caught.exception.kind, "undeclared_contact")
+        self.assertEqual(
+            caught.exception.finding.class_, BooleanCoincidence.Continuation
+        )
+        # What following the menu to its end reaches is the next test's
+        # naming wall: the scene's exact oracle,
+        # 2·(4·0.5·0.5 − 0.5·0.5·0.25) = 1.875, waits on that rule at
+        # the document layer (the kernel tour glues it).
 
     def test_the_merge_stage_bottom_declaration_hits_the_naming_wall(self):
         """The measured residue, pinned so its fall is loud: declare
@@ -1960,9 +1977,10 @@ class TestCrosslapGlued(unittest.TestCase):
         merged face reads through to two faces of one operand, and no
         rule picks the one it lies on: a missing rule, not a kernel
         bug (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
-        When this test fails with the union succeeding, the wall has
-        fallen — flip this scene's declaration back to the whole
-        inventory and drop the inspection narrowing above."""
+        The continuations are not optional — the mate alone refuses on
+        them (the test above) — so this wall is where the document
+        crosslap stands. When this test fails with the union
+        succeeding, the wall has fallen: pin the glued oracle here."""
         doc = Doc()
         beam_a, beam_b = self.beams(doc)
         ev = evaluate(doc)
