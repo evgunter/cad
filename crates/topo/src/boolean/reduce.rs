@@ -1983,7 +1983,7 @@ fn wall_crossing<T: Decide>(
     // `Line` carrier's convention, which nothing checks.
     let (count, metres_per_param) = match *carrier {
         geom::Curve3::Line { origin, dir } => (
-            line_wall_root_count(origin, dir, surface, &mut roots, band)?,
+            line_wall_root_count(origin, dir, (t1 - t0).abs(), surface, &mut roots, band)?,
             dir.norm(),
         ),
         // The circle × sphere first harmonic ([`super::circle_sphere`]).
@@ -2128,10 +2128,12 @@ fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) 
 
 /// The certified LINE × wall roots, per kind, written into `roots`:
 /// `Ok(count)` for a certified root set, `Err(verdict)` for the answers
-/// that are not one.
+/// that are not one. `span` is the run of the line's parameter the
+/// edge covers, the lever the wall's axis-parallel rung is metered over.
 fn line_wall_root_count<T: Decide>(
     origin: Point3<T>,
     dir: geom_core::Vec3<T>,
+    span: T,
     surface: &geom::Surface<T>,
     roots: &mut [T; 4],
     band: Band,
@@ -2147,7 +2149,9 @@ fn line_wall_root_count<T: Decide>(
             axis,
             radius,
             ..
-        } => match super::solid_contain::line_wall_roots(origin, dir, c_origin, axis, radius, band)
+        } => match super::solid_contain::line_wall_roots(
+            origin, dir, c_origin, axis, radius, span, band,
+        )
             .map_err(|fault| BooleanError::Escalated {
                 decision: BooleanDecision::WallRoots(fault.rung),
                 diag: fault.diag,
@@ -3422,16 +3426,16 @@ mod wall_root_tests {
 
     /// **The line × wall root lane escalates as its own decision, on a
     /// real raise**: a line across the axis of a unit cylinder, at the
-    /// distance from it that puts the discriminant `disc/(2r)² =
-    /// (r² − d²)/4r²` in the band. The refusal names the rung's
-    /// question and the one lever that reaches it, no tolerance (the
-    /// margin is no length) and no declaration: no face pair says
-    /// where an edge crosses a wall.
+    /// distance from it that puts the discriminant's depth `(r² − d²)/2r`
+    /// in the band. The refusal names the rung's question and the one
+    /// lever that reaches it, no tolerance (the arms that read it pass on
+    /// different sets) and no declaration: no face pair says where an
+    /// edge crosses a wall.
     #[test]
     fn the_wall_root_lane_escalates_as_its_own_decision() {
         let b = Band::linear(Tol::witness()).expect("the witness band");
         let mid = (b.zero() + b.escalate()) / 2.0;
-        let d = (1.0 - 4.0 * mid).sqrt();
+        let d = (1.0 - 2.0 * mid).sqrt();
         let wall = geom::Surface::Cylinder {
             origin: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
@@ -3442,6 +3446,7 @@ mod wall_root_tests {
         let got = line_wall_root_count(
             Point3::new(d, -2.0, 0.5),
             Vec3::new(0.0, 1.0, 0.0),
+            4.0,
             &wall,
             &mut roots,
             b,

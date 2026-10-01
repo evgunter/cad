@@ -25,3 +25,13 @@ What to establish first is where `point_in_solid`'s in-band margin
 comes from: the face's carrier plane, or the face as bounded. A
 reading against an unbounded carrier, for a point outside the face's
 extent, would explain both cases.
+
+## Measured on `reach/opensign-red` (2026-10-01)
+
+That branch levers the ray's parallel test against a face's plane
+(`bool_point_in_solid_denom`) by the selection's reach instead of
+reading the bare cosine. With it, both `wide_wedge_with_a_far_vertex_*`
+cases build below the vertex's offer, where they refused
+`ShellWitnessExhausted` before. Which predicate read in band before was
+not measured. The `m5_pr8_bvh_diff` corner's reading is still
+unexamined.

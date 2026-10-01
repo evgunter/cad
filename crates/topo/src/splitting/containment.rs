@@ -1012,45 +1012,112 @@ pub(crate) fn carrier_loop<T: Decide>(
             geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                 unreachable!("a circle or an ellipse is a conic arc above")
             }
-            // The arc from its midpoint: the oval's speed is at most
-            // `r(R − r)/√((R − r)² − offset²)` (the carrier's own doc),
-            // so no point of it lies further from `P(mid)` than that
-            // times half the parameter width.
-            &geom::Curve3::Spiric {
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            } => {
-                let inner = major_radius - minor_radius;
-                let speed = minor_radius * inner / (inner.powi(2) - offset.powi(2)).sqrt();
-                LoopEdge::Unrowed {
-                    center: carrier.mid_point(t0, t1),
-                    reach: speed * (t1 - t0).abs() * T::from_f64(0.5),
-                }
-            }
-            // Positive weights put a NURBS curve inside its control
-            // hull, so inside any ball holding every control point: the
-            // one about the control points' bounding-box centre, to the
-            // farthest of them.
-            geom::Curve3::Nurbs(n) => {
-                let control = n.control();
-                let first = *control.first().ok_or_else(corrupt)?;
-                let (mut lo, mut hi) = (first, first);
-                for p in control {
-                    lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-                    hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-                }
-                let center = lo + (hi - lo) * T::from_f64(0.5);
-                let mut reach = T::zero();
-                for p in control {
-                    reach = reach.max((*p - center).norm());
-                }
+            _ => {
+                let (center, reach) = carrier_ball(carrier, (t0, t1)).ok_or_else(corrupt)?;
                 LoopEdge::Unrowed { center, reach }
             }
         });
     }
     Ok(CarrierLoop { verts, keys, edges })
+}
+
+/// **A ball holding the arc `span` of `carrier`**, `(center, radius)`,
+/// read off the carrier's own data with no decision: a conic within its
+/// larger semi-axis of its centre, a spiric oval and a spline as
+/// [`LoopEdge::Unrowed`] carries them. `None` for a line, whose segment
+/// its two end vertices hold, and for a spline with no control points.
+fn carrier_ball<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+) -> Option<(Point3<T>, T)> {
+    match *carrier {
+        geom::Curve3::Line { .. } => None,
+        geom::Curve3::Circle { center, radius, .. } => Some((center, radius)),
+        geom::Curve3::Ellipse {
+            center,
+            major,
+            minor,
+            ..
+        } => Some((center, major.max(minor))),
+        // The arc from its midpoint: the oval's speed is at most
+        // `r(R − r)/√((R − r)² − offset²)` (the carrier's own doc),
+        // so no point of it lies further from `P(mid)` than that
+        // times half the parameter width.
+        geom::Curve3::Spiric {
+            major_radius,
+            minor_radius,
+            offset,
+            ..
+        } => {
+            let inner = major_radius - minor_radius;
+            let speed = minor_radius * inner / (inner.powi(2) - offset.powi(2)).sqrt();
+            Some((
+                carrier.mid_point(t0, t1),
+                speed * (t1 - t0).abs() * T::from_f64(0.5),
+            ))
+        }
+        // Positive weights put a NURBS curve inside its control
+        // hull, so inside any ball holding every control point: the
+        // one about the control points' bounding-box centre, to the
+        // farthest of them.
+        geom::Curve3::Nurbs(ref n) => {
+            let control = n.control();
+            let first = *control.first()?;
+            let (mut lo, mut hi) = (first, first);
+            for p in control {
+                lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+                hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+            }
+            let center = lo + (hi - lo) * T::from_f64(0.5);
+            let mut reach = T::zero();
+            for p in control {
+                reach = reach.max((*p - center).norm());
+            }
+            Some((center, reach))
+        }
+    }
+}
+
+/// **How far from `q` the loop reaches**: the radius of a ball about
+/// `q` holding every vertex of `loop` and every edge's whole carrier
+/// arc ([`carrier_ball`]). It asks no decision, so it cannot refuse on
+/// geometry; it over-estimates (a conic's ball is its carrier's, not its
+/// arc's), which is the direction its callers need.
+///
+/// # Errors
+///
+/// [`PointInLoopError::CorruptLoop`] for a loop that does not walk.
+pub(crate) fn loop_extent_from<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    q: Point3<T>,
+) -> Result<T, PointInLoopError> {
+    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
+    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex } => {
+            let point = body.get_vertex(vertex).ok_or_else(corrupt)?.point;
+            return Ok((*body.get_point(point).ok_or_else(corrupt)? - q).norm());
+        }
+    };
+    let mut extent = T::zero();
+    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+        let h = body.get_half_edge(he).ok_or_else(corrupt)?;
+        let point = body.get_vertex(h.start).ok_or_else(corrupt)?.point;
+        extent = extent.max((*body.get_point(point).ok_or_else(corrupt)? - q).norm());
+        let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
+        let Some(curve) = body
+            .get_curve_geom(edge.curve)
+            .ok_or_else(corrupt)?
+            .certified()
+        else {
+            continue;
+        };
+        if let Some((center, reach)) = carrier_ball(curve.carrier(), curve.params()) {
+            extent = extent.max((center - q).norm() + reach);
+        }
+    }
+    Ok(extent)
 }
 
 /// Whether the walk reads the boundary itself, or its caller has.

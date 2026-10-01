@@ -2,10 +2,13 @@
 id: an-open-sign-row-reds-main-at-1e-6-with-section-loop-mixed
 kind: issue
 title: reach_volume_backstop's an_open_sign_beyond_the_band row reds main at CAD_TOLERANCE_EPS 1e-6 again: the scaled oblique rod's boolean refuses SectionLoopMixed
-status: open
+status: closed
 opened: 2026-10-01
 priority: P0
 cost: E
+closed: 2026-10-01
+branch: reach/opensign-red
+refs: [point-in-solid-ray-denominators-are-not-lengths, 3716]
 ---
 
 ## What
@@ -49,3 +52,37 @@ eps filter is `all()`.
 
 Filed by the EDIT orchestrator. Every PR whose eps filter reaches
 `sweep` is blocked by it.
+
+## Closed (2026-10-01)
+
+**Bisected** on main's first parents at ε = 1e-6, from `03411d3699`
+(the first first-parent commit holding PR 3636, green) to `6000ec92d8`
+(red): the first bad merge is `3cedf18afb`, PR 3716 (CLEAVE, one
+cell-dimension witness ladder for section-loop roles). PR 3627's head
+`bb36327908` is green only because it predates PR 3716; merged with
+`6000ec92d8` it is red the same way.
+
+**The refusal was wrong, and PR 3716 only exposed it.** The rod's
+null face 9 has two loops. The cutter-side loop reads `Out` at its
+first vertex. The rod-side loop is the disc the cutter's bottom face
+cuts inside the rod. Its vertices and edge midpoints all lie on the
+rod, so it reaches the face-interior tier, whose witness is the disc's
+centre `(0, 0, 3.5e7)`, on the rod's axis. `point_in_solid` read it
+`Out`. Before PR 3716 the vertex tier resolved the cutter loop and never
+asked the second loop, so nothing compared the two.
+
+The wrong verdict was the ray caster's axis-parallel rung,
+`sin²/2r` against the band: at ε = 1e-6 it cannot exceed ε on a wall
+of radius 5e5 or more, so every schedule ray skipped the rod's wall
+(`point-in-solid-ray-denominators-are-not-lengths`, ledger row F2). It
+skipped no wall at the default ε and at 1e-12 for this row's scales.
+That is why the row was green there.
+
+**Fixed** in its general form, ledger row F2 entire. Both skip questions
+(the plane arm's `d·n̂` and the wall's axis-parallel rung) are levered
+by how far from the query the selection reaches, so a skipped ray
+provably meets no point of the face. The wall's discriminant takes the
+sphere arm's length form. The wall's hit-outward sign is read off the
+discriminant's root order. The row is unchanged and reaches its
+subject, `VolumeUndecided` at both scales, at the default ε, 1e-6 and
+1e-12.
