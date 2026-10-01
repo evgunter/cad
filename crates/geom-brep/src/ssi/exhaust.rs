@@ -25,7 +25,8 @@
 //! domain can reach: one that is not a positive finite width, or one
 //! narrower than the finest cell at the domain's largest coordinate. It
 //! refuses by name ([`SsiError::FloorUnresolvable`]) with the rate that
-//! crossed it, so the cell budget never answers in the floor's place.
+//! crossed it, so the cell budget never answers for a floor no cell can
+//! reach. An attainable floor can still spend the budget by cell count.
 //!
 //! Every length on a receipt or on that refusal is in the units its
 //! own lane measures cells in, and the receipt says which lane that
@@ -66,11 +67,12 @@
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::max_bound;
 use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
 
 use super::SsiError;
-use super::enclose::{Box3, NurbsBoxes, implicit_enclosure, max_keeping_nan};
-use crate::recourse::{SizedDecision, StoredDefinite};
+use super::enclose::{Box3, NurbsBoxes, implicit_enclosure};
+use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, defect_ending};
 
 /// The refinement floor, as a multiple of ε: a cell narrower than this
 /// is not split again. Fixed and named (C3: "a named constant tied to
@@ -373,6 +375,11 @@ pub enum FloorFault {
     /// it is not finite: the surface moves so slowly across its
     /// parameters that the floor spans no finite parameter width.
     Overflows,
+    /// The domain's largest coordinate is not a finite number, so it
+    /// has no resolution to compare the floor with. Every SSI door
+    /// checks the caller's domain first, and the chart lane's root is a
+    /// validated knot domain, so nothing a caller holds reaches it.
+    DomainUnreadable,
     /// The floor is narrower than the finest cell bisection can cut
     /// where the domain reaches furthest from zero, so the subdivision
     /// can never refine to it there.
@@ -411,16 +418,24 @@ pub struct FloorRefusal {
 }
 
 impl FloorRefusal {
-    /// The decision whose ending this refusal reads, by the lane it
-    /// landed on; `None` for a floor that is not a length, which is the
-    /// caller's knobs and not the geometry's scale.
-    pub(super) fn decision(&self) -> Option<SizedDecision> {
-        match (self.fault, self.lane) {
-            (FloorFault::NotALength, _) => None,
-            (FloorFault::Overflows, _) => Some(CHART_TOO_SLOW),
-            (FloorFault::BelowResolution { .. }, ExhaustLane::R3) => Some(R3_SCALE),
-            (FloorFault::BelowResolution { .. }, ExhaustLane::Chart { .. }) => Some(CHART_SCALE),
-        }
+    /// The ending at `reading` (D4 ¶1). A floor too fine for its domain
+    /// is the geometry's scale, decided exactly (no band, so no
+    /// tolerance is named); a floor that is not a length is the
+    /// caller's knobs; an unreadable root is no input's.
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> String {
+        let decision = match (self.fault, self.lane) {
+            (FloorFault::NotALength, _) => {
+                return "Recourse: give the domain a feature extent and floor scale whose \
+                        floors are positive finite lengths"
+                    .to_owned();
+            }
+            (FloorFault::DomainUnreadable, _) => return defect_ending(reading).to_owned(),
+            (FloorFault::Overflows, _) => CHART_TOO_SLOW,
+            (FloorFault::BelowResolution { .. }, ExhaustLane::R3) => R3_SCALE,
+            (FloorFault::BelowResolution { .. }, ExhaustLane::Chart { .. }) => CHART_SCALE,
+        };
+        decision.recourse(RefusedArm::SignCertain, reading)
     }
 }
 
@@ -483,6 +498,11 @@ impl core::fmt::Display for FloorRefusal {
                 f,
                 ", which is not a finite width: the surface moves too slowly across its \
                  parameters for the floor to be stated in them"
+            ),
+            FloorFault::DomainUnreadable => write!(
+                f,
+                ", over a domain whose largest coordinate is not a finite number, which has \
+                 no resolution to compare it with"
             ),
             FloorFault::BelowResolution { resolution, reach } => write!(
                 f,
@@ -572,9 +592,11 @@ impl<C: SweepCell> SweepFloor<C> {
             return refuse(FloorFault::Overflows);
         }
         let reach = root.reach();
-        let resolution = C::finest_width_at(reach);
-        // A root with no readable reach has no resolution, and refuses.
-        if resolution.is_nan() || width < resolution {
+        if !reach.is_finite() {
+            return refuse(FloorFault::DomainUnreadable);
+        }
+        let resolution = C::finest_at(reach).width();
+        if width < resolution {
             return refuse(FloorFault::BelowResolution { resolution, reach });
         }
         Ok(Self { root, lane, width })
@@ -640,10 +662,11 @@ pub(crate) trait SweepCell: Copy {
     /// The largest coordinate magnitude over the cell's sides (`NaN`
     /// when a side has none).
     fn reach(self) -> f64;
-    /// The width this lane's [`SweepCell::width`] gives the finest cell
-    /// bisection can cut at coordinate magnitude `reach`: two adjacent
-    /// floats just below it, which no split separates.
-    fn finest_width_at(reach: f64) -> f64;
+    /// The finest cell bisection can cut at coordinate magnitude
+    /// `reach`: two adjacent floats just below it on every side, which
+    /// no split separates. The door reads its width through
+    /// [`SweepCell::width`], so the floor and the sweep measure it alike.
+    fn finest_at(reach: f64) -> Self;
 }
 
 impl SweepCell for Box3 {
@@ -664,10 +687,15 @@ impl SweepCell for Box3 {
     fn reach(self) -> f64 {
         [self.y.mag(), self.z.mag()]
             .into_iter()
-            .fold(self.x.mag(), max_keeping_nan)
+            .fold(self.x.mag(), max_bound)
     }
-    fn finest_width_at(reach: f64) -> f64 {
-        Interval::from_bounds(reach.next_down(), reach).width()
+    fn finest_at(reach: f64) -> Self {
+        let side = Interval::from_bounds(reach.next_down(), reach);
+        Self {
+            x: side,
+            y: side,
+            z: side,
+        }
     }
 }
 
@@ -861,7 +889,7 @@ impl UvRect {
     /// The wider side; `NaN` when either side is, so a NaN side fails
     /// the floor test rather than dropping out of it.
     fn width(self) -> f64 {
-        max_keeping_nan(self.u.1 - self.u.0, self.v.1 - self.v.0)
+        max_bound(self.u.1 - self.u.0, self.v.1 - self.v.0)
     }
 
     fn center(self) -> (f64, f64) {
@@ -919,10 +947,11 @@ impl SweepCell for UvRect {
     fn reach(self) -> f64 {
         [self.u.1, self.v.0, self.v.1]
             .into_iter()
-            .fold(self.u.0.abs(), |m, x| max_keeping_nan(m, x.abs()))
+            .fold(self.u.0.abs(), |m, x| max_bound(m, x.abs()))
     }
-    fn finest_width_at(reach: f64) -> f64 {
-        reach - reach.next_down()
+    fn finest_at(reach: f64) -> Self {
+        let side = (reach.next_down(), reach);
+        Self { u: side, v: side }
     }
 }
 
@@ -1148,7 +1177,11 @@ mod tests {
                 FloorKind::Seeding,
             ));
             assert_eq!(r.fault, FloorFault::NotALength, "{meters:e}");
-            assert!(r.decision().is_none(), "{meters:e}: the caller's knobs");
+            assert!(
+                r.ending(crate::recourse::Reading::Build)
+                    .contains("floor scale"),
+                "{meters:e}: the caller's knobs"
+            );
         }
         let r = refusal(SweepFloor::chart(
             unit_square(),
@@ -1158,6 +1191,23 @@ mod tests {
         ));
         assert_eq!(r.fault, FloorFault::Overflows);
         assert!(r.width.is_infinite() && r.meters == 1.0, "{r:?}");
+        // A root with a refused side or an infinite one has no reach to
+        // resolve against: never "move the geometry nearer the origin".
+        let side = Interval::from_bounds(0.0, 1.0);
+        for bad in [
+            Interval::refused(),
+            Interval::from_bounds(0.0, f64::INFINITY),
+        ] {
+            let root = Box3 {
+                x: side,
+                y: bad,
+                z: side,
+            };
+            let r = refusal(SweepFloor::r3(root, 1.0e-9, FloorKind::Accounting));
+            assert_eq!(r.fault, FloorFault::DomainUnreadable, "{bad:?}");
+            let ending = r.ending(crate::recourse::Reading::Build);
+            assert!(!ending.contains("nearer the origin"), "{ending}");
+        }
     }
 
     /// **The refusal names the rate, through the chart-length spelling**,

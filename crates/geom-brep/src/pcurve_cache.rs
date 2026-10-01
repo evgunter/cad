@@ -1957,6 +1957,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::Fit(_)
         | E::FitSampleBudget { .. }
         | E::BranchUndersampled { .. }
+        | E::DomainUnusable { .. }
         | E::WrongLane { .. }
         | E::Band(_)
         | E::InvalidMarchTol { .. }

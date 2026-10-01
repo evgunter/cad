@@ -137,7 +137,11 @@ resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:
 one that is not a positive finite width, or one narrower than the
 finest cell bisection can cut at the domain's largest coordinate. On
 the chart lane the refusal names the rate that crossed the floor, so
-the cell budget never answers in the floor's place. The receipt and that refusal
+the cell budget never answers for a floor no cell can reach (an
+attainable floor can still spend the budget by cell count). Before
+any of it, every SSI door refuses a domain whose centre is not finite
+or whose half-extent, feature extent or floor scale is not positive and
+finite (`SsiError::DomainUnusable`). The receipt and that refusal
 state their lengths in the units their own lane subdivides in and carry
 an `ExhaustLane` saying which — metres on the ℝ³ lane, chart units plus
 the certified `SupSpeed` that crossed them on the chart lane — so metres

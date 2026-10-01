@@ -2870,12 +2870,27 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
     }
 }
 
-/// A tiny net the plane DOES meet never answers `Ok` with no branch:
-/// whatever the chart speed reads at these spreads, the sweep either
-/// finds the crossing or refuses. Paired with the row above, whose
+/// **A tiny net the plane DOES meet refuses by the kind its size
+/// earns**, never `Ok` with no branch. Paired with the row above, whose
 /// `Ok`-empty answers are honest only because its plane misses.
+///
+/// The branch is `3·spread` long, against the march's longest step of
+/// `SSI_STEP_MAX · 1.5` m. Three regions, placed against the run band so
+/// every ε of the battery reads the same kinds:
+///
+/// - a branch at least twice the band's escalate width is traced in
+///   one step each way, and refuses `BranchUndersampled` with its 3
+///   samples. This is also the row that pins the march's diagonal cap
+///   on a real chart: the step (over 1e6 state units at `1e-8`) is
+///   capped at the ℝ⁴ domain's diagonal (5.83). Without the cap, from
+///   spread `1e-7` down it lands where Newton cannot settle it, and the
+///   answer is `StepRefinementFailed`.
+/// - a branch within a few ε of the band is a step that collapses into
+///   it, or a band decision that escalates on it;
+/// - from `1e-100` down, the transversality margin is unreadable and
+///   escalates `ssi_transversality`.
 #[test]
-fn a_tiny_net_the_plane_meets_never_answers_ok_empty() {
+fn a_tiny_net_the_plane_meets_refuses_by_the_kind_its_size_earns() {
     let dom = SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 2.0,
@@ -2883,15 +2898,111 @@ fn a_tiny_net_the_plane_meets_never_answers_ok_empty() {
         floor_scale: 1.0,
     };
     for s in [
-        1.0e-8f64, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315,
+        1.0e-2f64, 1.0e-3, 1.0e-5, 1.0e-7, 1.0e-8, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260,
+        1.0e-300, 1.0e-315,
     ] {
         let plane = Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.25 * s),
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        if let Ok(out) = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band()) {
-            assert!(!out.branches.is_empty(), "spread {s:e}: silent miss");
+        let r = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band());
+        let ok = if s <= 1.0e-100 {
+            matches!(&r, Err(SsiError::Escalated(d)) if d.predicate == Some("ssi_transversality"))
+        } else if 3.0 * s >= 2.0 * band().escalate() {
+            matches!(
+                &r,
+                Err(SsiError::BranchUndersampled {
+                    samples: 3,
+                    need: 4,
+                    ..
+                })
+            )
+        } else {
+            matches!(
+                &r,
+                Err(SsiError::StepCollapsed { .. } | SsiError::Escalated(_))
+            )
+        };
+        assert!(ok, "spread {s:e} at ε {:e}: {r:?}", band().zero());
+    }
+}
+
+/// **An unusable domain refuses at the door, by its knob**, at every
+/// SSI door's rule (`SsiDomain::check`): never routed into the floor
+/// door, where an unreadable slab used to read as a scale and end
+/// "move the geometry nearer the origin". A zero half-extent is an
+/// empty domain, and refuses too: an `Ok` with no branch over it would
+/// be evidence of nothing.
+#[test]
+fn an_unusable_domain_refuses_by_its_knob_at_the_door() {
+    use geom_brep::DomainField;
+    use geom_brep::recourse::Reading;
+
+    let rows = [
+        (
+            SsiDomain {
+                half_extent: f64::NAN,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                half_extent: f64::INFINITY,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                half_extent: -1.0,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                half_extent: 0.0,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                center: Point3::new(f64::NAN, 0.0, 0.0),
+                ..slab()
+            },
+            DomainField::Center,
+        ),
+        (
+            SsiDomain {
+                extent: 0.0,
+                ..slab()
+            },
+            DomainField::Extent,
+        ),
+        (
+            SsiDomain {
+                floor_scale: f64::NAN,
+                ..slab()
+            },
+            DomainField::FloorScale,
+        ),
+    ];
+    for (d, want) in rows {
+        let r3 = ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, band());
+        let chart = ssi::plane_nurbs_ssi(&cutting_plane(), &certifiable_wall(), d, band());
+        for r in [r3, chart] {
+            let Err(ref e @ SsiError::DomainUnusable { field, .. }) = r else {
+                panic!("{d:?}: expected the domain door, got {r:?}");
+            };
+            assert_eq!(field, want, "{d:?}");
+            let shown = e.render(Reading::Build);
+            assert!(
+                !shown.contains("nearer the origin") && shown.contains("Recourse: give the domain"),
+                "{shown}"
+            );
         }
     }
 }

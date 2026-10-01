@@ -322,9 +322,12 @@ pub(crate) struct MarchContext<const N: usize> {
 
 impl<const N: usize> MarchContext<N> {
     /// The domain box's diagonal, in state units: the longest step the
-    /// stepper takes. The trace ends at its first exit, and a longer
-    /// step only puts the crossing past what the boundary search's fixed
-    /// bisections resolve, so the trace would end at the state it left.
+    /// stepper takes. The trace ends at its first exit, so a longer step
+    /// buys nothing, and it costs the trace twice. Landed far outside the
+    /// domain, the step may not settle back onto the locus at all
+    /// (Newton fails, and the march loses its branch), or it puts the
+    /// crossing past what the boundary search's fixed bisections
+    /// resolve, so the trace ends at the state it left.
     fn diagonal(&self) -> f64 {
         self.domain
             .iter()
@@ -1031,6 +1034,13 @@ mod tests {
                 }) => {
                     assert_eq!(mode, StepperMode::Idealized.name());
                     assert_eq!(named.to_bits(), speed.to_bits(), "the speed it names");
+                    let ending = SsiError::StepUnusable {
+                        mode,
+                        speed,
+                        fault: StepFault::SpeedUnusable,
+                    }
+                    .ending(crate::recourse::Reading::Build);
+                    assert_eq!(ending.as_deref(), Some(geom_core::KERNEL_DEFECT_ENDING));
                 }
                 Err(SsiError::Escalated(diag)) => panic!(
                     "WRONG DIAGNOSIS: a march speed of {speed:e} escalated on \
@@ -1105,6 +1115,13 @@ mod tests {
                 _ => panic!("speed {speed:e} ({mode:?}): expected {fault:?}, got {r:?}"),
             };
             assert_eq!(named.to_bits(), speed.to_bits(), "the speed it names");
+            let ending = r.unwrap_err().ending(crate::recourse::Reading::Build);
+            assert!(
+                ending
+                    .as_deref()
+                    .is_some_and(|e| e.starts_with("Recourse: bring the operands")),
+                "speed {speed:e}: {ending:?}"
+            );
         }
     }
 

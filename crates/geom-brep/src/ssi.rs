@@ -127,6 +127,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::{Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, Margin, Point3, Real, SizedPass};
 
+use crate::certify::CertCheck;
 use crate::recourse::{Reading, Refused, RefusedArm, SizedDecision, StoredDefinite};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube};
@@ -316,7 +317,8 @@ pub enum SsiError {
     /// The subdivision's floor is one its domain cannot resolve: not a
     /// positive finite width, or narrower than the finest cell bisection
     /// can cut there. Refused where the floor is minted, before any
-    /// sweep runs, so the cell budget never answers in its place.
+    /// sweep runs, so the cell budget never answers for a floor no cell
+    /// can reach.
     FloorUnresolvable(FloorRefusal),
     /// The cell enumeration exceeded its budget — a refusal, never a
     /// silently truncated search.
@@ -507,6 +509,15 @@ pub enum SsiError {
     },
     /// Band construction refused.
     Band(geom_core::BandError),
+    /// A knob of the caller's [`SsiDomain`] is not usable: refused at
+    /// the door, before anything reads it.
+    DomainUnusable {
+        /// Which knob.
+        field: DomainField,
+        /// Its value (for the centre, the first coordinate that is not
+        /// finite).
+        value: f64,
+    },
     /// A decoupled marcher step tolerance was not a usable length.
     InvalidMarchTol {
         /// The offending value, in meters.
@@ -726,6 +737,14 @@ impl core::fmt::Display for SsiError {
                 cause.payload()
             ),
             Self::Band(e) => write!(f, "ssi: {e}"),
+            Self::DomainUnusable { field, value } => {
+                let (name, must) = field.words();
+                write!(
+                    f,
+                    "ssi: the domain's {name} reads {value:e}, which is not {must}, so the \
+                     domain names no region to search"
+                )
+            }
             Self::InvalidMarchTol { value } => write!(
                 f,
                 "ssi: the marcher's step tolerance {value:e} m is not a usable length \
@@ -765,6 +784,10 @@ impl SsiError {
             Self::OperandNotFinite { operand, datum } => {
                 format!("Recourse: give the {operand} a finite {datum}")
             }
+            Self::DomainUnusable { field, .. } => {
+                let (name, must) = field.words();
+                format!("Recourse: give the domain a {name} that is {must}")
+            }
             // The caller's extent sets the march's longest step.
             Self::BranchUndersampled { length, .. } => format!(
                 "Recourse: name a feature extent no larger than this feature, here {length:e} m"
@@ -772,15 +795,26 @@ impl SsiError {
             // A floor too fine for the domain is the geometry's scale,
             // decided exactly: no band, so no tolerance to name. One that
             // is not a length is the caller's knobs.
-            Self::FloorUnresolvable(r) => match r.decision() {
-                Some(decision) => decision.recourse(RefusedArm::SignCertain, reading),
-                None => FLOOR_NOT_A_LENGTH_RECOURSE.to_owned(),
-            },
-            // The same fact of the face, and the same ending, as the
-            // edge lane's refusal of it.
+            Self::FloorUnresolvable(r) => r.ending(reading),
+            // The same decision, and so the same ending, as the edge
+            // lane's refusal of the same fact.
             Self::ChartSpeed(r) => {
-                return crate::edge_nurbs::PlaneNurbsRefusal::ChartSpeed(*r).ending(reading);
+                crate::certify::recourse(r.check(), RefusedArm::SignCertain, reading)
             }
+            // A step that cannot be taken or that collapses into the
+            // band is the operands' scale against the domain the caller
+            // named, decided without a margin to name. A march speed
+            // that is not positive and finite is no input's: the chart
+            // mint refuses a degenerate chart before any march.
+            Self::StepCollapsed { .. }
+            | Self::StepUnusable {
+                fault: StepFault::NotFinite | StepFault::DoesNotMove,
+                ..
+            } => STEP_SCALE.recourse(RefusedArm::SignCertain, reading),
+            Self::StepUnusable {
+                fault: StepFault::SpeedUnusable,
+                ..
+            } => crate::recourse::defect_ending(reading).to_owned(),
             // A kernel approximation limit: the user holds no lever but
             // the tolerance (D4 ¶1 (i)'s last resort).
             Self::FitSampleBudget { budget, .. } => format!(
@@ -792,8 +826,6 @@ impl SsiError {
             Self::ExhaustivenessInconclusive(_)
             | Self::CellBudget { .. }
             | Self::StepBudget { .. }
-            | Self::StepCollapsed { .. }
-            | Self::StepUnusable { .. }
             | Self::SeedRefinementFailed { .. }
             | Self::StepRefinementFailed { .. }
             | Self::SelfCrossingLocus { .. }
@@ -877,6 +909,17 @@ pub enum ChartSpeedRefusal {
 }
 
 impl ChartSpeedRefusal {
+    /// The decision this refusal is the sign-certain arm of, read by
+    /// every door that reports it: the mint's verdict is exact, a speed
+    /// bound that is zero or not finite, with no band between.
+    #[must_use]
+    pub fn check(self) -> CertCheck {
+        match self {
+            Self::Zero { .. } => CertCheck::PlaneNurbsChartSpeed,
+            Self::NotFinite { .. } => CertCheck::PlaneNurbsChartSpeedBound,
+        }
+    }
+
     /// The refusal's sentence, without the `ssi:` prefix — what
     /// [`SsiError`]'s `Display` renders and what a lane that reports it
     /// in its own vocabulary carries.
@@ -1051,6 +1094,27 @@ pub struct SsiDomain {
 }
 
 impl SsiDomain {
+    /// The door every SSI operation asks first: the centre is a finite
+    /// point, and the half-extent, the feature extent and the floor
+    /// scale are positive finite numbers. A zero half-extent is an
+    /// empty domain, which no answer about it is evidence of.
+    fn check(&self) -> Result<(), SsiError> {
+        let c = self.center;
+        let fields = [
+            (
+                DomainField::Center,
+                [c.x, c.y, c.z].into_iter().find(|v| !v.is_finite()),
+            ),
+            (DomainField::HalfExtent, positive_finite(self.half_extent)),
+            (DomainField::Extent, positive_finite(self.extent)),
+            (DomainField::FloorScale, positive_finite(self.floor_scale)),
+        ];
+        match fields.into_iter().find_map(|(f, bad)| bad.map(|v| (f, v))) {
+            Some((field, value)) => Err(SsiError::DomainUnusable { field, value }),
+            None => Ok(()),
+        }
+    }
+
     /// The slab as a enclosure box.
     fn slab(&self) -> Box3 {
         Box3::around(self.center, self.half_extent)
@@ -1094,6 +1158,36 @@ impl SsiDomain {
     }
 }
 
+/// `Some(x)` when `x` is not a positive finite number.
+fn positive_finite(x: f64) -> Option<f64> {
+    (!(x.is_finite() && x > 0.0)).then_some(x)
+}
+
+/// Which knob of an [`SsiDomain`] a [`SsiError::DomainUnusable`] names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DomainField {
+    /// [`SsiDomain::center`]: a coordinate is not finite.
+    Center,
+    /// [`SsiDomain::half_extent`]: not positive and finite.
+    HalfExtent,
+    /// [`SsiDomain::extent`]: not positive and finite.
+    Extent,
+    /// [`SsiDomain::floor_scale`]: not positive and finite.
+    FloorScale,
+}
+
+impl DomainField {
+    /// The knob's name, and what it must be.
+    fn words(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Center => ("centre", "a finite point"),
+            Self::HalfExtent => ("half-extent", "a positive finite length"),
+            Self::Extent => ("feature extent", "a positive finite length"),
+            Self::FloorScale => ("floor scale", "a positive finite multiplier"),
+        }
+    }
+}
+
 /// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
 /// on **one shared parameter** (the OQ4 contract).
 ///
@@ -1109,16 +1203,22 @@ fn fit_branch(
     extent: f64,
 ) -> Result<FittedBranch, SsiError> {
     fit_samples(points, charts).map_err(|e| match e {
-        // A marched branch has too few samples for the cubic only when
-        // it is shorter than a few of the march's longest steps, which
-        // the caller's extent sets: name that, not the fit's count.
-        SsiError::Fit(FitError::TooFewPoints { have, need }) => SsiError::BranchUndersampled {
-            samples: have,
-            need,
-            length: points.windows(2).map(|w| (w[1] - w[0]).norm()).sum(),
-            longest_step: SSI_STEP_MAX * extent,
-            extent,
-        },
+        // A marched branch of at least two samples has too few for the
+        // cubic only when it is shorter than a few of the march's
+        // longest steps, which the caller's extent sets: name that, not
+        // the fit's count. Any other shortfall (one sample has no
+        // length to name) stays the fit's own refusal.
+        SsiError::Fit(FitError::TooFewPoints { have, need })
+            if have >= 2 && need == SSI_FIT_DEGREE + 1 =>
+        {
+            SsiError::BranchUndersampled {
+                samples: have,
+                need,
+                length: points.windows(2).map(|w| (w[1] - w[0]).norm()).sum(),
+                longest_step: SSI_STEP_MAX * extent,
+                extent,
+            }
+        }
         e => e,
     })
 }
@@ -1212,11 +1312,19 @@ const TRANSVERSALITY: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-/// The ending of a floor that is not a length
-/// ([`exhaust::FloorFault::NotALength`]): the domain's own knobs make
-/// it.
-const FLOOR_NOT_A_LENGTH_RECOURSE: &str =
-    "Recourse: give the domain a positive finite extent and floor scale";
+/// The stepper's step against the operands and the domain the caller
+/// named ([`SsiError::StepCollapsed`], [`SsiError::StepUnusable`]): a
+/// step that collapses into the band, overflows, or does not move the
+/// state comes from operands outside the model's size range or a domain
+/// far larger than the feature traced.
+const STEP_SCALE: SizedDecision = SizedDecision {
+    lever: "bring the operands within the model's size range, and name a domain and feature \
+            extent near the size of the feature traced",
+    size: "scale",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 /// The cylinder × sphere tangency decision (`ssi_cs_tangency`): the
 /// gap from the nearer tangent pose, a magnitude, which passes positive.
@@ -1310,6 +1418,7 @@ pub fn cylinder_sphere_ssi(
     };
     finite_operand("sphere", sphere)?;
     finite_operand("cylinder", cyl)?;
+    domain.check()?;
     let (
         Surface::Sphere { center, radius, .. },
         &Surface::Cylinder {
@@ -1515,6 +1624,7 @@ pub fn plane_nurbs_ssi(
     // refusal arm can only name the wall's net.
     finite_operand("plane", plane)?;
     finite_net("NURBS wall", wall)?;
+    domain.check()?;
     let half = domain.half_extent;
     let Some(chart_a) = Chart::plane_of(plane, (-half, half), (-half, half)) else {
         return Err(SsiError::WrongLane {
@@ -1697,6 +1807,7 @@ pub fn trace_plane_nurbs_uncertified(
     };
     finite_operand("plane", plane)?;
     finite_net("NURBS wall", wall)?;
+    domain.check()?;
     let half = domain.half_extent;
     let Some(chart_a) = Chart::plane_of(plane, (-half, half), (-half, half)) else {
         return Err(SsiError::WrongLane {
@@ -1792,6 +1903,7 @@ pub fn idealized_trace_r3(
 ) -> Result<(Vec<Point3<f64>>, BranchEnd), SsiError> {
     finite_operand("first operand", a)?;
     finite_operand("second operand", b)?;
+    domain.check()?;
     let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
     let ctx = MarchContext::<3> {

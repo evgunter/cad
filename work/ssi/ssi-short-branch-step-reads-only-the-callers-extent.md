@@ -26,7 +26,9 @@ the step collapses into the band, which is honest.
 
 Open: whether the stepper should trace such a branch itself, for
 example by re-marching a trace shorter than the fit's need with the
-step scaled to the trace's own length. That makes the step rule read
-something other than the caller's extent, which today is the only
-length it reads (`SSI_STEP_MAX`'s doc). It is a stepper design choice,
-not a fix.
+step scaled to the trace's own length. Today the step's lengths are
+the caller's extent (`SSI_STEP_MAX`'s cap), the curvature terms, and
+the march domain's diagonal, which caps a step at the whole domain and
+so never shortens one below a branch that crosses it. None of them is
+the branch's own length, so re-marching at it would add a scale the
+step rule does not read. It is a stepper design choice, not a fix.
