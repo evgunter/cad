@@ -2,11 +2,11 @@
 id: kernel-refusals-say-node-where-the-tree-says-feature
 kind: issue
 title: chrome: kernel refusals the tree draws verbatim say 'node N' where the tree's own words say 'feature N'
-status: parked
-blocked_on: [node-labels-are-document-data]
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: E
+closed: 2026-10-01
 ---
 
 ## Question (answered by Ev, 2026-10-01)
@@ -53,3 +53,8 @@ So the "node N" against "feature N" choice no longer exists, and the identifier 
 - Route them through the kernel's spoken-node form.
 
 That form arrives with `work/emit/node-labels-are-document-data`, so this row is parked on it.
+
+
+## Closed 2026-10-01 — PR 3728
+
+`tree::node_number` went in PR 3631 (`295c2e786e`). In PR 3728 a failed row and a carried line in the same document speak the kernel's spoken node: `Extrude "…" (tag) failed: …`. The inner `node <tag>` in `PartFault`/`MateFault` names a tag the row shows, which is the resolution Ev accepted. Speaking those inner ids with their labels is `work/emit/memoized-refusals-speak-inner-nodes-through-the-frame`.
