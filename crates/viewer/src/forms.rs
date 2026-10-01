@@ -189,6 +189,22 @@ impl DatumKindChoice {
             Self::Plane | Self::Frame | Self::Axis | Self::Point => None,
         }
     }
+
+    /// **The kind noun of the node this choice creates** —
+    /// `node_kind_noun`'s word for it, which the form's proposed label
+    /// counts by ([`crate::tree::proposed_label`]).
+    /// `drafts::tests::each_datum_choices_noun_is_the_kind_of_the_node_it_commits`
+    /// holds each to the node the form commits.
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Plane => "Datum plane",
+            Self::Frame => "Datum frame",
+            Self::FaceFrame => "Datum frame (on face)",
+            Self::Axis => "Datum axis",
+            Self::AxisInPlane => "Datum axis (in sketch)",
+            Self::Point => "Datum point",
+        }
+    }
 }
 
 partial_mirror! {

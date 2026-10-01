@@ -670,7 +670,7 @@ impl SceneMesh {
                         // infinity in a vertex buffer.
                         let Some(position) = p.narrow() else {
                             return Err(SceneError::UndrawablePosition {
-                                position: [p.x, p.y, p.z],
+                                position: p.to_array(),
                             });
                         };
                         positions.push(position);

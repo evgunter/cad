@@ -1019,6 +1019,7 @@ test_utils::f6_variants! {
         DeclareInput,
         WitnessSite,
         WitnessOnMissingNode,
+        LabelOnMissingNode,
         SlotDimension,
         SlotUnknownDocParam,
         SlotDocParamDimension,
@@ -1126,6 +1127,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::WitnessOnMissingNode { node },
             vec!["a witness is attached to node 000000000005", "not live"],
+        ),
+        (
+            SnapshotError::LabelOnMissingNode { node },
+            vec!["a label is attached to node 000000000005", "not live"],
         ),
         (
             SnapshotError::SlotDimension {

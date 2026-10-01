@@ -1460,7 +1460,7 @@ impl PartialEq for PickHit {
             t_hi: other_t_hi,
             point: other_point,
         } = other;
-        let xyz = |p: &Point3<f64>| [p.x, p.y, p.z];
+        let xyz = |p: &Point3<f64>| p.to_array();
         name == other_name
             && node == other_node
             && body == other_body

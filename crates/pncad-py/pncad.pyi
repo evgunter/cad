@@ -3173,6 +3173,18 @@ class DocEdit:
     @staticmethod
     def delete_node(id: NodeId) -> DocEdit: ...
     @staticmethod
+    def set_label(node: NodeId, label: Optional[str]) -> DocEdit:
+        """Set or clear a node's label: `label` replaces the label the
+        node has, `None` clears it. A label is document data beside the
+        node — not unique, never identity — so the edit recomputes
+        nothing; it does move the content pin, as a recolour does.
+
+        Raises EditError at this call for a text that is not a label
+        (`label_blank`, `label_line_break`, `label_control_character`),
+        and at `apply` for a node the document does not hold
+        (`unknown_node`) or an edit that would leave the label as it is
+        (`label_unchanged`)."""
+    @staticmethod
     def set_members(node: NodeId, members: list[NodeId]) -> DocEdit:
         """Replace a node's whole LIST input — a `Node.union`'s
         members, a `Node.loft`'s sections — with the list stated in
@@ -3449,15 +3461,16 @@ class DocEdit:
 class Doc:
     """A parametric document: the recipe, not the geometry."""
 
-    def __init__(self, label: Optional[str] = None) -> None:
+    def __init__(self, seed: Optional[str] = None) -> None:
         """An empty document.
 
         `Doc()` mints a FRESH random identity, so two documents
         authored here are two parts and one workspace holds both.
-        `Doc(label)` derives the id from the label instead — same
-        label, same id, on every platform, which makes it the
+        `Doc(seed)` derives the id from the seed text instead — same
+        seed, same id, on every platform, which makes it the
         reproducible spelling and, deliberately, the one that makes
-        two same-label documents the SAME part. Raises IdentityError
+        two same-seed documents the SAME part. (The seed is not a
+        label: a node's label is `Doc.label`.) Raises IdentityError
         if the OS entropy source refuses."""
     @property
     def id(self) -> str:
@@ -3613,9 +3626,25 @@ class Doc:
         A node this document does not hold raises EditError
         (`unknown_node`) rather than answering a word or `None`."""
 
-    def insert(self, node: Node, *, resolver: Optional[Workspace] = None) -> NodeId:
+    def label(self, node: NodeId) -> Optional[str]:
+        """The label a person gave `node`, or `None` when it has none.
+        Set or cleared by `DocEdit.set_label`, or by `label=` at
+        insert. A node this document does not hold raises EditError
+        (`unknown_node`): `None` answers only for a held node."""
+
+    def insert(
+        self,
+        node: Node,
+        *,
+        label: Optional[str] = None,
+        resolver: Optional[Workspace] = None,
+    ) -> NodeId:
         """Insert a node, answering its minted id — `apply` of
         `DocEdit.insert_node`.
+
+        `label=` labels the new node in the same call: the insert and
+        `DocEdit.set_label`, both applied or neither. A text that is
+        not a label raises EditError before anything is applied.
 
         `resolver` is the document seam a mate's admission reads the
         parts through: an insert is a Join at most (the survivor keeps
@@ -3628,12 +3657,14 @@ class Doc:
         self,
         plane: Optional[SketchPlane] = None,
         elevation: Optional[Expr] = None,
+        *,
+        label: Optional[str] = None,
     ) -> NodeId:
         """Insert a sketch frame and return its id.
 
-        Exactly `insert(Node.sketch_frame(...))`. Each call mints a
-        FRESH frame; two sketches meant to share a plane bind the id
-        once and pass it twice.
+        Exactly `insert(Node.sketch_frame(...), label=label)`. Each call
+        mints a FRESH frame; two sketches meant to share a plane bind
+        the id once and pass it twice.
         """
 
     def declare(self, finding: FlushFinding) -> NodeId:

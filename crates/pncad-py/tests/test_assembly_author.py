@@ -1732,7 +1732,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
     id in `of`'s space. A bare node id with no document is not
     something a caller can look up."""
 
-    def stand_doc(self, label, class_=ContactClass.Rest, axis=None, b_seat=None):
+    def stand_doc(self, seed, class_=ContactClass.Rest, axis=None, b_seat=None):
         """The bench stand as its OWN document, so it can be
         instantiated.
 
@@ -1742,7 +1742,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         shelf's edge is the GRAZING case: the post's top square lies
         outside the shelf's footprint and shares one edge with it, so
         the census can decide the pair in neither direction."""
-        doc = Doc(label)
+        doc = Doc(seed)
         post_a = doc.insert(Node.instantiate_part(self.post_ref))
         doc.apply(
             DocEdit.set_placement(
@@ -1769,8 +1769,8 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         self.ws.create(doc)
         return doc, mate, DocRef(doc.id, content_pin(doc))
 
-    def instantiated(self, label, ref):
-        doc = Doc(label)
+    def instantiated(self, seed, ref):
+        doc = Doc(seed)
         return doc, doc.insert(Node.instantiate_part(ref))
 
     def carried(self, findings, relation):
@@ -1884,8 +1884,8 @@ class TestMateFrameFromFace(BenchWorkspace):
         self.assertEqual(len(found), 1, found)
         return found[0]
 
-    def seated(self, label, post_frame):
-        doc = Doc(label)
+    def seated(self, seed, post_frame):
+        doc = Doc(seed)
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         a_top = self.instance_face(doc, post_i, CapEnd.End)

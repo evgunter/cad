@@ -61,6 +61,14 @@
 //! re-resolution; root order is unnamed there), and it is pinned by
 //! test rather than left implicit.
 //!
+//! # Labels follow their nodes
+//!
+//! A node label (DESIGN.md Band 1, "Node labels") is keyed by the node,
+//! so it moves with the node: split labels each cut node's copy in the
+//! part as the original was, inline labels each spliced node as its
+//! part-side original was, and the instance a split leaves behind is a
+//! new node with no label.
+//!
 //! # Names re-anchor across the seam (the bridge, both directions)
 //!
 //! Split rewrites every remainder-side reference to a cut entity —
@@ -882,7 +890,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PlacementAxis { .. }
             | EditError::NonFiniteAlignment { .. }
             | EditError::UpdateOnNonInstance { .. }
-            | EditError::PinUnchanged { .. } => defect(f),
+            | EditError::PinUnchanged { .. }
+            | EditError::LabelUnchanged { .. } => defect(f),
         }
     }
 }
@@ -1835,6 +1844,18 @@ pub fn split(
             )?;
         }
     }
+    // A label follows the node it names into the part.
+    for &old in &olds {
+        if let (Some(&new), Some(label)) = (node_map.get(&old), doc.label(old)) {
+            part_apply(
+                &mut part,
+                DocEdit::SetLabel {
+                    node: new,
+                    label: Some(label.clone()),
+                },
+            )?;
+        }
+    }
     if hoisted.is_none() {
         // A11: the cut groups' placements move verbatim (module
         // docs) — every recorded row whose instance is cut, explicit
@@ -2237,6 +2258,18 @@ pub fn inline(
                 DocEdit::ReWitness {
                     node: new,
                     witness: witness.clone(),
+                },
+            )?;
+        }
+    }
+    // A label follows the node it names into the host.
+    for &old in part.order() {
+        if let (Some(&new), Some(label)) = (node_map.get(&old), part.label(old)) {
+            step(
+                &mut current,
+                DocEdit::SetLabel {
+                    node: new,
+                    label: Some(label.clone()),
                 },
             )?;
         }

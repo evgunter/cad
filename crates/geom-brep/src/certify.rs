@@ -308,9 +308,9 @@ pub enum CertifyError {
     /// whose description is simply wrong.
     ChartImageUnavailable {
         /// The chart kind the description named.
-        chart: &'static str,
+        chart: crate::SurfaceKind,
         /// The carrier kind offered against it.
-        carrier: &'static str,
+        carrier: crate::CurveKind,
     },
     /// A surface key in the description did not resolve in the owning
     /// body (stale, or the surface does not exist yet — attach the
@@ -472,9 +472,11 @@ impl core::fmt::Display for CertifyError {
             }
             Self::ChartImageUnavailable { chart, carrier } => write!(
                 f,
-                "a conventional description on a {chart} chart has no \
-                 certified chart image for a {carrier} carrier — the locus this \
-                 description claims is not one this chart can state"
+                "a conventional description on a {} chart has no \
+                 certified chart image for a {} carrier — the locus this \
+                 description claims is not one this chart can state",
+                chart.name(),
+                carrier.name()
             ),
             Self::Unimplemented => write!(
                 f,
@@ -690,7 +692,7 @@ impl CertCheck {
                 at_zero: None,
             }),
             Self::Transversality => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the faces cross at a clearer angle",
+                lever: "move the geometry so the surfaces cross at a clearer angle",
                 size: "angle",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
@@ -1839,18 +1841,6 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     }
 }
 
-/// The carrier's kind, for a refusal that has to name the pair it
-/// could not state (the chart side is `chart_name`'s).
-fn carrier_kind<T: Real>(carrier: &Curve3<T>) -> &'static str {
-    match carrier {
-        Curve3::Line { .. } => "line",
-        Curve3::Circle { .. } => "circle",
-        Curve3::Ellipse { .. } => "ellipse",
-        Curve3::Spiric { .. } => "spiric",
-        Curve3::Nurbs(_) => "Nurbs",
-    }
-}
-
 /// Folds a residual into the running max and classifies it: must be
 /// coincident with zero (|r| ≤ ε). Positive/Negative beyond the band ⇒
 /// [`CertifyError::ResidualExceeded`]; in-band or poisoned ⇒
@@ -2281,8 +2271,8 @@ fn run_checks<T: Decide>(
                     // would send the caller looking for a missing
                     // feature instead of a wrong locus.
                     _ => CertifyError::ChartImageUnavailable {
-                        chart: crate::pcurve_cache::chart_name(surface),
-                        carrier: carrier_kind(&spec.carrier),
+                        chart: crate::SurfaceKind::of(surface),
+                        carrier: crate::CurveKind::of(&spec.carrier),
                     },
                 })?,
             };
@@ -4243,7 +4233,7 @@ mod tests {
             margin: MarginDiag::value(5e-10),
             band,
         });
-        let cross = "Recourse: move the geometry so the faces cross at a clearer angle";
+        let cross = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
         let escalated = |check| CertifyError::Escalated {
@@ -4403,7 +4393,7 @@ mod tests {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let span = "Recourse: move the geometry so this edge is not vanishingly short";
         let winding = "Recourse: move the geometry so this arc stays clearly short of a full turn";
-        let cross = "Recourse: move the geometry so the faces cross at a clearer angle";
+        let cross = "Recourse: move the geometry so the surfaces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
         let tube = |verdict| CertifyError::PlaneNurbs(P::TubeStraddles { verdict, boxes: 4 });
@@ -4497,8 +4487,8 @@ mod tests {
             value: 2e-8,
         };
         let unavailable = CertifyError::ChartImageUnavailable {
-            chart: "cone",
-            carrier: "ellipse",
+            chart: crate::SurfaceKind::Cone,
+            carrier: crate::CurveKind::Ellipse,
         };
         let chart = CertifyError::Escalated {
             check: CertCheck::ChartImage,
@@ -4560,7 +4550,7 @@ mod tests {
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
-        let tube = "Recourse: move the geometry so the faces cross at a clearer angle, or, if \
+        let tube = "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if \
                     this angle is intended, tighten the tolerance below 5e-10 m";
         for (refusal, check, want) in [
             (
@@ -4672,11 +4662,11 @@ mod tests {
             ),
             (
                 undecided(CertCheck::Transversality, straddle),
-                "Recourse: move the geometry so the faces cross at a clearer angle",
+                "Recourse: move the geometry so the surfaces cross at a clearer angle",
             ),
             (
                 undecided(CertCheck::Transversality, MarginDiag::INVALID),
-                "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable \
+                "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable \
                  or collapsed margin may indicate a kernel bug worth reporting",
             ),
             (
