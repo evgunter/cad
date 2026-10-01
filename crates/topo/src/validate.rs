@@ -2646,7 +2646,7 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             // thin to certify, not a contradiction in the body.
             P::DegenerateFace => reading(
                 "a face's area could not be certified positive at this tolerance",
-                NOT_YET.into(),
+                "Recourse: widen the face well past the tolerance".into(),
                 false,
             ),
         },

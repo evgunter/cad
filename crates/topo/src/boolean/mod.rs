@@ -2141,8 +2141,10 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the Boolean checks its result against its inputs' volumes, and measuring \
                  them as finely as the kernel can still leaves open whether {which} holds, \
-                 by more than the tolerance, so no body is returned. There is no way \
-                 through yet"
+                 by more than the tolerance, so no body is returned. The finest measurement \
+                 grows coarser with the size of the bodies. Recourse: build at a looser \
+                 tolerance, which the open range may fit inside — though on bodies large \
+                 enough no tolerance does"
             ),
             Self::UnrepresentableResult => write!(
                 f,

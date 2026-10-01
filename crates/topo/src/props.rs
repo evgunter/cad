@@ -598,26 +598,45 @@ pub struct SignCertificate<'b, T: Decide> {
     refused: Option<(FaceKey, PropsError)>,
 }
 
-impl<T: Decide> SignCertificate<'_, T> {
-    /// The certificate's volume and area as they stand, enclosure pads
-    /// included — the reporting walk's own properties when every face
-    /// has met the target.
+impl<'b, T: Decide> SignCertificate<'b, T> {
+    /// This certificate's faces, to be refined PAST the reporting
+    /// target — consumed, because what comes back no longer keeps this
+    /// type's promises: its enclosures are no longer the reporting
+    /// walk's bits, and a later round's budget refusal is not the
+    /// target-level refusal [`Self::refine_to_target`] reports. Only
+    /// the enclosure can be read from it.
+    pub(crate) fn past_target(self) -> PastTarget<'b, T> {
+        PastTarget { walk: self }
+    }
+}
+
+/// **A volume enclosure being refined past the reporting target** —
+/// for a caller whose sign the reporting enclosure leaves open. It is
+/// read as an enclosure and nothing else: no number, no refusal, no
+/// continuation to the target, so the reporting door's bit-identity
+/// cannot be asked of it.
+pub(crate) struct PastTarget<'b, T: Decide> {
+    walk: SignCertificate<'b, T>,
+}
+
+impl<T: Decide> PastTarget<'_, T> {
+    /// The enclosure as it stands, as properties whose `volume_pad`
+    /// and `area_pad` are its half-widths.
     pub(crate) fn props(&self) -> MassProperties<T> {
-        fold_runs(&self.runs).0
+        fold_runs(&self.walk.runs).0
     }
 
-    /// **One round past the reporting target** on every face that met
-    /// the target at a round below
-    /// [`quad::LAST_ROUND_EVERY_LANE_RUNS`] — for a caller whose sign
-    /// the reporting enclosure leaves open. A face's rounds are
-    /// independent recomputations, so each later round's enclosure is
-    /// as sound as the reporting one and, until interval rounding
-    /// floors it, narrower. Answers whether any face moved: `false`
-    /// is the schedule's end for this certificate. A round that
-    /// refuses leaves every face as it was and ends the refinement —
-    /// the enclosures held are sound either way.
-    pub(crate) fn refine_past_target(&mut self) -> bool {
-        let next: Vec<(usize, FaceKey, usize)> = self
+    /// **One round further** on every face that met the target at a
+    /// round below [`quad::LAST_ROUND_EVERY_LANE_RUNS`]. A face's
+    /// rounds are independent recomputations, so each later round's
+    /// enclosure is as sound as the reporting one and, until interval
+    /// rounding floors it, narrower. Answers whether any face moved:
+    /// `false` is the end of the refinement. A round that refuses
+    /// leaves every face as it was and ends the refinement — the
+    /// enclosures held are sound either way.
+    pub(crate) fn refine(&mut self) -> bool {
+        let walk = &mut self.walk;
+        let next: Vec<(usize, FaceKey, usize)> = walk
             .runs
             .iter()
             .enumerate()
@@ -630,20 +649,20 @@ impl<T: Decide> SignCertificate<'_, T> {
         if next.is_empty() {
             return false;
         }
-        let hook = round_hook(self.quad);
-        let (body, band, tol) = (self.body, self.band, self.tol);
+        let hook = round_hook(walk.quad);
+        let (body, band, tol) = (walk.body, walk.band, walk.tol);
         match decide_faces(&next, |&(_, face, round)| {
             face_flux(body, face, band, &hook, tol, RoundWindow::at(round))
         }) {
             Ok(runs) => {
                 for ((slot, _, _), run) in next.iter().zip(runs) {
-                    self.runs[*slot] = run;
+                    walk.runs[*slot] = run;
                 }
                 true
             }
             Err(_) => {
                 for (slot, _, _) in &next {
-                    self.runs[*slot].converged_at = None;
+                    walk.runs[*slot].converged_at = None;
                 }
                 false
             }
@@ -1677,7 +1696,7 @@ struct FaceRun<T> {
     /// every case there is no round to resume at.
     open_at: Option<usize>,
     /// The round a single-round window met the reporting target at —
-    /// where [`SignCertificate::refine_past_target`] resumes. `None`
+    /// where [`PastTarget::refine`] resumes. `None`
     /// for a closed-form face, for one that has not met the target, and
     /// for one read through the whole schedule at once.
     converged_at: Option<usize>,

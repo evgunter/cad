@@ -1329,7 +1329,7 @@ pub(super) fn merge_rows(
 /// enclosures and not the bodies, and the gate REFINES before it
 /// decides: both compared bodies' quadrature faces are taken one round
 /// further at a time from the round each met its target at
-/// ([`crate::props::SignCertificate::refine_past_target`]), until the
+/// ([`crate::props::PastTarget::refine`]), until the
 /// sign is decided or every face reaches the last round every lane runs
 /// (`geom_brep::props::quad::LAST_ROUND_EVERY_LANE_RUNS`).
 ///
@@ -1467,7 +1467,7 @@ pub(crate) fn volume_backstop<T: Decide>(
         .map_err(|source| props_refusal(operand, source))?;
         match refused {
             Some(source) => Err(props_refusal(operand, source)),
-            None => Ok(certificate),
+            None => Ok(certificate.past_target()),
         }
     };
     // The exact (bit-hairline) band for the sign arm below — the same
@@ -1557,8 +1557,8 @@ fn props_refusal(operand: Option<Operand>, source: crate::MassPropsError) -> Boo
 fn bound_holds<T: Decide>(
     which: &'static str,
     upper: bool,
-    bound: &mut crate::props::SignCertificate<'_, T>,
-    got: &mut crate::props::SignCertificate<'_, T>,
+    bound: &mut crate::props::PastTarget<'_, T>,
+    got: &mut crate::props::PastTarget<'_, T>,
     band: Band,
     exact: Band,
 ) -> Result<(), BooleanError> {
@@ -1605,7 +1605,7 @@ fn bound_holds<T: Decide>(
             );
         if open {
             // Both, not the first that moves.
-            if bound.refine_past_target() | got.refine_past_target() {
+            if bound.refine() | got.refine() {
                 continue;
             }
             // The rounds ran out with the sign open: what is left open,

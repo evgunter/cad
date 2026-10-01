@@ -419,7 +419,8 @@ fn scaled_cutter(s: f64) -> Body<f64> {
 /// 22ε — and its sign is still open at the last round: the backstop
 /// refuses `VolumeUndecided` rather than accept it. The same holds of a
 /// CORRECT result at scale 10³, whose open range is beyond the band
-/// too: the gate cannot tell it from a wrong one, and says so.
+/// too: the gate cannot tell it from a wrong one, and says so
+/// (`work/quad/quadrature-interval-floor-grows-with-the-body-past-the-band`).
 #[test]
 fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
     let (a, b) = (scaled_oblique_rod(1e4, 0.5), scaled_cutter(1e4));
