@@ -1,43 +1,35 @@
-//! **The roster: every predicate name this crate decides is routed to a
-//! recourse sentence, or listed here as carrying none and why.**
+//! **The roster: every predicate name this crate decides is a blend
+//! decision, or listed here as another door's and why.**
 //!
-//! `BlendError::Escalated`'s `Display` routes a recourse by matching the
-//! escalated predicate's NAME. A name the match does not know falls
-//! through to `geom_core::MissingRecourse` — the sentence that names the
-//! hole — and the fall-through is what these rows are about: it must be
-//! reached on purpose, by a name somebody decided owes no blend recourse
-//! and wrote down, never by a gate that quietly arrived.
+//! `BlendError::Escalated` carries the closed `BlendDecision` it could
+//! not take, and its subject and ending are exhaustive matches over
+//! that type (D4 ¶1 (i)): a blend gate cannot escalate without naming
+//! the decision whose levers its reader is handed, so there is no
+//! fall-through to reach. What stays name-shaped is the `k_stats` name
+//! each decision is metered under, and the rows here hold that the
+//! names the crate decides are exactly the blend's closed set plus the
+//! other doors' gates.
 //!
 //! The crate decides for five doors, and only the blend's own gates
 //! escalate onto `BlendError`; the rest reach the caller through their
-//! own door's error type. That is the reason most of [`UNROUTED`]
-//! carries, and it is the reason a `fillet3_*` gate added to the battery
-//! cannot borrow: a new blend gate is unrouted, unlisted, and red.
-//!
-//! **Where the list lives differs from `profile`'s, and the reason is
-//! the door.** `PathError::Escalated` really does receive every name
-//! that crate decides, so its shared-clause-only list is `src`-side and
-//! the Display consults it. Nothing here reaches `BlendError` but a
-//! blend gate: the other names are decided BY OTHER DOORS of this crate
-//! and escalate on their own error types, so listing them in `src`
-//! would put a claim about the call graph into the blend door's prose.
-//! They are listed here instead, and the row that reads them is the one
-//! that would notice a blend gate arriving among them.
+//! own door's error type. They are listed here, and the row that reads
+//! them is the one that would notice a blend name decided outside the
+//! blend's funnel.
 //!
 //! The reader is `test_utils::source::predicate_census`, the tree's one
 //! home for this walk. **What it cannot read it reports** — an
 //! unreadable spelling, an indirect site whose carrier is undeclared, a
 //! file it does not walk — and each is a red row here.
 //!
-//! Which arm answers a name is MEASURED — each name is put through the
-//! door's own error value and the rendered text read — never inferred
-//! from the order of the arms in the source.
+//! Which lever a decision renders is MEASURED — each decision is put
+//! through the door's own error value and the rendered text read —
+//! never inferred from the match in the source.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Indeterminate, MarginDiag, MissingRecourse, Tol};
 use std::collections::BTreeSet;
-use sweep::blend::{BlendError, BlendSite};
+use sweep::blend::{BlendDecision, BlendError, BlendSite};
 use test_utils::source::{NameCarrier, PredicateCensus, predicate_census};
 
 /// The carriers that hand a name to the funnel from somewhere other
@@ -47,9 +39,6 @@ const CARRIERS: &[NameCarrier] = &[
     // table supplies, so the extrude's side walls and the revolve's
     // walls are separate rows of the K inventory.
     NameCarrier::Call("CosurfaceNames"),
-    // The ring-clearance gate names itself once, as a const, because
-    // the surgery both decides it and quotes it back in the payload.
-    NameCarrier::Const("RING_CLEARANCE"),
 ];
 
 /// The `decide*` calls whose name the reader cannot read at the site,
@@ -57,12 +46,8 @@ const CARRIERS: &[NameCarrier] = &[
 const INDIRECT: &[(&str, &str)] = &[
     (
         "blend/mod.rs: name",
-        "the blend module's own funnel, forwarding its parameter",
-    ),
-    (
-        "blend/surgery.rs: RING_CLEARANCE",
-        "the const the ring-clearance gate names itself by — declared as a carrier, so the \
-         name it holds is on the roster",
+        "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
+         `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
     ),
     (
         "swept.rs: name",
@@ -78,14 +63,13 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
 ];
 
-/// Every decided name with no blend recourse, and why it needs none.
+/// Every name decided outside the blend, and the door that reports it.
 ///
-/// A name here renders the gap sentence at `BlendError::Escalated`: the
-/// refusal says the blend table records nothing for it. For all of them
-/// the reason is the same shape — the gate belongs to another of this
-/// crate's doors, whose refusals are typed on that door's own error and
-/// rendered there, so `BlendError` is not on the escalation's path.
-const UNROUTED: &[(&str, &str)] = &[
+/// For all of them the reason is the same shape — the gate belongs to
+/// another of this crate's doors, whose refusals are typed on that
+/// door's own error and rendered there, so `BlendError` is not on the
+/// escalation's path.
+const OTHER_DOORS: &[(&str, &str)] = &[
     ("axis_arc_apex", AXIS),
     ("axis_arc_center", AXIS),
     ("axis_arc_clearance", AXIS),
@@ -121,47 +105,52 @@ const TUBE: &str = "the tube door's window and wall classifications, typed on `T
 const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \
                          verb; the escalation is typed on that verb's error";
 
-/// Each routed name with the recourse constant its own arm owns.
+/// Each decision with the lever its refusals lead with.
 ///
 /// Held here as an independent statement of what the door SHOULD say,
-/// so a name rewired to another arm's constant reds
-/// [`every_routed_name_renders_the_recourse_its_own_arm_owns`] even
-/// though it stays "routed" for the roster row. The table's
-/// completeness is checked against the crate's own decided names, so a
-/// new blend gate cannot be routed without joining it.
-const PAIRING: &[(&str, &str)] = &[
+/// so a decision rewired to another lever reds
+/// [`every_decision_renders_its_own_lever_and_no_other`]. Its
+/// completeness is checked against `BlendDecision::ALL`.
+const PAIRING: &[(BlendDecision, &str)] = &[
     (
-        "fillet3_radius_headroom",
+        BlendDecision::RadiusHeadroom,
         sweep::blend::FILLET3_RADIUS_RECOURSE,
     ),
     (
-        "fillet3_face_clearance",
+        BlendDecision::FaceClearance,
         sweep::blend::FILLET3_CLEARANCE_RECOURSE,
     ),
     (
-        "fillet3_spine_regularity",
+        BlendDecision::SpineRegularity,
         sweep::blend::FILLET3_SPINE_RECOURSE,
     ),
-    ("fillet3_chain_g1", sweep::blend::FILLET3_CHAIN_RECOURSE),
-    ("fillet3_chain_arm", sweep::blend::FILLET3_CHAIN_RECOURSE),
+    (BlendDecision::ChainG1, sweep::blend::FILLET3_CHAIN_RECOURSE),
     (
-        "fillet3_convexity_sign",
+        BlendDecision::ChainArm,
+        sweep::blend::FILLET3_CHAIN_RECOURSE,
+    ),
+    (
+        BlendDecision::ConvexitySign,
         sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
     ),
     (
-        "fillet3_ring_clearance",
+        BlendDecision::RingClearance,
         sweep::blend::FILLET3_RING_RECOURSE,
     ),
     (
-        "fillet3_support_coaxiality",
+        BlendDecision::SupportCoaxiality,
         sweep::blend::FILLET3_SPINE_KIND_RECOURSE,
     ),
     (
-        "fillet3_corner_independence",
-        sweep::blend::FILLET3_CORNER_RECOURSE,
+        BlendDecision::ContactSecondOrder,
+        sweep::blend::FILLET3_CONTACT_RECOURSE,
     ),
     (
-        "fillet3_cap_transverse",
+        BlendDecision::CornerIndependence,
+        sweep::blend::FILLET3_CORNER_INDEPENDENCE_RECOURSE,
+    ),
+    (
+        BlendDecision::CapTransverse,
         sweep::blend::FILLET3_CORNER_RECOURSE,
     ),
 ];
@@ -174,156 +163,128 @@ fn census() -> PredicateCensus {
 }
 
 /// An escalation carrying `name`, its margin inside the run's band.
-fn escalation(name: &'static str) -> Indeterminate {
+fn escalation(name: Option<&'static str>) -> Indeterminate {
     let band = Band::linear(Tol::witness()).expect("the run's band forms");
     Indeterminate {
         margin: MarginDiag::value((band.zero() + band.escalate()) / 2.0),
         band,
-        predicate: Some(name),
+        predicate: name,
         terminal_sliver: false,
     }
 }
 
-/// Renders the blend door's refusal for an escalation under `name`.
-fn rendered(name: &'static str) -> String {
+/// Renders the blend door's refusal for `decision` escalating with a
+/// payload that names `name`.
+fn rendered(decision: BlendDecision, name: Option<&'static str>) -> String {
     BlendError::Escalated {
         site: BlendSite::Chain,
+        decision,
         source: escalation(name),
     }
     .to_string()
 }
 
-/// Whether the refusal for `name` is the fall-through — measured by
-/// reading the text, not by reading the match.
-fn falls_through(name: &'static str) -> bool {
-    rendered(name).contains(&MissingRecourse(Some(name)).to_string())
-}
-
-/// **Every name the crate decides is routed to a sentence, or listed
-/// with the reason it carries none.**
+/// **The names the crate decides are the blend's closed set and the
+/// listed doors' gates, and nothing else.**
 ///
-/// The two sides are read from different places and compared: the names
-/// out of the crate's `src`, the routing out of the rendered refusal.
-/// A battery gate added without a sentence is unrouted and unlisted, so
-/// it reds here; a gate renamed under a routed arm stops being routed,
-/// so it reds here too; and a name struck off `UNROUTED` without a
-/// sentence reds as a stale entry.
+/// The blend's names reach the funnel only through
+/// `BlendDecision::predicate`, so none may appear at a decide site as a
+/// literal: one that did would be a blend gate metered outside the
+/// closed type. Every other name is listed with its door, and a listed
+/// name nothing decides is a stale entry. The blend's names are
+/// distinct, since two decisions under one name would fuse two K rows.
 #[test]
-fn every_decided_name_is_routed_or_listed_with_its_reason() {
+fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
     let census = census();
     assert!(
-        census.names.contains("fillet3_radius_headroom") && census.names.contains("tube_wall"),
+        census.names.contains("tube_wall"),
         "the reader found no funnel calls it should have: {:?}",
         census.names
     );
-    let listed: BTreeSet<&str> = UNROUTED.iter().map(|(n, _)| *n).collect();
+    let blend: BTreeSet<&str> = BlendDecision::ALL.iter().map(|d| d.predicate()).collect();
+    assert_eq!(
+        blend.len(),
+        BlendDecision::ALL.len(),
+        "two blend decisions share a k_stats name"
+    );
+    let listed: BTreeSet<&str> = OTHER_DOORS.iter().map(|(n, _)| *n).collect();
     assert_eq!(
         listed.len(),
-        UNROUTED.len(),
-        "a name is listed twice in UNROUTED"
+        OTHER_DOORS.len(),
+        "a name is listed twice in OTHER_DOORS"
     );
-    for (name, _) in UNROUTED {
+    for (name, _) in OTHER_DOORS {
         assert!(
             census.names.contains(*name),
-            "`{name}` is listed as carrying no blend recourse, but nothing in the crate's \
-             src decides it — a stale entry"
+            "`{name}` is listed as another door's, but nothing in the crate's src decides it \
+             — a stale entry"
+        );
+        assert!(
+            !blend.contains(name),
+            "`{name}` is listed as another door's and is a blend decision's name"
         );
     }
     for name in &census.names {
-        let name: &'static str = Box::leak(name.clone().into_boxed_str());
-        let unrouted = falls_through(name);
-        assert_eq!(
-            unrouted,
-            listed.contains(name),
-            "`{name}` is {} by the door and {} in UNROUTED; the refusal reads: {}",
-            if unrouted { "unrouted" } else { "routed" },
-            if listed.contains(name) {
-                "listed"
-            } else {
-                "unlisted"
-            },
-            rendered(name)
+        assert!(
+            !blend.contains(name.as_str()),
+            "`{name}` is a blend decision's name decided at a literal site, outside the \
+             blend's funnel"
+        );
+        assert!(
+            listed.contains(name.as_str()),
+            "`{name}` is decided in the crate's src and is neither a blend decision nor \
+             listed with its door"
         );
     }
 }
 
-/// **A routed name renders the recourse its OWN arm owns.**
+/// **Each decision renders the lever its own refusals lead with, and no
+/// other decision's.**
 ///
-/// The roster row above measures routed-or-listed by asking whether the
-/// gap sentence appears, so a name rewired to another arm's constant is
-/// still "routed" and stays green there. What a reader of the refusal
-/// depends on is the pairing — the ring clearance's lever is not the
-/// chain's — so it is pinned here, name by name, against a table
-/// written independently of the match.
-///
-/// The table is held complete against the crate's own decided names: a
-/// `fillet3_*` gate the door routes and this table does not know reds.
+/// Pinned against a table written independently of the match, and held
+/// complete against `BlendDecision::ALL`.
 #[test]
-fn every_routed_name_renders_the_recourse_its_own_arm_owns() {
-    let paired: BTreeSet<&str> = PAIRING.iter().map(|(n, _)| *n).collect();
-    for (name, recourse) in PAIRING {
-        let text = rendered(name);
+fn every_decision_renders_its_own_lever_and_no_other() {
+    let paired: Vec<BlendDecision> = PAIRING.iter().map(|(d, _)| *d).collect();
+    assert_eq!(
+        paired,
+        BlendDecision::ALL,
+        "the pairing table and the closed set disagree"
+    );
+    for (decision, lever) in PAIRING {
+        let text = rendered(*decision, Some(decision.predicate()));
         assert!(
-            text.contains(recourse),
-            "`{name}` should carry its own arm's recourse; it renders: {text}"
+            text.contains(lever),
+            "{decision:?} should carry its own lever; it renders: {text}"
         );
-        for (other_name, other) in PAIRING {
+        for (other_decision, other) in PAIRING {
             assert!(
-                other == recourse || !text.contains(other),
-                "`{name}` renders the recourse `{other_name}`'s arm owns: {text}"
+                other == lever || !text.contains(other),
+                "{decision:?} renders the lever {other_decision:?} owns: {text}"
             );
         }
     }
-    let routed: BTreeSet<&str> = census()
-        .names
-        .iter()
-        .map(|n| -> &'static str { Box::leak(n.clone().into_boxed_str()) })
-        .filter(|n| !falls_through(n))
-        .collect();
-    assert_eq!(
-        routed, paired,
-        "the door routes names this pairing table does not pin (or the table pins a name \
-         the door no longer routes)"
-    );
 }
 
-/// **A name no arm carries renders the gap sentence, and says nothing
-/// else about the escalation.**
+/// **The payload's name is data, never routing.**
 ///
-/// The same text `profile`'s door renders on ITS unknown name: one
-/// sentence, one home, so the two tables cannot drift into two answers
-/// to the same question.
+/// An escalation reads by the decision it carries whatever name its
+/// payload holds — another decision's, one the crate never decides, or
+/// none — and never renders the gap sentence, which no blend refusal
+/// can reach.
 #[test]
-fn an_unknown_name_names_the_hole() {
-    let unknown = "roster_unknown_probe";
-    let census = census();
-    assert!(
-        !census.names.contains(unknown),
-        "the probe name must be one the crate does not decide"
-    );
-    let text = rendered(unknown);
-    assert!(
-        text.contains(&MissingRecourse(Some(unknown)).to_string()),
-        "the refusal names the hole: {text}"
-    );
-    assert!(
-        !text.contains(unknown),
-        "the predicate's name is routing and stays out of the sentence: {text}"
-    );
-    // A refusal with no predicate at all says so, rather than reading
-    // as a name.
-    let nameless = BlendError::Escalated {
-        site: BlendSite::Chain,
-        source: Indeterminate {
-            predicate: None,
-            ..escalation(unknown)
-        },
+fn the_payloads_name_does_not_route_the_refusal() {
+    let decision = BlendDecision::RadiusHeadroom;
+    let own = rendered(decision, Some(decision.predicate()));
+    for name in [
+        Some(BlendDecision::ChainG1.predicate()),
+        Some("roster_unknown_probe"),
+        None,
+    ] {
+        let text = rendered(decision, name);
+        assert_eq!(text, own, "the payload's name {name:?} changed the refusal");
+        assert!(!text.contains(&MissingRecourse(name).to_string()), "{text}");
     }
-    .to_string();
-    assert!(
-        nameless.contains(&MissingRecourse(None).to_string()),
-        "an escalation with no predicate name still names the hole: {nameless}"
-    );
 }
 
 /// **Nothing in the crate's `src` is invisible to the reader.**
@@ -355,11 +316,6 @@ fn nothing_in_src_is_invisible_to_the_reader() {
          not walk, so a gate there is outside the roster: {:?}",
         census.unwalked
     );
-    // The const carrier is resolved, not just declared.
-    assert!(
-        census.names.contains("fillet3_ring_clearance"),
-        "the ring-clearance gate reaches the funnel as a const and must still be rostered"
-    );
 }
 
 /// **`split_edge`'s in-band interiority reads whole through the blend's
@@ -376,7 +332,7 @@ fn the_split_param_escalation_reads_whole_through_the_blend_door() {
         site: "meridian split",
         source: topo::EulerOpError::SplitParamEscalated {
             edge: topo::EdgeKey::default(),
-            diag: escalation("split_edge_param_interior"),
+            diag: escalation(Some("split_edge_param_interior")),
         },
     }
     .to_string();

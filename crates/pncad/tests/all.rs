@@ -327,6 +327,24 @@ fn blend_site_and_convexity_are_matchable(
     (where_it_broke, removes_material)
 }
 
+/// `BlendError::Escalated`'s decision: which question could not be
+/// taken, and so which lever the refusal hands its reader.
+fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
+    match decision {
+        BlendDecision::RadiusHeadroom => "radius_headroom",
+        BlendDecision::FaceClearance => "face_clearance",
+        BlendDecision::SpineRegularity => "spine_regularity",
+        BlendDecision::ChainG1 => "chain_g1",
+        BlendDecision::ChainArm => "chain_arm",
+        BlendDecision::ConvexitySign => "convexity_sign",
+        BlendDecision::RingClearance => "ring_clearance",
+        BlendDecision::SupportCoaxiality => "support_coaxiality",
+        BlendDecision::ContactSecondOrder => "contact_second_order",
+        BlendDecision::CornerIndependence => "corner_independence",
+        BlendDecision::CapTransverse => "cap_transverse",
+    }
+}
+
 /// `ValidationError::UndeclaredContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
 /// `EdgeFacePierce` is interpenetration and categorically undeclarable
@@ -559,6 +577,10 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             Convexity::Concave
         ),
         ("joint", false)
+    );
+    assert_eq!(
+        blend_decision_is_matchable(BlendDecision::CornerIndependence),
+        "corner_independence"
     );
 
     // Declarable vs categorically undeclarable, off the same refusal.

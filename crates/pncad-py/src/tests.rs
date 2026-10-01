@@ -3319,18 +3319,17 @@ fn the_prose_rule_separates_a_display_from_a_debug_dump() {
     assert!(reads_as_prose("Tessellate refused"));
 }
 
-/// A blend escalation names its site in prose at every site.
+/// A blend escalation reads as prose at every site and for every
+/// decision.
 ///
-/// `BlendSite::Link` and `::Joint` are struct variants, so rendering
-/// the site through `Debug` puts the field-brace fingerprint in the
-/// message and the refusal PANICS `crate::py::typed_err` instead of
-/// raising. The escalation arm is the one an indeterminate predicate
-/// is for, so that panic sits behind an ordinary fillet or chamfer
-/// request; the site renders through its own `Display`, and this is
-/// the rendering that says so.
+/// `BlendSite::Link` and `::Joint` are struct variants, so a site
+/// rendered through `Debug` would put the field-brace fingerprint in
+/// the message and PANIC `crate::py::typed_err` instead of raising.
+/// The escalation arm is the one an indeterminate predicate is for, so
+/// that panic would sit behind an ordinary fillet or chamfer request.
 #[test]
 fn a_blend_escalation_reads_as_prose_at_every_site() {
-    use pncad::prelude::{Band, BlendError, BlendSite, EdgeKey, Indeterminate};
+    use pncad::prelude::{Band, BlendDecision, BlendError, BlendSite, EdgeKey, Indeterminate};
     use pncad::prelude::{MarginDiag, VertexKey};
 
     let band = Band::new(1e-9, 1e-6).expect("a band");
@@ -3343,28 +3342,28 @@ fn a_blend_escalation_reads_as_prose_at_every_site() {
         },
         BlendSite::Chain,
     ] {
-        let refused = BlendError::Escalated {
-            site,
-            source: Indeterminate {
-                margin: MarginDiag::value(0.0),
-                band,
-                // A name no recourse table routes: the sentence then
-                // names the site, which is what this row reads.
-                predicate: Some("a_name_no_table_routes"),
-                terminal_sliver: false,
-            },
-        };
-        let text = refused.to_string();
-        assert!(
-            reads_as_prose(&text),
-            "a fillet or chamfer escalation at {site:?} panics the binding \
-             rather than raising: {text}"
-        );
-        assert!(
-            text.starts_with("at ") && !text.contains("Key("),
-            "the site names itself after the preposition the sentence supplies, \
-             and no arena key: {text}"
-        );
+        for decision in [
+            BlendDecision::RadiusHeadroom,
+            BlendDecision::ChainG1,
+            BlendDecision::CornerIndependence,
+        ] {
+            let refused = BlendError::Escalated {
+                site,
+                decision,
+                source: Indeterminate {
+                    margin: MarginDiag::value(0.0),
+                    band,
+                    predicate: Some(decision.predicate()),
+                    terminal_sliver: false,
+                },
+            };
+            let text = refused.to_string();
+            assert!(
+                reads_as_prose(&text) && !text.contains("Key("),
+                "a fillet or chamfer escalation at {site:?} panics the binding \
+                 rather than raising: {text}"
+            );
+        }
     }
 }
 

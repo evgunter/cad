@@ -17,7 +17,7 @@ use sweep::blend::battery::{
     BlendRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
     spine_regularity,
 };
-use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendDecision, BlendError, BlendSite, CornerConfig, RunOutPolicy};
 use sweep::test_support::cube;
 use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
@@ -471,6 +471,7 @@ fn trio_chain_g1() {
     match &collapsed {
         BlendError::Escalated {
             site: BlendSite::Joint { .. },
+            decision: BlendDecision::ChainArm,
             source,
         } => assert_eq!(source.predicate, Some("fillet3_chain_arm")),
         other => panic!("a collapsed arm must escalate Invalid, got {other:?}"),
@@ -611,7 +612,7 @@ fn trio_corner_independence() {
         }
         other => panic!("an in-band determinant must escalate, got {other:?}"),
     }
-    assert_same_recourse(&exact, &escalated, "FULLY REQUESTED trivalent vertices");
+    assert_same_recourse(&exact, &escalated, "clearly not all parallel to one line");
 }
 
 /// A cylinder whose top cap sits on a plane tilted off the rim
@@ -749,6 +750,7 @@ fn trio_support_coaxiality() {
     match &escalated {
         BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: BlendDecision::SupportCoaxiality,
             source,
         } => assert_eq!(source.predicate, Some("fillet3_support_coaxiality")),
         other => panic!("an in-band departure must escalate at the chain, got {other:?}"),
