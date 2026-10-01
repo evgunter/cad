@@ -2576,7 +2576,7 @@ fn split_other_at_point<T: Decide>(
     }
     let t = curve
         .carrier()
-        .param_near(p, (t0 + t1) * T::from_f64(0.5))
+        .param_near(p, geom::mid_param(t0, t1))
         .ok_or(BooleanError::PointSplitCarrierUnsupported {
             operand: y_is,
             edge,

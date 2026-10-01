@@ -446,6 +446,37 @@ impl FaceName {
         self.0
     }
 
+    /// **This face as the instance that places its part names it** —
+    /// the part's own name for the face, worn inside the one
+    /// [`RoleSeg::InPart`] qualifier an instantiate node puts round
+    /// every name it places, headed at that instance. What a mate head
+    /// on a placed part is; [`FaceName::part_local`] is its inverse.
+    pub fn in_part(&self, instance: RecipeNodeId) -> FaceName {
+        Self(StableName {
+            kind: self.0.kind,
+            node: instance,
+            path: vec![RoleSeg::InPart {
+                of: self.0.clone().into(),
+            }],
+        })
+    }
+
+    /// **The part-local face a placed name wraps** — the row of the
+    /// part's own table under the one `InPart` qualifier `instance`
+    /// put round it, read INSIDE the part where no instance exists:
+    /// what a `FromFace` mate frame stores. `None` when `name` is not
+    /// of that shape (headed elsewhere, qualified otherwise, or not a
+    /// face); [`FaceName::in_part`] is its inverse.
+    pub fn part_local(name: &StableName, instance: RecipeNodeId) -> Option<FaceName> {
+        if name.node != instance {
+            return None;
+        }
+        let [RoleSeg::InPart { of }] = name.path.as_slice() else {
+            return None;
+        };
+        FaceName::new((**of).clone()).ok()
+    }
+
     /// **The one in-crate way a face name is re-made**: this face's
     /// DERIVATION rewritten, its kind untouched.
     ///
@@ -756,11 +787,9 @@ impl SplitHalf {
 }
 
 /// An N2 fragment discriminator against recipe-covariant references.
-/// NO values, NO bare indices — `Borders` cites names, and
-/// `OrderAlong.rank` is an ordinal under the named order-along
-/// comparison (N2's sanctioned order-along(oriented parent carrier)),
-/// or for a union's member-edge piece the index of a cell of that
-/// edge, and changes only at a recorded flip.
+/// NO values, NO bare indices: `Borders`, `Keeps` and `Ends` cite
+/// names, and `OrderAlong.rank` is an ordinal under the named
+/// order-along comparison, which changes only at a recorded flip.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -774,47 +803,31 @@ pub enum Qualifier {
     /// result's topology and the boolean's record of what it discarded;
     /// the pieces the wall set does not tell apart are N2's tie.
     Borders(Vec<StableName>),
-    /// Ordinal position under order-along(oriented parent line)
-    /// (`name_frag_order_along` through `k_stats`): rank `rank` of
-    /// `of` fragments, ordered along the parent's oriented line.
-    ///
-    /// Which line, and which way:
-    /// - for pieces on a SEAM line whose pair's two sides carry
-    ///   distinguishable names — a seam chain, the pieces of a seam a
-    ///   later step cut, and a seam-vertex group ranked along a seam
-    ///   edge — the seam pair's `n_a × n_b`, with the pair's `a` face
-    ///   first (`names::seam_pair`), so one line is ranked one way
-    ///   whichever step cut it;
-    /// - for pieces of any other edge, including a seam between two
-    ///   same-named faces, that edge's own direction;
-    /// - for face fragments of a split, the section line oriented by
-    ///   `n_face × n_tool`.
+    /// The boundary edges of its parent face a Split's same-side face
+    /// piece holds a stretch of, each cited by its name without piece
+    /// qualifiers, sorted and deduplicated (N2). Pieces with equal sets
+    /// are N2's tie.
+    Keeps(Vec<StableName>),
+    /// The names of an edge piece's two end vertices as the node
+    /// publishes them, sorted, a repeat kept (N2): the qualifier of
+    /// every piece of a parent edge its parent's name does not settle.
+    /// Pieces with equal pairs are N2's tie.
+    Ends(Vec<StableName>),
+    /// Ordinal position of a crossing VERTEX along the edge it lies on
+    /// (`name_frag_order_along` through `k_stats`): rank `rank` of `of`
+    /// crossings of one edge by one face, ordered by the crossed edge's
+    /// carrier parameter, the edge oriented as its operand body stores
+    /// it, and a seam edge as the loop of its pair's first side runs
+    /// along it (N2).
     ///
     /// A union's seam pair is in name order (`names::canonical`), and
     /// wherever putting it there swaps the pair — at the union's
     /// collapse, or at a later rewrite of the name that reorders the
     /// two sides — the rank is read from the other end.
-    ///
-    /// **A union's piece of a member edge counts cells, not
-    /// fragments.** For `FromMember(m, e)` + `OrderAlong`, the finished
-    /// body's vertices on `e`'s segment cut it into cells numbered along
-    /// `e`'s oriented carrier in `m`'s body. `of` counts CELLS, not
-    /// pieces: a cell another member holds, or none does, counts too, so
-    /// some ranks below `of` index a cell no piece of `m` holds. `rank`
-    /// is the first cell the piece covers. The count is order-free as far
-    /// as the boolean's output is (`emit_union::rank_member_edges`).
-    ///
-    /// The carrier's orientation is load-bearing — reversing it
-    /// reverses every rank — so where it is built from face normals
-    /// those are **outward** normals (M5 S10, `emit_topo::carrier_plane`),
-    /// never raw chart normals.
     OrderAlong {
-        /// This fragment's rank (0-based) along the carrier — for a
-        /// union's member-edge piece, its first cell's index.
+        /// This crossing's rank (0-based) along the crossed edge.
         rank: u32,
-        /// How many sibling fragments the ordering ranked — for a
-        /// union's member-edge piece, how many CELLS the edge is cut
-        /// into, held or not.
+        /// How many crossings the ordering ranked.
         of: u32,
     },
 }
@@ -971,7 +984,7 @@ pub enum RoleSeg {
     /// answer at every step, and the pair verb is not symmetric in its
     /// two operands: a declared merge keeps operand A's carrier and
     /// splits operand A's rims, so reordering the member list moves
-    /// `Fragment(OrderAlong)` rows from one member to the other and
+    /// `Fragment` rows from one member to the other and
     /// changes the merged face's carrier origin. Measured on a bare
     /// [`crate::Node::Boolean`] with no union in the picture
     /// (`work/wire/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
@@ -1008,9 +1021,10 @@ pub enum RoleSeg {
     /// face × face. A vertex is edge × edge, edge × face or
     /// face × edge, face × face (every incident seam line agreeing on
     /// one face pair), or edge × vertex / vertex × edge (the partner
-    /// read from the reduction's contact records); a pair that
-    /// crosses more than once carries a `Fragment(OrderAlong)` after
-    /// it. A seam JUNCTION — the vertex where k ≥ 2 seam lines meet
+    /// read from the reduction's contact records). Several pieces of one
+    /// seam edge carry a `Fragment(Ends)` after it, and a vertex pair
+    /// that crosses more than once a `Fragment(OrderAlong)`. A seam
+    /// JUNCTION — the vertex where k ≥ 2 seam lines meet
     /// and no operand edge does — is named by the sorted run of those
     /// lines' face × face `Seam` segments, one segment per line and
     /// nothing after them.
@@ -1072,7 +1086,8 @@ pub enum RoleSeg {
     /// by the section, edges crossing the plane. The side IS the N2
     /// discriminator (the kernel's own decided classification against
     /// the tool plane — the split node's recipe-covariant reference);
-    /// same-side face multiplicity appends `Fragment(OrderAlong)`.
+    /// same-side face multiplicity appends `Fragment(Keeps)`, and
+    /// same-side edge multiplicity `Fragment(Ends)`.
     SplitFragment {
         /// Which output half holds this fragment.
         side: SplitHalf,
@@ -1835,6 +1850,8 @@ impl RoleSeg {
             R::Merged(v) => R::Merged(rewrite_set(v, w)?),
             R::Fragment(q) => R::Fragment(match q {
                 Qualifier::Borders(walls) => Qualifier::Borders(rewrite_set(walls, w)?),
+                Qualifier::Keeps(edges) => Qualifier::Keeps(rewrite_set(edges, w)?),
+                Qualifier::Ends(ends) => Qualifier::Ends(rewrite_set(ends, w)?),
                 Qualifier::OrderAlong { .. } => q.clone(),
             }),
             R::SectionEdge { side, face } => R::SectionEdge {

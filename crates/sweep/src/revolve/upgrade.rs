@@ -57,7 +57,7 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
         })?;
     let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
-    let witness = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
+    let witness = curve.mid_point();
     let he_plus = edge_rec.he_plus;
     let start = body
         .get_half_edge(he_plus)

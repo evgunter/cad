@@ -36,10 +36,10 @@
 //! them the selection is on, and which row a failure sends the eye to.
 //!
 //! One thing a run said that is no failure rides the row as well: what
-//! an `Ok` value says ([`Readout`]) — a measure's value, spelled as the
-//! chrome spells any computed value, or the kernel's typed reason it
-//! has none; what an assertion found of it ([`Asserted`]); and that a
-//! boolean, or a side of a split, holds no material.
+//! an `Ok` value says ([`Readout`]) — a measure's value, spelled when
+//! drawn as the chrome spells any computed value, or the kernel's typed
+//! reason it has none; what an assertion found of it ([`Asserted`]);
+//! and that a boolean, or a side of a split, holds no material.
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
@@ -189,7 +189,7 @@ use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHal
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
-use crate::props::{computed_text, in_written, render_number};
+use crate::props::{Computed, Notation, in_written, render_number};
 use crate::session::VersionOffer;
 
 /// **One level of a failure's traceback**, as the tree draws it: the
@@ -390,12 +390,10 @@ impl TreeRow {
 /// have made some.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Readout {
-    /// The value, already spelled ([`computed_text`]: canonical
-    /// notation, width-bounded, with its unit's symbol) — which keeps
-    /// the row `Eq`, and keeps the notation choice here with the rest
-    /// of what the tree writes about a node rather than at each
-    /// surface that draws it.
-    Value(String),
+    /// The value, as a quantity: spelled when the row is DRAWN
+    /// ([`Computed::spelled`]), in the working notation in force then,
+    /// so a notation changed after the run re-spells it.
+    Value(Computed),
     /// No value at this build's scalar — a value of the node, not a
     /// failure. Its `Display` is the kernel's sentence, which names
     /// the door that can answer.
@@ -447,13 +445,14 @@ pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
 }
 
 /// **An assertion's verdict, as its row says it**: the kernel's
-/// verdict with both numbers spelled as the measure's own value is
-/// ([`computed_text`], in the measure's dimension), the side of the
-/// bound the measure must fall on, and which measure that is.
+/// verdict with both numbers carried as the measure's own value is
+/// ([`Computed`], in the measure's dimension, spelled when drawn), the
+/// side of the bound the measure must fall on, and which measure that
+/// is.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Asserted {
     /// The landed verdict.
-    pub verdict: AssertionVerdict<String>,
+    pub verdict: AssertionVerdict<Computed>,
     /// Which side of the bound the measure must fall on.
     pub dir: AssertionDir,
     /// The measure node the assertion constrains.
@@ -461,7 +460,7 @@ pub struct Asserted {
 }
 
 // `AssertionVerdict` derives `PartialEq` alone, for its scalar's sake;
-// over `String` numbers and an `Eq` reason it is an equivalence.
+// over bitwise-compared numbers and an `Eq` reason it is an equivalence.
 impl Eq for Asserted {}
 
 impl Asserted {
@@ -476,14 +475,20 @@ impl Asserted {
         }
     }
 
-    /// **The comparison the verdict decided**, as a report reads it —
-    /// `0.0125 m >= 0.01 m` — or `None` where there is no verdict.
-    pub fn comparison(&self) -> Option<String> {
+    /// **The comparison the verdict decided**, as a report reads it
+    /// in `notation` — `0.0125 m >= 0.01 m` — or `None` where there is
+    /// no verdict. Both numbers read in the one notation, whatever the
+    /// bound was written in, so the two sides of one comparison never
+    /// read in two.
+    pub fn comparison(&self, notation: Notation) -> Option<String> {
         match &self.verdict {
             AssertionVerdict::Holds { measured, bound }
-            | AssertionVerdict::Violated { measured, bound } => {
-                Some(format!("{measured} {} {bound}", self.dir.symbol()))
-            }
+            | AssertionVerdict::Violated { measured, bound } => Some(format!(
+                "{} {} {}",
+                measured.spelled(notation),
+                self.dir.symbol(),
+                bound.spelled(notation)
+            )),
             AssertionVerdict::Unevaluated { .. } => None,
         }
     }
@@ -828,7 +833,10 @@ fn readout_of(
     evaluation: &Evaluation<f64>,
 ) -> Option<Readout> {
     match &evaluation.usable(id).ok()?.payload {
-        ValuePayload::Measure { value, dim } => Some(Readout::Value(computed_text(*dim, *value))),
+        ValuePayload::Measure { value, dim } => Some(Readout::Value(Computed {
+            canonical: *value,
+            dimension: *dim,
+        })),
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
         ValuePayload::Assertion(verdict) => {
             Some(Readout::Asserted(asserted(node, verdict, evaluation)))
@@ -854,7 +862,7 @@ fn readout_of(
     }
 }
 
-/// **An assertion's verdict, its numbers spelled in its measure's
+/// **An assertion's verdict, its numbers carried in its measure's
 /// dimension.** A verdict carries numbers only when its measure
 /// evaluated to a value, so the dimension is that value's.
 fn asserted(
@@ -873,7 +881,10 @@ fn asserted(
         ),
     };
     Asserted {
-        verdict: verdict.clone().map(|number| computed_text(dim(), number)),
+        verdict: verdict.clone().map(|number| Computed {
+            canonical: number,
+            dimension: dim(),
+        }),
         dir: *dir,
         measure: *measure,
     }
@@ -1210,6 +1221,7 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::Under { .. }
         | MateFault::SelfMate { .. }
         | MateFault::Unleverable { .. }
+        | MateFault::FaceUnresolved { .. }
         | MateFault::Contradictory { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. } => None,
@@ -1260,7 +1272,8 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
-        | MateFault::Unleverable { mate, .. } => vec![*mate],
+        | MateFault::Unleverable { mate, .. }
+        | MateFault::FaceUnresolved { mate, .. } => vec![*mate],
         // Names no mate and reaches EVERY row of the document — the
         // asymmetry with the arm below is stated once, on `MateFault`.
         MateFault::Band { .. } => Vec::new(),
