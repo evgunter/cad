@@ -312,10 +312,9 @@ fn revolve_minted_walls_meet_the_same_gate() {
 }
 
 /// The containment door handed a FULL-TURN wall (revolve-minted, seam
-/// in the boundary): the doc promises `None` is "the honest remainder
-/// throughout — a chart form the trim cannot express" — a full-period
-/// azimuth window is such a form. Measured here: the door must never
-/// return a WRONG In/Out; None or a loud error are both recorded.
+/// in the boundary), which it serves as the full-turn band. Measured
+/// here: the door must never return a WRONG In/Out; None or a loud
+/// error are both recorded.
 #[test]
 fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
     let tol = Tol::witness();

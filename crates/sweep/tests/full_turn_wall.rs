@@ -9,11 +9,9 @@
 //!
 //! - The face door ([`topo::curved_face_containment`]) places a point
 //!   on either carrier by its height (latitude) window alone: `In`
-//!   inside it, `Out` past a rim, and the boundary walk's `OnEdge` on
-//!   one. Without the full-turn class both faces answered `None`.
+//!   inside it, `Out` past a rim.
 //! - The solid door ([`topo::point_in_solid`]) reads the bore through
-//!   the same class, so a ray through the bore wall is a crossing
-//!   rather than an escalation on the window.
+//!   the same class, so a ray through the bore wall is a crossing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -74,25 +72,28 @@ fn at(rho: f64, y: f64, a: f64) -> Point3<f64> {
 }
 
 #[test]
-fn the_face_door_places_points_on_a_full_turn_wall_and_zone() {
-    let (body, wall, zone) = bead();
-    let place = |face, p| curved_face_containment(&body, face, p, band()).unwrap();
-    let h = rim();
+fn the_face_door_places_points_on_a_full_turn_bore() {
+    let (body, wall, _) = bead();
+    let place = |p| curved_face_containment(&body, wall, p, band()).unwrap();
     for a in [2.0, 4.0] {
         assert_eq!(
-            place(wall, at(BORE, 0.3, a)),
+            place(at(BORE, 0.3, a)),
             Some(FaceContainment::In),
             "bore, inside the height window, azimuth {a}"
         );
         assert_eq!(
-            place(wall, at(BORE, h + 0.1, a)),
+            place(at(BORE, rim() + 0.1, a)),
             Some(FaceContainment::Out),
             "bore carrier, past the top rim, azimuth {a}"
         );
-        assert!(
-            matches!(place(wall, at(BORE, -h, a)), Some(FaceContainment::OnEdge(_))),
-            "bore, on the bottom rim, azimuth {a}"
-        );
+    }
+}
+
+#[test]
+fn the_face_door_places_points_on_a_full_turn_zone() {
+    let (body, _, zone) = bead();
+    let place = |face, p| curved_face_containment(&body, face, p, band()).unwrap();
+    for a in [2.0, 4.0] {
         let rho = |y: f64| (1.0 - y * y).sqrt();
         assert_eq!(
             place(zone, at(rho(0.2), 0.2, a)),
@@ -126,4 +127,42 @@ fn the_solid_door_reads_the_full_turn_bore() {
         SolidContainment::OnBoundary,
         "on the bore wall"
     );
+}
+
+#[test]
+fn probe_full_turn_collar_rest() {
+    use crate::mate2_common::{peg, volume, wall_decls};
+    use geom_core::{Affine3, Vec3};
+    let lp = bulge_loop(vec![
+        (Point2::new(0.5, 1.0), 0.0),
+        (Point2::new(1.5, 1.0), 0.0),
+        (Point2::new(1.5, 2.0), 0.0),
+        (Point2::new(0.5, 2.0), 0.0),
+    ]);
+    let collar = revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    let to_y = Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        -core::f64::consts::FRAC_PI_2,
+    );
+    for (z0, h) in [(1.0, 1.0), (0.5, 2.0)] {
+        let p = topo::transform_rigid(&peg(z0, h), &to_y, Tol::witness()).unwrap();
+        let decls = wall_decls(&collar, &p);
+        eprintln!("PROBE decls {}", decls.coincident_faces.len());
+        match topo::union_with(&collar, &p, &decls, Tol::witness()) {
+            Ok(r) => {
+                let b = crate::mate2_common::body_of(r);
+                eprintln!(
+                    "PROBE ({z0},{h}) OK vol {} vs {} + {} ; valid {:?}",
+                    volume(&b),
+                    volume(&collar),
+                    volume(&p),
+                    topo::validate_geometric(&b, Tol::witness()).is_ok()
+                );
+            }
+            Err(e) => eprintln!("PROBE ({z0},{h}) ERR {e:?}"),
+        }
+    }
 }

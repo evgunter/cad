@@ -820,8 +820,8 @@ struct TorusChart<T: geom_core::Real> {
 /// - A face whose own windows the walk **cannot pin**, or cannot take at
 ///   all, is the honest remainder rather than corruption of the
 ///   caller's query, as in the cylinder arm. `None`.
-/// - A **wrapped** coordinate is NOT a remainder here, unlike the
-///   cylinder arm's full-period guard. The torus walk reports a wrap as
+/// - A **wrapped** coordinate is NOT a remainder here, as it is not on
+///   the cylinder arm's full-turn band. The torus walk reports a wrap as
 ///   no window at all, and on a ring torus that is evidence (the chart
 ///   has no singular junction at which the walk could lose an edge), so
 ///   there is no cosine comparison to run in that coordinate and no

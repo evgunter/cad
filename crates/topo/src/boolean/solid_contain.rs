@@ -1017,7 +1017,9 @@ enum WallEdge<T: geom_core::Real> {
 /// **A cylinder wall face's outline, resolved** — THE class predicate,
 /// asked by both doors: the ray lane serves every class, the face-level
 /// door ([`super::contain::curved_face_containment`]) serves
-/// [`WallOutline::Rectangle`] and answers `None` for the rest.
+/// [`WallOutline::Rectangle`] and answers `None` for the rest. A window
+/// a full period wide is not this predicate's: both doors ask
+/// [`full_turn_outline`] there instead.
 ///
 /// # The class
 ///
@@ -2330,7 +2332,8 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 ///   as a class question (a window a period wide is the wrapped class,
 ///   not an escalation);
 /// - [`super::contain::curved_face_placement`] (the same period guard
-///   asked as a chart-form question, which is why its answer is `None`
+///   asked as a chart-form question: a full period routes to
+///   [`full_turn_outline`], and outside that class its answer is `None`
 ///   where this one escalates).
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 pub(super) fn point_on_wall_in_face<T: Decide>(
@@ -3027,13 +3030,11 @@ pub(super) fn sphere_chart_trim<T: Decide>(
     // A FULL-PERIOD azimuth window is not an ill-conditioned window
     // here, it is a face that attains every azimuth — a cap, or a
     // latitude band — and the honest membership answer for it is
-    // "yes, at every azimuth". The cylinder's ray arm escalates on the
-    // same reading because there a full turn means its cosine
-    // comparison stopped being an equivalence and the rectangle stopped
-    // describing the face; on a sphere the LATITUDE window still
-    // describes it exactly, so there is a rectangle and no equivalence
-    // is needed. A window WIDER than a period is a walk that wrapped
-    // more than once — out of the class.
+    // "yes, at every azimuth": the LATITUDE window still describes it
+    // exactly, so no azimuth comparison is needed (the cylinder's
+    // full-turn band, [`full_turn_outline`], is the same reading). A
+    // window WIDER than a period is a walk that wrapped more than
+    // once — out of the class.
     let az = match decide(
         "bool_sphere_trim_period",
         Margin::levered(T::tau() - (raw.1 - raw.0), radius),
