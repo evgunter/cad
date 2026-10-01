@@ -25,8 +25,8 @@ use crate::fixture;
 
 use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, MateFault, MateFrame,
-    MatePrimitive, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, LeverRefusal, MateFault,
+    MateFrame, MatePrimitive, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, solve, square, step};
@@ -235,8 +235,13 @@ fn c1_every_separated_pair_measures_what_it_refuses() {
                                         );
                                         format!("clash {predicate}")
                                     }
-                                    Err(FoldStop::OutOfRange) => {
-                                        panic!("no meeting point here is past the format: {at}")
+                                    Err(
+                                        stop @ (FoldStop::OutOfRange | FoldStop::Unleverable(_)),
+                                    ) => {
+                                        panic!(
+                                            "every arm here decides angles and every meeting \
+                                             point is measurable: {at}: {stop:?}"
+                                        )
                                     }
                                 };
                                 *census.entry(word).or_default() += 1;
@@ -265,48 +270,45 @@ fn c1_every_separated_pair_measures_what_it_refuses() {
 
 // ---- C2: the pose is the intersection, by an independent closed form ----
 
-/// The solution of `rows · x = rhs` by Cramer's rule — a solve the
-/// translation stage does not use.
-fn cramer(rows: [Vec3<f64>; 3], rhs: [f64; 3]) -> Vec3<f64> {
-    let [r0, r1, r2] = rows;
-    let det = r0.dot(r1.cross(r2));
-    let col = |i: usize| {
-        let pick = |r: Vec3<f64>, b: f64| match i {
-            0 => Vec3::new(b, r.y, r.z),
-            1 => Vec3::new(r.x, b, r.z),
-            _ => Vec3::new(r.x, r.y, b),
-        };
-        let (a0, a1, a2) = (pick(r0, rhs[0]), pick(r1, rhs[1]), pick(r2, rhs[2]));
-        a0.dot(a1.cross(a2)) / det
-    };
-    Vec3::new(col(0), col(1), col(2))
-}
-
 fn close(got: Vec3<f64>, want: Vec3<f64>, rel: f64) -> bool {
     (got - want).norm() <= rel * want.norm().max(1.0)
 }
 
-/// **Where it solves, the pose is the true intersection.** Each shape
-/// the translation stage solves in closed form is checked against a
-/// formula it does not use, at tilts from 0.7 down to the band's edge,
-/// to the agreement two spellings can offer: the rounding over the
-/// sine, which at the edge puts the planes' meeting point some
-/// `1 / sine` metres out. The planes'
-/// line is found through its nearest point to the origin,
-/// `(h₁ n₂ − h₂ n₁) × w / |w|²` with `w = n₁ × n₂`, and the held
-/// representative projected onto it; a plane and a line meet by
-/// Cramer's rule over the plane and two normals of the line, either
-/// side held; two lines built to cross at a known point meet there.
-/// A line lying in the plane leaves the slide along itself free, and
-/// the pose is the foot of the held point on it; a pin on the plane is
-/// where it stands.
+/// **Where it solves, the pose is the true intersection; where it
+/// refuses two skew lines, the clash is their gap.** Every pair is
+/// BUILT around a known point `X` rather than solved for one, so no
+/// reference here shares a spelling with the stage: a line `d` in the
+/// held plane and an in-plane direction `k` across it frame a second
+/// plane `m = n·cos s + k·sin s`, which meets the first in the line
+/// through `X` along `d`; a line along `u`, lifted `s` out of the
+/// plane, crosses it at `X`; two lines through `X` at an angle `s` to
+/// each other cross there, and lifted apart by `h` along `n` miss each
+/// other by exactly `h`. Each pair runs at tilts from 0.7 down to the
+/// band's edge, both orders where both are meaningful, prismatic and
+/// cylindrical lines alike, to the agreement two spellings can offer:
+/// the rounding over the sine.
 #[test]
 fn c2_the_pose_is_the_independent_intersection() {
     let band = band();
-    let r1 = Vec3::new(0.4, -0.3, 0.2);
-    let r2 = Vec3::new(-0.1, 0.7, 0.05);
     let arm = 3.7;
+    let x = Vec3::new(0.3, -0.2, 0.5);
     let edge_tilt = band.escalate() / arm * 1.5;
+    let at = |direction: UnitVec3<f64>, cylinder: bool| {
+        if cylinder {
+            Subgroup::Cylindrical {
+                point: Point3::new(-0.4, 0.1, 0.2),
+                direction,
+            }
+        } else {
+            Subgroup::Prismatic { direction }
+        }
+    };
+    let solved = |held: Coset, added: Coset| {
+        intersect(held, added, band, lever(arm))
+            .unwrap_or_else(|stop| panic!("the pair meets: {stop:?}"))
+            .representative
+            .translation
+    };
     let mut checked = 0_usize;
     for (n, tilts) in [
         (Vec3::new(0.0, 0.0, 1.0), vec![0.7, 0.1, 1e-3, edge_tilt]),
@@ -314,25 +316,17 @@ fn c2_the_pose_is_the_independent_intersection() {
     ] {
         let normal = unit(n);
         let n = normal.get();
-        let (b1, b2) = n.orthonormal_basis();
-        let on_plane = r2 - n * n.dot(r2 - r1);
-        let along = unit(b1 * 0.6 + b2 * 0.8);
-        let foot = on_plane + along.get() * along.get().dot(r1 - on_plane);
-        let slide = intersect(
-            coset(Subgroup::Planar { normal }, r1),
-            coset(Subgroup::Prismatic { direction: along }, on_plane),
-            band,
-            lever(arm),
-        )
-        .expect("a line in the plane meets it");
-        assert_eq!(slide.subgroup.name(), "prismatic");
-        let got = slide.representative.translation;
-        assert!(
-            close(got, foot, 1e-12),
-            "line in the plane: {got:?} vs {foot:?}"
-        );
-        let got = intersect(
-            coset(Subgroup::Planar { normal }, r1),
+        let (d, k) = n.orthonormal_basis();
+        let line = unit(d);
+        let plane = |r| coset(Subgroup::Planar { normal }, r);
+        let r1 = x + k * 0.4 + d * 0.25;
+
+        // A line lying in the plane, and a pin standing on it: the
+        // added anchor, which is on the plane, is the pose.
+        let on_plane = x + d * 0.6 - k * 0.3;
+        for added in [
+            coset(at(line, false), on_plane),
+            coset(at(line, true), on_plane),
             coset(
                 Subgroup::Revolute {
                     point: Point3::new(0.1, 0.2, 0.3),
@@ -340,83 +334,129 @@ fn c2_the_pose_is_the_independent_intersection() {
                 },
                 on_plane,
             ),
-            band,
-            lever(arm),
-        )
-        .expect("a pin on the plane stands on it")
-        .representative
-        .translation;
-        assert!(close(got, on_plane, 1e-12), "pin: {got:?} vs {on_plane:?}");
-        checked += 2;
+        ] {
+            let got = solved(plane(r1), added);
+            assert!(close(got, on_plane, 1e-12), "{got:?} vs {on_plane:?}");
+            checked += 1;
+        }
+
         for s in tilts {
             let rel = (64.0 * f64::EPSILON / s).max(1e-12);
-            let tilted = unit(n + b1 * (0.6 * s) + b2 * (0.8 * s));
-            let lifted = unit(b1 * 0.6 + b2 * 0.8 + n * s);
+            let (sin, cos) = s.sin_cos();
 
-            let m = tilted.get();
-            let c = intersect(
-                coset(Subgroup::Planar { normal }, r1),
-                coset(Subgroup::Planar { normal: tilted }, r2),
-                band,
-                lever(arm),
-            )
-            .expect("two planes the table separates meet");
-            let w = n.cross(m);
-            let (h1, h2) = (n.dot(r1), m.dot(r2));
-            let p = (m * h1 - n * h2).cross(w) / w.norm_squared();
-            let d = w / w.norm();
-            let want = p + d * d.dot(r1 - p);
-            let got = c.representative.translation;
+            // Two planes: the held anchor's foot on their line.
+            let m = unit(n * cos + k * sin);
+            let r2 = x + m.get().cross(d) * 0.7 - d * 0.3;
+            let got = solved(plane(r1), coset(Subgroup::Planar { normal: m }, r2));
+            let want = x + d * 0.25;
             assert!(
                 close(got, want, rel),
                 "planes at s={s:e}: {got:?} vs {want:?}"
             );
             checked += 1;
 
-            let u = lifted.get();
-            let (e1, e2) = u.orthonormal_basis();
-            let want = cramer([n, e1, e2], [n.dot(r1), e1.dot(r2), e2.dot(r2)]);
-            let plane = coset(Subgroup::Planar { normal }, r1);
-            let line = coset(Subgroup::Prismatic { direction: lifted }, r2);
-            for (held, added, order) in [(plane, line, "plane held"), (line, plane, "line held")] {
-                let got = intersect(held, added, band, lever(arm))
-                    .expect("a line crossing a plane meets it")
-                    .representative
-                    .translation;
+            // A line crossing the plane at X, prismatic or cylindrical,
+            // either side held.
+            let u = unit(d * cos + n * sin);
+            for cylinder in [false, true] {
+                let crossing = coset(at(u, cylinder), x + u.get() * 0.9);
+                for (held, added) in [(plane(r1), crossing), (crossing, plane(r1))] {
+                    let got = solved(held, added);
+                    assert!(
+                        close(got, x, rel),
+                        "line (cylinder: {cylinder}) and plane at s={s:e}: {got:?} vs {x:?}"
+                    );
+                    checked += 1;
+                }
+            }
+
+            // Two lines through X at the angle s: they cross at X. Lifted
+            // apart by h along n they are skew, the held line's nearest
+            // point is still X, and the cylinder's clash is their gap.
+            let v = unit(d * cos + k * sin);
+            let h = 0.05;
+            for cylinder in [false, true] {
+                let held = coset(at(line, cylinder), x + d * 0.3);
+                let crossing = coset(at(v, cylinder), x - v.get() * 0.6);
+                let got = solved(held, crossing);
                 assert!(
-                    close(got, want, rel),
-                    "{order} at s={s:e}: {got:?} vs {want:?}"
+                    close(got, x, rel),
+                    "lines (cylinder: {cylinder}) at s={s:e}: {got:?} vs {x:?}"
                 );
                 checked += 1;
             }
-
-            let q2 = r1 + n * 0.3 + m * 0.2;
-            let want = r1 + n * 0.3;
-            let got = intersect(
-                coset(Subgroup::Prismatic { direction: normal }, r1),
-                coset(Subgroup::Prismatic { direction: tilted }, q2),
-                band,
-                lever(arm),
-            )
-            .expect("two coplanar lines meet")
-            .representative
-            .translation;
-            assert!(
-                close(got, want, rel),
-                "lines at s={s:e}: {got:?} vs {want:?}"
-            );
+            let skew = coset(at(v, true), x + n * h - v.get() * 0.6);
+            match intersect(coset(at(line, true), x + d * 0.3), skew, band, lever(arm)) {
+                Err(FoldStop::Clash {
+                    predicate: "mate_member_point_on_axis",
+                    clash,
+                }) => {
+                    let gap = clash.deviation().expect("a measured gap");
+                    assert!(
+                        (gap - h).abs() <= rel,
+                        "skew lines at s={s:e}: the clash {gap} is the gap {h}"
+                    );
+                }
+                other => panic!("skew lines at s={s:e} contradict: {other:?}"),
+            }
             checked += 1;
         }
     }
-    assert_eq!(checked, 2 * 2 + 7 * 4, "every shape at every tilt");
+    assert_eq!(checked, 2 * 3 + 7 * 8, "every shape at every tilt");
+}
+
+// ---- The lever's own floor ----
+
+/// **No angle is decided over a lever at or below the band's zero
+/// threshold.** A plane and a cylinder whose axis lies in it, both
+/// through the origin, meet in the slide along the axis at any arm the
+/// angles are decidable at. At an arm of zero, a tenth, a half and the
+/// whole of the zero threshold every levered margin reads zero, so
+/// the axis would be called parallel to the normal and the table would
+/// answer a pin; the door refuses first, in the lever's words, carrying
+/// the arm and the threshold — both orders, and before any division.
+#[test]
+fn a_lever_inside_the_zero_band_decides_no_angle() {
+    let band = band();
+    let plane = coset(
+        Subgroup::Planar {
+            normal: unit(Vec3::new(0.0, 0.0, 1.0)),
+        },
+        Vec3::new(0.0, 0.0, 0.0),
+    );
+    let axis = coset(
+        Subgroup::Cylindrical {
+            point: Point3::new(0.0, 0.0, 0.0),
+            direction: unit(Vec3::new(1.0, 0.0, 0.0)),
+        },
+        Vec3::new(0.0, 0.0, 0.0),
+    );
+    let zero = band.zero();
+    for arm in [0.0, 0.1 * zero, 0.5 * zero, zero] {
+        for (held, added) in [(plane, axis), (axis, plane)] {
+            match intersect(held, added, band, lever(arm)) {
+                Err(FoldStop::Unleverable(LeverRefusal::BelowZeroBand { arm: a, zero: z })) => {
+                    assert_eq!((a.to_bits(), z.to_bits()), (arm.to_bits(), zero.to_bits()));
+                }
+                other => panic!("arm {arm:e}: {other:?}"),
+            }
+        }
+    }
+    for (held, added) in [(plane, axis), (axis, plane)] {
+        let met = intersect(held, added, band, lever(2.0 * band.escalate()))
+            .expect("past the escalate threshold the pair meets");
+        assert_eq!(met.subgroup.name(), "prismatic", "the slide along the axis");
+    }
+    let text = LeverRefusal::BelowZeroBand { arm: 0.0, zero }.to_string();
+    assert!(text.contains("finer than the parts"), "{text}");
 }
 
 // ---- The one cause left: a meeting point past the format ----
 
 /// **A meeting point the format cannot hold refuses as such.** Two
 /// planes the table separates by a levered sine of a hundred metres,
-/// offset by a datum-scale distance: they meet some 1e302 m out, and
-/// the translation's length overflows the format. The refusal is the
+/// offset by a datum-scale distance: they meet some 1e302 m out,
+/// further than a length can be measured to. The refusal is the
 /// range's, at the coset. So is a length membership measures that the
 /// format cannot hold: two determined poses whose candidate holds a
 /// finite length but sit further apart than any length can say.
@@ -493,8 +533,9 @@ fn rest(
 /// second tilted 1e-150 from it, each frame's vectors authored at its
 /// origin's scale so the frame ladder reads them. The insert door
 /// admits both (every datum is finite, and so is the lever's square),
-/// the solve separates the planes, and the second mate refuses
-/// `PoseOutOfRange` — its own arm, its own class, the range's recourse.
+/// the solve separates the planes, and the pair refuses
+/// `PoseOutOfRange`, naming both mates — its own arm, its own class,
+/// the range's recourse.
 #[test]
 fn out_of_range_through_the_doors() {
     let mut store = PartStore::new();
@@ -507,7 +548,7 @@ fn out_of_range_through_the_doors() {
         let (doc, id) = step(doc, DocEdit::InsertNode { node });
         (doc, id.expect("the insert minted an id"))
     };
-    let (doc, _) = add(
+    let (doc, first) = add(
         doc,
         rest(body, [i0, i1], [0.0, 0.0, 1e152], [0.0, 0.0, 1e152]),
     );
@@ -517,12 +558,21 @@ fn out_of_range_through_the_doors() {
     );
     let poses = solve(&doc, &o, Tol::witness());
     let fault = poses.fault(second).expect("the second mate refuses");
-    assert_eq!(fault, &MateFault::PoseOutOfRange { mate: second });
+    assert_eq!(
+        fault,
+        &MateFault::PoseOutOfRange {
+            held: first,
+            added: second,
+        }
+    );
     assert_eq!(
         NodeErrorClass::of_mate(fault),
         NodeErrorClass::MatePoseOutOfRange
     );
     let text = fault.to_string();
     assert!(text.contains(RANGE_RECOURSE), "{text}");
-    assert!(text.contains(&second.to_string()), "{text}");
+    assert!(
+        text.contains(&format!("mates {first} and {second} meet")),
+        "{text}"
+    );
 }
