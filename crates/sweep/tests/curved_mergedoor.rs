@@ -6,10 +6,8 @@
 //! declaration it has no rung for, and the door RECORDS it as a
 //! `SkippedMerge` carrying `DeclaredCarrierUnsupported` — visible in
 //! `BooleanNaming::merge_skipped`, never an `InvalidDeclaration` refusal
-//! blaming the caller. Scenes C, D and F reach that record and ship an
-//! honest body; scenes A and B, freed of the false refusal, stop at the
-//! zip's own defect (`work/curved/rest-zip-seam-chord-on-cylinder-wall`);
-//! scene E stops at the reduction.
+//! blaming the caller. Scenes A, B, C, D and F reach that record and
+//! ship an honest body; scene E stops at the reduction.
 //!
 //! Scenes A–D are `mate2_common`'s; scene D's plate/peg builders are
 //! copied from `r1_probes_m9_3` (private there).
@@ -641,30 +639,15 @@ fn sphere_and_torus_pairs_record_their_kind() {
     }
 }
 
-/// Row 2 (A, B) — RED-THE-DAY: freed of the false `InvalidDeclaration`,
-/// the floating and mid-bore pegs stop at the zip's own defect — a
-/// `Line` chord minted on the bore wall where a cap rim cuts it
-/// mid-height, reached by the output stage's seam-edge re-description
-/// and refused by its certification, reported as `JoinDesync` (the
-/// certification payload is dropped there). A typed refusal of a real
-/// defect where a false one stood. This row flips when
-/// `work/curved/rest-zip-seam-chord-on-cylinder-wall` lands; the
-/// honest outcome then is the one rows 1 and 3 pin.
+/// Row 2 (A, B): the floating and mid-bore pegs ship honest bodies —
+/// additive volume, tiers 2, 3 and 3′ — with the one cylinder pair
+/// recorded. Each peg rim cuts the bore wall mid-height, and the
+/// section loops' roles resolve on the rim arcs' own midpoints.
 #[test]
-fn floating_and_mid_bore_pegs_refuse_at_the_zip_seam_chord_today() {
+fn floating_and_mid_bore_pegs_ship_honest_with_one_record() {
     for (label, (a, b, d)) in [("A", scene_a()), ("B", scene_b())] {
-        let err = topo::union_with(&a, &b, &d, Tol::witness())
-            .err()
-            .unwrap_or_else(|| panic!("{label}: the zip's seam chord is fixed — re-pin this row"));
-        assert!(
-            matches!(
-                err,
-                BooleanError::JoinDesync {
-                    what: "minted-edge description failed certification"
-                }
-            ),
-            "{label}: {err:?}"
-        );
+        let bb = union_honest(label, &a, &b, &d);
+        assert_cylinder_records(label, &bb);
     }
 }
 

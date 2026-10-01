@@ -108,11 +108,11 @@
 use geom_core::{Band, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
-use super::shell_witness::{chord_midpoint, face_loop_points, triple_centroid};
-use super::{BooleanError, BooleanReduction, HalfGerm, Operand};
+use super::shell_witness::{Reading, complex_side};
+use super::{BooleanError, BooleanReduction, HalfGerm, Operand, SideCode};
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::face_normal::face_outward_normal;
 use crate::null::NullFacePair;
 use crate::validate::decide;
@@ -1727,161 +1727,24 @@ fn cut_pair<T: Decide>(
     }
 }
 
-/// The point halfway along the CURVED edge under `he` — its carrier at
-/// the parameter midpoint — or `None` for a straight edge (a line, or
-/// null scaffolding), whose chord midpoint is already on it.
-fn curved_edge_midpoint<T: Decide>(
-    body: &Body<T>,
-    he: HalfEdgeKey,
-) -> Result<Option<geom_core::Point3<T>>, BooleanError> {
-    let edge = body
-        .get_half_edge(he)
-        .and_then(|h| body.get_edge(h.edge))
-        .ok_or(BooleanError::JoinDesync {
-            what: "region half has no edge",
-        })?;
-    Ok(match body.get_curve_geom(edge.curve) {
-        Some(crate::null::CurveGeom::Certified(curve)) if curve.carrier().is_curved() => {
-            Some(curve.mid_point())
-        }
-        _ => None,
-    })
-}
-
-/// Which point of a region-loop half-edge anchors the probe.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Anchor {
-    /// The half-edge's start vertex (the M3 PR 5 anchor).
-    Vertex,
-    /// The half-edge's chord midpoint (issue #93).
-    ChordMidpoint,
-    /// The point halfway ALONG a curved half-edge (its carrier at
-    /// the parameter midpoint); a straight edge offers none, its
-    /// chord midpoint having been probed by the tier before. A
-    /// conic's chord midpoint is off the edge, and can sit on the
-    /// other boundary where the edge's own interior does not: a
-    /// semicircle's is the circle's centre, which a cutter plane
-    /// through the axis holds.
-    EdgeOnCarrier,
-    /// A verified region-interior point (issue #93 —
-    /// the nested-island case): the centroid of the half-edge's
-    /// vertex triple, ACCEPTED only when the reified
-    /// [`point_in_face`](super::solid_contain::point_in_face)
-    /// certifies it strictly interior to the region face —
-    /// candidates are guesses, the gate is a predicate. Needed
-    /// when a region is bounded entirely by seam CHORDS (an
-    /// island's surround between two seam loops): every vertex
-    /// and every edge midpoint lies ON the other boundary, yet
-    /// the region interior classifies definitively.
-    RegionInterior,
-    /// A verified region-interior point from a VERTEX-PAIR CHORD
-    /// (issue #106): the midpoint of the half-edge's
-    /// start vertex and every other vertex of the region face
-    /// (its outer loop and ALL its rings), each accepted only
-    /// when `point_in_face` certifies it strictly interior.
-    /// Where the triple centroid is a local guess that a
-    /// nonconvex/annular region defeats, this tier sweeps the
-    /// face's full vertex set, so it finds an interior point
-    /// whenever the region admits a vertex-to-vertex diagonal —
-    /// the diagonal's midpoint is strictly interior by
-    /// construction, and every polygon-with-holes region of ≥ 4
-    /// vertices admits one (a triangulation without Steiner
-    /// points always exists; any of its non-boundary edges is
-    /// such a diagonal). Triangle regions carry no diagonal but
-    /// are already covered by [`Anchor::RegionInterior`].
-    RegionVertexChord,
-}
-impl Anchor {
-    /// Do this tier's candidates need the `point_in_face` strict-
-    /// interiority certificate before they may be probed? Vertices,
-    /// straight edges' midpoints and on-carrier midpoints sit ON
-    /// the region boundary by construction (the trilean's
-    /// `OnBoundary` skips the ones that matter); the region-interior
-    /// tiers are GUESSES until a reified predicate certifies them.
-    /// A curved edge's chord midpoint is neither, and is probed
-    /// uncertified: that is UNSOUND (it can read both loops alike,
-    /// `axis_lap.rs` `a_chord_midpoint_probe_reads_both_loops_alike`),
-    /// tracked by
-    /// `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`.
-    fn needs_interior_certificate(self) -> bool {
-        matches!(self, Anchor::RegionInterior | Anchor::RegionVertexChord)
-    }
-}
-
-/// GEOMETRIC loop-role resolution for a completed section polygon
-/// (M3 PR 5, the cookie-cutter finding): a loop of the 2-loop null
-/// face is the IN copy iff the region material adjacent to it (the
-/// faces holding its chords' mates) lies inside the OTHER body —
-/// decided by probing the region faces' NON-seam vertices with
-/// [`super::solid_contain::point_in_solid`] against the pristine other
-/// operand (seam
-/// vertices sit ON the other boundary and are skipped via the
-/// trilean's `OnBoundary`). The two regions flank the seam, so one
-/// definitive verdict fixes both roles; agreeing verdicts on both
-/// loops are the loud [`SplitJoinError::SectionLoopMixed`]. This
-/// never consults strut side labels — pierce-ring struts carry
-/// provisional labels (PR 4's flag), and single-face seam rings have
-/// no in-solid label anchor; geometry is the anchor.
+/// GEOMETRIC loop-role resolution for a completed section polygon: a
+/// loop of the 2-loop null face is the IN copy iff the region faces
+/// holding its chords' mates lie inside the OTHER operand, read by the
+/// cell-dimension witness ladder ([`complex_side`]) against the
+/// pristine other operand. Probing waits for quiescence, so no
+/// crossing runs through a region face and the ladder's premise holds.
+/// Strut side labels are never consulted: pierce-ring struts carry
+/// provisional labels, and a single-face seam ring has no in-solid
+/// label to anchor on.
 ///
-/// Anchor tiers, named by [`Anchor`] and run in this order, each over
-/// BOTH loops before the next:
-///
-/// - [`Anchor::Vertex`] (issue #93, the A×Z finding, keeps the
-///   original M3 PR 5 anchor first, so a pose it resolves sees a
-///   bit-identical predicate stream);
-/// - [`Anchor::ChordMidpoint`], the CHORD midpoint of each region edge
-///   (`lerp` at ½ — on the edge only when it is straight), for
-///   regions bounded entirely by seam vertices (all `OnBoundary`)
-///   whose non-seam edges' interiors classify definitively. Seam-chord
-///   midpoints lie ON the other boundary and are skipped by the
-///   trilean like seam vertices. **For a curved edge this probe is
-///   unsound**: the chord midpoint is not on the edge, nor in general on
-///   the region, so its verdict is about some other point — a rim
-///   semicircle's is the circle's centre. `crates/sweep/tests/axis_lap.rs`
-///   `a_chord_midpoint_probe_reads_both_loops_alike` reaches it (both
-///   loops take the centre's verdict and refuse `SectionLoopMixed`), and
-///   `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`
-///   tracks the fix;
-/// - [`Anchor::EdgeOnCarrier`], the midpoint ALONG each curved edge
-///   (its carrier at the parameter midpoint), which is on the region
-///   boundary where the chord midpoint may sit on the other boundary
-///   instead (a semicircle's centre, held by a cutter plane through
-///   the axis);
-/// - [`Anchor::RegionInterior`] (the nested-island case: an island's
-///   surround bounded entirely by seam chords of TWO seam loops — every
-///   vertex and midpoint on the other boundary): vertex-triple
-///   centroids accepted only when the reified `point_in_face`
-///   certifies them strictly interior, then probed the same way;
-/// - [`Anchor::RegionVertexChord`] (issue #106): the midpoint of the
-///   anchor vertex and every other vertex of the same region face,
-///   across its outer loop AND all its rings, under the same
-///   `point_in_face` certificate. The triple centroid is a local guess
-///   a nonconvex or annular region defeats (a square annulus between
-///   two seam loops — depth-2 island nesting, island ⊃ ring ⊃ island on
-///   one face — lands every consecutive-triple centroid inside the
-///   hole); the vertex-chord tier is global, and finds an interior
-///   point whenever the region admits any vertex-to-vertex diagonal,
-///   which every polygon-with-holes region of ≥ 4 vertices does.
-///
-/// Every probe goes through the same
-/// [`super::solid_contain::point_in_solid`] reified-predicate funnel —
-/// no new predicate, no epsilon comparison. The two region-interior
-/// tiers read the region face through the planar-only `face_plane`, so
-/// a curved region that reaches them refuses `KindUnsupported` (the
-/// same ZIP row).
-///
-/// The typed refusal below stays LOAD-BEARING, not a dead backstop.
-/// Post-#106 the known residue is: regions lying INSIDE the other
-/// body's boundary surface (the coincident-plane class) exhaust all
-/// tiers — every candidate, interior or not, is `OnBoundary`
-/// against the other solid — though post-N6 that class normally
-/// refuses earlier, at the coincidence door; and any region whose
-/// every certified interior candidate still reads `OnBoundary`.
-/// Candidate generation remains a heuristic in the strict sense (it
-/// is not a full constrained triangulation), so the arm is kept
-/// unconditionally: an uncertified or inconclusive candidate is
-/// discarded unprobed and the refusal is typed — never wrongness,
-/// never classification by guess.
+/// What this question adds to the ladder is that the two loops' regions
+/// flank the seam, so their sides are opposite: either loop's verdict
+/// fixes both roles. A loop whose regions lie ON the other boundary (a
+/// declared flush face) reads undecided, and the other loop decides.
+/// When both decide they must disagree: agreeing verdicts mean the seam
+/// is not a crossing, and refuse [`SplitJoinError::SectionLoopMixed`].
+/// When neither decides, the first in-band refusal met is the refusal,
+/// else the regions hold no decisive witness.
 fn resolve_roles_geometric<T: Decide>(
     body: &Body<T>,
     other_pristine: &Body<T>,
@@ -1891,168 +1754,69 @@ fn resolve_roles_geometric<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<(LoopKey, LoopKey), BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let probe = |l: LoopKey, anchor: Anchor| -> Result<Option<bool>, BooleanError> {
-        let crate::entity::LoopBoundary::Cycle { first } = body
-            .get_loop(l)
-            .ok_or(desync("completed section loop no longer resolves"))?
-            .boundary
-        else {
-            return Err(desync("completed section loop is empty"));
-        };
-        for ch in body
-            .loop_cycle(first)
-            .ok_or(desync("completed section loop not walkable"))?
-        {
-            let mate = body.mate(ch).ok_or(desync("section half has no mate"))?;
-            let region_loop = body
-                .get_half_edge(mate)
-                .ok_or(desync("section mate no longer resolves"))?
-                .parent_loop;
-            let region_face = body
-                .get_loop(region_loop)
-                .ok_or(desync("region loop no longer resolves"))?
-                .face;
-            if region_face == face {
-                continue;
-            }
-            let f = body
-                .get_face(region_face)
-                .ok_or(desync("region face no longer resolves"))?;
-            for rl in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-                let crate::entity::LoopBoundary::Cycle { first: rf } = body
-                    .get_loop(rl)
-                    .ok_or(desync("region loop no longer resolves"))?
-                    .boundary
-                else {
-                    continue;
-                };
-                for rhe in body
-                    .loop_cycle(rf)
-                    .ok_or(desync("region loop not walkable"))?
-                {
-                    let v = body
-                        .get_half_edge(rhe)
-                        .ok_or(desync("region half no longer resolves"))?
-                        .start;
-                    let start = body
-                        .get_vertex(v)
-                        .and_then(|vd| body.get_point(vd.point).copied())
-                        .ok_or(desync("region vertex has no point"))?;
-                    let end_of = |he: HalfEdgeKey| {
-                        body.half_edge_end(he)
-                            .and_then(|ev| body.get_vertex(ev))
-                            .and_then(|vd| body.get_point(vd.point).copied())
-                            .ok_or(desync("region half has no end point"))
-                    };
-                    let cands: Vec<geom_core::Point3<T>> = match anchor {
-                        Anchor::Vertex => vec![start],
-                        Anchor::ChordMidpoint => vec![chord_midpoint(start, end_of(rhe)?)],
-                        Anchor::EdgeOnCarrier => {
-                            curved_edge_midpoint(body, rhe)?.into_iter().collect()
-                        }
-                        Anchor::RegionInterior => {
-                            let b = end_of(rhe)?;
-                            let c = end_of(
-                                body.get_half_edge(rhe)
-                                    .ok_or(desync("region half no longer resolves"))?
-                                    .next,
-                            )?;
-                            vec![triple_centroid(start, b, c)]
-                        }
-                        Anchor::RegionVertexChord => face_loop_points(body, region_face)?
-                            .concat()
-                            .into_iter()
-                            .map(|q| chord_midpoint(start, q))
-                            .collect(),
-                    };
-                    for p in cands {
-                        if anchor.needs_interior_certificate() {
-                            // The normal is only a projection frame for
-                            // `point_in_face`'s ray parity, which is
-                            // blind to its sign; `face_plane` hands out
-                            // the oriented one regardless (S10).
-                            let (_, normal) = super::solid_contain::face_plane(body, region_face)
-                                .map_err(BooleanError::Containment)?;
-                            if !super::shell_witness::certified_in_face(
-                                body,
-                                region_face,
-                                normal,
-                                p,
-                                band,
-                            )? {
-                                continue;
-                            }
-                        }
-                        match super::solid_contain::point_in_solid(other_pristine, p, band, tol)
-                            .map_err(BooleanError::Containment)?
-                        {
-                            super::solid_contain::SolidContainment::In => return Ok(Some(true)),
-                            super::solid_contain::SolidContainment::Out => return Ok(Some(false)),
-                            super::solid_contain::SolidContainment::OnBoundary => continue,
-                        }
-                    }
-                }
-            }
+    let side = |l: LoopKey| -> Result<Reading, BooleanError> {
+        complex_side(
+            body,
+            &region_faces(body, face, l)?,
+            other_pristine,
+            band,
+            tol,
+        )
+    };
+    let in_first = |s: SideCode, l: LoopKey, m: LoopKey| {
+        if s == SideCode::In { (l, m) } else { (m, l) }
+    };
+    match (side(outer)?, side(ring)?) {
+        (Reading::Side(o), Reading::Side(r)) if o == r => {
+            Err(BooleanError::Join(SplitJoinError::SectionLoopMixed {
+                face,
+            }))
         }
-        Ok(None)
-    };
-    // One anchor tier at a time, both loops, before the next tier —
-    // the vertex tier is exhausted first so the existing corpus sees
-    // an unchanged predicate stream (doc above).
-    let resolve = |anchor: Anchor| -> Result<Option<(LoopKey, LoopKey)>, BooleanError> {
-        Ok(match probe(outer, anchor)? {
-            Some(outer_in) => {
-                // The two regions flank the seam: the other loop takes
-                // the opposite role (checked when it also resolves).
-                // Agreeing verdicts are refused loudly, never resolved:
-                // an unsound anchor reaches this (a curved edge's chord
-                // midpoint, `crates/sweep/tests/axis_lap.rs`
-                // `a_chord_midpoint_probe_reads_both_loops_alike`;
-                // `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`).
-                if probe(ring, anchor)? == Some(outer_in) {
-                    return Err(BooleanError::Join(SplitJoinError::SectionLoopMixed {
-                        face,
-                    }));
-                }
-                if outer_in {
-                    Some((outer, ring))
-                } else {
-                    Some((ring, outer))
-                }
-            }
-            None => match probe(ring, anchor)? {
-                Some(ring_in) => {
-                    if ring_in {
-                        Some((ring, outer))
-                    } else {
-                        Some((outer, ring))
-                    }
-                }
-                None => None,
+        (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
+        (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
+        (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.or(r) {
+            Some(e) => BooleanError::Containment(e),
+            None => BooleanError::JoinDesync {
+                what: "neither section loop's regions hold a decisive witness",
             },
-        })
+        }),
+    }
+}
+
+/// The region faces flanking section loop `l` of null face `face`: the
+/// faces holding its half-edges' mates, each once, in loop order.
+fn region_faces<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    l: LoopKey,
+) -> Result<Vec<FaceKey>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(l)
+        .ok_or(desync("completed section loop no longer resolves"))?
+        .boundary
+    else {
+        return Err(desync("completed section loop is empty"));
     };
-    if let Some(roles) = resolve(Anchor::Vertex)? {
-        return Ok(roles);
+    let mut out: Vec<FaceKey> = Vec::new();
+    for ch in body
+        .loop_cycle(first)
+        .ok_or(desync("completed section loop not walkable"))?
+    {
+        let mate = body.mate(ch).ok_or(desync("section half has no mate"))?;
+        let region_loop = body
+            .get_half_edge(mate)
+            .ok_or(desync("section mate no longer resolves"))?
+            .parent_loop;
+        let region_face = body
+            .get_loop(region_loop)
+            .ok_or(desync("region loop no longer resolves"))?
+            .face;
+        if region_face != face && !out.contains(&region_face) {
+            out.push(region_face);
+        }
     }
-    if let Some(roles) = resolve(Anchor::ChordMidpoint)? {
-        return Ok(roles);
-    }
-    if let Some(roles) = resolve(Anchor::EdgeOnCarrier)? {
-        return Ok(roles);
-    }
-    if let Some(roles) = resolve(Anchor::RegionInterior)? {
-        return Ok(roles);
-    }
-    match resolve(Anchor::RegionVertexChord)? {
-        Some(roles) => Ok(roles),
-        None => Err(desync(
-            "neither section loop's regions hold a classifiable anchor \
-             (vertices, edge chord midpoints, on-carrier midpoints, and \
-             verified interior candidates all exhausted)",
-        )),
-    }
+    Ok(out)
 }
 
 #[cfg(test)]
