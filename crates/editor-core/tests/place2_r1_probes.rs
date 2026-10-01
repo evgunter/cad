@@ -673,3 +673,96 @@ fn r1_an_instance_without_its_offset_key_loads_unplaced() {
         Err(e) => eprintln!("refused: {e}"),
     }
 }
+
+fn world_bounds(doc: &ProfileDoc, ev: &Evaluation<f64>) -> ([f64; 3], [f64; 3]) {
+    let body = editor_core::product(doc, ev, Tol::witness()).expect("the product gathers");
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
+    for (_, p) in body.points() {
+        for (k, x) in [p.x, p.y, p.z].into_iter().enumerate() {
+            lo[k] = lo[k].min(x);
+            hi[k] = hi[k].max(x);
+        }
+    }
+    (lo, hi)
+}
+
+/// **A verbatim split of an instance on a gauge together with plain
+/// world geometry.** The anchor is read off the cut's instances alone,
+/// so the plain body casts no vote: the instance left behind names the
+/// gauge, and the plain body, now inside the part, is carried by it.
+/// Split-then-evaluate must equal the unsplit evaluation.
+#[test]
+fn r1_a_split_of_a_gauged_instance_with_plain_geometry_keeps_the_geometry_still() {
+    let p = parts("r1-split-plain");
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-split-plain"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, Placement::literal(&Frame::translation([0.0, 10.0, 0.0]))));
+    let (doc, x) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let doc = set_gauge(doc, x, Some(g));
+    let before_nodes: std::collections::BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let (doc, prof) = on_frame(
+        doc,
+        [50.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, ext) = insert(doc, Node::Extrude { profile: prof, distance: len(1.0) });
+    let plain: Vec<RecipeNodeId> = doc.order().iter().copied().filter(|id| !before_nodes.contains(id)).collect();
+    let o = p.opts();
+    let ev = run(&doc, &o);
+    let before = world_bounds(&doc, &ev);
+    eprintln!("before: {before:?}");
+    let mut cut: std::collections::BTreeSet<RecipeNodeId> = plain.iter().copied().collect();
+    cut.insert(x);
+    let _ = ext;
+    let out = editor_core::split(&doc, &cut, DocumentId::derive("r1-split-plain-part"), Tol::witness(), o.resolver.as_ref());
+    match out {
+        Err(e) => eprintln!("split refused: {e}"),
+        Ok(out) => {
+            eprintln!("instance gauge: {:?}, offset: {:?}", out.remainder.node(out.instance).and_then(Node::gauge_ref), offset_of(&out.remainder, out.instance));
+            let mut store = p.store.clone();
+            store.insert(out.part.clone(), Tol::witness());
+            let o2 = with_resolver(store);
+            let ev2 = run(&out.remainder, &o2);
+            let after = world_bounds(&out.remainder, &ev2);
+            eprintln!("after: {after:?}");
+            for k in 0..3 {
+                assert!((before.0[k] - after.0[k]).abs() < 1e-9 && (before.1[k] - after.1[k]).abs() < 1e-9, "split moved the world: {before:?} -> {after:?}");
+            }
+        }
+    }
+}
+
+/// The same class through a placer: a cut holding an instance on a
+/// gauge and a transform over it. The transform's map acts in the
+/// document's coordinates before the split (`T ∘ G ∘ x`) and in the
+/// part's after it, which the instance left behind then puts on the
+/// gauge (`G ∘ T ∘ x`).
+#[test]
+fn r1_a_split_of_a_gauged_instance_with_its_transform_keeps_the_geometry_still() {
+    let p = parts("r1-split-xform");
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-split-xform"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, Placement::literal(&Frame::translation([0.0, 10.0, 0.0]))));
+    let (doc, x) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let doc = set_gauge(doc, x, Some(g));
+    let (doc, t) = insert(doc, xform(x, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5));
+    let o = p.opts();
+    let ev = run(&doc, &o);
+    let before = world_bounds(&doc, &ev);
+    eprintln!("before: {before:?}");
+    let cut: std::collections::BTreeSet<RecipeNodeId> = [x, t].into_iter().collect();
+    match editor_core::split(&doc, &cut, DocumentId::derive("r1-split-xform-part"), Tol::witness(), o.resolver.as_ref()) {
+        Err(e) => eprintln!("split refused: {e}"),
+        Ok(out) => {
+            let mut store = p.store.clone();
+            store.insert(out.part.clone(), Tol::witness());
+            let ev2 = run(&out.remainder, &with_resolver(store));
+            let after = world_bounds(&out.remainder, &ev2);
+            eprintln!("after: {after:?}");
+            for k in 0..3 {
+                assert!((before.0[k] - after.0[k]).abs() < 1e-9 && (before.1[k] - after.1[k]).abs() < 1e-9, "split moved the world: {before:?} -> {after:?}");
+            }
+        }
+    }
+}
