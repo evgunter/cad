@@ -3071,7 +3071,7 @@ pub(crate) mod tests {
                 let s = NurbsSurface::new(
                     kv.clone(),
                     kv.clone(),
-                    net.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+                    net.iter().copied().map(Point3::from_array).collect(),
                     w.to_vec(),
                 )
                 .unwrap();
@@ -3205,7 +3205,7 @@ pub(crate) mod tests {
                 }
             }
             let list = |v: &[f64]| v.iter().map(|x| hex(*x)).collect::<Vec<_>>().join(",");
-            let points: Vec<f64> = control.iter().flat_map(|p| [p.x, p.y, p.z]).collect();
+            let points: Vec<f64> = control.iter().flat_map(|p| p.to_array()).collect();
             println!(
                 "DUMP {trial} W {} C {} B {} ARG {}",
                 list(&weights),

@@ -69,7 +69,7 @@ fn r1_half_angle_enclosure_table() {
 fn r1_zero_axis_poison_at_zero_angle_both_lanes() {
     // f64 lane, angle exactly 0.
     let bad = Affine3::rotation_about_axis(Point3::new(1.0f64, 2.0, 3.0), Vec3::zero(), 0.0);
-    for c in [bad.linear.c0, bad.linear.c1, bad.linear.c2] {
+    for c in bad.linear.cols() {
         assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
     }
     assert!(
@@ -84,7 +84,7 @@ fn r1_zero_axis_poison_at_zero_angle_both_lanes() {
         Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
         Interval::zero(),
     );
-    for e in [badi.translation.x, badi.translation.y, badi.translation.z] {
+    for e in badi.translation.to_array() {
         assert!(
             e.lo() == f64::NEG_INFINITY && e.hi() == f64::INFINITY,
             "Interval zero-axis translation at angle 0 is not entire: [{:e}, {:e}]",
@@ -94,7 +94,7 @@ fn r1_zero_axis_poison_at_zero_angle_both_lanes() {
     }
     // The operator itself, directly.
     let op = Mat3::identity_minus_rotation_about(Vec3::new(0.0f64, 0.0, 0.0), 0.0);
-    for c in [op.c0, op.c1, op.c2] {
+    for c in op.cols() {
         assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
     }
 }

@@ -92,7 +92,7 @@ fn dual_value_channel_matches_f64_bitwise() {
         };
         let d = revolve(&dp, daxis, drev, Tol::witness()).unwrap();
         // Value channel bit-identity: compare every point coordinate.
-        let f_pts: Vec<f64> = f.body.points().flat_map(|(_, p)| [p.x, p.y, p.z]).collect();
+        let f_pts: Vec<f64> = f.body.points().flat_map(|(_, p)| p.to_array()).collect();
         let d_pts: Vec<f64> = d
             .body
             .points()

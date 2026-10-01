@@ -826,7 +826,7 @@ pub(crate) fn carrier_line_circle_margin<T: Real>(
 /// not the Euclidean one on purpose: rounding is per coordinate, and
 /// this is read only to SCALE a resolution, never to compare lengths.
 pub(crate) fn reach<T: Real>(p: Point2<T>) -> T {
-    p.x.abs().max(p.y.abs())
+    Vec2::from_array(p.to_array()).norm_inf()
 }
 
 /// The line/circle joint core: `carrier_line_circle` on the same
