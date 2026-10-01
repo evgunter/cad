@@ -896,3 +896,16 @@ stopped. `a-face-frame-cannot-turn-its-roll` is now plan item 22, and
 its legacy `D` is re-priced M with `design: true`: two designers weigh
 how a face frame's roll is turned before any lane builds it. Next:
 MSOLVE-11 from main with item 20's three riders, single full review.
+
+## 2026-10-01 — two design forks weighed: items 19 and 22
+
+Plan items 19 (how mates take part in analysis-lane evaluations) and
+22 (how a person turns a face-mated part about the mate's axis) are
+design forks. Each went to one designer of each model, both
+dispatched at once with the same statement of the problem and no
+candidate solutions, as `docs/DESIGN-FORK-PROTOCOL.md` requires (at
+`26db1af89`). Labels came from `/dev/urandom` bytes drawn at dispatch:
+254 for item 19, 80 for item 22. As in row 20, this session holds the
+mapping off-file until Ev decides, and it goes into each row's
+decision commit. The `[ev]` PRs open once the first reports are
+recorded and reconciled.
