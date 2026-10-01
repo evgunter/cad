@@ -72,19 +72,21 @@ use geom_core::linalg::{Affine3, OrthoFrame, Point3, UnitVec3, Vec3};
 use geom_core::predicate::{BandError, Indeterminate, Margin};
 
 pub mod coset;
+pub mod maintain;
 pub mod member;
 pub mod reach;
 pub mod solve;
 
 pub use coset::{Coset, Subgroup};
+pub use maintain::ClusterMaintenance;
 pub use member::{Member, member_of};
 pub use reach::{
     FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
 };
 pub(crate) use solve::solve_with_env;
 pub use solve::{
-    ClusterMaintenance, MateRole, SolvedPoses, groups, reading_edges, relative_freedom_components,
-    root_of, solve_document,
+    MateRole, SolvedPoses, groups, reading_edges, relative_freedom_components, root_of,
+    solve_document,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -1126,7 +1128,7 @@ pub enum MateFault {
     /// a mate being inserted, and the solve at every evaluation for a
     /// state a part edit brings a mate to (a face that vanished or
     /// changed carrier) — a load never refuses it, since replay
-    /// declines the read ([`solve::Maintain`]).
+    /// declines the read ([`maintain::Maintain`]).
     FaceUnresolved {
         /// The mate.
         mate: RecipeNodeId,

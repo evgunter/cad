@@ -21,7 +21,7 @@ use crate::doc::{
 };
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
-use crate::mate::solve::Maintain;
+use crate::mate::maintain::Maintain;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
 use crate::node::{
@@ -476,7 +476,7 @@ impl<P> DocEdit<P> {
     /// set, or a mate's heads.
     ///
     /// [`apply`] re-keys the placement registry
-    /// ([`crate::mate::solve::reconcile`]) after exactly the edits that
+    /// ([`crate::mate::maintain::reconcile`]) after exactly the edits that
     /// answer `true`, and that is what makes a non-gauge placement row
     /// unrepresentable through the edit doors — the asymmetry
     /// [`crate::doc::placement_fault`] records, and the one the load
@@ -4147,7 +4147,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     let mut maintenance = reported;
     if reconcile {
         maintenance.extend(
-            crate::mate::solve::maintain(doc, &mut new, tol, how)?
+            crate::mate::maintain::maintain(doc, &mut new, tol, how)?
                 .into_iter()
                 .map(Maintenance::Cluster),
         );

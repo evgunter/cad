@@ -1054,7 +1054,7 @@ impl<P> Doc<P> {
 
     /// Replaces the whole placement registry — the ONE door A11's
     /// cluster-record maintenance writes through
-    /// ([`crate::mate::solve::maintain`], deriving the rows or
+    /// ([`crate::mate::maintain::maintain`], deriving the rows or
     /// re-applying recorded ones), so re-keying is a single observable
     /// act rather than a scatter of per-row edits.
     pub(crate) fn set_placements(&mut self, rows: BTreeMap<RecipeNodeId, crate::placement::Frame>) {
@@ -1348,7 +1348,7 @@ pub(crate) enum PlacementFault {
 /// and that asymmetry is the invariant rather than an omission:
 /// `SetPlacement` does not refuse a non-gauge key, it KEYS THE ROW ON
 /// THE GAUGE, and the cluster maintenance re-keys the whole registry
-/// whenever the mate graph moves ([`crate::mate::solve::reconcile`]).
+/// whenever the mate graph moves ([`crate::mate::maintain::reconcile`]).
 /// A non-gauge row is therefore unrepresentable through the edit doors
 /// and needs no refusal there; it is reachable only in a file, which is
 /// the door that asks.

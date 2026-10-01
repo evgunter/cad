@@ -895,7 +895,7 @@ mod tests {
     /// fixtures under them must perturb the identity in BOTH PARTS —
     /// a translation-only set leaves a linear-part snap green, and a
     /// linear-part snap is the one that silently changes an answer:
-    /// `mate::solve`'s `reconcile` branches on
+    /// `mate::maintain`'s `reconcile` branches on
     /// `relative.is_identity_bits()` and its `true` arm DISCARDS the
     /// solved relative pose, so a root that rotated by a hair would
     /// read as "did not move".
