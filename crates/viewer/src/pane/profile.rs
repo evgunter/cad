@@ -1293,7 +1293,10 @@ mod tests {
             );
         });
         assert!(
-            hovered.contains(&format!("node {:012x} carries a {wall}", carrier.0)),
+            hovered.contains(&format!(
+                "node {} carries a {wall}",
+                test_utils::refusal::tag(carrier.0)
+            )),
             "the hover names the carrier and the name: {hovered}"
         );
         // Another step dropped instead strands nothing — what Apply
