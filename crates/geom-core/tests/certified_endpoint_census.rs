@@ -292,8 +292,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/props/quad.rs",
-        16,
-        11,
+        12,
+        7,
         "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
          half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
          so no operand can leave a domain (argued at each). Every other read goes \

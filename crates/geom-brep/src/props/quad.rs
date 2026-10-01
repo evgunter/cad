@@ -158,6 +158,7 @@ use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
 use super::PropsError;
+use crate::offset_meters::mig;
 
 /// The initial piece count of the composite rule (round 0).
 const QUAD_INIT_PIECES: usize = 16;
@@ -4111,17 +4112,7 @@ fn block_box(block: &[RPt2]) -> (Interval, Interval) {
 /// direction answers `0`, which is the refusing direction wherever
 /// this is read.
 fn norm_lo(v: RVec3) -> f64 {
-    let comp = |x: Interval| -> Interval {
-        Interval::point(if !x.is_certified() {
-            0.0
-        } else if x.lo() > 0.0 {
-            x.lo()
-        } else if x.hi() < 0.0 {
-            -x.hi()
-        } else {
-            0.0
-        })
-    };
+    let comp = |x: Interval| Interval::point(mig(x));
     let root = (comp(v[0]).sqr() + comp(v[1]).sqr() + comp(v[2]).sqr()).sqrt();
     if !root.is_certified() { 0.0 } else { root.lo() }
 }

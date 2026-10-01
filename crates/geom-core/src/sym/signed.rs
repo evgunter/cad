@@ -358,8 +358,11 @@ fn enclose_indet(
         enclose_form_deep(f, params, atoms, depth + 1)
     };
     let out = match atom.op {
-        // A root atom has a real value only where its argument is
-        // non-negative, and that is the fact the clamp states.
+        // A domain restriction, not an outside fact: the tier's `sqrt` is
+        // `Real::sqrt` of the lane value, which has no real value below zero
+        // (NaN at f64, refused at `Interval`), so the atom's real lies over
+        // the radicand's non-negative part alone and enclosing only that part
+        // encloses every value the atom can take.
         SymOp::Sqrt => arg(0)?.clamped_to(0.0, f64::INFINITY).sqrt(),
         SymOp::Abs => ring_abs(arg(0)?),
         SymOp::Min => ring_min(arg(0)?, arg(1)?),

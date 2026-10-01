@@ -419,7 +419,8 @@ mod certification_door_tests {
     }
 
     /// The root's three rows: a refused radicand stays refused (the
-    /// `Trv` one with real endpoints included), a radicand that may be
+    /// `Trv` ones with real endpoints included, one of them over a
+    /// non-negative bracket), a radicand that may be
     /// negative refuses — straddling or wholly below zero — unless an
     /// outside fact clamps it first, and a representable root takes no
     /// outward step.
@@ -427,7 +428,15 @@ mod certification_door_tests {
     fn sqrt_refuses_what_it_cannot_root_and_is_tight_where_exact() {
         let trv = ri(-2.0, -1.0) / ri(0.0, 1.0);
         assert!(trv.lo().is_finite() || trv.hi().is_finite(), "{trv:?}");
-        for refused in [Interval::refused(), trv] {
+        // The C9 hazard: a refusal whose endpoints are an ordinary
+        // non-negative radicand, which a root that re-minted its bracket
+        // from the endpoints would certify.
+        let trv_rootable = ri(-1.0, 16.0).sqrt() + Interval::one();
+        assert!(
+            !trv_rootable.is_certified() && trv_rootable.lo() >= 1.0 && trv_rootable.hi() <= 5.5,
+            "{trv_rootable:?}"
+        );
+        for refused in [Interval::refused(), trv, trv_rootable] {
             let r = refused.sqrt();
             assert!(!r.is_certified(), "refused in, refused out: {r:?}");
             assert!(r.mag().is_nan(), "no upper bound read off a refusal: {r:?}");

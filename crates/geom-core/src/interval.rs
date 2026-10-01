@@ -336,6 +336,8 @@ pub fn norm_sq(v: &[Interval; 3]) -> Interval {
 /// scalar methods, and this reads a vector.
 #[must_use]
 pub fn norm_sup(v: &[Interval; 3]) -> f64 {
+    // The backend's root, which is `Certification::sqrt`'s: naming the door
+    // here would list this file as an importer, and it holds `Real`.
     let root = Interval(norm_sq(v).0.sqrt());
     if !root.is_certified() {
         return f64::NAN;

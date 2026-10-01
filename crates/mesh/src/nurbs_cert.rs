@@ -3647,19 +3647,17 @@ pub(crate) mod tests {
         })
     }
 
-    /// **The counterfactual is FAITHFUL**: re-expressing the retired
-    /// whole-net arm through the shared home
-    /// ([`whole_net_bound`]) reproduces the digits the deleted
-    /// `integral_face_bound` answered, exactly.
+    /// **The counterfactual's digits are pinned**: re-expressing the
+    /// retired whole-net arm through the shared home
+    /// ([`whole_net_bound`]) answers these literals exactly. They began as
+    /// the deleted `integral_face_bound`'s digits and have since moved
+    /// only tighter, each move noted at its row.
     ///
-    /// Both reviewers checked this by hand, which is the reason it is a
-    /// row now: the fold-cost table and the tighter-or-equal claim are
-    /// both measured AGAINST this function, so a counterfactual that
-    /// drifted would silently restate the comparison the unit's whole
-    /// argument rests on. The literals are the pre-collapse
-    /// measurement, taken before the arm was deleted.
+    /// The fold-cost table and the tighter-or-equal claim are both
+    /// measured AGAINST this function, so a counterfactual that drifted
+    /// unnoticed would silently restate the comparison they rest on.
     #[test]
-    fn cert10_the_whole_net_counterfactual_reproduces_the_pre_collapse_digits() {
+    fn cert10_the_whole_net_counterfactual_digits_are_pinned() {
         for (name, s, want) in [
             (
                 // The wavy row's `muu` moved TIGHTER with interval arithmetic's
