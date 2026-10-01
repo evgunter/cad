@@ -25,7 +25,7 @@ walk is `docs/guide/assembly.md`.
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
-| A9, A11 partitions | `relative_freedom_components`, `clusters`, `gauge_of` in `src/mate/solve.rs` |
+| A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
 | A10 roots and gather | `src/roots.rs`, `src/product.rs`, `DocEdit::SetRoots` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
@@ -456,7 +456,8 @@ predicates, no numeric fitting, no geometry inspected inside the
 fold — and nothing is stored twice: the face name is the state, the
 frame is derived. A mated part that does not resolve faults its
 mate in the resolver's own voice, carrying the part fault unaltered —
-`MateFault::FaceUnresolved` (`FaceRefusal::PartUnresolved`) where a
+`MateFault::FaceUnresolved` (`FacePoseRefusal::PartUnresolved`, in
+`FaceRefusal::Reach`) where a
 `FromFace` side stands on it, since a side's frame is read before the
 lever, else `MateFault::Unleverable` — and that fault poisons the
 cluster as any mate fault does. The two questions that DO need a number are

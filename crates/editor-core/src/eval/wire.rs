@@ -163,7 +163,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
     /// The document's mate solve, run once per evaluation (ASM-R2a
-    /// D-5): every instance's pose relative to its cluster gauge, and
+    /// D-5): every instance's pose relative to its group root, and
     /// every mate's role.
     pub poses: &'a crate::mate::SolvedPoses,
     /// Where profile geometry comes from, and over which environment.

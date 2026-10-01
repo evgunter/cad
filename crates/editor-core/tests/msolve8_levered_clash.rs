@@ -23,7 +23,7 @@
 
 use crate::fixture;
 
-use editor_core::mate::coset::{Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
+use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
     EvalOptions, Lever, MateFault, MateFrame, MatePrimitive, MateReach, Node, NodeErrorClass,
@@ -37,6 +37,12 @@ use geom_core::predicate::Band;
 use geom_core::{Tol, Tolerance};
 
 // ---- Substrate ----
+
+/// `arm` through the one door a lever is formed by, as a datum term
+/// over parts of no reach.
+fn lever(arm: f64) -> Arm {
+    Arm::of(0.0, arm).expect("a finite arm the format can decide over")
+}
 
 /// A one-solid part: a unit square extruded 1 tall, and its body.
 fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
@@ -240,8 +246,11 @@ fn residual_of(fault: &MateFault, predicate: &str) -> (f64, f64) {
     };
     assert!(arm > 0.0, "the arm is the mated parts' own extent: {arm}");
     let message = fault.to_string();
+    assert!(
+        !message.contains(predicate),
+        "the predicate's name rides the payload, not the sentence: {message:?}"
+    );
     for want in [
-        &format!("predicate `{predicate}`"),
         &format!("a dimensionless residual of {value}"),
         &format!("on a {arm} m arm"),
         &format!("a deviation of {} m", clash.deviation().unwrap()),
@@ -515,7 +524,7 @@ fn c1_length_none_and_roll_arm() {
 }
 
 /// **A transported direction never refuses, and the clash it reaches
-/// is levered.** The spanning tree reads the pair from the gauge, so
+/// is levered.** The spanning tree reads the pair from the root, so
 /// a mate authored `(second, first)` is INVERTED before the fold —
 /// its directions transported by the representative's rotation and
 /// re-minted under the band. The three documents above, authored the
@@ -795,7 +804,12 @@ fn c2_parallel_boundary_direct() {
                         representative: Affine3::identity(),
                     };
                     let want = one_spelling(n1.get(), n2.get(), arm, band);
-                    let got = match intersect_subgroups(held.subgroup, added.subgroup, band, arm) {
+                    let got = match intersect_subgroups(
+                        held.subgroup,
+                        added.subgroup,
+                        band,
+                        lever(arm),
+                    ) {
                         Ok(Subgroup::Planar { .. }) => "parallel",
                         Ok(Subgroup::Prismatic { direction }) => {
                             let line = n1.get().cross(n2.get()) * arm;
@@ -815,7 +829,7 @@ fn c2_parallel_boundary_direct() {
                     // The full door decides the same split first; what
                     // it adds past that is the singular translation
                     // stage named above, and nothing else.
-                    match intersect(held, added, band, arm) {
+                    match intersect(held, added, band, lever(arm)) {
                         Ok(_) => {}
                         Err(FoldStop::Indeterminate(d)) => assert!(
                             matches!(
@@ -1151,7 +1165,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
         "the document holds its five instances and nothing else"
     );
     // And the solve of what the document does hold: `Band` reaches
-    // EVERY instance — each its own singleton cluster — and nothing
+    // EVERY instance — each its own singleton group — and nothing
     // else, since no band means no verdict for any of them.
     let poses = solve(doc, &EvalOptions::default(), tol);
     let mut instances = 0_usize;

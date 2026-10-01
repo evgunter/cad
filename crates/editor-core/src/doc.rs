@@ -1049,7 +1049,7 @@ impl<P> Doc<P> {
     /// cluster in a mate-less document.
     pub fn placement(&self, node: RecipeNodeId) -> crate::placement::Frame {
         self.placements
-            .get(&crate::mate::gauge_of(self, node))
+            .get(&crate::mate::root_of(self, node))
             .copied()
             .unwrap_or(crate::placement::Frame::IDENTITY)
     }

@@ -276,6 +276,16 @@ fn both_sweeps_evaluate_in_one_document() {
 /// They are goldens in the ordinary sense — when one moves the question
 /// is whether the new behaviour is right, never how to restore the old
 /// number.
+///
+/// RE-BLESSED for the orthonormal basis's world-axis comparison: the
+/// digest feeds each surface's `Debug`, and every planar carrier's
+/// stored `u_ref` is now `normalize(e_z × n)` or `normalize(e_y × n)`
+/// by `|n.z| ≤ max(|n.x|, |n.y|)/2`. The plane's LOCUS did not move —
+/// origin and normal are bit-identical, which the STEP fixtures'
+/// record-level diff shows directly — and the id-free body rows
+/// (`m4_pr8_corpus`'s exact mass pins, `m5_pr8_bvh_diff`'s
+/// realized-vs-idealized bit equality) were green across the change
+/// untouched.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [

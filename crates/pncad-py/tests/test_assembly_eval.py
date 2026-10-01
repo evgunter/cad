@@ -42,7 +42,7 @@ call, so the guard READS ITS SOURCE and compares four things against
 * the flat-pack's placement literals — the post's rotation axis, its
   angle, its offset, the pattern's count and spacing, the shelf's
   offset — each by formula;
-* the stand's gauge offset and the seats its two mates are authored
+* the stand's root offset and the seats its two mates are authored
   against, in document order.
 
 Four things the guard does NOT see, named rather than summarised:
@@ -94,7 +94,7 @@ from spoken import tag
 from bench_scene import (
     FLAT_PACK_GAP,
     FLAT_PACK_SHELF_Y,
-    GAUGE_OFFSET_Y,
+    ROOT_OFFSET_Y,
     PATTERN_COUNT,
     PATTERN_SPACING,
     POST_CAP,
@@ -1194,17 +1194,17 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
         )
 
     def test_the_stands_placement_and_seats_still_match_the_tour(self):
-        """The gauge post's inset, and the seat each of the two mates
+        """The root post's inset, and the seat each of the two mates
         is authored against IN DOCUMENT ORDER — a swapped pair of seats
         is a different bench that every volume in this file would
         still accept."""
         stand = self.body_of("stand_doc")
-        gauge = re.search(r"Frame::translation\((\[[^\]]*\])\)", stand)
-        self.assertIsNotNone(gauge, "the gauge post no longer carries a frame")
+        root = re.search(r"Frame::translation\((\[[^\]]*\])\)", stand)
+        self.assertIsNotNone(root, "the root post no longer carries a frame")
         self.assertScene(
-            tour_value(gauge.group(1)),
-            (0.0, GAUGE_OFFSET_Y, 0.0),
-            "the gauge post's offset",
+            tour_value(root.group(1)),
+            (0.0, ROOT_OFFSET_Y, 0.0),
+            "the root post's offset",
         )
         # A seat is an authored point (`mate_frame(NAME)`) or the
         # post's cap face (`post_seat(post_top)`), read in document

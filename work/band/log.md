@@ -236,3 +236,29 @@ changes.
   `debug_assert!`s it through `kev_merged_members`, where before the
   claim was only measured.
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `sweep/src/blend/surgery.rs`. `blend/surgery.rs`'s three re-charts moved from `set_face_surface_and_sense` to `set_face_surface`, bit unchanged. (TOPO implementer)
+
+## 2026-10-01 — `cap-rim-smooth-arm-decides-by-argument-not-by-the-rule` closed (PR #3667)
+
+The row's diagnosis was wrong: the arm is reachable at 1 < K < √φ (Ev's
+PR 2119 ruling admits any K > 1), so it is routed through the must-carry
+rule rather than made unreachable; stored descriptions are unchanged
+(plane pairs read UnderDetermined). The verdict → description mapping
+gained one home, `MustCarryVerdict::description`, used by all four smooth
+arms. Single review (style + claims), then a fix pass and a delta review;
+both clean. Filed: CARVE's `extrude-arc-walls-are-ruled-in-n-not-w`,
+CLEAVE's `topo-smooth-arms-decide-descriptions-outside-the-must-carry-rule`,
+and the residue row `blend-split-rows-and-must-carry-prose-residue` (P4).
+
+## 2026-10-01 — `annulus-rim-phase-keeps-a-second-spelling-of-the-split-provenance` closed (PR #3670)
+
+The annulus rim phase splits its seams through `split_fragment`, which
+now takes the expected source and refuses inside the one home if its
+lookup disagrees; every annulus row names `frag.source`, as the ladder's
+`slits` row does. `blend_surgery`'s debug postcondition checks the SOURCE
+half of every birth row (an exhaustive destructure of `BlendNaming`). No
+name moved (sweep, editor-core naming, tour teapot rows). Full review,
+fix pass, delta review; the review's row
+`every_band_crossing_names_the_seam_its_foot_split` is what tells a
+right source from a merely valid one. Residue (the ladder still names
+`meridian_splits` by the split key) is on
+`blend-split-rows-and-must-carry-prose-residue`.

@@ -116,8 +116,9 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "node {} failed: the mate solve refused: mate {}'s a reference has no derived pose: \
-             node {p}, which places it, refuses — repair node {p}",
+            "node {} failed: the mate solve refused: mate {}'s a reference has no \
+             derived pose: node {p}, on its derivation, refuses. Recourse: repair node \
+             {p}",
             test_utils::refusal::tag(mate.0),
             test_utils::refusal::tag(mate.0),
             p = test_utils::refusal::tag(pattern.0),
@@ -428,8 +429,11 @@ fn assert_both_loud(
     );
 }
 
-/// A `Part` re-pointed PAST its pattern's count: the mate refuses with
-/// `PartSelectsAnotherCopy`, and the `Part` fails on its own.
+/// A `Part` re-pointed PAST its pattern's count: the index selects no
+/// copy, so the mate refuses as the evaluation does — the `Part`'s own
+/// `InstanceOutOfRange`, at the `Part` — and the `Part` fails on it in
+/// its own right. Both rows are loud, the refusal is drawn once, on the
+/// `Part`'s row, and the mate's row links there.
 #[test]
 fn a_part_past_its_patterns_count_fails_beside_the_mate() {
     let tol = Tol::witness();
@@ -447,10 +451,27 @@ fn a_part_past_its_patterns_count_fails_beside_the_mate() {
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
     let fault = mate_fault(&ev, s.mate);
     assert!(
-        matches!(fault, MateFault::PartSelectsAnotherCopy { part: p, .. } if p == part),
+        matches!(fault, MateFault::PlacerRefused { placer, .. } if placer == part),
         "the fixture reaches the arm, naming the Part: {fault:?}"
     );
-    assert_both_loud(&ev, &doc, s.mate, part);
+    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
+    assert!(
+        matches!(common::status_of(&rows, part), RowStatus::Failed { .. }),
+        "the Part fails in its own right"
+    );
+    let RowStatus::Failed { carried, .. } = common::status_of(&rows, s.mate) else {
+        panic!("the mate's row is a failure");
+    };
+    assert!(carried.is_empty(), "the refusal is drawn once: {carried:?}");
+    let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
+        .iter()
+        .filter_map(|row| row.repair_at.map(|at| (row.id, at.id())))
+        .collect();
+    assert_eq!(
+        linking,
+        vec![(s.mate, part)],
+        "the mate's row, and only it, links to the Part"
+    );
 }
 
 /// A pattern shrunk to ZERO copies: the mate refuses with

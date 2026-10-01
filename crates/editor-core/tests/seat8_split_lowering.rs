@@ -150,6 +150,16 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// itself. They are goldens in the ordinary sense — when one moves the
 /// question is whether the new behaviour is right, never how to restore
 /// the old number.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
@@ -233,6 +243,16 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// empty side into a phantom body — moves this number. The constant
 /// reproduces on the extracted merge base (the empty path predates the
 /// migration), so it is a differential pin, not a self-agreement.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);

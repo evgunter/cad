@@ -72,7 +72,9 @@ use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, norm_sq, norm_sup};
-use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, Vec3};
+use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
+
+use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
 
 /// An axis-aligned enclosure box in ℝ³.
 #[derive(Clone, Copy, Debug)]
@@ -371,14 +373,20 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 /// by the chart's stretch along that direction. `n` is the plane normal
 /// already crossed into certification arithmetic; `tangent` is
 /// `(t.x, t.y, ‖t‖)`, the tangent's bracket tops and a positive finite
-/// norm, which select the direction (structure, not a bound). `None`
-/// when the stretch is not positive finite.
+/// norm, which select the direction (structure, not a bound). `Ok(None)`
+/// when the stretch has no finite bound.
+///
+/// # Errors
+///
+/// [`TubeDegeneracy::WallConstantAcrossLocus`] when the stretch is
+/// zero: the chart is constant along e⊥ over this window, and a narrower
+/// window (a smaller rung) lies inside it, so it cannot cure that.
 pub(super) fn chart_transverse_margin(
     n: [Interval; 3],
     du: Box3,
     dv: Box3,
     tangent: (f64, f64, f64),
-) -> Option<f64> {
+) -> Result<Option<f64>, SsiError> {
     let (tx, ty, tn) = tangent;
     let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
     let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
@@ -400,18 +408,23 @@ pub(super) fn chart_transverse_margin(
         z: du.z * ex + dv.z * ey,
     };
     let stretch = norm_sup(&[vt.x, vt.y, vt.z]);
-    // Positive FINITE only: an admitted `+∞` stretch divides the
-    // margin to an exact `0`, which the caller's fold then records as
-    // the certificate's worst transversality — a definite-looking
-    // number manufactured from an overflow, not a measurement.
-    if !stretch.is_finite() || stretch <= 0.0 {
-        return None;
+    // An admitted `+∞` stretch divides the margin to an exact `0`,
+    // which the caller's fold then records as the certificate's worst
+    // transversality — a number manufactured from an overflow, not a
+    // measurement. `norm_sup` is never negative, so `<= 0` is zero.
+    if !stretch.is_finite() {
+        return Ok(None);
+    }
+    if stretch <= 0.0 {
+        return Err(SsiError::TubeDegenerate(
+            TubeDegeneracy::WallConstantAcrossLocus,
+        ));
     }
     // A lower bound over an upper bound stays one only rounded down.
-    Some(div_down(
+    Ok(Some(div_down(
         zero_free_lower_bound(phi_u * ex + phi_v * ey),
         stretch,
-    ))
+    )))
 }
 
 /// The certified distance of an enclosure from zero: `0` when it
@@ -431,6 +444,39 @@ pub(super) fn zero_free_lower_bound(i: Interval) -> f64 {
     } else {
         0.0
     }
+}
+
+/// A NURBS wall's certified chart speeds over its whole domain, one per
+/// axis: each a [`SupSpeed`] (metres per parameter unit) that is
+/// positive and finite, which is what [`NurbsBoxes::chart_speeds`]
+/// refuses short of.
+#[derive(Clone, Copy, Debug)]
+pub struct ChartSpeeds {
+    pub(crate) u: SupSpeed<f64>,
+    pub(crate) v: SupSpeed<f64>,
+}
+
+impl ChartSpeeds {
+    /// The larger of the two: a sup over both axes, which is what the
+    /// sweep's single chart floor divides by.
+    pub(crate) fn max(self) -> SupSpeed<f64> {
+        self.u.max(self.v)
+    }
+
+    /// A length in metres crossed into chart units per axis,
+    /// `(r / s_u, r / s_v)`: the tube pad.
+    pub(crate) fn pad(self, meters: f64) -> (f64, f64) {
+        (self.u.to_param(meters), self.v.to_param(meters))
+    }
+}
+
+/// A parameter window `[u0, u1] × [v0, v1]` is one when each pair is
+/// ordered. A NaN end compares false, so it is refused with an inverted
+/// pair. Every box over a window asks this before it clamps the window
+/// to the domain: a clamp turns an inverted window past a domain end
+/// into an ordered point.
+fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> bool {
+    u0 <= u1 && v0 <= v1
 }
 
 /// Control-net enclosures for a NURBS chart over a parameter rectangle
@@ -453,7 +499,40 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         Self { surface }
     }
 
-    /// The (span_u, span_v) cell range touched by the rectangle.
+    /// The wall's `{u, v}` chart speeds over its whole domain: the
+    /// outward norm ([`norm_sup`]) of each derivative box.
+    ///
+    /// # Errors
+    ///
+    /// [`ChartSpeedRefusal::Zero`] when an axis's speed is zero (the wall
+    /// is constant along it) and [`ChartSpeedRefusal::NotFinite`] when it
+    /// has no finite bound, `u` before `v`.
+    pub(crate) fn chart_speeds(&self) -> Result<ChartSpeeds, SsiError> {
+        let (ud, vd) = (
+            self.surface.knots_u().domain(),
+            self.surface.knots_v().domain(),
+        );
+        let speed = |axis: ChartAxis| {
+            let b = self.deriv_box(ud.0, ud.1, vd.0, vd.1, axis == ChartAxis::U);
+            let m = norm_sup(&[b.x, b.y, b.z]);
+            if !m.is_finite() {
+                Err(SsiError::ChartSpeed(ChartSpeedRefusal::NotFinite { axis }))
+            } else if m <= 0.0 {
+                Err(SsiError::ChartSpeed(ChartSpeedRefusal::Zero { axis }))
+            } else {
+                Ok(SupSpeed::new(m))
+            }
+        };
+        Ok(ChartSpeeds {
+            u: speed(ChartAxis::U)?,
+            v: speed(ChartAxis::V)?,
+        })
+    }
+
+    /// The (span_u, span_v) cell range touched by the rectangle, or
+    /// `None` for a window with a NaN or inverted end: such a window
+    /// names no region, and clamping it would land a NaN end on the
+    /// first span.
     ///
     /// The rectangle is **clamped to the knot domains** first. Callers
     /// pad windows by a tube radius, which routinely pushes them past
@@ -462,7 +541,16 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// that reaches a surface edge fail its own uniqueness tube. The
     /// clamp is sound because the objects being enclosed — a pcurve, a
     /// foot point — cannot leave the domain either.
-    fn cells(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> ((usize, usize), (usize, usize)) {
+    fn cells(
+        &self,
+        u0: f64,
+        u1: f64,
+        v0: f64,
+        v1: f64,
+    ) -> Option<((usize, usize), (usize, usize))> {
+        if !ordered_window(u0, u1, v0, v1) {
+            return None;
+        }
         let ku = self.surface.knots_u();
         let kv = self.surface.knots_v();
         let (ud, vd) = (ku.domain(), kv.domain());
@@ -476,7 +564,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         // indices here, and the pair read back out.
         let (u_lo, u_hi) = ku.span_range(cu.0, cu.1);
         let (v_lo, v_hi) = kv.span_range(cv.0, cv.1);
-        ((u_lo.index(), u_hi.index()), (v_lo.index(), v_hi.index()))
+        Some(((u_lo.index(), u_hi.index()), (v_lo.index(), v_hi.index())))
     }
 
     /// The hull of the Cartesian control block of one span cell.
@@ -624,9 +712,12 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     }
 
     /// A certified box for `S` over the parameter rectangle — the hull
-    /// of the touched span cells' control blocks.
+    /// of the touched span cells' control blocks. Refused for a window
+    /// with a NaN or inverted end.
     pub(crate) fn point_box(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Box3 {
-        let ((su0, su1), (sv0, sv1)) = self.cells(u0, u1, v0, v1);
+        let Some(((su0, su1), (sv0, sv1))) = self.cells(u0, u1, v0, v1) else {
+            return refused_box();
+        };
         let mut out: Option<Box3> = None;
         for su in su0..=su1 {
             for sv in sv0..=sv1 {
@@ -652,9 +743,12 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle, via
     /// the quotient rule `S_d = (A_d − S·w_d)/w` evaluated entirely on
     /// hulls. Refused when the weight hull touches zero (interval arithmetic
-    /// refuses the divisor) or the net is malformed.
+    /// refuses the divisor), the net is malformed, or the window has a
+    /// NaN or inverted end.
     pub(crate) fn deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
-        let ((su0, su1), (sv0, sv1)) = self.cells(u0, u1, v0, v1);
+        let Some(((su0, su1), (sv0, sv1))) = self.cells(u0, u1, v0, v1) else {
+            return refused_box();
+        };
         let sbox = self.point_box(u0, u1, v0, v1);
         let mut out: Option<Box3> = None;
         for su in su0..=su1 {
@@ -690,6 +784,11 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// the intersection, but only containment is load-bearing, so the
     /// caller takes whichever it needs and never both.
     pub(crate) fn rect_box(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Box3 {
+        // The window door, before the clamp below: clamping an inverted
+        // window past a domain end makes it an ordered point.
+        if !ordered_window(u0, u1, v0, v1) {
+            return refused_box();
+        }
         let (ud, vd) = (
             self.surface.knots_u().domain(),
             self.surface.knots_v().domain(),
@@ -777,6 +876,61 @@ mod tests {
         NurbsSurface::new(ku, kv, control, weights).expect("valid patch")
     }
 
+    /// **A window with a NaN or inverted end names no region, and every
+    /// box over it is refused.** Without the window door, `f64::clamp`
+    /// passes a NaN end through and `span_range` lands it on the first
+    /// span, so a NaN window reads the first span's control block as a
+    /// certified box — a strict subset of this two-span patch's. The
+    /// ordered window beside them certifies, so the rows are about
+    /// the window and not the patch.
+    #[test]
+    fn a_nan_or_inverted_window_is_refused_rather_than_landed_on_the_first_span() {
+        let s = multiplicity_2_patch();
+        let boxes = NurbsBoxes::new(&s);
+        let certified = |b: Box3| b.x.is_certified() && b.y.is_certified() && b.z.is_certified();
+        let all = |(u0, u1, v0, v1): (f64, f64, f64, f64)| {
+            [
+                ("point_box", boxes.point_box(u0, u1, v0, v1)),
+                ("deriv_box u", boxes.deriv_box(u0, u1, v0, v1, true)),
+                ("deriv_box v", boxes.deriv_box(u0, u1, v0, v1, false)),
+                ("rect_box", boxes.rect_box(u0, u1, v0, v1)),
+            ]
+        };
+        for (which, b) in all((0.2, 0.8, 0.0, 1.0)) {
+            assert!(
+                certified(b),
+                "CONTROL: {which} over an ordered window refused"
+            );
+        }
+        let nan = f64::NAN;
+        for (name, w) in [
+            ("NaN window", (nan, nan, nan, nan)),
+            ("NaN u start", (nan, 0.8, 0.0, 1.0)),
+            ("NaN v end", (0.2, 0.8, 0.0, nan)),
+            ("inverted u", (0.8, 0.2, 0.0, 1.0)),
+            ("inverted v", (0.2, 0.8, 1.0, 0.0)),
+        ] {
+            for (which, b) in all(w) {
+                assert!(!certified(b), "{name}: {which} certified {b:?}");
+            }
+        }
+    }
+
+    /// An inverted window past a domain end clamps to an ordered point,
+    /// so the door has to come before the clamp in every box.
+    #[test]
+    fn an_inverted_window_past_the_domain_is_refused_by_rect_box() {
+        let s = multiplicity_2_patch();
+        let b = NurbsBoxes::new(&s);
+        let c = |x: Box3| x.x.is_certified() && x.y.is_certified() && x.z.is_certified();
+        assert!(!c(b.point_box(1.5, 1.2, 0.0, 1.0)));
+        assert!(
+            !c(b.rect_box(1.5, 1.2, 0.0, 1.0)),
+            "rect_box clamps an inverted window to a point"
+        );
+        assert!(!c(b.rect_box(-0.2, -0.5, 0.0, 1.0)));
+    }
+
     /// The box loops now SKIP an empty span cell instead of hulling its
     /// control block. This pins that the skip loses nothing: the box is
     /// exactly the hull of the control points the surviving (nonempty)
@@ -809,7 +963,7 @@ mod tests {
         );
         let boxes = NurbsBoxes::new(&s);
         let (u0, u1, v0, v1) = (0.2, 0.8, 0.0, 1.0);
-        let ((su0, su1), (sv0, sv1)) = boxes.cells(u0, u1, v0, v1);
+        let ((su0, su1), (sv0, sv1)) = boxes.cells(u0, u1, v0, v1).expect("an ordered window");
         assert!(
             (su0..=su1).contains(&3),
             "the rectangle must straddle the empty cell, got {su0}..={su1}"

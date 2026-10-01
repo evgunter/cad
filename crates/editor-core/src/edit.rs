@@ -472,7 +472,7 @@ pub enum DocEdit<P> {
 
 impl<P> DocEdit<P> {
     /// **Whether this edit can move the MATE GRAPH** — the reading
-    /// edges A11's clusters are made of: the instance set, the mate
+    /// edges A11's groups are made of: the instance set, the mate
     /// set, or a mate's heads.
     ///
     /// [`apply`] re-keys the placement registry
@@ -535,7 +535,7 @@ impl<P> DocEdit<P> {
             // The instance set and the mate set are both node sets, so
             // the two edits over nodes move the graph.
             Self::InsertNode { .. } | Self::DeleteNode { .. } => true,
-            // A list input is a reading edge, and a cluster is made of
+            // A list input is a reading edge, and a group is made of
             // reading edges.
             Self::SetMembers { .. } => true,
             // A rebound mate head moves a reading edge onto another
@@ -550,7 +550,7 @@ impl<P> DocEdit<P> {
             // presentation record, and leaves the reading edges where
             // they are. `SetPlacement` is the pointed one: it WRITES
             // the registry the reconciliation re-keys, and the edit
-            // door keys it on the gauge itself, so it has no graph
+            // door keys it on the root itself, so it has no graph
             // motion to reconcile.
             Self::SetPlacement { .. }
             | Self::SetParam { .. }
@@ -1286,7 +1286,7 @@ pub enum EditError {
     /// invariant-violating document.
     Roots(RootFault),
     /// A placement aimed at a node that does not instantiate a part
-    /// (A11: a placement frame places a CLUSTER of instances, and
+    /// (A11: a placement frame places a GROUP of instances, and
     /// nothing else has one).
     PlacementOnNonInstance {
         /// The offending target.
@@ -1381,7 +1381,7 @@ pub enum EditError {
     /// one instance — is refused on the datum alone all the same.
     /// What is NOT this: a verdict about a PAIR — under-determined,
     /// contradicting ANOTHER mate, an escalation on a fold — which
-    /// needs the cluster and stays the solve's; and a STATE a mate
+    /// needs the group and stays the solve's; and a STATE a mate
     /// comes to hold after insert (a head a rebind or a shrunk pattern
     /// strands, a `Part` re-pointed, a doctored or older snapshot),
     /// which the doors do not re-decide and the solve refuses at
@@ -2225,14 +2225,14 @@ impl EditError {
             }
             Self::PlacementOnNonInstance { node } => write!(
                 f,
-                "node {} does not instantiate a part, so it has no placement cluster to \
+                "node {} does not instantiate a part, so it has no placement group to \
                  place",
                 node
             ),
             // The two rule-shaped arms FORWARD the fault set's one
             // prose vocabulary (`PlacementRuleFault`'s `Display`); the
             // two frame-shaped arms below keep their own prose because
-            // their subject is a single cluster frame, which has no
+            // their subject is a single group frame, which has no
             // index in a rule's placement list.
             Self::EmptyPlacementList { node } => {
                 write!(f, "node {}: {}", node, PlacementRuleFault::NoPlacements)
@@ -2312,7 +2312,11 @@ impl EditError {
                 )?;
                 match fault {
                     Some(fault) => write!(f, "refused: {fault}"),
-                    None => write!(f, "recorded no pose for it and no fault"),
+                    None => write!(
+                        f,
+                        "recorded no pose for it and no fault. {}",
+                        geom_core::KERNEL_DEFECT_ENDING
+                    ),
                 }
             }
             Self::MaintenanceUnrecorded { gauge } => write!(
@@ -4055,15 +4059,15 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     }
                 });
             }
-            // A11: the record keys on the cluster, never the
-            // instance. A singleton cluster's gauge IS the instance,
+            // A11: the record keys on the group, never the
+            // instance. A singleton group's root IS the instance,
             // so a mate-less document's registry is unchanged. This is
             // also why no edit door asks the load door's GAUGE rule:
             // the key is normalised here rather than refused, and the
             // cluster maintenance re-keys the registry whenever the
             // mate graph moves.
-            let gauge = crate::mate::gauge_of(&new, *node);
-            new.placements.insert(gauge, *frame);
+            let root = crate::mate::root_of(&new, *node);
+            new.placements.insert(root, *frame);
             // Structural: a placement decides where the instance's
             // material lands, so it is recipe shape, not a continuous
             // slot value — and it moves the document's content pin.

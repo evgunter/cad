@@ -196,6 +196,17 @@ fn both_blends_evaluate_in_one_document() {
 /// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
+///
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
 /// and with the same pins holding.
@@ -291,6 +302,17 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
+///
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
 /// and with the same pins holding.
@@ -342,6 +364,16 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// moves this number. The constant reproduces on the same extracted
 /// pre-change tree as the document rows (the empty path predates the
 /// migration), so it is a differential pin, not a self-agreement.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
