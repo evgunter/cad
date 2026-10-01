@@ -30,6 +30,7 @@ use crate::node::{
 };
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
+use crate::spoken::SpokenNode;
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
@@ -699,7 +700,7 @@ pub enum EditError {
     /// The edit targets a node id that is not live.
     UnknownNode {
         /// The missing id.
-        id: RecipeNodeId,
+        id: SpokenNode,
     },
     /// An edit that CREATES or MODIFIES a profile program failed the
     /// authoring-time check (LIB-SWITCH §4d, VQ9): the program is
@@ -712,7 +713,7 @@ pub enum EditError {
     /// directions are pinned by test.
     ProfileProgramRefused {
         /// The profile node (for `InsertNode`, the id being minted).
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The typed refusal, behind a pointer: it is this enum's
         /// widest payload, and every edit door returns the enum BY
         /// VALUE, so held inline it sets the width of every `Result`
@@ -725,14 +726,14 @@ pub enum EditError {
     /// (spec D3: `apply` rejects unresolvable refs).
     UnresolvedInput {
         /// The dangling upstream reference.
-        input: RecipeNodeId,
+        input: SpokenNode,
     },
     /// The recipe graph would contain a cycle (defensive: insertion
     /// referencing only pre-existing nodes cannot cycle, but the
     /// invariant is CHECKED, not assumed — spec D3).
     WouldCycle {
         /// A node on the detected cycle.
-        at: RecipeNodeId,
+        at: SpokenNode,
     },
     /// **A node's inputs are not pairwise distinct** (DM5): one node
     /// reached twice through one node's edges.
@@ -745,9 +746,9 @@ pub enum EditError {
     /// callers.
     DuplicateInput {
         /// The node whose input list repeats.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The input it reaches twice.
-        input: RecipeNodeId,
+        input: SpokenNode,
     },
     /// The node this edit writes names one face twice in its ORDERED
     /// designation ([`crate::node::InputFault::RepeatedDesignation`]):
@@ -756,7 +757,7 @@ pub enum EditError {
     /// rather than repaired, at this door as at the load door.
     RepeatedDesignation {
         /// The node whose designation repeats.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The position of the entry's first occurrence.
         first: usize,
         /// The position at which it is named again.
@@ -772,7 +773,7 @@ pub enum EditError {
     /// caller's back.
     SelectionNotCanonical {
         /// The node whose selection is out of canonical form.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The position of the entry that does not sort strictly
         /// before the one after it.
         at: usize,
@@ -783,7 +784,7 @@ pub enum EditError {
     /// smaller version of this edit, it is a different sentence.
     SetMembersOnNonList {
         /// The node that carries no list.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// `SetProgram` aimed at a node that holds no profile program: a
     /// node of another kind, or a `Node::Profile` over a payload that
@@ -793,7 +794,7 @@ pub enum EditError {
     /// version of this edit.
     SetProgramOnNonProfile {
         /// The node that holds no program.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// A program's step ids were refused (`names/README.md`, "N1, the
     /// profile pieces"): an `InsertNode` program carrying ids of its
@@ -802,7 +803,7 @@ pub enum EditError {
     /// Checked before the program is replayed.
     StepIdsRefused {
         /// The profile node.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// What is wrong with the ids.
         fault: crate::program::StepIdFault,
     },
@@ -812,7 +813,7 @@ pub enum EditError {
     /// a log a file was edited to hold can.
     NodeIdCollides {
         /// The id drawn.
-        id: RecipeNodeId,
+        id: SpokenNode,
     },
     /// A list input left with fewer than two entries. A union of one
     /// body is that body and a loft through one section is not a skin:
@@ -820,21 +821,21 @@ pub enum EditError {
     /// operator.
     TooFewMembers {
         /// The node whose list is short.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// How many entries it would have had.
         found: usize,
     },
     /// Deleting this node would dangle a live reference to it.
     DeleteWouldDangle {
         /// The deletion target.
-        id: RecipeNodeId,
+        id: SpokenNode,
         /// A live node still referencing it.
-        referenced_by: RecipeNodeId,
+        referenced_by: SpokenNode,
     },
     /// The node does not carry the named slot.
     UnknownSlot {
         /// The node.
-        id: RecipeNodeId,
+        id: SpokenNode,
         /// The slot it lacks.
         slot: SlotId,
     },
@@ -861,7 +862,7 @@ pub enum EditError {
     /// cluster's frame.)
     MaintenanceRefused {
         /// The gauge the maintenance was solving for.
-        gauge: RecipeNodeId,
+        gauge: SpokenNode,
         /// The solve's fault at the gauge — a cluster's refusal
         /// reaches every member the solve could not pose. `None` when
         /// the solve placed nothing at the gauge and recorded no fault
@@ -884,7 +885,7 @@ pub enum EditError {
         /// The gauge the unrecorded act moves: the absorbed cluster's
         /// for a join, the new gauge for a split or rewrite, the dropped
         /// one for a drop.
-        gauge: RecipeNodeId,
+        gauge: SpokenNode,
     },
     /// `SetParam` aimed at a STRUCTURAL slot — structural edits go
     /// through the distinct `SetStructuralParam` arm (spec D3).
@@ -905,7 +906,7 @@ pub enum EditError {
         /// The missing parameter.
         name: ParamName,
         /// The referencing node.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The referencing slot.
         slot: SlotId,
     },
@@ -915,7 +916,7 @@ pub enum EditError {
         /// The parameter.
         name: ParamName,
         /// The referencing node.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The referencing slot.
         slot: SlotId,
         /// The document table's declared dimension.
@@ -932,7 +933,7 @@ pub enum EditError {
         /// The missing parameter.
         name: ParamName,
         /// The referencing node.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// A PAYLOAD expression's recorded ref dimension disagrees with the
     /// document parameter's declared dimension.
@@ -940,7 +941,7 @@ pub enum EditError {
         /// The parameter.
         name: ParamName,
         /// The referencing node.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The dimension the parameter is declared with.
         declared: Dimension,
         /// The dimension the expression recorded.
@@ -950,7 +951,7 @@ pub enum EditError {
     /// not carry ([`crate::MeasureNodeFault`]).
     MeasureMalformed {
         /// The measure node.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// What is wrong with it.
         fault: crate::node::MeasureNodeFault,
     },
@@ -959,9 +960,9 @@ pub enum EditError {
     /// the vocabulary for it to constrain.
     AssertionTarget {
         /// The assertion.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// What it references.
-        measure: RecipeNodeId,
+        measure: SpokenNode,
     },
     /// A node's `declare` input names a node that is not a
     /// [`Node::Declare`]. The slot carries coincidence INTENT, which
@@ -970,18 +971,18 @@ pub enum EditError {
     /// evaluation that would have found nothing to resolve.
     DeclareInputNotDeclare {
         /// The consuming node (the boolean or the union).
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// What its `declare` input names.
-        input: RecipeNodeId,
+        input: SpokenNode,
     },
     /// A [`Node::Assertion`]'s bound is dimensioned differently from
     /// the measure it constrains — refused at the edit door, so a
     /// document never carries a comparison of metres with radians.
     AssertionDimension {
         /// The assertion.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The measure it constrains.
-        measure: RecipeNodeId,
+        measure: SpokenNode,
         /// The measure's dimension.
         measured: Dimension,
         /// The bound's.
@@ -1085,6 +1086,8 @@ pub enum EditError {
     },
     /// A `SetExpression` path runs off the expression tree (spec D5).
     PathOffTree {
+        /// The node the path addresses (`path.node`), spoken.
+        node: SpokenNode,
         /// The offending address.
         path: ExprPath,
     },
@@ -1120,7 +1123,7 @@ pub enum EditError {
     /// ALLOWED — N5 dangling semantics — and the solve refuses typed.)
     ReadSiteMissingNode {
         /// The operand that is not live.
-        at: RecipeNodeId,
+        at: SpokenNode,
     },
     /// A non-finite (NaN/inf) float on a continuous doc param — its
     /// value or one of its distribution's offsets — refused at the
@@ -1187,13 +1190,13 @@ pub enum EditError {
     /// Profile is the v1 sketch-bearing node kind).
     WitnessOnNonSketch {
         /// The non-sketch node.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// A `ReWitnessBulk` with the same node listed twice (which entry
     /// wins would be positional — refused).
     DuplicateWitnessEntry {
         /// The duplicated node.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// A `ReWitnessBulk` with no entries — a recorded no-op, refused.
     EmptyWitnessBulk,
@@ -1312,7 +1315,7 @@ pub enum EditError {
     /// nothing else has one).
     PlacementOnNonInstance {
         /// The offending target.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// A placement-rule node whose rule and count slot would give two
     /// answers to "how many placements" (GROUP-BOOLEAN-DESIGN): an
@@ -1321,7 +1324,7 @@ pub enum EditError {
     /// its count is a non-optional field.
     PlacementRuleMismatch {
         /// The offending node.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// A placement-rule node whose `Explicit` rule lists NO placements
     /// (GROUP-BOOLEAN-DESIGN): the list IS the count, so an empty one
@@ -1330,7 +1333,7 @@ pub enum EditError {
     /// body.
     EmptyPlacementList {
         /// The offending node.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
     /// (A6). Admitting one is gated on the equivariance audit R4 owns:
@@ -1339,7 +1342,7 @@ pub enum EditError {
     /// and every outward normal intact.
     ImproperPlacement {
         /// The node holding the frame.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// Which of its frames.
         at: FrameSite,
         /// The linear part's determinant.
@@ -1348,7 +1351,7 @@ pub enum EditError {
     /// A placement frame carrying a non-finite coordinate.
     NonFinitePlacement {
         /// The node holding the frame.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// Which of its frames.
         at: FrameSite,
     },
@@ -1358,7 +1361,7 @@ pub enum EditError {
     /// the same predicate), so the document never admits one.
     NonRigidPlacement {
         /// The node holding the frame.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// Which of its frames.
         at: FrameSite,
         /// The rigidity check that refused; routing, never rendered by
@@ -1387,7 +1390,7 @@ pub enum EditError {
     /// nothing can decide about never enters the document.
     NonFiniteAlignment {
         /// The mate being inserted.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// The mate solve refuses this mate on its OWN datum — a fact
     /// about the mate alone, which the solve records against it
@@ -1410,7 +1413,7 @@ pub enum EditError {
     /// evaluation.
     MateRefused {
         /// The mate being inserted.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The solve's own fault, unaltered.
         fault: Box<crate::mate::MateFault>,
     },
@@ -1419,7 +1422,7 @@ pub enum EditError {
     /// precedent: only a cross-document reference HAS a version).
     UpdateOnNonInstance {
         /// The offending target.
-        node: RecipeNodeId,
+        node: SpokenNode,
     },
     /// A pin update whose new pin is the one the reference already
     /// names. The edit would record a step that changes nothing —
@@ -1428,7 +1431,7 @@ pub enum EditError {
     /// rule).
     PinUnchanged {
         /// The reference that already names this pin.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The pin both sides carry.
         pin: crate::ident::ContentPin,
     },
@@ -1437,7 +1440,7 @@ pub enum EditError {
     /// than recorded, so a log's label edit always moved a label.
     LabelUnchanged {
         /// The node.
-        node: RecipeNodeId,
+        node: SpokenNode,
         /// The label it already has, `None` for none.
         label: Option<crate::Label>,
     },
@@ -1568,7 +1571,7 @@ impl Tail {
 fn frame_refusal(
     f: &mut core::fmt::Formatter<'_>,
     tail: Tail,
-    node: RecipeNodeId,
+    node: &SpokenNode,
     at: FrameSite,
     fault: FrameFault,
 ) -> core::fmt::Result {
@@ -1579,7 +1582,7 @@ fn frame_refusal(
 impl EditError {
     /// The arm a frame the admission rule refused is reported under,
     /// at `at` on `node`.
-    fn placement_frame(node: RecipeNodeId, at: FrameSite, fault: FrameFault) -> Self {
+    fn placement_frame(node: SpokenNode, at: FrameSite, fault: FrameFault) -> Self {
         match fault {
             FrameFault::NonFinite => Self::NonFinitePlacement { node, at },
             FrameFault::Improper { determinant } => Self::ImproperPlacement {
@@ -1661,20 +1664,20 @@ impl EditError {
     fn render(&self, f: &mut core::fmt::Formatter<'_>, tail: Tail) -> core::fmt::Result {
         match self {
             Self::UnknownNode { id } => {
-                write!(f, "node {} is not live", id)?;
+                write!(f, "{id} is not live")?;
                 tail.recourse(f, format_args!("aim the edit at {HELD_NODE}"))
             }
             Self::ProfileProgramRefused { node, refusal } => {
-                write!(f, "node {}'s sketch refused: {refusal}", node)
+                write!(f, "{node}'s sketch refused: {refusal}")
             }
             Self::UnresolvedInput { input } => {
-                write!(f, "input {} does not resolve to a live node", input)?;
+                write!(f, "input {input} does not resolve to a live node")?;
                 tail.recourse(f, format_args!("take the input from {HELD_NODE}"))
             }
             // Only `SetMembers` can close a loop: an insert's inputs are
             // already live, so none of them can be built from it.
             Self::WouldCycle { at } => {
-                write!(f, "the recipe graph would cycle (through node {})", at)?;
+                write!(f, "the recipe graph would cycle (through {at})")?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -1704,11 +1707,8 @@ impl EditError {
             // rule ("pairwise distinct"), which says what is wrong and
             // not what to do about it.
             Self::DuplicateInput { input, .. } => {
-                write!(
-                    f,
-                    "the node this edit writes would be invalid: {}",
-                    crate::node::InputFault::Duplicate { input: *input }
-                )?;
+                f.write_str("the node this edit writes would be invalid: ")?;
+                crate::node::duplicate_input(f, input)?;
                 tail.recourse(
                     f,
                     format_args!("replace one of the two with a different node"),
@@ -1717,8 +1717,7 @@ impl EditError {
             Self::SetMembersOnNonList { node } => {
                 write!(
                     f,
-                    "node {} carries no list input, so it has no members to set",
-                    node
+                    "{node} carries no list input, so it has no members to set"
                 )?;
                 tail.recourse(
                     f,
@@ -1733,8 +1732,7 @@ impl EditError {
             Self::SetProgramOnNonProfile { node } => {
                 write!(
                     f,
-                    "node {} holds no profile program, so it has no program to set",
-                    node
+                    "{node} holds no profile program, so it has no program to set"
                 )?;
                 tail.recourse(f, format_args!("aim the edit at a profile node"))
             }
@@ -1745,15 +1743,15 @@ impl EditError {
             Self::StepIdsRefused { node, fault } => {
                 write!(
                     f,
-                    "node {}'s program cannot take the step ids given: {fault}",
-                    node
+                    "{node}'s program cannot take the step ids given: {fault}"
                 )?;
                 step_ids_recourse(f, tail, fault)
             }
             Self::NodeIdCollides { id } => {
                 write!(
                     f,
-                    "the node id {id} this insert mints is already in the document's mint log"
+                    "{id}, the node this insert mints, draws an id the document's mint log \
+                     already holds"
                 )?;
                 tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
             }
@@ -1796,18 +1794,17 @@ impl EditError {
                 )
             }
             Self::DeleteWouldDangle { id, referenced_by } => {
-                write!(f, "node {} is still an input to node {}", id, referenced_by)?;
+                write!(f, "{id} is still an input to {referenced_by}")?;
                 tail.recourse(
                     f,
                     format_args!(
-                        "delete node {} first, or delete node {} together with everything \
-                         downstream of it",
-                        referenced_by, id
+                        "delete {referenced_by} first, or delete {id} together with everything \
+                         downstream of it"
                     ),
                 )
             }
             Self::UnknownSlot { id, slot } => {
-                write!(f, "node {} has no slot {}", id, slot.label())?;
+                write!(f, "{id} has no slot {}", slot.label())?;
                 tail.recourse(f, format_args!("edit a slot this node has"))
             }
             // The rule's own clause, forwarded rather than restated:
@@ -1849,7 +1846,7 @@ impl EditError {
             Self::PayloadUnknownDocParam { name, node } => {
                 write!(
                     f,
-                    "document parameter {name} does not exist (referenced by node {}'s \
+                    "document parameter {name} does not exist (referenced by {}'s \
                      payload expression)",
                     node
                 )?;
@@ -1866,14 +1863,14 @@ impl EditError {
             } => {
                 write!(
                     f,
-                    "document parameter {name} is declared {declared} but node {}'s \
+                    "document parameter {name} is declared {declared} but {}'s \
                      payload expression references it as {referenced}",
                     node
                 )?;
                 tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
             }
             Self::MeasureMalformed { node, fault } => {
-                write!(f, "measure node {}: {fault}", node)?;
+                write!(f, "{node}: {fault}")?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -1885,7 +1882,7 @@ impl EditError {
             Self::AssertionTarget { node, measure } => {
                 write!(
                     f,
-                    "assertion node {} references node {}, which is not a measure — an \
+                    "{} references {}, which is not a measure — an \
                      assertion constrains a measurement",
                     node, measure
                 )?;
@@ -1894,7 +1891,7 @@ impl EditError {
             Self::DeclareInputNotDeclare { node, input } => {
                 write!(
                     f,
-                    "node {}'s declare input names node {}, which is not a declaration",
+                    "{}'s declare input names {}, which is not a declaration",
                     node, input
                 )?;
                 tail.recourse(
@@ -1910,7 +1907,7 @@ impl EditError {
             } => {
                 write!(
                     f,
-                    "assertion node {} bounds {} {measured} measure (node {}) with {} \
+                    "{} bounds {} {measured} measure ({}) with {} \
                      {bound} expression — an assertion compares like with like or not at all",
                     node,
                     measured.article(),
@@ -1925,7 +1922,7 @@ impl EditError {
             Self::SlotUnknownDocParam { name, node, slot } => {
                 write!(
                     f,
-                    "document parameter {name} does not exist (referenced by node {}, slot {})",
+                    "document parameter {name} does not exist (referenced by {}, slot {})",
                     node,
                     slot.label()
                 )?;
@@ -1943,7 +1940,7 @@ impl EditError {
             } => {
                 write!(
                     f,
-                    "parameter {name} is declared {declared} but node {} (slot {}) references \
+                    "parameter {name} is declared {declared} but {} (slot {}) references \
                      it as {referenced}",
                     node,
                     slot.label(),
@@ -2025,13 +2022,13 @@ impl EditError {
                     format_args!("offer a value of the declared kind, or redeclare the parameter"),
                 )
             }
-            Self::PathOffTree { path } => {
+            Self::PathOffTree { node, path } => {
                 let steps: Vec<String> = path.path.iter().map(u8::to_string).collect();
                 write!(
                     f,
-                    "the expression path [{}] in node {}'s {} slot runs off the tree",
+                    "the expression path [{}] in {}'s {} slot runs off the tree",
                     steps.join(", "),
-                    path.node,
+                    node,
                     path.slot.label()
                 )?;
                 tail.recourse(
@@ -2063,7 +2060,7 @@ impl EditError {
                 tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
             }
             Self::ReadSiteMissingNode { at } => {
-                write!(f, "the reference is read at node {}, which is not live", at)?;
+                write!(f, "the reference is read at {at}, which is not live")?;
                 tail.recourse(f, format_args!("read it at {HELD_NODE}"))
             }
             Self::NonFiniteDocParam { name, field } => {
@@ -2131,13 +2128,13 @@ impl EditError {
             Self::WitnessOnNonSketch { node } => {
                 write!(
                     f,
-                    "node {} is not sketch-bearing, so it has nothing to re-witness",
+                    "{} is not sketch-bearing, so it has nothing to re-witness",
                     node
                 )?;
                 tail.recourse(f, format_args!("re-witness a sketch-bearing node"))
             }
             Self::DuplicateWitnessEntry { node } => {
-                write!(f, "node {} appears twice in the re-witness bulk", node)?;
+                write!(f, "{node} appears twice in the re-witness bulk")?;
                 tail.recourse(f, format_args!("list each node once"))
             }
             Self::EmptyWitnessBulk => {
@@ -2256,7 +2253,7 @@ impl EditError {
             }
             Self::PlacementOnNonInstance { node } => write!(
                 f,
-                "node {} does not instantiate a part, so it has no placement group to \
+                "{} does not instantiate a part, so it has no placement group to \
                  place",
                 node
             ),
@@ -2266,10 +2263,10 @@ impl EditError {
             // their subject is a single group frame, which has no
             // index in a rule's placement list.
             Self::EmptyPlacementList { node } => {
-                write!(f, "node {}: {}", node, PlacementRuleFault::NoPlacements)
+                write!(f, "{node}: {}", PlacementRuleFault::NoPlacements)
             }
             Self::PlacementRuleMismatch { node } => {
-                write!(f, "node {}: {}", node, PlacementRuleFault::CountSpelling)
+                write!(f, "{node}: {}", PlacementRuleFault::CountSpelling)
             }
             Self::ImproperPlacement {
                 node,
@@ -2278,14 +2275,14 @@ impl EditError {
             } => frame_refusal(
                 f,
                 tail,
-                *node,
+                node,
                 *at,
                 FrameFault::Improper {
                     determinant: *determinant,
                 },
             ),
             Self::NonRigidPlacement { node, at, check } => {
-                frame_refusal(f, tail, *node, *at, FrameFault::NotRigid { check })
+                frame_refusal(f, tail, node, *at, FrameFault::NotRigid { check })
             }
             Self::PlacementAxis { error } => {
                 write!(
@@ -2294,14 +2291,10 @@ impl EditError {
                 )
             }
             Self::NonFinitePlacement { node, at } => {
-                frame_refusal(f, tail, *node, *at, FrameFault::NonFinite)
+                frame_refusal(f, tail, node, *at, FrameFault::NonFinite)
             }
             Self::NonFiniteAlignment { node } => {
-                write!(
-                    f,
-                    "the mate at node {} carries a non-finite alignment coordinate",
-                    node
-                )?;
+                write!(f, "{node} carries a non-finite alignment coordinate")?;
                 tail.recourse(
                     f,
                     format_args!("give every alignment coordinate a finite value"),
@@ -2309,14 +2302,12 @@ impl EditError {
             }
             Self::MateRefused { node, fault } => write!(
                 f,
-                "the mate at node {} is refused by the solve on its own datum: {fault}",
-                node
+                "{node} is refused by the solve on its own datum: {fault}"
             ),
             Self::UpdateOnNonInstance { node } => {
                 write!(
                     f,
-                    "node {} does not instantiate a part, so it has no pinned version to update",
-                    node
+                    "{node} does not instantiate a part, so it has no pinned version to update"
                 )?;
                 tail.recourse(
                     f,
@@ -2326,8 +2317,7 @@ impl EditError {
             Self::PinUnchanged { node, pin } => {
                 write!(
                     f,
-                    "node {} already pins {pin}, so this update would record no version move",
-                    node
+                    "{node} already pins {pin}, so this update would record no version move"
                 )?;
                 tail.recourse(
                     f,
@@ -2352,8 +2342,8 @@ impl EditError {
             }
             Self::LabelUnchanged { node, label } => {
                 match label {
-                    Some(label) => write!(f, "node {node} is already labelled \"{label}\"")?,
-                    None => write!(f, "node {node} has no label to clear")?,
+                    Some(_) => write!(f, "{node} already has that label")?,
+                    None => write!(f, "{node} has no label to clear")?,
                 }
                 tail.recourse(f, format_args!("offer a label other than the one it has"))
             }
@@ -2711,14 +2701,17 @@ fn orphaned_declares<P: crate::ProfilePayload>(
 /// is minted from the document's mint chain, in loop then step order.
 /// Returns the new program's ids and the old steps it does not keep.
 fn settle_step_ids(
-    node: RecipeNodeId,
+    node: &SpokenNode,
     old: &[Vec<StepId>],
     new: &[crate::program::LoopProgram],
     ids: &[Vec<Option<StepId>>],
     mint: &mut crate::Mint,
 ) -> Result<(Vec<Vec<StepId>>, std::collections::BTreeSet<StepId>), EditError> {
     use crate::program::{StepIdFault, program_index};
-    let refuse = |fault| EditError::StepIdsRefused { node, fault };
+    let refuse = |fault| EditError::StepIdsRefused {
+        node: node.clone(),
+        fault,
+    };
     if ids.len() != new.len() {
         return Err(refuse(StepIdFault::LoopCount {
             loops: new.len(),
@@ -2744,7 +2737,7 @@ fn settle_step_ids(
             }
         }
     }
-    let minted = mint.set_program(node, new, ids).map_err(refuse)?;
+    let minted = mint.set_program(node.id(), new, ids).map_err(refuse)?;
     Ok((minted, dropped))
 }
 
@@ -3007,26 +3000,39 @@ fn check_name_steps<P>(doc: &Doc<P>, name: &StableName) -> Result<(), EditError>
 /// load door reads it from too.
 fn check_param_refs<P>(
     doc: &Doc<P>,
-    node: RecipeNodeId,
+    node: &SpokenNode,
     slot: SlotId,
     expr: &Expr,
 ) -> Result<(), EditError> {
     match doc.param_ref_fault(expr) {
         None => Ok(()),
-        Some(ParamRefFault::Unknown { name }) => {
-            Err(EditError::SlotUnknownDocParam { name, node, slot })
-        }
+        Some(ParamRefFault::Unknown { name }) => Err(EditError::SlotUnknownDocParam {
+            name,
+            node: node.clone(),
+            slot,
+        }),
         Some(ParamRefFault::Dimension {
             name,
             declared,
             referenced,
         }) => Err(EditError::SlotDocParamDimension {
             name,
-            node,
+            node: node.clone(),
             slot,
             declared,
             referenced,
         }),
+    }
+}
+
+/// **The node an edit writes, as its refusal speaks it**: as `doc`
+/// holds it, or, for the node an insert is minting and `doc` does not
+/// hold yet, by its kind and tag ([`SpokenNode::entering`]).
+fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
+    if doc.node(id).is_some() {
+        doc.spoken(id)
+    } else {
+        SpokenNode::entering(id, node)
     }
 }
 
@@ -3191,7 +3197,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
         .into_iter()
         .filter_map(|slot| Some((slot, node.expr(slot)?)))
     {
-        check_param_refs(doc, id, slot, expr)?;
+        check_param_refs(doc, &written(doc, id, node), slot, expr)?;
     }
     // The expressions no slot addresses (E3/E10). Their DIMENSIONS are
     // already fixed by construction — a `MeasureExpr` runs the F1
@@ -3202,7 +3208,10 @@ fn check_node_slots<P: crate::ProfilePayload>(
         match doc.param_ref_fault(expr) {
             None => {}
             Some(ParamRefFault::Unknown { name }) => {
-                return Err(EditError::PayloadUnknownDocParam { name, node: id });
+                return Err(EditError::PayloadUnknownDocParam {
+                    name,
+                    node: written(doc, id, node),
+                });
             }
             Some(ParamRefFault::Dimension {
                 name,
@@ -3211,7 +3220,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
             }) => {
                 return Err(EditError::PayloadDocParamDimension {
                     name,
-                    node: id,
+                    node: written(doc, id, node),
                     declared,
                     referenced,
                 });
@@ -3223,7 +3232,10 @@ fn check_node_slots<P: crate::ProfilePayload>(
     // public variant, so a hand-built value can reach `apply` without
     // passing `Node::measure`.
     if let Some(fault) = node.measure_fault() {
-        return Err(EditError::MeasureMalformed { node: id, fault });
+        return Err(EditError::MeasureMalformed {
+            node: written(doc, id, node),
+            fault,
+        });
     }
     // An assertion's bound against the dimension of the measure it
     // constrains (E10): `Node::assertion_bound_fault`, the one home the
@@ -3232,16 +3244,17 @@ fn check_node_slots<P: crate::ProfilePayload>(
     // is the door's name for its answer.
     if let Some(fault) = node.assertion_bound_fault(doc) {
         return Err(match fault {
-            AssertionBoundFault::TargetNotMeasure { measure, .. } => {
-                EditError::AssertionTarget { node: id, measure }
-            }
+            AssertionBoundFault::TargetNotMeasure { measure, .. } => EditError::AssertionTarget {
+                node: written(doc, id, node),
+                measure: doc.spoken(measure),
+            },
             AssertionBoundFault::DimensionMismatch {
                 measure,
                 measured,
                 bound,
             } => EditError::AssertionDimension {
-                node: id,
-                measure,
+                node: written(doc, id, node),
+                measure: doc.spoken(measure),
                 measured,
                 bound,
             },
@@ -3258,28 +3271,34 @@ fn check_node_slots<P: crate::ProfilePayload>(
 /// Liveness is the caller's, and is checked before this, so a list of
 /// dangling ids reports the dangling id rather than a count.
 fn check_node_inputs<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
     id: RecipeNodeId,
     node: &Node<P>,
 ) -> Result<(), EditError> {
-    match node.input_fault() {
-        None => Ok(()),
-        Some(crate::node::InputFault::Duplicate { input }) => {
-            Err(EditError::DuplicateInput { node: id, input })
-        }
-        Some(crate::node::InputFault::TooFew { found }) => {
-            Err(EditError::TooFewMembers { node: id, found })
-        }
-        Some(crate::node::InputFault::RepeatedDesignation { first, again }) => {
-            Err(EditError::RepeatedDesignation {
-                node: id,
+    let Some(fault) = node.input_fault() else {
+        return Ok(());
+    };
+    let subject = written(doc, id, node);
+    Err(match fault {
+        crate::node::InputFault::Duplicate { input } => EditError::DuplicateInput {
+            node: subject,
+            input: doc.spoken(input),
+        },
+        crate::node::InputFault::TooFew { found } => EditError::TooFewMembers {
+            node: subject,
+            found,
+        },
+        crate::node::InputFault::RepeatedDesignation { first, again } => {
+            EditError::RepeatedDesignation {
+                node: subject,
                 first,
                 again,
-            })
+            }
         }
-        Some(crate::node::InputFault::SelectionNotCanonical { at }) => {
-            Err(EditError::SelectionNotCanonical { node: id, at })
+        crate::node::InputFault::SelectionNotCanonical { at } => {
+            EditError::SelectionNotCanonical { node: subject, at }
         }
-    }
+    })
 }
 
 /// The `declare` edge's kind rule, in this door's vocabulary.
@@ -3293,7 +3312,10 @@ fn check_declare_input<P: crate::ProfilePayload>(
     node: &Node<P>,
 ) -> Result<(), EditError> {
     match node.bad_declare_input(doc) {
-        Some(input) => Err(EditError::DeclareInputNotDeclare { node: id, input }),
+        Some(input) => Err(EditError::DeclareInputNotDeclare {
+            node: written(doc, id, node),
+            input: doc.spoken(input),
+        }),
         None => Ok(()),
     }
 }
@@ -3328,7 +3350,11 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
             let input = inputs[*next];
             *next += 1;
             match color.get(&input) {
-                Some(Color::Grey) => return Err(EditError::WouldCycle { at: input }),
+                Some(Color::Grey) => {
+                    return Err(EditError::WouldCycle {
+                        at: doc.spoken(input),
+                    });
+                }
                 Some(Color::White) => {
                     color.insert(input, Color::Grey);
                     stack.push((input, 0));
@@ -3523,7 +3549,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // reference here, every edge a file claims there.
             for input in node.inputs() {
                 if !new.nodes.contains_key(&input) {
-                    return Err(EditError::UnresolvedInput { input });
+                    return Err(EditError::UnresolvedInput {
+                        input: SpokenNode::absent(input),
+                    });
                 }
             }
             // Spec D3 carve-out (ruled): a payload's name refs must
@@ -3546,7 +3574,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // is the solve's to refuse.
             for at in node.payload_read_sites() {
                 if !new.nodes.contains_key(&at) {
-                    return Err(EditError::ReadSiteMissingNode { at });
+                    return Err(EditError::ReadSiteMissingNode {
+                        at: SpokenNode::absent(at),
+                    });
                 }
             }
             // N1: the node's id is minted from the document's mint
@@ -3555,16 +3585,20 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // extends a mint held aside, so a refusal further down
             // leaves the document's untouched.
             let mut mint = new.mint.clone();
-            let id = mint
-                .insert(node)
-                .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides { id })?;
-            check_node_inputs(id, node)?;
+            let id = mint.insert(node).map_err(|crate::NodeIdCollides { id }| {
+                EditError::NodeIdCollides {
+                    id: SpokenNode::entering(id, node),
+                }
+            })?;
+            check_node_inputs(&new, id, node)?;
             check_declare_input(&new, id, node)?;
             // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
             // the one place a node is asked whether its alignment datum
             // is decidable, which the load door's walk asks too.
             if node.has_non_finite_alignment() {
-                return Err(EditError::NonFiniteAlignment { node: id });
+                return Err(EditError::NonFiniteAlignment {
+                    node: SpokenNode::entering(id, node),
+                });
             }
             check_node_slots(&new, id, node)?;
             // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
@@ -3574,15 +3608,19 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             if let Node::Profile(p) = node {
                 p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
                     EditError::ProfileProgramRefused {
-                        node: id,
+                        node: SpokenNode::entering(id, node),
                         refusal: Box::new(refusal),
                     }
                 })?;
             }
+            let entering = SpokenNode::entering(id, node);
             let mut node = node.clone();
             if let Node::Profile(p) = &mut node {
                 p.mint_step_ids(&mut mint)
-                    .map_err(|fault| EditError::StepIdsRefused { node: id, fault })?;
+                    .map_err(|fault| EditError::StepIdsRefused {
+                        node: entering,
+                        fault,
+                    })?;
             }
             new.mint = mint;
             new.nodes.insert(id, node.clone());
@@ -3604,8 +3642,12 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             debug_assert!(edit.writes_a_mates_datum() == matches!(node, Node::Mate { .. }));
             if matches!(node, Node::Mate { .. }) {
                 let env = new.param_env::<f64>();
-                crate::mate::solve::admit_mate(&new, id, &node, &env, how.reach(), tol)
-                    .map_err(|fault| EditError::MateRefused { node: id, fault })?;
+                crate::mate::solve::admit_mate(&new, id, &node, &env, how.reach(), tol).map_err(
+                    |fault| EditError::MateRefused {
+                        node: new.spoken(id),
+                        fault,
+                    },
+                )?;
             }
             EditRecord {
                 minted: Some(id),
@@ -3614,7 +3656,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         }
         DocEdit::DeleteNode { id } => {
             if !new.nodes.contains_key(id) {
-                return Err(EditError::UnknownNode { id: *id });
+                return Err(EditError::UnknownNode {
+                    id: SpokenNode::absent(*id),
+                });
             }
             // Who reads this node is `roots`' question — the same
             // predicate the root set is maintained by, so the
@@ -3622,8 +3666,8 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // what a live consumer is.
             if let Some(referenced_by) = crate::roots::consumer(&new, *id) {
                 return Err(EditError::DeleteWouldDangle {
-                    id: *id,
-                    referenced_by,
+                    id: doc.spoken(*id),
+                    referenced_by: doc.spoken(referenced_by),
                 });
             }
             // The liveness check above proved the entry present and
@@ -3668,17 +3712,23 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         }
         DocEdit::SetMembers { node, members } => {
             let Some(current) = new.nodes.get(node) else {
-                return Err(EditError::UnknownNode { id: *node });
+                return Err(EditError::UnknownNode {
+                    id: SpokenNode::absent(*node),
+                });
             };
             if current.list_input().is_none() {
-                return Err(EditError::SetMembersOnNonList { node: *node });
+                return Err(EditError::SetMembersOnNonList {
+                    node: doc.spoken(*node),
+                });
             }
             // Liveness FIRST, and of the offered list rather than of
             // the rewritten node, so a dangling entry is named as the
             // dangling entry it is.
             for member in members {
                 if !new.nodes.contains_key(member) {
-                    return Err(EditError::UnresolvedInput { input: *member });
+                    return Err(EditError::UnresolvedInput {
+                        input: SpokenNode::absent(*member),
+                    });
                 }
             }
             // The rewrite happens, then the rewritten node walks the
@@ -3687,9 +3737,11 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // `InsertNode` would have refused.
             let mut rewritten = current.clone();
             if !rewritten.set_list_input(members.clone()) {
-                return Err(EditError::SetMembersOnNonList { node: *node });
+                return Err(EditError::SetMembersOnNonList {
+                    node: doc.spoken(*node),
+                });
             }
-            check_node_inputs(*node, &rewritten)?;
+            check_node_inputs(doc, *node, &rewritten)?;
             new.nodes.insert(*node, rewritten);
             // The DAG's edges moved, so both invariants that ride on
             // them are re-established rather than assumed: acyclicity
@@ -3706,12 +3758,22 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         }
         DocEdit::SetProgram { node, loops, ids } => {
             let payload = match new.nodes.get(node) {
-                None => return Err(EditError::UnknownNode { id: *node }),
+                None => {
+                    return Err(EditError::UnknownNode {
+                        id: SpokenNode::absent(*node),
+                    });
+                }
                 Some(Node::Profile(p)) => p,
-                Some(_) => return Err(EditError::SetProgramOnNonProfile { node: *node }),
+                Some(_) => {
+                    return Err(EditError::SetProgramOnNonProfile {
+                        node: doc.spoken(*node),
+                    });
+                }
             };
             let Some(old_ids) = payload.step_ids() else {
-                return Err(EditError::SetProgramOnNonProfile { node: *node });
+                return Err(EditError::SetProgramOnNonProfile {
+                    node: doc.spoken(*node),
+                });
             };
             // The ids FIRST: ids the door could not honour make the
             // replay below moot, and the caller mends the field named
@@ -3719,9 +3781,12 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // aside, so a refusal further down leaves the document's
             // untouched.
             let mut mint = new.mint.clone();
-            let (minted, dropped) = settle_step_ids(*node, old_ids, loops, ids, &mut mint)?;
+            let (minted, dropped) =
+                settle_step_ids(&doc.spoken(*node), old_ids, loops, ids, &mut mint)?;
             let Some(rewritten) = payload.with_program(loops.clone(), minted) else {
-                return Err(EditError::SetProgramOnNonProfile { node: *node });
+                return Err(EditError::SetProgramOnNonProfile {
+                    node: doc.spoken(*node),
+                });
             };
             // The rewritten node walks the insert door's own slot
             // checks — the same function, not a mirror: dimensions and
@@ -3735,7 +3800,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             rewritten
                 .check(&new.param_env::<f64>(), tol)
                 .map_err(|refusal| EditError::ProfileProgramRefused {
-                    node: *node,
+                    node: doc.spoken(*node),
                     refusal: Box::new(refusal),
                 })?;
             new.nodes.insert(*node, probe);
@@ -3778,17 +3843,22 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         }
         DocEdit::SetExpression { path, expr } => {
             let Some(node) = new.nodes.get(&path.node) else {
-                return Err(EditError::UnknownNode { id: path.node });
+                return Err(EditError::UnknownNode {
+                    id: SpokenNode::absent(path.node),
+                });
             };
             let Some(root) = node.expr(path.slot) else {
                 return Err(EditError::UnknownSlot {
-                    id: path.node,
+                    id: doc.spoken(path.node),
                     slot: path.slot,
                 });
             };
             let rebuilt = root
                 .with_replaced(&path.path, expr.clone())
-                .ok_or_else(|| EditError::PathOffTree { path: path.clone() })?
+                .ok_or_else(|| EditError::PathOffTree {
+                    node: new.spoken(path.node),
+                    path: path.clone(),
+                })?
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
             set_slot(&mut new, path.node, path.slot, &rebuilt)?;
@@ -3970,7 +4040,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             for (node, _) in entries {
                 check_witness_site(&new, *node)?;
                 if !seen.insert(*node) {
-                    return Err(EditError::DuplicateWitnessEntry { node: *node });
+                    return Err(EditError::DuplicateWitnessEntry {
+                        node: doc.spoken(*node),
+                    });
                 }
             }
             for (node, witness) in entries {
@@ -4091,11 +4163,11 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // name for its answer.
             if let Some(fault) = crate::doc::placement_fault(&new, *node, frame, tol) {
                 return Err(match fault {
-                    PlacementFault::NotAnInstance => {
-                        EditError::PlacementOnNonInstance { node: *node }
-                    }
+                    PlacementFault::NotAnInstance => EditError::PlacementOnNonInstance {
+                        node: doc.spoken(*node),
+                    },
                     PlacementFault::Frame(fault) => {
-                        EditError::placement_frame(*node, FrameSite::Registry, fault)
+                        EditError::placement_frame(doc.spoken(*node), FrameSite::Registry, fault)
                     }
                 });
             }
@@ -4118,11 +4190,13 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         }
         DocEdit::SetLabel { node, label } => {
             if !new.nodes.contains_key(node) {
-                return Err(EditError::UnknownNode { id: *node });
+                return Err(EditError::UnknownNode {
+                    id: SpokenNode::absent(*node),
+                });
             }
             if new.labels.get(node) == label.as_ref() {
                 return Err(EditError::LabelUnchanged {
-                    node: *node,
+                    node: doc.spoken(*node),
                     label: label.clone(),
                 });
             }
@@ -4140,14 +4214,18 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // id and a live-but-wrong-kind node are different mistakes
             // and must not collapse into one message.
             let Some(target) = new.nodes.get_mut(node) else {
-                return Err(EditError::UnknownNode { id: *node });
+                return Err(EditError::UnknownNode {
+                    id: SpokenNode::absent(*node),
+                });
             };
             let Node::InstantiatePart { doc_ref, .. } = target else {
-                return Err(EditError::UpdateOnNonInstance { node: *node });
+                return Err(EditError::UpdateOnNonInstance {
+                    node: doc.spoken(*node),
+                });
             };
             if doc_ref.pin == *new_pin {
                 return Err(EditError::PinUnchanged {
-                    node: *node,
+                    node: doc.spoken(*node),
                     pin: *new_pin,
                 });
             }
@@ -4184,27 +4262,31 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         match n.placement_rule_fault(tol) {
             None => {}
             Some(PlacementRuleFault::CountSpelling) => {
-                return Err(EditError::PlacementRuleMismatch { node });
+                return Err(EditError::PlacementRuleMismatch {
+                    node: new.spoken(node),
+                });
             }
             Some(PlacementRuleFault::NoPlacements) => {
-                return Err(EditError::EmptyPlacementList { node });
+                return Err(EditError::EmptyPlacementList {
+                    node: new.spoken(node),
+                });
             }
             Some(PlacementRuleFault::NonFiniteFrame { index }) => {
                 return Err(EditError::NonFinitePlacement {
-                    node,
+                    node: new.spoken(node),
                     at: listed(index),
                 });
             }
             Some(PlacementRuleFault::ImproperFrame { index, determinant }) => {
                 return Err(EditError::ImproperPlacement {
-                    node,
+                    node: new.spoken(node),
                     at: listed(index),
                     determinant,
                 });
             }
             Some(PlacementRuleFault::NonRigidFrame { index, check }) => {
                 return Err(EditError::NonRigidPlacement {
-                    node,
+                    node: new.spoken(node),
                     at: listed(index),
                     check,
                 });
@@ -4214,7 +4296,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         // predicate.
         if let Some((index, fault)) = n.placement_frame_fault(tol) {
             return Err(EditError::placement_frame(
-                node,
+                new.spoken(node),
                 FrameSite::Step { index },
                 fault,
             ));
@@ -4242,8 +4324,12 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
 fn check_witness_site<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<(), EditError> {
     match crate::doc::witness_site_fault(doc, id) {
         None => Ok(()),
-        Some(WitnessSiteFault::NoSuchNode) => Err(EditError::UnknownNode { id }),
-        Some(WitnessSiteFault::NotSketchBearing) => Err(EditError::WitnessOnNonSketch { node: id }),
+        Some(WitnessSiteFault::NoSuchNode) => Err(EditError::UnknownNode {
+            id: SpokenNode::absent(id),
+        }),
+        Some(WitnessSiteFault::NotSketchBearing) => Err(EditError::WitnessOnNonSketch {
+            node: doc.spoken(id),
+        }),
     }
 }
 
@@ -4261,7 +4347,7 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
     {
         p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
             EditError::ProfileProgramRefused {
-                node: id,
+                node: new.spoken(id),
                 refusal: Box::new(refusal),
             }
         })?;
@@ -4278,14 +4364,17 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     expr: &Expr,
 ) -> Result<(), EditError> {
     let Some(node) = new.nodes.get(&id) else {
-        return Err(EditError::UnknownNode { id });
+        return Err(EditError::UnknownNode {
+            id: SpokenNode::absent(id),
+        });
     };
+    let spoken = new.spoken(id);
     // Whether the node HAS the slot is this door's own question: the
     // subject is an address a caller named, and `SetParam` aimed at a
     // radius on an extrude is a reachable mistake rather than the
     // node-layer invariant `Node::slot_dimension_fault` asserts.
     if node.expr(slot).is_none() {
-        return Err(EditError::UnknownSlot { id, slot });
+        return Err(EditError::UnknownSlot { id: spoken, slot });
     }
     // D6's comparison, from its one home (`SlotId::dimension_fault`) —
     // the same rule the node-wide walk asks, of an expression the node
@@ -4302,12 +4391,12 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
             found,
         });
     }
-    check_param_refs(new, id, slot, expr)?;
+    check_param_refs(new, &spoken, slot, expr)?;
     if let Some(target) = new.nodes.get_mut(&id).and_then(|n| n.expr_mut(slot)) {
         *target = expr.clone();
         Ok(())
     } else {
-        Err(EditError::UnknownSlot { id, slot })
+        Err(EditError::UnknownSlot { id: spoken, slot })
     }
 }
 

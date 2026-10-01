@@ -62,6 +62,7 @@ use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError, SegTag};
 use crate::node::{PartSelect, RecipeNodeId, SitedRef, SlotId, StableName};
 use crate::program::ProfileProgram;
+use crate::spoken::SpokenNode;
 use geom_core::Tol;
 
 /// The result DAG (F2 verbatim, spec D2): a deterministic order plus a
@@ -987,16 +988,16 @@ impl NodeRefusal {
     /// ([`NodeErrorKind::carried_chain`]), the same words that node's own
     /// tree draws.
     #[must_use]
-    pub fn line_at(&self, node: RecipeNodeId) -> String {
+    pub fn line_at(&self, node: &SpokenNode) -> String {
         failed_line(node, &self.0)
     }
 }
 
 /// A node's failure as one line: the node, then its kind's prose. The
-/// one spelling [`NodeError`]'s `Display` and [`NodeRefusal::line_at`]
+/// one spelling [`NodeError`]'s renderings and [`NodeRefusal::line_at`]
 /// share.
-fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind) -> String {
-    format!("node {} failed: {kind}", node)
+fn failed_line(node: &SpokenNode, kind: &NodeErrorKind) -> String {
+    format!("{node} failed: {kind}")
 }
 
 impl From<NodeErrorKind> for NodeRefusal {
@@ -2531,10 +2532,23 @@ pub struct CarriedLevel<'a> {
 
 impl CarriedLevel<'_> {
     /// The level as its node's own tree draws it
-    /// ([`NodeRefusal::line_at`]).
+    /// ([`NodeRefusal::line_at`]), its node spoken from `here`, the
+    /// document the outermost refusal was raised in, when the level is
+    /// in it. A level in a part names its node by the tag: `here` does
+    /// not hold the part.
+    #[must_use]
+    pub fn line_in<P>(&self, here: &Doc<P>) -> String {
+        let node = match self.document {
+            CarriedIn::ThisDocument => here.spoken(self.node),
+            CarriedIn::Part(_) => SpokenNode::absent(self.node),
+        };
+        self.refusal.line_at(&node)
+    }
+
+    /// The level where no document is at hand: its node by the tag.
     #[must_use]
     pub fn line(&self) -> String {
-        self.refusal.line_at(self.node)
+        self.refusal.line_at(&SpokenNode::absent(self.node))
     }
 }
 
@@ -2587,10 +2601,22 @@ impl<'a> Iterator for CarriedChain<'a> {
     }
 }
 
-/// The [`NodeError`] rendering: the node, then its kind's prose.
+impl NodeError {
+    /// **The failure as the frame that owns the node's document speaks
+    /// it**: the node as `doc` holds it now ([`Doc::spoken`]), then its
+    /// kind's prose. The error itself is memoized, so it holds the id
+    /// and never a label a rename could leave stale.
+    #[must_use]
+    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+        failed_line(&doc.spoken(self.node), &self.kind)
+    }
+}
+
+/// The [`NodeError`] rendering where no document is at hand: the node
+/// by its tag ([`SpokenNode::absent`]), then its kind's prose.
 impl core::fmt::Display for NodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&failed_line(self.node, &self.kind))
+        f.write_str(&failed_line(&SpokenNode::absent(self.node), &self.kind))
     }
 }
 

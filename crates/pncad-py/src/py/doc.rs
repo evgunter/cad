@@ -1294,7 +1294,9 @@ impl Doc {
             .node(node.0)
             .map(crate::node_kind::node_kind)
             .ok_or_else(|| {
-                let err = d::EditError::UnknownNode { id: node.0 };
+                let err = d::EditError::UnknownNode {
+                    id: d::SpokenNode::absent(node.0),
+                };
                 let message = format!(
                     "{}. Recourse: ask for the kind of a node this document holds",
                     err.problem()
@@ -1386,7 +1388,9 @@ impl Doc {
     /// node".
     fn label(&self, py: Python<'_>, node: &NodeId) -> PyResult<Option<String>> {
         if self.inner.node(node.0).is_none() {
-            let err = d::EditError::UnknownNode { id: node.0 };
+            let err = d::EditError::UnknownNode {
+                id: d::SpokenNode::absent(node.0),
+            };
             let message = format!(
                 "{}. Recourse: ask for the label of a node this document holds",
                 err.problem()

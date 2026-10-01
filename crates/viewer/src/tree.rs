@@ -920,17 +920,21 @@ pub fn part_file(node: &Node<ProfileProgram>, files: &PartFiles) -> Option<Strin
 /// refusal — a part inside a part reads one level per document, and
 /// the last is the failing node's own refusal.
 ///
-/// Each line is that node's refusal exactly as its own tree draws it;
-/// the document it is in, whose numbering the line's node number is,
-/// is its label ([`CarriedLine::document`]).
-pub fn carried_lines(kind: &NodeErrorKind, files: &PartFiles) -> Vec<CarriedLine> {
+/// Each line is that node's refusal exactly as its own tree draws it,
+/// a node of `doc` spoken from it ([`pncad::document::CarriedLevel::line_in`]); the
+/// document it is in is its label ([`CarriedLine::document`]).
+pub fn carried_lines(
+    doc: &Doc<ProfileProgram>,
+    kind: &NodeErrorKind,
+    files: &PartFiles,
+) -> Vec<CarriedLine> {
     kind.carried_chain()
         .map(|level| CarriedLine {
             document: match level.document {
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
                 CarriedIn::Part(doc_ref) => files.name(doc_ref.id).to_owned(),
             },
-            line: level.line(),
+            line: level.line_in(doc),
         })
         .collect()
 }
@@ -986,8 +990,8 @@ fn status_of(
             message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
         },
         Standing::Failed(error) => RowStatus::Failed {
-            message: error.to_string(),
-            carried: carried_lines(&error.kind, files),
+            message: error.spoken(doc),
+            carried: carried_lines(doc, &error.kind, files),
         },
     }
 }

@@ -1722,6 +1722,17 @@ impl<'a> Maintain<'a> {
     }
 }
 
+/// A maintenance refusal's gauge, spoken from the document the edit
+/// leaves when it holds the gauge, else from the one it found: a
+/// dropped cluster's gauge is gone from `after`.
+fn gauge_spoken<P>(before: &Doc<P>, after: &Doc<P>, gauge: RecipeNodeId) -> crate::SpokenNode {
+    if after.node(gauge).is_some() {
+        after.spoken(gauge)
+    } else {
+        before.spoken(gauge)
+    }
+}
+
 /// **The maintenance for one accepted edit** — [`reconcile`] deriving
 /// the rows, or the recorded rows re-applied — leaving `after`'s
 /// registry keyed on its clusters and answering the rows that got it
@@ -1753,7 +1764,7 @@ pub(crate) fn maintain<P: crate::ProfilePayload>(
             match acts.first() {
                 None => Ok(acts),
                 Some(act) => Err(EditError::MaintenanceUnrecorded {
-                    gauge: act.moved_gauge(),
+                    gauge: gauge_spoken(before, after, act.moved_gauge()),
                 }),
             }
         }
@@ -1959,7 +1970,10 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
                         None => {
                             let fault = unsolved_because(poses, gauge);
                             if fault.as_deref().is_none_or(undecided) {
-                                return Err(EditError::MaintenanceRefused { gauge, fault });
+                                return Err(EditError::MaintenanceRefused {
+                                    gauge: gauge_spoken(before, after, gauge),
+                                    fault,
+                                });
                             }
                             // Decided: no pose to preserve. The orphan
                             // keeps the cluster's frame ([`undecided`]).
@@ -1967,7 +1981,11 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
                         }
                     }
                 }
-                None => return Err(EditError::MaintenanceUnrecorded { gauge }),
+                None => {
+                    return Err(EditError::MaintenanceUnrecorded {
+                        gauge: gauge_spoken(before, after, gauge),
+                    });
+                }
             };
             let prior = before.placements().get(&old_gauge).copied();
             let frame = match (prior, relative.is_identity_bits()) {

@@ -709,7 +709,7 @@ impl MateFault {
     /// its own failure states it.
     #[getter]
     fn cause(&self, py: Python<'_>) -> Option<Py<PyAny>> {
-        super::value::carried_cause(py, self.0.carried_chain())
+        super::value::carried_cause(py, self.0.carried_chain(), None)
             .map(|cause| cause.into_value(py).into_any())
     }
 
@@ -969,7 +969,7 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
     );
     // The refusal the fault carries, typed, as the cause — the value's
     // own `cause`, and what a node failure does with one.
-    super::value::with_carried(py, err, fault.carried_chain())
+    super::value::with_carried(py, err, fault.carried_chain(), None)
 }
 
 /// The document's solved poses: each instance's pose relative to its

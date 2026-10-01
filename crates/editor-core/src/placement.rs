@@ -453,11 +453,11 @@ impl FrameSite {
     /// numbers a chain's steps; a listed placement reads by its index,
     /// the one an instance's name carries.
     #[must_use]
-    pub fn subject(self, node: crate::node::RecipeNodeId) -> String {
+    pub fn subject(self, node: &crate::SpokenNode) -> String {
         match self {
-            Self::Registry => format!("the placement frame for node {}", node),
-            Self::Listed { index } => format!("placement {index} of node {}", node),
-            Self::Step { index } => format!("step {} of node {}'s placement", index + 1, node),
+            Self::Registry => format!("the placement frame for {node}"),
+            Self::Listed { index } => format!("placement {index} of {node}"),
+            Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
         }
     }
 }

@@ -124,6 +124,16 @@ impl SpokenNode {
         }
     }
 
+    /// The node an insert is minting, before the document holds it:
+    /// its kind and tag. An insert carries no label, so it has none.
+    pub(crate) fn entering<P>(id: RecipeNodeId, node: &Node<P>) -> Self {
+        Self {
+            id,
+            kind: Some(node_kind_noun(node)),
+            label: None,
+        }
+    }
+
     /// The node this sentence names.
     #[must_use]
     pub fn id(&self) -> RecipeNodeId {
