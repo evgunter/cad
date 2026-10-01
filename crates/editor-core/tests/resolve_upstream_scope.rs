@@ -255,18 +255,23 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
             editor_core::derivation_nodes(name).contains(&cutter),
             "{name:?}'s ends cite the cutter"
         );
-        let Diagnosis::PredicateFlip { predicate, .. } =
-            diagnosis((&doc2, &ev2), (&doc, &ev1), name)
+        let Diagnosis::PredicateFlip {
+            predicate,
+            from,
+            to,
+        } = diagnosis((&doc2, &ev2), (&doc, &ev1), name)
         else {
             panic!("{name:?}: expected the flip on its path");
         };
-        assert_eq!(predicate, "bool_point_in_solid_plane");
+        // It is the cutter's flip: the one the verdict diff records there.
+        let flips = editor_core::diff_verdicts(&ev1, &ev2).report();
+        assert!(
+            flips.iter().any(|(n, f)| {
+                *n == cutter && f.predicate == predicate && f.from == from && f.to == to
+            }),
+            "{name:?}: {predicate} {from:?} -> {to:?} is not the cutter's: {flips:?}"
+        );
     }
-    let flips = editor_core::diff_verdicts(&ev1, &ev2).report();
-    assert!(
-        flips.iter().any(|(n, _)| *n == cutter),
-        "the cutter flips: {flips:?}"
-    );
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
@@ -430,29 +435,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let (doc, n) = placed(doc, x);
     let doc2 = set_members(doc.clone(), x, vec![b1, w]);
     assert!(!ancestors_in(&doc, n).contains(&w) && ancestors_in(&doc2, n).contains(&w));
-    let body = |i: u32| editor_core::EntityRef {
-        body: i,
-        key: editor_core::EntityKey::Body,
-    };
-    let f = fixture::minted(EntityKind::Body, n, RoleSeg::OutputBody);
-    let base = StableName {
-        kind: EntityKind::Body,
-        node: n,
-        path: vec![RoleSeg::FromA(f.clone().into())],
-    };
-    let ranked = |rank| {
-        let mut name = base.clone();
-        name.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
-        name
-    };
-    let mut before = NameTable::new();
-    before.insert(ranked(0), body(0)).unwrap();
-    before.insert(ranked(1), body(1)).unwrap();
-    before.insert(f.clone(), body(2)).unwrap();
-    let mut after = NameTable::new();
-    after.insert(base.clone(), body(0)).unwrap();
-    after.insert(f.clone(), body(2)).unwrap();
+    let (before, after, name) = collapsing_group(n);
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
@@ -460,7 +443,7 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let prior = two_node_eval(&doc, (w, vec![verdict(Sign::Negative)]), (n, before));
     let now = two_node_eval(&doc2, (w, vec![verdict(Sign::Positive)]), (n, after));
     assert_eq!(
-        diagnosis((&doc2, &now), (&doc, &prior), &ranked(0)),
+        diagnosis((&doc2, &now), (&doc, &prior), &name),
         Diagnosis::Upstream {
             node: n,
             cause: UpstreamCause::PredicateFlip {
