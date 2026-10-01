@@ -75,4 +75,4 @@ as residuals (the last resort), limb 3's in-band transversality as
 transversality lands in band is told to loosen the tolerance, where the
 edge certifier tells the same verdict to move the geometry. The subject
 clause this row asks for is the limb (`SsiLimb::name`), and the ending
-is `SsiLimb::recourse`.
+is its check's (`SsiLimb::check`, through `geom_brep::certify::recourse`).

@@ -306,7 +306,7 @@ impl PlaneNurbsRefusal {
     /// The per-sample transversality and the uniqueness tube are the
     /// `Transversality` decision, whose band-decided arms end alike (D4
     /// ¶1 (iv)); a certificate limb's refusal, definite or escalated,
-    /// ends by its limb's decision ([`limb_check`]).
+    /// ends by its limb's decision ([`SsiLimb::check`]).
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
         self.decision()
@@ -322,12 +322,12 @@ impl PlaneNurbsRefusal {
             Self::TransversalityEscalated { cause, .. } => {
                 (CertCheck::Transversality, RefusedArm::Undecided(cause))
             }
-            Self::Limb { limb, .. } => (limb_check(*limb), RefusedArm::SignCertain),
+            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain),
             // The tube's margin is the lane's transversality over the
             // chain (`ssi_tube_transversality`), and this refusal is its
             // decided verdict.
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
-            Self::Escalated { limb, cause } => (limb_check(*limb), RefusedArm::Undecided(cause)),
+            Self::Escalated { limb, cause } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::ReportedTransversalityPoisoned(cause) => (
                 CertCheck::PlaneNurbsReportedTransversality,
                 RefusedArm::Undecided(cause),
@@ -792,19 +792,6 @@ fn on_carrier_domain<T: Real>(
     t1: f64,
 ) -> Result<NurbsCurve2<T>, SplineError> {
     Ok(image.on_domain(t0, t1)?.map_scalar(T::from_f64))
-}
-
-/// The certification check a certificate limb's refusal is a refused
-/// arm of: limbs 1 and 2 are this lane's on-locus residual and sup-norm
-/// bound, and limb 3's margin is the transversality over the chain
-/// ([`SsiLimb::recourse`] routes the generic SSI door alike).
-#[must_use]
-pub fn limb_check(limb: SsiLimb) -> CertCheck {
-    match limb {
-        SsiLimb::OnLocus => CertCheck::PlaneNurbsOnLocus,
-        SsiLimb::HullSup => CertCheck::PlaneNurbsHull,
-        SsiLimb::Tube => CertCheck::Transversality,
-    }
 }
 
 /// The SSI refusal, in this lane's vocabulary.

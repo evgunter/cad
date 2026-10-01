@@ -1556,13 +1556,13 @@ pub enum CylinderSphereSection<T: Real> {
 ///    [`CylinderSphereSection::Empty`].
 ///
 /// **Consistency with the SSI's own tangency door, not a second
-/// adjudication.** At `d = 0` the marcher's `ssi_cs_tangency` margin
+/// adjudication.** At `d = 0` the SSI door's `ssi_cs_tangency` margin
 /// `min(||d − r| − R|, |d + r − R|)` collapses to `|r − R|` — the
 /// absolute value of row 5's margin, on the same band. So the two
 /// doors partition the coaxial poses identically: where this arm says
-/// `TangentCircle`, the marcher says `PairTangent` and refuses
+/// `TangentCircle`, the SSI door's pre-rung decision says `PairTangent` and refuses
 /// toward C7; where this arm says `TwoCircles` or `Empty`, the
-/// marcher's trilean is definite. Same margin shape, same verdict
+/// door's trilean is definite. Same margin shape, same verdict
 /// class — a tangency is classification data at both doors, and
 /// neither constructs a carrier from it.
 ///

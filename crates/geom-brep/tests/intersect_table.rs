@@ -850,10 +850,7 @@ fn declared_coaxial_tangency_is_classification_data_at_both_doors() {
         else {
             panic!("{label}: the gap is a value: {classified:?}");
         };
-        assert!(
-            gap.abs() <= band().zero(),
-            "{label}: the gap {gap:e} is within the zero band"
-        );
+        assert_eq!(gap, 0.0, "{label}: the coaxial pose is tangent exactly");
     }
 }
 

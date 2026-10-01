@@ -2439,9 +2439,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
         }
-        CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => {
-            certify_undecided(geom_brep::edge_nurbs::limb_check(*limb))
-        }
+        CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
         CertifyError::PlaneNurbs(P::ReportedTransversalityPoisoned(_)) => {
             certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }

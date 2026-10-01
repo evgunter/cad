@@ -253,6 +253,10 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             cause: diag(),
         },
         PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::OnLocus,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::Escalated {
             limb: geom_brep::SsiLimb::HullSup,
             cause: diag(),
         },

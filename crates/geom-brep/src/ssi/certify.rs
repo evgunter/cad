@@ -118,7 +118,7 @@ use geom_core::{
 use crate::certify::CertCheck;
 use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::dihedral::{decide, decide_reported};
-use crate::recourse::{Reading, Refused, RefusedArm, Unsized};
+use crate::recourse::Refused;
 
 use super::enclose::{
     Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
@@ -232,18 +232,17 @@ impl SsiLimb {
         }
     }
 
-    /// The one ending a refusal of this limb's decision carries on
-    /// `arm`, read at `reading` (D4 ¶1 (i)).
-    ///
-    /// Limbs 1 and 2 are residuals of a fitted carrier, an
-    /// approximation's, so they end in the last resort. Limb 3's margin
-    /// is the operands' transversality over the box chain, the
-    /// transversality decision's ([`CertCheck::Transversality`]).
+    /// The certification check a refusal of this limb is a refused arm
+    /// of, whose ending ([`crate::certify::recourse`]) every door that
+    /// reports the limb reads. Limbs 1 and 2 are the fitted carrier's
+    /// on-locus residual and sup-norm bound; limb 3's margin is the
+    /// operands' transversality over the box chain.
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+    pub fn check(self) -> CertCheck {
         match self {
-            Self::OnLocus | Self::HullSup => Unsized::LastResort.recourse(arm, reading),
-            Self::Tube => crate::certify::recourse(CertCheck::Transversality, arm, reading),
+            Self::OnLocus => CertCheck::PlaneNurbsOnLocus,
+            Self::HullSup => CertCheck::PlaneNurbsHull,
+            Self::Tube => CertCheck::Transversality,
         }
     }
 }

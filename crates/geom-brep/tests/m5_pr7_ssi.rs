@@ -274,7 +274,8 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         }
         Err(SsiError::FitSampleBudget { samples, budget }) => {
             assert!(samples > budget, "BUDGET: {samples} vs {budget}");
-            let msg = format!("{}", SsiError::FitSampleBudget { samples, budget });
+            let msg = SsiError::FitSampleBudget { samples, budget }
+                .render(geom_brep::recourse::Reading::Build);
             assert!(msg.contains("fit budget"), "BUDGET: {msg}");
             assert!(
                 msg.ends_with(&format!(
@@ -2283,15 +2284,18 @@ fn an_underflowing_weight_reaches_the_chart_refusal_arm_without_magnitude() {
     }
 }
 
-/// **A non-finite operand is refused as itself, at the door.** A plane
-/// whose origin or normal is not finite, cut against the ordinary wall,
-/// reached the chart sweep's refusal arm, whose sentence can only blame
-/// the wall's net; a non-finite sphere or cylinder reached the pair's
-/// tangency trilean as an escalation. Each door now names the operand
-/// and the datum before any sweep reads it. The healthy wall and pair
-/// are the file's own, so no other operand can be at fault.
+/// **A non-finite operand is refused as itself, at every door.** A
+/// plane whose origin or normal is not finite, cut against the ordinary
+/// wall, reached the chart sweep's refusal arm, whose sentence can only
+/// blame the wall's net; a wall with a NaN control point reached the
+/// march as a seed that would not settle; a non-finite sphere reached
+/// the pair's tangency trilean as an escalation. Each of the four SSI
+/// doors now names the operand and the datum before any sweep or march
+/// reads it. The healthy operand beside each is the file's own, so no
+/// other operand can be at fault.
 #[test]
 fn a_non_finite_operand_is_refused_at_the_door_by_name() {
+    use geom_brep::ssi::OperandDatum;
     let plane = |origin: Point3<f64>, normal: Vec3<f64>| {
         let Surface::Plane { u_ref, .. } = cutting_plane() else {
             unreachable!("the cutting plane is a plane")
@@ -2305,46 +2309,88 @@ fn a_non_finite_operand_is_refused_at_the_door_by_name() {
     let Surface::Plane { origin, normal, .. } = cutting_plane() else {
         unreachable!("the cutting plane is a plane")
     };
-    let expect = |got: Result<geom_brep::SsiOutcome, SsiError>, operand, datum, row: &str| match got
-    {
-        Err(SsiError::OperandNotFinite {
-            operand: o,
-            datum: d,
-        }) if o == operand && d == datum => {
-            let msg = format!("{}", SsiError::OperandNotFinite { operand, datum });
-            assert!(
-                msg.contains(&format!("the {operand}'s {}", datum.name())),
-                "{row}: {msg}"
-            );
-        }
-        Err(other) => panic!("{row}: expected the {operand}'s own refusal, got {other}"),
-        Ok(_) => panic!("{row}: a non-finite {operand} traced"),
-    };
+    let expect =
+        |got: Result<(), SsiError>, operand: &str, datum: OperandDatum, row: &str| match got {
+            Err(SsiError::OperandNotFinite {
+                operand: o,
+                datum: d,
+            }) if o == operand && d == datum => {
+                let msg = SsiError::OperandNotFinite { operand: o, datum }.to_string();
+                assert!(
+                    msg.contains(&format!("the {operand}'s {datum}")),
+                    "{row}: {msg}"
+                );
+            }
+            Err(other) => panic!("{row}: expected the {operand}'s own refusal, got {other}"),
+            Ok(()) => panic!("{row}: a non-finite {operand} traced"),
+        };
+    let field = OperandDatum::Field;
     let wall = nurbs_wall();
+    // The plane, at both plane × NURBS doors.
     for (row, p, datum) in [
         (
             "+inf origin",
             plane(Point3::new(f64::INFINITY, 0.0, 0.4), normal),
-            geom::SurfaceDatum::Origin,
+            field(geom::SurfaceDatum::Origin),
         ),
         (
             "NaN origin",
             plane(Point3::new(0.0, f64::NAN, 0.4), normal),
-            geom::SurfaceDatum::Origin,
+            field(geom::SurfaceDatum::Origin),
         ),
         (
             "NaN normal",
             plane(origin, Vec3::new(0.0, f64::NAN, 1.0)),
-            geom::SurfaceDatum::Normal,
+            field(geom::SurfaceDatum::Normal),
         ),
     ] {
         expect(
-            ssi::plane_nurbs_ssi(&p, &wall, wall_domain(), band()),
+            ssi::plane_nurbs_ssi(&p, &wall, wall_domain(), band()).map(|_| ()),
             "plane",
             datum,
-            row,
+            &format!("{row}, plane_nurbs_ssi"),
+        );
+        expect(
+            ssi::trace_plane_nurbs_uncertified(
+                &p,
+                &wall,
+                (0.5, 0.5),
+                wall_domain(),
+                band().zero(),
+                band(),
+            )
+            .map(|_| ()),
+            "plane",
+            datum,
+            &format!("{row}, trace_plane_nurbs_uncertified"),
         );
     }
+    // The wall: a NaN control point in its second column, whose first
+    // point is the net's third (two rows per column).
+    let mut cols = NURBS_WALL_COLS;
+    cols[1].0 = f64::NAN;
+    let bad_wall = wall_from_cols(cols);
+    expect(
+        ssi::plane_nurbs_ssi(&cutting_plane(), &bad_wall, wall_domain(), band()).map(|_| ()),
+        "NURBS wall",
+        OperandDatum::ControlPoint(2),
+        "NaN control point, plane_nurbs_ssi",
+    );
+    expect(
+        ssi::trace_plane_nurbs_uncertified(
+            &cutting_plane(),
+            &bad_wall,
+            (0.5, 0.5),
+            wall_domain(),
+            band().zero(),
+            band(),
+        )
+        .map(|_| ()),
+        "NURBS wall",
+        OperandDatum::ControlPoint(2),
+        "NaN control point, trace_plane_nurbs_uncertified",
+    );
+    // The analytic pair, at both ℝ³ doors.
     let Surface::Sphere {
         radius,
         axis,
@@ -2360,12 +2406,49 @@ fn a_non_finite_operand_is_refused_at_the_door_by_name() {
         axis,
         u_ref,
     };
+    let centre = field(geom::SurfaceDatum::Center);
     expect(
-        ssi::cylinder_sphere_ssi(&threaded_cylinder(), &bad_sphere, slab(), band()),
+        ssi::cylinder_sphere_ssi(&threaded_cylinder(), &bad_sphere, slab(), band()).map(|_| ()),
         "sphere",
-        geom::SurfaceDatum::Center,
-        "NaN sphere centre",
+        centre,
+        "NaN sphere centre, cylinder_sphere_ssi",
     );
+    expect(
+        ssi::idealized_trace_r3(
+            &threaded_cylinder(),
+            &bad_sphere,
+            Point3::new(0.11, 0.0, 0.99),
+            slab(),
+            band(),
+        )
+        .map(|_| ()),
+        "second operand",
+        centre,
+        "NaN sphere centre, idealized_trace_r3",
+    );
+}
+
+/// **Internal tangency still crosses, and the refusal does not say
+/// otherwise.** Viviani's pose — a cylinder of half the sphere's radius
+/// through its centre, touching it from inside at one point — meets the
+/// sphere along a figure-eight that crosses itself at the tangency.
+/// The pair's tangency decision refuses it, and its words must be true
+/// of a pair that crosses.
+#[test]
+fn an_internally_tangent_pair_refuses_without_denying_the_crossing() {
+    let viv = Surface::Cylinder {
+        origin: Point3::new(0.5, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let e = ssi::cylinder_sphere_ssi(&viv, &surf::sphere(1.0), slab(), band()).unwrap_err();
+    assert!(
+        matches!(e, SsiError::PairTangent { .. }) && !e.to_string().contains("rather than cross"),
+        "{e}"
+    );
+    let rendered = e.render(geom_brep::recourse::Reading::Build);
+    assert!(!rendered.contains("rather than cross"), "{rendered}");
 }
 
 /// **The chart-speed guard**: a wall whose certified chart speed is not

@@ -36,12 +36,26 @@ end by the table: `ssi_transversality` is the transversality decision
 tangency gap (`SsiError::PairTangent`). D4 ¶1 (iv) wants one story per
 decision, so their escalation should end as their verdict does.
 
-Two certificate arms carry no ending at all: `SsiError::CertificateLimb`
-("… the cache is not within tolerance of the locus it claims") and
-`SsiError::TubeStraddles`, whose undecided sibling
-`SsiError::CertificateEscalated` now ends by `SsiLimb::recourse`.
-`TubeStraddles` is already about 50 literal words, so appending the
-ending means rewriting it shorter.
+`SsiError`'s `Display` is the payload alone and `SsiError::ending`
+gives the ending, as `CertifyError`'s pair does; `Escalated` is the
+one arm whose `Display` still carries a recourse (the menu above), and
+its `ending` is `None`.
+
+Two certificate arms have no ending (`SsiError::ending` gives `None`):
+`SsiError::CertificateLimb` ("… the cache is not within tolerance of
+the locus it claims") and `SsiError::TubeStraddles`, whose undecided
+sibling `SsiError::CertificateEscalated` ends by its limb's check
+(`SsiLimb::check`, read through `geom_brep::certify::recourse`).
+`TubeStraddles` is already about 50 literal words, so its rendered text
+needs rewriting shorter as it gains the ending.
+
+Limb 3's check is `CertCheck::Transversality`, whose lever is the edge
+certifier's ("move the geometry so the faces cross at a clearer
+angle"). At an SSI door the operands are surfaces, not an edge's faces,
+and separating them passes, so a tube escalation read there names the
+edge's lever while `TransversalityBand`, the same question on the
+march, names the SSI's own (`ssi.rs` `TRANSVERSALITY`). One story per
+decision wants one lever in words true at both doors.
 
 ## Repair shape
 
@@ -49,4 +63,4 @@ Give the trace escalation the decision it escalated (a closed type, not
 a lookup by predicate name), end the transversality and tangency ones
 by the same table their verdicts use, and end the rest by their own
 levers or, where none exists, the last resort. End `CertificateLimb`
-and `TubeStraddles` by `SsiLimb::recourse` on their definite arm.
+and `TubeStraddles` through `SsiLimb::check` on their definite arm.

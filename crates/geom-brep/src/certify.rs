@@ -494,11 +494,18 @@ impl core::fmt::Display for CertifyError {
             // the fifteen checks that reach this arm meter no residual
             // (two sup bounds, a parallelism defect, a component, an
             // excess), so the noun is not the sentence's to write.
-            Self::ResidualExceeded { check, sample } => write!(
-                f,
-                "{check} at sample {sample} definitely exceeds the tolerance \
-                 band (the cache does not represent the description, D4 ¶2)"
-            ),
+            Self::ResidualExceeded { check, sample } => {
+                if *sample == NOT_A_SAMPLE {
+                    write!(f, "{check} (not a sampled check)")?;
+                } else {
+                    write!(f, "{check} at sample {sample}")?;
+                }
+                write!(
+                    f,
+                    " definitely exceeds the tolerance band (the cache does not represent \
+                     the description, D4 ¶2)"
+                )
+            }
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
@@ -749,7 +756,7 @@ fn tube_separation<T: Decide>(
         Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { verdict }),
         Err(cause) => Err(CertifyError::Escalated {
             check: CertCheck::TangentTube,
-            sample: 0,
+            sample: NOT_A_SAMPLE,
             cause,
         }),
     }
@@ -1752,6 +1759,33 @@ fn check_residual<T: Decide>(
     }
 }
 
+/// The plane × NURBS lane's refusal in this module's vocabulary: a
+/// per-sample transversality refusal keeps its sample, and a limb's
+/// escalation or the poisoned aggregate, which no schedule point
+/// carries, names none ([`NOT_A_SAMPLE`]).
+fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
+    use crate::edge_nurbs::PlaneNurbsRefusal as P;
+    match e {
+        P::NotTransverse { sample, verdict } => CertifyError::NotTransverse { sample, verdict },
+        P::TransversalityEscalated { sample, cause } => CertifyError::Escalated {
+            check: CertCheck::Transversality,
+            sample,
+            cause,
+        },
+        P::Escalated { limb, cause } => CertifyError::Escalated {
+            check: limb.check(),
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        P::ReportedTransversalityPoisoned(cause) => CertifyError::Escalated {
+            check: CertCheck::PlaneNurbsReportedTransversality,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        other => CertifyError::PlaneNurbs(other),
+    }
+}
+
 /// The shared certification engine (check sequence documented on
 /// [`EdgeCurve::certify`]).
 fn run_checks<T: Decide>(
@@ -2496,7 +2530,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "tangent_hull_sup",
             CertCheck::TangentHull,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(tangent_resid_max + bounds.residual_sag),
             band,
             &mut max_residual,
@@ -2526,37 +2560,11 @@ fn run_checks<T: Decide>(
         let Some(lane) = lane else {
             return Err(CertifyError::Unimplemented);
         };
-        let limbs = lane(carrier, plane, wall, extent, band).map_err(|e| match e {
-            crate::edge_nurbs::PlaneNurbsRefusal::NotTransverse { sample, verdict } => {
-                CertifyError::NotTransverse { sample, verdict }
-            }
-            crate::edge_nurbs::PlaneNurbsRefusal::TransversalityEscalated { sample, cause } => {
-                CertifyError::Escalated {
-                    check: CertCheck::Transversality,
-                    sample,
-                    cause,
-                }
-            }
-            crate::edge_nurbs::PlaneNurbsRefusal::Escalated { limb, cause } => {
-                CertifyError::Escalated {
-                    check: crate::edge_nurbs::limb_check(limb),
-                    sample: 0,
-                    cause,
-                }
-            }
-            crate::edge_nurbs::PlaneNurbsRefusal::ReportedTransversalityPoisoned(cause) => {
-                CertifyError::Escalated {
-                    check: CertCheck::PlaneNurbsReportedTransversality,
-                    sample: 0,
-                    cause,
-                }
-            }
-            other => CertifyError::PlaneNurbs(other),
-        })?;
+        let limbs = lane(carrier, plane, wall, extent, band).map_err(from_plane_nurbs)?;
         check_residual(
             "plane_nurbs_on_locus",
             CertCheck::PlaneNurbsOnLocus,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(limbs.on_locus_max),
             band,
             &mut max_residual,
@@ -2564,7 +2572,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "plane_nurbs_hull_sup",
             CertCheck::PlaneNurbsHull,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(limbs.hull_sup),
             band,
             &mut max_residual,
@@ -2589,7 +2597,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "witness_on_surface_1",
             CertCheck::WitnessSurface1,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(implicit_residual(surf1, *witness)),
             band,
             &mut max_residual,
@@ -2597,7 +2605,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "witness_on_surface_2",
             CertCheck::WitnessSurface2,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(implicit_residual(surf2, *witness)),
             band,
             &mut max_residual,
@@ -2625,7 +2633,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "witness_on_surface_1",
             CertCheck::WitnessSurface1,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(implicit_residual(plane, *witness)),
             band,
             &mut max_residual,
@@ -3752,7 +3760,7 @@ mod tests {
             err,
             CertifyError::ResidualExceeded {
                 check: CertCheck::WitnessSurface1,
-                sample: 0
+                sample: NOT_A_SAMPLE
             }
         );
 
@@ -4321,12 +4329,13 @@ mod tests {
         }
     }
 
-    /// **A certificate escalation ends by its limb's decision.** Through
-    /// the lane's map into certification and directly on the lane's
-    /// refusal alike: limbs 1 and 2 are residuals (the last resort at a
-    /// build), limb 3's margin in band is the transversality's (its
-    /// lever and the tolerance below `m/K`), and the poisoned reported
-    /// transversality ends in the kernel-defect ending.
+    /// **A certificate escalation ends by its limb's decision.** On the
+    /// lane's refusal and through its map into certification alike:
+    /// limbs 1 and 2 are residuals (the last resort at a build), limb
+    /// 3's margin in band is the transversality's (its lever and the
+    /// tolerance below `m/K`), and the poisoned reported transversality
+    /// ends in the kernel-defect ending. None of them was decided at a
+    /// schedule point, so certification renders none.
     #[test]
     fn a_certificate_escalation_ends_by_its_limbs_decision() {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
@@ -4374,15 +4383,29 @@ mod tests {
             let (got_check, _) = refusal.decision().unwrap();
             assert_eq!(got_check, check, "{refusal:?}");
             assert_eq!(refusal.ending(Reading::Build).unwrap(), want, "{refusal:?}");
-            let P::Escalated { limb, cause } = refusal else {
-                continue;
-            };
+            // Through certification: the same check, and no schedule
+            // point the limb never visited.
+            let certified = from_plane_nurbs(refusal);
             assert_eq!(
-                limb.recourse(RefusedArm::Undecided(&cause), Reading::Build),
-                want,
-                "the SSI door's own ending for {limb:?}"
+                certified.decision().map(|(c, _)| c),
+                Some(check),
+                "{certified:?}"
+            );
+            let shown = certified.to_string();
+            assert!(
+                shown.contains("(not a sampled check)") && !shown.contains("at sample"),
+                "a non-sampled limb renders no schedule point: {shown}"
             );
         }
+        let exceeded = CertifyError::ResidualExceeded {
+            check: CertCheck::PlaneNurbsHull,
+            sample: NOT_A_SAMPLE,
+        }
+        .to_string();
+        assert!(
+            exceeded.contains("(not a sampled check)") && !exceeded.contains("at sample"),
+            "{exceeded}"
+        );
     }
 
     /// Each decision family ends every refused arm the one way its
