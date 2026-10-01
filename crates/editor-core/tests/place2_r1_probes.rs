@@ -826,3 +826,41 @@ fn r1_the_group_hoist_of_a_parametric_root_offset() {
         ),
     }
 }
+
+/// **The memo after a gauge's parameter moves, and after the root's
+/// offset moves**: an evaluation handed its prior must move every
+/// instance on the gauge, and the mate-placed member with its root —
+/// neither changes a slot of its own.
+#[test]
+fn r1_the_memo_moves_instances_when_their_gauge_or_root_moves() {
+    let p = parts("r1-memo");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-memo"), Tol::witness());
+    let doc = declare_lift(doc, 2.0);
+    let (doc, g) = insert(
+        doc,
+        Node::gauge(
+            None,
+            Step::Rigid {
+                translation: [len(0.0), len(0.0), Expr::param(lift(), Dimension::Length)],
+                axis: [0.0, 0.0, 1.0].map(scl),
+                angle: ang(0.0),
+            },
+        ),
+    );
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let doc = set_gauge(doc, base, Some(g));
+    let doc = set_gauge(doc, top, Some(g));
+    let (doc, _) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let ev = run(&doc, &o);
+    let minz = |ev: &Evaluation<f64>, id| points(&body_of(ev, id)).iter().map(|q| q[2]).fold(f64::INFINITY, f64::min);
+    let (b0, t0) = (minz(&ev, base), minz(&ev, top));
+    let moved = set_lift(doc.clone(), 7.0);
+    let ev2 = evaluate::<f64>(&moved, Some(&ev), &editor_core::CancelToken::new(), &o, Tol::witness());
+    assert!((minz(&ev2, base) - (b0 + 5.0)).abs() < 1e-9, "the gauge's instance moved: {} -> {}", b0, minz(&ev2, base));
+    assert!((minz(&ev2, top) - (t0 + 5.0)).abs() < 1e-9, "the mated instance moved");
+    let shifted = set_offset(doc, base, Some(Placement::literal(&Frame::translation([0.0, 0.0, 3.0]))));
+    let ev3 = evaluate::<f64>(&shifted, Some(&ev), &editor_core::CancelToken::new(), &o, Tol::witness());
+    assert!((minz(&ev3, top) - (t0 + 3.0)).abs() < 1e-9, "the mated member moved with its root: {} -> {}", t0, minz(&ev3, top));
+}
