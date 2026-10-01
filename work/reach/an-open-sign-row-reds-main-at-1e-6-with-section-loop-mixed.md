@@ -69,7 +69,8 @@ Filed by the EDIT orchestrator. Every PR whose eps filter reaches
 (red): the first bad merge is `3cedf18afb`, PR 3716 (CLEAVE, one
 cell-dimension witness ladder for section-loop roles). PR 3627's head
 `bb36327908` is green only because it predates PR 3716; merged with
-`6000ec92d8` it is red the same way.
+`6000ec92d8` it is red the same way, and so is its head `610d5da95b`,
+which holds main at `7b926be037`.
 
 **The refusal was wrong, and PR 3716 only exposed it.** The rod's
 null face 9 has two loops. The cutter-side loop reads `Out` at its
