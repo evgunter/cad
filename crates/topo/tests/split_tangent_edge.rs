@@ -15,8 +15,8 @@
 use geom_core::{Point3, Tol, Vec3};
 use topo::test_support::brick;
 use topo::{
-    Body, SplitError, SplitJoinError, SplitPart, SplitPlane, SplitResult, mass_properties,
-    plane_section, split, union, validate_closed,
+    Body, SectionError, SplitError, SplitJoinError, SplitPart, SplitPlane, SplitResult,
+    mass_properties, plane_section, split, union, validate_closed,
 };
 
 /// The plane y + z = 2, normal (0, s·h, s·h).
@@ -94,7 +94,7 @@ fn a_tangent_contact_standing_alone_lands_whole() {
         assert!(near(volume("block", full), 1.5), "s = {s}");
         assert_eq!(rim_spans(full.body().unwrap()), vec![(0.0, 1.5)], "s = {s}");
         let section = plane_section(&body, &tangent_plane(s), Tol::witness()).unwrap();
-        assert!(section.polygons.is_empty(), "s = {s}");
+        assert!(section.regions.is_empty(), "s = {s}");
     }
 }
 
@@ -126,11 +126,16 @@ fn a_tangent_contact_meeting_a_real_section_cuts_only_the_slab() {
         );
         assert!(rim_spans(r.above.body().unwrap()).is_empty(), "{label}");
         let section = plane_section(&body, &tangent_plane(1.0), Tol::witness()).unwrap();
-        assert_eq!(section.polygons.len(), 1, "{label}: the slab's section");
+        assert_eq!(section.regions.len(), 1, "{label}: the slab's section");
 
         for r in [
             split(&body, &tangent_plane(-1.0), Tol::witness()).map(|_| ()),
-            plane_section(&body, &tangent_plane(-1.0), Tol::witness()).map(|_| ()),
+            plane_section(&body, &tangent_plane(-1.0), Tol::witness())
+                .map(|_| ())
+                .map_err(|e| match e {
+                    SectionError::Split(e) => e,
+                    e => panic!("{label}, −n: {e:?}"),
+                }),
         ] {
             assert!(
                 matches!(

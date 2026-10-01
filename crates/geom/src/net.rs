@@ -49,7 +49,7 @@ impl<T: Real> ControlPoint<T> for Point2<T> {
     }
 
     fn channels(self) -> [T; 2] {
-        [self.x, self.y]
+        self.to_array()
     }
 
     fn norm(offset: Vec2<T>) -> T {
@@ -66,7 +66,7 @@ impl<T: Real> ControlPoint<T> for Point3<T> {
     }
 
     fn channels(self) -> [T; 3] {
-        [self.x, self.y, self.z]
+        self.to_array()
     }
 
     fn norm(offset: Vec3<T>) -> T {

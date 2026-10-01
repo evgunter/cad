@@ -63,6 +63,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Finish/Euler",
+    "Split/Finish/NestingContradiction",
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/NullScaffold",
@@ -1489,6 +1490,17 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::DescribeEscalated { edge, diag: diag() },
         ),
         ("SectionCusp", F::SectionCusp { edge, face }),
+        (
+            "SectionWindingUndecided",
+            F::SectionWindingUndecided {
+                face,
+                diag: Some(diag()),
+            },
+        ),
+        (
+            "NestingContradiction",
+            F::NestingContradiction { hole: face },
+        ),
     ]
     .map(|(n, e)| (format!("Finish/{n}"), SplitError::Finish(e)));
     reduce
@@ -1582,7 +1594,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "transversality",
             escalated(CertCheck::Transversality, in_band),
-            "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
+            "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if this \
              angle is intended, tighten the tolerance below 5e-10 m",
         ),
         (
@@ -1594,7 +1606,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
+            "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if this \
              angle is intended, tighten the tolerance below 5e-11 m",
         ),
         (
@@ -1606,7 +1618,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     band,
                 }),
             },
-            "Recourse: move the geometry so the faces cross at a clearer angle",
+            "Recourse: move the geometry so the surfaces cross at a clearer angle",
         ),
         (
             "span",
@@ -1617,7 +1629,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "invalid",
             escalated(CertCheck::Transversality, MarginDiag::INVALID),
-            "Recourse: move the geometry so the faces cross at a clearer angle; an unreadable or \
+            "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable or \
              collapsed margin may indicate a kernel bug worth reporting",
         ),
         (
@@ -1666,7 +1678,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
                 text,
                 "node 000000000005 failed: the transform op refused: an edge the map moved failed \
                  re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
-                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the faces cross at a clearer \
+                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the surfaces cross at a clearer \
                  angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
             );
         }

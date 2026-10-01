@@ -840,6 +840,19 @@ pub struct Doc<P> {
     /// semantics.
     #[serde(with = "crate::persist::pairs")]
     pub(crate) appearance: AppearanceMap,
+    /// **Node labels** (DESIGN.md Band 1, "Node labels"): the human
+    /// text a person gave a node, keyed by the node. Beside the node,
+    /// never inside it, so a label is in neither the id's mint nor any
+    /// content key and a rename recomputes nothing. Not unique, never
+    /// resolved. Written only by `SetLabel`; every key names a live
+    /// node. Absent from the wire while empty, so an unlabelled
+    /// document costs no bytes and moves no pin.
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        with = "crate::persist::strict::labels"
+    )]
+    pub(crate) labels: BTreeMap<RecipeNodeId, crate::Label>,
 }
 
 /// **Which of the document's own fields hold a [`StableName`]** — one
@@ -946,14 +959,15 @@ impl<P> Doc<P> {
             witnesses: BTreeMap::new(),
             metadata: BTreeMap::new(),
             appearance: AppearanceMap::new(),
+            labels: BTreeMap::new(),
         }
     }
 
-    /// The empty document under a label-derived identity —
+    /// The empty document under a seed-derived identity —
     /// [`Self::empty`] ∘ [`DocumentId::derive`], the deterministic
     /// spelling corpus/demos/tests use.
-    pub fn empty_derived(label: &str, tol: Tol) -> Self {
-        Self::empty(DocumentId::derive(label), tol)
+    pub fn empty_derived(seed: &str, tol: Tol) -> Self {
+        Self::empty(DocumentId::derive(seed), tol)
     }
 
     /// The document's stable identity.
@@ -1136,6 +1150,19 @@ impl<P> Doc<P> {
         &self.witnesses
     }
 
+    /// The label a person gave node `id`, if any (written only by
+    /// `SetLabel`).
+    #[must_use]
+    pub fn label(&self, id: RecipeNodeId) -> Option<&crate::Label> {
+        self.labels.get(&id)
+    }
+
+    /// Every node label, by node.
+    #[must_use]
+    pub fn labels(&self) -> &BTreeMap<RecipeNodeId, crate::Label> {
+        &self.labels
+    }
+
     /// The appearance store: attributes by stable name (M4 PR 7;
     /// edited through `SetAppearance`/`ClearAppearance`; `Rebind`
     /// rewrites keys — the attribute rides the name).
@@ -1292,6 +1319,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
             // BY BITS through `MetaValue`'s own `PartialEq` — so
             // structural equality IS bit equality here.
             && self.appearance == other.appearance
+            && self.labels == other.labels
             && self.nodes.len() == other.nodes.len()
             && self.nodes.iter().all(|(id, node)| {
                 other

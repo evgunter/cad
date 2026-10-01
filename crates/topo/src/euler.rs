@@ -1606,7 +1606,11 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::PcurveSplit {
             edge: ek,
             half_edge: he,
-            error: geom_brep::PcurveCertifyError::UnsupportedCarrier,
+            error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
+                chart: geom_brep::SurfaceKind::Torus,
+                carrier: geom_brep::CurveKind::Circle,
+                class: geom_brep::UncoveredClass::TorusGeneralCircle,
+            },
         },
         EulerOpError::PcurveMint {
             face: fc,

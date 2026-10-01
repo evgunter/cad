@@ -217,3 +217,11 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   production today; not filed.
 - Unit 2 (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) dispatched on `cleave/mint-doors`; it also takes TOPO's `euler-rebased-run-...` row. Review: single, full.
 - Ev ruled on PR 3642: derive, no declaration (fork row 34; both designers' recommendation). The tangency lane is dispatched on `cleave/tangency`. Review: single, full.
+- `plane_section` regions merged (PR 3714) after a style review and one
+  fix pass. `plane_section` returns `regions` (an outline with its
+  holes, oriented by role) and its own `SectionError`.
+  `splitting/section_loops.rs` is the one home of the section-loop
+  sense, the hole nesting, and the side-normal and u-axis rules, which
+  the split's finish and `plane_section` both read. The ring-vs-ring
+  guard is split-only. Filed `plane-section-polygons-drop-their-arcs`
+  (P2).

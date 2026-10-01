@@ -2,11 +2,13 @@
 id: plane-section-reports-hole-polygons-clockwise-with-no-role
 kind: issue
 title: plane_section documents every polygon counter-clockwise, but a hole's polygon comes back clockwise and nothing says which polygons are holes
-status: dispatched
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: E
 branch: cleave/section-ccw
+pr: 3714
+closed: 2026-10-01
 ---
 
 

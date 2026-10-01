@@ -246,7 +246,7 @@ impl core::fmt::Display for SeatEvent {
 /// So the second slot of a one-seat value is never set (only `pick`
 /// writes a slot, and on that value it writes the first), and nothing
 /// reads it either: an invariant held twice rather than relied on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Seats {
     roles: [Seat; 2],
     /// Each seat's pick, as the document spoke it when it was taken.
@@ -271,7 +271,7 @@ impl Seats {
 
     /// The pick in seat `i` (0 or 1).
     pub fn held(&self, i: usize) -> Option<RecipeNodeId> {
-        self.held.get(i).copied().flatten().map(|held| held.id())
+        self.held.get(i)?.as_ref().map(SpokenNode::id)
     }
 
     /// Whether any seat holds a pick.
@@ -353,10 +353,11 @@ impl Seats {
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         let mut events = Vec::new();
         for i in 0..self.arity() {
-            if let Some(node) = self.held[i]
-                && doc.node(node.id()).is_none()
+            if self.held[i]
+                .as_ref()
+                .is_some_and(|node| doc.node(node.id()).is_none())
+                && let Some(node) = self.held[i].take()
             {
-                self.held[i] = None;
                 events.push(SeatEvent::PickLost {
                     seat: self.roles[i],
                     node,
