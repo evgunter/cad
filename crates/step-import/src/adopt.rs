@@ -1244,8 +1244,7 @@ fn carrier_on_surface(
         return false;
     }
     (0..geom_brep::CERT_SAMPLES).all(|i| {
-        let f = f64::from(i) / f64::from(geom_brep::CERT_SAMPLES - 1);
-        let p = carrier.eval(t0 + (t1 - t0) * f);
+        let p = carrier.eval(geom_brep::sample_param(t0, t1, i));
         ((p - origin).dot(normal) / n).abs() <= eps
     })
 }

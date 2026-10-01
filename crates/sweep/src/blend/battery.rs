@@ -466,19 +466,12 @@ fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T,
 
 /// Sample `i` of the battery's per-link parameter schedule — the
 /// [`CHAIN_SAMPLES`] places every chain predicate looks along
-/// `[t0, t1]`, spelled once. The two ends are the interval bounds
-/// EXACTLY (not `t0 + span·1` arithmetic, which can miss `t1` by an
-/// ulp): the lever arm's reduction to the endpoint chord on straight
-/// edges is bit-exact because sample 0 IS `t0` and the last sample
-/// IS `t1`.
+/// `[t0, t1]`, on the kernel's one uniform schedule
+/// ([`geom_brep::schedule_param`]). Its ends are the interval bounds
+/// exactly, so the lever arm's reduction to the endpoint chord on
+/// straight edges is bit-exact.
 fn chain_sample_at<T: Decide>(t0: T, t1: T, i: u32) -> T {
-    if i == 0 {
-        t0
-    } else if i == CHAIN_SAMPLES - 1 {
-        t1
-    } else {
-        t0 + (t1 - t0) * T::from_f64(f64::from(i) / f64::from(CHAIN_SAMPLES - 1))
-    }
+    geom_brep::schedule_param(t0, t1, i, CHAIN_SAMPLES)
 }
 
 /// The midpoint parameter of a link — the dihedral classifier's

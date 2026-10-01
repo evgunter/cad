@@ -383,3 +383,55 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_indistinguishable_from_th
         "without the lane the drift is the class refusal and nothing else: {without:?}"
     );
 }
+
+/// **The domain door's refusal is its own, at both consumers of the
+/// one producer.** The true locus, on a carrier domain `[1e6, 1e6 +
+/// 1e-9]` far narrower than an ulp of its ends times the schedule's 32
+/// steps: every foot converges and the interpolation succeeds, and
+/// re-expressing the image on that domain collapses its knots under
+/// `f64` rounding. The plane × NURBS lane and the pcurve mint both
+/// refuse with the domain door's typed reason and the carrier's exact
+/// domain — not the interpolation's refusal, whose recourse is a defect
+/// report rather than a reparameterization.
+#[test]
+fn a_carrier_domain_too_narrow_for_its_ends_refuses_as_the_domain_door() {
+    use geom_brep::{CarrierDomainRefusal, FittedLane, PcurveCertifyError};
+    use geom_core::spline::{KnotVector, SplineError};
+    let (lo, hi) = (1.0e6, 1.0e6 + 1.0e-9);
+    let knots = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();
+    let carrier = NurbsCurve3::new(
+        knots,
+        vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)],
+        vec![1.0, 1.0],
+    )
+    .unwrap();
+    let wall = quarter_cylinder_wall();
+    let refused = |r: &CarrierDomainRefusal| {
+        r.lo.to_bits() == lo.to_bits()
+            && r.hi.to_bits() == hi.to_bits()
+            && matches!(r.source, SplineError::KnotVectorInvalid { .. })
+    };
+
+    let lane = plane_nurbs_limbs::<f64>(&carrier, &transverse_plane(), &wall, 1.0, band());
+    let Err(PlaneNurbsRefusal::CarrierDomain(r)) = lane else {
+        panic!("the lane must refuse as the domain door: {lane:?}");
+    };
+    assert!(
+        refused(&r),
+        "lane: the carrier's domain and a clamp clause: {r:?}"
+    );
+    let msg = PlaneNurbsRefusal::CarrierDomain(r).to_string();
+    assert!(
+        msg.contains("collapsed") && msg.matches("Recourse:").count() == 1,
+        "lane: the domain's own condition and one recourse: {msg}"
+    );
+
+    let mint = FittedLane::<f64>::certified().general_image(&carrier, &wall);
+    let Err(PcurveCertifyError::CarrierDomain(r)) = mint else {
+        panic!("the mint must refuse as the domain door: {mint:?}");
+    };
+    assert!(
+        refused(&r),
+        "mint: the carrier's domain and a clamp clause: {r:?}"
+    );
+}

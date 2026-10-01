@@ -8,7 +8,10 @@ use core::num::NonZeroUsize;
 
 /// A typed construction failure for spline structure — fail-loud per
 /// D4: every invalid input is a named refusal, never a silent repair.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// `Copy`: every payload is plain data, so a `Copy` refusal can carry
+/// one whole (`geom_brep`'s carrier-domain refusal does).
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SplineError {
     /// The knot vector fails the clamped-v1 contract; `reason` names
     /// the exact violation.
@@ -112,7 +115,7 @@ impl core::error::Error for SplineError {}
 
 /// The exact structural violation behind
 /// [`SplineError::KnotVectorInvalid`].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KnotVectorIssue {
     /// Degree 0 is refused: a degree-0 "curve" is a step-function
     /// locus, not a curve — a designed absence until a consumer
@@ -1528,10 +1531,7 @@ mod tests {
             match arm {
                 SplineError::KnotVectorInvalid { .. } => {
                     for reason in &knot_vector_issue_arms() {
-                        let msg = SplineError::KnotVectorInvalid {
-                            reason: reason.clone(),
-                        }
-                        .to_string();
+                        let msg = SplineError::KnotVectorInvalid { reason: *reason }.to_string();
                         assert!(
                             msg.contains(&reason.to_string()),
                             "carrier not rendered whole: {msg}"

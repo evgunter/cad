@@ -198,6 +198,29 @@ fn contain_errors() -> Vec<ContainError> {
     ]
 }
 
+/// The carrier-domain refusal on a width that overflows.
+fn carrier_domain_invalid() -> geom_brep::CarrierDomainRefusal {
+    geom_brep::CarrierDomainRefusal {
+        lo: -f64::MAX,
+        hi: f64::MAX,
+        source: geom_core::spline::SplineError::DomainInvalid {
+            lo: -f64::MAX,
+            hi: f64::MAX,
+        },
+    }
+}
+
+/// The carrier-domain refusal on a domain too narrow for its ends.
+fn carrier_domain_collapsed() -> geom_brep::CarrierDomainRefusal {
+    geom_brep::CarrierDomainRefusal {
+        lo: 1.0e6,
+        hi: 1.0e6 + 1.0e-9,
+        source: geom_core::spline::SplineError::KnotVectorInvalid {
+            reason: geom_core::spline::KnotVectorIssue::InteriorMultiplicityTooHigh { index: 2 },
+        },
+    }
+}
+
 fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
     vec![
         PlaneNurbsRefusal::FootPointInconclusive {
@@ -209,6 +232,8 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             verdict: zero_verdict(0.0),
         },
         PlaneNurbsRefusal::PcurveFit,
+        PlaneNurbsRefusal::CarrierDomain(carrier_domain_invalid()),
+        PlaneNurbsRefusal::CarrierDomain(carrier_domain_collapsed()),
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
             value: 1e-7,
@@ -314,6 +339,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
                 boxes: 12,
             }),
         },
+        PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
         PcurveCertifyError::FittedEscalated { cause: diag() },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
