@@ -451,6 +451,18 @@ pub(crate) fn decide_reported<T: Decide>(
     geom_core::k_stats::decide_reported(name, margin, band)
 }
 
+/// The gate for a side read off a sign that has no side at zero, whose
+/// decided zero escalates with its decided margin
+/// ([`geom_core::k_stats::decide_nonzero_reported`]): the refusal is on
+/// the frame's escalation log beside the verdict.
+pub(crate) fn decide_nonzero_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
+    geom_core::k_stats::decide_nonzero_reported(name, margin, band)
+}
+
 /// **What a census refusal is ABOUT** — the whole of the subject the
 /// refusing arm was examining.
 ///
@@ -2147,8 +2159,12 @@ impl fmt::Display for StaleDeclaration {
 /// paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WedgeCheck {
-    /// The first-order wedge between the faces' tangent planes, with the
-    /// folded lever arm it is metered at: a crease or a smooth join.
+    /// The folded lever arm the first-order wedge is metered at: whether
+    /// the edge is long enough, for how its faces curve, to read an
+    /// angle over ([`geom_brep::DIHEDRAL_ARM`]).
+    Arm,
+    /// The first-order wedge between the faces' tangent planes, metered
+    /// at a definitely positive arm: a crease or a smooth join.
     Dihedral,
     /// On a definitely-smooth edge, whether the faces separate at second
     /// order (the surfaces determine the locus) or not.
@@ -2161,9 +2177,24 @@ pub enum WedgeCheck {
 }
 
 impl WedgeCheck {
+    /// The check a first-order wedge escalation names, by the rung of
+    /// [`geom_brep::classify_dihedral`] that escalated: its arm is a
+    /// length, which ends as one ([`WedgeCheck::Arm`]), and its reading
+    /// the wedge's angle ([`WedgeCheck::Dihedral`]).
+    const fn of_rung(rung: geom_brep::LeverRung) -> Self {
+        match rung {
+            geom_brep::LeverRung::Arm => Self::Arm,
+            geom_brep::LeverRung::Reading => Self::Dihedral,
+        }
+    }
+
     /// What could not be decided, in the words of a person at the viewer.
     fn lead(self) -> &'static str {
         match self {
+            Self::Arm => {
+                "whether an edge is long enough, for how its faces curve, to measure the angle \
+                 between them is too close to call at this tolerance"
+            }
             Self::Dihedral => {
                 "the angle between two faces at an edge is too close to call at this \
                  tolerance (a sliver)"
@@ -2183,6 +2214,9 @@ impl WedgeCheck {
     fn ending(self, cause: &Indeterminate) -> Cow<'static, str> {
         let arm = RefusedArm::Undecided(cause);
         match self {
+            Self::Arm => geom_brep::DIHEDRAL_ARM
+                .recourse(arm, Reading::AtRest)
+                .into(),
             Self::Dihedral => WEDGE.recourse(arm, Reading::AtRest).into(),
             Self::SecondOrder => SEPARATION.recourse(arm, Reading::AtRest).into(),
             // A split along the edge, or a side read after the decisions
@@ -2536,6 +2570,10 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         }
         CertCheck::Transversality => {
             "its faces meet too nearly tangentially to decide at this tolerance"
+        }
+        CertCheck::TransversalityArm => {
+            "it is too short, for how its faces curve, to measure the angle between them at this \
+             tolerance"
         }
         CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
             "its faces curve apart too little to decide where it runs at this tolerance"
@@ -5716,10 +5754,10 @@ pub(crate) fn tier3_local_checks_marked<
                 match classify_dihedral(s_plus, s_minus, p, extent, band) {
                     Ok(DihedralClass::Transverse) => all_smooth = false,
                     Ok(DihedralClass::Smooth) => all_transverse = false,
-                    Err(cause) => {
+                    Err(geom_brep::LeverEscalation { rung, diag: cause }) => {
                         errors.push(ValidationError::SliverDihedral {
                             edge: edge_key,
-                            check: WedgeCheck::Dihedral,
+                            check: WedgeCheck::of_rung(rung),
                             cause,
                         });
                         escalated = true;
@@ -9697,6 +9735,24 @@ mod tests {
                     .to_owned(),
             ),
             (
+                "wedge arm, in band",
+                sliver(WedgeCheck::Arm, in_band),
+                "whether an edge is long enough, for how its faces curve, to measure the angle \
+                 between them is too close to call at this tolerance. Recourse: move the \
+                 geometry so that edge is clearly longer, and its faces curve less tightly \
+                 there, or, if this length or the gap its faces open is intended, tighten the \
+                 tolerance below 5e-10 m"
+                    .to_owned(),
+            ),
+            (
+                "wedge arm, zero band",
+                sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
+                "Recourse: move the geometry so that edge is clearly longer, and its faces curve \
+                 less tightly there, or, if this length or the gap its faces open is intended, \
+                 tighten the tolerance below 5e-11 m"
+                    .to_owned(),
+            ),
+            (
                 "wedge, straddling",
                 sliver(WedgeCheck::Dihedral, straddles),
                 "Recourse: move the geometry so the faces meet either clearly creased or clearly \
@@ -9867,6 +9923,59 @@ mod tests {
         for (row, error, ending) in rows {
             let text = error.to_string();
             assert!(text.ends_with(&ending), "{row}: {text}");
+        }
+    }
+
+    /// **The wedge check reads the rung the dihedral escalated on**:
+    /// `classify_dihedral`'s real escalations, taken through
+    /// [`WedgeCheck::of_rung`] as the edge loop takes them, end as the
+    /// rung's own decision. An in-band arm and the cone apex's decided
+    /// zero arm name the edge's length and bend, never an angle; a
+    /// near-tangent wedge keeps the angle. (PR 3513's second fix pass:
+    /// the mapping had no row, so sending the arm to `Dihedral` survived.)
+    #[test]
+    fn a_dihedral_escalation_ends_as_the_rung_it_escalated_on() {
+        use geom_core::Vec3;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let plane = |normal: Vec3<f64>, u_ref| Surface::Plane {
+            origin: Point3::origin(),
+            normal,
+            u_ref,
+        };
+        let floor = plane(Vec3::unit_z(), Vec3::unit_x());
+        let wall = plane(Vec3::unit_x(), Vec3::unit_y());
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_6,
+            u_ref: Vec3::unit_x(),
+        };
+        let theta = 3.0 * Tol::witness().get().eps;
+        let tilted = plane(Vec3::new(theta.sin(), 0.0, theta.cos()), Vec3::unit_y());
+        let in_band_arm = (band.zero() + band.escalate()) / 2.0;
+        let rows = [
+            ("an in-band arm", &floor, &wall, in_band_arm, true),
+            ("the cone apex", &cone, &floor, 1.0, true),
+            ("a near-tangent wedge", &floor, &tilted, 1.0, false),
+        ];
+        for (row, s1, s2, extent, arm) in rows {
+            let escalation = classify_dihedral(s1, s2, Point3::origin(), extent, band)
+                .expect_err("each pose escalates");
+            let text = ValidationError::SliverDihedral {
+                edge: EdgeKey::default(),
+                check: WedgeCheck::of_rung(escalation.rung),
+                cause: escalation.diag,
+            }
+            .to_string();
+            let reads_the_arm = text.contains("whether an edge is long enough")
+                && text.contains("move the geometry so that edge is clearly longer")
+                && !text.contains("angle is intended");
+            let reads_the_angle = text.contains("the angle between two faces at an edge");
+            assert_eq!(
+                (reads_the_arm, reads_the_angle),
+                (arm, !arm),
+                "{row}: {text}"
+            );
         }
     }
 

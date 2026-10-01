@@ -181,3 +181,8 @@ pub use skin::{
 pub mod blend;
 pub mod chamfer;
 pub mod fillet;
+
+// The sphere cases of `topo`'s executed-offer census, whose raises need
+// this crate's balls.
+#[cfg(test)]
+mod offer_rows;
