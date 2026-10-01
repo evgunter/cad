@@ -135,7 +135,7 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -282,7 +282,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -372,7 +372,7 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -468,8 +468,16 @@ fn r1_pattern_free_solves_are_bit_identical() {
             Tol::witness(),
         );
         let (doc, a) = insert(doc, Node::instantiate_part(a_ref));
-        let (doc, b) = insert(doc, Node::instantiate_part(b_ref));
-        let (doc, c) = insert(doc, Node::instantiate_part(c_ref));
+        let (doc, b) = insert(doc, fixture::mated_instance(b_ref));
+        // `c` sits where its mate puts it only when the chain mates it.
+        let (doc, c) = insert(
+            doc,
+            if chain {
+                fixture::mated_instance(c_ref)
+            } else {
+                Node::instantiate_part(c_ref)
+            },
+        );
         let (doc, _m0) = step(
             doc,
             DocEdit::InsertNode {
@@ -574,7 +582,7 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, _m0) = step(
         doc,
         DocEdit::InsertNode {
@@ -661,7 +669,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // A head that resolves to no member is a fact about the mate
     // alone: the edit door refuses it where it is authored, with the
     // walk's own fault.
@@ -795,7 +803,7 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // A WELL-FORMED seat first: it takes the tree edge.
     let (doc, good) = step(
         doc,
@@ -892,7 +900,7 @@ fn r1_reproduce_the_quoted_red_first_fault() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {

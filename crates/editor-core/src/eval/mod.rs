@@ -2174,8 +2174,8 @@ impl core::fmt::Display for NodeErrorKind {
             // The refusal itself is drawn on its own line (`carried`).
             Self::PlacementRefused { node, .. } => write!(
                 f,
-                "the placement at node {p}, on this instance's frame, does not evaluate — \
-                 repair node {p}",
+                "the placement at node {p}, on this instance's frame, does not evaluate. {}",
+                crate::sentence::Recourse(format_args!("repair node {p}", p = node.0)),
                 p = node.0
             ),
             Self::CrossingUnverified {

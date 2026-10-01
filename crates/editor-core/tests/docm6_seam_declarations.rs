@@ -348,7 +348,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
         store.insert_part(block_part("docm6-deep-cube", 1.0, 1.0, 1.0), Tol::witness());
     let s1 = ProfileDoc::empty(DocumentId::derive("docm6-deep-s1"), Tol::witness());
     let (s1, s1_slab) = insert(s1, Node::instantiate_part(slab));
-    let (s1, s1_cube) = insert(s1, Node::instantiate_part(cube));
+    let (s1, s1_cube) = insert(s1, crate::fixture::mated_instance(cube));
     let (s1, s1_mate) = insert(
         s1,
         mate_node(
@@ -369,7 +369,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let mid = place(mid, m_s1b, [10.0, 0.0, 0.0]);
     let (mid, m_c0) = insert(mid, Node::instantiate_part(cube));
     let mid = place(mid, m_c0, [30.0, 0.0, 0.0]);
-    let (mid, m_c1) = insert(mid, Node::instantiate_part(cube));
+    let (mid, m_c1) = insert(mid, crate::fixture::mated_instance(cube));
     let (mid, mid_mate) = insert(
         mid,
         mate_node(

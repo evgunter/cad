@@ -170,7 +170,7 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, a_at) = chain(doc, base, on_base);
     let (doc, b_at) = chain(doc, top, on_top);
     let (doc, mate) = step(
@@ -392,7 +392,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3a"), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-        let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+        let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
         let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
         let (doc, pattern) = insert(
             doc,
@@ -455,7 +455,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
         let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3b"), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-        let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+        let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
@@ -672,7 +672,7 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, x1) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, x2) = insert(doc, xform(x1, second.0, second.1, second.2));
     let a = in_part(base, base_body, CapEnd::End);
@@ -793,7 +793,7 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
             store.insert_part(block(&format!("{label}-top"), 3.0), Tol::witness());
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-        let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+        let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
         let (doc, at) = if lift {
             insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0))
         } else {
@@ -972,7 +972,7 @@ fn a8c_the_content_key_separates_two_operands() {
         let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-        let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+        let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
         let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
         let (doc, mate) = step(
             doc,
@@ -1056,7 +1056,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a10"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // Spaced so that every copy but the mated one clears the slab —
     // a sibling resting on the base uninvited is an undeclared contact
     // the gate is right to refuse. Inner along x, outer along y.
@@ -1223,7 +1223,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         },
     );
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, mate) = step(
         doc,
@@ -1375,7 +1375,7 @@ fn severed_operand_scene(
         store.insert_part(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
     let _ = &store;
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
     let (doc, profile) = on_frame(
         doc,
@@ -1437,7 +1437,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a11"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let rule = |dir: [f64; 3], s: f64| PatternKind::Linear {
         direction: dir.map(scl),
         spacing: len(s),
@@ -1539,7 +1539,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let rule = |dir: [f64; 3]| PatternKind::Linear {
         direction: dir.map(scl),
         spacing: len(5.0),

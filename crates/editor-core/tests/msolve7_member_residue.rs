@@ -232,7 +232,7 @@ fn scene(label: &str, params: &[(&'static str, DocParam)], rule: Option<Rule>, c
         .0;
     }
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let a = head(in_part(base, base_body, CapEnd::End));
     let (doc, pattern, b) = match rule {
         None => (doc, None, head(in_part(top, top_body, CapEnd::Start))),

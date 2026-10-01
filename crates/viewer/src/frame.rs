@@ -1424,7 +1424,10 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         Maintenance::Strand { .. } => Retold::Never,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
         Maintenance::OrphanedDeclare { .. } => Retold::Never,
-        Maintenance::Cluster(_) => return None,
+        // The mate door's offset clear is what inserting the mate
+        // means — the joined group stands on the one it joined — and
+        // the mate the person just placed is its notice.
+        Maintenance::OffsetCleared { .. } => return None,
     };
     Some(Message::new(Subject::Document, row.to_string(), retold))
 }

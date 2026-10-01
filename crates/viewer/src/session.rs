@@ -58,7 +58,7 @@ use std::sync::Arc;
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr,
-    LoggedEdit, LoopProgram, Maintenance, MaintenanceNet, Node, ParamName, PartReach, PartResolver,
+    LoopProgram, Maintenance, MaintenanceNet, Node, ParamName, PartReach, PartResolver,
     ProductError, ProfileProgram, RecipeNodeId, SlotId, StepId, Subject, apply, assemble_gathered,
     cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
@@ -2741,7 +2741,11 @@ impl DocSession {
             | DocEdit::SetRoots { .. }
             | DocEdit::Rebind { .. }
             | DocEdit::UpdateReference { .. }
-            | DocEdit::SetPlacement { .. }
+            // An instance's offset, and the gauge an instance or a
+            // gauge sits on, are structure: which frame a group stands
+            // on, not a panel field's value.
+            | DocEdit::SetOffset { .. }
+            | DocEdit::SetGauge { .. }
             // The declaration doors that are not the value or the
             // notation half. `SetDocParam` is create-or-replace: a
             // redeclaration is an act — it is how a parameter's
@@ -2867,9 +2871,9 @@ impl DocSession {
         F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
     {
         // ONE reach for the whole action, over the session's own seam
-        // (the directory rule; `None` refuses typed): each edit's
-        // maintenance asks it only when a group's root moves, and
-        // what it decided rides the logged entry into the history.
+        // (the directory rule; `None` refuses typed): an inserted
+        // mate's clocking rider asks it, and nothing it decides is
+        // recorded — the edits are the history.
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         // Threaded rather than cloned up front: the first `apply`
@@ -2877,7 +2881,7 @@ impl DocSession {
         // its predecessor's output, so a group of one costs exactly
         // what a single commit always cost.
         let mut produced: Option<Doc<ProfileProgram>> = None;
-        let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::new();
+        let mut logged: Vec<DocEdit<ProfileProgram>> = Vec::new();
         let mut net = MaintenanceNet::new();
         let mut minted: Vec<Option<RecipeNodeId>> = Vec::new();
         while let Some(edit) = next(&minted) {
@@ -2887,10 +2891,7 @@ impl DocSession {
             };
             match attempt {
                 Ok(applied) => {
-                    logged.push(LoggedEdit {
-                        edit,
-                        maintenance: applied.cluster_rows(),
-                    });
+                    logged.push(edit);
                     minted.push(applied.record.minted);
                     net.push(&applied);
                     produced = Some(applied.doc);
@@ -2918,7 +2919,7 @@ impl DocSession {
             net,
             minted,
         } = staged;
-        let committed = logged.iter().map(|entry| entry.edit.clone()).collect();
+        let committed = logged.clone();
         // Net over the action: a row an earlier edit reported can be
         // made moot by a later one ([`MaintenanceNet`]).
         let maintenance = net.finish(&doc);
@@ -2973,8 +2974,8 @@ impl DocSession {
 struct StagedRun {
     /// The document the last edit produced.
     doc: Doc<ProfileProgram>,
-    /// Each edit with the maintenance it performed, for the history.
-    logged: Vec<LoggedEdit<ProfileProgram>>,
+    /// Each edit, for the history.
+    logged: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance, netted over the whole action.
     net: MaintenanceNet,
     /// What each edit minted, in the order the edits applied.
@@ -3002,6 +3003,8 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
         // Relates instances some other node put in the document.
         Node::Mate { .. } => false,
+        // A frame instances stand on; it puts nothing in.
+        Node::Gauge { .. } => false,
         // Declares contacts between faces of a consumer's operands,
         // and puts no body of its own in.
         Node::Declare { .. } => false,

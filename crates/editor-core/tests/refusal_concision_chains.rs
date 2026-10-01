@@ -206,7 +206,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
         span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
         filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
     },
-    // and two mate refusals.
+    // and three mate refusals.
     Admission {
         row: "Mate/PosesOfAnotherDocument",
         span: "3e23e8160039594a33894f6564e1b134",
@@ -219,6 +219,13 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     },
     Admission {
         row: "Mate/Unleverable",
+        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
+        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
+    },
+    // The same lever refusal, carried as why a checked offset could
+    // not be checked.
+    Admission {
+        row: "Mate/OffsetUnchecked/Unleverable",
         span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
         filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
     },
@@ -3097,6 +3104,32 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
         row(
+            "Unplaced/NoOffset",
+            NodeErrorKind::Unplaced {
+                group: RecipeNodeId(6),
+                cause: editor_core::Unplaced::NoOffset,
+            },
+        ),
+        row(
+            "Unplaced/DeadGauge",
+            NodeErrorKind::Unplaced {
+                group: RecipeNodeId(6),
+                cause: editor_core::Unplaced::DeadGauge {
+                    gauge: RecipeNodeId(2),
+                },
+            },
+        ),
+        row(
+            "PlacementRefused",
+            NodeErrorKind::PlacementRefused {
+                node: RecipeNodeId(2),
+                error: NodeErrorKind::EmptyOperand {
+                    input: RecipeNodeId(1),
+                }
+                .into(),
+            },
+        ),
+        row(
             "CrossingUnverified",
             NodeErrorKind::CrossingUnverified {
                 instance: RecipeNodeId(6),
@@ -3557,6 +3590,37 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                     instance: n(6),
                     part: doc_ref(),
                 },
+            },
+        ),
+        (
+            "OffsetDisagrees",
+            M::OffsetDisagrees {
+                instance: n(7),
+                root: n(6),
+                predicate: "mate_member_translation_zero",
+                clash: Clash::Length { metres: 0.002 },
+            },
+        ),
+        (
+            "OffsetUnchecked/Placement",
+            M::OffsetUnchecked {
+                instance: n(7),
+                cause: Box::new(editor_core::OffsetCheck::Placement {
+                    node: n(3),
+                    error: NodeErrorKind::EmptyOperand { input: n(2) }.into(),
+                }),
+            },
+        ),
+        (
+            "OffsetUnchecked/Unleverable",
+            M::OffsetUnchecked {
+                instance: n(7),
+                cause: Box::new(editor_core::OffsetCheck::Unleverable(
+                    LeverRefusal::NoExtent {
+                        instance: n(7),
+                        part: doc_ref(),
+                    },
+                )),
             },
         ),
     ]

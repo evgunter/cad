@@ -515,8 +515,7 @@ fn r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable() {
             expr: len(0.013),
         },
     ];
-    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
-        .expect("the log replays");
+    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
     assert!(!history.can_redo(), "the cursor opens at the tip");
     assert!(history.can_undo());
     assert!(history.undo().is_some());

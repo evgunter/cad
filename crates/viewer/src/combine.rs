@@ -961,6 +961,8 @@ pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Pattern { .. }
         | Node::Declare { .. }
         | Node::Mate { .. }
+        // A frame other placements stand on; no body.
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,
     }

@@ -41,8 +41,8 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    ClassAdmission, DocEdit, DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    assemble, class_admission, parse_expr,
+    ClassAdmission, DocEdit, DocumentId, Frame, Node, PatternKind, Placement, ProfileDoc,
+    RecipeNodeId, assemble, class_admission, parse_expr,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::{ContactClass, face_frame};
@@ -128,18 +128,18 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     let rot_post = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
     common::edit_into(
         &mut doc,
-        DocEdit::SetPlacement {
-            node: rot_post,
-            frame: rotated,
+        DocEdit::SetOffset {
+            instance: rot_post,
+            offset: Some(Placement::literal(&rotated)),
         },
         tol,
     );
     let rot_shelf = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
     common::edit_into(
         &mut doc,
-        DocEdit::SetPlacement {
-            node: rot_shelf,
-            frame: Frame::translation(asm::SHELF_AT),
+        DocEdit::SetOffset {
+            instance: rot_shelf,
+            offset: Some(Placement::literal(&Frame::translation(asm::SHELF_AT))),
         },
         tol,
     );

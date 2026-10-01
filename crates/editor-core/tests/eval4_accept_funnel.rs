@@ -246,7 +246,7 @@ fn placed_pair(
     let (doc_ref, part_body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
     let (doc, joint) = insert(
         doc,
         mate(

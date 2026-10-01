@@ -2335,15 +2335,15 @@ pub struct EditRecord {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Maintenance {
     /// **The mate door's offset clear** (A11 (2)): inserting a placing
-    /// mate that joins two groups places `b`'s group on `a`'s, so the
-    /// root of `b`'s group, when `a`'s group carries an offset, gives
-    /// up its own — the merged group keeps one root, and a freshly
+    /// mate that joins two groups places the first operand's group on
+    /// the second's, so the root of `a`'s group, when `b`'s group
+    /// carries an offset, gives up its own — the merged group keeps one root, and a freshly
     /// inserted part never carries a stray checked offset. Structural
     /// and deterministic from the edit, so replay reproduces it with
     /// no solve, and the offset it cleared rides here for the caller
     /// to read.
     OffsetCleared {
-        /// The root of `b`'s group before the mate joined it.
+        /// The root of `a`'s group before the mate joined it.
         instance: RecipeNodeId,
         /// The offset it carried.
         offset: crate::placement::Placement,
@@ -2462,9 +2462,9 @@ impl core::fmt::Display for Maintenance {
         match self {
             Self::OffsetCleared { instance, .. } => write!(
                 f,
-                "the mate placed instance {}'s group on the group it joined, so its offset was \
-                 cleared",
-                instance.0
+                "the mate placed instance {i}'s group, its first operand's, on its second \
+                 operand's group, so instance {i}'s offset was cleared",
+                i = instance.0
             ),
             // The sentence names what was removed as the name's
             // REFERENT — the minting node under a delete, the profile
@@ -3248,11 +3248,13 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
     Ok(())
 }
 
-/// **"Copy x's gauge to y, then mate"** (A11 (2)): the edits that put
-/// every member of the group the mate's `b` side reads onto the gauge
-/// its `a` side's instance sits on, then insert the mate — which then
-/// places, and joins the two groups ([`DocEdit::InsertNode`]'s mate
-/// door clears `b`'s group root's offset). One compound edit: the
+/// **"Copy `b`'s gauge to `a`, then mate `a` to `b`"** (A11 (2)): the
+/// edits that put every member of the group the mate's `a` side reads
+/// onto the gauge its `b` side's instance sits on, then insert the
+/// mate — which then places, and joins the two groups: the first
+/// operand's group is placed on the second's
+/// ([`DocEdit::InsertNode`]'s mate door clears `a`'s group root's
+/// offset). One compound edit: the
 /// caller applies the list in order, and atomicity is applying all of
 /// it, as for [`cascade_delete_order`].
 ///
@@ -3271,9 +3273,9 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
             crate::mate::member_of(doc, b),
         )
     {
-        let gauge = doc.node(ma.instance).and_then(Node::gauge_ref);
+        let gauge = doc.node(mb.instance).and_then(Node::gauge_ref);
         let groups = crate::mate::groups(doc);
-        if let Some(group) = groups.iter().find(|g| g.contains(&mb.instance)) {
+        if let Some(group) = groups.iter().find(|g| g.contains(&ma.instance)) {
             for &member in group {
                 if doc.node(member).and_then(Node::gauge_ref) != gauge {
                     edits.push(DocEdit::SetGauge {
@@ -4109,9 +4111,11 @@ fn check_gauge_ref<P>(
 }
 
 /// **The mate door** (A11 (2)): a PLACING mate that joins two groups
-/// places `b`'s group on `a`'s, so when `a`'s group carries an offset,
-/// the root of `b`'s group gives up its own — the merged group keeps
-/// one root. `before` is the document without the mate, which is
+/// places the first operand's group on the second's — "mate `a` to
+/// `b`" moves `a` — so when `b`'s group carries an offset, the root of
+/// `a`'s group gives up its own, and the merged group keeps one root.
+/// Which side moves is independent of which side's frame states the
+/// datum ([`crate::mate::Alignment`]). `before` is the document without the mate, which is
 /// where the two groups are read; `after` holds it. Structural: walks
 /// and offsets only, so replay reproduces it with no solve.
 fn clear_joined_offset<P: crate::ProfilePayload>(
@@ -4140,8 +4144,8 @@ fn clear_joined_offset<P: crate::ProfilePayload>(
         }) => Some(offset.clone()),
         _ => None,
     };
-    ga.iter().find_map(offset)?;
-    let (root, cleared) = gb.iter().find_map(|id| Some((*id, offset(id)?)))?;
+    gb.iter().find_map(offset)?;
+    let (root, cleared) = ga.iter().find_map(|id| Some((*id, offset(id)?)))?;
     if let Some(Node::InstantiatePart { offset, .. }) = after.nodes.get_mut(&root) {
         *offset = None;
     }

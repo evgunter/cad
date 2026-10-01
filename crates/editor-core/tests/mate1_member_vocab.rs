@@ -125,7 +125,7 @@ fn four_legs(
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -246,7 +246,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -322,7 +322,7 @@ fn two_seats(
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
@@ -514,7 +514,7 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let seat = |origin| {
         seat_mate(
             in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
@@ -579,7 +579,7 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // The master's own name — the spelling the pattern consumed.
     let (doc, mate) = step(
         doc,
@@ -644,7 +644,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // Copy 5 of a count-2 pattern: no such member. A head that
     // resolves to no member is a fact about the mate alone, so the
     // edit door refuses it where it is authored, with the solve's own

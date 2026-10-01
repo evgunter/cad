@@ -145,7 +145,7 @@ fn four_legs(
         },
     );
     let (top_ref, top_body) = block_ref("fix-xs-top");
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -368,7 +368,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         },
     );
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     // The top sits on a gauge of its own, so once the cut side is read
     // at the instance left behind — on the world — the mate still
     // declares rather than starting to place (A4's refusal for that is
@@ -445,7 +445,7 @@ fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     let (leg_ref, leg_body) = block_ref("fix-xs-st-leg");
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (top_ref, top_body) = block_ref("fix-xs-st-top");
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let mut node = seat(
         in_part(leg, leg_body, CapEnd::End),
         in_part(top, top_body, CapEnd::Start),

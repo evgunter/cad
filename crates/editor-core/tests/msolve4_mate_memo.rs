@@ -146,9 +146,9 @@ fn scene(label: &str) -> Scene {
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
-    let (doc, top_a) = insert(doc, Node::instantiate_part(block_ref));
-    let (doc, top_b) = insert(doc, Node::instantiate_part(block_ref));
-    let (doc, top_c) = insert(doc, Node::instantiate_part(block_ref));
+    let (doc, top_a) = insert(doc, crate::fixture::mated_instance(block_ref));
+    let (doc, top_b) = insert(doc, crate::fixture::mated_instance(block_ref));
+    let (doc, top_c) = insert(doc, crate::fixture::mated_instance(block_ref));
     Scene {
         doc,
         opts,

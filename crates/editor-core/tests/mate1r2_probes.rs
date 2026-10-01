@@ -250,7 +250,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
@@ -335,7 +335,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
@@ -409,7 +409,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
             },
         },
     );
-    let (doc, leg2) = insert(doc, Node::instantiate_part(l2));
+    let (doc, leg2) = insert(doc, fixture::mated_instance(l2));
     let (doc, p2) = insert(
         doc,
         Node::Pattern {
@@ -468,7 +468,7 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     let (top_ref, top_body) = store.insert_part(leg_part("r2-rev-top"), Tol::witness());
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-rev-leg"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r2-rev"), Tol::witness());
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, pattern) = insert(
         doc,
@@ -550,7 +550,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
@@ -655,7 +655,7 @@ fn r2_nested_pattern_head_is_a_member() {
             },
         },
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {

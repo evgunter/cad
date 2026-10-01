@@ -69,8 +69,15 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
         store.insert_part(box_part(&format!("{label}-part"), 0.5, 1.0), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..n {
-        let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+    for i in 0..n {
+        // The first roots every group the rows' mates make; the rest
+        // sit where their mates put them.
+        let node = if i == 0 {
+            Node::instantiate_part(doc_ref)
+        } else {
+            crate::fixture::mated_instance(doc_ref)
+        };
+        let (next, id) = insert(doc, node);
         doc = next;
         ids.push(id);
     }
@@ -1023,9 +1030,9 @@ fn corpus() -> Vec<Row> {
         // re-decides nothing, so the document holds it.
         let (doc, ids, opts, body) = instances("msolve10-corpus-hand-edited", 2);
         let text = save(&doc, &[], Tol::witness()).expect("saves");
-        // The mate joins the two instances' groups, and a log entry
-        // carries the rows its edit performs — so the hand-edited entry
-        // records the join, as the save door would have.
+        // The mate joins the two instances' groups, and replay applies
+        // the edit through the same door, which re-decides nothing it
+        // levers through a reach.
         let entry = DocEdit::InsertNode {
             node: mate(
                 body,

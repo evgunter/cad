@@ -54,15 +54,28 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// An assembly of `n` instances of one part, plus the store that
-/// resolves them and the part's body.
+/// resolves them and the part's body. Only the first carries an offset
+/// — the rest sit where their mates put them — so the first roots
+/// every group the rows' mates make, and a mate moves its other side
+/// onto it.
 fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId) {
     let mut store = PartStore::default();
     let (doc_ref, body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..n {
+    for i in 0..n {
         let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
         doc = next;
+        if i > 0 {
+            doc = step(
+                doc,
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: None,
+                },
+            )
+            .0;
+        }
         ids.push(id);
     }
     (doc, ids, store, body)
@@ -381,27 +394,28 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
 
 // ---- Row 4: the mate door, and no edit records a frame (A11 (2)) ----
 
-/// Row 4a — a mate insert that joins two groups clears the root offset
-/// of `b`'s group (the mate door), in the same logged edit, and replays
-/// without solving: the merged group keeps one root.
+/// Row 4a — a mate insert that joins two groups places its first
+/// operand's group on its second's: it clears the root offset of `a`'s
+/// group (the mate door), in the same logged edit, and replays without
+/// solving: the merged group keeps one root.
 #[test]
-fn row4a_a_mate_insert_joins_two_groups_clearing_bs_root_offset() {
+fn row4a_a_mate_insert_joins_two_groups_clearing_as_root_offset() {
     let (doc, ids, _, body) = assembly("asm-r2a-row4a", 2);
+    let a_offset = editor_core::Placement::literal(&Frame::translation([1.0, 0.0, 0.0]));
     let (doc, _) = step(
         doc,
         DocEdit::SetOffset {
             instance: ids[0],
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                1.0, 0.0, 0.0,
-            ]))),
+            offset: Some(a_offset.clone()),
         },
     );
-    let b_offset = editor_core::Placement::literal(&Frame::translation([0.0, 5.0, 0.0]));
     let (doc, _) = step(
         doc,
         DocEdit::SetOffset {
             instance: ids[1],
-            offset: Some(b_offset.clone()),
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                0.0, 5.0, 0.0,
+            ]))),
         },
     );
     assert_eq!(groups(&doc).len(), 2, "two singleton groups");
@@ -424,15 +438,15 @@ fn row4a_a_mate_insert_joins_two_groups_clearing_bs_root_offset() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::OffsetCleared {
-            instance: ids[1],
-            offset: b_offset,
+            instance: ids[0],
+            offset: a_offset,
         }],
-        "the door clears the joined root's offset and says so"
+        "the door clears the moved group's root offset and says so"
     );
-    assert_eq!(fixture::offset_of(&applied.doc, ids[1]), None);
+    assert_eq!(fixture::offset_of(&applied.doc, ids[0]), None);
     assert_eq!(
-        fixture::offset_of(&applied.doc, ids[0]),
-        fixture::offset_of(&doc, ids[0]),
+        fixture::offset_of(&applied.doc, ids[1]),
+        fixture::offset_of(&doc, ids[1]),
         "the surviving root's offset is unchanged"
     );
     let replayed = editor_core::apply_replayed(&doc, &insert, Tol::witness())

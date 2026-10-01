@@ -397,8 +397,15 @@ fn row2_b_a_declaring_mate_mints_identically() {
     let (doc_ref, body) = store.insert_part(cube_part("asm-r2b-row2b-part"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row2b"), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..3 {
-        let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+    for i in 0..3 {
+        // Instance 0 roots the column; the others sit where their
+        // mates put them.
+        let node = if i == 0 {
+            Node::instantiate_part(doc_ref)
+        } else {
+            crate::fixture::mated_instance(doc_ref)
+        };
+        let (next, id) = insert(doc, node);
         doc = next;
         ids.push(id);
     }

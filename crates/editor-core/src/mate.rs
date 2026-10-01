@@ -1023,11 +1023,9 @@ pub enum OffsetCheck {
 impl core::fmt::Display for OffsetCheck {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Placement { node, .. } => write!(
-                f,
-                "the placement at node {p} does not evaluate — repair node {p}",
-                p = node.0
-            ),
+            Self::Placement { node, .. } => {
+                write!(f, "the placement at node {} does not evaluate", node.0)
+            }
             Self::Unleverable(refusal) => write!(f, "{refusal}"),
             Self::Indeterminate(diag) => {
                 write!(f, "the check could not be decided — {}", diag.payload())
@@ -1285,8 +1283,8 @@ impl core::fmt::Display for MateFault {
             } => {
                 write!(
                     f,
-                    "instance {}'s offset disagrees with where its mates place it on the root, \
-                     instance {}: predicate `{predicate}` ",
+                    "instance {}'s offset disagrees with where its mates place it relative to \
+                     its group's root, instance {} — predicate `{predicate}` ",
                     instance.0, root.0
                 )?;
                 write_clash(
@@ -1294,14 +1292,29 @@ impl core::fmt::Display for MateFault {
                     *clash,
                     "the offset and the solve would have had to agree",
                 )?;
-                write!(f, " — {OFFSET_RECOURSE}")
+                write!(f, ". {}", crate::sentence::Recourse(OFFSET_RECOURSE))
             }
-            Self::OffsetUnchecked { instance, cause } => write!(
-                f,
-                "instance {}'s offset could not be checked against where its mates place it: \
-                 {cause}",
-                instance.0
-            ),
+            Self::OffsetUnchecked { instance, cause } => {
+                write!(
+                    f,
+                    "instance {}'s offset could not be checked against where its mates place \
+                     it: {cause}. ",
+                    instance.0
+                )?;
+                match &**cause {
+                    OffsetCheck::Placement { node, .. } => write!(
+                        f,
+                        "{}",
+                        crate::sentence::Recourse(format_args!(
+                            "repair node {}, or clear the offset",
+                            node.0
+                        ))
+                    ),
+                    OffsetCheck::Unleverable(_) | OffsetCheck::Indeterminate(_) => {
+                        write!(f, "{}", crate::sentence::Recourse("clear the offset"))
+                    }
+                }
+            }
         }
     }
 }

@@ -226,6 +226,14 @@ pub fn same_offset(a: &ProfileDoc, ai: RecipeNodeId, b: &ProfileDoc, bi: RecipeN
 }
 
 /// An instance's offset (A11 (2)); panics on a node that is not one.
+/// **An instance that sits where its mates put it**: on the world, with
+/// no offset. A placing mate to an instance that carries one roots the
+/// joined group there, whichever operand this instance is, and clears
+/// nothing.
+pub fn mated_instance(doc_ref: editor_core::DocRef) -> Node<ProfileProgram> {
+    Node::instantiate_part_with(doc_ref, editor_core::InterfaceRecord::default(), None, None)
+}
+
 pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Placement> {
     match doc.node(id) {
         Some(Node::InstantiatePart { offset, .. }) => offset.clone(),

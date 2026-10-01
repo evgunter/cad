@@ -870,10 +870,10 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
         assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
         assert!(
             matches!(
-                applied.doc.node(lost),
+                applied.doc.node(ids[0]),
                 Some(Node::InstantiatePart { offset: None, .. })
             ),
-            "the orphan carries no offset the delete invented"
+            "the orphan — the side the mate moved — carries no offset the delete invented"
         );
     }
 }
@@ -881,8 +881,8 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
 /// **Only a mate insert's rider asks the store**: on a mated document,
 /// a second mate asks exactly what its OWN admission needs — the rider
 /// on its coincidence is decided over its two parts, once each — and
-/// joins the third instance's group, clearing that instance's offset
-/// (the mate door). An offset, an appearance, a declare, a fourth
+/// joins the third instance's group, clearing the offset of its first
+/// operand's group root (the mate door). An offset, an appearance, a declare, a fourth
 /// instance and every delete — the mate's, the root's — ask nothing:
 /// no edit records a frame, so none solves.
 #[test]
@@ -912,7 +912,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
         )
         .expect("a joining mate inserts");
     assert!(
-        matches!(applied.maintenance[..], [editor_core::Maintenance::OffsetCleared { instance, .. }] if instance == c),
+        matches!(applied.maintenance[..], [editor_core::Maintenance::OffsetCleared { instance, .. }] if instance == b),
         "{:?}",
         applied.maintenance
     );
@@ -1001,12 +1001,12 @@ fn a6_a_saved_split_replays_bit_identically_with_no_store() {
     assert!(replayed.bit_eq(&live));
     assert!(
         matches!(
-            live.node(b),
+            live.node(a),
             Some(Node::InstantiatePart { offset: None, .. })
         ),
-        "the joined root's offset was cleared at the mate and stays cleared"
+        "the moved root's offset was cleared at the mate and stays cleared"
     );
-    let _ = a;
+    let _ = b;
 }
 
 /// **C5, the checked-in corpus**: every TRACKED `.pncad` (git's

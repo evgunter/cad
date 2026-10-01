@@ -373,8 +373,7 @@ fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
             expr: len(v),
         })
         .collect();
-    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
-        .expect("the log replays");
+    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
     assert_eq!(history.len(), 4);
     for expected in [0.008_f64, 0.007, 0.006] {
         history.undo().expect("a step back");

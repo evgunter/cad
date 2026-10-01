@@ -123,6 +123,15 @@ fn scene(label: &str) -> Scene {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    // The top sits where its mates put it: the base roots every group
+    // the rows' mates make, and a mate moves the top's copies onto it.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance: top,
+            offset: None,
+        },
+    );
     Scene {
         doc,
         opts,

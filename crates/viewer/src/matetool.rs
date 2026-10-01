@@ -90,7 +90,7 @@
 
 use pncad::document::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, EvalOptions, Evaluation, Frame,
-    MateFault, MateFrame, MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram,
+    MateFrame, MatePrimitive, MateSide, Member, NotAFaceName, PoseRefusal, ProfileProgram,
     RecipeNodeId, SitedFace, class_admission, mate_reach, member_of, solve_document, table_gap,
 };
 use pncad::geom_core::Tol;
@@ -284,14 +284,15 @@ pub enum MateToolError {
         /// Which pick.
         side: MateSide,
     },
-    /// The member's instance's current placement could not be read
-    /// (its group's solve refused), so the world pose cannot be
-    /// pulled back into part coordinates.
+    /// The member's instance's current placement could not be read —
+    /// its group's solve refused, nothing places its group, or a
+    /// placement on its frame did not evaluate — so the world pose
+    /// cannot be pulled back into part coordinates.
     Placement {
         /// Which pick.
         side: MateSide,
-        /// The solve's own fault.
-        fault: Box<MateFault>,
+        /// The solve's own refusal.
+        fault: Box<PoseRefusal>,
     },
     /// The chosen class is outside the vocabulary
     /// ([`ClassAdmission::NotAdmitted`]): refused HERE, before any
@@ -664,9 +665,12 @@ impl MateTool {
                     error: crate::tree::interrogation_as_drawn(error, eval),
                 })?;
             let u_ref = pose.u_ref.ok_or(MateToolError::NoReference { side })?;
-            let placement: Frame = poses
-                .placement(doc, member.instance)
-                .map_err(|fault| MateToolError::Placement { side, fault })?;
+            let placement: Frame = poses.placement(doc, member.instance).map_err(|fault| {
+                MateToolError::Placement {
+                    side,
+                    fault: Box::new(fault),
+                }
+            })?;
             // World → part coordinates: the placement's inverse. The
             // placement is a rigid frame (the edit door and the solve
             // both hold it to that), so the inverse is exact up to

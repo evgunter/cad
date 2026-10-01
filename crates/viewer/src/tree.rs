@@ -474,6 +474,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Sweep { .. } => "Sweep",
         Node::InstantiatePart { .. } => "InstantiatePart",
         Node::Mate { .. } => "Mate",
+        Node::Gauge { .. } => "Gauge",
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
     }
@@ -562,6 +563,7 @@ pub fn frame_pose(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
         | Node::Mate { .. }
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -758,6 +760,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -785,7 +788,8 @@ fn measured_of(
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
         | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_) => None,
+        | ValuePayload::Mate(_)
+        | ValuePayload::Gauge => None,
     }
 }
 
@@ -1082,6 +1086,14 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::DeclareSiteNotAnOperand { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
+        // The kernel's own words: "repair node {p}" — the gauge, or
+        // the root whose offset did not evaluate.
+        NodeErrorKind::PlacementRefused { node, .. } => Some(*node),
+        // Names the unplaced group's root as evidence of which space
+        // the node reached into. Either the reading node or the group
+        // is the repair — read within one space, or place the group —
+        // and one link would pick for the reader.
+        NodeErrorKind::Unplaced { .. } => None,
         // A payload that names a node does so as evidence: a name's
         // minting node, where the repair is the referring node's own
         // reference; an upstream table the naming pass found missing;
@@ -1174,6 +1186,9 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::Contradictory { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. } => None,
+        // Sit on the instance whose offset is the statement, and name
+        // its root only as the group the solve placed it in.
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => None,
     }
 }
 
@@ -1208,8 +1223,9 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 /// that holds for an arm naming a node an author may repair is stated
 /// once, in the module header's second section.
 ///
-/// Two arms name none, and they get an arm each because they are not
-/// the same case: one reaches rows and one cannot reach any.
+/// Four arms name none: `Band` reaches every row, the mispairing
+/// reaches none, and the two checked-offset arms reach only the
+/// instance that states the offset.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::Frame { mate, .. }
@@ -1228,6 +1244,9 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         // Names no mate and reaches NO row (`MateFault`'s doc says
         // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
+        // Name no mate: the fault is the instance's own checked
+        // offset, so the instance's row keeps its own `Failed`.
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
         // causes and the user picks which to relax.

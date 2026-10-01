@@ -9,7 +9,7 @@
 //! of the number; this is the same number for the edit chain).
 //!
 //! The forwarding arms are rendered over what they forward: every
-//! `MateFault` arm inside `MaintenanceRefused` and `MateRefused`, every
+//! `MateFault` arm inside `MateRefused`, every
 //! `StepIdFault` arm an edit door raises inside `StepIdsRefused`, and
 //! the longest path refusals inside `ProfileProgramRefused` (the
 //! feature tree's rows in `editor-core/tests/refusal_concision_chains.rs`
@@ -170,17 +170,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 expected: Dimension::Length,
                 found: Dimension::Angle,
             },
-        ),
-        (
-            "MaintenanceRefused",
-            EditError::MaintenanceRefused {
-                gauge: n(6),
-                fault: Some(Box::new(MateFault::ClassNotAdmitted { mate: n(9) })),
-            },
-        ),
-        (
-            "MaintenanceUnrecorded",
-            EditError::MaintenanceUnrecorded { gauge: n(6) },
         ),
         (
             "StructuralSlotNeedsStructuralEdit",
@@ -458,8 +447,33 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             }),
         ),
         (
-            "PlacementOnNonInstance",
-            EditError::PlacementOnNonInstance { node: n(5) },
+            "OffsetOnNonInstance",
+            EditError::OffsetOnNonInstance { node: n(5) },
+        ),
+        (
+            "GaugeOnNonPlaced",
+            EditError::GaugeOnNonPlaced { node: n(5) },
+        ),
+        (
+            "GaugeNotLive",
+            EditError::GaugeNotLive {
+                node: n(5),
+                gauge: n(3),
+            },
+        ),
+        (
+            "NotAGauge",
+            EditError::NotAGauge {
+                node: n(5),
+                gauge: n(3),
+            },
+        ),
+        (
+            "GaugeCycle",
+            EditError::GaugeCycle {
+                node: n(5),
+                gauge: n(3),
+            },
         ),
         (
             "PlacementRuleMismatch",
@@ -481,7 +495,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "NonFinitePlacement",
             EditError::NonFinitePlacement {
                 node: n(5),
-                at: FrameSite::Registry,
+                at: FrameSite::Step { index: 0 },
             },
         ),
         (
@@ -775,6 +789,25 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
                 },
             },
         ),
+        (
+            "OffsetDisagrees",
+            MateFault::OffsetDisagrees {
+                instance: n(7),
+                root: n(6),
+                predicate: "mate_member_translation_zero",
+                clash: Clash::Length { metres: 0.002 },
+            },
+        ),
+        (
+            "OffsetUnchecked",
+            MateFault::OffsetUnchecked {
+                instance: n(7),
+                cause: Box::new(editor_core::OffsetCheck::Placement {
+                    node: n(3),
+                    error: NodeErrorKind::EmptyOperand { input: n(2) }.into(),
+                }),
+            },
+        ),
     ]
 }
 
@@ -824,13 +857,6 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     }
     for (arm, fault) in mate_faults() {
         rows.push((
-            format!("MaintenanceRefused({arm})"),
-            EditError::MaintenanceRefused {
-                gauge: n(6),
-                fault: Some(Box::new(fault.clone())),
-            },
-        ));
-        rows.push((
             format!("MateRefused({arm})"),
             EditError::MateRefused {
                 node: n(9),
@@ -853,7 +879,6 @@ const LABELS: &[(&str, &str)] = &[
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",
         "at corner",
     ),
-    ("Edit/MaintenanceRefused(", "mate 9"),
     ("Edit/MateRefused(", "mate 9"),
 ];
 
@@ -863,25 +888,10 @@ const LABELS: &[(&str, &str)] = &[
 const FILED_NO_RECOURSE: &[&str] = &[
     // work/edit/edit-refusals-short-of-the-shape-guard.md, held for
     // work/edit/placement-is-spelled-three-ways-node-registry-and-rule.md:
-    // the placement unit reshapes or deletes these arms.
+    // the two placement-rule arms, which the gauge unit did not touch.
     "Edit/EmptyPlacementList",
-    "Edit/MaintenanceUnrecorded",
-    "Edit/PlacementAxis",
-    "Edit/PlacementOnNonInstance",
     "Edit/PlacementRuleMismatch",
     // work/msolve/msolve-refusals-short-of-the-shape-guard.md
-    "Edit/MaintenanceRefused",
-    "Edit/MaintenanceRefused(ClassNotAdmitted)",
-    "Edit/MaintenanceRefused(Contradictory)",
-    "Edit/MaintenanceRefused(DanglingHead)",
-    "Edit/MaintenanceRefused(Indeterminate)",
-    "Edit/MaintenanceRefused(PartSelectsAnotherCopy)",
-    "Edit/MaintenanceRefused(PlacerRefused)",
-    "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-    "Edit/MaintenanceRefused(SelfMate)",
-    "Edit/MaintenanceRefused(TableLacks)",
-    "Edit/MaintenanceRefused(Under)",
-    "Edit/MaintenanceRefused(Unleverable)",
     "Edit/MateRefused",
     "Edit/MateRefused(ClassNotAdmitted)",
     "Edit/MateRefused(Contradictory)",
@@ -985,16 +995,6 @@ const ADMISSIONS: &[Admission<'static>] = &[
         filed: "work/edit/part-refusals-name-documents-by-hex-id.md",
     },
     Admission {
-        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-        span: "3e23e8160039594a33894f6564e1b134",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MaintenanceRefused(PosesOfAnotherDocument)",
-        span: "ca978112ca1bbdcafac231b39a23dc4d",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
         row: "Edit/MateRefused(PosesOfAnotherDocument)",
         span: "3e23e8160039594a33894f6564e1b134",
         filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
@@ -1002,11 +1002,6 @@ const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Edit/MateRefused(PosesOfAnotherDocument)",
         span: "ca978112ca1bbdcafac231b39a23dc4d",
-        filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
-    },
-    Admission {
-        row: "Edit/MaintenanceRefused(Unleverable)",
-        span: "11c1eee0e02516b19e263d060a3c9f80@9515831d455a",
         filed: "work/msolve/mate-refusals-name-documents-by-hex-id.md",
     },
     Admission {
