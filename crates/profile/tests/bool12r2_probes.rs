@@ -411,7 +411,8 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
             assert!(
                 a.x.to_bits() == b.x.to_bits()
                     && a.y.to_bits() == b.y.to_bits()
-                    && lowered.bulges()[i].to_bits() == raw.bulges()[i].to_bits(),
+                    && crate::common::segment_bits(&lowered.segments()[i])
+                        == crate::common::segment_bits(&raw.segments()[i]),
                 "shoulder {shoulder} vertex {i}: {a:?} vs {b:?}"
             );
         }
@@ -533,7 +534,7 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     // the DATA gate — which owns materialized carriers — refuses.
     let closed = ring(true).expect("the declared arrival closes");
     assert_eq!(closed.loop_.tangent_joints(), &[0]);
-    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
+    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_.into_loop()]).validate(t);
     println!("R2: arc-first-side, declared -> at the gate {verdict:?}");
     // RULED (2026-09-02, addendum 3): one token, and it declares the
     // joint TANGENT — which is what this joint is — so the gate accepts.
@@ -596,7 +597,7 @@ fn r2_a_declared_g1_seam_onto_a_cocircular_first_side() {
     // one onto an identical carrier is true rather than contradicted.
     let closed = built.expect("the declared G1 arrival closes");
     assert!(closed.loop_.tangent_joints().contains(&0));
-    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
+    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_.into_loop()]).validate(t);
     println!("R2: cocircular G1 seam, at the gate -> {verdict:?}");
     verdict.expect("the data gate accepts it: the directions agree");
 }

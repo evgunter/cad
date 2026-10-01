@@ -189,7 +189,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
             }
             Ok(())
         }
-        Err(source) => Err(sliver(source)),
+        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(sliver(source)),
     }
 }
 

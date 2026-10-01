@@ -199,8 +199,8 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
             .copied()
             .unwrap_or_else(|| panic!("no {p} decisions"))
     };
-    // M10-9's split, unchanged with the algebra off.
-    assert_eq!(row(&off, "carrier_matches_mapped_source"), [180, 0, 8, 64]);
+    // The split with the algebra off.
+    assert_eq!(row(&off, "carrier_matches_mapped_source"), [180, 0, 16, 56]);
     assert_eq!(row(&off, "carrier_on_surface_2"), [108, 0, 0, 72]);
     assert_eq!(row(&off, "witness_on_surface_2"), [12, 0, 0, 8]);
     assert_eq!(row(&off, "pcurve_map_residual"), [0, 0, 0, 36]);

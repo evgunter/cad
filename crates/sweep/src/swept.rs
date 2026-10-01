@@ -38,17 +38,16 @@
 //! **One qualifier, and it is load-bearing: `from a validated loop`.**
 //! `revolve::tube` mints its two-arc traversal directly from the
 //! caller's intent values, because its whole purpose is to store the
-//! given centre and radii bit-exactly rather than reconstruct them
-//! from bulges — so it cannot take a `ValidatedLoop` and cannot come
-//! through here. It applies the same reversal convention by hand and
+//! given centre and radii bit-exactly, with no loop to validate — so it
+//! cannot take a `ValidatedLoop` and cannot come through here. It
+//! applies the same reversal convention by hand and
 //! **says so at its own site**; that marker is the only thing tying
 //! the two together, and it is deliberately not deleted.
 
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
-use geom_core::sym::SymRegistration;
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
+    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::SegmentKind;
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
@@ -115,6 +114,72 @@ pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
     !turn_negates(canonical_turn)
 }
 
+/// A carrier class in SWEPT traversal order: the validated
+/// [`SegmentKind`] as a traversal carries it, its sweep and turn the
+/// traversal's — negated and flipped where the traversal runs the
+/// canonical segment backwards.
+///
+/// A type of its own, not the canonical kind: a validated segment's
+/// kind is oriented by the profile's canonical winding, and a body that
+/// reads a traversal's orientation must not be handed that one. The
+/// mints are the two traversals below and [`Traversed::half_turn`],
+/// which takes no kind, so a canonical kind reaches a traversal's
+/// reader through [`swept_segments`] or not at all.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Traversed<T: Real>(SegmentKind<T>);
+
+impl<T: Real> Traversed<T> {
+    /// A canonical kind traversed forward: itself.
+    fn forward(kind: SegmentKind<T>) -> Self {
+        Self(kind)
+    }
+
+    /// A canonical kind traversed backward: an arc's carrier kept, its
+    /// sweep reversed ([`Arc2::reversed`]) and its turn flipped.
+    ///
+    /// Every variant answered by name, so a new sweep-bearing kind
+    /// stops this compiling until its reversal is written here.
+    fn backward(kind: SegmentKind<T>) -> Self {
+        Self(match kind {
+            SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
+                arc: arc.reversed(),
+                turn: turn.flip(),
+            },
+            SegmentKind::Line => SegmentKind::Line,
+        })
+    }
+
+    /// The half turn about `centre` of radius `radius`, traversed in
+    /// the sense `turn` — for a builder with no validated loop to
+    /// traverse (`revolve::tube`, which stores its caller's centre and
+    /// radius). It takes no kind, so a canonical one cannot pass through
+    /// it: the traversal is built here, in `turn`'s own orientation.
+    ///
+    /// The half-turn is spelled as the arc lowering spells a unit-bulge
+    /// arc's sweep (`4·atan 1`), not as `T::pi()`: the certifier samples
+    /// it at fractions `i/8`, and the symbolic tier folds the trig of
+    /// `q·atan 1` in closed form (rule D) where a fraction of `π` other
+    /// than a half-multiple stays an atom.
+    pub(crate) fn half_turn(centre: Point2<T>, radius: T, turn: Sign) -> Self {
+        let half = Arc2 {
+            centre,
+            radius,
+            sweep: T::from_f64(4.0) * T::one().atan(),
+        };
+        let arc = if turn_negates(turn) {
+            half.reversed()
+        } else {
+            half
+        };
+        Self(SegmentKind::Arc { arc, turn })
+    }
+
+    /// The carrier class, in this traversal's orientation.
+    pub(crate) fn get(self) -> SegmentKind<T> {
+        self.0
+    }
+}
+
 /// The sketch-level chord data this module's lowering reads from a
 /// swept segment: endpoints in swept traversal order, and the carrier
 /// class (with an arc's carrier and sweep) in that order.
@@ -129,10 +194,8 @@ pub(crate) trait SweptChord<T: Real> {
     fn a(&self) -> Point2<T>;
     /// End point, sketch coordinates.
     fn b(&self) -> Point2<T>;
-    /// The carrier class in swept traversal order: the validated kind,
-    /// whose sweep and turn are the traversal's — negated and flipped
-    /// when the traversal runs the canonical segment backwards.
-    fn kind(&self) -> SegmentKind<T>;
+    /// The carrier class in swept traversal order.
+    fn kind(&self) -> Traversed<T>;
 }
 
 /// One segment of a swept loop in swept traversal order, with the
@@ -151,7 +214,7 @@ pub(crate) struct SweptSeg<T: Real> {
     /// End point.
     pub(crate) b: Point2<T>,
     /// The carrier class in swept traversal order.
-    pub(crate) kind: SegmentKind<T>,
+    pub(crate) kind: Traversed<T>,
     /// Canonical index of the start vertex. Error reporting only.
     pub(crate) canonical_vertex: usize,
     /// Canonical index of the segment: the index in the loop's
@@ -172,23 +235,25 @@ impl<T: Real> SweptChord<T> for SweptSeg<T> {
     fn b(&self) -> Point2<T> {
         self.b
     }
-    fn kind(&self) -> SegmentKind<T> {
+    fn kind(&self) -> Traversed<T> {
         self.kind
     }
 }
 
-/// A canonical segment is the forward traversal of itself — what the
-/// loft's walls read (`skin::vertex_segment`), outside any swept
-/// traversal.
-impl<T: Real> SweptChord<T> for profile::ValidatedSegment<T> {
-    fn a(&self) -> Point2<T> {
-        self.start
-    }
-    fn b(&self) -> Point2<T> {
-        self.end
-    }
-    fn kind(&self) -> SegmentKind<T> {
-        self.kind
+impl<T: Real> SweptSeg<T> {
+    /// Segment `j` of the FORWARD traversal of `lp` — canonical segment
+    /// `j` as itself, which is what the loft's walls read
+    /// (`skin::vertex_segment`) outside a swept loop, and what
+    /// [`swept_segments`] builds for every `j` when it does not reverse.
+    pub(crate) fn forward(lp: &profile::ValidatedLoop<T>, j: usize) -> Self {
+        let s = &lp.segments()[j];
+        Self {
+            a: s.start,
+            b: s.end,
+            kind: Traversed::forward(s.kind),
+            canonical_vertex: j,
+            canonical_segment: j,
+        }
     }
 }
 
@@ -216,33 +281,21 @@ pub(crate) fn swept_segments<T: Real>(
 ) -> Vec<SweptSeg<T>> {
     let segs = lp.segments();
     let n = segs.len();
-    let mut out = Vec::with_capacity(n);
-    for j in 0..n {
-        let (s, a, b, canonical_vertex, canonical_segment) = if reverse {
+    (0..n)
+        .map(|j| {
+            if !reverse {
+                return SweptSeg::forward(lp, j);
+            }
             let s = &segs[n - 1 - j];
-            (s, s.end, s.start, (n - j) % n, n - 1 - j)
-        } else {
-            let s = &segs[j];
-            (s, s.start, s.end, j, j)
-        };
-        // Every variant answered by name, so a new sweep-bearing kind
-        // stops this compiling until its reversal is written here.
-        let kind = match s.kind {
-            SegmentKind::Arc { arc, turn } if reverse => SegmentKind::Arc {
-                arc: arc.reversed(),
-                turn: turn.flip(),
-            },
-            kind @ (SegmentKind::Arc { .. } | SegmentKind::Line) => kind,
-        };
-        out.push(SweptSeg {
-            a,
-            b,
-            kind,
-            canonical_vertex,
-            canonical_segment,
-        });
-    }
-    out
+            SweptSeg {
+                a: s.end,
+                b: s.start,
+                kind: Traversed::backward(s.kind),
+                canonical_vertex: (n - j) % n,
+                canonical_segment: n - 1 - j,
+            }
+        })
+        .collect()
 }
 
 /// The segment as a `geom-brep` sketch segment (the description's
@@ -255,68 +308,34 @@ pub(crate) fn swept_segments<T: Real>(
 /// override — which would put the body back to two.
 pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegment<T> {
     let (a, b) = (seg.a(), seg.b());
-    match seg.kind() {
+    match seg.kind().get() {
         SegmentKind::Line => SketchSegment::Line { a, b },
         SegmentKind::Arc { arc, .. } => SketchSegment::Arc { a, b, arc },
     }
 }
 
-/// The arc apex: the carrier point at mid-sweep — an on-carrier
-/// interior point of the segment, and the point that keeps a 2-vertex
-/// loop plane-determining.
-///
-/// It is the chord midpoint moved off the chord by the sagitta:
-/// `mid − n̂·σ·(len/2)·tan(|Δθ|/4)`, with `n̂` the unit left normal of
-/// the chord `a → b` and σ the turn's sign (a counterclockwise arc bows
-/// to the right of its chord, a clockwise one to the left). Over the
-/// reals it is `centre − n̂·σ·radius`, for every `|Δθ| < 2π`.
-///
-/// **Chord-scale, not radius-scale**, which is why it is not written
-/// through the carrier. At `Interval` the carrier's centre carries the
-/// chord's relative width amplified by the radius (∝ 1/b for a flat
-/// arc), so `centre − n̂·σ·radius` is that wide too (3.6e-12 at unit
-/// chord and b = 1e-4, measured), while the sagitta form stays at the
-/// endpoints' own scale. And it is rational in the endpoints plus one
-/// tangent of the sweep, not the sweep's sine and cosine: the apex is a
-/// fit point of a cap plane, and trig of the half-sweep in every cap
-/// plane is what cost r1_annulus its certification ceiling.
-pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, sweep: T, turn: Sign) -> Point2<T> {
-    let chord = b - a;
-    let len = chord.norm();
-    let u = chord / len;
-    let nhat = Vec2::new(T::zero() - u.y, u.x);
-    let mid = a.lerp(b, T::from_f64(0.5));
-    let sagitta = len * T::from_f64(0.5) * (arc_span(turn, sweep) * T::from_f64(0.25)).tan();
-    let bow = if turn_negates(turn) {
-        T::zero() - sagitta
-    } else {
-        sagitta
-    };
-    mid - nhat * bow
-}
-
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
-/// decided turn, read by [`turn_negates`].
+/// decided turn, read by [`turn_negates`] — a clockwise arc's span is
+/// its reversal's sweep ([`Arc2::reversed`]), as in [`turn_axis`].
 ///
 /// The turn is the profile's certified sign of the sweep, so this is
 /// `|sweep|` to the bit at `f64` and `|sweep|`'s enclosure at
 /// `Interval`. It is spelled through the turn, not `abs`, so that at
 /// `Sym` it is `±sweep`, the node [`SketchSegment::eval`] turns
 /// through, which rule D folds (`geom_core::sym::trig`); `abs(sweep)`
-/// would be an opaque atom. [`register_span_identity`] is stated about
-/// this span.
-pub(crate) fn arc_span<T: Real>(turn: Sign, sweep: T) -> T {
+/// would be an opaque atom.
+pub(crate) fn arc_span<T: Real>(turn: Sign, arc: Arc2<T>) -> T {
     if turn_negates(turn) {
-        T::zero() - sweep
+        arc.reversed().sweep
     } else {
-        sweep
+        arc.sweep
     }
 }
 
 /// **The crate's one reading of a turn**: `true` for a clockwise
-/// (`Negative`) turn. [`turn_axis`], [`arc_span`], [`arc_apex`],
-/// [`centre_on_material_side`] and `revolve::tube`'s circle traversal
-/// all read it here, so `Zero` — unreachable for a classified arc, whose
+/// (`Negative`) turn. [`turn_axis`], [`arc_span`],
+/// [`centre_on_material_side`] and [`Traversed::half_turn`]
+/// (`revolve::tube`'s circle traversal) all read it here, so `Zero` — unreachable for a classified arc, whose
 /// turn is a certified non-zero sign — takes the positive arm in every
 /// one of them at once. Total rather than loud for that reason: no
 /// consumer can part from another on it.
@@ -335,80 +354,13 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
     }
 }
 
-/// **What a registrant does with the door's typed answer**, in one
-/// place for both of this file's registrants: the refusal arm decides
-/// whether handling it may also ASSERT on it.
-///
-/// - [`SymRegistration::Contradicted`] is a PROOF and is loud. It is
-///   the EXACT witness's answer — [`geom_core::Interval`]'s two
-///   certified enclosures disjoint over the leaf's box — so no scale
-///   makes it the arithmetic giving up: either `what` is not what the
-///   registrant built, or an upstream enclosure does not contain its
-///   real. Both are defects and both belong loud. **Live in RELEASE
-///   too**: this workspace ships `debug-assertions = true` in the
-///   release profile, so a `Contradicted` aborts every profile rather
-///   than being counted.
-/// - [`SymRegistration::Disputed`] is bound and never asserted on: an
-///   INEXACT witness could not tell a lie from a theorem of the reals
-///   it lost at this scale. The arm's own doc carries that argument and
-///   the torus that measures it.
-/// - Every other arm is a record, a no-op, or "nothing to record here",
-///   and none of them is a defect.
-///
-/// The match is EXHAUSTIVE by hand — no wildcard — because this PR's
-/// own subject is an arm that a wildcard would have swallowed.
-fn handle_registration(answer: SymRegistration, what: &'static str) {
-    match answer {
-        SymRegistration::Contradicted => debug_assert!(
-            !matches!(answer, SymRegistration::Contradicted),
-            "the EXACT witness separated {what}: either this builder's theorem is false \
-             for the configuration it was handed, or an upstream enclosure does not \
-             contain its real"
-        ),
-        // Refused by an inexact witness. Counted in the session's
-        // receipt (`SymCounts::registrations_refused`), never asserted.
-        SymRegistration::Disputed
-        // Recorded, or already there, or witnessed with nowhere to put
-        // it, or a value channel that cannot witness at all.
-        | SymRegistration::Recorded
-        | SymRegistration::Already
-        | SymRegistration::Witnessed
-        | SymRegistration::Unwitnessed
-        // A registrant may not alias a node into its own expression;
-        // neither of this file's does, and the door refuses it if one
-        // ever tries. Counted like any refusal.
-        | SymRegistration::Cyclic => {}
-    }
-}
-
-/// **The swept arc's rim identity, registered** (M10-9; ERROR-DESIGN
-/// E12's "kept in reserve — discharge by provenance", taken): the
-/// distance from an arc's endpoint to its center IS its radius, and
-/// this is the site that guarantees it, so this is the site that says
-/// so ([`geom_core::Real::register_equal`]).
-///
-/// **The proof, and it is two lines.** In the sketch plane the arc's
-/// geometry is the sagitta closed form (`profile::seg`): with `len` the
-/// chord length, `b` the bulge, `mid` the chord midpoint and `n̂` the
-/// unit chord normal, `apothem = len·(1 − b²)/(4b)`,
-/// `signed_radius = len·(1 + b²)/(4b)`, `center = mid + n̂·apothem` and
-/// `radius = |signed_radius|`. Either endpoint sits at `len/2` from
-/// `mid` along the chord, and `n̂ ⟂ chord`, so
-/// `‖q − c‖² = (len/2)² + apothem² = len²·(4b² + (1 − b²)²)/(16b²)
-/// = len²·(1 + b²)²/(16b²) = signed_radius² = radius²` — an identity of
-/// RATIONAL functions of the parameters, at every value where the arc
-/// is defined. Both sides are non-negative by construction (`‖q − c‖`
-/// is a `sqrt`, `radius` an `abs`), so the two are the same
-/// non-negative root and the squared identity is the unsquared one.
-/// The placement is rigid — an orthonormal frame and a translation —
-/// so the world distance is the sketch distance and the radius crosses
-/// unchanged; where a caller's placement is NOT rigid the door's own
-/// witness refuses the registration typed rather than believing this
-/// paragraph — [`geom_core::sym::SymRegistration::Disputed`] at an
-/// inexact witness (`f64`, `Probe`), and at
-/// [`geom_core::Interval`] the exact witness's
-/// [`geom_core::sym::SymRegistration::Contradicted`], which
-/// `handle_registration` turns into an assertion.
+/// **A latitude circle's rim identity, registered** (M10-9;
+/// ERROR-DESIGN E12's "kept in reserve — discharge by provenance",
+/// taken): the distance from the point a circle carrier was built
+/// through to its centre IS its radius, stated by the builder that
+/// guarantees it ([`geom_core::Real::register_equal`]). Its callers are
+/// the revolve's latitude carriers (`revolve::surfaces`,
+/// `revolve::full`), and the comment at each carries the theorem.
 ///
 /// **Why the tier cannot prove it for itself, measured.** The squared
 /// identity is a plain-form theorem wherever the coefficient ring can
@@ -424,65 +376,85 @@ fn handle_registration(answer: SymRegistration, what: &'static str) {
 /// `rim.normalize()` already divides by (`Vec3::normalize` is
 /// `self / self.norm()` and node ids are content hashes), so the
 /// registrant builds no expression the carrier did not already build,
-/// and no value anywhere changes — the carrier's `u_ref` is still
-/// `v / ‖v‖` at every lane. The rejected cheaper spelling is
-/// `v / radius`, which would buy the same cancellation by changing the
-/// `f64` lane's bits.
+/// and no value anywhere changes.
 ///
 /// `tol` is the run's ε, which the door's inexact witnesses compare at
 /// ([`geom_core::Real::register_equal`]). It ARRIVES from the caller —
 /// every registrant on this path is reached from a builder that already
 /// holds one, and kernel library code may not mint a tolerance witness.
 pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) {
-    // The typed answer is handled by arm (`handle_registration`, which
-    // carries why each arm is treated as it is).
-    handle_registration(
-        rim.norm().register_equal(radius, tol),
-        "the swept arc's ‖q − c‖ from its stored radius",
-    );
+    rim.norm()
+        .register_equal(radius, tol)
+        .handle("a latitude carrier's ‖q − c‖ from its radius");
 }
 
-/// **The swept arc's SPAN identity, registered** (M10-9 amendment A1;
-/// ERROR-DESIGN E12's reserve names this one by hand — "a typed
-/// 'built as `carrier.eval(t0)`' token"): the carrier evaluated at its
-/// own `param_end` IS the segment's far vertex, componentwise, and
-/// this is the site that guarantees it.
+/// **A placed profile arc's rim IS its sketch rim** — the one fact the
+/// sweep registers about a profile arc, rigidity, stated where it is
+/// guaranteed ([`geom_core::Real::register_equal`]).
 ///
-/// **The proof, and it is two lines.** The sweep an arc carries is its
-/// signed turned angle θ BY DEFINITION of the lowering, and the span
-/// `param_end` is that sweep signed by the decided turn, i.e. `|θ|`
-/// (`arc_span`). The sagitta closed forms put the centre on the chord's
-/// perpendicular bisector at the apothem (`profile::seg`), so `q_from`
-/// and `q_to` are both at `radius` from it — the rim identity above —
-/// and the angle from `q_from − c` to `q_to − c`, measured about the
-/// turn-signed plane normal, is that same θ. Rotating the first radius
-/// vector by θ about the axis therefore lands on the second: for a
-/// circle carrier `eval(t) = c + frame(axis, u_ref, t).radial · r`
-/// with `u_ref = (q_from − c)/‖q_from − c‖`, so `eval(θ) = q_to`.
+/// **The proof.** `rim` is `place(start) − place(centre)` for the arc's
+/// swept start and its stored centre, and a rigid placement's linear
+/// part is orthonormal, so `‖rim‖ = ‖start − centre‖` — the sketch rim
+/// [`Arc2::rim`] spells. Where a caller's placement is NOT rigid the
+/// door's own witness refuses the registration typed rather than
+/// believing this paragraph (`Disputed` at an inexact witness, and at
+/// [`geom_core::Interval`] the exact witness's `Contradicted`, which
+/// `SymRegistration::handle` turns into an assertion).
 ///
-/// **Why the tier cannot prove it for itself.** The lowering's sweep
-/// `θ = 4·atan b` reaches the normal form as the atom `atan(b)` inside
-/// `cos` and `sin` atoms; outside rule D's closed forms the tier holds
-/// no functional identity of any atom (its module docs say so), so
-/// `cos(θ)` and the polynomial in `b` that `q_to − c` is are two
-/// unrelated indeterminates (M10's closed
-/// `plate-ceiling-is-now-the-arc-span-identity` measured this residual,
-/// `carrier_endpoint_end`, bounding the two-hole plate).
+/// **What it does not state, and why it need not.** The sketch rim's
+/// own identity, `‖start − centre‖ = radius`, is the arc's
+/// construction's to register — the profile's lowering does, on the
+/// values it built (`Arc2::register_endpoints`) — and the tier's alias
+/// is transitive, so this record chains the placed rim through the
+/// sketch rim to the radius. A carrier the construction did not
+/// register (copied across scalars, or written by a fixture) claims
+/// nothing beyond rigidity, which is the ruling's point: nothing about
+/// an arc's consistency is stored on it or claimed by a copy of it.
 ///
-/// **What it touches: nothing.** `carrier.eval(param_end)` is
-/// evaluated here and thrown away; node ids are content hashes, so the
-/// point the certifier builds from the same carrier and the same
-/// `param_end` IS this node, and no value the spec carries is derived
-/// from it. Registered PER COMPONENT because that is what the consumer
-/// asks: `carrier.eval(t1).distance(end)` is the `sqrt` of a sum of
-/// squares, zero as a form exactly when each component's difference is.
+/// **What it touches: nothing.** `rim.norm()` is the node
+/// `rim.normalize()` divides by and `arc.rim(start)` the node the
+/// construction registered, so no value changes anywhere.
+pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Point2<T>, tol: Tol) {
+    rim.norm()
+        .register_equal(arc.rim(start), tol)
+        .handle("a placed arc's ‖q − c‖ from its sketch rim");
+}
+
+/// **A placed arc's carrier end IS its sketch carrier end, placed** —
+/// the second fact of rigidity the sweep registers about a profile arc
+/// ([`geom_core::Real::register_equal`]), per component.
 ///
-/// `tol` is the run's ε, handed down as at the rim
-/// (`register_rim_identity` carries the argument).
-pub(crate) fn register_span_identity<T: Real>(
+/// **The proof.** The carrier is the circle about `place(centre)` with
+/// radius `radius`, reference direction `u_ref = rim/‖rim‖` for
+/// `rim = place(start) − place(centre)`, and axis the turn-signed plane
+/// normal, evaluated at the span `|Δθ|`. A rigid placement maps the
+/// sketch plane's rotation about `centre` by the signed sweep onto the
+/// 3-space rotation about that axis by `|Δθ|`, and the unit direction
+/// `(start − centre)/‖start − centre‖` onto `u_ref`, so the carrier at
+/// its span is `place` of the sketch carrier's own end,
+/// [`Arc2::carrier_end`] from `start`. Nothing in it reads whether
+/// `start` lies on the carrier, so it holds for every carrier, a copied
+/// or table one included. Where the placement is not rigid, the door's
+/// own witness refuses typed, as at [`register_rigidity`].
+///
+/// **What it chains through.** The construction registers the sketch
+/// carrier end against the arc's far vertex (`Arc2::register_endpoints`),
+/// which is the step that needs the start on the carrier; the tier's
+/// alias applies inside the early walk, so the placed carrier end's form
+/// is the placed far vertex's, and the carrier's far end reaches `q_to`
+/// without a registration of the whole point against it. A carrier the
+/// construction did not register claims nothing past rigidity, and its
+/// far end discharges numerically or escalates.
+///
+/// **What it touches: nothing.** `Curve3::circle_at` over the spec's
+/// own carrier and span is the node the certifier evaluates; the
+/// placed carrier end is built here and thrown away.
+fn register_placed_carrier_end<T: Real>(
     carrier: &Curve3<T>,
     param_end: T,
-    q_to: Point3<T>,
+    place: Affine3<T>,
+    arc: Arc2<T>,
+    start: Point2<T>,
     tol: Tol,
 ) {
     let Curve3::Circle {
@@ -492,18 +464,15 @@ pub(crate) fn register_span_identity<T: Real>(
         u_ref,
     } = *carrier
     else {
-        // Only the arc carrier guarantees this. Every other kind is
-        // built elsewhere and states nothing here.
         return;
     };
-    let p = Curve3::circle_at(center, axis, radius, u_ref, param_end);
-    // Per component, each answer handled by the same arm table as the
-    // rim's (`handle_registration`).
-    for (built, held) in [(p.x, q_to.x), (p.y, q_to.y), (p.z, q_to.z)] {
-        handle_registration(
-            built.register_equal(held, tol),
-            "carrier.eval(param_end) from the segment's far vertex",
-        );
+    let end = Curve3::circle_at(center, axis, radius, u_ref, param_end);
+    let sketch = arc.carrier_end(start);
+    let placed = place.transform_point(Point3::new(sketch.x, sketch.y, T::zero()));
+    for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
+        built
+            .register_equal(held, tol)
+            .handle("a placed arc's carrier end from its placed sketch carrier end");
     }
 }
 
@@ -516,9 +485,9 @@ pub(crate) fn register_span_identity<T: Real>(
 /// `place` and `normal` are the placement the segment is lowered
 /// through and its plane normal — the sketch placement for a base
 /// lamina, the translated or rotated one for the swept copy. `tol` is
-/// the run's ε, carried through to the two identities the arc arm
-/// states (`register_rim_identity`, `register_span_identity`) and used
-/// for nothing else here.
+/// the run's ε, carried through to the rigidity the arc arm states
+/// ([`register_rigidity`], [`register_placed_carrier_end`]) and used for
+/// nothing else here.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: Affine3<T>,
@@ -531,7 +500,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
         segment: sketch_segment(seg),
         place,
     });
-    match seg.kind() {
+    match seg.kind().get() {
         SegmentKind::Line => EdgeCurveSpec {
             description,
             carrier: Curve3::Line {
@@ -541,36 +510,25 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             param_start: T::zero(),
             param_end: q_from.distance(q_to),
         },
-        SegmentKind::Arc {
-            arc:
-                Arc2 {
-                    centre: center,
-                    radius,
-                    sweep,
-                },
-            turn,
-        } => {
-            let c_world = place.transform_point(Point3::new(center.x, center.y, T::zero()));
+        SegmentKind::Arc { arc, turn } => {
+            let c_world = place.transform_point(Point3::new(arc.centre.x, arc.centre.y, T::zero()));
             let rim = q_from - c_world;
-            // The rim identity, stated where it is guaranteed
-            // (`register_rim_identity` carries the proof). Bound out of
-            // the expression below rather than spelled twice: one
+            // Rigidity, stated where it is guaranteed
+            // (`register_rigidity` carries the proof). Bound out of the
+            // expression below rather than spelled twice: one
             // subtraction, one node, one set of bits.
-            register_rim_identity(rim, radius, tol);
+            register_rigidity(rim, arc, seg.a(), tol);
             let carrier = Curve3::Circle {
                 center: c_world,
                 axis: turn_axis(turn, normal),
-                radius,
+                radius: arc.radius,
                 u_ref: rim.normalize(),
             };
-            let param_end = arc_span(turn, sweep);
-            // The SPAN identity, at the same guarantee
-            // (`register_span_identity` carries the proof). The
-            // carrier and the span are bound out first so the
-            // registrant states them about the very nodes the spec
-            // carries — which is the whole of the same-object
-            // condition.
-            register_span_identity(&carrier, param_end, q_to, tol);
+            let param_end = arc_span(turn, arc);
+            // The carrier end, stated where it is guaranteed
+            // (`register_placed_carrier_end` carries the proof), about the
+            // very carrier and span the spec carries.
+            register_placed_carrier_end(&carrier, param_end, place, arc, seg.a(), tol);
             EdgeCurveSpec {
                 description,
                 carrier,
@@ -598,12 +556,8 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     let mut pts = Vec::with_capacity(segs.len() * 2);
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
-        if let SegmentKind::Arc {
-            arc: Arc2 { sweep, .. },
-            turn,
-        } = s.kind()
-        {
-            let apex = arc_apex(s.a(), s.b(), sweep, turn);
+        if let SegmentKind::Arc { arc, .. } = s.kind().get() {
+            let apex = arc.apex(s.a(), s.b());
             pts.push(place.transform_point(Point3::new(apex.x, apex.y, T::zero())));
         }
     }
@@ -642,7 +596,7 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
     names: CosurfaceNames,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    match (prev.kind(), next.kind()) {
+    match (prev.kind().get(), next.kind().get()) {
         (SegmentKind::Line, SegmentKind::Line) => {
             // Margin: perpendicular distance of the next chord's far
             // endpoint from the previous chord's carrier line (meters,
@@ -655,32 +609,13 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
                 Sign::Zero
             ))
         }
-        (
-            SegmentKind::Arc {
-                arc:
-                    Arc2 {
-                        centre: c1,
-                        radius: r1,
-                        ..
-                    },
-                turn: t1,
-            },
-            SegmentKind::Arc {
-                arc:
-                    Arc2 {
-                        centre: c2,
-                        radius: r2,
-                        ..
-                    },
-                turn: t2,
-            },
-        ) => {
+        (SegmentKind::Arc { arc: a1, turn: t1 }, SegmentKind::Arc { arc: a2, turn: t2 }) => {
             if t1 != t2 {
                 return Ok(false);
             }
             // Margin: center distance plus radius difference (meters,
             // direct — the profile crate's carrier-identity pattern).
-            let margin = c1.distance(c2) + (r1 - r2).abs();
+            let margin = a1.centre.distance(a2.centre) + (a1.radius - a2.radius).abs();
             Ok(matches!(
                 decide(names.arcs, Margin::of(margin), band)?,
                 Sign::Zero
@@ -792,10 +727,10 @@ mod tests {
                     (e, iv(0.0)),
                     (Point2::new(iv(0.0), iv(-l)), iv(0.0)),
                 ]);
-                let profile::Segment::Arc(Arc2 { sweep, .. }) = lp.segments()[0] else {
+                let profile::Segment::Arc(arc) = lp.segments()[0] else {
                     panic!("a nonzero bulge lowers to an arc");
                 };
-                let apex = arc_apex(a, e, sweep, Sign::Positive);
+                let apex = arc.apex(a, e);
                 let width = (apex.x.hi() - apex.x.lo()).max(apex.y.hi() - apex.y.lo());
                 assert!(
                     width <= 16.0 * f64::EPSILON * l,
@@ -804,6 +739,202 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Where the arc [`placed_arc_readings`] places comes from.
+    #[derive(Clone, Copy)]
+    enum Carrier {
+        /// Constructed at `Sym<Interval>` through the lattice, over a
+        /// box of bulges: its lowering registers the endpoint facts.
+        Constructed,
+        /// Constructed at f64 and copied into `Sym<Interval>` field by
+        /// field, as the pinned lift copies it: nothing registers its
+        /// endpoint facts, and its rim is the radius only up to the f64
+        /// rounding it was built with.
+        Copied,
+    }
+
+    /// What the first arc of a lattice-lowered loop decides, placed, at
+    /// `Sym<Interval>` under the shipped rules: the placed rim against
+    /// the radius, the same residual inside a larger expression, the
+    /// carrier's far end against the far vertex (one row per
+    /// component), and the session's receipt.
+    fn placed_arc_readings(
+        place: Affine3<geom_core::Sym<Interval>>,
+        carrier: Carrier,
+    ) -> ([Option<Sign>; 5], geom_core::SymCounts) {
+        use geom_core::sym::with_session_rules;
+        use geom_core::{ParamSymbol, Sym, SymBudget, SymRules};
+        use profile::{Bulge, Open, Start};
+        type S = Sym<Interval>;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the witness band");
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        with_session_rules(budget, SymRules::shipped(), || {
+            let lit = |x: f64| <S as Real>::from_f64(x);
+            let (a, e, b, turn) = match carrier {
+                Carrier::Constructed => {
+                    // A clockwise arc bowing up off the top of a unit
+                    // square, over a bulge box wide enough that the
+                    // numeric channel cannot decide the rim.
+                    let b = S::param(ParamSymbol::of("b"), Interval::from_bounds(-0.55, -0.45));
+                    let closed = Open
+                        .at(Point2::new(lit(0.0), lit(0.0)))
+                        .arc_to(
+                            Bulge {
+                                p: Point2::new(lit(1.0), lit(0.0)),
+                                b,
+                            },
+                            tol,
+                        )
+                        .expect("the arc authors")
+                        .line_to(Point2::new(lit(1.0), lit(-1.0)), tol)
+                        .expect("a leg down")
+                        .line_to(Point2::new(lit(0.0), lit(-1.0)), tol)
+                        .expect("a leg back")
+                        .line_to(Start, tol)
+                        .expect("the seam closes");
+                    // The lowered arc straight off the stored loop: the
+                    // chain under test is the lowering's registrations
+                    // and the sweep's, and validation is not in it.
+                    let lp = closed.loop_;
+                    let profile::Segment::Arc(arc) = lp.segments()[0] else {
+                        panic!("the first segment is the authored arc");
+                    };
+                    (lp.vertices()[0], lp.vertices()[1], (arc, b), Sign::Negative)
+                }
+                Carrier::Copied => {
+                    // An ordinary arc whose f64 rim and radius enclose
+                    // disjointly once copied into `Interval`.
+                    let (a, e) = (
+                        Point2::new(-79.674_068_761_865_71, -8.743_422_184_344_226),
+                        Point2::new(-79.456_229_843_363_16, -7.494_651_585_468_935),
+                    );
+                    let closed = Open
+                        .at(a)
+                        .arc_to(
+                            Bulge {
+                                p: e,
+                                b: 1.649_230_685_601_469_6,
+                            },
+                            tol,
+                        )
+                        .expect("the arc authors at f64")
+                        .line_to(Start, tol)
+                        .expect("the seam closes at f64");
+                    let profile::Segment::Arc(arc) = closed.loop_.segments()[0] else {
+                        panic!("the first segment is the authored arc");
+                    };
+                    (
+                        a.map(lit),
+                        e.map(lit),
+                        (arc.map(lit), lit(1.0)),
+                        Sign::Positive,
+                    )
+                }
+            };
+            let (arc, b) = b;
+            let seg = SweptSeg {
+                a,
+                b: e,
+                kind: Traversed::forward(SegmentKind::Arc { arc, turn }),
+                canonical_vertex: 0,
+                canonical_segment: 0,
+            };
+            let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
+            let (q_from, q_to) = (to3(seg.a), to3(seg.b));
+            let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
+            let Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } = spec.carrier
+            else {
+                panic!("an arc places onto a circle carrier");
+            };
+            let sign = |m: S| m.sign_within(band).map(|d| d.sign).ok();
+            let rim = (q_from - center).norm();
+            let end = Curve3::circle_at(center, axis, radius, u_ref, spec.param_end);
+            [
+                sign(rim - radius),
+                sign((rim + b) * b - (radius + b) * b),
+                sign(end.x - q_to.x),
+                sign(end.y - q_to.y),
+                sign(end.z - q_to.z),
+            ]
+        })
+    }
+
+    /// A quarter turn about z followed by `shift`, at `Sym<Interval>`.
+    fn quarter_turn_placement(shift: [f64; 3]) -> Affine3<geom_core::Sym<Interval>> {
+        let lit = |x: f64| <geom_core::Sym<Interval> as Real>::from_f64(x);
+        let v = |x, y, z| Vec3::new(lit(x), lit(y), lit(z));
+        Affine3::from_parts(
+            geom_core::Mat3::from_cols(v(0.0, 1.0, 0.0), v(-1.0, 0.0, 0.0), v(0.0, 0.0, 1.0)),
+            v(shift[0], shift[1], shift[2]),
+        )
+    }
+
+    /// **A copied carrier claims nothing past rigidity, and never
+    /// contradicts.** The arc was constructed at f64 and copied into
+    /// `Sym<Interval>`, so no construction registered its endpoint facts
+    /// at this scalar, and its f64 rim and radius enclose disjointly
+    /// there. The sweep's registrations read only the carrier and the
+    /// placement, so the exact witness separates none of them; the rim
+    /// and far end decide from their values, not from a registered
+    /// identity.
+    #[test]
+    fn a_copied_carrier_places_without_contradiction_and_claims_nothing() {
+        let ([rim, _, end @ ..], counts) =
+            placed_arc_readings(quarter_turn_placement([0.0; 3]), Carrier::Copied);
+        assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
+        assert_eq!(
+            counts.registered, 0,
+            "no decision rests on a registered identity: {counts:?}"
+        );
+        assert_eq!(rim, Some(Sign::Zero), "the rim, numerically: {counts:?}");
+        assert_eq!(
+            end,
+            [Some(Sign::Zero); 3],
+            "the far end, numerically: {counts:?}"
+        );
+    }
+
+    /// **The placed rim chains through the sketch rim to the radius, and
+    /// the placed far end through the sketch carrier end to the far
+    /// vertex.**
+    /// The lowering registers the arc's 2-D rims against its radius
+    /// (`Arc2::register_endpoints`) and the sweep registers only
+    /// rigidity (`register_rigidity`): the placed rim against the
+    /// sketch rim. The tier's alias is transitive, so the placed rim's
+    /// residual against the radius decides `Zero` over the whole box —
+    /// through a quarter turn and a translation, and inside a larger
+    /// expression — as a registered identity, where the numeric channel
+    /// alone cannot decide it over that box.
+    #[test]
+    fn the_placed_rim_chains_through_the_sketch_rim_to_the_radius() {
+        let ([rim, inside, end @ ..], counts) = placed_arc_readings(
+            quarter_turn_placement([2.0, 3.0, 5.0]),
+            Carrier::Constructed,
+        );
+        assert_eq!(rim, Some(Sign::Zero), "the placed rim: {counts:?}");
+        assert_eq!(
+            inside,
+            Some(Sign::Zero),
+            "inside a larger expression: {counts:?}"
+        );
+        // The far end chains the same way: the carrier at its span to
+        // the placed sketch carrier end (the sweep), the sketch carrier
+        // end to the far vertex (the lowering), and `q_to` is `place` of
+        // that vertex — one node, minted by the same op on the same
+        // operand.
+        assert_eq!(end, [Some(Sign::Zero); 3], "the far end: {counts:?}");
+        assert!(counts.registered > 0, "decided as registered: {counts:?}");
+        assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
     }
 
     fn budget() -> SymBudget {
@@ -851,14 +982,14 @@ mod tests {
         let seg = SweptSeg {
             a,
             b,
-            kind: SegmentKind::Arc {
+            kind: Traversed::forward(SegmentKind::Arc {
                 arc: Arc2 {
                     centre: Point2::new(lit(1.0), apothem),
                     radius,
                     sweep: lit(4.0) * bulge.atan(),
                 },
                 turn,
-            },
+            }),
             canonical_vertex: 0,
             canonical_segment: 0,
         };

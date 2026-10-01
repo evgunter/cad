@@ -2,326 +2,74 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
 {
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
-    "next_id": 9,
-    "step_mint": {
-      "chain": "83abda13b59be94af09d31866bc4cb69f64984f2af8396a9590555c2b1a2c490",
+    "mint": {
+      "chain": "129dbcc6801e2392e2483ccaac7f74c2d5796259a2db72f83bcc53a86730ad95",
       "log": [
-        2669192131324091390,
-        4546703346243476841,
-        4990306042536128628,
-        6747313831402317760,
-        7954807143719026365,
-        9487916818172209482,
-        10985843265047041854,
-        16639099113663446862
+        {
+          "node": 1341435824765281170
+        },
+        {
+          "node": 4192538854584291962
+        },
+        {
+          "step": 5431275471832655693
+        },
+        {
+          "step": 6158057670549142566
+        },
+        {
+          "node": 6569902697801218581
+        },
+        {
+          "node": 8668270754351961365
+        },
+        {
+          "node": 9666272443704355596
+        },
+        {
+          "node": 10801303484771088982
+        },
+        {
+          "node": 11240919837605776152
+        },
+        {
+          "step": 12112871840740167342
+        },
+        {
+          "step": 13406275778701523544
+        },
+        {
+          "node": 14486957823079000620
+        },
+        {
+          "node": 16481222604345390933
+        },
+        {
+          "step": 17213631338936430399
+        },
+        {
+          "step": 17841264794356394216
+        },
+        {
+          "step": 18166797519256471000
+        },
+        {
+          "step": 18302142914144557334
+        }
       ]
     },
     "nodes": {
-      "0": {
-        "Datum": {
-          "Frame": {
-            "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
-            ],
-            "u": [
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ],
-            "v": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ]
-          }
+      "1341435824765281170": {
+        "Boolean": {
+          "op": "Subtract",
+          "a": 6569902697801218581,
+          "b": 10801303484771088982,
+          "declare": null
         }
       },
-      "1": {
+      "4192538854584291962": {
         "Profile": {
-          "plane": 0,
-          "loops": [
-            {
-              "Chain": [
-                {
-                  "At": [
-                    {
-                      "Literal": {
-                        "value": 0.0,
-                        "dim": "Length",
-                        "unit": "m"
-                      }
-                    },
-                    {
-                      "Literal": {
-                        "value": 0.0,
-                        "dim": "Length",
-                        "unit": "m"
-                      }
-                    }
-                  ]
-                },
-                {
-                  "LineTo": {
-                    "Point": [
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      },
-                      {
-                        "Literal": {
-                          "value": 0.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "LineTo": {
-                    "Point": [
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      },
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "LineTo": {
-                    "Point": [
-                      {
-                        "Literal": {
-                          "value": 0.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      },
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      }
-                    ]
-                  }
-                },
-                {
-                  "LineTo": "Start"
-                }
-              ]
-            }
-          ],
-          "ids": [
-            [
-              6747313831402317760,
-              4546703346243476841,
-              4990306042536128628,
-              16639099113663446862,
-              10985843265047041854
-            ]
-          ]
-        }
-      },
-      "2": {
-        "Extrude": {
-          "profile": 1,
-          "distance": {
-            "Literal": {
-              "value": 1.0,
-              "dim": "Length",
-              "unit": "m"
-            }
-          }
-        }
-      },
-      "3": {
-        "Datum": {
-          "Frame": {
-            "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
-            ],
-            "u": [
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ],
-            "v": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ]
-          }
-        }
-      },
-      "4": {
-        "Datum": {
-          "AxisInPlane": {
-            "plane": 3,
-            "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
-            ],
-            "direction": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ]
-          }
-        }
-      },
-      "5": {
-        "Profile": {
-          "plane": 3,
+          "plane": 8668270754351961365,
           "loops": [
             {
               "Chain": [
@@ -382,17 +130,104 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           ],
           "ids": [
             [
-              7954807143719026365,
-              2669192131324091390,
-              9487916818172209482
+              13406275778701523544,
+              18166797519256471000,
+              18302142914144557334
             ]
           ]
         }
       },
-      "6": {
+      "6569902697801218581": {
+        "Extrude": {
+          "profile": 11240919837605776152,
+          "distance": {
+            "Literal": {
+              "value": 1.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        }
+      },
+      "8668270754351961365": {
+        "Datum": {
+          "Frame": {
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "u": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "v": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "9666272443704355596": {
         "Revolve": {
-          "profile": 5,
-          "axis": 4,
+          "profile": 4192538854584291962,
+          "axis": 14486957823079000620,
           "angle": {
             "Literal": {
               "value": 6.283185307179586,
@@ -402,9 +237,9 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "7": {
+      "10801303484771088982": {
         "PlacedUnion": {
-          "input": 6,
+          "input": 9666272443704355596,
           "count": null,
           "kind": {
             "Explicit": [
@@ -556,28 +391,235 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "8": {
-        "Boolean": {
-          "op": "Subtract",
-          "a": 2,
-          "b": 7,
-          "declare": null
+      "11240919837605776152": {
+        "Profile": {
+          "plane": 16481222604345390933,
+          "loops": [
+            {
+              "Chain": [
+                {
+                  "At": [
+                    {
+                      "Literal": {
+                        "value": 0.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "value": 0.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": "Start"
+                }
+              ]
+            }
+          ],
+          "ids": [
+            [
+              17841264794356394216,
+              12112871840740167342,
+              5431275471832655693,
+              17213631338936430399,
+              6158057670549142566
+            ]
+          ]
+        }
+      },
+      "14486957823079000620": {
+        "Datum": {
+          "AxisInPlane": {
+            "plane": 8668270754351961365,
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "direction": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "16481222604345390933": {
+        "Datum": {
+          "Frame": {
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "u": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "v": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
         }
       }
     },
     "order": [
-      0,
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8
+      16481222604345390933,
+      11240919837605776152,
+      6569902697801218581,
+      8668270754351961365,
+      14486957823079000620,
+      4192538854584291962,
+      9666272443704355596,
+      10801303484771088982,
+      1341435824765281170
     ],
     "roots": [
-      8
+      1341435824765281170
     ],
     "placements": {},
     "params": {},

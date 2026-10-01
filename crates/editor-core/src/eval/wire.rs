@@ -1373,11 +1373,14 @@ pub(crate) fn prepare_profile(
         loops.push(lp);
         replay_records.push(record);
     }
-    let profile_f64 = profile::Profile::new(plane, loops);
-    let (validated_f64, canonical) = profile_f64
+    // The loops are the replay's own construction, so validation
+    // decides no arc's consistency checks (D1).
+    let replayed = profile::ConstructedProfile::new(plane, loops);
+    let (validated_f64, canonical) = replayed
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
-    let naming = anchor::derive_naming(&validated_f64, &profile_f64.loops).ok_or({
+    let profile_f64 = replayed;
+    let naming = anchor::derive_naming(&validated_f64, profile_f64.loops()).ok_or({
         // A canonical loop matched no program loop: an internal break.
         // The loop coordinate is not recoverable; 0 names the walk.
         NodeErrorKind::ProfileAnchor { loop_: 0 }
@@ -1446,7 +1449,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         })?;
         loops.push(lp);
     }
-    profile::Profile::new(plane, loops)
+    profile::ConstructedProfile::new(plane, loops)
         .validate_guided(tol, &pre.structure.canonical)
         .map_err(NodeErrorKind::Profile)
 }
@@ -2073,8 +2076,8 @@ fn resolve_open_faces(
 /// ([`ladder::resolve_in`]):
 ///
 /// 1. [`ladder::live`] — the minting node must still be in the
-///    document. Ids are never reused, so an id below the mint counter
-///    was DELETED and one at/above it was never this document's
+///    document. Ids are never reused, so an id the mint log holds was
+///    DELETED and one it does not hold was never this document's
 ///    (`ForeignNode`). The [`ladder::Live`] token makes this rung
 ///    outrank every later refusal, a door's own included.
 /// 2. [`ladder::Landing::Tied`] → `Ambiguous`: the tie row IS the
@@ -3682,15 +3685,14 @@ fn refusal_menu<T: geom_core::Bounds>(
         return verb_refused(err);
     };
     // The finding orders the pair (a-side, b-side); raise sites order
-    // it by discovery. Relation is orientation-symmetric. A
-    // same-operand pair (the F7 gate) keeps its raise order.
+    // it by discovery. Relation is orientation-symmetric.
     let ordered = if pair[0].0 == topo::Operand::B && pair[1].0 == topo::Operand::A {
         [pair[1], pair[0]]
     } else {
         pair
     };
     // A finding is SITED, so the pair a caller declares back is
-    // buildable from the refusal alone, same-operand pairs included.
+    // buildable from the refusal alone.
     let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
         let (at, table) = match operand {
             topo::Operand::A => a,
@@ -4317,6 +4319,9 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
      joined-path composition lane; the swept BODY machinery itself is \
      live — sweep::sweep_body at the library API";
 
+/// A loft section of loops the path lattice constructed (the replay's).
+type ConstructedSection = sweep::Section<profile::ConstructedLoop<f64>>;
+
 /// One section of a loft, taken from the RECIPE's own `f64`
 /// description rather than from the evaluated `T` payload.
 ///
@@ -4330,7 +4335,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<(sweep::Section, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
+) -> Result<(ConstructedSection, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
@@ -4390,7 +4395,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         .placement;
     // The REPLAYED loops in program order (LIB-U3), and the canonical
     // positions' names the skin's walls and seams are named by.
-    Ok((pre.profile_f64.loops, place, pre.pieces))
+    Ok((pre.profile_f64.into_parts().1, place, pre.pieces))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.

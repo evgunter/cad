@@ -536,6 +536,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
+        EditError::NodeIdCollides { .. } => "node_id_collides",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -1180,6 +1181,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetProgramOnNonProfile { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
+        EditError::NodeIdCollides { .. } => None,
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1265,6 +1267,8 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
         ProfileError::TooFewVertices { .. } => "too_few_vertices",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
         ProfileError::NearFullArc(_) => "near_full_arc",
+        ProfileError::InconsistentArc { .. } => "inconsistent_arc",
+        ProfileError::ArcBelowSceneResolution { .. } => "arc_below_scene_resolution",
         ProfileError::NonSimple { .. } => "non_simple",
         ProfileError::TangentialContact { .. } => "tangential_contact",
         ProfileError::TangentJointOutOfRange { .. } => "tangent_joint_out_of_range",
@@ -1461,6 +1465,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
+        BooleanErrorKind::CoplanarNeighbours => "coplanar_neighbours",
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
@@ -1478,6 +1483,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedPairUnsupported => "curved_pair_unsupported",
         BooleanErrorKind::NurbsExtentUnsupported => "nurbs_extent_unsupported",
         BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
+        BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
         BooleanErrorKind::GermFrameCylinderPinch => "germ_frame_cylinder_pinch",
         BooleanErrorKind::Euler => "euler",
@@ -1819,7 +1825,7 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::OrderMismatch => "order_mismatch",
-        SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
+        SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
@@ -2345,7 +2351,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
-        SplitError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2371,7 +2376,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::Edit { .. } => "inline_edit",
-        InlineError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 

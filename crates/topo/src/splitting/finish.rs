@@ -1082,7 +1082,9 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         body.set_edge_curve(edge, spec, tol)?;
                     }
                 }
-                Err(diag) => return Err(SplitFinishError::DescribeEscalated { edge, diag }),
+                Err(geom_brep::LeverEscalation { diag, .. }) => {
+                    return Err(SplitFinishError::DescribeEscalated { edge, diag });
+                }
             }
         }
     }

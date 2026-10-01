@@ -1,10 +1,10 @@
-//! **`Doc::has_minted` — the mint counter's one public reading.**
+//! **`Doc::has_minted` — the mint log's one reading of a node id.**
 //!
 //! `crates/editor-core/IDENTITY.md` DI1 rules that a layer-3 hold of a
 //! `RecipeNodeId` carries the id plus the history entry that minted
 //! it, and that the entry is computed by walking up the history until
-//! the counter drops below the id. The walk is VIEW's; the reading it
-//! walks on is this crate's, and `Doc::has_minted` is it.
+//! the document no longer holds the id. The walk is VIEW's; the reading
+//! it walks on is this crate's, and `Doc::has_minted` is it.
 //!
 //! The rows below are the four facts that walk rests on:
 //!
@@ -13,18 +13,18 @@
 //! - an insert mints one id and the predicate turns true for it, and
 //!   stays false for the id the next insert would mint — which is what
 //!   makes the walk's step a decision rather than a guess;
-//! - a DELETE does not move it back: ids are never reused (spec D3,
-//!   `edit.rs`'s own "next_id is NOT decremented" sentence), so the
-//!   predicate answers minting and not liveness, and a walk that read
-//!   it as liveness would be reading the wrong question;
-//! - a save/load round trip preserves it, because the counter is part
-//!   of the document VALUE (ASM-1 D-3: it is in the content pin's
+//! - a DELETE does not move it back: ids are never reused (spec D3;
+//!   the mint log keeps a deleted node's id), so the predicate answers
+//!   minting and not liveness, and a walk that read it as liveness
+//!   would be reading the wrong question;
+//! - a save/load round trip preserves it, because the mint is part of
+//!   the document VALUE (ASM-1 D-3: it is in the content pin's
 //!   preimage) — a history entry reconstituted from a file answers
 //!   the walk the same way the entry in memory did.
 //!
-//! What these rows do NOT pin: `next_id`'s own visibility. The counter
-//! stays `pub(crate)`; a test that read it would be asserting from
-//! inside the fence the predicate exists to keep.
+//! What these rows do NOT pin: the mint log's own layout. A test that
+//! read it would be asserting from beside the predicate rather than
+//! through it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -125,7 +125,7 @@ fn a_delete_leaves_the_id_minted() {
     assert!(reinserted.has_minted(next));
 }
 
-/// Row 4 — the counter is part of the value, so it survives a save
+/// Row 4 — the mint is part of the value, so it survives a save
 /// and a load: a history entry rebuilt from a file answers the walk
 /// exactly as the entry in memory did. The deleted id is the sharp
 /// case, because nothing in the loaded document's node map names it.
