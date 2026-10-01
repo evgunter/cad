@@ -457,7 +457,10 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
                 (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
             })
             .collect();
-        assert!(!pieces.is_empty(), "the cut names some edge pieces by their ends");
+        assert!(
+            !pieces.is_empty(),
+            "the cut names some edge pieces by their ends"
+        );
         let doc2 = slide(&s, Axis3::Y, to);
         let ev2 = run(&doc2, Some(&ev1));
         let gone: Vec<&StableName> = pieces

@@ -113,7 +113,8 @@ use crate::names::emit::{
     vertex_point,
 };
 use crate::names::emit_topo::{
-    FaceDescent, OnSegment, Segment, name_edge_pieces, name_parent_faces, rank_crossings,
+    CrossedEdge, FaceDescent, OnSegment, Segment, name_edge_pieces, name_parent_faces,
+    rank_crossings,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -868,17 +869,14 @@ fn cite_member_edges<T: geom_core::Decide>(
             points.push(vertex_point(body, v)?);
         }
         let member_table = member_of(members, member)?.table;
-        rank_crossings(
-            &mut out,
-            &mut tie,
-            false,
-            &base,
-            (member_body, member_table, member_edge, edge.name()),
-            &keys,
-            &points,
-            bnd,
-            |e| *e,
-        )?;
+        let crossed = CrossedEdge {
+            body: member_body,
+            table: member_table,
+            edge: member_edge,
+            name: edge.name(),
+        };
+        let crossings: Vec<_> = keys.into_iter().zip(points).collect();
+        rank_crossings(&mut out, &mut tie, false, &base, &crossed, &crossings, bnd)?;
     }
     tie.flush(&mut out)?;
     Ok(out)
@@ -939,17 +937,16 @@ fn rank_along_seam<T: geom_core::Decide>(
         _ => None,
     };
     match line {
-        Some((edge, name)) => rank_crossings(
-            out,
-            tie,
-            false,
-            base,
-            (body, t, edge, name),
-            &keys,
-            &points,
-            bnd,
-            |e| *e,
-        ),
+        Some((edge, name)) => {
+            let crossed = CrossedEdge {
+                body,
+                table: t,
+                edge,
+                name,
+            };
+            let crossings: Vec<_> = keys.into_iter().zip(points).collect();
+            rank_crossings(out, tie, false, base, &crossed, &crossings, bnd)
+        }
         None => Ok(mint_candidates(out, tie, false, base.clone(), keys)?),
     }
 }

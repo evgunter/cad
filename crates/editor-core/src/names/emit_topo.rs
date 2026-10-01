@@ -462,21 +462,17 @@ fn name_split_edges_vertices<T: Decide>(
                     edge: parent.name.clone(),
                 },
             );
-            let points = verts
+            let crossings = verts
                 .iter()
-                .map(|&v| vertex_point(body, v))
-                .collect::<Result<Vec<_>, _>>()?;
-            rank_crossings(
-                t,
-                tie,
-                parent.tied,
-                &base,
-                (target_body, target_table, crossed, &parent.name),
-                &verts,
-                &points,
-                bnd,
-                |&v| ent(s.ix, EntityKey::Vertex(v)),
-            )?;
+                .map(|&v| Ok((ent(s.ix, EntityKey::Vertex(v)), vertex_point(body, v)?)))
+                .collect::<Result<Vec<_>, NamingError>>()?;
+            let edge = CrossedEdge {
+                body: target_body,
+                table: target_table,
+                edge: crossed,
+                name: &parent.name,
+            };
+            rank_crossings(t, tie, parent.tied, &base, &edge, &crossings, bnd)?;
         }
     }
     tie.flush(t)?;
@@ -1620,21 +1616,17 @@ fn name_boolean_vertices<T: Decide>(
             mint_candidates(t, tie, from_tie, base, ents)?;
             continue;
         };
-        let points = verts
+        let crossings = verts
             .iter()
-            .map(|&v| vertex_point(body, v))
-            .collect::<Result<Vec<_>, _>>()?;
-        rank_crossings(
-            t,
-            tie,
-            from_tie,
-            &base,
-            (op.body, op.table, k, parent),
-            &verts,
-            &points,
-            bnd,
-            |&v| ent(0, EntityKey::Vertex(v)),
-        )?;
+            .map(|&v| Ok((ent(0, EntityKey::Vertex(v)), vertex_point(body, v)?)))
+            .collect::<Result<Vec<_>, NamingError>>()?;
+        let edge = CrossedEdge {
+            body: op.body,
+            table: op.table,
+            edge: k,
+            name: parent,
+        };
+        rank_crossings(t, tie, from_tie, &base, &edge, &crossings, bnd)?;
     }
     Ok(())
 }
@@ -1851,7 +1843,7 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
             ent(ix, EntityKey::Edge(*one)),
         )?);
     }
-    let mut by_ends: BTreeMap<StableName, Vec<super::table::EntityRef>> = BTreeMap::new();
+    let mut pieces = Vec::with_capacity(edges.len());
     for &e in edges {
         let (v0, v1) = edge_ends(body, e)?;
         let mut ends = Vec::with_capacity(2);
@@ -1865,14 +1857,27 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
             );
         }
         ends.sort();
-        let mut name = base.clone();
-        name.path.push(RoleSeg::Fragment(Qualifier::Ends(ends)));
-        by_ends
-            .entry(name)
-            .or_default()
-            .push(ent(ix, EntityKey::Edge(e)));
+        pieces.push((Qualifier::Ends(ends), ent(ix, EntityKey::Edge(e))));
     }
-    for (name, ents) in by_ends {
+    mint_qualified(t, tie, from_tie, base, pieces)
+}
+
+/// Mints each piece as `base` + `Fragment(q)` over its qualifier, the
+/// pieces that share one qualifier as N4's tie.
+fn mint_qualified(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
+    base: &StableName,
+    pieces: impl IntoIterator<Item = (Qualifier, super::table::EntityRef)>,
+) -> Result<(), NamingError> {
+    let mut by_qualifier: BTreeMap<Qualifier, Vec<super::table::EntityRef>> = BTreeMap::new();
+    for (q, e) in pieces {
+        by_qualifier.entry(q).or_default().push(e);
+    }
+    for (q, ents) in by_qualifier {
+        let mut name = base.clone();
+        name.path.push(RoleSeg::Fragment(q));
         mint_candidates(t, tie, from_tie, name, ents)?;
     }
     Ok(())
@@ -1960,44 +1965,46 @@ pub(super) fn param_along<T: Decide>(
     })
 }
 
+/// The edge a group of crossings lies on: edge `edge` of `body`, named
+/// `name` in its own table `table`.
+pub(super) struct CrossedEdge<'a, T: geom_core::Real> {
+    pub(super) body: &'a Body<T>,
+    pub(super) table: &'a NameTable,
+    pub(super) edge: EdgeKey,
+    pub(super) name: &'a StableName,
+}
+
 /// **Ranks the crossings of one edge by one face** (N2): a lone crossing
-/// is `base`, and several, lying at `points` on edge `e` of `body`,
-/// named `name` in `table`, take `base` + `Fragment(OrderAlong)` by the
-/// edge's carrier parameter,
-/// oriented by [`crossed_edge_orientation`]; with no orientation or no
-/// parameter they tie.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn rank_crossings<T: Decide, K: Copy>(
+/// is `base`, and several, each an entity and the point it lies at on
+/// the crossed edge, take `base` + `Fragment(OrderAlong)` by the edge's
+/// carrier parameter, oriented by [`crossed_edge_orientation`]; with no
+/// orientation or no parameter they tie.
+pub(super) fn rank_crossings<T: Decide>(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,
     base: &StableName,
-    crossed: (&Body<T>, &NameTable, EdgeKey, &StableName),
-    keys: &[K],
-    points: &[Point3<T>],
+    crossed: &CrossedEdge<'_, T>,
+    crossings: &[(super::table::EntityRef, Point3<T>)],
     bnd: geom_core::Band,
-    to_ent: impl Fn(&K) -> super::table::EntityRef,
 ) -> Result<(), NamingError> {
-    if let [one] = keys {
-        return Ok(put(t, tie, from_tie, base.clone(), to_ent(one))?);
+    let keys: Vec<super::table::EntityRef> = crossings.iter().map(|&(e, _)| e).collect();
+    if let [one] = keys.as_slice() {
+        return Ok(put(t, tie, from_tie, base.clone(), *one)?);
     }
-    let (body, table, e, name) = crossed;
-    let tied = |t: &mut NameTable, tie: &mut TieRows| {
-        mint_candidates(
-            t,
-            tie,
-            from_tie,
-            base.clone(),
-            keys.iter().map(&to_ent).collect(),
-        )
+    let CrossedEdge {
+        body,
+        table,
+        edge,
+        name,
+    } = *crossed;
+    let Some(forward) = crossed_edge_orientation(body, table, edge, name)? else {
+        return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?);
     };
-    let Some(forward) = crossed_edge_orientation(body, table, e, name)? else {
-        return Ok(tied(t, tie)?);
-    };
-    let mut extents = Vec::with_capacity(points.len());
-    for &p in points {
-        let Some(along) = param_along(body, e, p)? else {
-            return Ok(tied(t, tie)?);
+    let mut extents = Vec::with_capacity(crossings.len());
+    for &(_, p) in crossings {
+        let Some(along) = param_along(body, edge, p)? else {
+            return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?);
         };
         let along = if forward { along } else { -along };
         extents.push(Extent {
@@ -2005,7 +2012,7 @@ pub(super) fn rank_crossings<T: Decide, K: Copy>(
             max: along,
         });
     }
-    insert_ranked_or_tied(t, tie, from_tie, base, keys, &extents, bnd, to_ent)
+    insert_ranked_or_tied(t, tie, from_tie, base, &keys, &extents, bnd, |e| *e)
 }
 
 /// Inserts a same-name group ranked by order-along, or tied when
@@ -2124,7 +2131,7 @@ fn name_split_faces<T: Decide>(
                     })
             })
             .collect::<Result<_, _>>()?;
-        let mut by_keeps: BTreeMap<StableName, Vec<super::table::EntityRef>> = BTreeMap::new();
+        let mut pieces = Vec::with_capacity(members.len());
         for &(ix, _, f) in &members {
             let body = sides
                 .iter()
@@ -2151,18 +2158,12 @@ fn name_split_faces<T: Decide>(
                     kept.insert((*up.name).clone());
                 }
             }
-            let mut name = base_name.clone();
-            name.path.push(RoleSeg::Fragment(Qualifier::Keeps(
-                kept.into_iter().collect(),
-            )));
-            by_keeps
-                .entry(name)
-                .or_default()
-                .push(ent(ix, EntityKey::Face(f)));
+            pieces.push((
+                Qualifier::Keeps(kept.into_iter().collect()),
+                ent(ix, EntityKey::Face(f)),
+            ));
         }
-        for (name, ents) in by_keeps {
-            mint_candidates(t, tie, from_tie, name, ents)?;
-        }
+        mint_qualified(t, tie, from_tie, &base_name, pieces)?;
     }
     Ok(())
 }
