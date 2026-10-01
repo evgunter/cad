@@ -182,7 +182,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             .unwrap_or_else(|_| py.None())
     };
     let none = || py.None();
-    let (node, consumer, input, gauge, instance, param, name, doc_id) = match err {
+    let (node, consumer, input, root, instance, param, name, doc_id) = match err {
         E::EmptyCut => (
             none(),
             none(),
@@ -232,8 +232,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::TornCluster {
-            gauge: g,
+        E::TornGroup {
+            root: g,
             instance: i,
             ..
         } => (none(), none(), none(), id(g), id(i), none(), none(), none()),
@@ -296,7 +296,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("node", node),
             ("consumer", consumer),
             ("input", input),
-            ("gauge", gauge),
+            ("root", root),
             ("instance", instance),
             ("param", param),
             ("name", name),
@@ -356,7 +356,7 @@ impl SplitOutcome {
     /// The new part document, carrying the cut nodes.
     ///
     /// Its `last_maintenance` is what building the part from empty
-    /// did to the placement registry — a cut cluster re-forms as one
+    /// did to the placement registry — a cut group re-forms as one
     /// join per mate that welded two members still separate.
     #[getter]
     fn part(&self) -> Doc {
@@ -410,7 +410,7 @@ impl SplitOutcome {
     }
 
     fn __repr__(&self) -> String {
-        format!("SplitOutcome(instance={})", self.instance.0.0)
+        format!("SplitOutcome(instance={})", self.instance.0.full())
     }
 }
 
@@ -423,8 +423,8 @@ impl SplitOutcome {
 /// in one store.
 ///
 /// The cut must be **ancestor- and consumer-closed** and a union of
-/// WHOLE placement clusters. Everything else refuses typed, naming the
-/// offending edge, cluster, parameter or name.
+/// WHOLE placement groups. Everything else refuses typed, naming the
+/// offending edge, group, parameter or name.
 ///
 /// Pure: `doc` is untouched, nothing is written, and the two documents
 /// come back as values with the edits that produce them.
@@ -442,7 +442,7 @@ pub(crate) fn split(
     let tol = Tol::witness();
     let part_id = document_id(part_id)?;
     let set: BTreeSet<d::RecipeNodeId> = cut.iter().map(|n| n.0).collect();
-    // The cut's edits can move a cluster's gauge (an instance leaves
+    // The cut's edits can move a group's root (an instance leaves
     // the remainder for the part), so the split levers through the
     // same seam `evaluate(doc, resolver=)` crosses — plus the part it
     // is minting, which it holds itself; absent, an edit that needs a

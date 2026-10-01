@@ -195,7 +195,7 @@ pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 
 /// Applies an edit, returning the new doc and any minted id.
 ///
-/// Through the REFUSING reach: an edit that moves a cluster's gauge
+/// Through the REFUSING reach: an edit that moves a group's root
 /// on a mated document mints a frame from the parts' extent and
 /// refuses here — a row that deletes a mate or an instance of a mated
 /// document steps through [`step_with`] and the store's own reach.
@@ -282,7 +282,7 @@ pub fn door_refusal(
 /// a deleted operand — and this is the shortest road to a head on
 /// LIVE geometry. The mate enters with that head on copy 1 of a scratch
 /// pattern over `anchor`, the instance its OTHER head stands on — two
-/// members over one instance, so it welds nothing and no cluster
+/// members over one instance, so it welds nothing and no group
 /// moves — then `DocEdit::Rebind` moves the head onto the name `node`
 /// spells for it (the name-repair door checks that its target is
 /// live, not that a member stands there), and the scratch pattern is

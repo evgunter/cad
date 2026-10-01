@@ -56,8 +56,8 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a);
-    tool.pick(b);
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, asm::seat_choice())
@@ -141,8 +141,8 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a);
-    tool.pick(b);
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, asm::seat_choice())
@@ -264,8 +264,8 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
     assert_eq!(side.node, bench.post_b, "the side ray hit post_b");
     assert_ne!(side.name, top.name, "two different faces");
     let mut tool = MateTool::new();
-    tool.pick(top);
-    tool.pick(side);
+    tool.pick(session.doc(), top);
+    tool.pick(session.doc(), side);
     let (doc, eval) = session.landed_pair().expect("landed");
     assert!(
         matches!(
@@ -289,8 +289,8 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a.clone());
-    tool.pick(b.clone());
+    tool.pick(session.doc(), a.clone());
+    tool.pick(session.doc(), b.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, asm::seat_choice())
@@ -372,8 +372,8 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a);
-    tool.pick(b);
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, asm::seat_choice())
@@ -418,8 +418,8 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let mut session = asm::open_bench(&bench, tol);
     let (a, b) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(a);
-    tool.pick(b);
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, asm::seat_choice())

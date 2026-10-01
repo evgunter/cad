@@ -2566,7 +2566,7 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
     // And the two ids the arm exists for reach the prose.
     let shown = carried(UnitVec3Error::Degenerate).to_string();
     assert!(
-        shown.contains("node 7") && shown.contains("node 3"),
+        shown.contains("node 000000000007") && shown.contains("node 000000000003"),
         "the arm names the profile that read and the frame that refused: {shown}"
     );
 }
@@ -4610,6 +4610,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rim_seam_not_declarable",
             "scaffolding_operand",
             "seam_orientation",
+            "shell_witness_exhausted",
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
@@ -5713,7 +5714,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "severed_edge",
             "split_pin",
             "step_map_diverged",
-            "torn_cluster",
+            "torn_group",
             "uncut_param_reference",
             "unknown_cut_node",
         ],

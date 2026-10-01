@@ -291,3 +291,16 @@ to remove. **Ev ruled the first.** So:
   Ev rather than the branch sitting indefinitely: `main` moved 1300 and
   then 433 commits under this unit already, and each wait costs a
   merge.
+
+## A second consumer of the stored zero (MSOLVE, 2026-10-01)
+
+A face-framed mate's roll is measured from the carrier's stored `u_ref`,
+the same zero `Datum::FaceFrame`'s spin is measured from. Today a face
+frame's roll is the carrier's own; under MSOLVE's `[ev]` PR 3681 it
+would be an authored turn. So when this unit's re-bless lands, it
+rotates a face-framed mate exactly as it rotates a face sketch. The
+doc line owed at `Datum::FaceFrame` should name the mate's turn as the
+second member of the class. Two designers weighing PR 3681 converged
+on that, and on no row for a construction-derived plane zero: under
+option 1 the sign of a wall's zero no longer enters.
+
