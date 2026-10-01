@@ -2017,14 +2017,14 @@ mod tests {
     /// Built through the edit door, so every invariant beside the one a
     /// row then breaks is the one `apply` maintains.
     fn instances_of_an_unresolved_reference(
-        label: &str,
+        seed: &str,
         n: usize,
     ) -> (ProfileDoc, Vec<RecipeNodeId>) {
         let doc_ref = crate::ident::DocRef {
             id: crate::ident::DocumentId::derive("check-part"),
             pin: crate::ident::ContentPin::of_bytes(b"check-part"),
         };
-        let mut doc = ProfileDoc::empty_derived(label, Tol::witness());
+        let mut doc = ProfileDoc::empty_derived(seed, Tol::witness());
         let mut ids = Vec::new();
         for _ in 0..n {
             let applied = crate::edit::apply(

@@ -1356,8 +1356,9 @@ impl SessionOp {
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
-            | Self::SetLabel { .. }
-            | Self::CreateLabelled { .. } => false,
+            | Self::SetLabel { .. } => false,
+            // A labelled creation is its creation, labelled.
+            Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
     }
 
@@ -1475,8 +1476,8 @@ impl SessionOp {
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
-            | Self::SetLabel { .. }
-            | Self::CreateLabelled { .. } => true,
+            | Self::SetLabel { .. } => true,
+            Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
     }
 }
