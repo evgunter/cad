@@ -161,9 +161,13 @@ Invariant: every definite verdict wins over every declaration.
 **Continuation.** Two faces, one from each operand, on one carrier
 with their senses ALIGNED, interiors disjoint, sharing only a boundary
 curve, are a *continuation*: one surface carried on across the seam.
-A continuation is not a contact and is not a `ContactClass`. It is
-declared on a boolean node and nowhere else: a mate cannot state one, and at rest two flush walls carry
-nothing to verify. Its verification is `Rest`'s carrier rung with the
+A continuation is not a contact and is not a `ContactClass`. The two
+declaration seats take different types, so each states only what its
+consumer can use. A mate (and every record and census reading) takes a
+`ContactClass`. A boolean node takes a `BooleanCoincidence`, which is
+`Contact(ContactClass) | Continuation`. A continuation is therefore
+declared on a boolean node and nowhere else: a mate cannot state
+one, and at rest two flush walls carry nothing to verify. Its verification is `Rest`'s carrier rung with the
 sense bit reversed: carrier non-contradiction through the kind ladder,
 senses aligned as an exact bit. Opposed senses contradict it, as
 aligned senses contradict `Rest` at every door. A union merges a

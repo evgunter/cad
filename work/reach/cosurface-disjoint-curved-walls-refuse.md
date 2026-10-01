@@ -8,8 +8,6 @@ github: 1352
 refs: [1351]
 priority: P0
 cost: H
-needs_ev: true
-design: true
 ---
 
 ## From GitHub issue 1352
@@ -136,3 +134,18 @@ account changes:
 - `Rest` is read two ways: C4 and `contact_verify::rest_pair_verdict`
   read opposed senses only, while the boolean's declaration door, the
   flush detector and the REST lane accept aligned senses too.
+
+## Ruled (Ev, PR 3613, 2026-10-01)
+
+Ev approved the decisions, picked the sum type
+`Contact(ContactClass) | Continuation` for the boolean seat, and asked
+that the naming make "valid inputs to mate" and "valid inputs to union"
+easy to tell apart. C4 now names the two seats: `ContactClass` for
+mates, records and the census, and `BooleanCoincidence` for a boolean
+node. The implementing unit may refine those names, keeping the
+distinction they draw. What the unit builds is the C4 continuation
+clause, the one-sided cover clause and DESIGN's output rule. It also
+updates `demos/tour/src/twopeg.rs` and the flush helpers to declare
+continuations, which lets ZIP's
+`a-union-glues-same-sense-cosurface-walls-without-merging-them` refuse
+or merge as the rule says.
