@@ -3594,12 +3594,15 @@ mod tests {
         // The escalated arm, as the lookup mints it for an undeclared
         // pair of planar corners.
         let door = DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default())
-            .on_pair_door((
-                Operand::A,
-                FaceKey::default(),
-                Operand::B,
-                FaceKey::default(),
-            ));
+            .on_pair_door(
+                (
+                    Operand::A,
+                    FaceKey::default(),
+                    Operand::B,
+                    FaceKey::default(),
+                ),
+                Some(PlaneRelation::SameOpposite),
+            );
         for (margin, offers) in [(MarginDiag::value(5e-9), 1), (MarginDiag::INVALID, 0)] {
             let msg =
                 BooleanError::plane_identity(PlaneRung::Parallel, door, diag(margin)).to_string();
@@ -3835,7 +3838,10 @@ mod tests {
             BooleanError::plane_identity(
                 PlaneRung::Parallel,
                 DeclaredPairs::without_struts(&BooleanDeclarations::none(), Default::default())
-                    .on_pair_door((Operand::A, face, Operand::B, face)),
+                    .on_pair_door(
+                        (Operand::A, face, Operand::B, face),
+                        Some(PlaneRelation::SameOpposite),
+                    ),
                 diag,
             ),
             BooleanError::UndeclaredCoincidence {

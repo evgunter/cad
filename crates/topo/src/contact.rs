@@ -194,6 +194,18 @@ impl BooleanCoincidence {
     pub fn is_one_carrier(self) -> bool {
         matches!(self, Self::REST | Self::Continuation)
     }
+
+    /// **The one-carrier coincidence two faces' senses make them**, the
+    /// one place a sense is read as a class: opposed senses are a `Rest`
+    /// contact, aligned senses a continuation (C4). Two distinct
+    /// carriers are neither, and name no class.
+    pub fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
+        match relation {
+            crate::boolean::CarrierRelation::SameOriented => Some(Self::Continuation),
+            crate::boolean::CarrierRelation::SameOpposite => Some(Self::REST),
+            crate::boolean::CarrierRelation::Distinct => None,
+        }
+    }
 }
 
 impl From<ContactClass> for BooleanCoincidence {

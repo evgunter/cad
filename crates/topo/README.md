@@ -154,7 +154,8 @@ in `BooleanDeclarations::coincident_faces` (`FacePairDeclaration`) and
 on mate nodes (`crates/editor-core/ASSEMBLY.md`); bodies carry only
 verified records in the `BooleanBody` wrapper, never persisted. Replay
 is scalar-generic; an indeterminate verification at an interval scalar
-aborts. Failures, all typed: `UndeclaredContact`, `ContactContradicted`
+aborts. Failures, all typed: `UndeclaredContact` (the census) and
+`UndeclaredCoincidence` (the boolean), `ContactContradicted`
 (at use and at rest), `ContinuationContradicted` (at use),
 `StaleContactDeclaration`, `CensusEscalated`.
 Invariant: every definite verdict wins over every declaration.

@@ -11,9 +11,10 @@
 //! stack's tangent wall edges are covered through a structural tangency
 //! on EITHER operand, while a tangency in the middle of an edge keeps
 //! its typed refusal; and every output is a legal boolean operand.
-//! Two guard rows close the file: a kiss or a gap is no continuation,
-//! and aligned pairs whose interiors overlap are accepted as
-//! continuations today (pinned as behaviour, not as a ruling).
+//! The rows after them: a kiss or a gap is no continuation; an
+//! overlapping continuation refuses undeclared and builds declared in
+//! every op; and the declared overlaps that still refuse are pinned at
+//! their typed refusals, each filed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -529,92 +530,220 @@ fn a_kiss_or_a_gap_is_no_continuation() {
     }
 }
 
-/// One row of `overlapping_aligned_pairs_are_accepted_as_continuations`:
-/// label, whether the op is a subtract (else a union), the two
-/// operands, the expected volume and the expected face count.
-type ContinuationRow = (&'static str, bool, Body<f64>, Body<f64>, f64, usize);
+/// One row of `overlapping_continuations_refuse_undeclared_and_build_declared`:
+/// label, the two operands, and the expected volume and face count of
+/// the union, the subtract and the intersect, in that order (`None`:
+/// the result is empty).
+type ContinuationRow = (
+    &'static str,
+    Body<f64>,
+    Body<f64>,
+    [Option<(f64, usize)>; 3],
+);
 
-/// **Aligned pairs whose interiors OVERLAP are minted and accepted as
-/// continuations today.** C4 defines a continuation as interiors
-/// disjoint; the detector and the door do not ask, and the results are
-/// exact. These rows pin that behaviour, not a ruling: whether the
-/// definition widens to match is Ev's question, asked separately.
+/// The three ops, by name.
+type Op = fn(
+    &Body<f64>,
+    &Body<f64>,
+    &BooleanDeclarations,
+    Tol,
+) -> Result<BooleanResult<f64>, BooleanError>;
+const OPS: [(&str, Op); 3] = [
+    ("union", topo::union_with::<f64>),
+    ("subtract", topo::subtract_with::<f64>),
+    ("intersect", topo::intersect_with::<f64>),
+];
+
+/// **An overlapping continuation refuses undeclared and builds
+/// declared, in every op.** C4: a continuation is one carrier with
+/// aligned senses, whether the two faces abut or overlap. Each pose
+/// refuses `UndeclaredCoincidence` on an aligned pair undeclared and
+/// with only its `Rest` findings, and builds exact with every finding
+/// declared, in union, subtract and intersect alike. The volumes are box
+/// arithmetic:
 ///
-/// Each refuses undeclared (and with only its `Rest` findings), naming
-/// an aligned pair, and builds exact with every finding declared:
-///
-/// - overlapping equal-height plates: the tops overlap, as do the
-///   bottoms;
+/// - overlapping equal-height plates (6 × 4 and 6 × 2 sharing 3 × 2):
+///   the tops overlap, as do the bottoms;
 /// - a sunk stack: a second plate half sunk into the first, its walls
 ///   overlapping the first plate's;
-/// - a flush pocket: a subtract whose cutter's top is flush with the
-///   plate's;
+/// - a flush pocket: a 2 × 2 × 0.5 block inside the plate, its top
+///   flush with the plate's;
 /// - a rabbet filled: a block in a rabbet, its top flush with the
-///   plate's and its east wall with the step's.
+///   plate's and its east wall with the step's; their interiors are
+///   disjoint, so the intersect is empty.
 #[test]
-fn overlapping_aligned_pairs_are_accepted_as_continuations() {
+fn overlapping_continuations_refuse_undeclared_and_build_declared() {
     let none = BooleanDeclarations::default();
     let p = brick((0.0, W), (0.0, H), (0.0, 1.0));
     let rows: [ContinuationRow; 4] = [
         (
             "overlapping plates",
-            false,
             p.clone(),
             brick((3.0, 9.0), (1.0, 3.0), (0.0, 1.0)),
-            30.0,
-            10,
+            [Some((30.0, 10)), Some((18.0, 10)), Some((6.0, 6))],
         ),
         (
             "sunk stack",
-            false,
             p.clone(),
             brick((0.0, W), (0.0, H), (0.5, 1.5)),
-            36.0,
-            6,
+            [Some((36.0, 6)), Some((12.0, 6)), Some((12.0, 6))],
         ),
         (
             "flush pocket",
-            true,
             p.clone(),
             brick((2.0, 4.0), (1.0, 3.0), (0.5, 1.0)),
-            22.0,
-            11,
+            [Some((24.0, 6)), Some((22.0, 11)), Some((2.0, 6))],
         ),
         (
             "rabbet filled",
-            false,
             rabbeted(),
             brick((W - 1.0, W), (0.0, H), (0.5, 1.0)),
-            24.0,
-            6,
+            [Some((24.0, 6)), Some((22.0, 8)), None],
         ),
     ];
-    for (label, subtract, a, b, expect, faces) in rows {
-        let op = |d: &BooleanDeclarations| {
-            if subtract {
-                topo::subtract_with(&a, &b, d, tol())
-            } else {
-                topo::union_with(&a, &b, d, tol())
-            }
-        };
+    for (label, a, b, expect) in rows {
         let (rest, cont) = findings(&a, &b);
         assert!(
             !cont.coincident_faces.is_empty(),
             "{label}: the detector mints the overlapping aligned pairs as continuations"
         );
-        for (posture, d) in [("undeclared", &none), ("Rest only", &rest)] {
-            let err = op(d).expect_err("an aligned pair is undeclared");
+        for ((op_name, op), expect) in OPS.into_iter().zip(expect) {
+            let label = format!("{label}, {op_name}");
+            for (posture, d) in [("undeclared", &none), ("Rest only", &rest)] {
+                let err = op(&a, &b, d, tol()).expect_err("an aligned pair is undeclared");
+                assert!(
+                    matches!(
+                        err,
+                        BooleanError::UndeclaredCoincidence {
+                            relation: PlaneRelation::SameOriented,
+                            ..
+                        }
+                    ),
+                    "{label}, {posture}: {err:?}"
+                );
+            }
+            let out = op(&a, &b, &with(&rest, &cont), tol());
+            match expect {
+                Some((volume, faces)) => {
+                    builds(&label, out, volume, faces);
+                }
+                None => assert!(
+                    matches!(out, Ok(BooleanResult::Empty)),
+                    "{label}: the interiors are disjoint: {out:?}"
+                ),
+            }
+        }
+    }
+}
+
+/// **A declared continuation across a rabbet's step refuses its union,
+/// typed, and its subtract and intersect build.** The rabbeted plate and
+/// a block on its east edge that fills the rabbet and overlaps the plate
+/// beyond it (the step below, or the top beside it), every finding
+/// declared. The union, the 6 × 4 × 1 box, refuses
+/// `Join(UnpairedLooseEnds)` with six ends unpaired
+/// (`work/zip/a-declared-continuation-across-a-rabbet-step-leaves-six-loose-ends.md`);
+/// its text names the join's missing rule, not a kernel defect.
+#[test]
+fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
+    for (label, block, subtract, intersect) in [
+        (
+            "over the step",
+            brick((W - 1.0, W), (0.0, H), (0.0, 1.0)),
+            (20.0, 6),
+            (2.0, 6),
+        ),
+        (
+            "over the top",
+            brick((W - 2.0, W), (0.0, H), (0.5, 1.0)),
+            (20.0, 8),
+            (2.0, 6),
+        ),
+    ] {
+        let a = rabbeted();
+        let (rest, cont) = findings(&a, &block);
+        assert_eq!(rest.coincident_faces.len(), 1, "{label}: one Rest pair");
+        let d = with(&rest, &cont);
+        let err = topo::union_with(&a, &block, &d, tol()).expect_err("the union refuses");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Join(topo::SplitJoinError::UnpairedLooseEnds { count: 6 })
+            ),
+            "{label}: {err:?}"
+        );
+        assert!(
+            !err.to_string().contains("kernel"),
+            "{label}: a legal input is no kernel defect: {err}"
+        );
+        builds(
+            &format!("{label}, subtract"),
+            topo::subtract_with(&a, &block, &d, tol()),
+            subtract.0,
+            subtract.1,
+        );
+        builds(
+            &format!("{label}, intersect"),
+            topo::intersect_with(&a, &block, &d, tol()),
+            intersect.0,
+            intersect.1,
+        );
+    }
+}
+
+/// **A declared rounded continuation that lies inside the other's wall
+/// refuses typed in every op.** The rounded plate and a plate of the
+/// same outline half as thick, sunk inside it or flush with its top or
+/// bottom, so the thin plate's walls (fillets included) lie inside the
+/// thick one's. Undeclared, each op refuses `UndeclaredCoincidence`;
+/// with every finding declared, the union refuses
+/// `FallbackExtentUnsupported` (no crossing event exists, and that pass
+/// exempts no declared pair:
+/// `work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`)
+/// and subtract and intersect refuse `Join(SectionLoopMixed)` (the role
+/// probe at a fillet's chord midpoint:
+/// `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces.md`).
+/// No text calls the legal input a kernel bug.
+#[test]
+fn declared_rounded_continuations_inside_a_wall_refuse_typed() {
+    let none = BooleanDeclarations::default();
+    let a = plate(rounded(R), 0.0);
+    for (label, z0) in [
+        ("sunk inside", 0.25),
+        ("flush top", 0.5),
+        ("flush bottom", 0.0),
+    ] {
+        let b = extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol());
+        let (rest, cont) = findings(&a, &b);
+        assert!(rest.coincident_faces.is_empty(), "{label}: no Rest pair");
+        let d = with(&rest, &cont);
+        for (op_name, op) in OPS {
+            let label = format!("{label}, {op_name}");
+            let undeclared = op(&a, &b, &none, tol()).expect_err("undeclared refuses");
             assert!(
                 matches!(
-                    err,
+                    undeclared,
                     BooleanError::UndeclaredCoincidence {
                         relation: PlaneRelation::SameOriented,
                         ..
                     }
                 ),
-                "{label}, {posture}: {err:?}"
+                "{label}, undeclared: {undeclared:?}"
+            );
+            let err = op(&a, &b, &d, tol()).expect_err("declared, it refuses");
+            let typed = if op_name == "union" {
+                matches!(err, BooleanError::FallbackExtentUnsupported { .. })
+            } else {
+                matches!(
+                    err,
+                    BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
+                )
+            };
+            assert!(typed, "{label}: {err:?}");
+            assert!(
+                !err.to_string().contains("kernel"),
+                "{label}: a legal input is no kernel bug: {err}"
             );
         }
-        builds(label, op(&with(&rest, &cont)), expect, faces);
     }
 }

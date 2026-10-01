@@ -316,11 +316,7 @@ pub fn pair_finding<T: Decide>(
 /// it, so a caller that hands one in is a kernel defect, and it is
 /// refused rather than read as either class.
 pub fn finding<P>(pair: P, evidence: FlushEvidence) -> Result<FlushFinding<P>, DistinctFinding> {
-    let class = match evidence.relation {
-        CarrierRelation::SameOriented => BooleanCoincidence::Continuation,
-        CarrierRelation::SameOpposite => BooleanCoincidence::REST,
-        CarrierRelation::Distinct => return Err(DistinctFinding),
-    };
+    let class = BooleanCoincidence::of_senses(evidence.relation).ok_or(DistinctFinding)?;
     Ok(FlushFinding {
         pair,
         class,

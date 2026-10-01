@@ -64,3 +64,20 @@ A sound curved-edge anchor — the chord-midpoint tier fenced to straight
 edges, with the rows it decides today resolved by a certified point (a
 chart-space `point_in_face` for curved regions answers §2 as well) — or
 a typed refusal naming the gap. The reproducer row flips when it lands.
+
+## A second reproducer: declared rounded continuations (REACH, PR 3657)
+
+Measured on `reach/cosurface-continuation` after `3aff2e6a07`, with the
+anchor instrumented at `resolve_roles_geometric`'s mixed-verdict return:
+the rounded 6 × 4 × 1 plate (corner fillets r = 0.5) and a rounded
+plate of the same outline 0.5 thick, either sunk inside it
+(z 0.25..0.75) or flush with its top (z 0.5..1) or bottom (z 0..0.5),
+every finding declared as the continuation it is. Subtract and
+intersect refuse `Join(SectionLoopMixed)`, decided at
+`Anchor::ChordMidpoint` in all six; the union refuses
+`FallbackExtentUnsupported` instead
+(`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
+The rows are
+`declared_rounded_continuations_inside_a_wall_refuse_typed` in
+`crates/sweep/tests/reach_continuation.rs`. The sharp outline builds
+all three ops on the same poses.

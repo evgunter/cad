@@ -251,10 +251,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             (Ok(Sign::Positive | Sign::Negative), _) | (Err(_), None) => true,
         };
         if refused {
-            // `Rest` bridges the residue only against a planar pierced
-            // face (a curved one refuses below whatever is declared);
-            // `Tangent` only where the door's witness lane derives the
-            // pair's tangency, which it checks before it admits one.
+            // A one-carrier declaration bridges the residue only against
+            // a planar pierced face (a curved one refuses below whatever
+            // is declared), and the door admits the one the pair's senses
+            // make it, or none where it cannot read them; `Tangent` only
+            // where the door's witness lane derives the pair's tangency,
+            // which it checks before it admits one.
             fn surface<T: Decide>(
                 body: &Body<T>,
                 f: crate::entity::FaceKey,
@@ -269,21 +271,23 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 (Some(a), Some(b)) => super::rest::tangent_locus(a, b, band).is_ok(),
                 _ => false,
             };
-            let admitted: &[crate::contact::ContactClass] = match (plane.is_some(), tangent) {
-                (true, true) => &[
-                    crate::contact::ContactClass::Rest,
-                    crate::contact::ContactClass::Tangent,
-                ],
-                (true, false) => &[crate::contact::ContactClass::Rest],
-                (false, true) => &[crate::contact::ContactClass::Tangent],
-                (false, false) => &[],
-            };
-            // A decided tilt admits no class: no declaration settles it.
-            let admitted = if decided_tilt { &[] } else { admitted };
+            let one_carrier = plane
+                .is_some()
+                .then(|| {
+                    super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band)
+                        .and_then(BooleanCoincidence::of_senses)
+                })
+                .flatten();
+            let admitted: Vec<BooleanCoincidence> = one_carrier
+                .into_iter()
+                .chain(tangent.then_some(BooleanCoincidence::TANGENT))
+                // A decided tilt admits no class: no declaration settles it.
+                .filter(|_| !decided_tilt)
+                .collect();
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::Sectors,
-                admitted,
+                &admitted,
             );
             let nv = n_pierced.vec();
             let steeper = s
@@ -353,9 +357,9 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // C8: a CURVED on-carrier sector is opened by a VERIFIED
         // declaration and by nothing else — undeclared touching keeps
         // this typed frontier refusal. The recourse is a declared
-        // Tangent/Rest contact (vocabulary CONTACT-DESIGN C4), under
-        // which classification descends to the carrier ladder or the
-        // C7 sector trilean instead of refusing.
+        // coincidence (C4: a `Rest` or `Tangent` contact, or a
+        // continuation), under which classification descends to the
+        // carrier ladder or the C7 sector trilean instead of refusing.
         if !declared_one_carrier
             && !matches!(sector_carrier, super::carrier_eq::CarrierDesc::Plane { .. })
         {
@@ -428,7 +432,10 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 Err(PlaneEqError::Escalated { rung, diag }) => {
                     return Err(BooleanError::plane_identity(
                         rung,
-                        declared.on_pair_door((piercing, s.face, pierced_op, contact.face)),
+                        declared.on_pair_door(
+                            (piercing, s.face, pierced_op, contact.face),
+                            super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band),
+                        ),
                         diag,
                     ));
                 }

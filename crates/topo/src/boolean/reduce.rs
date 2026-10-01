@@ -648,7 +648,11 @@ pub(super) fn gate_maximal_faces<T: Decide>(
 ///
 /// A cross-operand face pair on one carrier with ALIGNED senses is one
 /// surface carried on, whether it abuts or overlaps; this scan finds
-/// the pairs that meet along their boundary. Without a declaration the op has no licence to treat the two as one
+/// the pairs that meet along their boundary. An overlapping pair whose
+/// boundaries share no stretch of curve passes it, and the sweep's
+/// coincident-sector classification refuses it there, with the same
+/// error (`vtxfac`'s coplanar sector reaching the carrier ladder).
+/// Without a declaration the op has no licence to treat the two as one
 /// carrier, and no licence to merge them, so its output would carry two
 /// cosurface faces side by side, which the next boolean refuses as an
 /// operand. So the pair refuses here, before the sweep, naming the pair
@@ -3557,7 +3561,7 @@ mod declaration_order_rows {
         a: &crate::body::Body<f64>,
         b: &crate::body::Body<f64>,
         pair: (crate::entity::FaceKey, crate::entity::FaceKey),
-        class: Option<ContactClass>,
+        class: Option<BooleanCoincidence>,
     ) -> Result<(), BooleanError> {
         let decls = BooleanDeclarations {
             coincident_faces: class
@@ -3614,7 +3618,7 @@ mod declaration_order_rows {
         ];
         for (label, a, b, n) in poses {
             let pair = (face_facing(&a, n), face_facing(&b, [-n[0], -n[1], -n[2]]));
-            let got = union_declared(&a, &b, pair, Some(ContactClass::Tangent));
+            let got = union_declared(&a, &b, pair, Some(BooleanCoincidence::TANGENT));
             assert_eq!(
                 decision_of(label, &got),
                 BooleanDecision::Coincidence(
@@ -3638,14 +3642,19 @@ mod declaration_order_rows {
     }
 
     /// **A coplanar sector's in-band parallelism offers the declaration
-    /// that settles it**, on a union: a thin block whose bottom face,
-    /// cornered at a point of the other block's top face by a 5° wedge,
-    /// is tilted by an in-band angle about the wedge's one edge, so the
+    /// that settles it**, on a union: a parallelepiped cornered at a
+    /// point of a block's top face by a 5° wedge angle, its face there
+    /// tilted by an in-band angle about the wedge's one edge, so the
     /// wedge's two edges read on that face while its normal reads
-    /// in-band parallel at the corner's arm. Undeclared, the sector
-    /// refuses and offers the declaration; declared `Rest`, which the
-    /// door verifies, the pair's class is read before the parallelism
-    /// refuses, the lump takes the residue, and the union builds.
+    /// in-band parallel at the corner's arm. Two poses: standing on the
+    /// block, its bottom face opposed to the block's top; and sunk into
+    /// it, its top face flush with the block's top and aligned with it.
+    /// Undeclared, the sector refuses and offers the one-carrier
+    /// coincidence the senses make the pair (`Rest` opposed, a
+    /// continuation aligned). Following the offer, the door verifies the
+    /// declaration, the pair's class is read before the parallelism
+    /// refuses, the lump takes the residue, and the union builds at the
+    /// volume box arithmetic gives; the other class is contradicted.
     #[test]
     fn a_coplanar_sectors_in_band_parallelism_is_settled_by_the_declaration_it_offers() {
         use crate::test_support_fixtures::{brick, mapped_cube};
@@ -3658,49 +3667,106 @@ mod declaration_order_rows {
             geom_core::Vec3::new(phi.cos(), phi.sin(), theta * phi.sin()),
         );
         let p = Point3::new(0.5, 0.2, 1.0);
-        let wedge = mapped_cube::<f64>(
-            move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
-            tol,
-        );
         // Its top face reaches far enough from the tilt axis that each
-        // of its corners reads definitely off the wedge's bottom plane.
+        // of its corners reads definitely off the wedge's tilted plane.
         let block = brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
-        let pair = (face_facing(&block, [0.0, 0.0, 1.0]), {
-            let hits: Vec<_> = wedge
-                .faces()
-                .map(|(k, _)| k)
-                .filter(|&k| {
-                    matches!(crate::boolean::face_carrier(&wedge, k),
-                        Some(crate::boolean::CarrierDesc::Plane { normal, .. }) if normal.z < -0.99)
-                })
-                .collect();
-            assert_eq!(hits.len(), 1, "the wedge's bottom face");
-            hits[0]
-        });
-        let undeclared = union_declared(&block, &wedge, pair, None);
-        assert!(
-            matches!(
-                decision_of("undeclared", &undeclared),
-                BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
-                    if s.class() == ContactClass::Rest
-            ),
-            "the lookup mints the class the door admits on a planar pierced face: {undeclared:?}"
+        let block_volume = 3.0 * 4.5;
+        // The parallelepiped's volume: its base parallelogram's area,
+        // `sin φ`, times its height.
+        let wedge_volume = |height: f64| phi.sin() * height;
+        type Pose = (
+            &'static str,
+            crate::body::Body<f64>,
+            f64,
+            BooleanCoincidence,
+            BooleanCoincidence,
+            f64,
         );
-        let text = undeclared.expect_err("it refuses").to_string();
-        assert!(
-            text.starts_with("how two corners of the two solids overlap where they meet is ")
-                && text.contains(
-                    "Recourse: declare the coincidence, or move the parts so they clearly meet or \
-                     clearly stand apart there, or, if this gap is intended, tighten the \
-                     tolerance below "
+        let poses: [Pose; 2] = [
+            (
+                "standing on the block",
+                mapped_cube::<f64>(
+                    move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
+                    tol,
                 ),
-            "{text}"
-        );
-        let declared = union_declared(&block, &wedge, pair, Some(ContactClass::Rest));
-        assert!(
-            declared.is_ok(),
-            "declared Rest, the union builds: {declared:?}"
-        );
+                -1.0,
+                BooleanCoincidence::REST,
+                BooleanCoincidence::Continuation,
+                block_volume + wedge_volume(1.0),
+            ),
+            (
+                "sunk into the block",
+                mapped_cube::<f64>(
+                    move |u, v, w| {
+                        p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, 0.5 * (w - 1.0))
+                    },
+                    tol,
+                ),
+                1.0,
+                BooleanCoincidence::Continuation,
+                BooleanCoincidence::REST,
+                block_volume,
+            ),
+        ];
+        for (label, wedge, facing, offered, other, volume) in poses {
+            let pair = (face_facing(&block, [0.0, 0.0, 1.0]), {
+                let hits: Vec<_> = wedge
+                    .faces()
+                    .map(|(k, _)| k)
+                    .filter(|&k| {
+                        matches!(crate::boolean::face_carrier(&wedge, k),
+                            Some(crate::boolean::CarrierDesc::Plane { normal, .. })
+                                if normal.z * facing > 0.99)
+                    })
+                    .collect();
+                assert_eq!(
+                    hits.len(),
+                    1,
+                    "{label}: the wedge's face on the block's top"
+                );
+                hits[0]
+            });
+            let undeclared = union_declared(&block, &wedge, pair, None);
+            assert!(
+                matches!(
+                    decision_of(label, &undeclared),
+                    BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
+                        if s.class() == offered
+                ),
+                "{label}: the lookup offers {offered:?}, as the senses make the pair: \
+                 {undeclared:?}"
+            );
+            let text = undeclared.expect_err("it refuses").to_string();
+            assert!(
+                text.starts_with("how two corners of the two solids overlap where they meet is ")
+                    && text.contains(
+                        "Recourse: declare the coincidence, or move the parts so they clearly \
+                         meet or clearly stand apart there, or, if this gap is intended, tighten \
+                         the tolerance below "
+                    ),
+                "{label}: {text}"
+            );
+            let decls = BooleanDeclarations {
+                coincident_faces: vec![FacePairDeclaration::new(pair.0, pair.1, offered)],
+                ..BooleanDeclarations::none()
+            };
+            let built = crate::boolean::union_with(&block, &wedge, &decls, tol)
+                .unwrap_or_else(|e| panic!("{label}: following the offer, it builds: {e:?}"));
+            let body = &built.body().expect("a union is not empty").body;
+            let got = crate::mass_properties(body, tol)
+                .expect("its volume")
+                .volume;
+            assert!((got - volume).abs() <= 1e-9, "{label}: {got} vs {volume}");
+            let contradicted = union_declared(&block, &wedge, pair, Some(other));
+            assert!(
+                matches!(
+                    contradicted,
+                    Err(BooleanError::ContactContradicted { .. }
+                        | BooleanError::ContinuationContradicted { .. })
+                ),
+                "{label}: declared {other:?}: {contradicted:?}"
+            );
+        }
     }
 }
 
