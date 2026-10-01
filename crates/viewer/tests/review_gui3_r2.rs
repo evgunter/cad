@@ -708,8 +708,8 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
                 message.as_deref(),
                 Some(
                     format!(
-                        "upstream failure at Extrude {:012x} — that row carries the cause",
-                        bad.0
+                        "upstream failure at Extrude {} — that row carries the cause",
+                        test_utils::refusal::tag(bad.0)
                     )
                     .as_str()
                 ),

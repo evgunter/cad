@@ -69,7 +69,10 @@ fn two_frames_a_centimetre_apart_get_different_labels() {
         "the picker's whole job at this row is telling these two apart"
     );
     assert!(
-        here.starts_with(&format!("Datum frame {:012x} — ", id.0)),
+        here.starts_with(&format!(
+            "Datum frame {} — ",
+            test_utils::refusal::tag(id.0)
+        )),
         "the node as the document speaks it, then its pose: {here}"
     );
     assert!(
@@ -174,11 +177,17 @@ fn a_face_frame_names_the_node_its_face_is_read_off() {
     });
     let (shown, id) = label_in(&doc, node);
     assert!(
-        shown.starts_with(&format!("Datum frame (on face) {:012x} — ", id.0)),
+        shown.starts_with(&format!(
+            "Datum frame (on face) {} — ",
+            test_utils::refusal::tag(id.0)
+        )),
         "{shown}"
     );
     assert!(
-        shown.contains(&format!("on Datum frame {:012x}'s face", at.0)),
+        shown.contains(&format!(
+            "on Datum frame {}'s face",
+            test_utils::refusal::tag(at.0)
+        )),
         "the face's carrier is what the node can say: {shown}"
     );
 }
@@ -231,7 +240,7 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     assert_eq!(point.pose, None);
     assert_eq!(
         tree::node_label(&doc, point.id, &PartFiles::Unscanned),
-        format!("Datum point {:012x}", point.id.0),
+        format!("Datum point {}", test_utils::refusal::tag(point.id.0)),
         "a node with nothing more to say is named by its kind and tag"
     );
 }

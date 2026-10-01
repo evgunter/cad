@@ -536,6 +536,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
+        EditError::NodeIdCollides { .. } => "node_id_collides",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -1180,6 +1181,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetProgramOnNonProfile { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
+        EditError::NodeIdCollides { .. } => None,
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1516,6 +1518,7 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
+        TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
@@ -1820,7 +1823,7 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::OrderMismatch => "order_mismatch",
-        SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
+        SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
@@ -2346,7 +2349,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
-        SplitError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2372,7 +2374,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::Edit { .. } => "inline_edit",
-        InlineError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 

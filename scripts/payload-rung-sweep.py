@@ -167,6 +167,9 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "MappedCurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     "MetaValue": ("argued", "NOT_CARRIED, the metadata family; crates/pncad/src/document.rs "
                             "says why the value tree stays out"),
+    "Minted": ("argued", "NOT_CARRIED, the mint family (crates/pncad/tests/all.rs): a "
+                         "consumer holds ids, never the mint log, and a snapshot refusal "
+                         "crosses as its tag word"),
     "PairingViolation": ("argued", "NOT_CARRIED, the analysis lane's interior residue "
                                    "(crates/pncad/tests/all.rs)"),
     "ParamValue": ("argued", "NOT_CARRIED, a curated face of a different shape "

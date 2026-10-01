@@ -6148,7 +6148,7 @@ mod tests {
         for (_, p) in part.points.iter_mut() {
             p.z += 1.2;
         }
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         let errors = census_and_certify(
             &body,
             &ContactRecords::default(),
@@ -6427,8 +6427,8 @@ mod tests {
         );
         let post_top = post.top_face;
         let mut body = post.body;
-        let _ = crate::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).unwrap();
-        let bkeys = crate::graft_disjoint_all_keyed(&mut body, &block.body, tol).unwrap();
+        let _ = crate::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
+        let bkeys = crate::graft_disjoint_all_keyed(&mut body, &block.body).unwrap();
         let block_bottom = bkeys.face(block.bottom_face).unwrap();
         for region in [Some(RegionLane::certified()), None] {
             assert!(
@@ -7016,7 +7016,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = cube_at(Vec3::new(0.0, 0.0, 0.0), tol);
         let other = cube_at_turned(at, theta, tol);
-        crate::instance::graft_disjoint(&mut body, &other, tol).expect("a disjoint graft");
+        crate::instance::graft_disjoint(&mut body, &other).expect("a disjoint graft");
         body
     }
 
@@ -7076,7 +7076,7 @@ mod tests {
         )
         .expect("the chord closes the cap");
         let cube = cube_at(Vec3::new(10.0, 3.0, 0.0), tol);
-        crate::instance::graft_disjoint(&mut body, &cube, tol).expect("a disjoint graft");
+        crate::instance::graft_disjoint(&mut body, &cube).expect("a disjoint graft");
         body
     }
 
@@ -7155,7 +7155,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
         let cube = cube_at(Vec3::new(0.5, 3.9, -0.5), tol);
-        crate::instance::graft_disjoint(&mut body, &cube, tol).expect("a disjoint graft");
+        crate::instance::graft_disjoint(&mut body, &cube).expect("a disjoint graft");
         body
     }
 
@@ -7723,7 +7723,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = crate::test_support_fixtures::prism_z::<f64>(&L, 0.0, 1.0, tol).body;
         let part = crate::test_support_fixtures::brick::<f64>(x, y, z, tol);
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         body
     }
 
@@ -7798,7 +7798,7 @@ mod tests {
             },
             tol,
         );
-        crate::instance::graft_disjoint(&mut bracket_only, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut bracket_only, &part).unwrap();
         bracket_only
     }
 
@@ -7925,7 +7925,7 @@ mod tests {
         let mut body = crate::test_support_fixtures::prism_z::<f64>(&NOTCHED, 0.0, 1.0, tol).body;
         let part =
             crate::test_support_fixtures::brick::<f64>((1.0, 2.5), (1.2, 3.0), (0.0, 1.0), tol);
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         let corner = body
             .vertices
             .iter()
@@ -7978,7 +7978,7 @@ mod tests {
         crate::test_support_fixtures::describe_as_intersections(&mut body, tol);
         let part =
             crate::test_support_fixtures::brick::<f64>((-1.0, 0.0), (0.0, 2.0), (0.0, 2.0), tol);
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         let corner = body
             .vertices
             .iter()
@@ -8045,7 +8045,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = crate::test_support_fixtures::prism_z::<f64>(profile, 0.0, 1.0, tol).body;
         let part = crate::test_support_fixtures::brick::<f64>(x, y, z, tol);
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         body
     }
 
@@ -8144,7 +8144,7 @@ mod tests {
             tol,
         )
         .body;
-        crate::instance::graft_disjoint(&mut body, &guest, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &guest).unwrap();
         let got = sites(&body);
         assert!(!got.is_empty());
         assert!(got.iter().all(|(_, t)| !t.is_rest()), "{got:?}");
@@ -8251,7 +8251,7 @@ mod tests {
         });
         let mut other = Body::<f64>::new();
         part(&mut other);
-        crate::instance::graft_disjoint(&mut body, &other, Tol::witness()).unwrap();
+        crate::instance::graft_disjoint(&mut body, &other).unwrap();
         body
     }
 
@@ -8685,7 +8685,7 @@ mod tests {
                     let q = r(mb(x, y, z));
                     Point3::new(q[0], q[1], q[2])
                 });
-                crate::instance::graft_disjoint(&mut body, &other, Tol::witness()).unwrap();
+                crate::instance::graft_disjoint(&mut body, &other).unwrap();
                 let got = sites(&body);
                 assert!(!got.is_empty(), "{name} @ {ang}");
                 assert!(
@@ -8815,7 +8815,7 @@ mod tests {
         };
         let pair = |a: Body<f64>, b: &Body<f64>| {
             let mut body = a;
-            crate::instance::graft_disjoint(&mut body, b, Tol::witness()).unwrap();
+            crate::instance::graft_disjoint(&mut body, b).unwrap();
             body
         };
         let crosses = |body: &Body<f64>| -> Vec<TouchVerdict> {

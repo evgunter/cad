@@ -2503,6 +2503,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => {
             "its faces are not certainly crossing along it, so they do not fix where it runs"
         }
+        CertifyError::NurbsLaneNotSupplied => {
+            "it lies between a plane and a spline face, and the check that ran was given no \
+             plane x NURBS lane, so nothing about it was checked"
+        }
         CertifyError::Escalated { check, .. } => certify_undecided(*check),
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
@@ -2530,6 +2534,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 NOT_YET
             }
             CertifyError::Band(_) => TOLERANCE,
+            CertifyError::NurbsLaneNotSupplied => {
+                "Recourse: check the body through a door that holds the plane x NURBS lane, \
+                 at a certifying scalar"
+            }
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
@@ -4166,7 +4174,7 @@ pub fn validate_geometric_certificate_structural<
 /// one argument that decides both of the battery's injected derivations
 /// together, because they are only ever right as a pair.
 #[derive(Clone, Copy)]
-enum StructuralPhase<'l, T: geom_core::Decide> {
+enum StructuralPhase<T: geom_core::Decide> {
     /// The `_structural` doors: no lane at all — check 2 without the
     /// plane × NURBS lane, check 7 MADE through the closed form.
     NoLane,
@@ -4174,7 +4182,7 @@ enum StructuralPhase<'l, T: geom_core::Decide> {
     /// the certified plane × NURBS lane it hands in, and check 7 NOT
     /// made, because the composed door makes it next through the
     /// certified quadrature.
-    BeforeCertifiedCheck7(geom_brep::NurbsLane<'l, T>),
+    BeforeCertifiedCheck7(geom_brep::NurbsLane<T>),
 }
 
 /// The tier-3 battery for one [`StructuralPhase`] — the shared body of
@@ -4190,7 +4198,7 @@ enum StructuralPhase<'l, T: geom_core::Decide> {
 fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &'b Body<T>,
     tol: Tol,
-    phase: StructuralPhase<'_, T>,
+    phase: StructuralPhase<T>,
 ) -> Result<Option<crate::props::SignCertificate<'b, T>>, Vec<ValidationError>> {
     let (nurbs_lane, plus_v) = match phase {
         StructuralPhase::NoLane => (None, PlusVCheck::Through(None)),
@@ -4620,7 +4628,7 @@ pub(crate) fn tier3_local_checks<
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
+    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
 ) -> (
     Vec<ValidationError>,
@@ -4967,7 +4975,7 @@ pub fn contact_marks_structural<
 fn contact_marks_via<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
+    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
@@ -5289,11 +5297,10 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// reason and with the same discipline. The M7-8 carrier class
 /// (`Intersection` of a plane and a described NURBS wall) re-derives
 /// only through the certified plane × NURBS lane, so a caller that
-/// cannot name that lane does not re-derive that class and this
-/// battery SKIPS those edges rather than reporting them
-/// ([`geom_brep::EdgeCurve::needs_nurbs_lane`] asks the question
-/// before the claim is made). Every other carrier class is
-/// re-certified identically either way.
+/// holds none does not re-derive that class and this battery SKIPS
+/// those edges rather than reporting them (the lane's absence is its
+/// own refusal, [`geom_brep::CertifyError::NurbsLaneNotSupplied`]).
+/// Every other carrier class is re-certified identically either way.
 ///
 /// `offset_fit` is check 1's re-derivation door for an `Approx` face
 /// ([`geom_brep::OffsetFitLane`]), handed in for a THIRD reason: what
@@ -5327,7 +5334,7 @@ pub(crate) fn tier3_local_checks_marked<
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
     plus_v: PlusVCheck<T>,
-    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
+    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> (
     Vec<ValidationError>,
@@ -5504,26 +5511,21 @@ pub(crate) fn tier3_local_checks_marked<
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        // Re-certification takes the lane the CALLER handed in, not one
-        // read off the scalar. The bound that admits a scalar to this
-        // battery says nothing about the certification arithmetic (C9)
-        // the plane × NURBS certificate lives in, which is a right of
-        // its own. So a
-        // caller that can name the certified lane supplies it and this
-        // check runs whole; a caller that cannot makes no claim about
-        // an M7-8 edge at all.
+        // Re-certification takes the lane this battery was handed: the
+        // certified doors hand the certified lane and check 2 runs
+        // whole, and the `_structural` doors hand none and make no
+        // claim about an M7-8 edge at all.
         //
         // **Read that at its true width, because it is wider than the
         // class it is about.** `recertify_via` is ONE call and check 2
         // is a whole-edge check: without the lane the description
-        // resolver refuses `Unimplemented` BEFORE the endpoint,
+        // resolver refuses `NurbsLaneNotSupplied` BEFORE the endpoint,
         // interval and chart-image checks run, so what a lane-free
         // caller does not get is every check-2 verdict on that edge —
         // a drifted endpoint on an M7-8 edge included — and not merely
         // the plane × NURBS limbs. That is why the skip is a skip and
-        // not a report: `Unimplemented` after the fact cannot be told
-        // from a genuine failure, and reporting it would name a defect
-        // in the body for a fact about the caller.
+        // not a report: reporting it would name a defect in the body
+        // for a fact about the caller.
         //
         // **An imported or minted body of that class must re-derive
         // its certificate at rest exactly as it did at attach time.**
@@ -5538,21 +5540,18 @@ pub(crate) fn tier3_local_checks_marked<
         // Every other carrier class is re-certified the same way at
         // both doors. Re-certification re-derives; it never trusts the
         // stored certificate.
-        let claimable =
-            nurbs_lane.is_some() || !curve.needs_nurbs_lane(|k| body.surfaces.get(k).cloned());
-        if claimable
-            && let Err(error) = curve.recertify_via(
-                p_start,
-                p_end,
-                |k| body.surfaces.get(k).cloned(),
-                band,
-                nurbs_lane,
-            )
-        {
-            errors.push(ValidationError::EdgeCertification {
+        match curve.recertify_via(
+            p_start,
+            p_end,
+            |k| body.surfaces.get(k).cloned(),
+            band,
+            nurbs_lane,
+        ) {
+            Ok(_) | Err(geom_brep::CertifyError::NurbsLaneNotSupplied) => {}
+            Err(error) => errors.push(ValidationError::EdgeCertification {
                 edge: edge_key,
                 error,
-            });
+            }),
         }
         let Some((fs_plus, fs_minus)) = edge_face_surfaces(body, edge.he_plus, edge.he_minus)
         else {
@@ -7838,7 +7837,7 @@ fn pseudomanifold_certificate_via<
     body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
+    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
     region: Option<crate::chart_region::RegionLane<T>>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
@@ -7887,7 +7886,7 @@ fn linear_band(tol: Tol) -> Result<Band, Vec<ValidationError>> {
 /// [`AtRestBody`] keeps and the tier-3′ pass that reads it hold the same
 /// lanes by construction.
 struct CertifiedLanes<T: geom_core::Decide> {
-    nurbs: geom_brep::NurbsLane<'static, T>,
+    nurbs: geom_brep::NurbsLane<T>,
     quad: crate::props::QuadLane<T>,
     region: crate::chart_region::RegionLane<T>,
 }
@@ -7895,7 +7894,7 @@ struct CertifiedLanes<T: geom_core::Decide> {
 impl<T: geom_core::Decide + geom_core::CertifiedBounds> CertifiedLanes<T> {
     fn held() -> Self {
         Self {
-            nurbs: &geom_brep::plane_nurbs_limbs::<T>,
+            nurbs: geom_brep::NurbsLane::certified(),
             quad: crate::props::QuadLane::certified(),
             region: crate::chart_region::RegionLane::certified(),
         }
