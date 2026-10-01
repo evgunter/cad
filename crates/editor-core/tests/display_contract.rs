@@ -18,15 +18,14 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ClusterMaintenance, ContactClass, DeclareError,
     Diagnosis, Dimension, DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind,
-    EvalError, FrameFault, HitTestError, InputFault, InterrogateError, Lever, LeverRefusal,
-    Maintenance, MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError,
-    MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
-    PersistError, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
-    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId,
-    StepIdFault, StepSegmentsError, UnnamedEntity,
+    EvalError, FrameFault, HitTestError, InterrogateError, Lever, LeverRefusal, Maintenance,
+    MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal,
+    NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault, PersistError,
+    PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError, RefusedRef,
+    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
 };
-use editor_core::{Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
+use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
 use test_utils::refusal::tagged;
 
@@ -1010,7 +1009,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &["bounds a length measure", "with an angle expression"],
+        &["bounds Measure 000000000004, which measures a length, with an angle expression"],
         &dumps,
     );
     assert_f6(
@@ -1203,18 +1202,18 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::PayloadUnknownDocParam {
-                node: node(),
+                node: held(5, "Measure"),
                 name: ParamName::from_static("depth"),
             },
             vec![
-                "Extrude \"base plate\" (000000000005): its payload expression",
+                "Measure 000000000005: its payload expression",
                 "depth",
                 "does not declare",
             ],
         ),
         (
             SnapshotError::PayloadDocParamDimension {
-                node: node(),
+                node: held(5, "Measure"),
                 name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
@@ -1224,7 +1223,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 // existing beside the slot one: a payload expression
                 // has no slot, so the node is the only address the
                 // refusal can carry.
-                "Extrude \"base plate\" (000000000005): its payload expression",
+                "Measure 000000000005: its payload expression",
                 "depth",
                 "as a length",
                 "declared angle",
@@ -1253,111 +1252,108 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::PlacementNonFinite {
-                node: node(),
+                node: held(5, "InstantiatePart"),
                 at: editor_core::FrameSite::Registry,
             },
             vec![
-                "placement frame for Extrude \"base plate\" (000000000005)",
+                "placement frame for InstantiatePart 000000000005",
                 "non-finite coordinate",
             ],
         ),
         (
             SnapshotError::PlacementImproper {
-                node: node(),
+                node: held(5, "Transform"),
                 at: editor_core::FrameSite::Step { index: 1 },
                 determinant: -1.0,
             },
             vec![
-                "step 2 of Extrude \"base plate\" (000000000005)'s placement",
+                "step 2 of Transform 000000000005's placement",
                 "improper (mirroring)",
             ],
         ),
         (
             SnapshotError::PlacementNonRigid {
-                node: node(),
+                node: held(5, "InstantiatePart"),
                 at: editor_core::FrameSite::Registry,
                 check: "transform_rigid_col01_orth",
             },
             vec![
-                "placement frame for Extrude \"base plate\" (000000000005)",
+                "placement frame for InstantiatePart 000000000005",
                 "not definitely rigid",
                 "may shear",
             ],
         ),
         (
             SnapshotError::PlacementNotGauge {
-                node: node(),
+                node: held(5, "InstantiatePart"),
                 gauge: held(2, "InstantiatePart"),
             },
-            vec!["cluster's gauge, InstantiatePart 000000000002"],
+            vec![
+                "the placement keyed by InstantiatePart 000000000005 belongs on its cluster's gauge, \
+                 InstantiatePart 000000000002",
+            ],
         ),
         (
-            SnapshotError::MateAlignment { node: node() },
+            SnapshotError::MateAlignment {
+                node: held(5, "Mate"),
+            },
             vec![
-                "Extrude \"base plate\" (000000000005)'s alignment datum",
+                "Mate 000000000005's alignment datum",
                 "non-finite coordinate",
             ],
         ),
         (
             SnapshotError::PlacementRule {
-                node: node(),
+                node: held(5, "Pattern"),
                 fault: PlacementRuleFault::NoPlacements,
             },
-            vec![
-                "Extrude \"base plate\" (000000000005): ",
-                "placement list is empty",
-            ],
+            vec!["Pattern 000000000005: ", "placement list is empty"],
         ),
         (
             SnapshotError::MeasureRefs {
-                node: node(),
+                node: held(5, "Measure"),
                 fault: MeasureNodeFault::RefIndexOutOfRange {
                     verb: "distance",
                     index: 3,
                     refs: 2,
                 },
             },
-            vec![
-                "Extrude \"base plate\" (000000000005): ",
-                "reads reference 3",
-            ],
+            vec!["Measure 000000000005: ", "reads reference 3"],
         ),
         (
             SnapshotError::InputList {
-                node: node(),
-                fault: InputFault::TooFew { found: 1 },
+                node: held(5, "Union"),
+                fault: ListFault::TooFew { found: 1 },
             },
-            vec!["Extrude \"base plate\" (000000000005): a list input takes two or more entries"],
+            vec!["Union 000000000005: a list input takes two or more entries"],
         ),
         (
             SnapshotError::DuplicateInput {
-                node: node(),
+                node: held(5, "Union"),
                 input: held(9, "Revolve"),
             },
-            vec![
-                "Extrude \"base plate\" (000000000005): Revolve 000000000009 is taken as an input twice",
-            ],
+            vec!["Union 000000000005: Revolve 000000000009 is taken as an input twice"],
         ),
         (
             SnapshotError::AssertionTarget {
-                node: node(),
+                node: held(5, "Assertion"),
                 measure: held(4, "Measure"),
                 bound: Dimension::Count,
             },
             vec![
-                "carries a count bound against Measure 000000000004",
+                "Assertion 000000000005 carries a count bound against Measure 000000000004",
                 "which is not a measure",
             ],
         ),
         (
             SnapshotError::AssertionBound {
-                node: node(),
+                node: held(5, "Assertion"),
                 measure: held(4, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
             },
             vec![
-                "bounds a length measure (Measure 000000000004)",
+                "Assertion 000000000005 bounds Measure 000000000004, which measures a length,",
                 "with an angle expression",
             ],
         ),
@@ -1381,13 +1377,13 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::StepIds {
-                node: node(),
+                node: held(5, "Profile"),
                 fault: StepIdFault::Repeated {
                     step: StepId(tagged(3)),
                 },
             },
             vec![
-                "Extrude \"base plate\" (000000000005)'s step ids",
+                "Profile 000000000005's step ids",
                 "step id 000000000003 stands for two steps",
             ],
         ),

@@ -40,7 +40,7 @@ use crate::doc::{DocParam, DocParamField, ParamName, PlacementFault, WitnessSite
 use crate::edit::{DocEdit, LoggedEdit};
 use crate::meta::MetaVersionError;
 use crate::node::SlotId;
-use crate::node::{AssertionBoundFault, InputFault, Node, RecipeNodeId, SlotDimensionFault};
+use crate::node::{AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault};
 use crate::placement::{FrameFault, FrameSite};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
@@ -120,8 +120,10 @@ impl core::fmt::Display for NonFiniteSite {
 /// places every [`SnapshotError`] arm in the walk that raises it —
 /// each of the three stops compiling when a walk or an arm is added
 /// and not placed. What the code cannot know — the EDIT-door twin each
-/// refusal has, and whether its predicate is shared — stays in the
-/// tracker beside this roster.
+/// refusal has, and whether its predicate is shared — is said on each
+/// [`SnapshotError`] arm's own doc; the table in the closed
+/// `work/edit/three-door-predicates-are-hand-copied-not-shared` is the
+/// record of the round that measured it, not a census kept current.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Walk {
     /// [`first_non_finite`] over ε, the params, the appearance records
@@ -999,10 +1001,9 @@ pub enum SnapshotError {
     InputList {
         /// The offending node.
         node: SpokenNode,
-        /// What is wrong with it; never
-        /// [`crate::node::InputFault::Duplicate`], which is
-        /// [`SnapshotError::DuplicateInput`].
-        fault: crate::node::InputFault,
+        /// What is wrong with it. A repeated input is
+        /// [`SnapshotError::DuplicateInput`], not a list fault.
+        fault: crate::node::ListFault,
     },
     /// A node reaching one input twice (DM5) — [`Node::input_fault`]'s
     /// `Duplicate` answer, named apart from
@@ -1256,7 +1257,8 @@ impl core::fmt::Display for SnapshotError {
                 bound,
             } => write!(
                 f,
-                "{node} bounds {} {measured} measure ({measure}) with {} {bound} expression",
+                "{node} bounds {measure}, which measures {} {measured}, with {} {bound} \
+                 expression",
                 measured.article(),
                 bound.article()
             ),
@@ -1400,12 +1402,12 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // every door that admits a node, so the question is asked in one
         // place and this door only names the answer.
         if let Some(fault) = node.input_fault() {
-            return Err(match fault {
-                InputFault::Duplicate { input } => SnapshotError::DuplicateInput {
+            return Err(match fault.list_fault() {
+                Err(input) => SnapshotError::DuplicateInput {
                     node: doc.spoken(id),
                     input: doc.spoken(input),
                 },
-                fault => SnapshotError::InputList {
+                Ok(fault) => SnapshotError::InputList {
                     node: doc.spoken(id),
                     fault,
                 },
@@ -1839,9 +1841,10 @@ mod tests {
     ///   an arm that names a walk which refuses in another vocabulary
     ///   — or a snapshot-refusing walk no arm comes out of — is red.
     ///
-    /// What stays in the tracker beside this row is the column the
-    /// code cannot know: the EDIT-door twin of each refusal, and
-    /// whether the predicate behind it is shared or hand-copied.
+    /// The column the code cannot know — the EDIT-door twin of each
+    /// refusal, and whether the predicate behind it is shared or
+    /// hand-copied — is said on each arm's own doc ([`Walk`]'s doc says
+    /// where the older table lives).
     #[test]
     fn every_snapshot_error_arm_names_the_walk_that_produces_it() {
         let at = |bits| crate::SpokenNode::absent(RecipeNodeId(bits));
@@ -1952,7 +1955,7 @@ mod tests {
             },
             SnapshotError::InputList {
                 node: node(),
-                fault: crate::node::InputFault::TooFew { found: 1 },
+                fault: crate::node::ListFault::TooFew { found: 1 },
             },
             SnapshotError::DuplicateInput {
                 node: node(),
@@ -2171,6 +2174,118 @@ mod tests {
                 assert_eq!(node, doc.spoken(ids[0]));
             }
             other => panic!("a non-finite placement must refuse at save, got {other:?}"),
+        }
+    }
+
+    /// A triangle profile on a frame, the profile labelled `outline`,
+    /// as the edit doors build it.
+    fn labelled_triangle(tol: Tol) -> (ProfileDoc, RecipeNodeId) {
+        let insert = |doc: ProfileDoc, node| {
+            let doc = doc
+                .apply(
+                    &crate::DocEdit::InsertNode { node },
+                    tol,
+                    &crate::RefusingReach,
+                )
+                .expect("the node inserts")
+                .doc;
+            let id = *doc.order().last().expect("the inserted node");
+            (doc, id)
+        };
+        let doc = ProfileDoc::empty_derived("check-speak", tol);
+        let (doc, plane) = insert(doc, crate::test_support::xy_frame());
+        let triangle = crate::program::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)])
+            .expect("finite corners");
+        let (doc, profile) = insert(
+            doc,
+            Node::Profile(crate::program::ProfileProgram {
+                plane,
+                loops: vec![triangle],
+                ids: Vec::new(),
+            }),
+        );
+        let doc = doc
+            .apply(
+                &crate::DocEdit::SetLabel {
+                    node: profile,
+                    label: Some(crate::Label::new("outline").expect("a label")),
+                },
+                tol,
+                &crate::RefusingReach,
+            )
+            .expect("the label sets")
+            .doc;
+        (doc, profile)
+    }
+
+    /// The save door speaks a refused program's node from the document
+    /// it judges, label and all — not by its tag alone.
+    #[test]
+    fn the_save_door_speaks_a_refused_programs_node() {
+        let tol = Tol::witness();
+        let (mut doc, profile) = labelled_triangle(tol);
+        let Some(Node::Profile(program)) = doc.nodes.get_mut(&profile) else {
+            panic!("the profile is a profile");
+        };
+        let crate::program::LoopProgram::Chain(steps) = &mut program.loops[0] else {
+            panic!("a polygon is a chain");
+        };
+        steps.pop();
+        match save(&doc, &[], tol) {
+            Err(e @ PersistError::ProfileProgram { .. }) => {
+                let PersistError::ProfileProgram { node, .. } = &e else {
+                    unreachable!("matched above")
+                };
+                assert_eq!(*node, doc.spoken(profile), "spoken from the document");
+                assert_eq!(node.label().map(crate::Label::as_str), Some("outline"));
+                let said = e.to_string();
+                assert!(
+                    said.contains(&format!("Profile \"outline\" ({profile})'s program: ")),
+                    "{said}"
+                );
+            }
+            other => panic!("an unclosed chain refuses at save, got {other:?}"),
+        }
+    }
+
+    /// A non-finite metadata float names its record by the name's
+    /// minting node, spoken from the document.
+    #[test]
+    fn the_save_door_speaks_a_non_finite_metadata_sites_name() {
+        let tol = Tol::witness();
+        let (mut doc, profile) = labelled_triangle(tol);
+        let name = crate::names::StableName {
+            kind: crate::names::EntityKind::Face,
+            node: profile,
+            path: Vec::new(),
+        };
+        let mut record = crate::appearance::AppearanceRecord::default();
+        record
+            .metadata
+            .insert("swatch".to_owned(), crate::meta::MetaValue::Float(f64::NAN));
+        doc.appearance.insert(name.clone(), record);
+        match save(&doc, &[], tol) {
+            Err(e @ PersistError::NonFinite { .. }) => {
+                let PersistError::NonFinite {
+                    site:
+                        super::NonFiniteSite::Metadata {
+                            name: said_name, ..
+                        },
+                } = &e
+                else {
+                    panic!("the site is the metadata's, got {e:?}");
+                };
+                assert_eq!(*said_name, doc.spoken_name(&name));
+                let said = e.to_string();
+                assert!(
+                    said.contains(&format!(
+                        "metadata \"swatch\" on the face name minted by Profile \"outline\" \
+                         ({profile})"
+                    )),
+                    "{said}"
+                );
+            }
+            other => panic!("a NaN in metadata refuses at save, got {other:?}"),
         }
     }
 

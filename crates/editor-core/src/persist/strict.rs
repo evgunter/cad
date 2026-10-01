@@ -15,13 +15,14 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::marker::PhantomData;
 
-use serde::de::{Deserializer, Error as _, MapAccess, Visitor};
+use serde::de::{Deserializer, MapAccess, Visitor};
 use serde::{Deserialize, Serialize, Serializer};
 
 /// **How a duplicate-key refusal says its key.** The refusal is raised
 /// at parse, before any document exists, so a node id says itself as
-/// [`crate::SpokenNode::absent`] (`node <tag>`); a text key says itself
-/// quoted, as the file spells it.
+/// [`crate::SpokenNode::absent`] (`node <tag>`) and a stable name as
+/// [`crate::SpokenName::absent`]; a text key says itself as the file
+/// spells it, a JSON string.
 pub(crate) trait SaidKey {
     /// Writes the key as the refusal says it.
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
@@ -33,21 +34,37 @@ impl SaidKey for crate::node::RecipeNodeId {
     }
 }
 
+impl SaidKey for crate::names::StableName {
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", crate::SpokenName::absent(self.clone()))
+    }
+}
+
+/// `text` as a JSON string, escapes and quotes included.
+fn json_string(f: &mut fmt::Formatter<'_>, text: &str) -> fmt::Result {
+    write!(f, "{}", serde_json::Value::String(text.to_owned()))
+}
+
 impl SaidKey for String {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
+        json_string(f, self)
     }
 }
 
 impl SaidKey for crate::doc::ParamName {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.as_str())
+        json_string(f, self.as_str())
     }
 }
 
 impl SaidKey for crate::appearance::AttrKind {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
+        // A unit variant serializes as its name, a JSON string; the
+        // `Debug` arm is that same name, for a serializer that refuses.
+        match serde_json::to_value(self) {
+            Ok(spelled) => write!(f, "{spelled}"),
+            Err(_) => write!(f, "{self:?}"),
+        }
     }
 }
 
@@ -58,6 +75,16 @@ impl<K: SaidKey> fmt::Display for Said<'_, K> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.say(f)
     }
+}
+
+/// **The one duplicate-key refusal** of the format, for the strict
+/// maps below and the appearance store's pair list
+/// ([`super::pairs`]): the section and the key, as [`SaidKey`] says it.
+pub(crate) fn duplicate_key<E: serde::de::Error>(section: &str, key: &impl SaidKey) -> E {
+    E::custom(format!(
+        "duplicate {section} key {} — refused, no silent last-wins",
+        Said(key)
+    ))
 }
 
 /// The shared strict-map visitor: refuses the first repeated key with
@@ -89,11 +116,7 @@ where
             let mut out = BTreeMap::new();
             while let Some(key) = access.next_key::<K>()? {
                 if out.contains_key(&key) {
-                    return Err(A::Error::custom(format!(
-                        "duplicate {} key {} — refused, no silent last-wins",
-                        self.section,
-                        Said(&key)
-                    )));
+                    return Err(duplicate_key(self.section, &key));
                 }
                 let value = access.next_value::<V>()?;
                 out.insert(key, value);
@@ -193,3 +216,50 @@ strict_map_section!(
     populations,
     "verdict population"
 );
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::panic)]
+
+    use crate::appearance::AttrKind;
+    use crate::node::RecipeNodeId;
+
+    /// What `strict_map` refuses `text` with, in `section`.
+    fn refusal<K>(text: &str, section: &'static str) -> String
+    where
+        K: serde::de::DeserializeOwned + Ord + super::SaidKey,
+    {
+        let mut de = serde_json::Deserializer::from_str(text);
+        match super::strict_map::<K, u8, _>(&mut de, section) {
+            Ok(_) => panic!("a repeated key refuses: {text}"),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    /// A node key is said by its tag, as no document is at hand; a text
+    /// key as the file spells it, escapes and all.
+    #[test]
+    fn a_duplicate_key_is_said_as_a_parse_can_say_it() {
+        let id = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
+        let said = refusal::<RecipeNodeId>(
+            &format!("{{\"{0}\": 1, \"{0}\": 2}}", id.0),
+            "snapshot node",
+        );
+        assert!(
+            said.starts_with(
+                "duplicate snapshot node key node 3fa9c1d2a0b1 — refused, no silent last-wins"
+            ),
+            "{said}"
+        );
+        let said = refusal::<String>(r#"{"a\"b": 1, "a\"b": 2}"#, "document metadata");
+        assert!(
+            said.starts_with(r#"duplicate document metadata key "a\"b" — refused"#),
+            "{said}"
+        );
+        let said = refusal::<AttrKind>(r#"{"Color": 1, "Color": 2}"#, "appearance attribute");
+        assert!(
+            said.starts_with(r#"duplicate appearance attribute key "Color" — refused"#),
+            "{said}"
+        );
+    }
+}

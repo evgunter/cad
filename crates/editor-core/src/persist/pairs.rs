@@ -8,12 +8,10 @@
 
 use std::collections::BTreeMap;
 
-use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::appearance::AppearanceRecord;
 use crate::names::StableName;
-use crate::spoken::SpokenName;
 
 /// Serializes the appearance store as a pair list.
 ///
@@ -32,9 +30,8 @@ pub(crate) fn serialize<S: Serializer>(
 ///
 /// # Errors
 ///
-/// A typed refusal on a duplicated key. It is raised at parse, before
-/// any document holds the name's minting node, so it speaks the name as
-/// [`SpokenName::absent`].
+/// A typed refusal on a duplicated key, the format's one
+/// ([`super::strict::duplicate_key`]).
 pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
     de: D,
 ) -> Result<BTreeMap<StableName, AppearanceRecord>, D::Error> {
@@ -42,11 +39,43 @@ pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
     let mut map = BTreeMap::new();
     for (key, value) in pairs {
         if map.insert(key.clone(), value).is_some() {
-            return Err(D::Error::custom(format!(
-                "duplicate appearance key: the {}",
-                SpokenName::absent(key)
-            )));
+            return Err(super::strict::duplicate_key("appearance", &key));
         }
     }
     Ok(map)
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::panic, clippy::expect_used)]
+
+    use crate::appearance::AppearanceRecord;
+    use crate::names::{EntityKind, StableName};
+    use crate::node::RecipeNodeId;
+
+    /// A repeated appearance key refuses in the format's one
+    /// duplicate-key sentence, its name's minting node by tag.
+    #[test]
+    fn a_duplicate_appearance_key_is_said_by_its_minting_node() {
+        let name = StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(0x3fa9_c1d2_a0b1_0042),
+            path: Vec::new(),
+        };
+        let record = AppearanceRecord::default();
+        let text = serde_json::to_string(&[(&name, &record), (&name, &record)])
+            .expect("a pair list writes");
+        let mut de = serde_json::Deserializer::from_str(&text);
+        let said = match super::deserialize(&mut de) {
+            Ok(_) => panic!("a repeated key refuses: {text}"),
+            Err(e) => e.to_string(),
+        };
+        assert!(
+            said.starts_with(
+                "duplicate appearance key face name minted by node 3fa9c1d2a0b1 — refused, no \
+                 silent last-wins"
+            ),
+            "{said}"
+        );
+    }
 }
