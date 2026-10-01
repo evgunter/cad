@@ -73,14 +73,14 @@ impl core::fmt::Display for ExportError {
                 write!(
                     f,
                     "export: node {} evaluates to a `{kind}`, not a body",
-                    node.0
+                    node
                 )
             }
             Self::EmptyBoolean { node } => {
                 write!(
                     f,
                     "export: node {}'s Boolean is empty — nothing to export",
-                    node.0
+                    node
                 )
             }
             Self::Step(e) => write!(f, "export: the STEP writer refused: {e}"),

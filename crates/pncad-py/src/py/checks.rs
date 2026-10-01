@@ -238,7 +238,7 @@ impl ChecksConfig {
             if expected.insert((root.0, output_ix), count).is_some() {
                 return Err(PyValueError::new_err(format!(
                     "expected_components states subject (node {}, output {output_ix}) twice",
-                    root.0.0
+                    root.0
                 )));
             }
         }
@@ -517,7 +517,7 @@ impl CheckFinding {
         format!(
             "CheckFinding({}, node {}, output {}, {:?})",
             self.0.check,
-            self.0.root.0,
+            self.0.root.full(),
             self.0.output_ix,
             check_evidence_tag(&self.0.evidence)
         )

@@ -749,7 +749,7 @@ impl core::fmt::Display for SelectionRefusal {
             Self::NoSuchBody { node, index } => write!(
                 f,
                 "node {}'s value carries no body at index {index}",
-                node.0
+                node
             ),
             Self::Unresolved { name } => write!(
                 f,

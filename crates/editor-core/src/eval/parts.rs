@@ -290,25 +290,25 @@ impl core::fmt::Display for PartFault {
             Self::PartRootFailed { node, .. } => write!(
                 f,
                 "the part's node {} failed, so the part has no body. {}",
-                node.0,
-                InThePart(format_args!("repair node {}", node.0)),
+                node,
+                InThePart(format_args!("repair node {}", node)),
             ),
             Self::PartRootPoisoned { root, through, .. } => write!(
                 f,
                 "the part's node {} failed and poisoned its root, node {}, so the part has \
                  no body. {}",
-                through.0,
-                root.0,
-                InThePart(format_args!("repair node {}", through.0)),
+                through,
+                root,
+                InThePart(format_args!("repair node {}", through)),
             ),
             Self::RootFailureUnrecorded { node } => write!(
                 f,
                 "the part's product names its node {} as failed and the part's evaluation holds \
                  no failure there; the two disagree, so this is a kernel bug. {}",
-                node.0,
+                node,
                 InThePart(format_args!(
                     "see node {} as it evaluates, then report it with the part's file",
-                    node.0
+                    node
                 )),
             ),
             Self::PartProduct { kind, message } => {

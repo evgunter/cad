@@ -133,7 +133,7 @@ impl core::fmt::Display for McRefusal {
                 f,
                 "the document does not build at its nominal (node {}), so there is nothing \
                  to replay: {cause}",
-                node.0
+                node
             ),
         }
     }
@@ -230,7 +230,7 @@ impl McReport {
                 s,
                 "measure {} mean={:016x} sigma={:016x} min={:016x} max={:016x} measured={} \
                  unmeasured={}",
-                m.node.0,
+                m.node,
                 m.mean.to_bits(),
                 m.sigma.to_bits(),
                 m.min.to_bits(),
@@ -243,7 +243,7 @@ impl McReport {
             let _ = writeln!(
                 s,
                 "assertion {} holds={} violated={} unevaluated={}",
-                a.node.0, a.holds, a.violated, a.unevaluated
+                a.node, a.holds, a.violated, a.unevaluated
             );
         }
         let _ = writeln!(s, "outside_box {:016x}", self.outside_box.to_bits());
@@ -286,14 +286,14 @@ impl McReport {
                     "  node {}: UNMEASURED — no sample had an f64 value for this measure, so \
                      this lane has nothing to estimate. Its certified answer is the E6 \
                      driver's per-leaf enclosure (see the leaf histogram).   [{tag}]",
-                    m.node.0
+                    m.node
                 );
                 continue;
             }
             let _ = writeln!(
                 s,
                 "  node {}: mean {} σ {} min {} max {}   [{tag}]",
-                m.node.0, m.mean, m.sigma, m.min, m.max
+                m.node, m.mean, m.sigma, m.min, m.max
             );
             if m.unmeasured > 0 {
                 let _ = writeln!(
@@ -307,7 +307,7 @@ impl McReport {
             let _ = writeln!(
                 s,
                 "  node {}: empirical violation fraction {}   [{tag}]",
-                a.node.0,
+                a.node,
                 match a.violation_fraction() {
                     Some(f) => format!(
                         "{:.4}% ({} of {} decided)",

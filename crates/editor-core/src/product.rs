@@ -284,7 +284,7 @@ impl crate::finding::Finding for SourceLine<'_> {
         write!(
             f,
             "root {} output {}",
-            self.source.node.0, self.source.output
+            self.source.node, self.source.output
         )
     }
 
@@ -336,17 +336,17 @@ impl Staged for ProductError {
                 second,
             } => {
                 let what = match select {
-                    None => format!("node {}'s body", placed.0),
+                    None => format!("node {}'s body", placed),
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Above)) => {
-                        format!("the above half of node {}", placed.0)
+                        format!("the above half of node {}", placed)
                     }
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
-                        format!("the below half of node {}", placed.0)
+                        format!("the below half of node {}", placed)
                     }
                     Some(crate::node::PartSelect::Instance(i)) => format!(
                         "instance `{}` of node {}",
                         crate::expr::unparse(i),
-                        placed.0
+                        placed
                     ),
                 };
                 write!(
@@ -355,7 +355,7 @@ impl Staged for ProductError {
                      a transform or part selection mints no name, so both \
                      would carry its names. Recourse: place it under one \
                      root, or union the two",
-                    first.0, second.0
+                    first, second
                 )
             }
             Self::NoBodyRoots => f.write_str(
@@ -375,21 +375,21 @@ impl Staged for ProductError {
                 f,
                 "root {}'s {} name (minted by node {}) collides in the \
                  product's name table",
-                node.0,
+                node,
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
             Self::Naming { name, .. } => write!(
                 f,
                 "the {} name minted by node {} collides in the \
                  product's name table",
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
             Self::Graft { node, source } => write!(
                 f,
                 "the kernel could not graft root {}'s body: {source}",
-                node.0
+                node
             ),
             Self::RootInvalid { findings } => {
                 // Findings arrive in gather order, so one root's outputs
@@ -413,7 +413,7 @@ impl Staged for ProductError {
                     }
                     Labels::Stripped => {
                         if let [root] = roots.as_slice() {
-                            write!(f, "root {} is not valid at rest:", root.0)?;
+                            write!(f, "root {} is not valid at rest:", root)?;
                         } else {
                             let named: Vec<String> =
                                 roots.iter().map(|r| r.0.to_string()).collect();
@@ -441,7 +441,7 @@ impl Staged for ProductError {
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
                  succeed",
-                node.0
+                node
             ),
         }
     }

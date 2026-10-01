@@ -545,7 +545,7 @@ impl core::fmt::Display for StableName {
             f,
             "{} name minted by node {}",
             self.kind.noun(),
-            self.node.0
+            self.node
         )
     }
 }

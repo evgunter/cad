@@ -1190,7 +1190,7 @@ impl core::fmt::Display for SlotUnitFault {
                 write!(
                     f,
                     "node {} carries no expression in its {} slot",
-                    node.0,
+                    node,
                     slot.label()
                 )
             }
@@ -1199,7 +1199,7 @@ impl core::fmt::Display for SlotUnitFault {
                 "the {} slot on node {} is computed, so it has no written unit to change — \
                  set an expression to change what it says",
                 slot.label(),
-                node.0
+                node
             ),
             Self::Dimension { slot, source } => {
                 write!(

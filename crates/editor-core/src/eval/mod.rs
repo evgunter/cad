@@ -288,24 +288,24 @@ impl core::fmt::Display for NodeStanding {
                 f,
                 "node {} has no result in this evaluation: the run was canceled before it \
                  reached the node — re-evaluate the document to completion",
-                node.0
+                node
             ),
             Self::NotInDocument { node } => write!(
                 f,
                 "node {} is not a node of the document this evaluation ran over — ask about \
                  one of that document's nodes, or evaluate the document the node is in",
-                node.0
+                node
             ),
             Self::Failed { node } => write!(
                 f,
                 "node {} failed, so it has no value — fix the node's own failure",
-                node.0
+                node
             ),
             Self::Poisoned { node, through } => write!(
                 f,
                 "node {} is poisoned by the failure at node {}, so it has no value — the \
                  repair is upstream, at node {}",
-                node.0, through.0, through.0
+                node, through, through
             ),
         }
     }
@@ -996,7 +996,7 @@ impl NodeRefusal {
 /// one spelling [`NodeError`]'s `Display` and [`NodeRefusal::line_at`]
 /// share.
 fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind) -> String {
-    format!("node {} failed: {kind}", node.0)
+    format!("node {} failed: {kind}", node)
 }
 
 impl From<NodeErrorKind> for NodeRefusal {
@@ -2135,11 +2135,11 @@ impl core::fmt::Display for NodeErrorKind {
                  {} {} of the part (minted by its node {}), which the pinned part's \
                  product does not name — the crossing does not re-verify against this \
                  version of the part",
-                instance.0,
+                instance,
                 outer,
                 name.kind.article(),
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
@@ -2157,7 +2157,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
             Self::MissingInput { input } => {
-                write!(f, "input {} names no live node", input.0)
+                write!(f, "input {} names no live node", input)
             }
             Self::ToleranceConflict {
                 document_eps,
@@ -2174,7 +2174,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "the seed on parameter {param} reaches section profile node {}, which stays f64 \
                  in every lane (a loft's or a sweep's section is structure) — the tangent \
                  cannot ride through it, so this node refuses rather than embed a zero",
-                section.0
+                section
             ),
             Self::WrongOperand {
                 input,
@@ -2183,12 +2183,12 @@ impl core::fmt::Display for NodeErrorKind {
             } => write!(
                 f,
                 "input {} carries kind {found}; the operand needs kind {expected}",
-                input.0
+                input
             ),
             Self::EmptyOperand { input } => write!(
                 f,
                 "input {} is the empty value — the body ops take real bodies",
-                input.0
+                input
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
@@ -2197,7 +2197,7 @@ impl core::fmt::Display for NodeErrorKind {
                     crate::names::SplitHalf::Above => "above",
                     crate::names::SplitHalf::Below => "below",
                 },
-                input.0
+                input
             ),
             Self::InstanceOutOfRange {
                 input,
@@ -2207,7 +2207,7 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "instance index {index} is outside the pattern's {count} instances (node {}; \
                  the admitted indices are 0 to {})",
-                input.0,
+                input,
                 count.saturating_sub(1)
             ),
             // Every role word is already a complete noun phrase for
@@ -2267,13 +2267,13 @@ impl core::fmt::Display for NodeErrorKind {
                 profile_plane,
             } => {
                 let frame = |f: &Option<RecipeNodeId>| {
-                    f.map_or_else(|| "no frame".to_owned(), |n| format!("frame {}", n.0))
+                    f.map_or_else(|| "no frame".to_owned(), |n| format!("frame {}", n))
                 };
                 write!(
                     f,
                     "revolve axis (node {}) is written in {}, but the profile is drawn on {} \
                      — an axis revolves the sketch it lives in",
-                    axis.0,
+                    axis,
                     frame(axis_plane),
                     frame(profile_plane)
                 )
@@ -2309,7 +2309,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "a declared entity is sited at node {}, which is not an operand of this \
                  node — site each side at the member (or the boolean operand) whose table \
                  holds it",
-                at.0
+                at
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -2344,7 +2344,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
                 "the {verb} selection name minted by node {} denotes {} {}, not an edge",
-                name.node.0,
+                name.node,
                 found.article(),
                 found.noun()
             ),
@@ -2359,7 +2359,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::ShellOpenKind { name, found } => write!(
                 f,
                 "the shell open-face name minted by node {} denotes {} {}, not a face",
-                name.node.0,
+                name.node,
                 found.article(),
                 found.noun()
             ),
@@ -2378,7 +2378,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::FaceFrameKind { name, found } => write!(
                 f,
                 "the derived frame's name minted by node {} denotes {} {}, not a face",
-                name.node.0,
+                name.node,
                 found.article(),
                 found.noun()
             ),
@@ -2404,8 +2404,8 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "profile node {} is drawn on datum frame node {}, and the frame refused \
                  its own direction: {}",
-                profile.0,
-                frame.0,
+                profile,
+                frame,
                 refusal.node_error()
             ),
             Self::DerivedFrameSection { profile, frame } => write!(
@@ -2413,7 +2413,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "section profile node {} is drawn on derived frame node {}, and a loft's or a \
                  sweep's section is placed only in the plain (f64) evaluation, so this \
                  evaluation refuses rather than guess where the frame lies",
-                profile.0, frame.0
+                profile, frame
             ),
             Self::MeasureRefResolve { error } => {
                 write!(f, "a measure reference failed to resolve: {error}")
@@ -2421,7 +2421,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MeasureRefUnreadable { name, error } => write!(
                 f,
                 "the measure reference minted by node {} could not be read back: {error}",
-                name.node.0
+                name.node
             ),
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
             Self::MeasureNotParallel {

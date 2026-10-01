@@ -454,7 +454,7 @@ impl ViewerBehavior<'_> {
             return;
         }
         ui.separator();
-        ui.label(format!("instance {}", node.0));
+        ui.label(format!("instance {}", node));
         // The admission test `SetInstanceHidden` itself runs, read once
         // for the section: the toggle below is offered exactly where
         // the op would accept it, and the free-move probe runs this

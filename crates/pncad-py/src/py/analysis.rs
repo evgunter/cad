@@ -913,7 +913,8 @@ impl McMeasure {
     fn __repr__(&self) -> String {
         format!(
             "McMeasure(node={}, mean={}, sigma={}, measured={}, unmeasured={})",
-            self.0.node.0, self.0.mean, self.0.sigma, self.0.measured, self.0.unmeasured
+            self.0.node.full(),
+            self.0.mean, self.0.sigma, self.0.measured, self.0.unmeasured
         )
     }
 }
@@ -968,7 +969,8 @@ impl McAssertion {
     fn __repr__(&self) -> String {
         format!(
             "McAssertion(node={}, holds={}, violated={}, unevaluated={})",
-            self.0.node.0, self.0.holds, self.0.violated, self.0.unevaluated
+            self.0.node.full(),
+            self.0.holds, self.0.violated, self.0.unevaluated
         )
     }
 }

@@ -745,17 +745,17 @@ impl core::fmt::Display for DuplicateFault {
                 f,
                 "feature {}'s value is several bodies; a duplicate copies ONE — project the one \
                  you mean first",
-                input.0
+                input
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
                 "feature {}'s body could not be measured for the copy's step: {error}",
-                input.0
+                input
             ),
             Self::NoExtent { input } => write!(
                 f,
                 "feature {}'s body has no width to step a copy by",
-                input.0
+                input
             ),
         }
     }

@@ -586,7 +586,7 @@ impl core::fmt::Display for LeverRefusal {
                 f,
                 "instance {}'s part is not in hand, so the mate has no extent to lever a \
                  verdict over: {fault}",
-                instance.0
+                instance
             ),
             Self::FaceUnbounded {
                 instance,
@@ -598,7 +598,7 @@ impl core::fmt::Display for LeverRefusal {
                 "instance {}'s part {part} has a {} face ({face:?}) whose reach from the \
                  part's origin cannot be bounded, so no upper bound on the part's extent can \
                  be stated",
-                instance.0,
+                instance,
                 kind.name()
             ),
             Self::MalformedBody {
@@ -610,25 +610,25 @@ impl core::fmt::Display for LeverRefusal {
                 "instance {}'s part {part} has a face ({face:?}) whose surface key resolves to \
                  no surface, so the body is not well formed and no bound on its extent can be \
                  stated",
-                instance.0
+                instance
             ),
             Self::NoExtent { instance, part } => write!(
                 f,
                 "instance {}'s part {part} has no faces, so it has no extent to lever a \
                  verdict over",
-                instance.0
+                instance
             ),
             Self::NoFiniteBound { instance, part } => write!(
                 f,
                 "instance {}'s part {part} has a reach that reads back non-finite, so no bound \
                  on its extent can be stated",
-                instance.0
+                instance
             ),
             Self::NotAnInstance { node } => write!(
                 f,
                 "node {} is not a live instantiate node, so it has no part whose extent \
                  could lever a verdict",
-                node.0
+                node
             ),
         }
     }
@@ -1065,25 +1065,25 @@ impl core::fmt::Display for MateFault {
             Self::Frame { mate, side, error } => write!(
                 f,
                 "mate {}'s {} frame has no definite placement: {error}",
-                mate.0,
+                mate,
                 side.name()
             ),
             Self::ClassNotAdmitted { mate } => write!(
                 f,
                 "mate {}'s contact class is not admitted in v1 — {} ({CLASS_DEFERRAL})",
-                mate.0,
+                mate,
                 topo::FIT_DEFERRAL
             ),
             Self::TableLacks { mate, what } => write!(
                 f,
                 "mate {}: the coset table has no entry for {what} — the table refuses every pair \
                  it lacks rather than inventing one",
-                mate.0
+                mate
             ),
             Self::Indeterminate { mate, diag } => write!(
                 f,
                 "mate {}: a case split could not be decided — {}",
-                mate.0,
+                mate,
                 diag.payload()
             ),
             Self::Band { error } => write!(f, "the mate solve could not build a band: {error}"),
@@ -1101,10 +1101,10 @@ impl core::fmt::Display for MateFault {
                         f,
                         "mate {} contradicts itself — the constraints it declares admit no \
                          common pose",
-                        held.0
+                        held
                     )?;
                 } else {
-                    write!(f, "mates {} and {} cannot both hold", held.0, added.0)?;
+                    write!(f, "mates {} and {} cannot both hold", held, added)?;
                 }
                 write!(f, ": predicate `{predicate}` ")?;
                 // WHETHER there is a measurement to report, and of
@@ -1155,18 +1155,18 @@ impl core::fmt::Display for MateFault {
                 f,
                 "mate {} does not determine instance {} from instance {}: {} survives — \
                  {UNDER_RECOURSE}",
-                mate.0,
-                child.0,
-                parent.0,
+                mate,
+                child,
+                parent,
                 residual.describe()
             ),
             Self::DanglingHead { mate, side, head } => write!(
                 f,
                 "mate {}'s {} reference resolves through node {}, which does not resolve to a \
                  live member (an instance, or a pattern-placed instance) — rebind it",
-                mate.0,
+                mate,
                 side.name(),
-                head.0
+                head
             ),
             // `error` is the placer's own refusal, drawn on a line of its
             // own — the placer's row, or the mate's carried line — so
@@ -1177,9 +1177,9 @@ impl core::fmt::Display for MateFault {
                 f,
                 "mate {}'s {} reference has no derived pose: node {p}, which places it, refuses — \
                  repair node {p}",
-                mate.0,
+                mate,
                 side.name(),
-                p = placer.0
+                p = placer
             ),
             Self::PartSelectsAnotherCopy {
                 mate,
@@ -1192,18 +1192,18 @@ impl core::fmt::Display for MateFault {
                 "mate {}'s {} reference names copy {named}; the part node {} above it selects \
                  copy {selected} — the name says which copy a mate is about, and a document \
                  that gathers another one is placed and gathered differently",
-                mate.0,
+                mate,
                 side.name(),
-                part.0
+                part
             ),
             Self::SelfMate { mate, instance } => write!(
                 f,
                 "mate {} names one member on both sides (it stands on instance {}); a mate \
                  relates a PAIR",
-                mate.0, instance.0
+                mate, instance
             ),
             Self::Unleverable { mate, refusal } => {
-                write!(f, "mate {}: {refusal}", mate.0)
+                write!(f, "mate {}: {refusal}", mate)
             }
         }
     }

@@ -502,7 +502,7 @@ pub fn node_label(node: &Node<ProfileProgram>, id: RecipeNodeId) -> String {
 /// `node 3` would be talking about something a reader has to
 /// translate.
 pub fn node_number(id: RecipeNodeId) -> String {
-    format!("feature {}", id.0)
+    format!("feature {}", id)
 }
 
 /// **What the NODE says about a datum frame's pose** — the sentence

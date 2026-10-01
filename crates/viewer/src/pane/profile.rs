@@ -120,7 +120,7 @@ pub(crate) fn edit_door_ui(
         if loops > 1 {
             ui.label(format!("loop {index}"));
         }
-        let salt = format!("edit_{}_{index}", node.0);
+        let salt = format!("edit_{}_{index}", node.full());
         if let Some(row) = path_steps_ui(ui, &salt, session.tol(), units, edit.steps_mut(index)) {
             rows.push((index, row));
         }
