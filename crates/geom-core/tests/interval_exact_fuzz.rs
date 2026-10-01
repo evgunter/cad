@@ -794,6 +794,38 @@ fn div_down_is_sound_against_exact_arithmetic() {
     println!("[div_down] {checked} quotients, 0 above the exact one");
 }
 
+/// `geom_core::interval::div_up` is never below the exact quotient,
+/// over the same draws as `div_down`'s row.
+#[test]
+fn div_up_is_sound_against_exact_arithmetic() {
+    use geom_core::interval::div_up;
+    let mut rng = fuzz::start("interval_exact_fuzz::div_up");
+    let draw = |rng: &mut fuzz::Rng| match rng.next_u64() % 4 {
+        0 => subnormal(rng),
+        1 => f64_near_exp(rng, -900),
+        2 => f64_near_exp(rng, 900),
+        _ => f64_near_exp(rng, 0),
+    };
+    let mut checked = 0u64;
+    for _ in 0..fuzz::scaled(25_000) {
+        let (a, b) = (draw(&mut rng), draw(&mut rng));
+        let q = div_up(a, b);
+        assert!(
+            !q.is_nan(),
+            "div_up({a:e}, {b:e}) refused — {}",
+            fuzz::replay()
+        );
+        assert_ne!(
+            cmp_f64_vs_quot(q, a, b),
+            Ordering::Less,
+            "div_up({a:e}, {b:e}) = {q:e} is below the exact quotient — {}",
+            fuzz::replay()
+        );
+        checked += 1;
+    }
+    println!("[div_up] {checked} quotients, 0 below the exact one");
+}
+
 /// `x` against the exact `f / (a·b)` for positive `a`, `b` whose
 /// product stays in the normal range: the product splits exactly as
 /// `p + e` (`p` rounded, `e` its fused residual, checked exact here),
