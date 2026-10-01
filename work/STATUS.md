@@ -1417,10 +1417,10 @@ area `kernel`; prefix `pcert/`; tag `(PCERT orchestrator)`; ab_band `7600-7699`.
 
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
-| P0 | `S331` | issue | H +design | open | validate_pcurves answers a clean bill on a body whose pcurve mint just failed — a vacuous green through a public door |  |  |
+| P0 | `S331` | issue | H | open | validate_pcurves answers a clean bill on a body whose pcurve mint just failed — a vacuous green through a public door |  |  |
 | P0 | `site-rows-leaves-an-off-chart-edge-silent` | issue | M | open | an Euler op's site mint clears a face whose new edge is off its chart, so the op answers Ok and tier 3 answers [] on a body the mint refuses |  |  |
-| P0 | `validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one` | issue | M +design | open | validate_pcurves reads a face a door emptied exactly as it reads one never minted, so a drop that re-charters a whole loop is indistinguishable from a body the pass has not run on |  |  |
-| P0 | `validate-pcurves-never-recertifies-a-face-it-finds-incomplete` | issue | M +design | open | validate_pcurves skips its re-certification and continuity passes on any face missing a row, so a stale row on an incomplete face is never measured |  |  |
+| P0 | `validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one` | issue | M | open | validate_pcurves reads a face a door emptied exactly as it reads one never minted, so a drop that re-charters a whole loop is indistinguishable from a body the pass has not run on |  |  |
+| P0 | `validate-pcurves-never-recertifies-a-face-it-finds-incomplete` | issue | M | open | validate_pcurves skips its re-certification and continuity passes on any face missing a row, so a stale row on an incomplete face is never measured |  |  |
 | P1 | `mint-has-no-route-to-the-fitted-general-circle-arm` | issue | H | open | no mint site reaches certify_fitted's Circle-carrier arm, so a general sphere circle's face stays uncached (DESIGN frontier (c)) |  |  |
 | P3 | `nurbs-stretch-bounds-round-to-nearest` | issue | E | open | pcurve_cache's nurbs_stretch_bounds mints SupSpeed from a round-to-nearest norm and ratio, so the tagged sup can sit below the true one |  |  |
 | — | `line-seam-boundary-row-refusal-discarded-as-iso-unsupported` | issue | — | open | pcert: the LINE-seam arm discards boundary_iso_u's refusal as IsoUnsupported |  |  |
