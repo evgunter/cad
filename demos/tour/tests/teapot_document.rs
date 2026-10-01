@@ -214,7 +214,7 @@ fn seam_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, k: usize, tol: Tol) -> 
     StableName {
         kind: EntityKind::Edge,
         node: lid,
-        path: vec![RoleSeg::Meridian(MeridianEnd::Seam, piece)],
+        path: vec![RoleSeg::Meridian(MeridianEnd::Seam, piece.into())],
     }
 }
 

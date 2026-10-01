@@ -882,9 +882,9 @@ pub fn extrude<T: Decide>(
     })
 }
 
-/// Sweeps one loop of the seed face: struts, side quads, join
-/// classification (module docs, steps 3–4). Returns the side faces,
-/// strut edges, and top-rim edges in swept order.
+/// Sweeps one loop of the seed face: struts, one wall per run, join
+/// classification (module docs, steps 3–4). Returns the per-segment
+/// faces and top rims in swept order, and the walls.
 #[allow(clippy::too_many_arguments)] // one internal call site; the
 // arguments are the sweep's fixed context, not a configuration surface.
 fn sweep_loop<T: Decide>(
@@ -986,11 +986,9 @@ fn sweep_loop<T: Decide>(
                 None => unreachable!("a run ends where the next run's strut stands"),
             },
             (false, Some(top)) => top,
-            // A loop of one run is unreachable (`swept::wall_runs`: a
-            // run never closes the loop); fall back to the strut's own
-            // minus half so the operator surfaces the malformed site as
-            // a typed error rather than this code panicking.
-            (false, None) => lead.he_minus,
+            (false, None) => {
+                unreachable!("a loop has two runs at least: a run never closes the loop")
+            }
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
