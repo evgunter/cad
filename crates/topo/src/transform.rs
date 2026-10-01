@@ -21,10 +21,16 @@
 //! scalar's policy holds ([`crate::AtRestPolicy::nurbs_lane`]) — so a
 //! map that breaks carrier consistency
 //! surfaces as a typed [`TransformError::Certify`] refusal, never as
-//! silently corrupt geometry. (A rigid map preserves every
-//! distance-valued residual up to rounding, so re-certification of a
-//! valid body succeeds; re-running the checks rather than copying the
-//! old certificate keeps the certificate honest — D4 ¶2.)
+//! silently corrupt geometry. Re-running the checks rather than
+//! copying the old certificate keeps the certificate honest (D4 ¶2).
+//! A rigid map preserves sampled distances and implicit-form residuals
+//! up to rounding, but not a bound assembled from enclosures in the
+//! ambient frame: the plane × NURBS lane's limb 2 folds per-coordinate
+//! sups, and an `Approx` face's `hull_sup` is built from control
+//! hulls, so either can re-derive above ε for geometry certified near
+//! it. An `Approx` face is re-fitted (see `map_approx`); an edge of the
+//! plane × NURBS class refuses [`TransformError::Certify`], open as
+//! `work/ssi/a-rigid-map-re-derives-the-plane-nurbs-edge-certificate-in-a-frame-that-moves-it.md`.
 //!
 //! # What maps how
 //!
