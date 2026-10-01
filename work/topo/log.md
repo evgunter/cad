@@ -5484,3 +5484,42 @@ full review, since it is test-only.
 under the scalpel. Evidence was added to GUARD's feature-gated-tests row.
 
 The row is closed on the branch (`e4eb061aff`). The PR merges on green.
+
+## PR 3513 fix pass 5 delivered; main's two reds handled; verifier dispatched (2026-10-01)
+
+Fix pass 5 landed `3bb44ba365`.
+- **MAJOR-1:** the decided tilt admits no class, so declaring is
+  contradicted and no "declare" is offered.
+- **MAJOR-2:** `Rim` is now a frontier ending, through the new
+  `Ending::Frontier`.
+- **MAJOR-4:** `VertexOnFace` is withdrawn, and the loop-raised-offer
+  class is filed.
+- **MINOR-1:** the dihedral arm quotes sinθ·arm in geom-brep (seam,
+  certify, validate).
+- **MINOR-2:** the withdrawn levers are executed.
+- **MINOR-4:** MY1 and MY5 now red, through a site census over 80 rows
+  and value checks.
+- **The harness** follows the refined rule. It holds 76 topo cases and
+  19 sweep cases, includes every fr4 pose, and logs `Containment`
+  chains to CONTACT's row.
+
+**CI run 36831311150 failed `test` on two main reds,** neither this
+diff's:
+- **editor-core's `m10_sym_profile_interval`.** Main carries PCERT's
+  re-baseline (PR 3652), so merging main fixes it.
+- **sweep `reach_volume_backstop` at 1e-6 and 1e-12.** This only runs
+  here because the diff touches sweep. The fix is REACH's PR 3636,
+  green and open, so I ported it by merging its branch at
+  `cba319f9e8`. It no-ops once PR 3636 lands.
+
+Locally at `cba319f9e8`:
+- the backstop passes 9/9 at all three ε;
+- `m10` passes;
+- topo boolean passes 258/258.
+
+I posted one standing-down comment on PR 3513 naming both checks.
+
+**The verifier** is dispatched on the frozen `cba319f9e8`. It re-runs
+fr4's `chain.py` and probes, checks at least 6 new poses, the MY1–MY5
+mutants plus one of its own, and the geom-brep dihedral re-baselines at
+all three ε. It is not a sixth full review.
