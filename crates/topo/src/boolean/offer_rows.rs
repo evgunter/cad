@@ -2116,7 +2116,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcCylinderRoots",
         1,
     ),
-    ("circle_sphere.rs", "-", "BooleanDecision::ArcSphereRoots", 1),
+    (
+        "circle_sphere.rs",
+        "-",
+        "BooleanDecision::ArcSphereRoots",
+        1,
+    ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "mint_directed", "Coincide::Sectors", 1),

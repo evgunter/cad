@@ -87,7 +87,11 @@ fn run(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Result<Body<f64>, Boolean
 fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
     let tol = Tol::witness();
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
-    assert_eq!(topo::validate_closed(body), Ok(()), "{label}: validate_closed");
+    assert_eq!(
+        topo::validate_closed(body),
+        Ok(()),
+        "{label}: validate_closed"
+    );
     assert_eq!(
         topo::validate_geometric(body, tol),
         Ok(()),

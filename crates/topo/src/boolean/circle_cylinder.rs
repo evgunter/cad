@@ -54,9 +54,7 @@
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::circle_sphere::{FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows};
-use super::circle_torus::{
-    CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, rounding_charge,
-};
+use super::circle_torus::{CircleRoots, HalfAngleFrame, HalfAngleRows, Harmonics, rounding_charge};
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
 use crate::validate::decide;
@@ -250,7 +248,8 @@ mod tests {
 
     impl Pose {
         fn carrier<T: Real>(self) -> geom::Curve3<T> {
-            let v = |a: [f64; 3]| Vec3::new(T::from_f64(a[0]), T::from_f64(a[1]), T::from_f64(a[2]));
+            let v =
+                |a: [f64; 3]| Vec3::new(T::from_f64(a[0]), T::from_f64(a[1]), T::from_f64(a[2]));
             geom::Curve3::Circle {
                 center: Point3::new(
                     T::from_f64(self.c[0]),
@@ -320,21 +319,39 @@ mod tests {
     /// to well inside the band, and every one lies on the wall.
     fn assert_matches_oracle(label: &str, pose: Pose, t0: f64, t1: f64, w: [f64; 3], want: usize) {
         let CircleRoots::Certified { count, thetas } = door(pose, t0, t1, w) else {
-            panic!("{label}: expected certified roots, got {:?}", door(pose, t0, t1, w));
+            panic!(
+                "{label}: expected certified roots, got {:?}",
+                door(pose, t0, t1, w)
+            );
         };
         assert_eq!(count, want, "{label}: the certified count");
         let mid = (t0 + t1) / 2.0;
         let mut got: Vec<f64> = thetas[..count].to_vec();
         for &t in &got {
-            assert!((t - mid).abs() <= core::f64::consts::PI, "{label}: {t} within π of {mid}");
+            assert!(
+                (t - mid).abs() <= core::f64::consts::PI,
+                "{label}: {t} within π of {mid}"
+            );
             let off = off_wall(pose, t, w[0], w[1], w[2]).abs();
             assert!(off < 1e-12, "{label}: root {t} lies {off} off the wall");
         }
         got.sort_by(f64::total_cmp);
-        let truth = oracle(pose, mid - core::f64::consts::PI, mid + core::f64::consts::PI, w);
-        assert_eq!(got.len(), truth.len(), "{label}: {got:?} vs the oracle {truth:?}");
+        let truth = oracle(
+            pose,
+            mid - core::f64::consts::PI,
+            mid + core::f64::consts::PI,
+            w,
+        );
+        assert_eq!(
+            got.len(),
+            truth.len(),
+            "{label}: {got:?} vs the oracle {truth:?}"
+        );
         for (a, b) in got.iter().zip(&truth) {
-            assert!((a - b).abs() < 1e-9, "{label}: root {a} vs the oracle's {b}");
+            assert!(
+                (a - b).abs() < 1e-9,
+                "{label}: root {a} vs the oracle's {b}"
+            );
         }
     }
 
@@ -403,8 +420,14 @@ mod tests {
     #[test]
     fn a_coaxial_circle_is_coaxial_on_the_wall_and_a_miss_off_it() {
         let w = [0.3, -0.4, 1.0];
-        assert!(matches!(door(flat(0.3, -0.4, 5.0, 1.0), 0.0, 6.0, w), CircleRoots::Coaxial));
-        assert!(matches!(door(flat(0.3, -0.4, 5.0, 0.6), 0.0, 6.0, w), CircleRoots::Miss));
+        assert!(matches!(
+            door(flat(0.3, -0.4, 5.0, 1.0), 0.0, 6.0, w),
+            CircleRoots::Coaxial
+        ));
+        assert!(matches!(
+            door(flat(0.3, -0.4, 5.0, 0.6), 0.0, 6.0, w),
+            CircleRoots::Miss
+        ));
     }
 
     /// A tangency is not a crossing at any order this lane sees, in
@@ -425,7 +448,10 @@ mod tests {
         };
         // The wall through x = ±2 does not reach it; x = ±1 touches it at
         // θ = 0 and θ = π, where the residual has double roots.
-        assert!(matches!(door(grazing, -1.0, 4.0, [0.0, 0.0, 1.0]), CircleRoots::Uncertain));
+        assert!(matches!(
+            door(grazing, -1.0, 4.0, [0.0, 0.0, 1.0]),
+            CircleRoots::Uncertain
+        ));
     }
 
     /// **Both arms' meters refuse an unreadable reading.** A circle
@@ -507,7 +533,12 @@ mod tests {
                 panic!("{label}: expected certified roots, got {got:?}");
             };
             let mid = (t0 + t1) / 2.0;
-            let want = oracle(pose, mid - core::f64::consts::PI, mid + core::f64::consts::PI, w);
+            let want = oracle(
+                pose,
+                mid - core::f64::consts::PI,
+                mid + core::f64::consts::PI,
+                w,
+            );
             assert_eq!(count, want.len(), "{label}: the count");
             for w in want {
                 assert!(

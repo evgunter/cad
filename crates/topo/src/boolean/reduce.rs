@@ -3009,24 +3009,22 @@ mod declaration_order_rows {
                     .expect("a live point")
             };
             let mut acc = ContactAcc::default();
-            out.push(
-                curved_face_arm(
-                    &x,
-                    &mut y,
-                    Operand::A,
-                    edge_key,
-                    &edge,
-                    a,
-                    c,
-                    yw,
-                    pt(a),
-                    pt(c),
-                    &declared,
-                    &mut acc,
-                    b,
-                    tol,
-                ),
-            );
+            out.push(curved_face_arm(
+                &x,
+                &mut y,
+                Operand::A,
+                edge_key,
+                &edge,
+                a,
+                c,
+                yw,
+                pt(a),
+                pt(c),
+                &declared,
+                &mut acc,
+                b,
+                tol,
+            ));
         }
         assert_eq!(out.len(), 2, "the sheet's two rim circles");
         (door, out)
@@ -3150,7 +3148,11 @@ mod declaration_order_rows {
                 let Ok(CurvedEvent::Pierce { p, at, .. }) = got else {
                     panic!("crossing arm, {class:?}: a pierce, got {got:?}");
                 };
-                assert_eq!(*at, FaceContainment::In, "{class:?}: inside the wall's trim");
+                assert_eq!(
+                    *at,
+                    FaceContainment::In,
+                    "{class:?}: inside the wall's trim"
+                );
                 let off = (p.x - 0.15).hypot(p.y - (1.0_f64 - 0.15 * 0.15).sqrt());
                 assert!(off < 1e-12, "{class:?}: the pierce {p:?} is {off} off");
                 heights.push(p.z);
