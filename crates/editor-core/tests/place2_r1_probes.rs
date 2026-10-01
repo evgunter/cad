@@ -766,3 +766,63 @@ fn r1_a_split_of_a_gauged_instance_with_its_transform_keeps_the_geometry_still()
         }
     }
 }
+
+/// A document whose only material is an unplaced group: what the
+/// world gather and the gate say.
+#[test]
+fn r1_a_document_of_unplaced_material_alone_at_the_gather_and_the_gate() {
+    let p = parts("r1-alone");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-alone"), Tol::witness());
+    let (doc, x) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let doc = set_offset(doc, x, None);
+    let ev = run(&doc, &o);
+    eprintln!("unplaced: {:?}", ev.unplaced);
+    eprintln!("product: {:?}", editor_core::product(&doc, &ev, Tol::witness()).map(|_| ()).map_err(|e| e.to_string()));
+    eprintln!("assemble: {:?}", editor_core::assemble(&doc, &ev, Tol::witness()).map(|_| ()).map_err(|e| e.to_string()));
+}
+
+/// The group hoist with its root's offset driven by a parameter a kept
+/// node also reads: the offset stays in the host (it becomes the
+/// instance's), so nothing is shared across the seam.
+#[test]
+fn r1_the_group_hoist_of_a_parametric_root_offset() {
+    let p = parts("r1-hoist-param");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-hoist-param"), Tol::witness());
+    let doc = declare_lift(doc, 2.0);
+    let (doc, g) = insert(
+        doc,
+        Node::gauge(
+            None,
+            Step::Rigid {
+                translation: [len(0.0), Expr::param(lift(), Dimension::Length), len(0.0)],
+                axis: [0.0, 0.0, 1.0].map(scl),
+                angle: ang(0.0),
+            },
+        ),
+    );
+    let _ = g;
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let doc = set_offset(
+        doc,
+        base,
+        Some(Placement::from(Step::Rigid {
+            translation: [Expr::param(lift(), Dimension::Length), len(0.0), len(0.0)],
+            axis: [0.0, 0.0, 1.0].map(scl),
+            angle: ang(0.0),
+        })),
+    );
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let cut: std::collections::BTreeSet<RecipeNodeId> = [base, top, mate].into_iter().collect();
+    let out = editor_core::split(&doc, &cut, DocumentId::derive("r1-hoist-param-part"), Tol::witness(), o.resolver.as_ref());
+    match out {
+        Err(e) => eprintln!("split refused: {e}"),
+        Ok(out) => eprintln!(
+            "split ok; instance offset {:?}; part params {:?}",
+            offset_of(&out.remainder, out.instance),
+            out.part.params().keys().collect::<Vec<_>>()
+        ),
+    }
+}
