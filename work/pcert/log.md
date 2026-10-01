@@ -319,3 +319,15 @@ now states mandatory rows; that PR merges on Ev's confirmation of the
 text. Neither designer's first recommendation (both leaned cache).
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — the general-circle route dispatched
+
+`mint-has-no-route-to-the-fitted-general-circle-arm` dispatched on Ev's
+first ruling on PR 3617 (wire the uncovered classes rather than permit
+them uncached), which does not wait on the C4 wording: route
+`SphereGeneralCircle` into `certify_fitted`'s Circle arm and retire that
+class's mint exemption in the same PR. Run in its own cloud session.
+Review tier: single FULL — a new certified route through branch
+pinning, believed by building, not reading.
+
+Signed (PCERT orchestrator).
