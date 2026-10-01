@@ -1,17 +1,31 @@
 ---
 id: rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk
 kind: issue
-title: chord_join::rehome_rings places a bystander ring against the run through point_in_loop with no loop_shape dispatch: on an arc-bearing run (a planar cylinder cap cut by a straight chord) a ring in the lune reads Out and stays on the wrong face (unreproduced)
+title: chord_join::rehome_rings places a bystander ring against the run through point_in_loop with no loop_shape dispatch: on an arc-bearing run (a planar cylinder cap cut by a straight chord) a ring in the lune reads Out and stays on the wrong face, and the divided shell refuses as torn
 status: dispatched
 opened: 2026-09-24
-priority: P1
+priority: P0
 cost: M
 refs: [arc-aware-point-in-loop, three-answers-to-is-this-loop-inside-that-one]
 branch: cleave/rehome-rings
 ---
 
 
-**Unreproduced — a hypothesis from reading the code, with a concrete
+**Reproduced 2026-10-01 (CLEAVE): a refusal at rest where a correct
+answer exists, so P0.** The named case, built through the public doors
+(a holed `Profile`, `extrude`, then `split` at `x = 0`), refuses
+`SplitError::Finish(TornComponent)` in every orientation — two- and
+four-arc discs, bore at `(±1.6, 0.8)`, plane normal `±x` — and so does
+every `intersect`/`subtract` of the bored disc with a slab `x ≷ 0`
+(`BooleanError::TornComponent`). The bore inside the polygon
+(`(0.8, 0.4)`, `(−0.8, −0.4)`) splits and validates. Tier 3 never sees
+the ring on the wrong half: the shell it is left on carries both halves'
+section faces, and the finish refuses it first. With the run read through
+`point_in_carrier_loop` every row splits, passes tier 3 and measures the
+half-disc's volume less the bore on the half that holds it
+(`crates/sweep/tests/rehome_rings_lune.rs`).
+
+**Filed unreproduced — a hypothesis from reading the code, with a concrete
 case to try.** Found by ATREST-5's sweep (PR #3179) of every caller of
 `splitting::point_in_loop` for the shape "a loop's region read off the
 polygon walk with no `boolean::contain::loop_shape` dispatch".
