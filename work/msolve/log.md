@@ -1045,3 +1045,31 @@ the plan, not only reading it. Three of the rows are now MSOLVE-12
 (plan item 23), dispatched on Opus with a single full review. The
 fourth, the null-payload spelling, is blocked on item 22 (plan item
 24).
+
+## 2026-10-01 — MSOLVE-12 handed back; review dispatched
+
+PR 3698 came back green at `fc5ea8dca`, and the head is frozen.
+
+The lane measured §1 wider than the row: six table shapes reached an
+`Invalid` margin under a membership predicate's name, all through the
+square of a decided sine. The fix is final state (a): closed-form
+solves that divide only by the decided sine. `inverse3` is gone. A
+meeting point beyond the number format refuses
+`MateFault::PoseOutOfRange`, with the range recourse.
+
+The new arm reached outside the fence:
+- `eval/class.rs` and `viewer/src/tree.rs`;
+- three census re-syncs.
+
+The PR declares these for the review to rule on.
+
+Filed:
+- `a-far-meeting-point-fails-membership-by-its-own-rounding` (P2,
+  reachable at ordinary arms; it needs a range statement in
+  geom-core);
+- `plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`
+  (P3).
+
+Main carries a stale rustdoc link (`solve_cluster`, renamed by
+`f714adf56` beside MSOLVE-11). It clears when PR 3698 merges. One
+full review (C1–C5) is dispatched on Opus.
