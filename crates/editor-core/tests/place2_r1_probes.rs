@@ -908,3 +908,26 @@ fn r1_the_mate_placed_inline_recourse_followed() {
     eprintln!("after the recourse: {:?}", second.as_ref().map(|_| ()).map_err(|e| e.to_string()));
     assert!(second.is_ok(), "the recourse did not lead to an inline");
 }
+
+/// **The flush detector across spaces.** A world base lowered so its
+/// top cap is the plane z = 0, and an unplaced top block whose own
+/// space puts its bottom cap on that same plane. Nothing outside an
+/// unplaced group is compared with it; the detector compares them.
+#[test]
+fn r1_the_flush_detector_compares_an_unplaced_group_with_the_world() {
+    let p = parts("r1-flush");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-flush"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let doc = set_offset(doc, base, Some(Placement::literal(&Frame::translation([0.0, 0.0, -1.0]))));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let doc = set_offset(doc, top, None);
+    let ev = run(&doc, &o);
+    assert!(ev.unplaced.contains_key(&top) && !ev.unplaced.contains_key(&base));
+    let found = editor_core::find_flush_candidates(&ev, base, top, Tol::witness());
+    eprintln!("{:?}", found.as_ref().map(|f| f.len()).map_err(|e| e.to_string()));
+    assert!(
+        !matches!(&found, Ok(f) if !f.is_empty()),
+        "a flush finding across spaces: {found:?}"
+    );
+}
