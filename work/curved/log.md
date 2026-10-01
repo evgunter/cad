@@ -459,3 +459,13 @@ gate moved the chord pass's hull helper into its own registered file).
 One CI red was main's own editor-core readers census, fixed by #3538 and
 merged in before the row. Block CURVED-B2's record folds to main with
 this merge; the A/B protocol is suspended, so no CURVED-B3 opens.
+
+## Spiric PR-1b merged (2026-10-01); the spec leaves `docs/`
+
+PR #2861 merged at 981d7825a (sample #247), after a second re-merge of
+main for the WSL crash (a one-file union in the slow-test list). Block
+CURVED-B2's record is on main with the row. `docs/CURVED-SPIRIC-SPEC.md`
+is deleted with a ledger note; `docs/KERNEL-VERBS.md`'s shell row no
+longer points at it. CURVED's slate: the equator-seam unit (in flight),
+the C5 demo half, the ellipse escalation (riding the seam unit), and the
+two spiric/torus findings (the STEP bound; the C9 `[ev]`, PR #3517).
