@@ -10,7 +10,7 @@ opened: 2026-09-29
 ---
 
 Filed by CURVED from a design fork (2026-09-30; `docs/DESIGN-FORK-LOG.md`
-row 21). Both designers converged on this shape; it waits on no ruling.
+row 30). Both designers converged on this shape; it waits on no ruling.
 
 ## What
 

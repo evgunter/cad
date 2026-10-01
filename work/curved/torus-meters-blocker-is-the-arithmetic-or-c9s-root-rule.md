@@ -58,7 +58,7 @@ SCALAR-HYGIENE (`ring-3-residue-outside-its-fence`'s CURVED bullet),
 
 ## Weighed (2026-09-30)
 
-Two designers (the design-fork protocol, row 21 of
+Two designers (the design-fork protocol, row 30 of
 `docs/DESIGN-FORK-LOG.md`) and one reconciliation round. Converged:
 neither reading holds — the torus needs no root at all
 (`m = F / (2r·(A + 2Rρ))`, `A ≥ R² − r² > 0`), so its certification is
