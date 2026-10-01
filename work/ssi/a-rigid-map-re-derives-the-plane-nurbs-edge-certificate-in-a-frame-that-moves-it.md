@@ -7,7 +7,7 @@ opened: 2026-09-28
 priority: P3
 cost: M
 closed: 2026-10-01
-pr: PRNUM
+pr: 3685
 branch: ssi/frame-invariant-bound
 design: true
 ---
@@ -137,7 +137,7 @@ are frame-sensitive and points here. The same docs' two-class contract
 ratified text (the PR #83 ruling) and is not re-worded here. This class
 is a third refusal it does not name.
 
-## Closed (2026-10-01, PR PRNUM)
+## Closed (2026-10-01, PR 3685)
 
 Landed in `ssi/frame-invariant-bound`, as the two designers' agreed
 remedy (neither option 1 nor 2 above). `tensor::SurfaceResidual` reads
