@@ -593,8 +593,8 @@ fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
         text,
         format!(
             "split: the cut severs the edge from Extrude \"base plate\" ({}) to its input \
-             Profile \"sketch\" ({}) (the consumer is kept, the input cut) — a cut must be \
-             closed under inputs and consumers",
+             Profile \"sketch\" ({}). The consumer is kept and the input is cut, but a cut \
+             must be closed under inputs and consumers",
             tag(extrude.0),
             tag(profile.0)
         )
@@ -613,28 +613,7 @@ fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
 /// reader there; spoken from the part it would lose its label.
 #[test]
 fn a_split_forward_reference_speaks_from_the_document_being_split() {
-    let doc = ProfileDoc::empty_derived("node-labels-forward", Tol::witness());
-    let (doc, [_, _, a]) = block(doc, 0.0);
-    let (doc, [_, _, b]) = block(doc, 0.5);
-    let (wa, wb) = (fixture::wall(&doc, a, 0), fixture::wall(&doc, b, 0));
-    let early = fixture::fname(b, wb);
-    let (doc, _) = insert(
-        doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fixture::fname(a, wa)),
-            SitedRef::new(b, early.clone()),
-        )]),
-    );
-    let (doc, [_, _, c]) = block(doc, 0.5);
-    let late = fixture::fname(c, fixture::wall(&doc, c, 0));
-    let (doc, _) = step(
-        doc,
-        DocEdit::Rebind {
-            from: early,
-            to: late.clone(),
-        },
-    );
-    let doc = set_label(doc, c, Some("late block"));
+    let (doc, late, c) = forward_reference("node-labels-forward");
     let cut: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
     let refused = split(
         &doc,
@@ -660,6 +639,65 @@ fn a_split_forward_reference_speaks_from_the_document_being_split() {
         )),
         "{refused}"
     );
+}
+
+/// **An inline's forward reference speaks its name from the part**,
+/// whose ids it is spelled in and where its recourse sends the reader:
+/// the host the replay writes holds no node of it.
+#[test]
+fn an_inline_forward_reference_speaks_from_the_part() {
+    let tol = Tol::witness();
+    let (part_doc, late, c) = forward_reference("node-labels-inline-forward");
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part_doc.clone(), tol);
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let host = ProfileDoc::empty_derived("node-labels-inline-forward-host", tol);
+    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let refused = inline(&host, inst, &resolver, tol).expect_err("the part splices in order");
+    let InlineError::Edit { error } = &refused else {
+        panic!("the replay refuses, got {refused:?}");
+    };
+    assert_eq!(
+        **error,
+        EditError::DeclareNamesMissingNode {
+            name: part_doc.spoken_name(&late)
+        }
+    );
+    assert!(
+        refused.to_string().contains(&format!(
+            "face name minted by Extrude \"late block\" ({})",
+            tag(c.0)
+        )),
+        "{refused}"
+    );
+}
+
+/// A document holding a Declare whose `b` side was rebound onto the
+/// wall of a block inserted after it, labelled `late block`: the
+/// rebound name and that block's extrude.
+fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, [_, _, a]) = block(doc, 0.0);
+    let (doc, [_, _, b]) = block(doc, 0.5);
+    let (wa, wb) = (fixture::wall(&doc, a, 0), fixture::wall(&doc, b, 0));
+    let early = fixture::fname(b, wb);
+    let (doc, _) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(a, fixture::fname(a, wa)),
+            SitedRef::new(b, early.clone()),
+        )]),
+    );
+    let (doc, [_, _, c]) = block(doc, 0.5);
+    let late = fixture::fname(c, fixture::wall(&doc, c, 0));
+    let (doc, _) = step(
+        doc,
+        DocEdit::Rebind {
+            from: early,
+            to: late.clone(),
+        },
+    );
+    (set_label(doc, c, Some("late block")), late, c)
 }
 
 /// **An inline refusal speaks each node from the document that holds

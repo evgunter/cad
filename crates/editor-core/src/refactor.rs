@@ -202,14 +202,16 @@ impl InlineError {
 /// built and inserted into `target`, and maps to the id the insert door
 /// minted for it; a profile's steps map to the ids the door minted for
 /// them. The maps are read off the door, never predicted, so they
-/// cannot disagree with what it minted.
+/// cannot disagree with what it minted. A node's label follows it in
+/// the edit after its insert, so a refusal raised while a later node is
+/// carried speaks the carried ones with their labels.
 ///
 /// A name the maps lack whose missing id belongs to a node still to
 /// come is a FORWARD reference (a Declare or a blend selection rebound
 /// onto a later node): no order of inserts satisfies it, and it refuses
 /// as the insert door would, [`EditError::DeclareNamesMissingNode`],
-/// spelled in `source`'s ids and so spoken from `source`, the one
-/// document that holds them. Every other miss is `miss`'s.
+/// spelled in `source`'s ids and so spoken from `source` (see
+/// [`SplitError`] on why the id space, not membership, decides). Every other miss is `miss`'s.
 ///
 /// # Errors
 ///
@@ -250,6 +252,18 @@ fn carry<E>(
             .map_err(&edit)?
             .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
         node_map.insert(old, new);
+        if let Some(label) = source.label(old) {
+            target
+                .apply(
+                    DocEdit::SetLabel {
+                        node: new,
+                        label: Some(label.clone()),
+                    },
+                    tol,
+                    reach,
+                )
+                .map_err(&edit)?;
+        }
         if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc.node(new)) {
             let shape = |ids: &[Vec<StepId>]| ids.iter().map(Vec::len).collect::<Vec<_>>();
             if shape(&from.ids) != shape(&to.ids) {
@@ -285,9 +299,18 @@ fn carry<E>(
 /// refusal the replay raises before the door sees the edit, a forward
 /// reference ([`EditError::DeclareNamesMissingNode`], and its
 /// unreachable twin [`EditError::UnresolvedInput`]), names an id the
-/// rewrite could not map, which only the document being split holds,
-/// so it speaks from there, where its recourse sends the reader. No one
+/// rewrite could not map, spelled in the document being split, so it
+/// speaks from there, where its recourse sends the reader. No one
 /// sentence names nodes from both documents.
+///
+/// **An id does not say which document it belongs to.** Every
+/// document mints from the same empty chain, so two documents can hold
+/// one id for different nodes: a host and a part that both begin with
+/// the same frame insert mint the same id for it. A site therefore
+/// speaks an id from the document whose ids it is spelled in, known by
+/// construction, never from whichever document happens to hold it;
+/// speaking it from the other would read that document's node and
+/// label, and `node <tag>` is no guard against that.
 #[derive(Debug)]
 pub enum SplitError {
     /// The cut set is empty — there is nothing to split out.
@@ -470,9 +493,9 @@ impl core::fmt::Display for SplitError {
                 let (root_side, member_side) = cut_and_kept(*root_is_cut);
                 write!(
                     f,
-                    "split: the cut tears the placement group rooted at {root} (the root is \
-                     {root_side}, its member {instance} is {member_side}) — the frame lives on \
-                     the GROUP, so the cut must be a union of WHOLE groups; widen the cut, or \
+                    "split: the cut tears the placement group rooted at {root}. The root is \
+                     {root_side} and its member {instance} is {member_side}, but the frame lives \
+                     on the GROUP, so the cut must be a union of WHOLE groups; widen the cut, or \
                      delete the mates holding the group together first"
                 )
             }
@@ -490,9 +513,10 @@ impl core::fmt::Display for SplitError {
                 let (mate_side, operand_side) = cut_and_kept(*mate_is_cut);
                 write!(
                     f,
-                    "split: the cut severs {mate}'s {} reference from {operand}, the node it is \
-                     read at (the mate is {mate_side}, the node {operand_side}); widen the cut, \
-                     or re-author the mate at a node on its own side",
+                    "split: the cut severs the {}-side reference of {mate} from {operand}, the \
+                     node it is read at. The mate is {mate_side} and that node is \
+                     {operand_side}; widen the cut, or re-author the mate at a node on its own \
+                     side",
                     side.name(),
                 )
             }
@@ -504,9 +528,9 @@ impl core::fmt::Display for SplitError {
                 let (consumer_side, input_side) = cut_and_kept(*consumer_is_cut);
                 write!(
                     f,
-                    "split: the cut severs the edge from {consumer} to its input {input} (the \
-                     consumer is {consumer_side}, the input {input_side}) — a cut must be closed \
-                     under inputs and consumers"
+                    "split: the cut severs the edge from {consumer} to its input {input}. The \
+                     consumer is {consumer_side} and the input is {input_side}, but a cut must be \
+                     closed under inputs and consumers"
                 )
             }
             Self::UncutParamReference {
@@ -600,7 +624,8 @@ fn cut_and_kept(first_is_cut: bool) -> (&'static str, &'static str) {
 /// the replay writes, except a forward reference the replay raises
 /// before the door sees the edit, which names a part id the rewrite
 /// could not map and speaks from the part, as its recourse does
-/// ([`SplitError`] says the same of a split).
+/// ([`SplitError`] says the same of a split, and why an id's document
+/// is known by construction rather than by asking who holds it).
 #[derive(Debug)]
 pub enum InlineError {
     /// The target id is not a live node.
@@ -1885,18 +1910,6 @@ pub fn split(
             )?;
         }
     }
-    // A label follows the node it names into the part.
-    for &old in &olds {
-        if let (Some(&new), Some(label)) = (node_map.get(&old), doc.label(old)) {
-            part_apply(
-                &mut part,
-                DocEdit::SetLabel {
-                    node: new,
-                    label: Some(label.clone()),
-                },
-            )?;
-        }
-    }
     if hoisted.is_none() {
         // A11: the cut groups' placements move verbatim (module
         // docs) — every recorded row whose instance is cut, explicit
@@ -2062,14 +2075,7 @@ pub fn split(
             ),
         },
     )?;
-    let Some(instance) = minted else {
-        // InsertNode always mints; surfaced typed rather than assumed.
-        return Err(SplitError::RemainderEdit {
-            error: Box::new(EditError::UnknownNode {
-                id: SpokenNode::absent(RecipeNodeId(0)),
-            }),
-        });
-    };
+    let instance = minted.unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
     for from in &rebinds {
         let of = remap_name(from, &node_map, &step_map)
             .map_err(|missing| SplitError::straddles(doc, from, missing))?;
@@ -2310,18 +2316,6 @@ pub fn inline(
                 DocEdit::ReWitness {
                     node: new,
                     witness: witness.clone(),
-                },
-            )?;
-        }
-    }
-    // A label follows the node it names into the host.
-    for &old in part.order() {
-        if let (Some(&new), Some(label)) = (node_map.get(&old), part.label(old)) {
-            step(
-                &mut current,
-                DocEdit::SetLabel {
-                    node: new,
-                    label: Some(label.clone()),
                 },
             )?;
         }

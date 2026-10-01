@@ -1421,9 +1421,15 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             attr: editor_core::Attr::Visibility(false),
         },
     );
+    let host = labelled(host, kept_e, "host plate");
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::ForeignInstanceName { name }) => {
             assert_eq!(name.name(), &foreign);
+            assert_eq!(
+                minter_label(&name),
+                Some("host plate"),
+                "a host name is spoken from the host: {name}"
+            );
             let msg = format!("{}", InlineError::ForeignInstanceName { name });
             assert!(
                 msg.contains("InPart"),
@@ -1449,9 +1455,15 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             attr: editor_core::Attr::Visibility(false),
         },
     );
+    let host = labelled(host, inst, "left leg");
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceBodyNameReferenced { name }) => {
             assert_eq!(name.name(), &body_name);
+            assert_eq!(
+                minter_label(&name),
+                Some("left leg"),
+                "the instance's body name is the host's, spoken from it: {name}"
+            );
             let msg = format!("{}", InlineError::InstanceBodyNameReferenced { name });
             assert!(
                 msg.contains("output body"),
@@ -1512,6 +1524,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             )]),
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
+        let part_doc = labelled(part_doc, body, "part body");
         let doc_ref = store.insert(part_doc, Tol::witness());
         let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
         let host = ProfileDoc::empty(
@@ -1529,6 +1542,11 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                      nested={nested}"
                 );
                 if nested {
+                    assert_eq!(
+                        minter_label(&name),
+                        Some("part body"),
+                        "a carried name is the part's, spoken from it: {name}"
+                    );
                     assert_ne!(
                         missing.id(),
                         name.name().node,
@@ -1615,6 +1633,24 @@ fn reshaped_component(
 }
 
 /// The ids a profile node holds, flattened in loop then step order.
+/// `doc` with `node` labelled `text`, so a sentence spoken from the
+/// wrong document would read a different label or none.
+fn labelled(doc: ProfileDoc, node: RecipeNodeId, text: &str) -> ProfileDoc {
+    step(
+        doc,
+        DocEdit::SetLabel {
+            node,
+            label: Some(editor_core::Label::new(text).expect("a valid label")),
+        },
+    )
+    .0
+}
+
+/// The label a spoken name's minting node carries, as text.
+fn minter_label(name: &editor_core::SpokenName) -> Option<&str> {
+    name.minter().label().map(editor_core::Label::as_str)
+}
+
 fn flat_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId> {
     match doc.node(profile) {
         Some(Node::Profile(p)) => p.ids.iter().flatten().copied().collect(),
@@ -1675,6 +1711,7 @@ fn a_split_step_map_follows_a_non_contiguous_re_mint() {
 #[test]
 fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     let (doc, [f2, p2, e2], face_frame) = reshaped_component("asm4-dropped", 1, true);
+    let doc = labelled(doc, e2, "walled block");
     let face_frame = face_frame.expect("the stranded frame");
     let dropped = match doc.node(face_frame) {
         Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => face.clone(),
@@ -1697,6 +1734,7 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     ) {
         Err(SplitError::NameOnDroppedStep { name, step }) => {
             assert_eq!((name.name(), step), (&dropped, dropped_step));
+            assert_eq!(minter_label(&name), Some("walled block"), "{name}");
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }
@@ -1713,6 +1751,11 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     ) {
         Err(InlineError::NameOnDroppedStep { name, step }) => {
             assert_eq!((name.name(), step), (&dropped, dropped_step));
+            assert_eq!(
+                minter_label(&name),
+                Some("walled block"),
+                "a carried name is the part's, spoken from it: {name}"
+            );
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }

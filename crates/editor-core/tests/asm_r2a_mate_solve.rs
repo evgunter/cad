@@ -714,7 +714,7 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     assert!(message.contains("widen the cut"), "{message}");
     assert!(
         message.contains(&format!(
-            "rooted at {} (the root is cut, its member {} is kept)",
+            "rooted at {}. The root is cut and its member {} is kept",
             doc.spoken(ids[2]),
             doc.spoken(ids[3])
         )),
