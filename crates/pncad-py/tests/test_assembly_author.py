@@ -820,7 +820,10 @@ class TestAssemblyRefusals(BenchWorkspace):
             refusal.fault.clash.meters,
             refusal.fault.lever_tilt.radians * refusal.fault.lever_arm.meters,
         )
-        self.assertIn("mate_clocking_redundant", str(refusal))
+        # The predicate's name rides `fault.predicate`; the sentence says
+        # in words what it found.
+        self.assertNotIn("mate_clocking_redundant", str(refusal))
+        self.assertIn("the clocking disagrees", str(refusal))
         self.assertEqual(doc.roots, before, "a refused mate enters nothing")
         # The same rider INSIDE the band is redundant and admitted, and
         # the solve places the pair.
