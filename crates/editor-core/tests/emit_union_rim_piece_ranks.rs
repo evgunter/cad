@@ -399,14 +399,36 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 ];
 
 /// **The cases whose fused orders publish different name sets**, pinned:
-/// `(label, union, (order, name) absences)`. In `r4tri` and `r4trig` the
+/// `(label, union, (order, name) absences, their digest)`. The digest is
+/// [`fnv1a`] over the sorted `"<label> <union> <order>: <name>"` lines, so
+/// a change in WHICH names are missing turns the row red even where the
+/// count holds; the failure prints the new digest. In `r4tri` and `r4trig` the
 /// orders that fold `b` (x 0.5..1.5) after both `a` and `c` discard it
 /// whole, inside the accumulation and flush on four sides, and cite it
 /// nowhere; every other order cites `b` as a parent of the merged caps
 /// and y-walls and names its rim pieces and corners.
 /// `work/emit/a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush.md`
 /// owns it.
-const KNOWN_ABSENT: &[(&str, &str, usize)] = &[("r4tri", "U", 96), ("r4trig", "U", 372)];
+const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
+    ("r4tri", "U", 96, 10741176430396264091),
+    ("r4trig", "U", 372, 5554359638117515661),
+];
+
+/// One fused order and every entity it publishes, as sorted geometry.
+type OrderGeometry = (String, Vec<String>);
+
+/// FNV-1a over `lines` in order, each followed by a newline: a digest
+/// that is the same on every platform and toolchain.
+fn fnv1a<'a>(lines: impl IntoIterator<Item = &'a String>) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for line in lines {
+        for b in line.bytes().chain(core::iter::once(b'\n')) {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    h
+}
 
 /// **No name rebinds across member orders, and no order refuses what
 /// another publishes.** Over every case and every pair of fused orders, a
@@ -433,6 +455,9 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     let mut compared = 0;
     let mut mixed = Vec::new();
     let mut absent: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+    // (case, union) of KNOWN_ABSENT → (order, every published entity's
+    // geometry, sorted): the whole-table guard the one-table row skips.
+    let mut geometries: BTreeMap<(String, String), Vec<OrderGeometry>> = BTreeMap::new();
     for case in cases() {
         let mut seen: BTreeMap<(String, StableName), (String, String)> = BTreeMap::new();
         // tag → (order, refusal or None, published names)
@@ -457,6 +482,17 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
                     continue;
                 }
                 let sigs = signature(ev, union);
+                if KNOWN_ABSENT
+                    .iter()
+                    .any(|&(label, t, ..)| label == case.label && t == tag)
+                {
+                    let mut all: Vec<String> = sigs.values().cloned().collect();
+                    all.sort();
+                    geometries
+                        .entry((case.label.clone(), tag.to_string()))
+                        .or_default()
+                        .push((at.to_string(), all));
+                }
                 outcomes.entry(tag.to_string()).or_default().push((
                     at.to_string(),
                     None,
@@ -522,13 +558,16 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
             }
         }
     }
-    let counted: Vec<(String, String, usize)> = absent
-        .iter()
-        .map(|((label, tag), names)| (label.clone(), tag.clone(), names.len()))
+    let counted: Vec<(String, String, usize, u64)> = absent
+        .iter_mut()
+        .map(|((label, tag), names)| {
+            names.sort();
+            (label.clone(), tag.clone(), names.len(), fnv1a(names.iter()))
+        })
         .collect();
-    let pinned: Vec<(String, String, usize)> = KNOWN_ABSENT
+    let pinned: Vec<(String, String, usize, u64)> = KNOWN_ABSENT
         .iter()
-        .map(|&(label, tag, n)| (label.to_string(), tag.to_string(), n))
+        .map(|&(label, tag, n, digest)| (label.to_string(), tag.to_string(), n, digest))
         .collect();
     assert_eq!(
         counted,
@@ -536,6 +575,24 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
         "the names published in one fused order and absent in another changed; the first: {:?}",
         absent.values().flatten().next()
     );
+    assert_eq!(
+        geometries.len(),
+        KNOWN_ABSENT.len(),
+        "every KNOWN_ABSENT union publishes in some order"
+    );
+    for ((label, tag), published) in &geometries {
+        let ((first_at, first), rest) = published
+            .split_first()
+            .expect("an entry is only made with an order in it");
+        assert!(!rest.is_empty(), "{label} {tag}: only {first_at} fuses");
+        for (at, all) in rest {
+            assert_eq!(
+                first, all,
+                "{label} {tag}: {first_at} and {at} publish different geometry, \
+                 not only different names for it"
+            );
+        }
+    }
     let known: Vec<String> = KNOWN_MIXED
         .iter()
         .map(|(label, tag, n, kinds)| format!("{label} {tag}: {n} {kinds}"))
@@ -614,7 +671,7 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
         for (tag, published) in tables {
             if KNOWN_ABSENT
                 .iter()
-                .any(|&(label, t, _)| label == case.label && t == tag)
+                .any(|&(label, t, ..)| label == case.label && t == tag)
             {
                 continue;
             }

@@ -108,6 +108,7 @@
 use geom_core::{Band, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
+use super::shell_witness::{chord_midpoint, face_loop_points, triple_centroid};
 use super::{BooleanError, BooleanReduction, HalfGerm, Operand};
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
@@ -1867,7 +1868,7 @@ fn resolve_roles_geometric<T: Decide>(
                     };
                     let cands: Vec<geom_core::Point3<T>> = match anchor {
                         Anchor::Vertex => vec![start],
-                        Anchor::EdgeMidpoint => vec![start.lerp(end_of(rhe)?, T::from_f64(0.5))],
+                        Anchor::EdgeMidpoint => vec![chord_midpoint(start, end_of(rhe)?)],
                         Anchor::EdgeOnCarrier => {
                             curved_edge_midpoint(body, rhe)?.into_iter().collect()
                         }
@@ -1878,11 +1879,12 @@ fn resolve_roles_geometric<T: Decide>(
                                     .ok_or(desync("region half no longer resolves"))?
                                     .next,
                             )?;
-                            vec![start + ((b - start) + (c - start)) * T::from_f64(1.0 / 3.0)]
+                            vec![triple_centroid(start, b, c)]
                         }
-                        Anchor::RegionVertexChord => face_vertex_points(body, region_face)?
+                        Anchor::RegionVertexChord => face_loop_points(body, region_face)?
+                            .concat()
                             .into_iter()
-                            .map(|q| start.lerp(q, T::from_f64(0.5)))
+                            .map(|q| chord_midpoint(start, q))
                             .collect(),
                     };
                     for p in cands {
@@ -1972,45 +1974,6 @@ fn resolve_roles_geometric<T: Decide>(
              verified interior candidates all exhausted)",
         )),
     }
-}
-
-/// Every vertex point of `face`, outer loop then rings in arena
-/// order — the candidate partner set for [`Anchor::RegionVertexChord`].
-/// Deterministic; duplicates (a vertex visited by two loops) are kept
-/// so the order never depends on point comparison.
-fn face_vertex_points<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<Vec<geom_core::Point3<T>>, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let f = body
-        .get_face(face)
-        .ok_or(desync("region face no longer resolves"))?;
-    let mut out = Vec::new();
-    for fl in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let crate::entity::LoopBoundary::Cycle { first } = body
-            .get_loop(fl)
-            .ok_or(desync("region loop no longer resolves"))?
-            .boundary
-        else {
-            continue;
-        };
-        for he in body
-            .loop_cycle(first)
-            .ok_or(desync("region loop not walkable"))?
-        {
-            let v = body
-                .get_half_edge(he)
-                .ok_or(desync("region half no longer resolves"))?
-                .start;
-            out.push(
-                body.get_vertex(v)
-                    .and_then(|vd| body.get_point(vd.point).copied())
-                    .ok_or(desync("region vertex has no point"))?,
-            );
-        }
-    }
-    Ok(out)
 }
 
 #[cfg(test)]
