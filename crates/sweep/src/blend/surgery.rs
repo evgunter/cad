@@ -4852,15 +4852,19 @@ mod tests {
     fn misses_is_the_relative_bracket_read() {
         use super::CircleFrame;
         use geom_core::{Bounds, Interval, Real};
-        fn old<T: Bounds>(past: T, (ta, tb): (T, T)) -> bool {
-            (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
+        // The former predicate, spelled once for both scalars.
+        macro_rules! old {
+            ($t:ty, $past:expr, $ta:expr, $tb:expr) => {{
+                let (past, ta, tb): ($t, $t, $t) = ($past, $ta, $tb);
+                (past - (tb - ta)).lo() > 0.0 && (<$t>::tau() - past).lo() > 0.0
+            }};
         }
         let tau = core::f64::consts::TAU;
         // The far window start with the point at it: `past` a whole
         // turn, which the arc holds.
         let (ta, tb) = (1e6, 1e6 + 2.0);
         assert!(!CircleFrame::<f64>::past_misses(tau, (ta, tb)));
-        assert!(!old(tau, (ta, tb)));
+        assert!(!old!(f64, tau, ta, tb));
         let (tai, tbi) = (Interval::from_f64(ta), Interval::from_f64(tb));
         assert!(!CircleFrame::past_misses(Interval::tau(), (tai, tbi)));
         // A deterministic spread of angles in `(0, τ]` and just past
@@ -4882,7 +4886,7 @@ mod tests {
             let tb = ta + w;
             assert_eq!(
                 CircleFrame::<f64>::past_misses(past, (ta, tb)),
-                old(past, (ta, tb)),
+                old!(f64, past, ta, tb),
                 "ta {ta}, tb {tb}, past {past}"
             );
             let wide = next() * 1e-3;
@@ -4891,7 +4895,7 @@ mod tests {
             let pi = Interval::from_bounds(past, past + next() * 1e-3);
             assert_eq!(
                 CircleFrame::past_misses(pi, (tai, tbi)),
-                old(pi, (tai, tbi)),
+                old!(Interval, pi, tai, tbi),
                 "ta {ta} ±{wide}, width {w}, past {past}"
             );
         }
