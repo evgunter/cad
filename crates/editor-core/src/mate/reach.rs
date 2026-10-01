@@ -266,9 +266,10 @@ impl core::fmt::Display for ReachRefusal {
             ),
             Self::FaceUnbounded { kind, .. } => write!(
                 f,
-                "has a {} face whose reach from the part's origin cannot be bounded, so no \
+                "has {} {} face whose reach from the part's origin cannot be bounded, so no \
                  bound on the part's extent can be stated. There is no way through for a \
                  mate on this part",
+                crate::sentence::article(kind.name()),
                 kind.name()
             ),
             Self::MalformedBody { .. } => write!(

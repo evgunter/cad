@@ -195,13 +195,7 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
     for w in &want {
         let near = got
             .iter()
-            .filter(|g| {
-                (g.0 - w.0)
-                    .abs()
-                    .max((g.1 - w.1).abs())
-                    .max((g.2 - w.2).abs())
-                    <= 1e-15
-            })
+            .filter(|g| Vec3::new(g.0 - w.0, g.1 - w.1, g.2 - w.2).norm_inf() <= 1e-15)
             .count();
         assert_eq!(
             near, 1,

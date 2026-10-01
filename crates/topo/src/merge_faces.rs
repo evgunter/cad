@@ -2857,7 +2857,7 @@ mod tests {
                 let p = body
                     .get_point(body.get_vertex(v).expect("live").point)
                     .expect("live");
-                [p.x, p.y, p.z] == at
+                p.to_array() == at
             })
             .expect("a half-edge starts there")
     }

@@ -47,7 +47,7 @@ const EPS: f64 = 1e-9;
 const PLANT: f64 = 2e-9;
 
 fn plane_normal() -> Vec3<f64> {
-    Vec3::new(N[0], N[1], N[2])
+    Vec3::from_array(N)
 }
 
 /// A dyadic point exactly on the plane: pick `x`, `y` on the `1/16`

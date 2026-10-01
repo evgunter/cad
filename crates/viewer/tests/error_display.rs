@@ -413,7 +413,7 @@ fn edge_names_refused_forwards_its_first_refusal() {
 #[test]
 fn replay_error_names_the_log_position_and_forwards_the_problem() {
     let inner = EditError::UnknownNode {
-        id: RecipeNodeId(tagged(4)),
+        id: editor_core::SpokenNode::absent(RecipeNodeId(tagged(4))),
     };
     let outer = ReplayError::Refused {
         index: 3,

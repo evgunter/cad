@@ -13,7 +13,7 @@ impl DInterval {
     /// clamps and poisons to `Trv`; full miss is Empty. `f64::sqrt` is
     /// correctly rounded (IEEE 754), so 1 outward step per endpoint
     /// suffices (Lemma P1); endpoints that are provably exact squares
-    /// (FMA witness) take no pad at all.
+    /// (FMA witness, or zero) take no pad at all.
     pub fn sqrt(self) -> Self {
         if let Some(p) = Self::propagate1(&self) {
             return p;
@@ -99,6 +99,10 @@ fn sqrt_lo(a: f64) -> f64 {
 }
 
 fn sqrt_hi(b: f64) -> f64 {
+    // `√0 = 0` exactly; the witness's magnitude floor cannot see it.
+    if b == 0.0 {
+        return 0.0;
+    }
     let s = b.sqrt();
     if two_prod_witness(s, s, b, b) {
         s

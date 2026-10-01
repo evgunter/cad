@@ -8677,13 +8677,13 @@ mod tests {
                 let (pa, za, ma) = a.clone();
                 mapped_prism(&mut body, &pa, za, move |x, y, z| {
                     let q = r(ma(x, y, z));
-                    Point3::new(q[0], q[1], q[2])
+                    Point3::from_array(q)
                 });
                 let mut other = Body::<f64>::new();
                 let (pb, zb, mb) = b.clone();
                 mapped_prism(&mut other, &pb, zb, move |x, y, z| {
                     let q = r(mb(x, y, z));
-                    Point3::new(q[0], q[1], q[2])
+                    Point3::from_array(q)
                 });
                 crate::instance::graft_disjoint(&mut body, &other).unwrap();
                 let got = sites(&body);

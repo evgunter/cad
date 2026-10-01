@@ -14,15 +14,21 @@
 //!   one a later rename left stale.
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
-//!   `Display`, a load door reading bytes that are not a document yet).
+//!   `Display`, a stored reference). The edit, load and save doors all
+//!   hold a document, so each speaks.
 //! - [`FullId`] — every bit of the id, for a machine channel (a
 //!   binding's `repr`, a goldened report) where two ids must never
 //!   print alike.
+//!
+//! A [`StableName`] is a stored reference with no document behind it,
+//! so its own `Display` says its minting node by tag; a sentence made
+//! where the document is at hand says it as a [`SpokenName`].
 
 use core::fmt;
 
 use crate::doc::Doc;
 use crate::label::Label;
+use crate::names::StableName;
 use crate::node::{Datum, Node, RecipeNodeId, StepId};
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -97,9 +103,18 @@ pub struct SpokenNode {
     id: RecipeNodeId,
     /// The kind noun, `None` for an id the document does not hold.
     kind: Option<&'static str>,
-    /// The node's label, `None` when it has none or is not held.
-    label: Option<Label>,
+    /// The node's label, `None` when it has none or is not held. Boxed
+    /// so that a spoken node stays 32 bytes on a 64-bit target (the id,
+    /// the kind's two words, the box): the edit refusals hold up to
+    /// two, and every edit door returns them by value.
+    label: Option<Box<Label>>,
 }
+
+// The width the label's box buys, held where clippy measures it: an
+// unboxed label makes it 48 bytes, and `PersistError`, which carries an
+// `EditError`, crosses clippy's 128-byte large-`Err` line.
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<SpokenNode>() == 32);
 
 impl SpokenNode {
     /// A spoken node with no document behind it, for a fixture that
@@ -110,7 +125,11 @@ impl SpokenNode {
         kind: Option<&'static str>,
         label: Option<Label>,
     ) -> Self {
-        Self { id, kind, label }
+        Self {
+            id,
+            kind,
+            label: label.map(Box::new),
+        }
     }
 
     /// A node no document at hand holds: `node <tag>`, what
@@ -120,6 +139,16 @@ impl SpokenNode {
         Self {
             id,
             kind: None,
+            label: None,
+        }
+    }
+
+    /// The node an insert is minting, before the document holds it:
+    /// its kind and tag. An insert carries no label, so it has none.
+    pub(crate) fn entering<P>(id: RecipeNodeId, node: &Node<P>) -> Self {
+        Self {
+            id,
+            kind: Some(node_kind_noun(node)),
             label: None,
         }
     }
@@ -141,7 +170,7 @@ impl SpokenNode {
     /// `None` when it had none.
     #[must_use]
     pub fn label(&self) -> Option<&Label> {
-        self.label.as_ref()
+        self.label.as_deref()
     }
 }
 
@@ -165,7 +194,75 @@ impl fmt::Display for SpokenNode {
     }
 }
 
+/// **A stable name as a person reads it**: its entity noun and its
+/// minting node spoken ([`SpokenNode`]), `face name minted by Extrude
+/// "base plate" (3fa9c1d2a0b1)`.
+///
+/// Built by [`Doc::spoken_name`] from the document a sentence speaks
+/// from, under [`SpokenNode`]'s rule. Boxed, so that a refusal carrying
+/// one stays the width of a pointer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpokenName(Box<SpokenNameParts>);
+
+/// [`SpokenName`]'s two halves, behind its box.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SpokenNameParts {
+    name: StableName,
+    minter: SpokenNode,
+}
+
+impl SpokenName {
+    /// A spoken name with no document behind it, for a fixture that
+    /// builds by hand what a document would say.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn forged(name: StableName, minter: SpokenNode) -> Self {
+        Self::new(name, minter)
+    }
+
+    fn new(name: StableName, minter: SpokenNode) -> Self {
+        Self(Box::new(SpokenNameParts { name, minter }))
+    }
+
+    /// A name whose minting node no document at hand holds: `node
+    /// <tag>`, as [`StableName`]'s own `Display` says it.
+    #[must_use]
+    pub fn absent(name: StableName) -> Self {
+        let minter = SpokenNode::absent(name.node);
+        Self::new(name, minter)
+    }
+
+    /// The name, as the document stores it.
+    #[must_use]
+    pub fn name(&self) -> &StableName {
+        &self.0.name
+    }
+
+    /// The node that minted it, spoken.
+    #[must_use]
+    pub fn minter(&self) -> &SpokenNode {
+        &self.0.minter
+    }
+}
+
+impl fmt::Display for SpokenName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} name minted by {}",
+            self.name().kind.noun(),
+            self.minter()
+        )
+    }
+}
+
 impl<P> Doc<P> {
+    /// The name `name` as a sentence speaks it ([`SpokenName`]), its
+    /// minting node read off this document now.
+    #[must_use]
+    pub fn spoken_name(&self, name: &StableName) -> SpokenName {
+        SpokenName::new(name.clone(), self.spoken(name.node))
+    }
+
     /// The node `id` as a sentence speaks it ([`SpokenNode`]), read off
     /// this document now.
     #[must_use]
@@ -174,7 +271,7 @@ impl<P> Doc<P> {
             Some(node) => SpokenNode {
                 id,
                 kind: Some(node_kind_noun(node)),
-                label: self.label(id).cloned(),
+                label: self.label(id).cloned().map(Box::new),
             },
             None => SpokenNode::absent(id),
         }

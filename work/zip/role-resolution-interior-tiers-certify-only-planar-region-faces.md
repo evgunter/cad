@@ -64,3 +64,28 @@ A sound curved-edge anchor — the chord-midpoint tier fenced to straight
 edges, with the rows it decides today resolved by a certified point (a
 chart-space `point_in_face` for curved regions answers §2 as well) — or
 a typed refusal naming the gap. The reproducer row flips when it lands.
+
+## Measured (CLEAVE `cleave/ladders`, 2026-10-01)
+
+Role resolution now runs the cell-dimension witness ladder of
+`boolean/shell_witness.rs` (`complex_side`) over each loop's region
+faces: vertices, each edge's carrier at its parameter midpoint, then
+one certified interior point per PLANAR face, a curved face passed over
+rather than refused. The chord-midpoint tier is gone.
+
+- §1: the reproducer resolves. `axis_lap.rs`
+  `a_rim_semicircle_decides_role_resolution_at_its_own_midpoint` (the
+  renamed row) certifies at rest at the analytic volume for both bulge
+  signs. The three rows CONTACT-2 saw move to §2 do not move there:
+  `curved_mergedoor` scenes A and B now ship honest bodies (see
+  `rest-zip-seam-chord-on-cylinder-wall`), and
+  `consumed_side_of_the_pair_is_gone_and_one_record_ships` and
+  `r1_probes_m9_3` `probe_partial_engagement_never_silent` pass
+  unchanged. On their region faces the rim arc's carrier midpoint reads
+  `OnBoundary` (the rim lies on the bore wall), the curved faces are
+  passed over, and the OTHER loop decides through a certified planar
+  interior point.
+- §2: no region face reaches `face_plane`'s refusal any more; what
+  remains is that a curved region's interior is not read, which
+  `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`
+  now carries for both callers of the ladder.

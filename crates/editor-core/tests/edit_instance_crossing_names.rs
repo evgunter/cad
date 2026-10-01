@@ -211,7 +211,8 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => assert_eq!(
-            name, outer,
+            name.name(),
+            &outer,
             "the refusal names the crossing's `outer`, which is the reference that died"
         ),
         other => panic!("a record naming a dead node must refuse at the insert door: {other:?}"),
@@ -332,7 +333,7 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
         .maintenance
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand { node, name } => Some((*node, name.clone())),
+            Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
             Maintenance::Cluster(_)
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::OrphanedDeclare { .. } => None,
@@ -506,12 +507,13 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
         panic!("the seam name is what refuses, not another precondition: {refused:?}");
     };
     assert_eq!(
-        (node, *name),
-        (carrier, outer),
+        (node, name.name()),
+        (doc.spoken(carrier), &outer),
         "the refusal names the instance and the crossing `outer` it carries"
     );
     assert_eq!(
-        missing, keeper,
+        missing,
+        doc.spoken(keeper),
         "and the node it reaches: the `InPart` argument is another document's id space, so \
          the one LOCAL node the name derives from is the kept instance"
     );
