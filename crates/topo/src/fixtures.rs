@@ -435,6 +435,68 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
     faults
 }
 
+/// Runs `door` — one call of an operator named in `doors` — on a body a
+/// test has made tier-1-invalid on purpose, inside a surgery scope the
+/// caller drops unswept: `Ok` with what the operator returned, or `Err`
+/// with the panic message of its own tier-1 postcondition.
+///
+/// The `Err` arm is the `per-op-postcondition` scalpel's: it sweeps
+/// after every operator inside a scope too, so an operator that runs to
+/// its end on a torn body fires on the input's corruption after its
+/// last write and before its `Ok`. Without the scalpel the arm is
+/// unreachable. A caught sweep prints nothing; any other panic, an
+/// operator's postcondition named outside `doors` included, prints as
+/// it would have and propagates.
+pub(crate) fn through_the_scalpel<R>(
+    doors: &[&str],
+    door: impl FnOnce() -> R,
+) -> Result<R, String> {
+    use std::cell::RefCell;
+    use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind, set_hook, take_hook};
+    thread_local! {
+        /// `Some` while this thread is inside the helper: where the
+        /// hook leaves a panic's report instead of printing it.
+        static HELD: RefCell<Option<String>> = const { RefCell::new(None) };
+    }
+    static HOOK: std::sync::Once = std::sync::Once::new();
+    if !cfg!(feature = "per-op-postcondition") {
+        return Ok(door());
+    }
+    HOOK.call_once(|| {
+        let previous = take_hook();
+        set_hook(Box::new(move |info| {
+            let held = HELD.with(|held| match held.borrow_mut().as_mut() {
+                Some(report) => {
+                    *report = info.to_string();
+                    true
+                }
+                None => false,
+            });
+            if !held {
+                previous(info);
+            }
+        }));
+    });
+    HELD.with(|held| *held.borrow_mut() = Some(String::new()));
+    let caught = catch_unwind(AssertUnwindSafe(door));
+    let report = HELD
+        .with(|held| held.borrow_mut().take())
+        .unwrap_or_default();
+    let payload = match caught {
+        Ok(got) => return Ok(got),
+        Err(payload) => payload,
+    };
+    if doors
+        .iter()
+        .any(|op| report.contains(&format!(": {op} postcondition: result is not tier-1 valid")))
+    {
+        Err(report)
+    } else {
+        eprintln!("{report}");
+        resume_unwind(payload)
+    }
+}
+
 /// Asserts that `kill` refuses exactly `expected` and leaves `body`
 /// deep-unchanged. The kill runs inside a surgery scope: a debug build's
 /// tier-1 postcondition would otherwise answer an `Ok` on a torn body

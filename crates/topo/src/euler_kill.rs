@@ -1952,7 +1952,7 @@ mod tests {
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{
         ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, assert_kill_refuses,
-        deep_snapshot, ops_holed_box, prov,
+        deep_snapshot, ops_holed_box, prov, through_the_scalpel,
     };
     use crate::iso::{canonical_form, isomorphic};
     use crate::readback::euler_counts;
@@ -2780,7 +2780,8 @@ mod tests {
         // one, and an empty list asks nothing past the structural list,
         // as the keys-only door asks nothing, so both kill. (The body is
         // tier-1-invalid, so the kills run inside a surgery scope,
-        // whose close is dropped unswept.)
+        // whose close is dropped unswept; under the scalpel each kill's
+        // own sweep reports the planted dangle and nothing else.)
         let tol = Tol::witness();
         let (mut body, _seed, seg, strut) = strutted();
         let v = body.get_half_edge(strut.he_plus).unwrap().start;
@@ -2796,16 +2797,29 @@ mod tests {
                     .unwrap_err()
             },
         );
-        for describing in [false, true] {
+        let planted = vec![crate::validate::ValidationError::DanglingGeometry {
+            from: EntityId::Vertex(v),
+            to: crate::entity::GeomRef::Point(point),
+        }];
+        for door in ["kev", "kev_describing"] {
             let mut copy = body.clone();
             let mut scope = copy.begin_surgery();
-            let got = if describing {
-                scope.kev_describing(strut.he_plus, &[], tol)
-            } else {
-                scope.kev(strut.he_plus)
-            };
+            let got = through_the_scalpel(&[door], || {
+                if door == "kev" {
+                    scope.kev(strut.he_plus)
+                } else {
+                    scope.kev_describing(strut.he_plus, &[], tol)
+                }
+            });
             drop(scope);
-            assert!(got.is_ok(), "describing: {describing}: {got:?}");
+            match got {
+                Ok(got) => assert!(got.is_ok(), "{door}: {got:?}"),
+                Err(swept) => assert!(
+                    swept.contains(&format!("left: Err({planted:?})")),
+                    "{door} ran to its end and its sweep reports the planted dangle alone: \
+                     {swept}"
+                ),
+            }
         }
     }
 
