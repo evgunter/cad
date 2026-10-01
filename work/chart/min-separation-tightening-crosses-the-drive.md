@@ -4,7 +4,6 @@ kind: issue
 title: min_separation cannot mint a chart boundary: the walk's rows are recorded on one lane only and every drive leaf refuses
 status: open
 opened: 2026-09-13
-refs: [clearance-window-tightening-needs-chart-boundary]
 priority: P1
 cost: D
 ---

@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P0
 cost: M
-design: true
+refs: [edge-pieces-are-named-by-their-ends]
 ---
 
 
@@ -80,3 +80,13 @@ to say what a closed seam's pieces are ranked by as well.
 This row splits out of
 `a-seam-chain-along-a-curved-face-refuses-as-an-emission-bug`, which
 closed once the refusal was recategorized.
+
+## Ruled (2026-10-01, PR 3553)
+
+Ev took the recommendation of fork-log row 22 ("the recommendation
+sounds good, including the change to what was decided in 512!"). The
+rule is `crates/editor-core/src/names/README.md` N2. Seam pieces take
+`Ends` (the sorted pair of their end vertices' names) instead of a rank
+along `n_a × n_b`, so no ranker reads a plane and `SplitReference`
+retires. `edge-pieces-are-named-by-their-ends` implements it and closes
+this row.
