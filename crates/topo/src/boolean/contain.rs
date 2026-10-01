@@ -527,14 +527,21 @@ const ROWS: BoundaryRows = BoundaryRows {
 /// rectangle then misstates the face in BOTH directions, and this door
 /// answers `None` rather than a verdict it cannot stand behind.
 ///
+/// A window a FULL PERIOD wide has no azimuth test to run (the cosine
+/// comparison is an equivalence only under a period), and is served
+/// when the face is the full-turn BAND
+/// ([`super::solid_contain::full_turn_outline`], the ray lane's own
+/// class): the face alone wraps the azimuth, so membership is the
+/// height window alone.
+///
 /// `None` is therefore the honest remainder throughout — a chart with no
 /// arm (NURBS), a chart form the trim cannot express (a ringed face, a
-/// non-iso boundary, or a FULL-PERIOD azimuth window, whose cosine
-/// comparison is an equivalence only under a period), or a margin on a
-/// trim boundary — and the caller keeps its typed frontier door there.
-/// The period case is decided HERE rather than read out of the solid
-/// door's refusal: that door escalates, because a ray lane may not
-/// silently skip a wall, and this door's contract is the remainder.
+/// non-iso boundary, or a full-period window outside the band class),
+/// or a margin on a trim boundary — and the caller keeps its typed
+/// frontier door there. The period case is decided HERE rather than
+/// read out of the solid door's refusal: that door escalates outside
+/// the band, because a ray lane may not silently skip a wall, and this
+/// door's contract is the remainder.
 ///
 /// # Errors
 ///
@@ -675,30 +682,40 @@ pub(crate) fn curved_face_placement<T: Decide>(
     };
     // THE cosine-window construction's period guard, third site
     // (`point_on_wall_in_face` carries the argument).
-    // A FULL-PERIOD azimuth window is a chart form this door cannot
-    // express, not an ill-conditioned one: the trim's cosine
-    // comparison is an equivalence only for a window narrower than a
-    // period, so at a full turn there is no angular test to run and the
-    // rectangle stops describing the face. The solid door escalates
-    // here because its ray lane must not silently skip a wall; this
-    // door's contract is the honest remainder, so the case is caught
-    // BEFORE the trim rather than read out of its refusal.
-    match decide(
+    // At a FULL-PERIOD window there is no angular test to run, so the
+    // rectangle class is not asked: the face is served only as the
+    // full-turn band, and anything else is the remainder. The case is
+    // caught BEFORE the rectangle class rather than read out of its
+    // refusal, which escalates because a ray lane must not silently
+    // skip a wall.
+    let full_turn = match decide(
         "bool_curved_contain_period",
         Margin::levered(T::tau() - (az.1 - az.0), radius),
         band,
     ) {
-        Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) => return Ok(CurvedPlacement::Trim(None)),
+        Ok(Sign::Positive) => false,
+        Ok(Sign::Zero | Sign::Negative) => true,
         Err(diag) => return Err(ContainError::Escalated(diag)),
-    }
-    // The ray lane's class predicate, asked of the same face: this door
-    // serves its rectangle class only.
-    let outline = super::solid_contain::wall_outline(body, face, origin, axis, radius, az, h, band)
-        .map_err(solid_err)?;
-    if !matches!(outline, super::solid_contain::WallOutline::Rectangle { .. }) {
-        return Ok(CurvedPlacement::Trim(None));
-    }
+    };
+    // The ray lane's class predicates, asked of the same face: this
+    // door serves the rectangle and the band only.
+    let outline = if full_turn {
+        match super::solid_contain::full_turn_outline(body, face, origin, axis, radius, h, band) {
+            Ok(Some(outline)) => outline,
+            Ok(None) | Err(super::solid_contain::PointInSolidError::CorruptFace { .. }) => {
+                return Ok(CurvedPlacement::Trim(None));
+            }
+            Err(e) => return Err(solid_err(e)),
+        }
+    } else {
+        let outline =
+            super::solid_contain::wall_outline(body, face, origin, axis, radius, az, h, band)
+                .map_err(solid_err)?;
+        if !matches!(outline, super::solid_contain::WallOutline::Rectangle { .. }) {
+            return Ok(CurvedPlacement::Trim(None));
+        }
+        outline
+    };
     match super::solid_contain::point_on_wall_in_face(
         face, origin, axis, radius, u_ref, az, &outline, q, band,
     ) {
@@ -728,12 +745,9 @@ pub(crate) fn curved_face_placement<T: Decide>(
 /// while those edges are being classified. `None` is the honest
 /// remainder throughout.
 ///
-/// **The one place this door is stricter than the ray lane**: a
-/// FULL-PERIOD azimuth window answers `None` here. The ray lane serves
-/// it (every azimuth is in the face, so the window cannot exclude a
-/// point), but this door's contract is the remainder and its caller
-/// keeps a typed frontier there — the same posture the cylinder arm's
-/// period guard takes, kept rather than widened in passing.
+/// A FULL-PERIOD azimuth window (a cap, or a latitude band) is served
+/// as the ray lane serves it: every azimuth is in the face, so the
+/// latitude window alone decides.
 #[allow(clippy::too_many_arguments)] // one chart datum, each argument named
 fn sphere_face_containment<T: Decide>(
     body: &Body<T>,
@@ -762,9 +776,6 @@ fn sphere_face_containment<T: Decide>(
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    if trim.az.is_none() {
-        return Ok(CurvedPlacement::Trim(None));
-    }
     match super::solid_contain::point_on_sphere_in_face(
         face, center, radius, axis, u_ref, &trim, q, band,
     ) {
