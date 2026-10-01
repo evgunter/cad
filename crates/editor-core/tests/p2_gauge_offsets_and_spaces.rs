@@ -1028,11 +1028,31 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
     let (doc, _) = insert(doc, seat(head(p.top_cap(b)), head(p.base_cap(x))));
     let ev = run(&doc, &o);
     assert!(ev.unplaced.contains_key(&a) && ev.unplaced.contains_key(&b));
-    match editor_core::assemble(&doc, &ev, Tol::witness()) {
+    let own_space_refuses = |doc: &ProfileDoc, ev: &Evaluation<f64>| match editor_core::assemble(
+        doc,
+        ev,
+        Tol::witness(),
+    ) {
         Err(editor_core::AssemblyError::Space { group, .. }) => assert_eq!(group, x),
         Err(editor_core::AssemblyError::AtRest { .. }) => {}
         other => panic!("the own space's interference is the gate's answer: {other:?}"),
-    }
+    };
+    own_space_refuses(&doc, &ev);
+    // With placed material far off in the world, the world gathers and
+    // certifies, and the gate over that product still checks the own
+    // space: the product carries it (`Product::spaces`).
+    let (doc, far) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let doc = set_offset(
+        doc,
+        far,
+        Some(Placement::literal(&Frame::translation([100.0, 0.0, 0.0]))),
+    );
+    let ev = run(&doc, &o);
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the world gathers");
+    assert_eq!(product.spaces.len(), 1, "the product carries the own space");
+    assert!(editor_core::assemble_gathered(product, Tol::witness()).is_err());
+    own_space_refuses(&doc, &ev);
 }
 
 /// **The group hoist leaves a parametric root offset in the host**
@@ -1403,4 +1423,60 @@ fn a_pick_across_spaces_refuses_and_each_space_picks_by_itself() {
             .expect("the ray meets it");
         assert_eq!(hit.node, node);
     }
+}
+
+/// **Gauge references are reading edges** (A12, A11 (2)): an instance
+/// reads its gauge and a gauge its parent, so A9 puts two instances on
+/// one gauge, with no mate between them, in one component — the gauge
+/// fixes their frames relative to each other — and an instance on
+/// another gauge in another. A reference to a deleted gauge reads
+/// nothing.
+#[test]
+fn two_instances_on_one_gauge_are_one_component_with_no_mate() {
+    let p = parts("r1-reading");
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-reading"), Tol::witness());
+    let (doc, outer) = insert(
+        doc,
+        Node::gauge(
+            None,
+            Placement::literal(&Frame::translation([1.0, 0.0, 0.0])),
+        ),
+    );
+    let (doc, g) = insert(
+        doc,
+        Node::gauge(
+            Some(outer),
+            Placement::literal(&Frame::translation([0.0, 1.0, 0.0])),
+        ),
+    );
+    let (doc, h) = insert(
+        doc,
+        Node::gauge(
+            None,
+            Placement::literal(&Frame::translation([0.0, 0.0, 1.0])),
+        ),
+    );
+    let (doc, a) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, b) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, c) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let doc = set_gauge(
+        set_gauge(set_gauge(doc, a, Some(g)), b, Some(g)),
+        c,
+        Some(h),
+    );
+    let edges = editor_core::reading_edges(&doc);
+    for edge in [(g, outer), (a, g), (b, g), (c, h)] {
+        assert!(edges.contains(&edge), "{edge:?} in {edges:?}");
+    }
+    let components = editor_core::relative_freedom_components(&doc);
+    let of = |id| components.iter().position(|comp| comp.contains(&id));
+    assert_eq!(of(a), of(b), "one gauge, one component");
+    assert_ne!(of(a), of(c), "another gauge, another component");
+    let (dead, _) = step(doc, DocEdit::DeleteNode { id: h });
+    assert!(
+        !editor_core::reading_edges(&dead)
+            .iter()
+            .any(|&(r, _)| r == c),
+        "a reference to a deleted gauge reads nothing"
+    );
 }
