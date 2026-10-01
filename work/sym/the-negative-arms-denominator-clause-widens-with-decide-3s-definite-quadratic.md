@@ -2,11 +2,12 @@
 id: the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic
 kind: issue
 title: DECIDE-3's definite_quadratic widens nonneg_poly, and through it rule F's negative-arm denominator clause: a cross-product neither unit measured
-status: open
+status: closed
 opened: 2026-09-21
 priority: P2
 cost: D
 refs: [derived-frame-placement-freezes-on-the-symbolic-lane, coefficient-ring-width-is-not-monotone-in-reach]
+closed: 2026-10-01
 ---
 
 
@@ -126,7 +127,7 @@ theorems as `sign_gated`
 Rule G (`no_g`) costs `tiltUV`'s `Pinned` 92 numeric decisions
 (596 → 688).
 
-**What is NOT clean, and why this item stays open.** The gating row
+**The gating row, as it stood at the measurement.** The gating row
 `m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm`
 reds: it pins the Duff-era mechanism — F off refuses
 `carrier_endpoint_end` `28/0/0/1`, F on takes it to `33/0/0/0` and
@@ -138,5 +139,33 @@ stops on the Newell straddle `32/0/0/1`. On the merged tree F off
 (evidence) likewise: `FlipX` at `half = 2e-3` refuses on the shipped
 tier at a wall join, not the Newell straddle. Nothing went down — the
 documents certify where `main` refused — but the row's subject (the
-arm reaching the start cap) no longer exists, and re-aiming SYM's
-gating pin is SYM's call, not the merge's.
+arm reaching the start cap) no longer exists.
+
+## Closed (2026-10-01)
+
+The measurement this item owed is clean. Nothing went down anywhere,
+and the widened `D` clause opens nothing:
+
+- The eight documents' ceilings and over-band sets are identical under
+  `f_shut` and shipped, to every printed digit.
+- Seven of the eight splits are identical. The pad's split was not
+  taken: its shape report was killed at 388 s on a 15 GB box. The pad's
+  whole-box receipt at its `certifies_at · ε` box is identical under
+  both rule sets (893 / 34 / 150 / 1002), as are the other four
+  `m10_9` studies'.
+
+The LINALG orchestrator ruled that the gating row's claim stands and
+only its mechanism is gone. It is re-aimed as
+`m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert`:
+
+- under shipped rules the start cap and `FlipZ` certify;
+- their receipt and their `carrier_endpoint_end` /
+  `newell_plane_residual` splits equal the end cap's, computed in the
+  row;
+- rule F's arms shut alone moves nothing on all three.
+
+`FlipX` and `FlipV` are carried the same way by
+`sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents`.
+
+That the negative arm now has no document consumer is filed as
+`the-negative-arm-lost-its-document-consumer`.

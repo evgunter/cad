@@ -503,10 +503,18 @@
 //! count; under `Pinned` both certify at both dials and the arm moves
 //! the start cap 108 decisions out of `numeric` (768 → 876
 //! `symbolic_zero`, 12.2 → 1.0 s) and `FlipZ` 122 (754 → 876,
-//! 7.8 → 1.2 s) (`m10_derived_frame_tilted_interval`'s
-//! `m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm`
-//! is the gating pin; `sym12_phase1_the_one_sided_documents_ladder`
-//! the ladder). The end cap itself is bit-identical under the arm.
+//! 7.8 → 1.2 s). The end cap itself is bit-identical under the arm.
+//!
+//! **Those numbers are Duff's basis's, and that basis is gone.**
+//! [`Vec3::orthonormal_basis`](crate::Vec3::orthonormal_basis) now
+//! crosses the normal with a world axis and transfers no sign, so it
+//! mints no `copysign(1, n.z)` for either arm to fold. On every document
+//! above, and on the measured eight, shutting rule F's two arms moves
+//! nothing: the start cap and `FlipZ` certify as the end cap does with
+//! the arms on or off (`m10_derived_frame_tilted_interval`'s
+//! `m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert`
+//! gates that). The arm has no measured document consumer
+//! (`work/sym/the-negative-arm-lost-its-document-consumer`).
 //!
 //! **What the reach IS, stated no wider than the documents behind
 //! it**: a `FaceFrame` whose `carrier_endpoint_end` residual carries
@@ -518,7 +526,7 @@
 //! on or off, because with rule F shut its `carrier_endpoint_end` is
 //! already 32/0/0/0 and its first refusal already the Newell straddle
 //! — the frame's atoms never reach a residual the tilt-`v` family
-//! stops on (`sym12_a_negative_nz_the_arm_folds_and_does_not_reach`
+//! stops on (`sym12_rule_f_is_inert_on_the_reviews_negative_nz_documents`
 //! carries both documents).
 //!
 //! **What neither arm reaches, and why.** A tilt about `u` AND `v`

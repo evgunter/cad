@@ -332,9 +332,17 @@ const SLAB_LEDGER: [&str; 3] = [
 /// that same stored sweep, every form count is the one the doc above
 /// the ledger names (`Plain/Decision` 15046, `Door/Decision` 11864),
 /// and the `Early/Assertion` and `Door/Decision` lines freeze 104 nodes
-/// each again where rule G had taken them to 0 on the bulge-spelled
-/// span. The plate's receipt is `[811, 0, 140, 462]` either way, and
-/// the `*/Report` rows stay absent.
+/// each again where rule G had taken them to 0. The cause is the cap
+/// apex: `sweep::swept::arc_apex` reads `tan(|Δθ|/4)` off the sweep,
+/// so its sagitta carries a `tan(1·atan(1))` atom rule D does not fold
+/// (rule D folds `sin` and `cos` of `q·atan X`, not `tan`), and every
+/// one of the 104 is a `Powi` of a form over that atom refused on the
+/// COEFFICIENT bound (`2^186`-scale coefficients). Folding `tan` the way
+/// rule D folds `sin`/`cos` takes both lines back to 0, measured on a
+/// probe and reverted
+/// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
+/// The plate's receipt is `[811, 0, 140, 462]` either way, and the
+/// `*/Report` rows stay absent.
 const SLAB_MAX_TERMS: usize = 6;
 const PLATE_MAX_TERMS: usize = 252;
 
