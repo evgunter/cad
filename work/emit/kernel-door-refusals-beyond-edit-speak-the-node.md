@@ -32,3 +32,22 @@ The grep matches a format string with `node {…}` on one line. It cannot see a 
 - Load door, where the tag likely stays: `SnapshotError` 30, `PersistError` 1.
 - Node-local faults that a door renders in its own words: `InputFault` 1 and `AssertionBoundFault` 2 (`node.rs`). The edit door already speaks them through `EditError`.
 - Memoized, owned by `memoized-refusals-speak-inner-nodes-through-the-frame`: `NodeErrorKind` 13, `PartFault` 4, `MateFault` 19, `FaceRefusal` 2, `LeverRefusal` 2.
+
+## Built
+
+This row's PR speaks the edit door's family:
+
+- **`RootFault`** holds `SpokenNode`s. `roots::check` takes the door's `speak`. The edit door speaks from the document it was handed: a node the edit is minting by kind and tag, an id neither document holds as `absent` (`edit::spoken_after`). The `Roots` recourse words speak the node too.
+- **A name an `EditError` arm forwards** (15 arms) is a `SpokenName`: the `StableName` beside its minting node spoken (`Doc::spoken_name`). It reads `face name minted by Extrude "base plate" (3fa9c1d2a0b1)`, and `node <tag>` when the node is not held. `StableName`'s own `Display` keeps the tag, because a stored reference has no document behind it.
+- **`Maintenance`'s `Strand`, `StrandedAppearance` and `OrphanedDeclare`** speak their nodes and names from the document the edit was applied to, which still holds a deleted minting node.
+
+## The load door: it keeps the tag
+
+`SnapshotError` (30 node fields), `PersistError` (1), `persist/check.rs`, `persist/mod.rs` (`fmt_labelled`) and `mint.rs` (`Minted`'s `Display`) stay as they are. This follows the rule already written in `spoken.rs`'s module doc: the bare tag is for "a load door reading bytes that are not a document yet". DESIGN.md's "the label is read off the document when the sentence is made" has no document to read at that door. The label store is itself among what the load door judges (`LabelOnMissingNode`, a blank label), so a sentence quoting a label from the bytes would quote unvalidated text. `RootFault`, which both doors share, is spoken by the load door through `SpokenNode::absent`, so its sentence there is `node <tag>`.
+
+## Split off (each a row, `parent: node-labels-are-document-data`)
+
+- `split-and-inline-refusals-speak-the-node`: `SplitError`, `InlineError`. It also records a defect: `SplitError` prints a cut/kept end as a decimal `u64`.
+- `analysis-door-refusals-speak-the-node`: range, drive, mc, stackup, clearance, report, product.
+- `selection-door-refusals-speak-the-node`: resolve, pick, hit, names, `NodeStanding`, `AssemblyError`/`MintRefusal`, export, `py/checks.rs`.
+- `a-cluster-act-speaks-its-gauges-by-tag`: `ClusterMaintenance`'s sentence. The sweep found it, and no row listed it.
