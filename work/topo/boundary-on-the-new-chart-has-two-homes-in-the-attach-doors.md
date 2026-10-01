@@ -70,3 +70,19 @@ reading. The residual reading is still the describing door's alone
 curved charts and the lone vertex — are unchanged. `kef` and `kfmrh`
 ask neither yet
 (`kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+
+## Evidence: the plug's refusal, and the describing door onto its placeholder (PR 3673's fix pass)
+
+`Body::mfkrh_plug` now refuses as its own door (`RechartDoor::MfkrhPlug`)
+and names `mfkrh` onto a chart the ring's edges name as its lever
+(`attach::tests::mfkrh_plugs_refusals_name_mfkrh_onto_the_chart_the_ring_names`).
+The plug's other route is a third case of this row's disagreement. An
+executed probe on the brick's described inlay, the membrane demoted into
+the cap (`kfmrh`): `mfkrh_plug(ring, true)` refuses
+`RechartUnvouched { door: MfkrhPlug, .. }` naming all four edges. But
+`mfkrh(ring, Inherit)`, then
+`set_face_surfaces_describing(vec![Rechart::new(nurbs_placeholder, face, sense)], &[], tol)`
+returns `Ok`. The four edges keep their images in the cap's chart, and
+tier 3 at rest reports only `UncertifiableSurface`. The describing door
+certified nothing about the boundary on the placeholder, which the
+keys-only reading refuses. Not fixed there: it is this row's decision.

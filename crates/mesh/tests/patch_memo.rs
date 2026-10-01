@@ -718,7 +718,7 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
         .filter_map(|(hek, _)| base.pcurve(hek).cloned().map(|cache| (hek, cache)))
         .collect();
     assert!(!saved.is_empty(), "the wall's loop carries stored pcurves");
-    // Lifts both refusals: the memo must miss when the surface changes under the same edges.
+    // Lifts RechartStrandsDescriptions: the memo must miss when the surface changes under the same edges.
     after
         .set_face_surface_stranding_for_tests(
             fk,

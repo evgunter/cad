@@ -1653,7 +1653,7 @@ mod tests {
         };
 
         let mut stranded = body.clone();
-        // Lifts both refusals: the stranded state tier 3 reports at rest is the row.
+        // Lifts RechartStrandsDescriptions: the stranded state tier 3 reports at rest is the row.
         stranded
             .set_face_surface_stranding_for_tests(top, swap())
             .unwrap();
@@ -2500,7 +2500,7 @@ mod tests {
         };
 
         let mut lifted = body.clone();
-        // Lifts both refusals: the stranded run tier 3 reports at rest is the row.
+        // Lifts RechartStrandsDescriptions: the stranded run tier 3 reports at rest is the row.
         lifted
             .lifting_rechart_refusals_for_tests(|b| b.mef(site, chord.clone(), swap(), tol()))
             .unwrap();

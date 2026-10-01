@@ -1,7 +1,7 @@
 ---
 id: kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers
 kind: issue
-title: kef and kfmrh move loops onto faces on other keys, eleven production call sites rely on the move, and their keys-only refusal waits on a design answer
+title: kef and kfmrh move loops onto faces on other keys, ten production call sites rely on the move, and their keys-only refusal waits on a design answer
 status: open
 opened: 2026-10-01
 priority: P3
@@ -33,10 +33,10 @@ mesh, step-import and editor-core (4739 tests).
 
 | Door | Calls that move across keys | Would refuse | Production sites refusing |
 |---|---|---|---|
-| `kef` / `kef_minting` | 119,913 | 29,514 | 9 sites, 29,504 calls |
+| `kef` / `kef_minting` | 119,913 | 29,514 | 8 sites, 29,502 calls |
 | `kfmrh` / `kfmrh_minting` | 20,370 | 3,041 | 2 sites, 3,010 calls |
 
-The production sites, by call count that would refuse:
+The ten production sites, by call count that would refuse:
 
 - `kef_minting`, `boolean/zip.rs` `zip_seam` (two sites): 8,835 + 4,985.
 - `kef_minting`, `merge_faces.rs` `merge_group`: 7,947 of 7,966 (the
@@ -46,11 +46,16 @@ The production sites, by call count that would refuse:
 - `kef_minting`, `sweep/src/blend/surgery.rs`: 770.
 - `kfmrh`, `shell.rs`'s rim glue: 195 (then `rename_loop_surface`
   re-describes the ring by hand).
-- `kef_minting`, `boolean/rest.rs` (three sites): 81 + 80 + 98.
-- `kef`, `editor-core/src/names/emit_topo.rs`: 2.
+- `kef_minting`, `boolean/rest.rs`, three of its four calls: `slit_zip`'s
+  (81) and `zip_folded`'s two (80 + 98). The fourth, in `slit_zip`'s
+  band-run arm, kills the face `mfkrh(.., Inherit)` has just minted on
+  the folded face's own key, so it never moves across keys. Re-measured
+  at the head of PR 3673's fix pass, topo's whole suite and sweep's `ci`
+  profile: the same 81, 80 and 98, and no call of the fourth across keys.
 
 The rest are fixtures (`tests/loop_reparenting_pcurve_rows.rs`, sweep's
-`verbs_shell.rs`, `verbs_sphsph_chart.rs` and `common/cert_corpus.rs`).
+`verbs_shell.rs`, `verbs_sphsph_chart.rs` and `common/cert_corpus.rs`,
+and editor-core's `names/emit_topo.rs` test module, 2).
 
 ## Why it is not built
 

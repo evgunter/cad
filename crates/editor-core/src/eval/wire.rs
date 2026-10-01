@@ -5338,11 +5338,11 @@ mod place_tests {
             },
             sense: true,
         };
-        // Lifts both refusals: the rows read the cylinder keys' axis stamps, not the brick's edges.
+        // Lifts RechartStrandsDescriptions: the rows read the cylinder keys' axis stamps, not the brick's edges.
         let stamped = b
             .set_face_surface_stranding_for_tests(faces[0], cylinder(0.25))
             .unwrap();
-        // Lifts both refusals: the rows read the cylinder keys' axis stamps, not the brick's edges.
+        // Lifts RechartStrandsDescriptions: the rows read the cylinder keys' axis stamps, not the brick's edges.
         let pending = b
             .set_face_surface_stranding_for_tests(faces[1], cylinder(0.3))
             .unwrap();

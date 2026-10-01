@@ -143,7 +143,7 @@ pub fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Su
         half_angle,
         u_ref,
     };
-    // Lifts both refusals: the re-anchored cone is geometric nonsense on purpose.
+    // Lifts RechartStrandsDescriptions: the re-anchored cone is geometric nonsense on purpose.
     let key = body
         .set_face_surface_stranding_for_tests(
             group[0],
@@ -154,7 +154,7 @@ pub fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Su
         )
         .expect("the face takes a re-anchored cone");
     for &other in &group[1..] {
-        // Lifts both refusals: the re-anchored cone is geometric nonsense on purpose.
+        // Lifts RechartStrandsDescriptions: the re-anchored cone is geometric nonsense on purpose.
         body.set_face_surface_stranding_for_tests(
             other,
             topo::FaceSurface::Shared { key, sense: true },

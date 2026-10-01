@@ -65,7 +65,7 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
         let Ok(r) = n.reversed_v() else {
             continue;
         };
-        // Lifts both refusals: the reversed chart under its face is the hazard the row measures.
+        // Lifts RechartStrandsDescriptions: the reversed chart under its face is the hazard the row measures.
         body.set_face_surface_stranding_for_tests(
             fk,
             FaceSurface::New {
