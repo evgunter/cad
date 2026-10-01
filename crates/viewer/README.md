@@ -485,7 +485,10 @@ and the gathered body — are statements about one (document,
 evaluation) pair, taken from that pair's single gather in `land`. As
 one value they cannot come from different runs, which is the property
 `landed_pair` needs: it returns two of the seven, and the two it
-returns are the pair a single run answered.
+returns are the pair a single run answered. The gather's outcome is
+one `Result` within it: the refusal on one side, the A5 badge and the
+body on the other, so no verdict about a product can sit beside that
+product's refusal.
 
 The body is the one of the seven that is not always there, and the one
 with a cost on the other side of the ledger. It is kept so that the

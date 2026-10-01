@@ -348,13 +348,14 @@ fn a_document_with_no_body_lands_a_clean_report() {
 /// measure is, and it denotes no body — so the gather says
 /// `NoBodyRoots` while the document still holds an `InstantiatePart`.
 /// The landing reads that refusal as an absence for the registry, and
-/// the A5 badge has to agree with it: there is no product for the gate
-/// to judge, and an at-rest badge reading "assembly: product: …" would
+/// the A5 badge agrees with it: there is no product for the gate to
+/// judge, and an at-rest badge reading "at rest: product: …" would
 /// show a failure the line above it says is not one.
 ///
-/// Build `at_rest` for every gather fault of an assembly-shaped
-/// document again and this row goes red on the last assertion, where
-/// the part-document row above stays green.
+/// This is one instance of the rule the row below pins in general — a
+/// gather refusal takes no at-rest badge, whatever its class. Give the
+/// landing's refusal arm a badge again and this row goes red on the
+/// last assertion, where the part-document row above stays green.
 #[test]
 fn a_body_less_assembly_takes_no_at_rest_badge() {
     let tol = Tol::witness();
@@ -396,17 +397,19 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     );
 }
 
-/// **The other side of that guard: an assembly whose gather REALLY
-/// refuses still takes the refused at-rest badge.** Beside an instance,
-/// an extrude whose distance divides by zero fails at evaluation, so
-/// the gather refuses with a class `ProductErrorKind::means_no_body`
-/// does not claim, in a document that is assembly-shaped.
+/// **An assembly whose gather REALLY refuses takes no at-rest badge
+/// either.** Beside an instance, an extrude whose distance divides by
+/// zero fails at evaluation, so the gather refuses with a class
+/// `ProductErrorKind::means_no_body` does not claim, in a document that
+/// is assembly-shaped. The A5 gate never ran, so it gave no verdict:
+/// the refusal is `DocSession::product_fault`'s, and
+/// `frame::badge_site` routes it (a failed root to the feature tree).
 ///
-/// Widen the landing's guard so no gather refusal takes the badge
-/// (`false && …`) and this row goes red, where the body-less row above
-/// stays green: the two pin the two arms of one condition.
+/// Take a badge on a gather refusal of this class again and this row
+/// goes red on the last assertion, where the body-less row above stays
+/// green.
 #[test]
-fn an_assembly_whose_gather_refuses_keeps_the_refused_at_rest_badge() {
+fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let tol = Tol::witness();
     let bench = common::asm::bench("refused-gather-assembly", tol);
     let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
@@ -438,10 +441,10 @@ fn an_assembly_whose_gather_refuses_keeps_the_refused_at_rest_badge() {
         "the premise: a failed root, which is a refusal and not an absence: {:?}",
         session.product_fault()
     );
-    assert!(
-        matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
-        "so the A5 badge still carries it: {:?}",
-        session.at_rest()
+    assert_eq!(
+        session.at_rest(),
+        None,
+        "and the A5 badge takes no verdict on a product the gate never saw"
     );
 }
 

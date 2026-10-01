@@ -2245,7 +2245,9 @@ enum BadgeSite {
     NotAFault,
 }
 
-/// Which channel reports a refusal of this class, if any.
+/// Which channel reports a refusal of this class, if any. The at-rest
+/// badge ([`at_rest_badge`]) is not one: it reports the A5 gate, which
+/// never runs on a product that did not gather.
 ///
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
