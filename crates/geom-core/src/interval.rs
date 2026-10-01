@@ -301,6 +301,76 @@ impl Interval {
     }
 }
 
+// The directed scalar helpers certification arithmetic reads its `f64`
+// bounds through. Each is the kernel's ONE spelling of its rounding
+// rule: a site that wants a root, a norm or a quotient rounded to the
+// safe side calls these rather than re-spelling `sqrt().next_up()` or
+// a bare `/`, which round to nearest and can land on the unsafe side.
+
+/// `√x` rounded DOWN (a lower bound); `0` for a non-positive or NaN
+/// argument.
+#[must_use]
+pub fn sqrt_down(x: f64) -> f64 {
+    if x > 0.0 { x.sqrt().next_down() } else { 0.0 }
+}
+
+/// `√x` rounded UP (an upper bound); a non-positive argument and NaN
+/// come back unchanged.
+#[must_use]
+pub fn sqrt_up(x: f64) -> f64 {
+    if x > 0.0 { x.sqrt().next_up() } else { x }
+}
+
+/// The enclosure of `‖v‖²`: the DEPENDENT square per component (the
+/// even power, so a side straddling zero keeps a zero lower end, where
+/// `x·x` would treat its factors as independent and go negative), and
+/// both sums in interval arithmetic.
+#[must_use]
+pub fn norm_sq(v: &[Interval; 3]) -> Interval {
+    v[0].powi(2) + v[1].powi(2) + v[2].powi(2)
+}
+
+/// A certified upper bound on `‖v‖` for a componentwise enclosure:
+/// [`sqrt_up`] of [`norm_sq`]'s upper end. An `f64` fold of the same
+/// endpoints rounds to nearest at each step and can land BELOW the
+/// real norm, which is the unsound side wherever the result divides a
+/// lower bound or crosses a metre length into chart units.
+///
+/// A refused enclosure answers `NaN`: no bound at all. It is asked by
+/// name because a refused enclosure carries ordinary endpoints, and a
+/// root of one would be a plausible bound with nothing behind it. An
+/// overflowed sum answers `+∞`.
+///
+/// A free function rather than a
+/// [`Certification`](certification::Certification) door: the doors are
+/// scalar methods, and a door is reached only by naming the
+/// certification module, which the SSI driver files that call this
+/// cannot do with `Real` in scope.
+#[must_use]
+pub fn norm_sup(v: &[Interval; 3]) -> f64 {
+    let sq = norm_sq(v);
+    if !sq.is_certified() {
+        return f64::NAN;
+    }
+    sqrt_up(sq.hi())
+}
+
+/// `num / den` rounded DOWN — a lower bound on the real quotient,
+/// which is what a lower bound divided by an upper bound has to stay.
+/// A quotient rounded to nearest can land half an ulp above the real
+/// one.
+///
+/// The quotient is interval arithmetic's (`.lo()` of the point
+/// quotient). Where that refuses — a zero, infinite or NaN operand —
+/// the bare `num / den` is returned, which is exact or has no real
+/// value to bound (`x/±∞`, `x/0`, `0/0`, NaN), so each caller's own
+/// reading of those cases is unchanged.
+#[must_use]
+pub fn div_down(num: f64, den: f64) -> f64 {
+    let q = Interval::from_bounds(num, num) / Interval::from_bounds(den, den);
+    if q.is_certified() { q.lo() } else { num / den }
+}
+
 impl Add for Interval {
     type Output = Self;
 
@@ -516,6 +586,59 @@ impl Real for Interval {
             Self(cap_decoration(
                 hulled,
                 sign.0.decoration().min(Decoration::Def),
+            ))
+        }
+    }
+
+    /// The decision door over enclosures ([`Real::select_le_zero`]).
+    ///
+    /// **Decided** when the comparison holds at every point of the
+    /// enclosure: `hi ≤ 0` selects `when_le`, `lo > 0` selects
+    /// `when_gt`, each with its decoration capped by the DECIDING
+    /// enclosure's — the choice is only as trustworthy as the enclosure
+    /// that made it, the same convention as [`Real::copysign`]'s
+    /// sign-definite arms.
+    ///
+    /// `hi ≤ 0` includes the point tie `[0, 0]`, and that is the whole
+    /// difference from `copysign`: this door's tie-break keys on the
+    /// value zero rather than a zero's sign BIT, so a point enclosure
+    /// of zero names one real whose arm is the same for every `f64`
+    /// replay inside it. `copysign` cannot decide there — an `f64`
+    /// `-0.0` and `+0.0` are one enclosure and two different answers —
+    /// which is why its zero-containing arm hulls and this one does
+    /// not.
+    ///
+    /// **Undecided** (`lo ≤ 0 < hi`, necessarily of positive width) is
+    /// the hull of the two candidates with the decoration capped at
+    /// `Def`: the function is defined at every point of the box and
+    /// discontinuous in it, and the honest answer is both branches.
+    /// Never `Trv`, never empty, never a manufactured non-real — the
+    /// question is real and DL6 forbids answering a real question with
+    /// one. The hull is also the minimum that can hold: an `f64` point
+    /// inside the decision's enclosure may sit on either side, so any
+    /// enclosure of the true answer contains both candidates.
+    ///
+    /// Poison: NaI or empty in the DECISION propagates (no arm is
+    /// readable); in a candidate it propagates only through the arm
+    /// that reads it, including the hull ([`enclosure_hull_of`] is poison-
+    /// first for exactly this reason). Raw endpoint comparisons are
+    /// scalar-implementation code (Q1's allowance, as in [`Real::min`]
+    /// at `f64`).
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
+        if self.0.is_nai() {
+            return Self(DInterval::nai());
+        }
+        if self.0.is_empty() {
+            return Self(DInterval::empty());
+        }
+        if self.0.hi() <= 0.0 {
+            Self(cap_decoration(when_le.0, self.0.decoration()))
+        } else if self.0.lo() > 0.0 {
+            Self(cap_decoration(when_gt.0, self.0.decoration()))
+        } else {
+            Self(cap_decoration(
+                enclosure_hull_of(when_le.0, when_gt.0),
+                self.0.decoration().min(Decoration::Def),
             ))
         }
     }
@@ -962,6 +1085,32 @@ impl KinkJacobian for Interval {
                     .decoration()
                     .min(sign.0.decoration())
                     .min(Decoration::Def),
+            ))
+        }
+    }
+
+    /// [`Real::select_le_zero`]'s tangent, arm for arm: a decided
+    /// decision enclosure keeps that arm's tangent with the decoration
+    /// capped by the decision's; an undecided one hulls both
+    /// ([`enclosure_hull_of`]), decorated ≤ `Def` — the same tie-region
+    /// subgradient convention as [`KinkJacobian::min_deriv`]. The
+    /// decision's NaI/empty poisons; a candidate tangent's poisons only
+    /// through the arm that reads it.
+    fn select_le_zero_deriv(self, when_le_deriv: Self, when_gt_deriv: Self) -> Self {
+        if self.0.is_nai() {
+            return Self(DInterval::nai());
+        }
+        if self.0.is_empty() {
+            return Self(DInterval::empty());
+        }
+        if self.0.hi() <= 0.0 {
+            Self(cap_decoration(when_le_deriv.0, self.0.decoration()))
+        } else if self.0.lo() > 0.0 {
+            Self(cap_decoration(when_gt_deriv.0, self.0.decoration()))
+        } else {
+            Self(cap_decoration(
+                enclosure_hull_of(when_le_deriv.0, when_gt_deriv.0),
+                self.0.decoration().min(Decoration::Def),
             ))
         }
     }
@@ -1647,6 +1796,62 @@ mod tests {
         assert!(iv(1.0, 2.0).copysign(iv(-4.0, -1.0).sqrt()).0.is_empty());
     }
 
+    /// The door at `Interval`: decided on both sides INCLUDING the
+    /// point tie, hulled with `Def` when undecided, and the enclosure
+    /// property that buys.
+    #[test]
+    fn select_le_zero_decides_or_hulls() {
+        let (a, b) = (iv(2.0, 3.0), iv(-9.0, -8.0));
+        // Certainly ≤ 0 and certainly > 0: the arm, verbatim, with the
+        // decoration capped by the DECISION's.
+        let le = iv(-2.0, -1.0).select_le_zero(a, b);
+        assert_eq!((le.lo(), le.hi()), (2.0, 3.0));
+        assert_eq!(le.0.decoration(), Decoration::Com);
+        let gt = iv(1.0, 2.0).select_le_zero(a, b);
+        assert_eq!((gt.lo(), gt.hi()), (-9.0, -8.0));
+        // The POINT TIE decides — the case `copysign` cannot take,
+        // because its answer would depend on a zero's sign bit and this
+        // one does not. Both spellings of the zero are one enclosure
+        // and one arm.
+        for tie in [Interval::zero(), Interval::from_f64(-0.0), iv(-0.0, 0.0)] {
+            let t = tie.select_le_zero(a, b);
+            assert_eq!((t.lo(), t.hi()), (2.0, 3.0));
+            assert_eq!(t.0.decoration(), Decoration::Com);
+        }
+        // A one-sided enclosure with zero at its TOP is still decided…
+        let top = iv(-1.0, 0.0).select_le_zero(a, b);
+        assert_eq!((top.lo(), top.hi()), (2.0, 3.0));
+        // …and one with zero at its BOTTOM is not: positive width
+        // across the tie is undecided, and the answer is the hull of
+        // both arms, capped at Def. Never Trv, never empty (DL6).
+        for d in [iv(0.0, 1.0), iv(-1.0, 1.0), iv(-1.0, 5.0)] {
+            let h = d.select_le_zero(a, b);
+            assert_eq!((h.lo(), h.hi()), (-9.0, 3.0));
+            assert_eq!(h.0.decoration(), Decoration::Def);
+            assert!(h.is_certified());
+        }
+        // The enclosure property: an `f64` decision inside the box
+        // lands on an arm, and both arms are inside the answer.
+        let d = iv(-1.0, 1.0);
+        let h = d.select_le_zero(a, b);
+        for x in [-1.0f64, -0.5, -0.0, 0.0, 0.25, 1.0] {
+            let f = <f64 as Real>::select_le_zero(x, 2.5, -8.5);
+            assert!(
+                h.lo() <= f && f <= h.hi(),
+                "f64 at {x} gives {f}, outside the hull"
+            );
+        }
+        // Poison in the DECISION propagates; in an unread candidate it
+        // does not; in a read one — the hull reads both — it does.
+        assert!(Interval::from_f64(f64::NAN).select_le_zero(a, b).0.is_nai());
+        assert!(iv(-4.0, -1.0).sqrt().select_le_zero(a, b).0.is_empty());
+        let poison = Interval::from_f64(f64::NAN);
+        let unread = iv(-1.0, -0.5).select_le_zero(a, poison);
+        assert_eq!((unread.lo(), unread.hi()), (2.0, 3.0));
+        assert!(iv(-1.0, -0.5).select_le_zero(poison, a).0.is_nai());
+        assert!(iv(-1.0, 1.0).select_le_zero(a, poison).0.is_nai());
+    }
+
     /// reduce_periodic at interval type: containment of the true reduced
     /// value by composition (the compositional body is the definition),
     /// and honest widening across a seam-straddling box.
@@ -1720,6 +1925,13 @@ mod tests {
                 .0
                 .is_nai()
         );
+    }
+
+    /// A refused side answers NaN, not a root of its endpoints.
+    #[test]
+    fn norm_sup_of_a_refused_enclosure_is_nan() {
+        let refused = Interval::from_f64(f64::NAN);
+        assert!(norm_sup(&[iv(1.0, 2.0), refused, iv(0.0, 0.0)]).is_nan());
     }
 
     proptest! {

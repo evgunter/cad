@@ -117,6 +117,8 @@ mod r1_mate3_probes;
 mod r2_mate3_probes;
 #[path = "r2_mesh1_donut_probes.rs"]
 mod r2_mesh1_donut_probes;
+#[path = "rehome_rings_lune.rs"]
+mod rehome_rings_lune;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -162,6 +164,8 @@ mod verbs_shell;
 
 #[path = "axis_lap.rs"]
 mod axis_lap;
+#[path = "band_ruled_cap_ring.rs"]
+mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
 #[path = "bitdump.rs"]
@@ -198,6 +202,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "contained_flush_cylinder.rs"]
+mod contained_flush_cylinder;
 #[path = "contfp_reads_arcs_on_their_carriers.rs"]
 mod contfp_reads_arcs_on_their_carriers;
 #[path = "encl_curved_loft_shell.rs"]

@@ -187,6 +187,15 @@ pub enum CertCheck {
     /// each decided transverse — named when that aggregate is poisoned,
     /// which no geometry and no tolerance reaches.
     PlaneNurbsReportedTransversality,
+    /// Intersection, plane × NURBS: the spline face's chart speed along
+    /// a parameter direction, which must be positive for a length in
+    /// metres to cross into its parameters — zero where the face is
+    /// constant along that direction.
+    PlaneNurbsChartSpeed,
+    /// Intersection, plane × NURBS: the bound on the spline face's chart
+    /// speed along a parameter direction, which must be finite — not,
+    /// where the face's net is too large for its derivative bound.
+    PlaneNurbsChartSpeedBound,
 }
 
 /// The check's own name — the noun a refusal about it writes (the
@@ -249,6 +258,8 @@ impl core::fmt::Display for CertCheck {
             Self::PlaneNurbsReportedTransversality => {
                 "the plane × NURBS lane's reported minimum crossing angle"
             }
+            Self::PlaneNurbsChartSpeed => "the spline face's chart speed",
+            Self::PlaneNurbsChartSpeedBound => "the spline face's chart-speed bound",
         })
     }
 }
@@ -699,6 +710,27 @@ impl CertCheck {
             // A fold over samples that each decided transverse: a poison
             // that survives it is the kernel's.
             Self::PlaneNurbsReportedTransversality => Ending::Unsized(Unsized::Defect),
+            // A face constant along a parameter direction is the face's
+            // own degeneracy, and the stored face is what the lever
+            // edits, so it ends in the lever at rest too.
+            Self::PlaneNurbsChartSpeed => Ending::Sized(SizedDecision {
+                lever: "move the geometry so the spline face varies along both of its \
+                        parameter directions",
+                size: "degenerate face",
+                passes: SizedPass::Positive,
+                stored: StoredDefinite::Lever,
+                at_zero: None,
+            }),
+            // An unbounded derivative is the face's scale: the lever is
+            // the model's size.
+            Self::PlaneNurbsChartSpeedBound => Ending::Sized(SizedDecision {
+                lever: "move the geometry to a scale where the spline face's control points \
+                        stay well inside the range of finite numbers",
+                size: "scale",
+                passes: SizedPass::Positive,
+                stored: StoredDefinite::Lever,
+                at_zero: None,
+            }),
             // Approximations: a fitted intersection carrier on its
             // surfaces, a certified sag bound, and the plane × NURBS
             // lane's fitted image's two residual limbs. The surface
@@ -1002,14 +1034,6 @@ pub struct EdgeCurve<T: Real> {
 }
 
 impl<T: Decide> EdgeCurve<T> {
-    /// The carrier point at the middle of the certified parameter
-    /// interval — a point ON the edge, interior to it, whatever the
-    /// carrier kind (a curved edge's chord midpoint is not on it).
-    pub fn mid_point(&self) -> Point3<T> {
-        self.carrier
-            .eval(self.param_start + (self.param_end - self.param_start) * T::from_f64(0.5))
-    }
-
     /// Certifies `spec` against the edge's endpoint points and the
     /// owning body's surfaces, returning the certified carrier.
     ///
@@ -1053,7 +1077,7 @@ impl<T: Decide> EdgeCurve<T> {
     ///      residual `|w·v_ref|`, wrong-side excess `max(0, −w·u_ref)`.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
-    ///    `|carrier((t₀+t₁)/2) − witness| ≤ ε`
+    ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
     ///    ([`CertCheck::WitnessMidpoint`]): the witness contract is
     ///    that the stored witness IS the edge's mid-parameter point —
     ///    constructors mint it as `carrier(mid)` (the upgrade helpers'
@@ -1445,6 +1469,13 @@ impl<T: Real> EdgeCurve<T> {
 }
 
 impl<T: SpanLocate> EdgeCurve<T> {
+    /// The carrier point at the middle of the certified parameter
+    /// interval ([`Curve3::mid_point`]) — a point ON the edge, interior
+    /// to it, whatever the carrier kind.
+    pub fn mid_point(&self) -> Point3<T> {
+        self.carrier.mid_point(self.param_start, self.param_end)
+    }
+
     /// The two **uncertified child specs** of splitting this certified
     /// carrier at interior parameter `t` (M3 PR 1, for `split_edge`):
     /// the carrier is unchanged and the interval splits at `t`
@@ -1473,13 +1504,9 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     EdgeDescriptionSpec::Intersection {
                         s1: k1,
                         s2: k2,
-                        // The child's mid-parameter point, computed
-                        // exactly as the certification schedule's
-                        // middle sample (bitwise — zero
-                        // WitnessMidpoint residual).
-                        witness: self
-                            .carrier
-                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                        // The point the WitnessMidpoint pin reads:
+                        // zero residual by construction.
+                        witness: self.carrier.mid_point(ta, tb),
                     }
                 }
                 // TangentIntersection splits exactly as Intersection:
@@ -1489,9 +1516,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     EdgeDescriptionSpec::TangentIntersection {
                         s1: k1,
                         s2: k2,
-                        witness: self
-                            .carrier
-                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                        witness: self.carrier.mid_point(ta, tb),
                     }
                 }
                 EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc.restrict(s0, s1)),
@@ -1640,6 +1665,73 @@ pub fn schedule_param<T: Real>(t0: T, t1: T, i: u32, samples: u32) -> T {
         t1
     } else {
         t0 + (t1 - t0) * T::from_f64(schedule_fraction(i, samples))
+    }
+}
+
+/// An edge about to be described as the transverse `Intersection` of
+/// its two faces' surfaces, read once: the `witness` and lever arm
+/// (`extent`) the dihedral classifies at, and the carrier and interval
+/// the description is certified against if the class is transverse.
+///
+/// A curved certified carrier ([`Curve3::is_curved`]) is kept with its
+/// interval — only the description changes — and is read at its
+/// [`EdgeCurve::mid_point`] and [`edge_extent`]. Anything else (a line,
+/// or no certified carrier yet) becomes the chord `p0 → p1`
+/// ([`EdgeCurveSpec::line_between`]), whose midpoint is on it and whose
+/// length is its extent.
+#[derive(Clone, Debug)]
+pub struct IntersectionDraft<T: Real> {
+    /// The point the dihedral classifies at and the description pins.
+    pub witness: Point3<T>,
+    /// The lever arm the dihedral meters angles through.
+    pub extent: T,
+    carrier: Curve3<T>,
+    param_start: T,
+    param_end: T,
+}
+
+impl<T: SpanLocate> IntersectionDraft<T> {
+    /// Reads the edge from its certified curve, if it has one, and the
+    /// points of `start(he_plus)` and `end(he_plus)`.
+    pub fn of(existing: Option<&EdgeCurve<T>>, p0: Point3<T>, p1: Point3<T>) -> Self {
+        match existing.filter(|c| c.carrier().is_curved()) {
+            Some(c) => {
+                let (t0, t1) = c.params();
+                Self {
+                    witness: c.mid_point(),
+                    extent: edge_extent(c.carrier(), t0, t1, p0.distance(p1)),
+                    carrier: c.carrier().clone(),
+                    param_start: t0,
+                    param_end: t1,
+                }
+            }
+            None => {
+                let chord = EdgeCurveSpec::line_between(p0, p1);
+                Self {
+                    witness: p0.lerp(p1, T::from_f64(0.5)),
+                    extent: p0.distance(p1),
+                    carrier: chord.carrier,
+                    param_start: chord.param_start,
+                    param_end: chord.param_end,
+                }
+            }
+        }
+    }
+}
+
+impl<T: Real> IntersectionDraft<T> {
+    /// The `Intersection` spec of `s1` and `s2` at this draft's witness.
+    pub fn into_spec(self, s1: SurfaceKey, s2: SurfaceKey) -> EdgeCurveSpec<T> {
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: self.witness,
+            },
+            carrier: self.carrier,
+            param_start: self.param_start,
+            param_end: self.param_end,
+        }
     }
 }
 
@@ -2610,9 +2702,7 @@ fn run_checks<T: Decide>(
             band,
             &mut max_residual,
         )?;
-        let mid = spec
-            .carrier
-            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        let mid = spec.carrier.mid_point(t0, t1);
         check_residual(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
@@ -2638,9 +2728,7 @@ fn run_checks<T: Decide>(
             band,
             &mut max_residual,
         )?;
-        let mid = spec
-            .carrier
-            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        let mid = spec.carrier.mid_point(t0, t1);
         check_residual(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
@@ -2735,7 +2823,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    const ALL_CHECKS: [CertCheck; 22] = [
+    const ALL_CHECKS: [CertCheck; 24] = [
         CertCheck::ParamSpan,
         CertCheck::ParamWinding,
         CertCheck::EndpointStart,
@@ -2758,6 +2846,8 @@ mod tests {
         CertCheck::PlaneNurbsOnLocus,
         CertCheck::PlaneNurbsHull,
         CertCheck::PlaneNurbsReportedTransversality,
+        CertCheck::PlaneNurbsChartSpeed,
+        CertCheck::PlaneNurbsChartSpeedBound,
     ];
 
     /// **[`ALL_CHECKS`] is the WHOLE taxonomy**, pinned against a
@@ -2775,28 +2865,30 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 22,
-            CertCheck::ParamWinding => 22,
-            CertCheck::EndpointStart => 22,
-            CertCheck::EndpointEnd => 22,
-            CertCheck::Surface1Residual => 22,
-            CertCheck::Surface2Residual => 22,
-            CertCheck::WitnessSurface1 => 22,
-            CertCheck::WitnessSurface2 => 22,
-            CertCheck::WitnessMidpoint => 22,
-            CertCheck::Transversality => 22,
-            CertCheck::TangentParallel => 22,
-            CertCheck::TangentSecondOrder => 22,
-            CertCheck::TangentHull => 22,
-            CertCheck::TangentTube => 22,
-            CertCheck::MappedSource => 22,
-            CertCheck::SeamHalfplane => 22,
-            CertCheck::SeamSide => 22,
-            CertCheck::ChartImage => 22,
-            CertCheck::ChartResidual => 22,
-            CertCheck::PlaneNurbsOnLocus => 22,
-            CertCheck::PlaneNurbsHull => 22,
-            CertCheck::PlaneNurbsReportedTransversality => 22,
+            CertCheck::ParamSpan => 24,
+            CertCheck::ParamWinding => 24,
+            CertCheck::EndpointStart => 24,
+            CertCheck::EndpointEnd => 24,
+            CertCheck::Surface1Residual => 24,
+            CertCheck::Surface2Residual => 24,
+            CertCheck::WitnessSurface1 => 24,
+            CertCheck::WitnessSurface2 => 24,
+            CertCheck::WitnessMidpoint => 24,
+            CertCheck::Transversality => 24,
+            CertCheck::TangentParallel => 24,
+            CertCheck::TangentSecondOrder => 24,
+            CertCheck::TangentHull => 24,
+            CertCheck::TangentTube => 24,
+            CertCheck::MappedSource => 24,
+            CertCheck::SeamHalfplane => 24,
+            CertCheck::SeamSide => 24,
+            CertCheck::ChartImage => 24,
+            CertCheck::ChartResidual => 24,
+            CertCheck::PlaneNurbsOnLocus => 24,
+            CertCheck::PlaneNurbsHull => 24,
+            CertCheck::PlaneNurbsReportedTransversality => 24,
+            CertCheck::PlaneNurbsChartSpeed => 24,
+            CertCheck::PlaneNurbsChartSpeedBound => 24,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -4581,9 +4673,9 @@ mod tests {
     /// at the kernel's tolerance, which no ε_in lever reaches yet
     /// ([`Reading::Adopt`]): no ending there names the tolerance, in either direction, or
     /// blames the kernel alone. A sign-certain refusal ends in the
-    /// ending that names the file too (the tube's, a lower bound, in its
-    /// lever), and a band-decided arm of a sized decision in its lever
-    /// alone.
+    /// ending that names the file too (the tube's, a lower bound, and a
+    /// spline face's chart speed, a fact of the face, in their levers),
+    /// and a band-decided arm of a sized decision in its lever alone.
     #[test]
     fn an_adoption_reading_names_no_tolerance_and_no_kernel_alone() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -4607,8 +4699,15 @@ mod tests {
                 .collect();
             let definite = recourse(check, RefusedArm::SignCertain, Reading::Adopt);
             // The tube's definite refusal is the certificate's limit, not
-            // a stored contradiction: it keeps its lever.
-            if check == CertCheck::TangentTube {
+            // a stored contradiction, and a spline face's missing chart
+            // speed is a fact of the face, which the lever edits: they
+            // keep their levers.
+            if matches!(
+                check,
+                CertCheck::TangentTube
+                    | CertCheck::PlaneNurbsChartSpeed
+                    | CertCheck::PlaneNurbsChartSpeedBound
+            ) {
                 assert!(definite.starts_with("Recourse: move"), "{definite}");
             } else {
                 assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?}");
@@ -4680,6 +4779,8 @@ mod tests {
             (CertCheck::PlaneNurbsOnLocus, LastResort),
             (CertCheck::PlaneNurbsHull, LastResort),
             (CertCheck::PlaneNurbsReportedTransversality, Defect),
+            (CertCheck::PlaneNurbsChartSpeed, Sized(Positive)),
+            (CertCheck::PlaneNurbsChartSpeedBound, Sized(Positive)),
         ];
         assert_eq!(table.len(), ALL_CHECKS.len());
         for check in ALL_CHECKS {

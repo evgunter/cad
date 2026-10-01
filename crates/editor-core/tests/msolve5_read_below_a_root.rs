@@ -216,16 +216,8 @@ fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame {
-                origin: [1.0, 1.0, BASE_HEIGHT],
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
-            b: MateFrame {
-                origin: [0.0, 0.0, 0.0],
-                axis: [0.0, 0.0, -1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
+            a: MateFrame::authored([1.0, 1.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -520,7 +512,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     let b = crate::fixture::head_at(xf, in_part(top, top_body, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
     // The mate has no lever without its part: it faults in the
-    // resolver's own voice, and the fault reaches its cluster.
+    // resolver's own voice, and the fault reaches its group.
     let poses = solve(&doc, &opts, Tol::witness());
     assert_eq!(poses.role(mate), Some(MateRole::Refused));
     let fault = poses
@@ -553,7 +545,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         "the mate carries the same fault: {:?}",
         ev.result(mate)
     );
-    // The mate fault reached the base instance — the cluster's other
+    // The mate fault reached the base instance — the group's other
     // member, and the document's first root — so the gather refuses
     // at THAT failed root, before the poisoned pattern root and before
     // any reference is read.

@@ -83,9 +83,16 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
             ssi.tube_boxes > 0,
             "the uniqueness tube proved one-arc-ness over a real box chain"
         );
+        let tube_positive = match ssi.tube {
+            geom_brep::SsiTube::Spatial { radius } => radius > 0.0,
+            geom_brep::SsiTube::Chart { rung, pad_u, pad_v } => {
+                rung > 0.0 && pad_u > 0.0 && pad_v > 0.0
+            }
+        };
         assert!(
-            ssi.tube_radius > 0.0 && ssi.tube_transversality > 0.0,
-            "the tube has a certified radius and a definitely-positive margin"
+            tube_positive && ssi.tube_transversality > 0.0,
+            "the tube has a certified region and a definitely-positive margin: {:?}",
+            ssi.tube
         );
         assert_eq!(
             cert.statement,

@@ -33,7 +33,7 @@ pub(crate) struct StepId(pub(crate) d::StepId);
 #[pymethods]
 impl StepId {
     fn __repr__(&self) -> String {
-        format!("StepId({})", self.0.0)
+        format!("StepId({})", self.0.full())
     }
 
     fn __eq__(&self, other: &Self) -> bool {

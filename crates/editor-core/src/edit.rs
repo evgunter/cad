@@ -472,7 +472,7 @@ pub enum DocEdit<P> {
 
 impl<P> DocEdit<P> {
     /// **Whether this edit can move the MATE GRAPH** — the reading
-    /// edges A11's clusters are made of: the instance set, the mate
+    /// edges A11's groups are made of: the instance set, the mate
     /// set, or a mate's heads.
     ///
     /// [`apply`] re-keys the placement registry
@@ -535,7 +535,7 @@ impl<P> DocEdit<P> {
             // The instance set and the mate set are both node sets, so
             // the two edits over nodes move the graph.
             Self::InsertNode { .. } | Self::DeleteNode { .. } => true,
-            // A list input is a reading edge, and a cluster is made of
+            // A list input is a reading edge, and a group is made of
             // reading edges.
             Self::SetMembers { .. } => true,
             // A rebound mate head moves a reading edge onto another
@@ -550,7 +550,7 @@ impl<P> DocEdit<P> {
             // presentation record, and leaves the reading edges where
             // they are. `SetPlacement` is the pointed one: it WRITES
             // the registry the reconciliation re-keys, and the edit
-            // door keys it on the gauge itself, so it has no graph
+            // door keys it on the root itself, so it has no graph
             // motion to reconcile.
             Self::SetPlacement { .. }
             | Self::SetParam { .. }
@@ -1278,7 +1278,7 @@ pub enum EditError {
     /// invariant-violating document.
     Roots(RootFault),
     /// A placement aimed at a node that does not instantiate a part
-    /// (A11: a placement frame places a CLUSTER of instances, and
+    /// (A11: a placement frame places a GROUP of instances, and
     /// nothing else has one).
     PlacementOnNonInstance {
         /// The offending target.
@@ -1373,7 +1373,7 @@ pub enum EditError {
     /// one instance — is refused on the datum alone all the same.
     /// What is NOT this: a verdict about a PAIR — under-determined,
     /// contradicting ANOTHER mate, an escalation on a fold — which
-    /// needs the cluster and stays the solve's; and a STATE a mate
+    /// needs the group and stays the solve's; and a STATE a mate
     /// comes to hold after insert (a head a rebind or a shrunk pattern
     /// strands, a `Part` re-pointed, a doctored or older snapshot),
     /// which the doors do not re-decide and the solve refuses at
@@ -1622,20 +1622,20 @@ impl EditError {
     fn render(&self, f: &mut core::fmt::Formatter<'_>, tail: Tail) -> core::fmt::Result {
         match self {
             Self::UnknownNode { id } => {
-                write!(f, "node {} is not live", id.0)?;
+                write!(f, "node {} is not live", id)?;
                 tail.recourse(f, format_args!("aim the edit at {HELD_NODE}"))
             }
             Self::ProfileProgramRefused { node, refusal } => {
-                write!(f, "node {}'s sketch refused: {refusal}", node.0)
+                write!(f, "node {}'s sketch refused: {refusal}", node)
             }
             Self::UnresolvedInput { input } => {
-                write!(f, "input {} does not resolve to a live node", input.0)?;
+                write!(f, "input {} does not resolve to a live node", input)?;
                 tail.recourse(f, format_args!("take the input from {HELD_NODE}"))
             }
             // Only `SetMembers` can close a loop: an insert's inputs are
             // already live, so none of them can be built from it.
             Self::WouldCycle { at } => {
-                write!(f, "the recipe graph would cycle (through node {})", at.0)?;
+                write!(f, "the recipe graph would cycle (through node {})", at)?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -1679,7 +1679,7 @@ impl EditError {
                 write!(
                     f,
                     "node {} carries no list input, so it has no members to set",
-                    node.0
+                    node
                 )?;
                 tail.recourse(
                     f,
@@ -1695,7 +1695,7 @@ impl EditError {
                 write!(
                     f,
                     "node {} holds no profile program, so it has no program to set",
-                    node.0
+                    node
                 )?;
                 tail.recourse(f, format_args!("aim the edit at a profile node"))
             }
@@ -1707,7 +1707,7 @@ impl EditError {
                 write!(
                     f,
                     "node {}'s program cannot take the step ids given: {fault}",
-                    node.0
+                    node
                 )?;
                 step_ids_recourse(f, tail, fault)
             }
@@ -1750,22 +1750,18 @@ impl EditError {
                 )
             }
             Self::DeleteWouldDangle { id, referenced_by } => {
-                write!(
-                    f,
-                    "node {} is still an input to node {}",
-                    id.0, referenced_by.0
-                )?;
+                write!(f, "node {} is still an input to node {}", id, referenced_by)?;
                 tail.recourse(
                     f,
                     format_args!(
                         "delete node {} first, or delete node {} together with everything \
                          downstream of it",
-                        referenced_by.0, id.0
+                        referenced_by, id
                     ),
                 )
             }
             Self::UnknownSlot { id, slot } => {
-                write!(f, "node {} has no slot {}", id.0, slot.label())?;
+                write!(f, "node {} has no slot {}", id, slot.label())?;
                 tail.recourse(f, format_args!("edit a slot this node has"))
             }
             // The rule's own clause, forwarded rather than restated:
@@ -1809,7 +1805,7 @@ impl EditError {
                     f,
                     "document parameter {name} does not exist (referenced by node {}'s \
                      payload expression)",
-                    node.0
+                    node
                 )?;
                 tail.recourse(
                     f,
@@ -1826,12 +1822,12 @@ impl EditError {
                     f,
                     "document parameter {name} is declared {declared} but node {}'s \
                      payload expression references it as {referenced}",
-                    node.0
+                    node
                 )?;
                 tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
             }
             Self::MeasureMalformed { node, fault } => {
-                write!(f, "measure node {}: {fault}", node.0)?;
+                write!(f, "measure node {}: {fault}", node)?;
                 tail.recourse(
                     f,
                     format_args!(
@@ -1845,7 +1841,7 @@ impl EditError {
                     f,
                     "assertion node {} references node {}, which is not a measure — an \
                      assertion constrains a measurement",
-                    node.0, measure.0
+                    node, measure
                 )?;
                 tail.recourse(f, format_args!("point the assertion at a measure node"))
             }
@@ -1853,7 +1849,7 @@ impl EditError {
                 write!(
                     f,
                     "node {}'s declare input names node {}, which is not a declaration",
-                    node.0, input.0
+                    node, input
                 )?;
                 tail.recourse(
                     f,
@@ -1870,9 +1866,9 @@ impl EditError {
                     f,
                     "assertion node {} bounds {} {measured} measure (node {}) with {} \
                      {bound} expression — an assertion compares like with like or not at all",
-                    node.0,
+                    node,
                     measured.article(),
-                    measure.0,
+                    measure,
                     bound.article(),
                 )?;
                 tail.recourse(
@@ -1884,7 +1880,7 @@ impl EditError {
                 write!(
                     f,
                     "document parameter {name} does not exist (referenced by node {}, slot {})",
-                    node.0,
+                    node,
                     slot.label()
                 )?;
                 tail.recourse(
@@ -1903,7 +1899,7 @@ impl EditError {
                     f,
                     "parameter {name} is declared {declared} but node {} (slot {}) references \
                      it as {referenced}",
-                    node.0,
+                    node,
                     slot.label(),
                 )?;
                 tail.recourse(f, format_args!("{}", ParamDimensionRecourse(*referenced)))
@@ -1989,7 +1985,7 @@ impl EditError {
                     f,
                     "the expression path [{}] in node {}'s {} slot runs off the tree",
                     steps.join(", "),
-                    path.node.0,
+                    path.node,
                     path.slot.label()
                 )?;
                 tail.recourse(
@@ -2007,9 +2003,9 @@ impl EditError {
             Self::NameStepNeverMinted { name, step } => {
                 write!(
                     f,
-                    "the {name} spells the profile step id #{}, which this document never minted \
+                    "the {name} spells the profile step id {}, which this document never minted \
                      (its mint log does not hold it)",
-                    step.0
+                    step
                 )?;
                 tail.recourse(
                     f,
@@ -2021,11 +2017,7 @@ impl EditError {
                 tail.recourse(f, format_args!("{NAME_A_HELD_ENTITY}"))
             }
             Self::ReadSiteMissingNode { at } => {
-                write!(
-                    f,
-                    "the reference is read at node {}, which is not live",
-                    at.0
-                )?;
+                write!(f, "the reference is read at node {}, which is not live", at)?;
                 tail.recourse(f, format_args!("read it at {HELD_NODE}"))
             }
             Self::NonFiniteDocParam { name, field } => {
@@ -2094,12 +2086,12 @@ impl EditError {
                 write!(
                     f,
                     "node {} is not sketch-bearing, so it has nothing to re-witness",
-                    node.0
+                    node
                 )?;
                 tail.recourse(f, format_args!("re-witness a sketch-bearing node"))
             }
             Self::DuplicateWitnessEntry { node } => {
-                write!(f, "node {} appears twice in the re-witness bulk", node.0)?;
+                write!(f, "node {} appears twice in the re-witness bulk", node)?;
                 tail.recourse(f, format_args!("list each node once"))
             }
             Self::EmptyWitnessBulk => {
@@ -2204,34 +2196,34 @@ impl EditError {
                         format_args!(
                             "drop root {} from the list, since its material reaches the \
                              product through the other",
-                            ancestor.0
+                            ancestor
                         ),
                     ),
                     RootFault::Uncovered { node } => tail.recourse(
                         f,
                         format_args!(
                             "list node {} or a node built from it as a product root",
-                            node.0
+                            node
                         ),
                     ),
                 }
             }
             Self::PlacementOnNonInstance { node } => write!(
                 f,
-                "node {} does not instantiate a part, so it has no placement cluster to \
+                "node {} does not instantiate a part, so it has no placement group to \
                  place",
-                node.0
+                node
             ),
             // The two rule-shaped arms FORWARD the fault set's one
             // prose vocabulary (`PlacementRuleFault`'s `Display`); the
             // two frame-shaped arms below keep their own prose because
-            // their subject is a single cluster frame, which has no
+            // their subject is a single group frame, which has no
             // index in a rule's placement list.
             Self::EmptyPlacementList { node } => {
-                write!(f, "node {}: {}", node.0, PlacementRuleFault::NoPlacements)
+                write!(f, "node {}: {}", node, PlacementRuleFault::NoPlacements)
             }
             Self::PlacementRuleMismatch { node } => {
-                write!(f, "node {}: {}", node.0, PlacementRuleFault::CountSpelling)
+                write!(f, "node {}: {}", node, PlacementRuleFault::CountSpelling)
             }
             Self::ImproperPlacement {
                 node,
@@ -2262,7 +2254,7 @@ impl EditError {
                 write!(
                     f,
                     "the mate at node {} carries a non-finite alignment coordinate",
-                    node.0
+                    node
                 )?;
                 tail.recourse(
                     f,
@@ -2272,13 +2264,13 @@ impl EditError {
             Self::MateRefused { node, fault } => write!(
                 f,
                 "the mate at node {} is refused by the solve on its own datum: {fault}",
-                node.0
+                node
             ),
             Self::UpdateOnNonInstance { node } => {
                 write!(
                     f,
                     "node {} does not instantiate a part, so it has no pinned version to update",
-                    node.0
+                    node
                 )?;
                 tail.recourse(
                     f,
@@ -2289,7 +2281,7 @@ impl EditError {
                 write!(
                     f,
                     "node {} already pins {pin}, so this update would record no version move",
-                    node.0
+                    node
                 )?;
                 tail.recourse(
                     f,
@@ -2301,7 +2293,7 @@ impl EditError {
                     f,
                     "the cluster-record maintenance could not place gauge {}: the prior \
                      document's solve ",
-                    gauge.0
+                    gauge
                 )?;
                 match fault {
                     Some(fault) => write!(f, "refused: {fault}"),
@@ -2313,7 +2305,7 @@ impl EditError {
                 "the logged edit carries no maintenance rows but moves gauge {}; a log entry \
                  records every cluster row `apply` returned for its edit, and replay neither \
                  solves nor re-derives them",
-                gauge.0
+                gauge
             ),
         }
     }
@@ -2503,7 +2495,7 @@ impl core::fmt::Display for Maintenance {
                 "node {} carries a {}; this edit removed what it denoted (its minting node, or \
                  the profile segment it named), so the name resolves to nothing until it is \
                  rebound",
-                node.0, name
+                node, name
             ),
             // The same sentence with the store where the carrying
             // node was: what a reader has to know is that the paint
@@ -2534,7 +2526,7 @@ impl core::fmt::Display for Maintenance {
                 "node {} declares contacts and this edit deleted the last node that consumed \
                  it, so no node consumes the declaration until a boolean or union names it \
                  again",
-                declare.0
+                declare
             ),
             // The two names render through `StableName`'s own Display,
             // which spells the kind and the minting node and not the
@@ -3586,7 +3578,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // list `roots::on_delete` needs: no absent case is left to
             // default, and an empty list would be a different edit.
             let Some(node) = new.nodes.remove(id) else {
-                unreachable!("DeleteNode: node {} was live at the check above", id.0)
+                unreachable!("DeleteNode: node {} was live at the check above", id)
             };
             let inputs = node.inputs();
             new.order.retain(|&n| n != *id);
@@ -4051,15 +4043,15 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     }
                 });
             }
-            // A11: the record keys on the cluster, never the
-            // instance. A singleton cluster's gauge IS the instance,
+            // A11: the record keys on the group, never the
+            // instance. A singleton group's root IS the instance,
             // so a mate-less document's registry is unchanged. This is
             // also why no edit door asks the load door's GAUGE rule:
             // the key is normalised here rather than refused, and the
             // cluster maintenance re-keys the registry whenever the
             // mate graph moves.
-            let gauge = crate::mate::gauge_of(&new, *node);
-            new.placements.insert(gauge, *frame);
+            let root = crate::mate::root_of(&new, *node);
+            new.placements.insert(root, *frame);
             // Structural: a placement decides where the instance's
             // material lands, so it is recipe shape, not a continuous
             // slot value — and it moves the document's content pin.
@@ -4372,11 +4364,7 @@ mod tests {
             node,
             path: vec![],
         };
-        let frame = crate::mate::MateFrame {
-            origin: [0.0; 3],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        };
+        let frame = crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
         let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
             node: crate::node::Node::Mate {
                 a: crate::node::SitedFace::at_mint(
@@ -4388,7 +4376,7 @@ mod tests {
                 ),
                 class: crate::mate::ContactClass::Rest,
                 alignment: crate::mate::Alignment {
-                    a: frame,
+                    a: frame.clone(),
                     b: frame,
                     primitive: crate::mate::MatePrimitive::FrameCoincidence,
                     sense: crate::mate::AxisSense::Aligned,

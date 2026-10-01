@@ -100,9 +100,9 @@ PATTERN_SPACING = 0.2
 #: Where the flat-packed shelf sits, relative to the same gap.
 FLAT_PACK_SHELF_Y = 0.9
 
-#: The stand's gauge post: the one instance carrying an authored frame,
+#: The stand's root post: the one instance carrying an authored frame,
 #: inset in y so the bench top overhangs front and back.
-GAUGE_OFFSET_Y = (SHELF_DEPTH - POST_SECTION) / 2.0
+ROOT_OFFSET_Y = (SHELF_DEPTH - POST_SECTION) / 2.0
 
 POST_LABEL = "pncad-demo-post"
 SHELF_LABEL = "pncad-demo-shelf"
@@ -194,21 +194,47 @@ def mate_frame(origin):
     )
 
 
-def seat(a_frame, b_frame, primitive=None):
+def seat(a_frame, b_frame, primitive=None, post_cap=None):
     """The scene's alignment: two frames meeting, axes aligned, no
-    clocking rider."""
+    clocking rider. A seat given as `POST_CAP` is the face frame on
+    `post_cap`, the post's own cap name; any other seat is an authored
+    frame at that point."""
+
+    def frame(spelling):
+        if spelling is POST_CAP:
+            assert post_cap is not None, "a face seat needs the post's cap name"
+            return MateFrame.from_face(post_cap)
+        return mate_frame(spelling)
+
     return Alignment(
-        mate_frame(a_frame),
-        mate_frame(b_frame),
+        frame(a_frame),
+        frame(b_frame),
         primitive or MatePrimitive.frame_coincidence(),
         AxisSense.Aligned,
     )
 
 
+#: The post's seat as the tour authors it: the post's top cap FACE,
+#: by the post's own name, resolved by the solve from the post's own
+#: evaluation — so a post whose height changes moves the seat with
+#: it. A marker here; `stand` spells it as `MateFrame.from_face` on
+#: the cap it selects from the post document.
+POST_CAP = "the post's top cap face"
+
 #: The stand's two mates, as (a seat, b seat) in document order: the
-#: gauge post's top to the shelf's underside, then the shelf's
-#: underside to the far post's top.
-STAND_SEATS = ((POST_SEAT, SEAT_A), (SEAT_B, POST_SEAT))
+#: root post's top to the shelf's underside, then the shelf's
+#: underside to the far post's top. The post sides are the cap face,
+#: the shelf sides authored points (the shelf's own datum, not a face
+#: of it).
+STAND_SEATS = ((POST_CAP, SEAT_A), (SEAT_B, POST_CAP))
+
+
+def part_cap(part_doc, side):
+    """A cap face of a PART, by the part's own name: selected on the
+    part document's own evaluation, with no instance wrapped round it
+    — what a mate frame that names a face stores."""
+    found = evaluate(part_doc).select(part_doc.roots[0], cap_selector(side))
+    return one(found)
 
 
 # ---- The assembly documents ----
@@ -267,15 +293,15 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     """The assembled bench: a post at each end of the shelf, the shelf
     SEATED on them by mates.
 
-    Only the gauge post carries an authored frame — placement lives on
-    the cluster, and the mates place the rest. Answers the document,
+    Only the root post carries an authored frame — placement lives on
+    the group, and the mates place the rest. Answers the document,
     its three instances and its two mates, each in document order.
     """
     doc = Doc(STAND_LABEL)
     post_a = doc.insert(Node.instantiate_part(post_ref))
     doc.apply(
         DocEdit.set_placement(
-            post_a, Frame.translation((0 * m, GAUGE_OFFSET_Y * m, 0 * m))
+            post_a, Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m))
         )
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))
@@ -283,15 +309,32 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)
+    # The post's seat is its cap face by the POST's own name — read
+    # off the post document the store resolves, never off the
+    # instance — and the insert resolves it through the store, since
+    # the face is the part's.
+    post_cap = part_cap(store.resolve(post_ref), CapEnd.End)
     mate_1 = doc.insert(
         Node.mate(
-            post_a, a_top, shelf_i, s_bottom, class_, seat(*STAND_SEATS[0], primitive)
-        )
+            post_a,
+            a_top,
+            shelf_i,
+            s_bottom,
+            class_,
+            seat(*STAND_SEATS[0], primitive, post_cap=post_cap),
+        ),
+        resolver=store,
     )
     mate_2 = doc.insert(
         Node.mate(
-            shelf_i, s_bottom, post_b, b_top, class_, seat(*STAND_SEATS[1], primitive)
-        )
+            shelf_i,
+            s_bottom,
+            post_b,
+            b_top,
+            class_,
+            seat(*STAND_SEATS[1], primitive, post_cap=post_cap),
+        ),
+        resolver=store,
     )
     return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
 
