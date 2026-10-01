@@ -32,16 +32,13 @@ use crate::node::RecipeNodeId;
 ///    [`Self::SplitLineage`], [`Self::FragmentLineage`].
 /// 2. An honest in-band escalation: [`Self::Escalated`].
 /// 3. An ambient tolerance no discriminator can be built from:
-///    [`Self::Band`], whose own doc draws the line the two below
-///    stand on — *nothing about the result body is wrong here* — and
-///    [`Self::NarrowBand`], a band too narrow for one rule that needs
-///    more than it.
+///    [`Self::Band`], whose own doc draws the line the category below
+///    stands on — *nothing about the result body is wrong here*.
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
-///    [`Self::SeamLineSides`], [`Self::MemberEdgeTied`] and
-///    [`Self::SplitReference`], reached from
-///    recipes nothing is wrong with,
+///    [`Self::MergedChordConstituents`] and [`Self::MemberEdgeTied`],
+///    reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
@@ -51,8 +48,8 @@ use crate::node::RecipeNodeId;
 /// Two framings are written once each — [`EMISSION_FRAMING`] and
 /// [`UNRULED_FRAMING`] — and each opens every refusal of its category:
 /// every category-1 variant opens with the emission framing, every
-/// category-4 variant with the missing-rule one. Category 2 has one
-/// variant and category 3 two, each with a sentence of its own, and borrow
+/// category-4 variant with the missing-rule one. Categories 2 and 3
+/// have one variant each, with a sentence of its own, and borrow
 /// neither framing. So a reader tells a kernel bug from a MISSING RULE
 /// from everything else by the clause a refusal opens with: the first
 /// clause of this type's `Display`, which the node-level refusal
@@ -279,65 +276,21 @@ pub enum NamingError {
         /// How many distinct constituents it holds on that side.
         several: usize,
     },
-    /// A chain along a seam line whose direction cannot be read: the
-    /// two faces of the seam edge, as `node`'s table names them, do not
-    /// settle which of them is the `a` side of the pair the edge's name
-    /// records.
-    ///
-    /// A ranker that knows a seam only by its name orients it by that
-    /// pair's `n_a × n_b`, finding the pair's faces BY NAME through the
-    /// pass-through wrappers (`names::seam_pair`). Two causes leave the
-    /// sides unsettled:
-    /// - neither assignment fits: a face renamed by a node the wrapper
-    ///   list does not see through descends from neither side;
-    /// - both fit: each face is a merged face with constituents from
-    ///   both sides.
-    ///
-    /// A pair whose two sides carry the same NAME (two placements of one
-    /// prototype) is not this: it names no side, and its pieces rank
-    /// along their own carrier. The body is sound and the recipe legal;
-    /// what is missing is a rule, which is why this is not an
-    /// [`Self::Emission`].
-    SeamLineSides {
-        /// The node whose body holds `edge` — the boolean's own result
-        /// or one of its operands.
-        node: RecipeNodeId,
-        /// The seam edge, a key in that node's body.
-        edge: EdgeKey,
-    },
-    /// A union's member edge whose pieces cannot be ranked along it,
+    /// A union's member edge whose crossings cannot be ranked along it,
     /// because a tie stands where one edge is needed: the member's own
     /// table ties the edge's name to several edges, or the fold tied
-    /// two of its pieces under one name.
+    /// two of the crossings under one name.
     ///
-    /// The union ranks the pieces of each member edge against the cut
-    /// points of that ONE edge in the finished body (`emit_union`'s
-    /// member-edge ranker); a tie offers several edges or several
-    /// pieces and no rule picks one. Nothing about the result body is
+    /// The union ranks the vertices where one face crosses a member
+    /// edge several times along that ONE edge's carrier (`emit_union`'s
+    /// `cite_member_edges`); a tie offers several edges or several
+    /// vertices and no rule picks one. Nothing about the result body is
     /// wrong, so this is a missing rule and not an [`Self::Emission`].
     MemberEdgeTied {
         /// The member whose edge it is.
         member: RecipeNodeId,
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
-    },
-    /// A group ranked along a seam line's `n_a × n_b`, where a side has
-    /// no one oriented plane: its carrier is curved, or a tie leaves it
-    /// as several faces on different carriers.
-    ///
-    /// The recipe is legal and the body sound; the naming has no rule
-    /// for a curved reference or for choosing among tied ones, so this
-    /// is a missing rule and not an [`Self::Emission`].
-    SplitReference {
-        /// The group being ranked along the seam line: the seam's
-        /// pieces, or the pieces or crossings of an edge that lies on it.
-        group: Box<StableName>,
-        /// The side without a plane, by the name the seam records it
-        /// under.
-        reference: Box<StableName>,
-        /// Whether the reference's carrier is curved; otherwise a tie
-        /// leaves it on several carriers.
-        curved: bool,
     },
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
@@ -353,22 +306,6 @@ pub enum NamingError {
     /// relabelled as an emission inconsistency, which this is not:
     /// nothing about the result body is wrong here.
     Band(BandError),
-    /// The classification band is too narrow for a union to count a
-    /// member edge's cells: its escalation threshold is under twice its
-    /// coincidence threshold (the ambiguity K is below 2).
-    ///
-    /// The cell count joins the vertices on a member edge into places by
-    /// chains of coincident (`Zero`) gaps. Two gaps within the
-    /// coincidence threshold sum to at most twice it, which a band with
-    /// K ≥ 2 never decides as a definite separation, so a place is never
-    /// both one point and two. Below 2 it could be, and the count would
-    /// be a guess. Nothing about the result body is wrong here.
-    NarrowBand {
-        /// The band's coincidence threshold.
-        zero: f64,
-        /// Its escalation threshold.
-        escalate: f64,
-    },
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
     Escalated {
@@ -435,22 +372,6 @@ impl core::fmt::Display for RimShare {
 // op variants unaltered (`NodeErrorKind`'s Display note, D2), this is
 // editor-core's OWN error: rendering it IS the op's vocabulary, and
 // there is no other path by which it reaches a human.
-impl NamingError {
-    /// [`Self::SplitReference`]: the one spelling every seam ranker
-    /// refuses with.
-    pub(crate) fn split_reference(
-        group: &StableName,
-        reference: &StableName,
-        curved: bool,
-    ) -> Self {
-        Self::SplitReference {
-            group: Box::new(group.clone()),
-            reference: Box::new(reference.clone()),
-            curved,
-        }
-    }
-}
-
 impl core::fmt::Display for NamingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -473,7 +394,7 @@ impl core::fmt::Display for NamingError {
                 f,
                 "{EMISSION_FRAMING}: the name table of upstream node {} lacks an entity the \
                  emission needed",
-                node.0
+                node
             ),
             Self::Emission { what } => write!(f, "{EMISSION_FRAMING}: {what}"),
             // The category IS an emission inconsistency, so the framing
@@ -510,7 +431,7 @@ impl core::fmt::Display for NamingError {
                 "{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand node {}'s body \
                  share {found} where a seam chord's rim, derived from adjacency alone, needs \
                  exactly one",
-                node.0
+                node
             ),
             Self::SeamVertexPartners { vertex, candidates } => write!(
                 f,
@@ -539,51 +460,24 @@ impl core::fmt::Display for NamingError {
                  holds {several} faces of the operand the chord reads through to, and no rule \
                  picks the one it lies on"
             ),
-            Self::SeamLineSides { node, edge } => write!(
-                f,
-                "{UNRULED_FRAMING}: seam edge {edge:?} of node {}'s body has faces whose names do \
-                 not settle which is each side of its recorded pair (neither face descends from \
-                 a side, or both faces descend from both), so no direction orders a chain along it",
-                node.0
-            ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
                  does not lie within the rim {rim:?} of operand node {}'s body its key reads \
                  through to",
-                node.0
+                node
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
-                "{UNRULED_FRAMING}: the pieces of member node {}'s edge (the {edge}) cannot be \
-                 ranked along it, because a tie stands where one edge is needed (the member ties \
-                 that name to several edges, or two of its pieces were tied)",
-                member.0
-            ),
-            Self::SplitReference {
-                group,
-                reference,
-                curved,
-            } => write!(
-                f,
-                "{UNRULED_FRAMING}: the pieces of the {group} cannot be told apart against the \
-                 plane of the {reference}, {}",
-                if *curved {
-                    "whose carrier is not a plane"
-                } else {
-                    "which a tie leaves as several faces on different carriers"
-                }
+                "{UNRULED_FRAMING}: the crossings of member node {}'s edge (the {edge}) cannot \
+                 be ranked along it, because a tie stands where one edge is needed (the member \
+                 ties that name to several edges, or two of its crossings were tied)",
+                member
             ),
             Self::Band(error) => write!(
                 f,
                 "the naming band could not be built from the ambient tolerance, so no \
                  name can be decided: {error}"
-            ),
-            Self::NarrowBand { zero, escalate } => write!(
-                f,
-                "the naming band is too narrow to count a member edge's cells: its escalation \
-                 threshold {escalate} is under twice its coincidence threshold {zero} (an \
-                 ambiguity K below 2), so two coincidences in a row could be decided apart"
             ),
             Self::Escalated { predicate, source } => {
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
@@ -1185,14 +1079,14 @@ mod pattern_tests {
     /// to these rows (they pin the wrapping); minting a faithful key
     /// bridge across a graft is the consumer's job, not this door's.
     fn two_solid_master() -> (Body<f64>, NameTable) {
-        let (mut body, a) = cube(RecipeNodeId(1), 0.0);
-        let (second, b) = cube(RecipeNodeId(2), 10.0);
+        let (mut body, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
+        let (second, b) = cube(RecipeNodeId(test_utils::refusal::tagged(2)), 10.0);
         let was: (BTreeSet<_>, BTreeSet<_>, BTreeSet<_>) = (
             body.faces().map(|(k, _)| k).collect(),
             body.edges().map(|(k, _)| k).collect(),
             body.vertices().map(|(k, _)| k).collect(),
         );
-        topo::graft_disjoint(&mut body, &second, Tol::witness()).expect("a two-solid master");
+        topo::graft_disjoint(&mut body, &second).expect("a two-solid master");
         let fresh_f: Vec<_> = body
             .faces()
             .map(|(k, _)| k)
@@ -1277,7 +1171,7 @@ mod pattern_tests {
         assert_eq!(master_body.solids().count(), 2, "a two-solid master");
         let n = 3_i64;
         let bodies = instances(&master_body, n, 5.0);
-        let node = RecipeNodeId(9);
+        let node = RecipeNodeId(test_utils::refusal::tagged(9));
         let t =
             name_pattern(node, &master, n, 1, &bodies).expect("a multi-solid master is admitted");
 
@@ -1319,7 +1213,7 @@ mod pattern_tests {
         let (master_body, master) = two_solid_master();
         let (n, step) = (3_i64, 5.0);
         let bodies = instances(&master_body, n, step);
-        let node = RecipeNodeId(9);
+        let node = RecipeNodeId(test_utils::refusal::tagged(9));
         let t = name_pattern(node, &master, n, 1, &bodies).expect("admitted");
 
         let mut checked = 0;
@@ -1371,10 +1265,16 @@ mod pattern_tests {
     /// another placement's range.
     #[test]
     fn a_master_row_past_the_masters_body_count_refuses_typed() {
-        let (body, a) = cube(RecipeNodeId(1), 0.0);
+        let (body, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
         let master = at_body(&a, 1);
-        let err = name_pattern(RecipeNodeId(9), &master, 2, 1, &[Arc::new(body)])
-            .expect_err("a row past the master's body count must refuse");
+        let err = name_pattern(
+            RecipeNodeId(test_utils::refusal::tagged(9)),
+            &master,
+            2,
+            1,
+            &[Arc::new(body)],
+        )
+        .expect_err("a row past the master's body count must refuse");
         assert!(
             format!("{err:?}").contains("does not have"),
             "typed, and about the body: {err:?}"
@@ -1388,8 +1288,8 @@ mod pattern_tests {
     /// holds over all six.
     #[test]
     fn a_multi_output_body_master_lays_out_placement_major() {
-        let (b0, a) = cube(RecipeNodeId(1), 0.0);
-        let (b1, b) = cube(RecipeNodeId(2), 10.0);
+        let (b0, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
+        let (b1, b) = cube(RecipeNodeId(test_utils::refusal::tagged(2)), 10.0);
         let mut master = at_body(&a, 0);
         for (name, entry) in at_body(&b, 1).iter() {
             let Entry::Unique(e) = entry else {
@@ -1413,7 +1313,7 @@ mod pattern_tests {
                 }));
             }
         }
-        let node = RecipeNodeId(9);
+        let node = RecipeNodeId(test_utils::refusal::tagged(9));
         let t = name_pattern(node, &master, n, per, &bodies).expect("admitted");
         assert_eq!(t.len(), master.len() * 3, "census: N × the master's");
         for j in 0..n {
@@ -1641,7 +1541,7 @@ mod display_tests {
     fn every_variant_names_its_subject() {
         let name = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7),
+            node: RecipeNodeId(test_utils::refusal::tagged(7)),
             path: vec![RoleSeg::Cap(super::super::role::CapEnd::End)],
         };
         // Locators the rows below sample by value, so a refusal that
@@ -1652,11 +1552,11 @@ mod display_tests {
         // them: the same cap vertex of two different operands' sweeps.
         let partner = |node| StableName {
             kind: EntityKind::Vertex,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId(test_utils::refusal::tagged(node)),
             path: vec![RoleSeg::CapVertex(
                 super::super::role::CapEnd::End,
                 super::super::role::ProfileVertexRef::Piece {
-                    step: crate::node::StepId(0),
+                    step: crate::node::StepId(test_utils::refusal::tagged(0)),
                     role: crate::names::PieceRole::Leg,
                 },
             )],
@@ -1683,9 +1583,9 @@ mod display_tests {
             ),
             (
                 NamingError::MissingUpstream {
-                    node: RecipeNodeId(11),
+                    node: RecipeNodeId(test_utils::refusal::tagged(11)),
                 },
-                vec!["11"],
+                vec!["00000000000b"],
             ),
             (
                 // A refusal that still EXISTS (ties propagate, so there
@@ -1702,7 +1602,7 @@ mod display_tests {
                     predicate: crate::names::discriminate::ORDER_ALONG,
                     source: escalation(),
                 },
-                vec!["the order of two pieces along an edge"],
+                vec!["the order of two crossings along an edge"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {
@@ -1724,12 +1624,17 @@ mod display_tests {
                 // ONE arena: two `two_faces()` calls hand out keys from
                 // two bodies, which are not guaranteed distinct.
                 NamingError::SharedRim {
-                    node: RecipeNodeId(23),
+                    node: RecipeNodeId(test_utils::refusal::tagged(23)),
                     face: pair.0,
                     other: pair.1,
                     found: RimShare::Several,
                 },
-                vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
+                vec![
+                    face0.as_str(),
+                    face1.as_str(),
+                    "000000000017",
+                    "more than one edge",
+                ],
             ),
             (
                 NamingError::SeamVertexPartners {
@@ -1739,8 +1644,8 @@ mod display_tests {
                 vec![
                     vtx_shown.as_str(),
                     "2 differently named vertices",
-                    "vertex name minted by node 3",
-                    "vertex name minted by node 4",
+                    "vertex name minted by node 000000000003",
+                    "vertex name minted by node 000000000004",
                 ],
             ),
             (
@@ -1752,17 +1657,10 @@ mod display_tests {
             (
                 NamingError::MergedChordOffRim {
                     edge: two_edges().0,
-                    node: RecipeNodeId(29),
+                    node: RecipeNodeId(test_utils::refusal::tagged(29)),
                     rim: two_edges().1,
                 },
-                vec!["merged faces", "29", "does not lie within"],
-            ),
-            (
-                NamingError::SeamLineSides {
-                    node: RecipeNodeId(31),
-                    edge: two_edges().0,
-                },
-                vec!["31", "each side of its recorded pair"],
+                vec!["merged faces", "00000000001d", "does not lie within"],
             ),
             (
                 NamingError::MergedChordConstituents {
@@ -1774,21 +1672,21 @@ mod display_tests {
             ),
             (
                 NamingError::MemberEdgeTied {
-                    member: RecipeNodeId(37),
+                    member: RecipeNodeId(test_utils::refusal::tagged(37)),
                     edge: Box::new(StableName {
                         kind: EntityKind::Edge,
-                        node: RecipeNodeId(37),
+                        node: RecipeNodeId(test_utils::refusal::tagged(37)),
                         path: vec![RoleSeg::LateralEdge(
                             super::super::role::ProfileVertexRef::Piece {
-                                step: crate::node::StepId(2),
+                                step: crate::node::StepId(test_utils::refusal::tagged(2)),
                                 role: crate::names::PieceRole::Leg,
                             },
                         )],
                     }),
                 },
                 vec![
-                    "member node 37",
-                    "edge name minted by node 37",
+                    "member node 000000000025",
+                    "edge name minted by node 000000000025",
                     "a tie stands",
                 ],
             ),
@@ -1802,33 +1700,6 @@ mod display_tests {
                     escalate: 5e-324,
                 }),
                 vec!["5e-324"],
-            ),
-            (
-                NamingError::NarrowBand {
-                    zero: 1e-9,
-                    escalate: 1.5e-9,
-                },
-                vec!["0.0000000015", "0.000000001", "below 2"],
-            ),
-            (
-                NamingError::SplitReference {
-                    group: Box::new(StableName {
-                        kind: EntityKind::Face,
-                        node: RecipeNodeId(41),
-                        path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
-                    }),
-                    reference: Box::new(StableName {
-                        kind: EntityKind::Face,
-                        node: RecipeNodeId(43),
-                        path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
-                    }),
-                    curved: true,
-                },
-                vec![
-                    "face name minted by node 41",
-                    "face name minted by node 43",
-                    "not a plane",
-                ],
             ),
         ];
         // **The one place a variant's CATEGORY is written down**, and
@@ -1858,12 +1729,8 @@ mod display_tests {
                 | NamingError::MergedChord { .. }
                 | NamingError::MergedChordOffRim { .. }
                 | NamingError::MergedChordConstituents { .. }
-                | NamingError::SeamLineSides { .. }
-                | NamingError::MemberEdgeTied { .. }
-                | NamingError::SplitReference { .. } => Some(UNRULED_FRAMING),
-                NamingError::Band(_)
-                | NamingError::NarrowBand { .. }
-                | NamingError::Escalated { .. } => None,
+                | NamingError::MemberEdgeTied { .. } => Some(UNRULED_FRAMING),
+                NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
         let sampled = |err: &NamingError| -> usize {
@@ -1881,11 +1748,8 @@ mod display_tests {
                 NamingError::MergedChord { .. } => 10,
                 NamingError::MergedChordOffRim { .. } => 11,
                 NamingError::Band(_) => 12,
-                NamingError::SeamLineSides { .. } => 13,
-                NamingError::MemberEdgeTied { .. } => 14,
-                NamingError::NarrowBand { .. } => 15,
-                NamingError::MergedChordConstituents { .. } => 16,
-                NamingError::SplitReference { .. } => 17,
+                NamingError::MemberEdgeTied { .. } => 13,
+                NamingError::MergedChordConstituents { .. } => 14,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

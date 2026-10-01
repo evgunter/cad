@@ -37,7 +37,7 @@ use crate::docio::DocIoError;
 use crate::frame::Tone;
 use crate::generation::Generation;
 use crate::history::History;
-use crate::props::{self, SlotValue};
+use crate::props::{self, Notation, SlotValue};
 use crate::session::{FaceSelection, SessionOp};
 
 /// The node kind a creation op's seat requires — the payload of
@@ -235,6 +235,10 @@ pub enum Refusal {
         params: Vec<ParamName>,
         /// The slot's current value, when it has one.
         current: Option<SlotValue>,
+        /// The working notation the affordance reads `current` in —
+        /// the one in force when the edit was refused, since nobody
+        /// wrote that value.
+        notation: Notation,
     },
     /// The node does not exist, or does not carry that slot.
     NoSuchSlot {
@@ -623,10 +627,14 @@ impl Refusal {
     /// wording drifts from the decision.
     ///
     /// The current value is spelled as the slot's field spells it
-    /// ([`props::computed_text`], in the notation of `slot`'s
-    /// dimension for a computed value and carrying its symbol), so the
-    /// two never show one number two ways.
-    pub fn affordance(params: &[ParamName], slot: SlotId, current: Option<SlotValue>) -> String {
+    /// ([`props::computed_text`], in the working `notation` and
+    /// carrying its symbol), so the two never show one number two ways.
+    pub fn affordance(
+        params: &[ParamName],
+        slot: SlotId,
+        current: Option<SlotValue>,
+        notation: Notation,
+    ) -> String {
         let over = if params.is_empty() {
             "an expression".to_owned()
         } else {
@@ -636,7 +644,7 @@ impl Refusal {
         match current {
             Some(value) => format!(
                 "driven by {over} (currently {}) — edit the expression?",
-                props::computed_text(slot.dimension(), value.as_f64())
+                props::computed_text(slot.dimension(), value.as_f64(), notation)
             ),
             None => format!("driven by {over} — edit the expression?"),
         }
@@ -692,12 +700,12 @@ impl Refusal {
     /// the class the declaration asserts. The face within each operand
     /// has no prose name (`work/author/face-pick-cannot-name-which-face.md`),
     /// so the line says "a face of" rather than inventing one.
-    pub fn declare_pair_wording(finding: &FlushFinding) -> String {
+    pub fn declare_pair_wording(doc: &Doc<ProfileProgram>, finding: &FlushFinding) -> String {
         let (one, other) = &finding.pair;
         format!(
             "a face of {} against a face of {} — {} contact",
-            crate::tree::node_number(one.at),
-            crate::tree::node_number(other.at),
+            doc.spoken(one.at),
+            doc.spoken(other.at),
             finding.class.name()
         )
     }
@@ -720,10 +728,15 @@ impl core::fmt::Display for Refusal {
                 slot,
                 params,
                 current,
+                notation,
                 ..
-            } => write!(f, "{}", Self::affordance(params, *slot, *current)),
+            } => write!(
+                f,
+                "{}",
+                Self::affordance(params, *slot, *current, *notation)
+            ),
             Self::NoSuchSlot { node, slot } => {
-                write!(f, "node {} has no {} slot", node.0, slot.label())
+                write!(f, "node {} has no {} slot", node, slot.label())
             }
             Self::NoSuchParam(name) => {
                 write!(
@@ -750,12 +763,7 @@ impl core::fmt::Display for Refusal {
                 )
             }
             Self::WrongNodeKind { node, wanted } => {
-                write!(
-                    f,
-                    "node {} is not {} in this document",
-                    node.0,
-                    wanted.name()
-                )
+                write!(f, "node {} is not {} in this document", node, wanted.name())
             }
             // The frame is layer 3's and the sentence is the door's.
             // Nothing is doubled: `EditError`'s arms state the problem
@@ -785,9 +793,9 @@ impl core::fmt::Display for Refusal {
             ),
             Self::ProfileEditStale { node } => write!(
                 f,
-                "feature {}'s profile changed since the editor loaded it; the editor's program was \
+                "node {}'s profile changed since the editor loaded it; the editor's program was \
                  not written — the editor now shows the profile as it is",
-                node.0
+                node
             ),
         }
     }
@@ -1145,9 +1153,9 @@ impl core::fmt::Display for FaceFrameFault {
             }
             Self::NotOneBody { at } => write!(
                 f,
-                "feature {}'s value is several bodies, so a face on it names no single body to \
+                "node {}'s value is several bodies, so a face on it names no single body to \
                  read a frame out of — project the one you mean first",
-                at.0
+                at
             ),
             Self::Unresolved { error } => write!(f, "that face does not resolve: {error}"),
             Self::NotPlanar { carrier } => write!(

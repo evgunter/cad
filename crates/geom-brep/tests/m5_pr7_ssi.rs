@@ -28,7 +28,7 @@
 //!
 //! Beside them, and not in the spec: **the sweeps' never-silence
 //! doors** — the refusal sites in `ssi/exhaust.rs` and the chart-speed
-//! guard in `ssi.rs` that makes the sweep's floor meaningful. Their own
+//! mint (`ssi/enclose.rs`) that makes the sweep's floor meaningful. Their own
 //! block below carries the grid of doors, which rows sit in which cell,
 //! and which cells still have none.
 //!
@@ -99,8 +99,8 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
 use geom_brep::ssi::BranchEnd;
 use geom_brep::ssi::{
-    self, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_TUBE_RADIUS,
-    SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
+    self, ChartAxis, ChartSpeedRefusal, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES,
+    SSI_SEED_FLOOR, SSI_TUBE_RADIUS, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale,
 };
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
@@ -189,6 +189,15 @@ fn threaded_cylinder() -> Surface<f64> {
     }
 }
 
+/// The ℝ³ arm's tube radius, in metres: the cylinder × sphere lane
+/// proves a spatial tube, and a chart tube there is a routing defect.
+fn spatial_radius(cert: &geom_brep::SsiCertificate<f64>) -> f64 {
+    match cert.tube {
+        SsiTube::Spatial { radius } => radius,
+        SsiTube::Chart { .. } => panic!("the ℝ³ arm proved a chart tube: {cert:?}"),
+    }
+}
+
 fn slab() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
@@ -274,9 +283,17 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         }
         Err(SsiError::FitSampleBudget { samples, budget }) => {
             assert!(samples > budget, "BUDGET: {samples} vs {budget}");
-            let msg = format!("{}", SsiError::FitSampleBudget { samples, budget });
+            let msg = SsiError::FitSampleBudget { samples, budget }
+                .render(geom_brep::recourse::Reading::Build);
             assert!(msg.contains("fit budget"), "BUDGET: {msg}");
-            assert!(msg.contains("raise the tolerance"), "BUDGET: {msg}");
+            assert!(
+                msg.ends_with(&format!(
+                    "Recourse: loosen the tolerance until a branch needs at most {budget} \
+                     samples, {}",
+                    geom_core::KERNEL_LIMIT_LAST_RESORT
+                )),
+                "BUDGET: {msg}"
+            );
             vacuity::stood_down(
                 &format!("planted fixture, eps = {:e}", eps()),
                 &format!(
@@ -360,11 +377,11 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         // assertion above still passes, because they are all monotone
         // in the easy direction. This one is not.
         assert!(
-            b.certificate.tube_radius >= SSI_TUBE_RADIUS * band().zero(),
+            spatial_radius(&b.certificate) >= SSI_TUBE_RADIUS * band().zero(),
             "TUBE-FLOOR: a tube of {:e} m is below the run band's own floor \
              ({} · {:e} m) — the certificate was obtained at a finer tolerance \
              than the one it is banded at: {:?}",
-            b.certificate.tube_radius,
+            spatial_radius(&b.certificate),
             SSI_TUBE_RADIUS,
             band().zero(),
             b.certificate
@@ -495,9 +512,11 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             }
             // A hull bound that lands just ABOVE ε is inside the
             // escalation band, so limb 2 speaks as an F6 escalation
-            // rather than a definite refusal. Same limb, same meaning —
-            // and the predicate name is how they are told apart.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_hull_sup") => {
+            // rather than a definite refusal, naming the same limb.
+            Err(SsiError::CertificateEscalated {
+                limb: SsiLimb::HullSup,
+                ref cause,
+            }) if cause.predicate == Some("ssi_hull_sup") => {
                 found = Some((d, f64::NAN));
                 break;
             }
@@ -512,7 +531,10 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // own trilean legitimately lands in the escalation band on
             // the way past: that is limb 1 speaking, and the scan is
             // over.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_on_locus") => {
+            Err(SsiError::CertificateEscalated {
+                limb: SsiLimb::OnLocus,
+                ref cause,
+            }) if cause.predicate == Some("ssi_on_locus") => {
                 break;
             }
             Err(e) => panic!("LIMB-2: unexpected refusal while scanning: {e}"),
@@ -531,7 +553,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let bad = displaced(&carrier, n, d);
     let (t0, t1) = bad.domain();
     for i in 0..CERT_SAMPLES {
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = geom_brep::sample_param(t0, t1, i);
         let r = geom_brep::implicit_residual(&c, bad.eval(t)).abs();
         assert!(
             r <= eps(),
@@ -550,7 +572,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         2,
         "DEDUP: the fixture has two components"
     );
-    let radius = out.branches[0].certificate.tube_radius;
+    let radius = spatial_radius(&out.branches[0].certificate);
     // A point off the locus by several tube radii — a tube box is the
     // span hull padded by exactly `radius`, so nothing contains this.
     let off = out.branches[0].witness + Vec3::new(0.0, 0.0, 3.0 * radius);
@@ -863,6 +885,8 @@ fn a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes() {
     let err = ssi::cylinder_sphere_ssi(&c, &s, slab(), band()).expect_err("must refuse");
     let msg = format!("{err}");
     match err {
+        // The pair's own tangency gap, decided before any rung.
+        SsiError::PairTangent { .. } => {}
         SsiError::TransversalityBand { sin_theta, .. } => {
             assert!(sin_theta < 1.0e-6, "sin θ = {sin_theta}");
         }
@@ -1159,7 +1183,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     // cell holding a locus point can never be excluded, so with no tube
     // banked it reaches the floor and the sweep refuses before this
     // line — `Ok` with one branch IS the statement that
-    // `pcurve_windows` banked a rectangle and `UvRect::contained_in`
+    // `chart_tube_windows` banked a rectangle and `UvRect::contained_in`
     // consumed it. The chart lane's tube arm has no
     // degraded-but-still-`Ok` regime, so an assertion here would
     // document rather than test.
@@ -1187,8 +1211,12 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     );
     // Limb 3: a real tube with a real margin.
     assert!(
-        cert.tube_radius > 0.0 && cert.tube_boxes > 0,
-        "SUBSTRATE: limb 3 has a real tube"
+        matches!(
+            cert.tube,
+            SsiTube::Chart { rung, pad_u, pad_v } if rung > 0.0 && pad_u > 0.0 && pad_v > 0.0
+        ) && cert.tube_boxes > 0,
+        "SUBSTRATE: limb 3 has a real chart tube: {:?}",
+        cert.tube
     );
     assert!(
         cert.tube_transversality > 0.0,
@@ -1232,7 +1260,7 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
         carrier,
         Some(&bad),
         &SsiOperand::Analytic(&p),
-        &SsiOperand::Nurbs(&w),
+        &SsiOperand::nurbs(&w).expect("the wall's chart speeds mint"),
         TubeScale::uniform(wall_domain().extent),
         band(),
     )
@@ -1331,7 +1359,10 @@ fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
             );
             assert!(out.branches[0].certificate.hull_sup <= eps());
         }
-        Err(SsiError::Escalated(ref d)) if d.predicate == Some("ssi_hull_sup_chart") => {
+        Err(SsiError::CertificateEscalated {
+            limb: SsiLimb::HullSup,
+            ref cause,
+        }) if cause.predicate == Some("ssi_hull_sup_chart") => {
             assert!(
                 band().zero() <= 10.0 * MEASURED_DEVIATION,
                 "in-band refusal where the band is far above the measured deviation"
@@ -1479,7 +1510,7 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
     };
     let v_ref = normal.cross(u_ref);
     for i in 0..CERT_SAMPLES {
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = geom_brep::sample_param(t0, t1, i);
         let c = carrier.eval(t);
         // The wall chart, through the NURBS map.
         let q = pb.eval(t);
@@ -1690,7 +1721,7 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 
 // **The grid these rows sit in, and the cells that still have none.**
 //
-// `exhaust.rs` has three refusal sites and `ssi.rs` one guard that
+// `exhaust.rs` has three refusal sites and `enclose.rs` one mint that
 // makes the sweep's floor meaningful. What multiplies them is not the
 // site count: the budget check and both refusal arms live in the ONE
 // shared recursion, which runs under BOTH of `SweepDuty`'s values, on
@@ -1703,7 +1734,7 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 //     floor refusal   × lane × {empty, non-empty tubes}   4 cells
 //     cell budget     × lane × {Seed, Account}            4 cells
 //     refusal arm     × lane × {Seed, Account}            4 cells
-//     chart-speed guard (pre-sweep, chart only)           1 cell
+//     chart-speed mint (pre-sweep, chart only)            1 cell
 //                                                       13 cells
 //
 // Three had rows before this block: the floor refusal in ℝ³ with both
@@ -1714,7 +1745,7 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 // call: it is which of the two `exhaust` entry points the operation
 // reached first, and on both lanes seeding runs before accounting.
 //
-// **Five cells still have no row**, and this block does not close
+// **Four cells still have no row**, and this block does not close
 // them:
 //
 //   - the cell budget and the refusal arm under the **Account** duty,
@@ -1729,9 +1760,6 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 //     accounted at every width — a new fixture, not a new assertion.
 //     The negative result is written out here so the next taker does
 //     not repeat the naive road in.
-//   - the chart-speed guard's ZERO arm. Its non-finite arm is covered
-//     by `an_infinite_chart_speed_refuses_rather_than_receipting`; a
-//     wall whose chart speed is exactly zero has no fixture.
 //
 // Every cell here is a claim in `exhaust.rs`'s module docs — "a typed
 // refusal, never a silent truncation of the search" — that no fixture
@@ -1751,12 +1779,12 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 /// **What is new here is not the shared floor arm** — that is one
 /// generic `sweep`, exercised by all three rows above. It is
 /// `SweepDuty::accounts` running against a NON-empty chart tube set:
-/// `UvRect::contained_in`, over the rectangles `pcurve_windows` builds.
+/// `UvRect::contained_in`, over the rectangles `chart_tube_windows` builds.
 /// Every other chart row reaches that predicate only in the direction
 /// where accepting MORE cells keeps the run green — an
 /// over-permissive containment turns cells nobody proved anything
 /// about into "accounted", which is the silent completeness claim
-/// `pcurve_windows`' own doc warns about, and before this row no
+/// `chart_tube_windows`' own doc warns about, and before this row no
 /// assertion in the workspace went red when it did.
 ///
 /// **The asymmetry, stated like for like.** Each lane's accounting
@@ -2065,9 +2093,9 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 /// truth is that this operand has no certificate at all and no budget
 /// would have helped. That is what this arm exists to prevent: not a
 /// wrong answer, a wrong DIAGNOSIS. The chart lane states the same duty
-/// one guard over — see
+/// one door over — see
 /// [`an_infinite_chart_speed_refuses_rather_than_receipting`], whose
-/// guard refuses a non-finite chart speed before the cell budget can
+/// mint refuses a non-finite chart speed before the cell budget can
 /// answer in its place.
 #[test]
 fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
@@ -2130,9 +2158,9 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
 /// cannot be formed must say so at any magnitude a caller can build.
 ///
 /// **Which door answers**: this net also drives the certified chart
-/// speed to `+∞`, and the chart-speed guard runs BEFORE the sweep — a
+/// speed to `+∞`, and the chart-speed mint runs BEFORE the sweep — a
 /// floor cannot be translated at all if the speed is not finite — so on
-/// this fixture the guard answers and the sweep is never entered. Both
+/// this fixture the mint answers and the sweep is never entered. Both
 /// diagnoses are true of this wall. The row therefore accepts either
 /// door and names which one fired; what it pins, at any magnitude a
 /// caller can build, is that the operation refuses in the operation's
@@ -2174,8 +2202,8 @@ fn an_overflowing_control_net_refuses_the_enclosure_typed() {
         {
             println!("the overflowing net was answered by the CHART SWEEP'S REFUSAL ARM");
         }
-        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
-            println!("the overflowing net was answered by the CHART-SPEED GUARD");
+        Err(SsiError::ChartSpeed(ChartSpeedRefusal::NotFinite { axis })) => {
+            println!("the overflowing net was answered by the CHART-SPEED MINT along {axis:?}");
         }
         Err(other) => {
             panic!("expected the enclosure refusal or the chart-speed refusal, got {other}")
@@ -2194,20 +2222,20 @@ fn an_overflowing_control_net_refuses_the_enclosure_typed() {
 /// unreachable branch.
 ///
 /// Its sibling above reaches the arm by overflow, and overflow alone
-/// can no longer get there: the seeding guard refuses a non-finite
+/// can no longer get there: the chart-speed mint refuses a non-finite
 /// chart speed first, and the derivative bound a net of magnitude `m`
 /// certifies is at best `ulp(m)` — the cancellation floor of the hull
 /// differences — so `mag`, which squares before its `sqrt`, is already
 /// `+∞` by `m ≈ 1e169`, four orders of magnitude BELOW the `1e308` at
 /// which `w·P` first overflows. Every overflowing net is refused by
-/// the guard before the sweep runs.
+/// the mint before the sweep runs.
 ///
 /// **Underflow is the open side, and it needs no magnitude.** This
 /// fixture's control points are [`nurbs_wall`]'s own (the file's
 /// ordinary ℝ⁴ wall — not [`certifiable_wall`], the one the substrate
 /// row certifies), order 1; its
 /// weights are finite, positive, and equal; its certified chart speed
-/// is about 25 m per parameter unit, which the guard passes without
+/// is about 25 m per parameter unit, which the mint passes without
 /// comment. What poisons is the RATIONAL's own denominator: the weight
 /// is the smallest positive subnormal, so `N·w` rounds to exactly zero
 /// for every basis value below 1, the partition of unity the rational
@@ -2217,8 +2245,8 @@ fn an_overflowing_control_net_refuses_the_enclosure_typed() {
 ///
 /// The derivative box does not see it: it works on exact control
 /// differences over a weight HULL of `[w, w]`, strictly positive and
-/// never underflowing, which is why the guard reads a healthy speed
-/// over a net whose values cannot be enclosed at all. A guard on the
+/// never underflowing, which is why the mint reads a healthy speed
+/// over a net whose values cannot be enclosed at all. A mint on the
 /// derivative cannot stand in for the enclosure's own arm.
 ///
 /// **ε-invariant on purpose**: the root cell's enclosure is refused, so the arm
@@ -2249,8 +2277,8 @@ fn an_underflowing_weight_reaches_the_chart_refusal_arm_without_magnitude() {
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Err(SsiError::UnsupportedCertificate { what })
             if what.contains("control-net enclosure refused") => {}
-        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
-            panic!("the chart-speed guard answered for a net whose speed is finite: {what}")
+        Err(err @ SsiError::ChartSpeed(_)) => {
+            panic!("the chart-speed mint answered for a net whose speed is finite: {err}")
         }
         Err(other) => panic!(
             "expected the chart sweep's refusal arm, got {other} — the arm is what \
@@ -2266,16 +2294,183 @@ fn an_underflowing_weight_reaches_the_chart_refusal_arm_without_magnitude() {
     }
 }
 
-/// **The chart-speed guard**: a wall whose certified chart speed is not
-/// a positive finite number is refused as itself, by name.
+/// **A non-finite operand is refused as itself, at every door.** A
+/// plane whose origin or normal is not finite, cut against the ordinary
+/// wall, reached the chart sweep's refusal arm, whose sentence can only
+/// blame the wall's net; a wall with a NaN control point reached the
+/// march as a seed that would not settle; a non-finite sphere reached
+/// the pair's tangency trilean as an escalation. Each of the four SSI
+/// doors now names the operand and the datum before any sweep or march
+/// reads it. The healthy operand beside each is the file's own, so no
+/// other operand can be at fault.
+#[test]
+fn a_non_finite_operand_is_refused_at_the_door_by_name() {
+    use geom_brep::ssi::OperandDatum;
+    let plane = |origin: Point3<f64>, normal: Vec3<f64>| {
+        let Surface::Plane { u_ref, .. } = cutting_plane() else {
+            unreachable!("the cutting plane is a plane")
+        };
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        }
+    };
+    let Surface::Plane { origin, normal, .. } = cutting_plane() else {
+        unreachable!("the cutting plane is a plane")
+    };
+    let expect =
+        |got: Result<(), SsiError>, operand: &str, datum: OperandDatum, row: &str| match got {
+            Err(SsiError::OperandNotFinite {
+                operand: o,
+                datum: d,
+            }) if o == operand && d == datum => {
+                let msg = SsiError::OperandNotFinite { operand: o, datum }.to_string();
+                assert!(
+                    msg.contains(&format!("the {operand}'s {datum}")),
+                    "{row}: {msg}"
+                );
+            }
+            Err(other) => panic!("{row}: expected the {operand}'s own refusal, got {other}"),
+            Ok(()) => panic!("{row}: a non-finite {operand} traced"),
+        };
+    let field = OperandDatum::Field;
+    let wall = nurbs_wall();
+    // The plane, at both plane × NURBS doors.
+    for (row, p, datum) in [
+        (
+            "+inf origin",
+            plane(Point3::new(f64::INFINITY, 0.0, 0.4), normal),
+            field(geom::SurfaceDatum::Origin),
+        ),
+        (
+            "NaN origin",
+            plane(Point3::new(0.0, f64::NAN, 0.4), normal),
+            field(geom::SurfaceDatum::Origin),
+        ),
+        (
+            "NaN normal",
+            plane(origin, Vec3::new(0.0, f64::NAN, 1.0)),
+            field(geom::SurfaceDatum::Normal),
+        ),
+    ] {
+        expect(
+            ssi::plane_nurbs_ssi(&p, &wall, wall_domain(), band()).map(|_| ()),
+            "plane",
+            datum,
+            &format!("{row}, plane_nurbs_ssi"),
+        );
+        expect(
+            ssi::trace_plane_nurbs_uncertified(
+                &p,
+                &wall,
+                (0.5, 0.5),
+                wall_domain(),
+                band().zero(),
+                band(),
+            )
+            .map(|_| ()),
+            "plane",
+            datum,
+            &format!("{row}, trace_plane_nurbs_uncertified"),
+        );
+    }
+    // The wall: a NaN control point in its second column, whose first
+    // point is the net's third (two rows per column).
+    let mut cols = NURBS_WALL_COLS;
+    cols[1].0 = f64::NAN;
+    let bad_wall = wall_from_cols(cols);
+    expect(
+        ssi::plane_nurbs_ssi(&cutting_plane(), &bad_wall, wall_domain(), band()).map(|_| ()),
+        "NURBS wall",
+        OperandDatum::ControlPoint(2),
+        "NaN control point, plane_nurbs_ssi",
+    );
+    expect(
+        ssi::trace_plane_nurbs_uncertified(
+            &cutting_plane(),
+            &bad_wall,
+            (0.5, 0.5),
+            wall_domain(),
+            band().zero(),
+            band(),
+        )
+        .map(|_| ()),
+        "NURBS wall",
+        OperandDatum::ControlPoint(2),
+        "NaN control point, trace_plane_nurbs_uncertified",
+    );
+    // The analytic pair, at both ℝ³ doors.
+    let Surface::Sphere {
+        radius,
+        axis,
+        u_ref,
+        ..
+    } = sphere()
+    else {
+        unreachable!("the sphere is a sphere")
+    };
+    let bad_sphere = Surface::Sphere {
+        center: Point3::new(f64::NAN, 0.0, 0.0),
+        radius,
+        axis,
+        u_ref,
+    };
+    let centre = field(geom::SurfaceDatum::Center);
+    expect(
+        ssi::cylinder_sphere_ssi(&threaded_cylinder(), &bad_sphere, slab(), band()).map(|_| ()),
+        "sphere",
+        centre,
+        "NaN sphere centre, cylinder_sphere_ssi",
+    );
+    expect(
+        ssi::idealized_trace_r3(
+            &threaded_cylinder(),
+            &bad_sphere,
+            Point3::new(0.11, 0.0, 0.99),
+            slab(),
+            band(),
+        )
+        .map(|_| ()),
+        "second operand",
+        centre,
+        "NaN sphere centre, idealized_trace_r3",
+    );
+}
+
+/// **Internal tangency still crosses, and the refusal does not say
+/// otherwise.** Viviani's pose — a cylinder of half the sphere's radius
+/// through its centre, touching it from inside at one point — meets the
+/// sphere along a figure-eight that crosses itself at the tangency.
+/// The pair's tangency decision refuses it, and its words must be true
+/// of a pair that crosses.
+#[test]
+fn an_internally_tangent_pair_refuses_without_denying_the_crossing() {
+    let viv = Surface::Cylinder {
+        origin: Point3::new(0.5, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let e = ssi::cylinder_sphere_ssi(&viv, &surf::sphere(1.0), slab(), band()).unwrap_err();
+    assert!(
+        matches!(e, SsiError::PairTangent { .. }) && !e.to_string().contains("rather than cross"),
+        "{e}"
+    );
+    let rendered = e.render(geom_brep::recourse::Reading::Build);
+    assert!(!rendered.contains("rather than cross"), "{rendered}");
+}
+
+/// **The chart-speed mint**: a wall whose certified chart speed along an
+/// axis is not a positive finite number is refused as itself, by axis.
 ///
 /// `plane_nurbs_ssi` translates BOTH of its floors — seeding and
-/// accounting — from meters into the wall's parameter domain by
-/// dividing by that speed, and pads every banked tube by
-/// `tube_radius / speed`. A speed of `+∞` divides all three to exactly
-/// `0`: a floor no cell can reach and a tube of zero width. Nothing
-/// downstream can then state the operation's own terms, so the guard
-/// refuses before the first division rather than letting the sweep run
+/// accounting — from metres into the wall's parameter domain by
+/// dividing by the larger speed, and pads every tube per axis by the
+/// rung over that axis's speed. A speed of `+∞` divides all of them to
+/// exactly `0`: a floor no cell can reach and a tube of zero width.
+/// Nothing downstream can then state the operation's own terms, so the
+/// mint refuses before the first division rather than letting the sweep run
 /// to its cell budget and answer in its place — the budget's sentence
 /// ("your search exceeded the budget") would be the wrong DIAGNOSIS,
 /// the substitution [`a_degenerate_r3_operand_refuses_the_enclosure_typed`]'s
@@ -2283,11 +2478,7 @@ fn an_underflowing_weight_reaches_the_chart_refusal_arm_without_magnitude() {
 ///
 /// The fixture is a net at `1e200` m: every input is finite, the
 /// derivative boxes are finite intervals, and their magnitudes overflow
-/// when squared, so the speed comes out `+∞`.
-///
-/// The guard's fold propagates NaN — `f64::max` returns the non-NaN
-/// operand, which would drop a lone refused derivative box — so a
-/// refused box reaches the same refusal as an overflowed one.
+/// when squared, so the speed along `u` comes out `+∞`.
 #[test]
 fn an_infinite_chart_speed_refuses_rather_than_receipting() {
     let m = 1.0e200;
@@ -2298,10 +2489,11 @@ fn an_infinite_chart_speed_refuses_rather_than_receipting() {
         (1.05 * m, 0.30 * m),
     ]);
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
-        Err(SsiError::UnsupportedCertificate { what }) => {
-            assert!(
-                what.contains("chart speed") && what.contains("not finite"),
-                "the refusal must name the chart speed as the diagnosis: {what}"
+        Err(SsiError::ChartSpeed(ChartSpeedRefusal::NotFinite { axis })) => {
+            assert_eq!(
+                axis,
+                ChartAxis::U,
+                "the net's magnitude is along u; v is the 0.8 m extrusion"
             );
         }
         Err(SsiError::CellBudget { budget }) => panic!(
@@ -2523,36 +2715,468 @@ fn the_ssi_predicates_reach_the_k_funnel() {
     }
 }
 
-/// **A collapsed net lands on the ZERO-speed arm, and the speed is
-/// exactly `0`** — measured to settle two contradicting review
-/// readings (one predicted the budget answers, one a hull-inflated
-/// ≈1e-7 speed keeping the sweep alive).
+/// A clamped cubic × linear net of eight points collapsed to `spread`:
+/// columns `spread·i` along `x`, rows `0` and `spread/2` along `z`.
+fn collapsed_net(spread: f64) -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::with_capacity(8);
+    for i in 0..4 {
+        let x = spread * (i as f64);
+        control.push(Point3::new(x, 0.0, 0.0));
+        control.push(Point3::new(x, 0.0, 0.5 * spread));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+}
+
+/// **A point net refuses on the zero-speed arm; a tiny net reads a
+/// speed at or above its true one.**
 ///
-/// Mechanism: the seeding guard's `mag` squares each derivative-hull
-/// component before its `sqrt`, so a net whose spread is below
-/// ~1e-154 underflows to exactly `0.0` there — no ring inflation
-/// keeps it positive — and the `speed <= 0.0` arm refuses by the
-/// speed's own name before any floor is translated. Pinned across
-/// the whole subnormal-adjacent range the reviews probed.
+/// A net whose spread is exactly zero has derivative boxes that are
+/// exactly `[0, 0]`, so the outward norm reads `0` and the mint refuses
+/// along `u`, the first axis it reads, before any floor is translated.
+///
+/// A net collapsed only to a tiny spread is not that wall. Its chart
+/// speed along `u` at `u = 0` is exactly `3·‖P₁ − P₀‖`, read here off
+/// the stored control points, so the certified sup must be at least
+/// that. A round-to-nearest fold of the box's squares read below it at
+/// `1e-160` (`2.99998e-160` against `3e-160`) and read exactly `0`
+/// further down, where a tiny square underflows. The outward square
+/// rounds UP, so the sup stays at or above the true speed, the zero
+/// arm does not answer, and the sweep excludes the one cell, which the
+/// cutting plane misses by ~0.39 m.
 #[test]
-fn a_collapsed_net_refuses_on_the_zero_speed_arm_not_the_budget() {
-    for spread in [1.0e-200f64, 1.0e-260, 1.0e-300, 1.0e-315] {
-        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let mut control = Vec::with_capacity(8);
-        for i in 0..4 {
-            let x = spread * (i as f64);
-            control.push(Point3::new(x, 0.0, 0.0));
-            control.push(Point3::new(x, 0.0, 0.5 * spread));
+fn a_point_net_refuses_on_the_zero_speed_arm_and_a_tiny_net_reads_at_least_its_true_speed() {
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &collapsed_net(0.0), wall_domain(), band()) {
+        Err(SsiError::ChartSpeed(ChartSpeedRefusal::Zero { axis: ChartAxis::U })) => {}
+        other => {
+            panic!("a point net: expected the zero-speed arm to answer by name, got {other:?}")
         }
-        let w = NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap();
-        match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
-            Err(SsiError::UnsupportedCertificate { what })
-                if what.contains("chart speed is zero") => {}
+    }
+    for spread in [1.0e-160f64, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315] {
+        let net = collapsed_net(spread);
+        let c = net.control();
+        // `S_u(0) = 3·(P₁ − P₀)` for a clamped cubic, with `P₁` the
+        // next column (index 2: the net is column-major over `v`).
+        // `3·Δ` rounds to nearest, so it steps one ulp down to stay a
+        // lower bound on the true speed.
+        let true_speed = (3.0 * (c[2] - c[0]).norm()).next_down();
+        match ssi::plane_nurbs_ssi(&cutting_plane(), &net, wall_domain(), band()) {
+            Ok(out) => {
+                let speed = out.exhaustiveness.lane.speed().map(|s| s.get());
+                assert!(
+                    speed.is_some_and(|s| s >= true_speed),
+                    "spread {spread:e}: the certified chart speed {speed:?} is below the \
+                     true speed {true_speed:e}"
+                );
+                assert!(
+                    out.branches.is_empty(),
+                    "spread {spread:e}: the plane misses the net"
+                );
+            }
             other => panic!(
-                "spread {spread:e}: expected the zero-speed arm to answer by \
-                 name, got {other:?}"
+                "spread {spread:e}: expected a certified speed and an excluded cell, got \
+                 {other:?}"
             ),
         }
+    }
+}
+
+/// The certifiable wall's section with both rows at heights `z0` and
+/// `z1`: the extrusion along `v` is `z1 − z0`.
+fn wall_rows_at(z0: f64, z1: f64) -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::with_capacity(8);
+    for (x, y) in [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)] {
+        control.push(Point3::new(x, y, z0));
+        control.push(Point3::new(x, y, z1));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+}
+
+/// **A degenerate chart refuses by axis, at both doors.** Four walls, one
+/// per arm of the mint: constant along `u` (a point net), constant along
+/// `v` (no extrusion), no finite speed bound along `u` (a net at
+/// `1e200` m) and along `v` (an extrusion `1e200` m tall). Each refuses
+/// with the axis it lands on at `plane_nurbs_ssi` and at the edge lane's
+/// `plane_nurbs_limbs`, which carries the same refusal in its own
+/// vocabulary — before its schedule, whose foot points and normal sines
+/// cannot be stated on such a wall and would otherwise answer in the
+/// mint's place.
+#[test]
+fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
+    let m = 1.0e200;
+    let cases = [
+        (
+            "point net",
+            collapsed_net(0.0),
+            ChartSpeedRefusal::Zero { axis: ChartAxis::U },
+        ),
+        (
+            "no extrusion",
+            wall_rows_at(0.4, 0.4),
+            ChartSpeedRefusal::Zero { axis: ChartAxis::V },
+        ),
+        (
+            "net at 1e200 m",
+            wall_from_cols([
+                (0.0, 0.0),
+                (0.35 * m, 0.14 * m),
+                (0.70 * m, 0.24 * m),
+                (1.05 * m, 0.30 * m),
+            ]),
+            ChartSpeedRefusal::NotFinite { axis: ChartAxis::U },
+        ),
+        (
+            "extrusion 1e200 m tall",
+            wall_rows_at(0.0, m),
+            ChartSpeedRefusal::NotFinite { axis: ChartAxis::V },
+        ),
+    ];
+    let carrier = geom::NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![Point3::new(0.0, 0.0, 0.4), Point3::new(1.05, 0.30, 0.4)],
+        vec![1.0, 1.0],
+    )
+    .unwrap();
+    for (name, wall, want) in cases {
+        match ssi::plane_nurbs_ssi(&cutting_plane(), &wall, wall_domain(), band()) {
+            Err(ref err @ SsiError::ChartSpeed(got)) => {
+                assert_eq!(
+                    got, want,
+                    "{name}: plane_nurbs_ssi refused on the wrong axis"
+                );
+                // The same fact of the face ends alike at both doors.
+                let ending = err.ending(geom_brep::recourse::Reading::Build);
+                let edge = geom_brep::PlaneNurbsRefusal::ChartSpeed(got)
+                    .ending(geom_brep::recourse::Reading::Build);
+                assert!(
+                    ending.is_some() && ending == edge,
+                    "{name}: {ending:?} vs {edge:?}"
+                );
+            }
+            other => panic!("{name}: plane_nurbs_ssi expected {want:?}, got {other:?}"),
+        }
+        match geom_brep::plane_nurbs_limbs::<f64>(&carrier, &cutting_plane(), &wall, 1.0, band()) {
+            Err(geom_brep::PlaneNurbsRefusal::ChartSpeed(got)) => {
+                assert_eq!(
+                    got, want,
+                    "{name}: plane_nurbs_limbs refused on the wrong axis"
+                );
+            }
+            other => panic!("{name}: plane_nurbs_limbs expected {want:?}, got {other:?}"),
+        }
+    }
+}
+
+/// **A tiny net the plane DOES meet refuses by the kind its size
+/// earns**, never `Ok` with no branch. Paired with the row above, whose
+/// `Ok`-empty answers are honest only because its plane misses.
+///
+/// The branch is `3·spread` long, against the march's longest step of
+/// `SSI_STEP_MAX · 1.5` m. Three regions, placed against the run band so
+/// every ε of the battery reads the same kinds:
+///
+/// - a branch at least twice the band's escalate width is traced in
+///   one step each way, and refuses `BranchUndersampled` with its 3
+///   samples. This is also the row that pins the march's diagonal cap
+///   on a real chart: the step (over 1e6 state units at `1e-8`) is
+///   capped at the ℝ⁴ domain's diagonal (5.83). Without the cap, from
+///   spread `1e-7` down it lands where Newton cannot settle it, and the
+///   answer is `StepRefinementFailed`.
+/// - a branch within a few ε of the band is a step that collapses into
+///   it, or a band decision that escalates on it;
+/// - from `1e-100` down, the transversality margin is unreadable and
+///   escalates `ssi_transversality`.
+#[test]
+fn a_tiny_net_the_plane_meets_refuses_by_the_kind_its_size_earns() {
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.5,
+        floor_scale: 1.0,
+    };
+    for s in [
+        1.0e-2f64, 1.0e-3, 1.0e-5, 1.0e-7, 1.0e-8, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260,
+        1.0e-300, 1.0e-315,
+    ] {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.25 * s),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let r = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band());
+        let ok = if s <= 1.0e-100 {
+            matches!(&r, Err(SsiError::Escalated(d)) if d.predicate == Some("ssi_transversality"))
+        } else if 3.0 * s >= 2.0 * band().escalate() {
+            matches!(
+                &r,
+                Err(SsiError::BranchUndersampled {
+                    samples: 3,
+                    need: 4,
+                    ..
+                })
+            )
+        } else {
+            matches!(
+                &r,
+                Err(SsiError::StepCollapsed { .. } | SsiError::Escalated(_))
+            )
+        };
+        assert!(ok, "spread {s:e} at ε {:e}: {r:?}", band().zero());
+    }
+}
+
+/// **An unusable domain refuses at the door, by its knob**, at every
+/// SSI door's rule (`SsiDomain::check`): never routed into the floor
+/// door, where an unreadable slab used to read as a scale and end
+/// "move the geometry nearer the origin". A zero half-extent is an
+/// empty domain, and refuses too: an `Ok` with no branch over it would
+/// be evidence of nothing.
+#[test]
+fn an_unusable_domain_refuses_by_its_knob_at_the_door() {
+    use geom_brep::DomainField;
+    use geom_brep::recourse::Reading;
+
+    let rows = [
+        (
+            SsiDomain {
+                half_extent: f64::NAN,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                half_extent: f64::INFINITY,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                half_extent: -1.0,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                half_extent: 0.0,
+                ..slab()
+            },
+            DomainField::HalfExtent,
+        ),
+        (
+            SsiDomain {
+                center: Point3::new(f64::NAN, 0.0, 0.0),
+                ..slab()
+            },
+            DomainField::Center,
+        ),
+        (
+            SsiDomain {
+                extent: 0.0,
+                ..slab()
+            },
+            DomainField::Extent,
+        ),
+        (
+            SsiDomain {
+                floor_scale: f64::NAN,
+                ..slab()
+            },
+            DomainField::FloorScale,
+        ),
+    ];
+    for (d, want) in rows {
+        let r3 = ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, band());
+        let chart = ssi::plane_nurbs_ssi(&cutting_plane(), &certifiable_wall(), d, band());
+        for r in [r3, chart] {
+            let Err(ref e @ SsiError::DomainUnusable { field, .. }) = r else {
+                panic!("{d:?}: expected the domain door, got {r:?}");
+            };
+            assert_eq!(field, want, "{d:?}");
+            let shown = e.render(Reading::Build);
+            assert!(
+                !shown.contains("nearer the origin") && shown.contains("Recourse: give the domain"),
+                "{shown}"
+            );
+        }
+    }
+}
+
+/// **A floor no bisection of its domain can reach refuses by name, on
+/// both lanes, before any sweep runs.**
+///
+/// Chart lane: the certifiable wall scaled to `1e150` m has a finite
+/// certified chart speed of about `1e150` m per chart unit, so the
+/// accounting floor of ε metres is about `ε·1e-150` chart units, far
+/// below the `[0, 1]` domain's finest cell. The sweep used to refine
+/// toward it until the cell budget answered in the floor's place.
+///
+/// ℝ³ lane: D4 ¶1 claims micron-to-kilometre coverage with ~4 orders of
+/// f64 headroom at km scale; this is that claim as a check. A slab at
+/// `1e8` m with a `1e-8` m accounting floor (stated in metres, so the
+/// same width at every ε of the battery) cannot be resolved, because
+/// two adjacent floats there are `1.49e-8` m apart.
+#[test]
+fn a_floor_no_bisection_reaches_refuses_by_name_on_both_lanes() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{ExhaustLane, FloorFault, FloorKind};
+
+    let m = 1.0e150;
+    let wall = wall_from_cols([
+        (0.0, 0.0),
+        (0.35 * m, 0.14 * m),
+        (0.70 * m, 0.24 * m),
+        (1.05 * m, 0.30 * m),
+    ]);
+    let chart = ssi::plane_nurbs_ssi(&cutting_plane(), &wall, wall_domain(), band());
+    let Err(ref err @ SsiError::FloorUnresolvable(r)) = chart else {
+        panic!("the 1e150 m wall: expected the floor door, got {chart:?}");
+    };
+    assert_eq!(r.floor, FloorKind::Accounting);
+    let ExhaustLane::Chart { speed } = r.lane else {
+        panic!("the chart lane refused on the ℝ³ lane: {r:?}");
+    };
+    assert!(
+        speed.get() > 1.0e150 && speed.get() < 1.0e151,
+        "{:e}",
+        speed.get()
+    );
+    assert_eq!(
+        r.meters,
+        SSI_FLOOR * band().zero(),
+        "the caller's own metres"
+    );
+    let gap = 1.0 - 1.0f64.next_down();
+    assert_eq!(
+        r.fault,
+        FloorFault::BelowResolution {
+            resolution: gap,
+            reach: 1.0
+        }
+    );
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains(&format!(
+            "m is {:e} chart units at a certified chart speed of {:e} m per chart unit, \
+             which the domain cannot resolve",
+            r.width,
+            speed.get()
+        )) && shown.contains("Recourse: bring the spline face within the model's size range"),
+        "{shown}"
+    );
+
+    let at = Point3::new(1.0e8, 0.0, 0.0);
+    let far = Surface::Sphere {
+        center: at,
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cylinder = match threaded_cylinder() {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin: Point3::new(origin.x + at.x, origin.y, origin.z),
+            axis,
+            radius,
+            u_ref,
+        },
+        other => panic!("{other:?}"),
+    };
+    let domain = SsiDomain {
+        center: at,
+        floor_scale: SsiDomain::floor_scale_for(1.0e-8, band()),
+        ..slab()
+    };
+    let r3 = ssi::cylinder_sphere_ssi(&cylinder, &far, domain, band());
+    let Err(ref err @ SsiError::FloorUnresolvable(r)) = r3 else {
+        panic!("the slab at 1e8 m: expected the floor door, got {r3:?}");
+    };
+    assert!(matches!(r.lane, ExhaustLane::R3), "{r:?}");
+    assert_eq!(r.floor, FloorKind::Accounting);
+    let reach = 1.0e8 + slab().half_extent;
+    let FloorFault::BelowResolution {
+        resolution,
+        reach: got,
+    } = r.fault
+    else {
+        panic!("{r:?}");
+    };
+    assert!(
+        got >= reach && resolution > r.width && resolution < 2.0e-8,
+        "{r:?}"
+    );
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains("Recourse: move the geometry nearer the origin"),
+        "{shown}"
+    );
+}
+
+/// **A branch shorter than a few march steps names its extent.** The
+/// collapsed net at spread `1e-2`, against a plane that meets it, has
+/// a branch about 3 cm long. The march's longest step is
+/// `SSI_STEP_MAX` of the domain's 1.5 m extent, about 4.7 cm, so the
+/// trace leaves the wall in one step each way and yields 3 samples. The
+/// fit used to refuse that as `Fit(TooFewPoints)`, which named no
+/// geometry. Following the recourse — an extent the size of the branch
+/// — traces and certifies the branch.
+#[test]
+fn a_branch_shorter_than_the_march_step_names_the_extent_that_set_it() {
+    use geom_brep::recourse::Reading;
+
+    let spread = 1.0e-2;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.25 * spread),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.5,
+        floor_scale: 1.0,
+    };
+    let net = collapsed_net(spread);
+    let r = ssi::plane_nurbs_ssi(&plane, &net, dom, band());
+    let Err(
+        ref err @ SsiError::BranchUndersampled {
+            samples,
+            need,
+            length,
+            longest_step,
+            extent,
+        },
+    ) = r
+    else {
+        panic!("expected the shortfall named by its geometry, got {r:?}");
+    };
+    assert_eq!((samples, need), (3, 4));
+    assert_eq!(longest_step, ssi::SSI_STEP_MAX * 1.5);
+    assert_eq!(extent, 1.5);
+    // The wall's columns run from 0 to 3·spread along x.
+    assert!((length - 3.0 * spread).abs() < 1.0e-6, "{length:e}");
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.ends_with(&format!(
+            "Recourse: name a feature extent no larger than this feature, here {length:e} m"
+        )),
+        "{shown}"
+    );
+    let followed = SsiDomain {
+        extent: length,
+        ..dom
+    };
+    match ssi::plane_nurbs_ssi(&plane, &net, followed, band()) {
+        Ok(out) => assert_eq!(out.branches.len(), 1, "the recourse traces the branch"),
+        Err(e) => panic!("the recourse did not trace the branch: {e}"),
     }
 }

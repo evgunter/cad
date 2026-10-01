@@ -17,7 +17,7 @@ use sweep::blend::battery::{
     BlendRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
     spine_regularity,
 };
-use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendDecision, BlendError, BlendSite, CornerConfig, RunOutPolicy};
 use sweep::test_support::cube;
 use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
@@ -466,20 +466,21 @@ fn trio_chain_g1() {
     let tiny = in_band();
     let escalated = chain_g1(x, Vec3::new(1.0, tiny, 0.0), 1.0, v, b).unwrap_err();
     assert_same_recourse(&definite, &escalated, "tangent-continuous chain");
-    // The collapsed-arm gate: an arm at zero is not a question.
+    // The arm gate: an angle at an arm decided zero is not a question.
     let collapsed = chain_g1(x, y, 0.0, v, b).unwrap_err();
     match &collapsed {
         BlendError::Escalated {
             site: BlendSite::Joint { .. },
+            decision: BlendDecision::ChainArm,
             source,
         } => assert_eq!(source.predicate, Some("fillet3_chain_arm")),
-        other => panic!("a collapsed arm must escalate Invalid, got {other:?}"),
+        other => panic!("an arm decided zero must refuse as the arm gate, got {other:?}"),
     }
-    // `fillet3_chain_arm` never refuses definitely — it is the gate on
-    // the junction question, so it only ever escalates — and it
-    // carries the sentence its gated predicate's definite refusal
-    // carries: a caller whose junction arm collapsed and a caller
-    // whose junction kinked both need a chain the door can take.
+    // `fillet3_chain_arm` refuses through `Escalated` on every arm, the
+    // decided-zero one carrying the arm it read, and its lever is the
+    // one its gated predicate's definite refusal carries: a caller
+    // whose junction arm collapsed and a caller whose junction kinked
+    // both need a chain the door can take.
     assert_same_recourse(&definite, &collapsed, "tangent-continuous chain");
 }
 
@@ -611,7 +612,7 @@ fn trio_corner_independence() {
         }
         other => panic!("an in-band determinant must escalate, got {other:?}"),
     }
-    assert_same_recourse(&exact, &escalated, "FULLY REQUESTED trivalent vertices");
+    assert_same_recourse(&exact, &escalated, "clearly not all parallel to one line");
 }
 
 /// A cylinder whose top cap sits on a plane tilted off the rim
@@ -704,6 +705,7 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
         u_ref,
     };
+    // Lifts both refusals: the tilted cap plane is the coaxiality fixture.
     body.set_face_surface_stranding_for_tests(
         cap,
         FaceSurface::New {
@@ -748,6 +750,7 @@ fn trio_support_coaxiality() {
     match &escalated {
         BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: BlendDecision::SupportCoaxiality,
             source,
         } => assert_eq!(source.predicate, Some("fillet3_support_coaxiality")),
         other => panic!("an in-band departure must escalate at the chain, got {other:?}"),

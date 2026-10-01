@@ -2,7 +2,7 @@
 id: cleave
 kind: program
 title: CLEAVE — split and boolean outputs that are invalid or wrong, and the P1 structure under them
-status: ready
+status: active
 opened: 2026-10-01
 area: kernel
 prefix: cleave/

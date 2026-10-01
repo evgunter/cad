@@ -76,7 +76,7 @@ fn cylinder(z0: f64, height: f64) -> Body<f64> {
 /// The nested pair as one two-instance arena.
 fn assembly(outer: &Body<f64>, inner: &Body<f64>) -> Body<f64> {
     let mut out = outer.clone();
-    topo::graft_disjoint(&mut out, inner, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, inner).unwrap();
     out
 }
 

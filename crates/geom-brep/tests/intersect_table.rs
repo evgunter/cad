@@ -835,22 +835,22 @@ fn declared_coaxial_tangency_is_classification_data_at_both_doors() {
         // beside it; `CertificateLimb` is not a tangency door at all —
         // it is a certificate limb failing — so accepting it would
         // have let the consistency claim green on a refusal that says
-        // nothing about tangency. Measured payload at this pose:
-        // `sin θ = 0`, `arm = 1`, `σ₂ = 0` — a transversality that is
-        // exactly, not nearly, dead.
+        // nothing about tangency. The payload is the pair's own gap
+        // from the tangent pose, decided zero to tolerance.
         let err = geom_brep::ssi::cylinder_sphere_ssi(&cyl, &sph, domain, band())
             .expect_err("the marcher must refuse a tangency");
-        let geom_brep::ssi::SsiError::TransversalityBand {
-            sin_theta,
-            arm,
-            sigma_min,
+        let geom_brep::ssi::SsiError::PairTangent {
+            verdict: geom_brep::recourse::Refused::Zero(classified),
         } = err
         else {
             panic!("{label}: expected the SSI's TANGENCY door, got {err:?}");
         };
-        assert_eq!(sin_theta, 0.0, "{label}");
-        assert_eq!(arm, 1.0, "{label}");
-        assert_eq!(sigma_min, 0.0, "{label}");
+        let geom_core::ErrorTextReading::Value(gap) =
+            classified.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("{label}: the gap is a value: {classified:?}");
+        };
+        assert_eq!(gap, 0.0, "{label}: the coaxial pose is tangent exactly");
     }
 }
 

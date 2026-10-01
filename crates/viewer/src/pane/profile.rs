@@ -19,6 +19,7 @@ use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
 use crate::drafts::{ProfileEdit, RowEdit};
 use crate::frame;
+use crate::props::Notation;
 use crate::session::{DocSession, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::Theme;
@@ -36,7 +37,7 @@ impl ViewerBehavior<'_> {
     /// [`crate::sketch::held_loops`], committed whole by
     /// [`SessionOp::EditProfile`] ([`edit_door_ui`]).
     ///
-    /// Returns `false`, having said why in the unresolved colour, when
+    /// Returns `false`, having said why in the actionable colour, when
     /// the editor cannot hold this profile (an argument an expression
     /// drives): the caller shows the slot rows instead, which can. When
     /// it returns `true` the caller still offers the slot rows, folded
@@ -59,13 +60,10 @@ impl ViewerBehavior<'_> {
         notation_row(
             ui,
             "edit_path",
-            &mut self.drafts.length_unit,
-            &mut self.drafts.angle_unit,
+            &mut self.notation.length,
+            &mut self.notation.angle,
         );
-        let written = (
-            (self.drafts.length_unit.def(), self.drafts.angle_unit.def()),
-            self.drafts.notation(),
-        );
+        let notation = *self.notation;
         let Some(edit) = self.drafts.profile_edit.as_mut() else {
             unreachable!("`Drafts::profile_edit` answered Ok, so the draft is held")
         };
@@ -73,7 +71,7 @@ impl ViewerBehavior<'_> {
             ui,
             session,
             self.theme,
-            written,
+            notation,
             edit,
             self.profile_previews.edit.as_ref(),
         ) {
@@ -106,13 +104,14 @@ pub(crate) fn edit_door_ui(
     ui: &mut egui::Ui,
     session: &DocSession,
     theme: Theme,
-    (units, notation): ((UnitDef, UnitDef), sketch::Notation),
+    notation: Notation,
     edit: &mut ProfileEdit,
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) -> Result<Option<SessionOp>, frame::Message> {
     let node = edit.node;
-    ui.label(format!("profile on frame {}", edit.plane().0));
+    ui.label(format!("profile on {}", session.doc().spoken(edit.plane())));
     let loops = edit.loops().len();
+    let units = (notation.length.def(), notation.angle.def());
     let mut rows = Vec::new();
     for index in 0..loops {
         // A loop label only where there is more than one: "loop 0"
@@ -120,7 +119,7 @@ pub(crate) fn edit_door_ui(
         if loops > 1 {
             ui.label(format!("loop {index}"));
         }
-        let salt = format!("edit_{}_{index}", node.0);
+        let salt = format!("edit_{}_{index}", node.full());
         if let Some(row) = path_steps_ui(ui, &salt, session.tol(), units, edit.steps_mut(index)) {
             rows.push((index, row));
         }
@@ -495,6 +494,7 @@ mod tests {
     use crate::pane::headless::{
         Landed, Voices, find, find_opening, landed_voiced, painted_while_hovering,
     };
+    use crate::props::Notation;
     use crate::sketch::{
         self, Cut, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, ProfileShape,
     };
@@ -614,7 +614,7 @@ mod tests {
                         phase: 0.0,
                     }],
                 },
-                sketch::Notation::CANONICAL,
+                Notation::CANONICAL,
             )
             .expect("finite"),
         ];
@@ -769,8 +769,8 @@ mod tests {
     /// held the commit.
     fn drawn(preview: &Result<ProfilePreview, PreviewError>) -> (Vec<Landed>, Voices, bool) {
         let mut held = None;
-        let (painted, voices) = landed_voiced(|ui| {
-            held = Some(preview_verdict(ui, Theme::DEFAULT, Some(preview)));
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            held = Some(preview_verdict(ui, *theme, Some(preview)));
         });
         (painted, voices, held.expect("the verdict was drawn"))
     }
@@ -848,7 +848,7 @@ mod tests {
             let (painted, voices, held) = drawn(&refused);
             assert_eq!(
                 find(&painted, &error.to_string()).ink,
-                Some(voices.unresolved),
+                Some(voices.actionable),
                 "{error}"
             );
             assert!(held, "{error} holds the commit");
@@ -858,7 +858,7 @@ mod tests {
     /// **A refused step's loop draws, and the form says the refusal
     /// loud.** The `arc_fillet_arc` the form hands an author who picks
     /// it after two legs is refused on arrival; what is said under the
-    /// step list is that refusal in the unresolved voice, holding the
+    /// step list is that refusal in the actionable voice, holding the
     /// commit — never the unfinished chain's quiet sentence, though the
     /// loop drawn does not close.
     ///
@@ -881,7 +881,7 @@ mod tests {
         let (painted, voices, held) = drawn(&cut);
         assert_eq!(
             find(&painted, &refused.to_string()).ink,
-            Some(voices.unresolved),
+            Some(voices.actionable),
             "{refused}"
         );
         assert!(
@@ -1033,7 +1033,7 @@ mod tests {
         let (painted, voices, held) = drawn(&crossing);
         assert_eq!(
             find_opening(&painted, "does not validate: ").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
         assert!(held, "an invalid profile holds the commit");
 
@@ -1110,7 +1110,7 @@ mod tests {
                 &crate::session::ProfileShape::Path {
                     steps: Drafts::default().profile_path,
                 },
-                sketch::Notation::CANONICAL,
+                Notation::CANONICAL,
             )
             .expect("the form's default chain lowers"),
         ];
@@ -1175,11 +1175,8 @@ mod tests {
             let edit = drafts
                 .profile_edit(session.committed_doc(), profile)
                 .expect("the editor holds the profile");
-            let written = (
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                sketch::Notation::CANONICAL,
-            );
-            match super::edit_door_ui(ui, session, Theme::DEFAULT, written, edit, None) {
+            match super::edit_door_ui(ui, session, Theme::DEFAULT, Notation::CANONICAL, edit, None)
+            {
                 Ok(Some(op)) => formed = Some(op),
                 Ok(None) => {}
                 Err(notice) => panic!("the door could not form its op: {notice:?}"),
@@ -1286,15 +1283,20 @@ mod tests {
             let edit = drafts
                 .profile_edit(session.committed_doc(), profile)
                 .expect("held");
-            let written = (
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                sketch::Notation::CANONICAL,
+            let _hovered_only = super::edit_door_ui(
+                ui,
+                &session,
+                Theme::DEFAULT,
+                Notation::CANONICAL,
+                edit,
+                None,
             );
-            let _hovered_only =
-                super::edit_door_ui(ui, &session, Theme::DEFAULT, written, edit, None);
         });
         assert!(
-            hovered.contains(&format!("node {} carries a {wall}", carrier.0)),
+            hovered.contains(&format!(
+                "node {} carries a {wall}",
+                test_utils::refusal::tag(carrier.0)
+            )),
             "the hover names the carrier and the name: {hovered}"
         );
         // Another step dropped instead strands nothing — what Apply
@@ -1317,11 +1319,14 @@ mod tests {
             let edit = drafts
                 .profile_edit(session.committed_doc(), profile)
                 .expect("held");
-            let written = (
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                sketch::Notation::CANONICAL,
+            let _read_only = super::edit_door_ui(
+                ui,
+                &session,
+                Theme::DEFAULT,
+                Notation::CANONICAL,
+                edit,
+                None,
             );
-            let _read_only = super::edit_door_ui(ui, &session, Theme::DEFAULT, written, edit, None);
         });
         assert!(painted.contains(label), "{painted}");
         let (_, formed) = click_door(&session, &mut drafts, profile, "Revert", 0);

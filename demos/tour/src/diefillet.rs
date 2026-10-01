@@ -528,7 +528,7 @@ pub fn corpus_text(tol: Tol) -> String {
             assert_eq!(
                 built.ids, replayed.ids,
                 "profile node {} re-mints its step ids exactly as `build` minted them",
-                id.0
+                id
             );
         }
     }

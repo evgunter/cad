@@ -87,6 +87,8 @@ mod parser;
 mod per_part_gate_policy;
 #[path = "perf12_census_goldens.rs"]
 mod perf12_census_goldens;
+#[path = "placed_m7_8_instance.rs"]
+mod placed_m7_8_instance;
 #[path = "poleguard.rs"]
 mod poleguard;
 #[path = "probe_dup.rs"]
@@ -131,12 +133,15 @@ mod roundtrip;
 mod rw2_probes;
 #[path = "s58_iso_rectangle.rs"]
 mod s58_iso_rectangle;
+#[path = "spiric_roundtrip.rs"]
+mod spiric_roundtrip;
 #[path = "split_iso_side.rs"]
 mod split_iso_side;
 #[path = "tcost_k3_import_certificate.rs"]
 mod tcost_k3_import_certificate;
 #[path = "tier_gate.rs"]
 mod tier_gate;
+
 #[path = "verbs_chamfer_roundtrip.rs"]
 mod verbs_chamfer_roundtrip;
 #[path = "wall_column_structure.rs"]

@@ -266,6 +266,8 @@ mod m10_4_seed;
 mod maintenance_net;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
+#[path = "msolve11_mate_log.rs"]
+mod msolve11_mate_log;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
 #[path = "msolve2_member_chain.rs"]
@@ -282,6 +284,10 @@ mod msolve6_part_extent;
 mod msolve7_member_residue;
 #[path = "msolve8_levered_clash.rs"]
 mod msolve8_levered_clash;
+#[path = "msolve9_from_face.rs"]
+mod msolve9_from_face;
+#[path = "onb_seam_class_interval.rs"]
+mod onb_seam_class_interval;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 #[path = "rv_payloadrefs_probes.rs"]
@@ -441,6 +447,8 @@ mod mate6r1_shared;
 mod mate6r2_probes;
 #[path = "name_depth.rs"]
 mod name_depth;
+#[path = "name_tables_by_position.rs"]
+mod name_tables_by_position;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
 #[path = "node_standing.rs"]
@@ -599,6 +607,9 @@ mod kstats_bracket_rows;
 #[path = "m10_9_r1_probes_interval.rs"]
 mod m10_9_r1_probes_interval;
 
+#[path = "sym_9_retry_interval.rs"]
+mod sym_9_retry_interval;
+
 #[path = "m10_10_evidence_interval.rs"]
 mod m10_10_evidence_interval;
 #[path = "m10_10_pins_interval.rs"]
@@ -640,8 +651,16 @@ mod wire_rv_unknown;
 
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
+#[path = "decide_3_split_rows_interval.rs"]
+mod decide_3_split_rows_interval;
+#[path = "decide_6_read_cost_interval.rs"]
+mod decide_6_read_cost_interval;
+#[path = "decide_7_rule_g_cost_interval.rs"]
+mod decide_7_rule_g_cost_interval;
 #[path = "edit_refusal_recourse.rs"]
 mod edit_refusal_recourse;
+#[path = "emit_edge_piece_locality.rs"]
+mod emit_edge_piece_locality;
 #[path = "emit_pair_cut_and_merged.rs"]
 mod emit_pair_cut_and_merged;
 #[path = "emit_seam_edge_merged.rs"]

@@ -3,10 +3,10 @@
 //! rigid steps of expressions and literal frames.
 //!
 //! [`crate::Doc`]'s placement registry holds one [`Frame`] per
-//! placement cluster, keyed by the cluster's gauge instance (A11 (3)).
+//! placement group, keyed by the group's root instance (A11 (3)).
 //! A missing entry is the IDENTITY frame: a legal, complete state, not
 //! a hole. Zero-anchor and multi-anchor states are unrepresentable
-//! because the registry holds at most one frame per cluster.
+//! because the registry holds at most one frame per group.
 
 use geom_core::predicate::Band;
 use geom_core::{Affine3, Decide, Mat3, Real, Vec3};
@@ -287,7 +287,7 @@ impl Frame {
 
     /// The composition `self ∘ inner`: the frame that places by
     /// `inner` first, then by `self` — inline's rule (ASM-4 D-3: the
-    /// instance's cluster frame composed onto the part's placements),
+    /// instance's group frame composed onto the part's placements),
     /// by [`Motion::compose`] at `f64`.
     #[must_use]
     pub fn compose(&self, inner: &Frame) -> Frame {
@@ -310,7 +310,7 @@ impl Frame {
     /// orientation, and is a rigid motion.
     ///
     /// One predicate with one home, asked wherever a document admits a
-    /// frame — the A11 cluster registry ([`crate::doc::PlacementFault`]),
+    /// frame — the A11 group registry ([`crate::doc::PlacementFault`]),
     /// a placement rule's listed frames
     /// ([`crate::node::PlacementRuleFault`]) and a transform's literal
     /// steps ([`Placement::frame_fault`]) — so none of them can come to
@@ -455,9 +455,9 @@ impl FrameSite {
     #[must_use]
     pub fn subject(self, node: crate::node::RecipeNodeId) -> String {
         match self {
-            Self::Registry => format!("the placement frame for node {}", node.0),
-            Self::Listed { index } => format!("placement {index} of node {}", node.0),
-            Self::Step { index } => format!("step {} of node {}'s placement", index + 1, node.0),
+            Self::Registry => format!("the placement frame for node {}", node),
+            Self::Listed { index } => format!("placement {index} of node {}", node),
+            Self::Step { index } => format!("step {} of node {}'s placement", index + 1, node),
         }
     }
 }
@@ -897,7 +897,7 @@ mod tests {
     /// linear-part snap is the one that silently changes an answer:
     /// `mate::solve`'s `reconcile` branches on
     /// `relative.is_identity_bits()` and its `true` arm DISCARDS the
-    /// solved relative pose, so a gauge that rotated by a hair would
+    /// solved relative pose, so a root that rotated by a hair would
     /// read as "did not move".
     ///
     /// Each of the four is one representable step from the identity —

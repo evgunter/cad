@@ -117,3 +117,134 @@ cleared.
   review: a refusal-vocabulary change that reads for itself.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — the weighing, the reviews, D36
+
+**The design pair** (`docs/DESIGN-FORK-PROTOCOL.md`; byte on
+`analysis/design-fork/pcert-at-rest-absence-2026-10-01`) agreed on the
+spine at first report: no recorded history (never-minted, refused and
+emptied are histories a body at rest cannot hold), and tier 3 derives a
+rowless face rather than skipping it. They split on whether a stored
+row is mandatory at rest (`Unminted` and `MissingCache` findings) or a
+cache every reader can do without (one deriving reader), and on whether
+an uncovered face is a finding. One reconciliation round CONVERGED (not
+crossed): both now recommend the optional cache (one likely, one
+unsure) and an uncovered face out of the validity verdict. The
+remaining question — may a reader rely on a stored row — goes to Ev on
+`pcert/ev-at-rest-rows`.
+
+**Spike, for that question** (read-only): the walk pins a loop's branch
+once at its start; honouring stored rows as anchors needs a `fixed`
+flag on `WalkItem` and a start rotation, about 30–80 lines, not a new
+walk. Derivation costs about 1–3× the re-certification tier 3 already
+pays. `boolean/boxes.rs::face_window_steps` would rise from `Real` to
+`Decide` and return owned rows; the props quad lane needs the fitted
+lane passed as a parameter or a bound raise on the public
+`mass_properties`. Two stored runs a period apart are reachable without
+corruption: `plan_moved_rows` keeps moved rows unchecked when the chart
+matches (`kef`'s remnant), and only pass 3 catches it, which today
+never runs on a face with a gap.
+
+**Off-question, recorded so they are not lost:** `crates/sweep/src/extrude.rs`
+mints nothing, so extruded arc walls are rowless at rest (a defect
+under the mandatory answer, cache warmth under the optional one —
+filed once Ev rules); `validate_pcurves`' and `MissingCache`'s docs
+cite a "spec §5" and "every sweep output" as never minted, both stale.
+
+**`D36` re-banded P0 and dispatched now** (single FULL review: a
+refusal that narrows a swallow turns some passing mints loud, which is
+believed by checking): both designers recommended the split under
+every answer, and the swallow forgives a body whose edge is not on its
+face. Reasons on the row.
+
+**Reviews adjudicated:**
+
+- `pcurve-chart-box-is-looser-than-harmonic-extent` (PR 3610): approve.
+  The reviewer found check 5 tautological at mint and at rest (the
+  window is the hull of the same rows' `chart_box`), so the row's
+  premise that check 5 was looser than needed was wrong: nothing could
+  move a verdict, and nothing did. One MINOR, latent: the new box is
+  not monotone under span restriction for a channel mixing trig and
+  linear terms, which `split_cache` relies on; no constructor builds
+  such a channel today. Fix pass: pin child-in-parent for the families
+  that ship, state the premise where `split_cache` and check 5's docs
+  rest on it, fold the `IsoLine` arm onto the one home, fix the stale
+  "the one arm whose box is TIGHT" comment.
+- `placeholder-chart-sup-arms-are-not-a-bound` (PR 3614): mergeable
+  with fixes. Two MINORs: the "is this the placeholder" test is spelled
+  twice and the spellings disagree on an `Approx` surface whose fit is
+  the placeholder; and the new `weight_ratio_factor` `assert!` is
+  reachable through public knot insertion (subnormal weights), so it
+  returns to poison and the upstream weight defect is filed. The
+  placeholder refusal now has five spellings; the fix pass gives it one
+  home.
+- `pcurve-fit-refusal-drops-the-domain-doors-reason` (PR 3612):
+  mergeable. Two schedule copies the dedup's pattern could not match
+  (`step-import`'s `arc_rim_on_wall_boundary`, `geom-brep`'s
+  `pcurve.rs` fit schedule); the reparameterize recourse is spelled in
+  two places; `DomainInvalid` is unreachable through the producer (the
+  foot schedule poisons first).
+
+**A possible red main, not this program's:** `topo`'s
+`euler_kill::tests::kev_describing_asks_the_survivors_point_only_where_a_question_needs_it`
+fails under `--all-features` (tier-1 `DanglingGeometry`) and passes
+without; one lane saw it on a clean `origin/main`. Checked against the
+nightly before anyone is summoned.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — note from REACH: main is red on a row PR 3612 moved
+
+Bisected to PR 3612: `m10_sym_profile_interval` `the_forms_the_walks_build_are_pinned_per_eps_row`
+is red on main at the default ε. Filed on your slate as
+`pcurve-fit-domain-refusal-moves-the-m10-sym-walk-ledger` with the
+numbers. Whether to re-baseline is your call. — (REACH orchestrator)
+
+## 2026-10-01 — two merged, one red on main, Ev's questions
+
+**Merged:** PR 3610 (`pcurve-chart-box-is-looser-than-harmonic-extent`)
+and PR 3612 (`pcurve-fit-refusal-drops-the-domain-doors-reason`), by a
+merge-steward lane in sequence after their fix passes went green. Both
+rows closed here rather than on their own branches: a state-sync commit
+on a merged-code branch would have re-earned the gate for no code.
+
+**3612 turned main red.** Its exact end samples moved `editor-core`'s
+`m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row`
+ledger, which its change filter did not run (the steward bisected
+3610's merge green, 3612's red). The re-baseline is this program's debt,
+on `pcert/rebaseline-sym-ledger`, ported into PR 3614, whose CI it
+reds. 3614's other red, `sweep`'s `reach_volume_backstop` off the
+default ε, is REACH's (`work/reach/reach-volume-backstop-fails-off-the-default-eps.md`,
+caused by PR 3611): inherited, annotated on the PR, not absorbed.
+
+**`D36`** stopped at its gate (3614 unmerged) with its per-site
+classification done: three meanings, about 9 uncovered (two gated by a
+new sphere incidence trilean), 14 not on the chart, 5 image mismatches,
+8 unreachable or fixed by a type change. It resumes when 3614 lands.
+
+**Ev asked on PR 3617** why `extrude` does not mint and why the octant
+is uncached. Answered there: no reason is recorded for extrude
+(filed on CARVE as `extrude-mints-no-pcurve-rows`), and the octant can
+be cached — the fitted Circle route exists, no mint site reaches it
+(filed here as `mint-has-no-route-to-the-fitted-general-circle-arm`).
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — 3614 and the ledger re-baseline merged
+
+PR 3652 re-baselined `editor-core`'s sym walk ledger (main red since
+3612's merge): only the decision walks moved, the same calls building
+fewer forms, at every ε row for the slab and once for the plate, whose
+move was hidden behind the slab's failing assertion until that one was
+fixed. Measured locally at all three ε rows; green hosted.
+
+PR 3614 (`placeholder-chart-sup-arms-are-not-a-bound`) merged with the
+re-baseline ported in. Its one remaining red was confirmed at the step
+level as inherited: default ε, the slow set and doc-tests green; the
+off-ε step failed on exactly the four `reach_volume_backstop` rows
+REACH has filed (`reach-volume-backstop-fails-off-the-default-eps`,
+PR 3611's). Annotated on the PR before merging; REACH keeps the debt.
+
+`D36` resumes now that its gate (3614) has landed.
+
+Signed (PCERT orchestrator).

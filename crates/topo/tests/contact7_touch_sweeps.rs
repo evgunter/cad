@@ -68,7 +68,7 @@ fn graft_prism(
         tol,
     );
     common::describe_as_intersections(&mut part, tol);
-    topo::graft_disjoint(body, &part, tol).unwrap();
+    topo::graft_disjoint(body, &part).unwrap();
 }
 
 /// The rotation by `ang` about `axis`.
@@ -202,7 +202,7 @@ fn graft_parallelepiped(body: &mut Body<f64>, p: [f64; 3], a: [f64; 3], b: [f64;
         },
         Tol::witness(),
     );
-    topo::graft_disjoint(body, &part, Tol::witness()).unwrap();
+    topo::graft_disjoint(body, &part).unwrap();
 }
 
 type Solid3 = ([f64; 3], [f64; 3], [f64; 3], [f64; 3]);

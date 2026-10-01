@@ -131,12 +131,12 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
-    EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
-    MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError, PersistError,
-    PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
-    RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError, SlotId, SnapshotError,
-    SplitError, StepHandleRefusal, StepIdFault, Subgroup, UpdateError,
+    EditError, EvalError, FacePoseRefusal, FaceRefusal, FrameFault, InlineError, InterfaceCrossing,
+    LeverRefusal, Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
+    MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
+    PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
+    RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError,
+    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -536,6 +536,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
+        EditError::NodeIdCollides { .. } => "node_id_collides",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -1000,6 +1001,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
         C::MateSelf => "mate_self",
         C::MateUnleverable => "mate_unleverable",
+        C::MateFaceUnresolved => "mate_face_unresolved",
         C::CrossingUnverified => "crossing_unverified",
     }
 }
@@ -1179,6 +1181,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetProgramOnNonProfile { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
+        EditError::NodeIdCollides { .. } => None,
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1485,6 +1488,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::RestZipUnsupported => "rest_zip_unsupported",
         BooleanErrorKind::JoinDesync => "join_desync",
         BooleanErrorKind::TornComponent => "torn_component",
+        BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
         BooleanErrorKind::Containment => "containment",
         BooleanErrorKind::Revert => "revert",
         BooleanErrorKind::SeamOrientation => "seam_orientation",
@@ -1492,6 +1496,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Merge => "merge",
         BooleanErrorKind::ResultInvalid => "result_invalid",
         BooleanErrorKind::ResultVolumeImplausible => "result_volume_implausible",
+        BooleanErrorKind::VolumeUnmeasured => "volume_unmeasured",
+        BooleanErrorKind::VolumeCorrupt => "volume_corrupt",
+        BooleanErrorKind::VolumeUndecided => "volume_undecided",
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
     }
@@ -1509,6 +1516,7 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
+        TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
@@ -1591,10 +1599,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::MergedChord { .. } => "merged_chord",
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
         NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
-        NamingError::SeamLineSides { .. } => "seam_line_sides",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
-        NamingError::SplitReference { .. } => "split_reference",
-        NamingError::NarrowBand { .. } => "narrow_band",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -1685,20 +1690,58 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
     node_error_tag(NodeErrorClass::of_mate(fault))
 }
 
+/// The stable tag for a face refusal — the inner arm of
+/// [`mate_fault_tag`]'s `mate_face_unresolved`: why a `FromFace`
+/// frame's face answered no pose through the mated part's own
+/// evaluation. The reach's own refusal is spelled by its own map
+/// ([`face_pose_refusal_tag`]).
+///
+/// The map is exhaustive rather than a constant so a new way for a
+/// face to refuse arrives here as a compile error.
+pub fn face_refusal_tag(refusal: &FaceRefusal) -> &'static str {
+    match refusal {
+        FaceRefusal::Reach { refusal, .. } => face_pose_refusal_tag(refusal),
+        FaceRefusal::NotAnInstance { .. } => "not_an_instance",
+    }
+}
+
+/// The stable tag for the reach's refusal of a face's pose, which a
+/// [`FaceRefusal`] carries. Exhaustive, as every map here is.
+pub fn face_pose_refusal_tag(refusal: &FacePoseRefusal) -> &'static str {
+    match refusal {
+        FacePoseRefusal::PartUnresolved { .. } => "part_unresolved",
+        FacePoseRefusal::NoSuchName => "no_such_name",
+        FacePoseRefusal::Ambiguous { .. } => "ambiguous",
+        FacePoseRefusal::NotAFace { .. } => "not_a_face",
+        FacePoseRefusal::Readback(_) => "readback",
+        FacePoseRefusal::Unpinned => "unpinned",
+    }
+}
+
 /// The stable tag for a lever refusal — the inner arm of
-/// [`mate_fault_tag`]'s `mate_unleverable`: why one of the mated
-/// parts' reach was not in hand, so no lever could be formed.
+/// [`mate_fault_tag`]'s `mate_unleverable`: why no lever could be
+/// formed. A part's reach not in hand is spelled by the reach's own
+/// map ([`reach_refusal_tag`]).
 ///
 /// The map is exhaustive rather than a constant so a new way to
 /// refuse a lever arrives here as a compile error.
 pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
     match refusal {
-        LeverRefusal::PartUnresolved { .. } => "part_unresolved",
-        LeverRefusal::FaceUnbounded { .. } => "face_unbounded",
-        LeverRefusal::MalformedBody { .. } => "malformed_body",
-        LeverRefusal::NoExtent { .. } => "no_extent",
-        LeverRefusal::NoFiniteBound { .. } => "no_finite_bound",
+        LeverRefusal::Reach { refusal, .. } => reach_refusal_tag(refusal),
         LeverRefusal::NotAnInstance { .. } => "not_an_instance",
+        LeverRefusal::OutOfRange { .. } => "out_of_range",
+    }
+}
+
+/// The stable tag for the reach's refusal of a part's extent, which a
+/// [`LeverRefusal`] carries. Exhaustive, as every map here is.
+pub fn reach_refusal_tag(refusal: &ReachRefusal) -> &'static str {
+    match refusal {
+        ReachRefusal::PartUnresolved { .. } => "part_unresolved",
+        ReachRefusal::FaceUnbounded { .. } => "face_unbounded",
+        ReachRefusal::MalformedBody { .. } => "malformed_body",
+        ReachRefusal::NoExtent => "no_extent",
+        ReachRefusal::NoFiniteBound => "no_finite_bound",
     }
 }
 
@@ -1778,7 +1821,7 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::OrderMismatch => "order_mismatch",
-        SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
+        SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
@@ -2295,7 +2338,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartIdCollides { .. } => "part_id_collides",
         SplitError::SeveredEdge { .. } => "severed_edge",
         SplitError::OperandSeveredFromMate { .. } => "operand_severed_from_mate",
-        SplitError::TornCluster { .. } => "torn_cluster",
+        SplitError::TornGroup { .. } => "torn_group",
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
@@ -2304,7 +2347,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
-        SplitError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2330,7 +2372,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::Edit { .. } => "inline_edit",
-        InlineError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2847,6 +2888,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::NullScaffoldShared { .. } => "null_scaffold_shared",
         ValidationError::LeakedNullFaceRecord { .. } => "leaked_null_face_record",
         ValidationError::StaleNullFaceLoop { .. } => "stale_null_face_loop",
+        ValidationError::StaleNullFaceOwnership { .. } => "stale_null_face_ownership",
         ValidationError::NullEdgeAtRest { .. } => "null_edge_at_rest",
         ValidationError::NullFaceAtRest { .. } => "null_face_at_rest",
     }

@@ -1800,7 +1800,6 @@ fn ef_overlap_cells<T: Decide>(
             }
         }
     }
-    let half = T::from_f64(0.5);
     for i in 0..cuts.len() - 1 {
         let (a, b) = (cuts[i], cuts[i + 1]);
         if !matches!(
@@ -1809,7 +1808,7 @@ fn ef_overlap_cells<T: Decide>(
         ) {
             continue; // empty/degenerate cell (escalations via sort/gap)
         }
-        let mid = e.p0 + e.dir * ((a + b) * half);
+        let mid = e.p0 + e.dir * geom::mid_param(a, b);
         if contain(body, f, mid, band, errors) != Some(FaceContainment::In) {
             // Out: no overlap here. OnEdge: a collinear boundary rest —
             // the edge-edge overlap pass's finding. OnVertex: degenerate
@@ -2118,7 +2117,7 @@ fn ee_overlap_midpoint<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
     let s1 = s0 + eb.len * eb.dir.dot(ea.dir);
     let lo = s0.min(s1).max(T::zero());
     let hi = s0.max(s1).min(ea.len);
-    ea.p0 + ea.dir * ((lo + hi) * T::from_f64(0.5))
+    ea.p0 + ea.dir * geom::mid_param(lo, hi)
 }
 
 /// Non-parallel pair: the lines meet (gap zero) strictly inside both
@@ -2237,13 +2236,12 @@ fn ee_collinear_lane<T: Decide>(
     let backed = ee_bound_backed(ea, eb, lo, geo, declared, band, errors)
         && ee_bound_backed(ea, eb, hi, geo, declared, band, errors);
     if !backed {
-        let half = T::from_f64(0.5);
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::EdgeEdgeOverlap {
                 a: ea.key,
                 b: eb.key,
             },
-            witness: witness(ea.p0 + ea.dir * ((lo + hi) * half)),
+            witness: witness(ea.p0 + ea.dir * geom::mid_param(lo, hi)),
         });
     }
 }
@@ -6150,7 +6148,7 @@ mod tests {
         for (_, p) in part.points.iter_mut() {
             p.z += 1.2;
         }
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         let errors = census_and_certify(
             &body,
             &ContactRecords::default(),
@@ -6429,8 +6427,8 @@ mod tests {
         );
         let post_top = post.top_face;
         let mut body = post.body;
-        let _ = crate::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).unwrap();
-        let bkeys = crate::graft_disjoint_all_keyed(&mut body, &block.body, tol).unwrap();
+        let _ = crate::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
+        let bkeys = crate::graft_disjoint_all_keyed(&mut body, &block.body).unwrap();
         let block_bottom = bkeys.face(block.bottom_face).unwrap();
         for region in [Some(RegionLane::certified()), None] {
             assert!(
@@ -6797,7 +6795,8 @@ mod tests {
             .map(|(k, _)| k)
             .collect();
         for &f in &seeds {
-            body.set_face_surface(
+            // Lifts RechartUnvouched: the census reads the masquerade patch on each seed, wherever its boundary lies.
+            body.set_face_surface_stranding_for_tests(
                 f,
                 FaceSurface::New {
                     surface: masquerade_like_placeholder(),
@@ -7017,7 +7016,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = cube_at(Vec3::new(0.0, 0.0, 0.0), tol);
         let other = cube_at_turned(at, theta, tol);
-        crate::instance::graft_disjoint(&mut body, &other, tol).expect("a disjoint graft");
+        crate::instance::graft_disjoint(&mut body, &other).expect("a disjoint graft");
         body
     }
 
@@ -7077,7 +7076,7 @@ mod tests {
         )
         .expect("the chord closes the cap");
         let cube = cube_at(Vec3::new(10.0, 3.0, 0.0), tol);
-        crate::instance::graft_disjoint(&mut body, &cube, tol).expect("a disjoint graft");
+        crate::instance::graft_disjoint(&mut body, &cube).expect("a disjoint graft");
         body
     }
 
@@ -7156,7 +7155,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
         let cube = cube_at(Vec3::new(0.5, 3.9, -0.5), tol);
-        crate::instance::graft_disjoint(&mut body, &cube, tol).expect("a disjoint graft");
+        crate::instance::graft_disjoint(&mut body, &cube).expect("a disjoint graft");
         body
     }
 
@@ -7724,7 +7723,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = crate::test_support_fixtures::prism_z::<f64>(&L, 0.0, 1.0, tol).body;
         let part = crate::test_support_fixtures::brick::<f64>(x, y, z, tol);
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         body
     }
 
@@ -7799,7 +7798,7 @@ mod tests {
             },
             tol,
         );
-        crate::instance::graft_disjoint(&mut bracket_only, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut bracket_only, &part).unwrap();
         bracket_only
     }
 
@@ -7926,7 +7925,7 @@ mod tests {
         let mut body = crate::test_support_fixtures::prism_z::<f64>(&NOTCHED, 0.0, 1.0, tol).body;
         let part =
             crate::test_support_fixtures::brick::<f64>((1.0, 2.5), (1.2, 3.0), (0.0, 1.0), tol);
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         let corner = body
             .vertices
             .iter()
@@ -7979,7 +7978,7 @@ mod tests {
         crate::test_support_fixtures::describe_as_intersections(&mut body, tol);
         let part =
             crate::test_support_fixtures::brick::<f64>((-1.0, 0.0), (0.0, 2.0), (0.0, 2.0), tol);
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         let corner = body
             .vertices
             .iter()
@@ -8046,7 +8045,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = crate::test_support_fixtures::prism_z::<f64>(profile, 0.0, 1.0, tol).body;
         let part = crate::test_support_fixtures::brick::<f64>(x, y, z, tol);
-        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &part).unwrap();
         body
     }
 
@@ -8145,7 +8144,7 @@ mod tests {
             tol,
         )
         .body;
-        crate::instance::graft_disjoint(&mut body, &guest, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &guest).unwrap();
         let got = sites(&body);
         assert!(!got.is_empty());
         assert!(got.iter().all(|(_, t)| !t.is_rest()), "{got:?}");
@@ -8252,7 +8251,7 @@ mod tests {
         });
         let mut other = Body::<f64>::new();
         part(&mut other);
-        crate::instance::graft_disjoint(&mut body, &other, Tol::witness()).unwrap();
+        crate::instance::graft_disjoint(&mut body, &other).unwrap();
         body
     }
 
@@ -8686,7 +8685,7 @@ mod tests {
                     let q = r(mb(x, y, z));
                     Point3::new(q[0], q[1], q[2])
                 });
-                crate::instance::graft_disjoint(&mut body, &other, Tol::witness()).unwrap();
+                crate::instance::graft_disjoint(&mut body, &other).unwrap();
                 let got = sites(&body);
                 assert!(!got.is_empty(), "{name} @ {ang}");
                 assert!(
@@ -8816,7 +8815,7 @@ mod tests {
         };
         let pair = |a: Body<f64>, b: &Body<f64>| {
             let mut body = a;
-            crate::instance::graft_disjoint(&mut body, b, Tol::witness()).unwrap();
+            crate::instance::graft_disjoint(&mut body, b).unwrap();
             body
         };
         let crosses = |body: &Body<f64>| -> Vec<TouchVerdict> {

@@ -115,7 +115,11 @@ fn a_bound_too_fine_for_four_decimals_is_still_said() {
         high: Bound::Open { probed: 1.024 },
         samples: 12,
     };
-    let words = reading.wording(props::rendering_unit(Dimension::Length, Some(MM.def())));
+    let words = reading.wording(props::rendering_unit(
+        Dimension::Length,
+        Some(MM.def()),
+        props::Notation::DEFAULT,
+    ));
     assert!(
         words.contains("valid from 0.00004 mm"),
         "the floor is 40 nm and the sentence has to say so: {words}"
@@ -156,7 +160,11 @@ fn a_bound_with_no_millimetre_value_is_not_worded_as_infinity() {
         high: Bound::Open { probed: 1.0e306 },
         samples: 9,
     };
-    let words = reading.wording(props::rendering_unit(Dimension::Length, Some(MM.def())));
+    let words = reading.wording(props::rendering_unit(
+        Dimension::Length,
+        Some(MM.def()),
+        props::Notation::DEFAULT,
+    ));
     assert!(
         !words.contains("inf"),
         "a bound with no millimetre value was spelled as one: {words}"
@@ -332,7 +340,11 @@ fn the_session_probes_a_real_slots_range() {
     }
 
     // The reading comes back in the unit the field is written in.
-    let words = result.wording(props::rendering_unit(Dimension::Length, Some(MM.def())));
+    let words = result.wording(props::rendering_unit(
+        Dimension::Length,
+        Some(MM.def()),
+        props::Notation::DEFAULT,
+    ));
     assert!(words.contains("mm"), "{words}");
 
     // A document change discards it: a range is a statement about one
@@ -399,6 +411,7 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
             slot,
             ref params,
             current,
+            ..
         }) => {
             assert_eq!(node, extrude);
             assert_eq!(slot, SlotId::Distance);

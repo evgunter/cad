@@ -92,6 +92,7 @@ fn masqueraded(
         !masq.is_placeholder(),
         "the masquerade reads described since PR 1558"
     );
+    // Lifts both refusals: the masquerade wall is the consumer's input, edges as they were.
     body.set_face_surface_stranding_for_tests(
         wall,
         FaceSurface::New {
@@ -168,13 +169,11 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
         show(inf.sup_v),
         show(inf.area_inf)
     );
-    // Placeholder at Interval for comparison.
+    // Placeholder at Interval for comparison: it has no sup pair.
     let ph = Surface::<Interval>::nurbs_placeholder();
-    let sp = geom_brep::chart_stretch_sup(&ph).unwrap();
     eprintln!(
-        "[class 3 Interval placeholder] sup_u={} sup_v={}",
-        show(sp.0.get()),
-        show(sp.1.get())
+        "[class 3 Interval placeholder] sup={:?}",
+        geom_brep::chart_stretch_sup(&ph)
     );
 }
 

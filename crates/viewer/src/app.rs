@@ -202,14 +202,13 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 /// here or nowhere. Its callers are whatever `rg 'toned\('` lists; they
 /// are not listed here, because a list is what falls behind.
 ///
-/// [`crate::theme::Theme::unresolved`]'s contract is that the colour is
-/// REDUNDANT — everything wearing it says its own words — so this
-/// decides salience and never meaning.
+/// Everything wearing [`crate::theme::Theme::actionable`] says its own
+/// words, so this decides salience and never meaning.
 pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -> egui::RichText {
     let text = egui::RichText::new(text);
     match tone {
         frame::Tone::Advisory => text.weak(),
-        frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
+        frame::Tone::Actionable => text.color(chrome(theme.actionable)),
     }
 }
 
@@ -276,7 +275,7 @@ fn draw_badge(ui: &mut egui::Ui, theme: &Theme, badge: &frame::Badge) -> egui::R
 /// context should be asked to follow, and stating it that way leaves
 /// the toolkit's own per-theme visuals intact underneath — a
 /// `set_visuals` would freeze one snapshot of them into the style.
-fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
+pub(crate) fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
     ctx.set_theme(match polarity {
         Polarity::Light => egui::ThemePreference::Light,
         Polarity::Dark => egui::ThemePreference::Dark,
@@ -788,10 +787,12 @@ impl ViewerApp {
         };
         let (theme, theme_notice) = saved.resolve_theme();
         let (input, keys_notice) = saved.resolve_keys();
+        let (notation, notation_notices) = saved.resolve_notation();
         notices.extend(
             [theme_notice, keys_notice]
                 .into_iter()
                 .flatten()
+                .chain(notation_notices)
                 .map(|n| n.to_string()),
         );
         // The launch directory, read once for the same reason the
@@ -823,8 +824,11 @@ impl ViewerApp {
         // a default rather than a check.
         crate::widgets::install_number_formatter(egui_ctx);
 
+        let mut session = DocSession::new(document, tol, evaluator()?);
+        session.set_notation(notation);
+
         Ok(Self {
-            session: DocSession::new(document, tol, evaluator()?),
+            session,
             delta,
             scene: Arc::new(mesh),
             picks: PickCache::new(indexer()?),
@@ -1064,27 +1068,17 @@ impl ViewerApp {
         }
     }
 
-    /// Change δ to `delta` world units, rebuilding the picture from
-    /// the evaluation already in hand — a display change is not a
-    /// document change and re-runs no geometry above the tessellator.
-    ///
-    /// The value goes through [`DisplayTolerance::new`], the one door
-    /// that decides what a δ may be, so a zero or a negative number is
-    /// refused with the tessellator's own condition and the picture
-    /// keeps the δ it had.
-    fn set_delta(&mut self, delta: f64) {
-        match DisplayTolerance::new(delta) {
-            Ok(delta) => {
-                self.delta = delta;
-                // From here the number is the user's. The budget chose
-                // an opening δ and has no further say — including no
-                // say over a δ finer than it would have picked, which
-                // is the whole difference between a default and a cap.
-                self.budget_delta = None;
-                self.sync_scene();
-            }
-            Err(error) => self.notices.push(frame::delta_refusal(&error)),
-        }
+    /// Change δ to `delta`, rebuilding the picture from the evaluation
+    /// already in hand — a display change is not a document change and
+    /// re-runs no geometry above the tessellator.
+    fn set_delta(&mut self, delta: DisplayTolerance) {
+        self.delta = delta;
+        // From here the number is the user's. The budget chose an
+        // opening δ and has no further say — including no say over a δ
+        // finer than it would have picked, which is the whole
+        // difference between a default and a cap.
+        self.budget_delta = None;
+        self.sync_scene();
     }
 
     /// Give the Features tile the height its content wants, capped at
@@ -1282,10 +1276,13 @@ impl ViewerApp {
         if self.store.unusable().is_some() {
             return;
         }
+        let notation = self.session.notation();
         let prefs = Prefs {
             theme: Some(self.theme.name.to_owned()),
             keys: self.keys_pref.clone(),
             last_dir: self.last_dir.clone(),
+            length_unit: Some(notation.length.def().symbol().to_owned()),
+            angle_unit: Some(notation.angle.def().symbol().to_owned()),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
             self.notices.push(frame::store_refusal(&error));
@@ -1431,7 +1428,7 @@ impl ViewerApp {
                     for finding in &report.findings {
                         ui.horizontal_top(|ui| {
                             if ui
-                                .button(crate::tree::node_number(finding.root))
+                                .button(self.session.doc().spoken(finding.root).to_string())
                                 .on_hover_text("select the root this finding is about")
                                 .clicked()
                             {
@@ -1729,7 +1726,9 @@ impl ViewerApp {
             // The display budget's: shown while the δ on screen is
             // the one the budget CHOSE when the document opened,
             // and gone the moment the user picks their own.
-            if let Some(badge) = frame::delta_badge(self.budget_delta.as_ref()) {
+            if let Some(badge) =
+                frame::delta_badge(self.budget_delta.as_ref(), self.session.notation().length)
+            {
                 draw_badge(ui, &self.theme, &badge);
             }
             // **The three display seams that hold a refusal.**
@@ -1743,7 +1742,11 @@ impl ViewerApp {
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
-                frame::index_badge(self.picks.error(), self.session.evaluation()),
+                frame::index_badge(
+                    self.picks.error(),
+                    self.session.doc(),
+                    self.session.evaluation(),
+                ),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
             .into_iter()
@@ -1888,9 +1891,15 @@ impl eframe::App for ViewerApp {
         let mut datums_vanished = 0_usize;
         let mut profiles_undrawn = 0_usize;
         let mut held_edges_refused: Option<EdgeNamesRefused> = None;
-        let mut delta_request: Option<f64> = None;
+        let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
+        // The working notation the panes read and the forms' pickers
+        // write, taken from the session and given back after the
+        // layout like the palette: a pick is a person's preference,
+        // never a `SessionOp`, because it changes nothing a document
+        // says.
+        let mut notation = self.session.notation();
         // **The tiles stand on the chrome's own ground.** `no_frame`
         // alone gives the panes no background at all, which does not
         // leave them transparent onto something sensible: it leaves
@@ -1921,6 +1930,7 @@ impl eframe::App for ViewerApp {
                     camera: &mut self.camera,
                     input: self.input,
                     theme: self.theme,
+                    notation: &mut notation,
                     drafts: &mut self.drafts,
                     display: &display,
                     tools: &mut self.tools,
@@ -1946,6 +1956,10 @@ impl eframe::App for ViewerApp {
                 self.tree.ui(&mut behavior, ui);
             });
         self.checks_window(ui.ctx(), &mut ops);
+        if notation != self.session.notation() {
+            self.session.set_notation(notation);
+            self.remember_prefs();
+        }
         self.profile_drawn = profile_drawn;
         self.datums_vanished = datums_vanished;
         self.profiles_undrawn = profiles_undrawn;
@@ -2042,6 +2056,11 @@ pub(crate) struct ViewerBehavior<'a> {
     /// The palette this frame draws with; `Copy`, because a theme is
     /// a small value and the frame must not be able to change it.
     pub(crate) theme: Theme,
+    /// The working notation ([`crate::props::Notation`]) every value
+    /// nobody wrote reads in this frame; the creation forms' unit
+    /// pickers write it, and the app hands a changed one to the session
+    /// and the preferences after the layout.
+    pub(crate) notation: &'a mut crate::props::Notation,
     pub(crate) drafts: &'a mut Drafts,
     /// The display snapshot this frame draws and picks under.
     pub(crate) display: &'a DisplayView,
@@ -2113,10 +2132,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,
     pub(crate) ops: &'a mut Vec<SessionOp>,
-    /// A δ the View pane's field committed this frame, in world units.
-    /// The pane holds a borrow of the app, not the app, so it hands
-    /// the number back for [`ViewerApp::set_delta`] to judge.
-    pub(crate) delta_request: &'a mut Option<f64>,
+    /// A δ the View pane's field committed this frame. The pane holds
+    /// a borrow of the app, not the app, so it hands the δ back for
+    /// [`ViewerApp::set_delta`] to apply.
+    pub(crate) delta_request: &'a mut Option<DisplayTolerance>,
     /// What the Features pane's content laid out to this frame, once
     /// it has drawn.
     pub(crate) features_content_height: &'a mut Option<f32>,
@@ -3597,9 +3616,10 @@ mod properties_pane_tests {
         let (body, painted) = painted_with_tool(crate::tools::ToolKind::Boolean, |body| {
             vec![Selection::Node(body)]
         });
+        // The startup body is an extrude, spoken by its kind and tag.
         let line = format!(
-            "first operand: {}; second operand: —",
-            crate::tree::node_number(body)
+            "first operand: Extrude {}; second operand: —",
+            test_utils::refusal::tag(body.0)
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3613,8 +3633,8 @@ mod properties_pane_tests {
             vec![Selection::Face(cap_of(body, pncad::prelude::CapEnd::End))]
         });
         let line = format!(
-            "pick a: face of {}; pick b: —",
-            crate::tree::node_number(body)
+            "pick a: face of Extrude {}; pick b: —",
+            test_utils::refusal::tag(body.0)
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3837,10 +3857,24 @@ mod properties_pane_tests {
         }
     }
 
+    /// The startup plate's node at `at` in document order, read off the
+    /// startup document itself (`scene::plate_with_hole`): its frame,
+    /// its profile, its extrude.
+    fn startup_node(at: usize) -> RecipeNodeId {
+        let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
+            .expect("the startup document");
+        doc.order()[at]
+    }
+
     /// The startup plate's extrude, and its one slot.
-    const EXTRUDE: RecipeNodeId = RecipeNodeId(2);
+    fn extrude() -> RecipeNodeId {
+        startup_node(2)
+    }
+
     /// The startup plate's frame datum, whose origin is a vector.
-    const FRAME: RecipeNodeId = RecipeNodeId(0);
+    fn frame_datum() -> RecipeNodeId {
+        startup_node(0)
+    }
 
     /// An expression with no parameter in it: computed all the same,
     /// so the slot it drives has no written unit.
@@ -3876,18 +3910,18 @@ mod properties_pane_tests {
     fn a_driven_slots_unit_picker_is_disabled_with_the_refusal_it_would_get() {
         let mut pane = Driven::with(vec![
             SessionOp::SetSlotExpression {
-                node: EXTRUDE,
+                node: extrude(),
                 slot: SlotId::Distance,
                 text: COMPUTED.to_owned(),
             },
-            SessionOp::Select(Selection::Node(EXTRUDE)),
+            SessionOp::Select(Selection::Node(extrude())),
         ]);
-        let before = pane.row(EXTRUDE, SlotId::Distance);
+        let before = pane.row(extrude(), SlotId::Distance);
         assert!(before.driver.is_driven(), "the setup drove the slot");
         // No writable component, so no unit: the picker says what the
         // slot is instead.
         let gained = pane.gained_hovering("computed");
-        let said = refusal_for(&pane, EXTRUDE, SlotId::Distance);
+        let said = refusal_for(&pane, extrude(), SlotId::Distance);
         assert_eq!(
             gained,
             vec![said.clone()],
@@ -3897,8 +3931,11 @@ mod properties_pane_tests {
         // reader gets for this row.
         assert_eq!(
             said,
-            "the distance slot on node 2 is computed, so it has no written unit to change — \
-             set an expression to change what it says"
+            format!(
+                "the distance slot on node {} is computed, so it has no written unit to change \
+                 — set an expression to change what it says",
+                extrude()
+            )
         );
         pane.click("computed");
         let after = pane.quiet();
@@ -3906,7 +3943,7 @@ mod properties_pane_tests {
             !after.iter().any(|(run, _)| run == "mm"),
             "a refused picker does not open: {after:?}"
         );
-        assert_eq!(pane.row(EXTRUDE, SlotId::Distance), before);
+        assert_eq!(pane.row(extrude(), SlotId::Distance), before);
     }
 
     /// A seam that answers a request only on the poll after
@@ -3989,7 +4026,7 @@ mod properties_pane_tests {
     #[test]
     fn a_hover_diff_waits_for_a_run_that_lands_between_its_frames() {
         let mut pane =
-            Driven::with_seams(vec![SessionOp::Select(Selection::Node(EXTRUDE))], |app| {
+            Driven::with_seams(vec![SessionOp::Select(Selection::Node(extrude()))], |app| {
                 let tol = pncad::tolerance::witness();
                 app.session = crate::session::DocSession::new(
                     app.session.doc().clone(),
@@ -4019,12 +4056,12 @@ mod properties_pane_tests {
     /// owed where the op would accept.
     #[test]
     fn a_literal_slots_unit_picker_opens_and_says_nothing() {
-        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(EXTRUDE))]);
+        let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
         assert!(pane.gained_hovering("m").is_empty());
         pane.click("m");
         pane.click("mm");
         assert_eq!(
-            pane.row(EXTRUDE, SlotId::Distance).unit,
+            pane.row(extrude(), SlotId::Distance).unit,
             Some(pncad::prelude::MM.def())
         );
     }
@@ -4044,28 +4081,34 @@ mod properties_pane_tests {
         let mm = pncad::prelude::MM.def();
         let mut pane = Driven::with(vec![
             SessionOp::SetSlotUnit {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(Axis3::X),
                 unit: mm,
             },
             SessionOp::SetSlotUnit {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(Axis3::Y),
                 unit: mm,
             },
             SessionOp::SetSlotExpression {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(Axis3::Z),
                 text: COMPUTED.to_owned(),
             },
-            SessionOp::Select(Selection::Node(FRAME)),
+            SessionOp::Select(Selection::Node(frame_datum())),
         ]);
-        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::X)).unit, Some(mm));
-        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::Y)).unit, Some(mm));
-        let z = pane.row(FRAME, SlotId::Origin(Axis3::Z));
+        assert_eq!(
+            pane.row(frame_datum(), SlotId::Origin(Axis3::X)).unit,
+            Some(mm)
+        );
+        assert_eq!(
+            pane.row(frame_datum(), SlotId::Origin(Axis3::Y)).unit,
+            Some(mm)
+        );
+        let z = pane.row(frame_datum(), SlotId::Origin(Axis3::Z));
         assert!(z.driver.is_driven(), "the setup drove z");
         let gained = pane.gained_hovering("mm");
-        let said = refusal_for(&pane, FRAME, SlotId::Origin(Axis3::Z));
+        let said = refusal_for(&pane, frame_datum(), SlotId::Origin(Axis3::Z));
         assert_eq!(
             gained,
             vec![format!(
@@ -4075,16 +4118,25 @@ mod properties_pane_tests {
         );
         assert_eq!(
             said,
-            "the origin z slot on node 0 is computed, so it has no written unit to change — \
-             set an expression to change what it says"
+            format!(
+                "the origin z slot on node {} is computed, so it has no written unit to change \
+                 — set an expression to change what it says",
+                frame_datum()
+            )
         );
         pane.click("mm");
         pane.click("cm");
         let cm = pncad::prelude::CM.def();
-        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::X)).unit, Some(cm));
-        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::Y)).unit, Some(cm));
         assert_eq!(
-            pane.row(FRAME, SlotId::Origin(Axis3::Z)),
+            pane.row(frame_datum(), SlotId::Origin(Axis3::X)).unit,
+            Some(cm)
+        );
+        assert_eq!(
+            pane.row(frame_datum(), SlotId::Origin(Axis3::Y)).unit,
+            Some(cm)
+        );
+        assert_eq!(
+            pane.row(frame_datum(), SlotId::Origin(Axis3::Z)),
             z,
             "z is not the pick's"
         );
@@ -4105,15 +4157,15 @@ mod properties_pane_tests {
         let source = vec!["1 mm"; 40].join(" + ");
         let mut pane = Driven::with(vec![
             SessionOp::SetSlotExpression {
-                node: EXTRUDE,
+                node: extrude(),
                 slot: SlotId::Distance,
                 text: source.clone(),
             },
-            SessionOp::Select(Selection::Node(EXTRUDE)),
+            SessionOp::Select(Selection::Node(extrude())),
         ]);
-        let row = pane.row(EXTRUDE, SlotId::Distance);
+        let row = pane.row(extrude(), SlotId::Distance);
         assert_eq!(row.source.as_deref(), Some(source.as_str()));
-        let field = crate::props::field_text(&row);
+        let field = crate::props::field_text(&row, pane.app.session.notation());
         assert_eq!(field, "= 0.04 m");
         let quoted = format!("{} = {source}", SlotId::Distance.label());
         let landed = pane.landed();
@@ -4146,16 +4198,19 @@ mod properties_pane_tests {
             .iter()
             .zip(sources)
             .map(|(axis, source)| SessionOp::SetSlotExpression {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(*axis),
                 text: source.to_owned(),
             })
             .collect();
-        ops.push(SessionOp::Select(Selection::Node(FRAME)));
+        ops.push(SessionOp::Select(Selection::Node(frame_datum())));
         let mut pane = Driven::with(ops);
         let history = pane.app.session.history().len();
         for (axis, source) in axes.iter().zip(sources) {
-            let shown = crate::props::field_text(&pane.row(FRAME, SlotId::Origin(*axis)));
+            let shown = crate::props::field_text(
+                &pane.row(frame_datum(), SlotId::Origin(*axis)),
+                pane.app.session.notation(),
+            );
             pane.click(&shown);
             let open = pane.frame(Vec::new());
             assert!(
@@ -4193,29 +4248,30 @@ mod properties_pane_tests {
         let mut ops: Vec<SessionOp> = axes
             .iter()
             .map(|axis| SessionOp::SetSlotExpression {
-                node: FRAME,
+                node: frame_datum(),
                 slot: SlotId::Origin(*axis),
                 text: COMPUTED.to_owned(),
             })
             .collect();
-        ops.push(SessionOp::Select(Selection::Node(FRAME)));
+        ops.push(SessionOp::Select(Selection::Node(frame_datum())));
         let mut pane = Driven::with(ops);
         let before: Vec<_> = axes
             .iter()
-            .map(|axis| pane.row(FRAME, SlotId::Origin(*axis)))
+            .map(|axis| pane.row(frame_datum(), SlotId::Origin(*axis)))
             .collect();
         assert!(before.iter().all(|row| row.driver.is_driven()));
         let gained = pane.gained_hovering("computed");
         let said: Vec<String> = axes
             .iter()
-            .map(|axis| refusal_for(&pane, FRAME, SlotId::Origin(*axis)))
+            .map(|axis| refusal_for(&pane, frame_datum(), SlotId::Origin(*axis)))
             .collect();
         assert_eq!(gained, vec![said.join("\n")]);
+        let node = frame_datum();
         assert!(
-            gained[0].starts_with(
-                "the origin x slot on node 0 is computed, so it has no written unit to change"
-            ) && gained[0].contains("\nthe origin y slot on node 0 is computed")
-                && gained[0].contains("\nthe origin z slot on node 0 is computed"),
+            gained[0].starts_with(&format!(
+                "the origin x slot on node {node} is computed, so it has no written unit to change"
+            )) && gained[0].contains(&format!("\nthe origin y slot on node {node} is computed"))
+                && gained[0].contains(&format!("\nthe origin z slot on node {node} is computed")),
             "{gained:?}"
         );
         pane.click("computed");
@@ -4226,7 +4282,7 @@ mod properties_pane_tests {
         );
         let now: Vec<_> = axes
             .iter()
-            .map(|axis| pane.row(FRAME, SlotId::Origin(*axis)))
+            .map(|axis| pane.row(frame_datum(), SlotId::Origin(*axis)))
             .collect();
         assert_eq!(now, before);
     }
@@ -4494,7 +4550,7 @@ mod properties_pane_tests {
             });
             driven.settle();
             driven.click(crate::pane::create::ADD_FEATURE);
-            let top = cap_of(EXTRUDE, pncad::prelude::CapEnd::End);
+            let top = cap_of(extrude(), pncad::prelude::CapEnd::End);
             driven.select(Selection::Face(top.clone()));
             assert_eq!(
                 driven.app.drafts.datum_face.as_ref(),
@@ -4518,7 +4574,7 @@ mod properties_pane_tests {
         use pncad::prelude::CapEnd;
         const NONE: u32 = IdMap::NOTHING;
         let (mut driven, top) = Driven::holding_the_top_cap();
-        let bottom = cap_of(EXTRUDE, CapEnd::Start);
+        let bottom = cap_of(extrude(), CapEnd::Start);
         let (top_id, bottom_id) = (driven.patch_of(&top), driven.patch_of(&bottom));
         let marked = driven.marks();
         assert_eq!(
@@ -4577,7 +4633,7 @@ mod properties_pane_tests {
         };
         assert!(!said(&mut driven), "a drawn held face is not refused");
         driven.perform(SessionOp::AddTransform {
-            input: EXTRUDE,
+            input: extrude(),
             translation: [len(0.05), len(0.0), len(0.0)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
             rotation_angle: ang(0.0),
@@ -4632,8 +4688,8 @@ mod properties_pane_tests {
         const NONE: u32 = IdMap::NOTHING;
         let mut driven = Driven::with(Vec::new());
         driven.settle();
-        let a = cap_of(EXTRUDE, CapEnd::End);
-        let b = cap_of(EXTRUDE, CapEnd::Start);
+        let a = cap_of(extrude(), CapEnd::End);
+        let b = cap_of(extrude(), CapEnd::Start);
         let (a_id, b_id) = (driven.patch_of(&a), driven.patch_of(&b));
         driven.app.tools.open(crate::tools::ToolKind::Mate);
         driven.click_through(vec![
@@ -4661,7 +4717,7 @@ mod properties_pane_tests {
         let edge = {
             let index = driven.on_screen();
             let id = *index
-                .edges_in(EXTRUDE, 0)
+                .edges_in(extrude(), 0)
                 .first()
                 .expect("the extrude draws edges");
             crate::session::EdgeSelection {
@@ -4669,7 +4725,7 @@ mod properties_pane_tests {
                     .edge_name_of(id)
                     .expect("a drawn edge is named")
                     .clone(),
-                node: EXTRUDE,
+                node: extrude(),
                 body: 0,
             }
         };
@@ -4697,13 +4753,13 @@ mod properties_pane_tests {
         driven.settle();
         let (edge, drawn) = {
             let index = driven.on_screen();
-            let drawn = index.edges_in(EXTRUDE, 0).to_vec();
+            let drawn = index.edges_in(extrude(), 0).to_vec();
             let edge = crate::session::EdgeSelection {
                 name: index
                     .edge_name_of(drawn[0])
                     .expect("a drawn edge is named")
                     .clone(),
-                node: EXTRUDE,
+                node: extrude(),
                 body: 0,
             };
             (edge, drawn)
@@ -4723,7 +4779,7 @@ mod properties_pane_tests {
             .expect("the settled app holds an index")
             .unname_edge(drawn[1]);
         let refused = crate::pickindex::EdgeNamesRefused {
-            node: EXTRUDE,
+            node: extrude(),
             body: 0,
             first,
             named: drawn.len() - 1,

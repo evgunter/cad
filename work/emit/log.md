@@ -1247,3 +1247,73 @@ The optional findings also landed: per-variant mint pins, one collision recourse
 - `edit/di1-may-simplify-now-node-ids-are-digests` (P1, design).
 
 The container restarted twice mid-lane. The first lane's work had already been pushed and survived. The second lane's work was rescued from the worktree. I now ask lanes to push after each item.
+
+- 2026-10-01 — Seam note from AUTHOR: Ev ruled on #3571 that `StableName`'s `Display` carries a face's leaf role in words, through one public renderer promoted from `resolve::role_words`. The work is filed on EDIT as `names-render-a-faces-leaf-role-in-words`; `names/role.rs` is shared ground. (AUTHOR orchestrator)
+
+
+## 2026-10-01 — tied-face swap ruled by design (PR 3523, fork-log row 21)
+
+Ev approved: "this sounds good! … the behavior you suggest seems safe and principled".
+
+**What changed.**
+- N2 no longer promises a recorded per-candidate choice. A tie is repaired by a discriminator in the recipe, or by `Rebind`.
+- N4 names a divider as a discriminator among a tie's candidates.
+- The tie-swap row is closed as by-design, with `emit_union_borders::a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it` pinning the motion by centroid.
+
+**Not filed:** the optional datum-side discriminator, because Ev did not ask for it.
+
+**Fork log.** Main already held a row 21, so there are now two rows numbered 21, following the duplicate 15s and 18s. The open `[ev]` PRs 3553 and 3565 use 22 and 23, which other branches also use. Row numbers are no longer unique; the fork column identifies each row.
+
+## 2026-10-01 — edge pieces by their ends ruled (PR 3553); node labels ruled (PR 3565)
+
+**PR 3553, fork-log row 22.** Ev approved the recommendation, "including the change to what was decided in 512". It is written into N2:
+- edge pieces take `Ends`, the sorted end-vertex names;
+- crossing vertices are ranked along the crossed edge by its curve parameter;
+- the Split's same-side faces take `Keeps`;
+- section chords take `Ends` in place of #512 A2's tie.
+
+The four design rows fold into the P0 unit `edge-pieces-are-named-by-their-ends`, and an implementer lane is on it.
+
+**PR 3565, fork-log rows 23 and 24.** Ev narrowed the hex-tag-versus-address split by asking whether the kernel should hold names. A second pair (byte 104) converged after two rounds: a node's **label** is document data the kernel stores and speaks (DESIGN.md Band 1, "Node labels"). Its shape:
+- it sits outside `Node`;
+- it is set by `SetLabel` only;
+- it is not unique and never identity;
+- every sentence reads kind + label + tag;
+- create forms propose an editable "Kind N".
+
+Ev approved, including the form proposals. The unit `node-labels-are-document-data` is filed. Sequencing:
+1. kind + 12-hex-tag spelling first, on the counter (lane running);
+2. then #3594's digest mint;
+3. then labels.
+
+**Fork-log numbering:** rows 21–24 each appear twice in the log; the fork column tells them apart.
+
+## 2026-10-01 — edge pieces are named by their ends (PR 3629)
+
+Implements the ruling on PR 3553.
+
+**What it does.**
+- Every edge piece takes `Ends`: seam chains, operand-edge pieces, earlier seams, union member edges, and section chords, which replaces #512 A2's tie.
+- A split's same-side faces take `Keeps`.
+- A crossing vertex is ranked along the crossed edge by its carrier's parameter.
+- Retired: `SplitReference`, `SeamLineSides`, `NarrowBand`, the cell count, and the plane-reading helpers.
+- Recipes that used to refuse now name: the cylinder across a plate, the cylinder split twice, the rim crossed twice, and the slot along x across a sunk boss.
+- In the corpus, 90 edge rows changed, from `OrderAlong` to `Ends`. No face, vertex or body name moved.
+
+**Review.** Two blocking findings, both fixed:
+- **N5's locality sentence overclaimed.** A second crossing by a face that already crosses the parent renames the first crossing and every piece whose ends cite it. The sentence is qualified, a test pins the case, and the question is filed as a design row.
+- **Departures from the rule had no rows.** These are now filed:
+  - NURBS crossings tie;
+  - a union seam made of several curves ties;
+  - crossings whose sides' names don't settle which side is first tie;
+  - whether the Upstream-flip and RecipeEdit diagnosis rungs are still reachable from emitted names.
+
+`m10_sym_profile_interval`'s ledger move was main's (#3612, re-pinned by #3652), not this PR's.
+
+## 2026-10-01 — node ids are digests (PR 3594 merged); spoken node (PR 3631); main red fixed (PR 3684)
+
+**PR 3631** (first slice of the labels unit): a node is spoken as kind + 12-hex tag in kernel sentences, the tree, pickers and headings; machine channels print the full 16 hex; the `node-id-spoken` gate refuses a bare `.0` in format macros. Two seams carried onto `node-labels-are-document-data`: refusal values still print `node <tag>` without kind; the memoized `NodeError` keeps a bare id.
+
+**PR 3684** (unblocked main, cleave's row): #3645's `geom::mid_param` changed which forms the m10 sym walks build (same points, different forms); re-baselined slab and plate after confirming the old formula restores the pins exactly.
+
+**PR 3594** merged: node ids mint from the document's one `Mint` shared with step ids; the tag switched to the id's high 48 bits (a 12-hex prefix, the `DocRef` rule). Merged main twice; evidence on the merged tree: 359/359 value channels bit-identical, 353/359 name tables identical (6 reorder `Borders` walls), 966 `FromMember` segments identical. One diagnosis probe's edge key moved (`9v1`→`15v1`, same group, same diagnosis). Next: the labels unit (dispatched).

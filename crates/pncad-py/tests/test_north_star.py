@@ -4350,7 +4350,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `instantiate_part` and `mate` LEFT this list at LIB-G18b,
         # and `set_placement` with them — it was never a `Node` at
         # all, it is `DocEdit.set_placement`, which is where the A11
-        # rule that placement is the CLUSTER's puts it.
+        # rule that placement is the GROUP's puts it.
         #
         # `shell` LEFT this list at LIB-G17: `Node::Shell` landed and
         # `Node.shell` binds it, with the open faces as ORDERED names
@@ -4529,7 +4529,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
 
         self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
         self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 8)
-        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 32)
+        def pieces(kind, tag):
+            pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
+            return len(ev.select(cut, Selector.of(pat)))
+
+        # A section line that re-enters one operand face cuts several
+        # chords of it, each named by its ends.
+        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 20)
+        self.assertEqual(pieces(EntityKind.Edge, SegTag.SectionEdge), 28)
         self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 32)
         self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 48)
 
