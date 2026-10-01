@@ -18,14 +18,57 @@ use std::marker::PhantomData;
 use serde::de::{Deserializer, Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Serialize, Serializer};
 
+/// **How a duplicate-key refusal says its key.** The refusal is raised
+/// at parse, before any document exists, so a node id says itself as
+/// [`crate::SpokenNode::absent`] (`node <tag>`); a text key says itself
+/// quoted, as the file spells it.
+pub(crate) trait SaidKey {
+    /// Writes the key as the refusal says it.
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+}
+
+impl SaidKey for crate::node::RecipeNodeId {
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", crate::SpokenNode::absent(*self))
+    }
+}
+
+impl SaidKey for String {
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl SaidKey for crate::doc::ParamName {
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.as_str())
+    }
+}
+
+impl SaidKey for crate::appearance::AttrKind {
+    fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+/// A key as [`SaidKey`] says it.
+struct Said<'a, K>(&'a K);
+
+impl<K: SaidKey> fmt::Display for Said<'_, K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.say(f)
+    }
+}
+
 /// The shared strict-map visitor: refuses the first repeated key with
-/// a typed message carrying the section label and the key's Debug.
+/// a typed message carrying the section label and the key as
+/// [`SaidKey`] says it.
 pub(crate) fn strict_map<'de, K, V, D>(
     de: D,
     section: &'static str,
 ) -> Result<BTreeMap<K, V>, D::Error>
 where
-    K: Deserialize<'de> + Ord + fmt::Debug,
+    K: Deserialize<'de> + Ord + SaidKey,
     V: Deserialize<'de>,
     D: Deserializer<'de>,
 {
@@ -35,7 +78,7 @@ where
     }
     impl<'de, K, V> Visitor<'de> for Vis<K, V>
     where
-        K: Deserialize<'de> + Ord + fmt::Debug,
+        K: Deserialize<'de> + Ord + SaidKey,
         V: Deserialize<'de>,
     {
         type Value = BTreeMap<K, V>;
@@ -47,8 +90,9 @@ where
             while let Some(key) = access.next_key::<K>()? {
                 if out.contains_key(&key) {
                     return Err(A::Error::custom(format!(
-                        "duplicate {} key {key:?} — refused, no silent last-wins",
-                        self.section
+                        "duplicate {} key {} — refused, no silent last-wins",
+                        self.section,
+                        Said(&key)
                     )));
                 }
                 let value = access.next_value::<V>()?;
@@ -83,7 +127,7 @@ macro_rules! strict_map_section {
 
             pub(crate) fn deserialize<'de, K, V, D>(de: D) -> Result<BTreeMap<K, V>, D::Error>
             where
-                K: Deserialize<'de> + Ord + fmt::Debug,
+                K: Deserialize<'de> + Ord + SaidKey,
                 V: Deserialize<'de>,
                 D: Deserializer<'de>,
             {

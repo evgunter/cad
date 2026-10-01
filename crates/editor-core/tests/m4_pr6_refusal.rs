@@ -443,7 +443,7 @@ fn snapshot_invariant_violations_refuse_typed() {
     });
     match load(&unlogged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
-            assert_eq!(id, last);
+            assert_eq!(id.id(), last);
         }
         other => panic!("expected NodeNotMinted, got {other:?}"),
     }
@@ -679,7 +679,7 @@ fn program_structure_doors_refuse_typed_at_load() {
             expected: editor_core::Dimension::Length,
             found: editor_core::Dimension::Angle,
             ..
-        })) => assert_eq!(node, circle),
+        })) => assert_eq!(node.id(), circle),
         other => panic!("wrong-dimension role must refuse typed at load, got {other:?}"),
     }
     // (b) Lattice violation: an unclosed chain (a step list that stops
@@ -715,7 +715,7 @@ fn program_structure_doors_refuse_typed_at_load() {
                     ..
                 },
         }) => {
-            assert_eq!(node, chain);
+            assert_eq!(node.id(), chain);
             assert_eq!(step, n_left, "one past the end: the chain never closed");
         }
         other => panic!("an unclosed chain must refuse typed at load, got {other:?}"),

@@ -13,6 +13,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::appearance::AppearanceRecord;
 use crate::names::StableName;
+use crate::spoken::SpokenName;
 
 /// Serializes the appearance store as a pair list.
 ///
@@ -31,7 +32,9 @@ pub(crate) fn serialize<S: Serializer>(
 ///
 /// # Errors
 ///
-/// A typed refusal on a duplicated key.
+/// A typed refusal on a duplicated key. It is raised at parse, before
+/// any document holds the name's minting node, so it speaks the name as
+/// [`SpokenName::absent`].
 pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
     de: D,
 ) -> Result<BTreeMap<StableName, AppearanceRecord>, D::Error> {
@@ -40,7 +43,8 @@ pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
     for (key, value) in pairs {
         if map.insert(key.clone(), value).is_some() {
             return Err(D::Error::custom(format!(
-                "duplicate appearance key {key:?}"
+                "duplicate appearance key: the {}",
+                SpokenName::absent(key)
             )));
         }
     }

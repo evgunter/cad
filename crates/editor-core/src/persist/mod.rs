@@ -224,8 +224,9 @@ pub enum PersistError {
     /// same corruption. Shared-validator check: save refuses before a
     /// byte is written, load refuses with the SAME diagnostics.
     ProfileProgram {
-        /// The profile node carrying the fault.
-        node: crate::node::RecipeNodeId,
+        /// The profile node carrying the fault, spoken from the
+        /// document the validator judges.
+        node: crate::SpokenNode,
         /// The typed fault.
         fault: check::ProgramFault,
     },
@@ -442,7 +443,7 @@ impl Staged for PersistError {
         match self {
             Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
             Self::ProfileProgram { node, fault } => {
-                write!(f, "profile program fault at node {}: {fault}", node)
+                write!(f, "{node}'s program: {fault}")
             }
             Self::Distribution { name, fault } => {
                 write!(f, "document parameter {name}: {fault}")
