@@ -106,6 +106,10 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
 /// was poisoned, a mate whose placer's row cannot state its refusal)
 /// never quotes it in its message; the carried refusal crosses typed, as this exception's
 /// `__cause__` ([`with_carried`]).
+///
+/// The message speaks the node from `doc`, the document the evaluation
+/// is OF ([`Evaluation`]'s captured `doc`), so a label set after
+/// `evaluate` shows on the next evaluation; `node` crosses as the id.
 fn node_failure(py: Python<'_>, doc: &d::ProfileDoc, node: NodeId, error: &d::NodeError) -> PyErr {
     let err = refused(py, node, &error.kind, error.spoken(doc), None);
     with_carried(py, err, error.kind.carried_chain(), Some(doc))

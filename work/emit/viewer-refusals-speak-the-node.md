@@ -23,3 +23,7 @@ Split from `refusal-values-speak-the-node-with-its-label` (its PR spoke `EditErr
 - Also hit by the same sweep: `blend.rs` and `pickindex.rs` (`Display`s), `session.rs` (`set_program_of`), `drafts.rs` (`profile_edit`).
 
 The sweep matched `"…node {…}"` in non-test `src/` at that PR's merge base. A second pass listed the viewer's `pub enum …Error`/`…Fault`/`…Refusal` types holding a `RecipeNodeId` field, whatever noun prints it. It found the six types above, plus `EdgeNameFault` and `PickIndexError` (`pickindex.rs`) and `Standing` (`session/select.rs`).
+
+## A kept refusal freezes its label
+
+`Refusal::Edit` (`session/refuse.rs`, its `Display`, "the edit was refused: …") holds the kernel's `EditError` value. A refusal the viewer keeps on screen (the status line) therefore says the label as it stood when the edit was refused. A rename after that does not move it. That matches the ruling ("read off the document when the sentence is made"), but it is a sentence that outlives its moment. This row decides whether a refusal the viewer keeps is re-spoken when drawn or is cleared by the next edit.

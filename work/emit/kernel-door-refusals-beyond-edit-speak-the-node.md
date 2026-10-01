@@ -23,6 +23,7 @@ Each needs a ruling first: is the value raised at a door that holds the document
 - `refactor.rs` (`SplitError`, `InlineError`): split and inline hold the source document.
 - `edit.rs` `Maintenance`'s `Display` (`Strand`, `OrphanedDeclare`): a report the edit door makes, not a refusal, but it names nodes the same way.
 - `pncad/src/export.rs`, `pncad-py/src/py/checks.rs` (`__repr__`, `new`).
+- `StableName`'s `Display` (`names/role.rs`): "face name minted by node <tag>". It prints inside about 14 `EditError` sentences: every arm that forwards a `name` (`DeclareNamesMissingNode`, the `Rebind…` and `Appearance…` arms, `NameStepNeverMinted`, `Meta…`). So an edit refusal still names a minting node by a bare tag there. A `StableName` is a stored reference with no document behind it, so the fix is a rendering that takes the speaking document, the same shape as the memoized row's.
 - `persist/check.rs`, `persist/mod.rs` (`fmt_labelled`), `mint.rs`: the load door reads bytes that are not a document yet. These most likely keep the tag; say so on the row when it is built.
 
 The grep matches a format string with `node {…}` on one line. It cannot see a node printed under another noun (`instance {}`, `mate {}`, `gauge {}`, `root {}`) or through a helper. So a second pass listed every `pub enum` named `…Error`/`…Fault`/`…Refusal`/`…Standing` that holds a `RecipeNodeId` field. Its kernel hits, with the number of such fields:
