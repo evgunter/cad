@@ -2,12 +2,15 @@
 id: ssi-lever-arm-min-fold-hides-poison
 kind: issue
 title: ssi - the curvature lever arm is folded with f64::min, so a poisoned operand cannot reach the transversality guard's NaN arm
-status: open
+status: closed
 opened: 2026-08-29
 github: 1219
 refs: [762]
 priority: P0
-cost: H
+cost: M
+closed: 2026-10-01
+pr: 3646
+branch: ssi/lever-arm-fold
 ---
 
 ## From GitHub issue 1219
@@ -52,3 +55,16 @@ The NaN-propagating fold the chart-speed guard now uses (`ssi.rs:981-986`), appl
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Closed (2026-10-01, PR 3646)
+
+SSI's lever-arm folds now go through `dihedral::pair_lever_arm` /
+`folded_lever_arm`, which are generic and so use `Real::min`, which
+propagates NaN. The march clamps the arm to the extent once. The march's
+step-size, `domain_margin` and cylinder/sphere `tangency` folds use
+`Real::min` too.
+
+Review was a single FULL review, which found a NaN manufactured by a
+quotient of finite inputs (`kappa / speed²`). The fix pass corrected
+it and also found the overflowing-κ² sibling. The class is logged in
+`log.md`.

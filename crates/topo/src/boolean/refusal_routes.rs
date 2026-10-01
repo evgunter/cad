@@ -471,7 +471,7 @@ mod tests {
         "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
 
     /// The split door's own clause, a stage for a subject, filed with
-    /// its owner: `work/reach/reach-refusals-short-of-the-shape-guard.md`.
+    /// its owner: `work/hone/reach-refusals-short-of-the-shape-guard.md`.
     const SPLIT_DOOR_FILED: &str = "inserting the plane crossing on edge";
 
     /// **`split_edge`'s in-band interiority reads whole at every door
@@ -837,6 +837,58 @@ mod tests {
             ) && !text.contains("tolerance below"),
             "{text}"
         );
+    }
+
+    /// **An ellipse carrier's escalation reads by door**: the section
+    /// through a curved face whose kind the carrier constructor could not
+    /// decide says which question it hinged on, offers the split the
+    /// geometry and the tolerance alone and the Boolean its declaration
+    /// too, and offers neither a carrier to construct.
+    #[test]
+    fn an_ellipse_carrier_escalation_is_routed_by_door() {
+        let b = band();
+        let rows = [
+            (
+                "ellipse_axes_distinct",
+                "whether the curve is a circle or an ellipse",
+            ),
+            (
+                "ellipse_minor_positive",
+                "whether the curve's minor semi-axis is positive",
+            ),
+        ];
+        for (predicate, subject) in rows {
+            let diag = Indeterminate {
+                predicate: Some(predicate),
+                ..diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0))
+            };
+            let join = || crate::SplitJoinError::Section {
+                face: crate::entity::FaceKey::default(),
+                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
+            };
+            let split = crate::SplitError::Join(join()).to_string();
+            let boolean = BooleanError::Join(join()).to_string();
+            for text in [&split, &boolean] {
+                let problems = short_of_the_guard(text, &[]);
+                assert!(problems.is_empty(), "{predicate}: {problems:?}: {text}");
+                assert!(
+                    text.contains(&format!(
+                        "{subject} is undecided for the section through a curved face: {}. ",
+                        diag.payload()
+                    )) && !text.contains("Circle carrier"),
+                    "{predicate}: {text}"
+                );
+            }
+            assert!(
+                split.ends_with("Recourse: move the geometry, or lower the tolerance")
+                    && !split.contains("declare"),
+                "{predicate}: the split takes no declaration: {split}"
+            );
+            assert!(
+                boolean.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
+                "{predicate}: the Boolean takes one: {boolean}"
+            );
+        }
     }
 
     /// **The conic root lane ends alike at the split and the Boolean**,
@@ -1417,6 +1469,7 @@ mod tests {
         let along = (p1 - p0) * (1.0 / diagonal);
         let theta = (b.zero() + b.escalate()) / 2.0 / diagonal;
         let up = Vec3::new(0.0, 0.0, 1.0);
+        // Lifts both refusals: the bent plane is the gate's near-flat input; the half's edges are not the row.
         body.set_face_surface_stranding_for_tests(
             half.face,
             crate::euler::FaceSurface::New {

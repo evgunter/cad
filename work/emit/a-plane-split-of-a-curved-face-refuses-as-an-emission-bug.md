@@ -2,11 +2,13 @@
 id: a-plane-split-of-a-curved-face-refuses-as-an-emission-bug
 kind: issue
 title: A plane split that leaves two pieces of a curved face on one side refuses face_plane's emission bug; the split ranker has no rule for a curved parent
-status: open
+status: closed
 opened: 2026-09-30
 priority: P0
 cost: M
-design: true
+refs: [edge-pieces-are-named-by-their-ends]
+closed: 2026-10-01
+pr: 3629
 ---
 
 
@@ -45,3 +47,20 @@ This is `face_plane`'s last caller in `crates/editor-core/src/names/`;
 the seam rankers read through `emit_topo::seam_side_normal` instead.
 `face_plane`'s `Emission` stays right for a caller whose face is planar
 by construction.
+
+## Ruled (2026-10-01, PR 3553)
+
+Ev took the recommendation of fork-log row 22 ("the recommendation
+sounds good, including the change to what was decided in 512!"). The
+rule is `crates/editor-core/src/names/README.md` N2. The Split's
+same-side face pieces take `Keeps` (the parent's boundary edges each
+holds a stretch of) instead of a rank along `n_parent × n_tool`, so
+`face_plane` is no longer read and nothing refuses.
+`edge-pieces-are-named-by-their-ends` implements it and closes this row.
+
+## Closed (2026-10-01, PR 3629)
+
+The Split's same-side face pieces take `Keeps`, so `face_plane` and
+`carrier_plane` are gone. The probe's cylinder (radius 0.3, split at
+y = 0.15) names, pinned by
+`emit_split_edge_lineage::a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep`.

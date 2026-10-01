@@ -152,11 +152,10 @@ pub(crate) fn classified<T: Bounds>(
     }
 }
 
-/// The number of interior samples the chain predicates take along
-/// each link. Nine, matching the certification schedule's
-/// `CERT_SAMPLES` — the battery and the certificate look at the same
-/// places, on purpose.
-pub const CHAIN_SAMPLES: u32 = 9;
+/// The number of samples, ends included, the chain predicates take
+/// along each link: the certification schedule's, so the battery and
+/// the certificate look at the same places.
+pub const CHAIN_SAMPLES: u32 = geom_brep::CERT_SAMPLES;
 
 /// Which way the material wedge turns along a chain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -466,25 +465,12 @@ fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T,
 
 /// Sample `i` of the battery's per-link parameter schedule — the
 /// [`CHAIN_SAMPLES`] places every chain predicate looks along
-/// `[t0, t1]`, spelled once. The two ends are the interval bounds
-/// EXACTLY (not `t0 + span·1` arithmetic, which can miss `t1` by an
-/// ulp): the lever arm's reduction to the endpoint chord on straight
-/// edges is bit-exact because sample 0 IS `t0` and the last sample
-/// IS `t1`.
+/// `[t0, t1]`, on the kernel's one uniform schedule
+/// ([`geom_brep::schedule_param`]). Its ends are the interval bounds
+/// exactly, so the lever arm's reduction to the endpoint chord on
+/// straight edges is bit-exact.
 fn chain_sample_at<T: Decide>(t0: T, t1: T, i: u32) -> T {
-    if i == 0 {
-        t0
-    } else if i == CHAIN_SAMPLES - 1 {
-        t1
-    } else {
-        t0 + (t1 - t0) * T::from_f64(f64::from(i) / f64::from(CHAIN_SAMPLES - 1))
-    }
-}
-
-/// The midpoint parameter of a link — the dihedral classifier's
-/// sample, spelled once.
-fn mid_param<T: Decide>(t0: T, t1: T) -> T {
-    (t0 + t1) / T::from_f64(2.0)
+    geom_brep::schedule_param(t0, t1, i, CHAIN_SAMPLES)
 }
 
 /// The lever arm of a link's edge — the curvature-free straight
@@ -920,7 +906,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
     let extent = extent_of(&carrier, t0, t1);
-    let mid = mid_param(t0, t1);
+    let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;

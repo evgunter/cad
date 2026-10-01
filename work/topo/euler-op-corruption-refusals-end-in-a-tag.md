@@ -2,11 +2,14 @@
 id: euler-op-corruption-refusals-end-in-a-tag
 kind: issue
 title: EulerOpError's tier-1 corruption refusals end in a '(malformed body)' tag, not the shared kernel-defect ending
-status: open
+status: closed
+pr: 3621
+branch: topo/euler-corruption-ends-one-way
 opened: 2026-09-30
 refs: [loop-cycle-broken-display-names-one-of-its-causes]
 priority: P3
 cost: E
+closed: 2026-10-01
 ---
 
 ## What
@@ -21,12 +24,13 @@ its siblings'.
 "(malformed body)" tag: `FanOrbitBroken`, `LoopCycleBroken`,
 `LoopNotCycle`, `UnclaimedHalfEdge`, `OrbitBroken`. `StaleKey`,
 `StaleGeometry`, `NotSameEdge` and `EmptyAnchorsCollide` end in
-nothing. Only `KillLeavesDangling` (PR 3570) carries
+nothing. Only `KillLeavesDangling` (PR 3570) and `NotOwned` (PR 3592,
+`movefac`'s ownership proof) carry
 `geom_core::KERNEL_OR_FILE_DEFECT_ENDING` (a body the Euler operators
 refuse may have been read from a file), which
 `test_utils::refusal::recourse_markers` counts; the class now ends
 three ways. This is the Euler-operator instance of
-`work/reach/kernel-bug-refusals-end-without-the-shared-ending`.
+`work/hone/kernel-bug-refusals-end-without-the-shared-ending`.
 
 ## The shape to give
 
@@ -34,3 +38,38 @@ Each corruption arm ends ". {KERNEL_OR_FILE_DEFECT_ENDING}" in place of
 the tag, one decision for the whole class (D4 ¶1 (i)), and a row over
 `every_euler_op_error_once` asserts that every variant
 `reports_tier1_corruption` answers `true` for renders that ending.
+
+## Correction: the ending is `KERNEL_DEFECT_ENDING`
+
+The shape above prescribed `KERNEL_OR_FILE_DEFECT_ENDING` on the
+premise that a body the Euler operators refuse may have been read from
+a file. No file reaches one torn: no kernel crate takes serde
+(`scripts/gates/kernel-serde-free.sh`), the document layer persists
+only kernel enums (`editor-core`'s `persist::kernel_wire`:
+`BooleanOp`, `ContactClass`) and replays a recipe through the doors,
+topo's raw builder is crate-internal, and STEP import assembles every
+body through the public doors, each of which preserves tier 1: the
+`Body` methods `mvfs`, `mev_line`, `mef_chord`, `mekr_chord`, `kemr`,
+`kev` (`adopt.rs`, `assemble.rs`), `kfmrh`, `mfkrh_plug`, `ring_move`,
+`begin_surgery` (`assemble.rs`), `set_face_surface` and
+`set_edge_curve_nurbs_lane`, and the free functions
+`topo::transform_rigid` and `topo::graft_disjoint` (step-import's
+`lib.rs`). `graft_disjoint` is `S14(b)`'s own door, and step-import
+returns on its `Err` (`?`), so it never keeps the spent destination.
+`review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
+sees `pub fn … &mut self` methods only, so it is blind to the two free
+functions, and it checks that a debug postcondition is declared, not
+that tier 1 holds. The conclusion stands on the census: no public path
+leads from file data to an Euler operator. So the class
+ends in `geom_core::KERNEL_DEFECT_ENDING`, and `KillLeavesDangling`
+and `NotOwned` move to it. The one route to a torn body that is not a
+kernel operation's is a caller who keeps a graft destination its `Err`
+left spent, which is `S14(b)`'s open question, not a file.
+
+`StaleKey`, `StaleGeometry` and `NotSameEdge` are reached by a caller's
+mistake as well as by a torn body, and the variant does not say which,
+so no ending is true at every raise site: they keep their fact-only
+texts, claiming neither a recourse nor a defect, until
+`stale-key-and-not-same-edge-answer-for-a-callers-key-and-a-torn-body`
+splits them. The 11 editor-core chains that carry them stay admitted
+in `FILED_NO_RECOURSE`.

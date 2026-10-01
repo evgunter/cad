@@ -124,7 +124,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "lifting the rim back onto a designated open face refused",
     ),
     ("Shell/Insert", "inserting the cavity refused"),
-    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    // work/hone/reach-refusals-short-of-the-shape-guard.md
     (
         "Split/Reduce/CrossingInsertion",
         "inserting the plane crossing on edge EdgeKey    refused",
@@ -148,7 +148,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Profile/RayCastingExhausted",
         "containment of loop 1 in loop 0",
     ),
-    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    // work/hone/reach-refusals-short-of-the-shape-guard.md
     (
         "Split/Join/SectionInvariant",
         "curved-section invariant at face FaceKey",
@@ -357,7 +357,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
-    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
     "Boolean/Join/CutInvariant",
     "Boolean/Join/Euler",
@@ -1438,6 +1438,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             (
                 "RingHomingAmbiguous",
                 J::RingHomingAmbiguous {
+                    ring: LoopKey::default(),
+                },
+            ),
+            (
+                "RingHomingUncrossable",
+                J::RingHomingUncrossable {
                     ring: LoopKey::default(),
                 },
             ),

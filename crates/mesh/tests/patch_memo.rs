@@ -590,6 +590,33 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 breaks,
             },
             Pcurve::Fitted(_) | Pcurve::General(_) => panic!("an analytic chart carries no fit"),
+            // The fixture's charts are a cylinder's and a plane's, so
+            // no spiric image is stored on them; the azimuth shift is
+            // still the one field, were one to arrive.
+            Pcurve::Spiric {
+                major,
+                minor,
+                offset,
+                image,
+            } => Pcurve::Spiric {
+                major,
+                minor,
+                offset,
+                image: match image {
+                    geom_brep::SpiricImage::Cap { p0, pm, pa } => geom_brep::SpiricImage::Cap {
+                        p0: Point2::new(p0.x + TAU, p0.y),
+                        pm,
+                        pa,
+                    },
+                    geom_brep::SpiricImage::Wall { u0, v0, sense } => {
+                        geom_brep::SpiricImage::Wall {
+                            u0: u0 + TAU,
+                            v0,
+                            sense,
+                        }
+                    }
+                },
+            },
         };
         let (t0, t1) = cache.params();
         let he = base.get_half_edge(hek).unwrap();
@@ -691,6 +718,7 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
         .filter_map(|(hek, _)| base.pcurve(hek).cloned().map(|cache| (hek, cache)))
         .collect();
     assert!(!saved.is_empty(), "the wall's loop carries stored pcurves");
+    // Lifts both refusals: the memo must miss when the surface changes under the same edges.
     after
         .set_face_surface_stranding_for_tests(
             fk,

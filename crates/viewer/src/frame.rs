@@ -232,6 +232,7 @@ use pncad::document::{
     ChecksReport, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
     PartFault, ProductError, ProductErrorKind, RecipeNodeId, ResolveFault, SlotId,
 };
+use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
 
 use crate::blend::BlendEvent;
@@ -1578,19 +1579,21 @@ pub fn cursor_status(step: IdStep) -> StatusUpdate {
 ///
 /// The toolbar's badges are drawn in two colours and the split is a
 /// real rule: `weak` for a report a reader need not act on, the
-/// theme's `unresolved` for a verdict they may. The feature tree's
+/// theme's `actionable` for a verdict they may. The feature tree's
 /// rows follow the same rule, stated by [`crate::tree::RowStatus::tone`]
 /// — a poisoned row is [`Tone::Advisory`], deliberately QUIET, so the
 /// eye goes to the failed row a reader can do something about. A
 /// badge, a row, and a pane message drawn through
 /// `widgets::message_toned` each hand over a `Tone` rather than a
 /// style, and `app::toned` is where a tone becomes one: `weak` for
-/// `Advisory`, the theme's `unresolved` for `Actionable`.
+/// `Advisory`, the theme's `actionable` for `Actionable`.
 ///
-/// **The colour is REDUNDANT either way**, which is
-/// [`crate::theme::Theme::unresolved`]'s own stated contract: every
-/// badge says its own words, so nothing depends on the colour being
-/// read.
+/// **Meaning is the words', salience is the colour's.** Every badge
+/// says its own words, so what a verdict MEANS never depends on the
+/// colour being read. Which row is LOUD does, and a theme claiming
+/// [`crate::theme::Safety::ColorblindSafe`] keeps it: the actionable
+/// colour stays apart from the panel, plain text and weak text under
+/// the three dichromacies (`crates/viewer/GUI-DESIGN.md`, Colour (G5)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tone {
     /// A report. The reader may want to know; there is nothing to do
@@ -2205,21 +2208,25 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
 /// say (`wording` absent, which is a fit that did not move δ). The
 /// second was a second condition at the call site.
 ///
-/// **The δ is rendered, not formatted**
-/// ([`crate::scene::DisplayTolerance::render_mm`]). The badge's whole
+/// **The δ is rendered, not formatted**, in `unit` — the working
+/// notation's length unit
+/// ([`crate::scene::DisplayTolerance::render_in`]). The badge's whole
 /// sentence is which δ the picture is at, and the δ it announces is the
 /// budget's own choice — `constant / TRIANGLE_BUDGET`, a quotient with
-/// no short spelling — so a fixed `{:.3}` read `δ 0.000 mm chosen` for
-/// every body whose cost constant is under a triangle·millimetre. A
+/// no short spelling — so a fixed precision would read it as zero. A
 /// label wide enough for the render is the price, and a badge is a
 /// label rather than a fixed-width field.
-pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
+pub fn delta_badge(fitted: Option<&FittedDelta>, unit: LengthUnit) -> Option<Badge> {
     let fitted = fitted?;
-    let wording = fitted.wording()?;
+    let wording = fitted.wording(unit)?;
     Some(
         Badge::read(
             Subject::Display,
-            format!("δ {} mm chosen", fitted.delta.render_mm()),
+            format!(
+                "δ {} {} chosen",
+                fitted.delta.render_in(unit),
+                unit.symbol()
+            ),
             Tone::Advisory,
         )
         .detailed(wording),
@@ -2245,7 +2252,9 @@ enum BadgeSite {
     NotAFault,
 }
 
-/// Which channel reports a refusal of this class, if any.
+/// Which channel reports a refusal of this class, if any. The at-rest
+/// badge ([`at_rest_badge`]) is not one: it reports the A5 gate, which
+/// never runs on a product that did not gather.
 ///
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
@@ -2318,11 +2327,11 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 /// that also re-frames the camera, so the line is the one place a
 /// fault raised by a landing cannot survive the landing.
 ///
-/// **Redundant colour beside its own words.** It is
-/// [`Tone::Actionable`], the tone the at-rest refusal and the checks
-/// findings already carry, and that tone's stated contract is that its
-/// colour is REDUNDANT — every badge using it says its own words, so
-/// nothing depends on the colour being read. This badge satisfies it,
+/// **Its meaning is in its own words.** It is [`Tone::Actionable`],
+/// the tone the at-rest refusal and the checks findings already carry,
+/// and that tone's stated contract is that no MEANING rests on its
+/// colour — every badge using it says its own words, and the colour
+/// carries only salience. This badge satisfies it,
 /// because [`ProductError`]'s `Display` opens every arm with
 /// "product: ".
 ///

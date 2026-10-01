@@ -123,9 +123,9 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// must be disjoint.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x134d_6ccf_1829_e20f),
-    ("corner_table", 0xc4b7_2465_f60b_030a),
+    ("corner_table", 0xcf0b_8633_9766_69e4),
     ("heat_sink", 0x0b8a_ff8e_b9aa_b96c),
-    ("crossing_slots", 0x0122_f131_74ef_d371),
+    ("crossing_slots", 0x0961_23ac_d8e4_74f9),
     ("nested_islands_105", 0xb519_4e98_978a_0ff0),
     ("nested_islands_106_depth1", 0x5931_1f11_3836_8421),
     ("nested_islands_106_depth2", 0x2678_ebbf_0f9d_7520),
@@ -142,7 +142,7 @@ const PINNED: &[(&str, u64)] = &[
     // datum mints no names, so the swap moves no id that any name
     // holds: their rows are byte-identical. That is what this
     // per-document instrument is for.
-    ("kitchen_sink", 0x71e0_08b9_de8e_e2f1),
+    ("kitchen_sink", 0xb139_4620_3f0e_f671),
     ("cut_cylinder", 0xe802_de89_1fc3_c787),
     ("measured_web", 0xdb17_4fa0_630c_75d0),
     ("boss_union", 0xd5f0_4d0d_fa67_0efc),
@@ -160,7 +160,7 @@ const PINNED: &[(&str, u64)] = &[
     ("loft_prism", 0xbc10_7d29_7f51_e5df),
     ("die_composed", 0x1af5_b0dd_8809_70ec),
     ("die_composed_tour", 0x46fc_1982_1eb4_308f),
-    ("plate_param", 0xe7ef_8c7f_ab14_0aa2),
+    ("plate_param", 0x8864_5739_bfc2_04af),
     ("kiss_carry", 0x6863_3b0e_1061_152e),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
     // tube doors return `Revolved<T>` and the emitter reads only
