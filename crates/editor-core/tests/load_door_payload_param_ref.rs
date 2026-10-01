@@ -202,7 +202,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
             declared,
             referenced,
         }) => {
-            assert_eq!((n, node), (name.clone(), measure));
+            assert_eq!((n, node.id()), (name.clone(), measure));
             assert_eq!(
                 (declared, referenced),
                 (Dimension::Angle, Dimension::Length)

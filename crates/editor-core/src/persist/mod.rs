@@ -94,7 +94,8 @@
 //!
 //! The recipe IS the save: the document id, nodes, parameters,
 //! expressions, witness bytes (hex, bit-exact), the appearance store
-//! (records incl. D7 metadata), recorded ε, and the edit log.
+//! (records incl. D7 metadata), node labels, recorded ε, and the edit
+//! log.
 //! Deliberately NOT persisted: evaluations, name tables,
 //! memo/content/naming keys, arena anything — and the profile
 //! programs' REPLAYED SEGMENTS (vertices/bulges/joints are replay

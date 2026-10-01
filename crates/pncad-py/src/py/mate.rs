@@ -60,7 +60,7 @@ fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
 
 /// A kernel point as three lengths.
 fn point(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
-    lengths([p.x, p.y, p.z])
+    lengths(p.to_array())
 }
 
 /// A kernel vector as three plain numbers — a DIRECTION carries no
@@ -710,7 +710,7 @@ impl MateFault {
     /// its own failure states it.
     #[getter]
     fn cause(&self, py: Python<'_>) -> Option<Py<PyAny>> {
-        super::value::carried_cause(py, self.0.carried_chain())
+        super::value::carried_cause(py, self.0.carried_chain(), None)
             .map(|cause| cause.into_value(py).into_any())
     }
 
@@ -978,7 +978,7 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
     );
     // The refusal the fault carries, typed, as the cause — the value's
     // own `cause`, and what a node failure does with one.
-    super::value::with_carried(py, err, fault.carried_chain())
+    super::value::with_carried(py, err, fault.carried_chain(), None)
 }
 
 /// [`d::SolvedPoses::placement`]'s refusal, raised: the solve's own
@@ -997,7 +997,7 @@ fn pose_err(py: Python<'_>, instance: NodeId, refusal: &d::PoseRefusal) -> PyErr
         },
     };
     let err = super::value::refused(py, instance, &kind, refusal.to_string(), None);
-    super::value::with_carried(py, err, kind.carried_chain())
+    super::value::with_carried(py, err, kind.carried_chain(), None)
 }
 
 /// The document's solved poses: each instance's pose relative to its

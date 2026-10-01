@@ -820,9 +820,9 @@ mod tests {
         }
     }
 
-    fn doc_ref(label: &str) -> DocRef {
+    fn doc_ref(seed: &str) -> DocRef {
         DocRef {
-            id: DocumentId::derive(label),
+            id: DocumentId::derive(seed),
             pin: ContentPin([1; 32]),
         }
     }

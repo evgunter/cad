@@ -339,6 +339,7 @@ const ATTRIBUTE_SITES_TODAY: [(&str, usize); 20] = [
     ("crates/editor-core/src/ident.rs", 1),
     ("crates/editor-core/src/mate.rs", 4),
     ("crates/editor-core/src/measure.rs", 1),
+    ("crates/editor-core/src/mint.rs", 1),
     ("crates/editor-core/src/names/nest.rs", 1),
     ("crates/editor-core/src/names/nest_reference.rs", 3),
     ("crates/editor-core/src/names/role.rs", 4),
@@ -348,7 +349,6 @@ const ATTRIBUTE_SITES_TODAY: [(&str, usize); 20] = [
     ("crates/editor-core/src/placement.rs", 3),
     ("crates/editor-core/src/program.rs", 4),
     ("crates/editor-core/src/resolve/vdiff.rs", 2),
-    ("crates/editor-core/src/step_mint.rs", 1),
     ("crates/editor-core/src/witness.rs", 2),
     ("crates/editor-core/tests/bool13r2_probes.rs", 2),
 ];

@@ -384,6 +384,16 @@ impl Band {
         Ok(Self { zero, escalate })
     }
 
+    /// **The tolerance below which `margin` is decided**, `|m|/K`: below
+    /// it the band's escalation edge falls under `|m|`. The one home of
+    /// the value every sized recourse offers to tighten below
+    /// ([`MarginDiag::sized_recourse`]) and of every reader that checks
+    /// an offer against its margin.
+    #[must_use]
+    pub fn tolerance_deciding(self, margin: f64) -> f64 {
+        margin.abs() / (self.escalate / self.zero)
+    }
+
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
     /// global [`Tolerance`](crate::tolerance::Tolerance) (its ε and its K).
     ///
@@ -1135,9 +1145,9 @@ impl SizedPass {
 
     /// The tolerance every margin in `[lo, hi]` is decided passing below,
     /// where both ends tighten on one side.
-    fn below(self, lo: f64, hi: f64, k: f64) -> Option<f64> {
+    fn below(self, lo: f64, hi: f64, band: Band) -> Option<f64> {
         (self.tightens(lo) && self.tightens(hi) && (lo > 0.0) == (hi > 0.0))
-            .then(|| lo.abs().min(hi.abs()) / k)
+            .then(|| band.tolerance_deciding(lo.abs().min(hi.abs())))
     }
 }
 
@@ -1232,10 +1242,9 @@ impl MarginDiag {
             may_tighten,
             otherwise,
         } = words;
-        let k = band.escalate() / band.zero();
         let below = match self.0 {
-            Reading::Value(m) => passes.tightens(m).then(|| m.abs() / k),
-            Reading::Enclosure { lo, hi } => passes.below(lo, hi, k),
+            Reading::Value(m) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
+            Reading::Enclosure { lo, hi } => passes.below(lo, hi, band),
             Reading::Invalid => return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}"),
         };
         match (below, otherwise) {
@@ -1358,8 +1367,22 @@ pub struct Indeterminate {
 /// payload), or through [`Indeterminate`]'s own Display for escalated
 /// arms. Message-pinning tests pin the fragment with `contains`, never
 /// with full-string pins that rot.
-pub const COINCIDENCE_RECOURSE: &str =
-    "declare the coincidence, move the geometry, or lower the tolerance";
+pub const COINCIDENCE_RECOURSE: &str = concat!(
+    crate::coincidence_declare_arm!(),
+    ", ",
+    crate::coincidence_move_arm!(),
+    ", or lower the tolerance"
+);
+
+/// [`COINCIDENCE_RECOURSE`] on a DEFINITE verdict of a coincidence a
+/// declaration settles: its declaration and geometry arms, without the
+/// tolerance, which a definite verdict gives no size to tighten below
+/// (D4 ¶1 (i)). The two are one spelling of the arms.
+pub const DEFINITE_COINCIDENCE_RECOURSE: &str = concat!(
+    crate::coincidence_declare_arm!(),
+    ", or ",
+    crate::coincidence_move_arm!()
+);
 
 /// The one recourse for a quantity the floating-point format cannot
 /// hold — a length that overflows the norm or underflows to zero while
@@ -1375,6 +1398,13 @@ pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
 /// know whether its caller declares; the Boolean's own wrapper adds the
 /// declaration back (`topo::BooleanError::Join`).
 pub const NO_DECLARATION_RECOURSE: &str = "move the geometry, or lower the tolerance";
+
+/// What a direction-length decision decides, in words: the one subject
+/// every door that asks whether a direction vector has any length
+/// renders (`UnitVec3Error::Escalated`, and the decision-word tables of
+/// `topo`'s Boolean, `profile`'s path validation and `editor-core`'s
+/// evaluation), so the question reads the same wherever it escalates.
+pub const DIRECTION_LENGTH_SUBJECT: &str = "whether a direction has any length";
 
 /// [`NO_DECLARATION_RECOURSE`] at a split, whose plane is the first
 /// lever: a split takes no declarations (`topo::split`'s signature).
@@ -1455,6 +1485,26 @@ pub const KERNEL_LIMIT_RECOURSE: &str = concat!(
 macro_rules! kernel_defect_ending {
     () => {
         "There is no way through: this is a kernel defect; report it"
+    };
+}
+
+/// [`COINCIDENCE_RECOURSE`]'s declaration arm as a literal, for
+/// `concat!`; see `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! coincidence_declare_arm {
+    () => {
+        "declare the coincidence"
+    };
+}
+
+/// [`COINCIDENCE_RECOURSE`]'s geometry arm as a literal, for `concat!`;
+/// see `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! coincidence_move_arm {
+    () => {
+        "move the geometry"
     };
 }
 
@@ -1841,7 +1891,7 @@ mod tests {
     #[test]
     fn an_enclosure_tightens_only_with_both_ends_on_one_side() {
         use SizedPass::{Negative, NonZero, Positive};
-        let k = 10.0;
+        let band = Band::new(1e-9, 1e-8).unwrap();
         let rows = [
             (NonZero, 2e-9, 5e-9, Some(2e-10)),
             (NonZero, -5e-9, -2e-9, Some(2e-10)),
@@ -1856,7 +1906,7 @@ mod tests {
         ];
         for (pass, lo, hi, want) in rows {
             assert_eq!(
-                pass.below(lo, hi, k),
+                pass.below(lo, hi, band),
                 want,
                 "{pass:?} over [{lo:e}, {hi:e}]"
             );

@@ -11,7 +11,7 @@ use geom_core::Tol;
 
 /// The opaque profile payload for tests: this crate never looks
 /// inside `P` (spec D1/D3 — PR 2 instantiates the real profile type).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
@@ -186,7 +186,12 @@ fn dangling_ref_rejected() {
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::UnresolvedInput { input: ghost });
+    assert_eq!(
+        err,
+        EditError::UnresolvedInput {
+            input: editor_core::SpokenNode::absent(ghost)
+        }
+    );
 }
 
 #[test]
@@ -194,7 +199,7 @@ fn self_reference_cannot_forge_the_next_id() {
     // Guessing the about-to-mint id is still an unresolved ref: refs
     // must resolve among EXISTING nodes, so insertion cannot cycle.
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let guessed = RecipeNodeId(0); // empty doc will mint 0 next
+    let guessed = RecipeNodeId(0); // no node holds it
     let err = doc
         .apply(
             &TEdit::InsertNode {
@@ -207,7 +212,12 @@ fn self_reference_cannot_forge_the_next_id() {
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::UnresolvedInput { input: guessed });
+    assert_eq!(
+        err,
+        EditError::UnresolvedInput {
+            input: editor_core::SpokenNode::absent(guessed)
+        }
+    );
 }
 
 #[test]
@@ -223,8 +233,8 @@ fn delete_of_referenced_node_rejected() {
     assert_eq!(
         err,
         EditError::DeleteWouldDangle {
-            id: profile,
-            referenced_by: extrude
+            id: doc.spoken(profile),
+            referenced_by: doc.spoken(extrude)
         }
     );
 }
@@ -290,5 +300,12 @@ fn set_expression_path_off_tree_rejected() {
             &editor_core::RefusingReach,
         )
         .unwrap_err();
-    assert_eq!(err, EditError::PathOffTree { path: bad });
+    assert_eq!(
+        err,
+        EditError::PathOffTree {
+            node: doc.spoken(extrude),
+            slot: bad.slot,
+            path: bad.path
+        }
+    );
 }

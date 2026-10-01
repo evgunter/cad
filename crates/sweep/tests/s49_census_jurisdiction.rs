@@ -53,7 +53,7 @@ fn brick(z0: f64, h: f64) -> Body<f64> {
 /// The pair as one two-instance arena.
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 

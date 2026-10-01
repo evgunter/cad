@@ -79,14 +79,11 @@ fn point_bits<T: geom_core::Decide>(
 }
 
 fn f64_bits(p: &Point3<f64>) -> [u64; 3] {
-    [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
+    p.to_array().map(f64::to_bits)
 }
 
-fn affine_bits(a: &Affine3<f64>) -> Vec<u64> {
-    [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .flat_map(|c| [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()])
-        .collect()
+fn affine_bits(a: &Affine3<f64>) -> [u64; 12] {
+    a.components().map(f64::to_bits)
 }
 
 fn motion(p: &Placement) -> Affine3<f64> {
@@ -310,7 +307,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
         }
         let text = error.to_string();
         assert!(
-            text.contains("step 2 of node") && text.contains("Recourse:"),
+            text.contains("step 2 of Transform ") && text.contains("Recourse:"),
             "the {what} refusal names the step and its recourse: {text}"
         );
     }
@@ -605,11 +602,13 @@ fn a_mixed_chain_evaluates_in_the_interval_lane() {
 }
 
 /// **The content key tells every chain apart.** Two documents under
-/// one identity, whose transform differs only in its chain; B
-/// evaluated with A's evaluation as its prior recomputes the transform
-/// and places the body as a cold evaluation of B does — over a chain's
-/// order, its length, a literal's signed zero, and two rigid steps
-/// swapped.
+/// one identity, whose transform differs only in its chain: the two
+/// transforms key apart, and B evaluated with A's evaluation as its
+/// prior places the body as a cold evaluation of B does — over a
+/// chain's order, its length, a literal's signed zero, and two rigid
+/// steps swapped. The two transforms are two nodes with two ids, so the
+/// memo's id lookup alone keeps them apart; the keys are compared
+/// directly.
 #[test]
 fn the_content_key_tells_every_chain_apart() {
     let literal = Step::Literal(Frame::translation([0.0, 3.0, 0.0]));
@@ -649,13 +648,17 @@ fn the_content_key_tells_every_chain_apart() {
             let (doc, body) = cube("placement-key");
             insert(doc, Node::transform(body, Placement { steps: b }))
         };
-        assert_eq!((ta, doc_a.id()), (tb, doc_b.id()), "{what}: one identity");
+        assert_eq!(doc_a.id(), doc_b.id(), "{what}: one identity");
         let prior = run(&doc_a, None);
         let warm = run(&doc_b, Some(&prior));
         let cold = run(&doc_b, None);
-        assert!(
-            warm.recomputed >= 1,
-            "{what}: the transform was served from the other chain's evaluation"
+        let key = |ev: &editor_core::Evaluation<f64>, t| {
+            ev.value(t).expect("the transform evaluates").content_key
+        };
+        assert_ne!(
+            key(&prior, ta),
+            key(&cold, tb),
+            "{what}: the two chains key apart"
         );
         assert_eq!(
             point_bits(&warm, tb, f64_bits),

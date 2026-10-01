@@ -230,7 +230,10 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     // The notice says the pick in the panel's words on the frame
     // before — the instance as the document spoke it when it was
     // picked — though the document that dropped it no longer holds it.
-    let said = format!("face of InstantiatePart {:012x}", bench.shelf_i.0);
+    let said = format!(
+        "face of InstantiatePart {}",
+        test_utils::refusal::tag(bench.shelf_i.0)
+    );
     assert!(
         held_line.ends_with(&format!("pick b: {said}")),
         "{held_line:?}"
@@ -911,7 +914,7 @@ fn a_mate_refusal_names_the_picked_node_by_the_tag_the_panel_shows() {
         viewer::test_support::xy_frame(),
         tol,
     );
-    let tag = format!("{:012x}", node.0);
+    let tag = test_utils::refusal::tag(node.0);
     let panel = MateToolState::One(FaceSelection {
         name: pncad::prelude::StableName {
             kind: pncad::prelude::EntityKind::Face,

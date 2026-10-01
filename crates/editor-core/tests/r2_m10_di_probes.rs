@@ -317,7 +317,12 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                             for (v, s) in lp.vertices().iter().zip(lp.segments()) {
                                 d.s(v.x);
                                 d.s(v.y);
-                                d.s(s.bulge);
+                                if let profile::SegmentKind::Arc { arc, .. } = s.kind {
+                                    d.s(arc.centre.x);
+                                    d.s(arc.centre.y);
+                                    d.s(arc.radius);
+                                    d.s(arc.sweep);
+                                }
                             }
                         }
                     }

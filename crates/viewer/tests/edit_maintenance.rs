@@ -21,6 +21,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use test_utils::refusal::tagged;
 
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
@@ -44,7 +45,7 @@ fn wall(
     segment: usize,
 ) -> StableName {
     let Some(Node::Extrude { profile, .. }) = doc.node(node) else {
-        panic!("node {:012x} is an extrude", node.0);
+        panic!("node {} is an extrude", test_utils::refusal::tag(node.0));
     };
     let Some(Node::Profile(program)) = doc.node(*profile) else {
         panic!("an extrude's operand is a profile");
@@ -237,17 +238,17 @@ fn every_maintenance_row_rides_beside_a_refusal() {
 
     let face = |node: u64| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(node),
+        node: RecipeNodeId(tagged(node)),
         path: vec![],
     };
     let rows = [
         Maintenance::Strand {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId(tagged(3)),
             name: face(7),
         },
         Maintenance::StrandedAppearance { name: face(8) },
         Maintenance::OrphanedDeclare {
-            declare: RecipeNodeId(5),
+            declare: RecipeNodeId(tagged(5)),
         },
     ];
     let notices: Vec<frame::Message> = rows
@@ -591,19 +592,19 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
 /// own sentence.
 #[test]
 fn an_offset_clear_is_carried_but_not_worded() {
-    let minter = RecipeNodeId(7);
+    let minter = RecipeNodeId(tagged(7));
     let act = Maintenance::OffsetCleared {
-        instance: RecipeNodeId(5),
+        instance: RecipeNodeId(tagged(5)),
         offset: pncad::document::Placement::IDENTITY,
     };
     assert_eq!(frame::maintenance_notice(&act), None);
     let strand = Maintenance::Strand {
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         name: StableName {
             kind: EntityKind::Face,
             node: minter,
             path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: StepId(1),
+                step: StepId(tagged(1)),
                 role: PieceRole::Leg,
             })],
         },

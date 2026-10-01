@@ -423,7 +423,7 @@ pub const NODE_KINDS: [&str; 21] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 18] = [
+pub const EDIT_KINDS: [&str; 19] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -442,6 +442,7 @@ pub const EDIT_KINDS: [&str; 18] = [
     "SetTolerance",
     "SetAppearanceMeta",
     "ClearAppearanceMeta",
+    "SetLabel",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum
@@ -635,6 +636,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetOffset { .. } => "SetOffset",
         DocEdit::SetGauge { .. } => "SetGauge",
         DocEdit::UpdateReference { .. } => "UpdateReference",
+        DocEdit::SetLabel { .. } => "SetLabel",
     }
 }
 

@@ -433,7 +433,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece));
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
-    let blank = format!("{:012x}", blank_of(&doc).0);
+    let blank = test_utils::refusal::tag(blank_of(&doc).0);
     assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
     assert_eq!(
         e.to_string(),
@@ -464,8 +464,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     assert_eq!(
         e.to_string(),
         format!(
-            "the shell open-face name minted by node {:012x} denotes an edge, not a face",
-            blank_of(&doc).0
+            "the shell open-face name minted by node {} denotes an edge, not a face",
+            test_utils::refusal::tag(blank_of(&doc).0)
         )
     );
 

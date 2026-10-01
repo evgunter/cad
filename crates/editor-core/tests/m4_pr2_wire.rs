@@ -988,8 +988,8 @@ fn declare_passes_through_and_boolean_accepts_it() {
     );
     assert!(
         matches!(
-            refused,
-            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input == boolean
+            &refused,
+            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input.id() == boolean
         ),
         "expected the declare edge's kind refusal, got {refused:?}"
     );

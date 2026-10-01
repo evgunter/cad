@@ -270,7 +270,7 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
             })
             .collect(),
     };
-    topo::insert_void(&mut host, host_solid, pre_reverted, &evidence, tol()).expect("inserts");
+    topo::insert_void(&mut host, host_solid, pre_reverted, &evidence).expect("inserts");
     println!("[r2] two-outer host roles: {:?}", roles(&host));
     let (body, _) = beside_raw(
         &host,
@@ -535,7 +535,7 @@ fn r2_e2e_consumer_seat() {
         tol(),
     )
     .unwrap();
-    let b_solid = topo::graft_disjoint(&mut assembly, &placed, tol()).expect("placed");
+    let b_solid = topo::graft_disjoint(&mut assembly, &placed).expect("placed");
     let a_solid = assembly.solids().next().unwrap().0;
     let hollowed = topo::shell(&assembly, 0.05, tol()).expect("both parts hollow in one call");
     let want = one_wall(0.05) + PI * (1.0 * 2.0 - 0.95 * 0.95 * 1.9);

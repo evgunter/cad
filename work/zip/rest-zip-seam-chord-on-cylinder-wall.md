@@ -66,3 +66,17 @@ non-planar declared pairs lands A and B on `JoinDesync` — the
 MERGEDOOR unit's STOP 2 — and its rows 1, 2 and 6 cannot go green.
 Separately (S-BOOL's ops.rs): `describe_minted_edges`' `JoinDesync`
 arm should carry the certification error it discards.
+
+## Measured (CLEAVE `cleave/ladders`, 2026-10-01)
+
+Scenes A and B no longer reach the declared-REST zip. On main the
+general join refused them first with `Join(SectionLoopMixed)`: role
+resolution read a rim semicircle at its chord midpoint, the circle's
+centre, and both loops took that one verdict. The boolean then fell to
+the REST zip, which minted the chord. With role resolution reading
+each edge at its carrier midpoint, the general join resolves both
+scenes. `curved_mergedoor.rs`
+`floating_and_mid_bore_pegs_ship_honest_with_one_record` pins additive
+volume, tiers 2, 3 and 3′, and the one cylinder-pair record. Whether
+the REST zip still mints a chord on some other pose is unmeasured.
+These two scenes were its only reproducer.

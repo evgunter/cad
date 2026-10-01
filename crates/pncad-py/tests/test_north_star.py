@@ -1251,8 +1251,8 @@ class TestDiefillet(unittest.TestCase):
         # spellings are authored as the SAME part — which is what the
         # labelled constructor says. The claim under test is about the
         # SELECTION being canonical, not about two parts colliding.
-        forward = Doc(label="canonical-fillet-selection")
-        backward = Doc(label="canonical-fillet-selection")
+        forward = Doc(seed="canonical-fillet-selection")
+        backward = Doc(seed="canonical-fillet-selection")
         for target, order in ((forward, edges), (backward, list(reversed(edges)))):
             sq = target.insert(
                 Node.polygon(
@@ -1369,8 +1369,8 @@ class TestDiechamfer(unittest.TestCase):
     def test_the_selection_is_canonical_whatever_order_it_arrives_in(self):
         doc, cube = self.build()
         edges = evaluate(doc).all_edges(cube)
-        forward = Doc(label="canonical-chamfer-selection")
-        backward = Doc(label="canonical-chamfer-selection")
+        forward = Doc(seed="canonical-chamfer-selection")
+        backward = Doc(seed="canonical-chamfer-selection")
         for target, order in ((forward, edges), (backward, list(reversed(edges)))):
             sq = target.insert(
                 Node.polygon(
@@ -4151,8 +4151,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "insert_node", "rebind", "set_doc_param",
                 "set_doc_param_distribution", "set_doc_param_unit",
                 "set_doc_param_value",
-                "set_gauge", "set_members", "set_offset", "set_param",
-                "set_program", "set_roots",
+                "set_gauge", "set_label", "set_members", "set_offset",
+                "set_param", "set_program", "set_roots",
                 "set_tolerance", "update_reference",
             ],
         )

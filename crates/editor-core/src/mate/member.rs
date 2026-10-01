@@ -68,8 +68,9 @@ pub struct Member {
 }
 
 /// **The member key, written out.** `Member` is the `BTreeMap` key
-/// `by_pair` and `edge_of` are built on and the order the spanning
-/// tree picks its edges by, so the ordering is stated rather than
+/// `by_pair` and `edge_of` are built on, and its order, with every node
+/// read as its position in the document, is the order the spanning
+/// tree picks its edges by; so the ordering is stated rather than
 /// derived: `(instance, copy, at)`, with the OPERAND last and the copy
 /// chain compared lexicographically.
 ///
@@ -876,7 +877,7 @@ mod tests {
     /// BODY. Hand-pushed: `AXIS`, `FRAME2`, `T1 = xf(t1_in)`,
     /// `T2 = xf(T1)`, and `PATTERN`, circular over the body with
     /// `axis_operand` as its rule's axis.
-    fn build(label: &str, t1_in: Src, axis_operand: Src) -> (ProfileDoc, RecipeNodeId) {
+    fn build(seed: &str, t1_in: Src, axis_operand: Src) -> (ProfileDoc, RecipeNodeId) {
         let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
             let a = crate::apply(
                 &doc,
@@ -889,7 +890,7 @@ mod tests {
             .expect("inserts");
             (a.doc, a.record.minted.unwrap())
         };
-        let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
         let (doc, plane) = ins(doc, xy_frame());
         let (doc, profile) = ins(
             doc,
@@ -935,7 +936,10 @@ mod tests {
                 },
             },
         );
-        doc.next_id = MATE.0 + 1;
+        doc.mint = doc
+            .mint
+            .clone()
+            .logged([AXIS, FRAME2, T1, T2, PATTERN, DANGLING, MATE].map(crate::Minted::Node));
         (doc, body)
     }
 

@@ -90,6 +90,7 @@ use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
     BooleanReduction, BooleanResult, BooleanResultKind, FacePairDeclaration, Operand, OperandKeys,
 };
+use super::{Coincide, DeclarationRead, RestZipFrontier};
 use crate::body::Body;
 use crate::contact::ContactClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -110,7 +111,7 @@ fn desync(what: &'static str) -> BooleanError {
 
 /// A named sub-frontier the lane declines (honest typed refusal,
 /// never a laundered catch-all).
-fn unsupported(what: &'static str) -> BooleanError {
+fn unsupported(what: RestZipFrontier) -> BooleanError {
     BooleanError::RestZipUnsupported { what }
 }
 
@@ -455,7 +456,13 @@ fn enumerate_segments<T: Decide>(
             });
         }
     }
-    let escalate = BooleanError::coincidence;
+    let escalate = |diag| {
+        BooleanError::coincidence(
+            Coincide::Join,
+            DeclarationRead::Spent(ContactClass::Rest),
+            diag,
+        )
+    };
     let mut segments = Vec::new();
     loop {
         // Globally nearest mutually-facing unused pair (the join's
@@ -1045,7 +1052,7 @@ fn verify_declared_pairs<T: Decide>(
             Err(PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
-                    super::PlaneDoor::Declared,
+                    super::PlaneDoor::OnPair(super::DeclarationRead::Spent(ContactClass::Rest)),
                     diag,
                 ));
             }
@@ -1164,9 +1171,7 @@ fn fan_edge_between<T: Decide>(
                 None => found = Some(e),
                 Some(prev) if prev == e => {}
                 Some(_) => {
-                    return Err(unsupported(
-                        "two parallel operand edges span one seam segment",
-                    ));
+                    return Err(unsupported(RestZipFrontier::ParallelSeamEdges));
                 }
             }
         }
@@ -1215,7 +1220,7 @@ fn mint_chord<T: Decide>(
             if lu == lv {
                 let created = body
                     .mef_chord(MefSite::Chords { he1: *hu, he2: *hv }, tol)
-                    .map_err(|_| unsupported("seam chord mef refused on its host face"))?;
+                    .map_err(|_| unsupported(RestZipFrontier::ChordMefRefused))?;
                 fragments.push((created.face, face));
                 created.edge
             } else {
@@ -1226,31 +1231,29 @@ fn mint_chord<T: Decide>(
                     .outer;
                 let (target, ring) = if lv == outer { (*hv, *hu) } else { (*hu, *hv) };
                 body.mekr_chord(MekrSite::Cycles { target, ring }, tol)
-                    .map_err(|_| unsupported("seam chord mekr refused on its host face"))?
+                    .map_err(|_| unsupported(RestZipFrontier::ChordMekrRefused))?
                     .edge
             }
         }
         ([], [hv]) => {
             let ring = ring_loop_of(body, u)
-                .ok_or_else(|| unsupported("seam chord endpoint has no boundary presence"))?;
+                .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
             body.mekr_chord(MekrSite::EmptyRing { target: *hv, ring }, tol)
-                .map_err(|_| unsupported("seam chord mekr (pierce ring) refused"))?
+                .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
                 .edge
         }
         ([hu], []) => {
             let ring = ring_loop_of(body, v)
-                .ok_or_else(|| unsupported("seam chord endpoint has no boundary presence"))?;
+                .ok_or_else(|| unsupported(RestZipFrontier::ChordEndpointAbsent))?;
             body.mekr_chord(MekrSite::EmptyRing { target: *hu, ring }, tol)
-                .map_err(|_| unsupported("seam chord mekr (pierce ring) refused"))?
+                .map_err(|_| unsupported(RestZipFrontier::PierceRingMekrRefused))?
                 .edge
         }
         ([], []) => {
-            return Err(unsupported("seam chord between two isolated pierce points"));
+            return Err(unsupported(RestZipFrontier::ChordBetweenIsolatedPierces));
         }
         _ => {
-            return Err(unsupported(
-                "seam chord endpoint revisited by its host face boundary",
-            ));
+            return Err(unsupported(RestZipFrontier::ChordEndpointRevisited));
         }
     };
     Ok(Some(created))
@@ -1448,9 +1451,10 @@ fn pair_patches<T: Decide>(
         let mapped: Vec<VertexKey> = starts
             .iter()
             .map(|&v| {
-                vcorr.get(v).copied().ok_or_else(|| {
-                    unsupported("patch boundary vertex without a seam correspondent")
-                })
+                vcorr
+                    .get(v)
+                    .copied()
+                    .ok_or_else(|| unsupported(RestZipFrontier::PatchVertexUnmatched))
             })
             .collect::<Result<_, _>>()?;
         let n = mapped.len();
@@ -1477,9 +1481,7 @@ fn pair_patches<T: Decide>(
             break;
         }
         let Some(fb) = matched else {
-            return Err(unsupported(
-                "patch face cycles not congruent across the mate",
-            ));
+            return Err(unsupported(RestZipFrontier::PatchCyclesIncongruent));
         };
         used.insert(fb, ());
         pairs.push((fa, fb));
@@ -1629,9 +1631,7 @@ fn glue_pair<T: Decide>(
         );
     }
     if ga.len() != gb.len() {
-        return Err(unsupported(
-            "patch pair carries differing interior-boundary counts",
-        ));
+        return Err(unsupported(RestZipFrontier::HoleCountsDiffer));
     }
     let shared = shared_run(body, fa, fb)?;
     let mut report = if shared.is_empty() {
@@ -1650,7 +1650,7 @@ fn glue_pair<T: Decide>(
             .map(|&v| {
                 vmap.get(v)
                     .copied()
-                    .ok_or_else(|| unsupported("ring boundary vertex without a seam correspondent"))
+                    .ok_or_else(|| unsupported(RestZipFrontier::HoleVertexUnmatched))
             })
             .collect::<Result<_, _>>()?;
         let n = mapped.len();
@@ -1675,7 +1675,7 @@ fn glue_pair<T: Decide>(
             break;
         }
         let Some(db) = matched else {
-            return Err(unsupported("ring cycles not congruent across the mate"));
+            return Err(unsupported(RestZipFrontier::HoleCyclesIncongruent));
         };
         used.insert(db, ());
         let shared = shared_run(body, da, db)?;
@@ -1732,7 +1732,7 @@ fn slit_zip<T: Decide>(
             .get_face(f)
             .ok_or_else(|| desync("REST lane: slit face vanished"))?;
         if !fd.rings.is_empty() {
-            return Err(unsupported("slit-zip face carries rings"));
+            return Err(unsupported(RestZipFrontier::SlitFaceHoles));
         }
         let LoopBoundary::Cycle { first } = body
             .get_loop(fd.outer)
@@ -1756,14 +1756,14 @@ fn slit_zip<T: Decide>(
         .collect::<Result<_, BooleanError>>()?;
     let k = flags.iter().filter(|&&s| s).count();
     if k != shared.len() || k == flags.len() {
-        return Err(unsupported("patch pair shares its whole boundary"));
+        return Err(unsupported(RestZipFrontier::WholeBoundaryShared));
     }
     let n = flags.len();
     // Rotate so a run occupies a prefix: find i with flags[i] &&
     // !flags[(i+n-1)%n], then collect every maximal run in cycle
     // order from there (deterministic — D9).
     let Some(start) = (0..n).find(|&i| flags[i] && !flags[(i + n - 1) % n]) else {
-        return Err(unsupported("patch pair shares its whole boundary"));
+        return Err(unsupported(RestZipFrontier::WholeBoundaryShared));
     };
     let mut runs: Vec<Vec<HalfEdgeKey>> = Vec::new();
     let mut t = 0;
@@ -1831,9 +1831,7 @@ fn slit_zip<T: Decide>(
             .vertex_orbit(anchor)
             .ok_or_else(|| desync("REST lane: run vertex orbit not walkable"))?;
         if orbit.len() != 1 {
-            return Err(unsupported(
-                "seam-run interior vertex holds edges beyond the run",
-            ));
+            return Err(unsupported(RestZipFrontier::RunVertexBranches));
         }
         let mate = body
             .mate(he)
@@ -1910,9 +1908,7 @@ fn slit_zip<T: Decide>(
                 } else if fd.rings.contains(&lm) {
                     m
                 } else {
-                    return Err(unsupported(
-                        "band-closure run edge outside the folded face's loops",
-                    ));
+                    return Err(unsupported(RestZipFrontier::BandRunOffLoops));
                 };
                 let ring = loop_of(body, ring_half)?;
                 body.mfkrh(ring, FaceSurface::Inherit)
@@ -2042,7 +2038,7 @@ fn zip_folded<T: Decide>(
             .half_edge_end(hb)
             .ok_or_else(|| desync("REST lane: fold half has no end"))?;
         if sa == eb {
-            return Err(unsupported("pre-fused vertex pair inside a slit-zip fold"));
+            return Err(unsupported(RestZipFrontier::FoldVertexFused));
         }
         if vmap.get(sa).copied() != Some(eb) {
             return Err(corr("slit-zip vertex pair off the seam correspondence"));

@@ -35,9 +35,9 @@ assert that they agree. What the switch is for is that comparison
 (`test_assembly_author.TestBenchLayout`); what the scene ships is the
 pattern.
 
-A `Doc`'s identity is derived from its label, so the two part documents
+A `Doc`'s identity is derived from its seed, so the two part documents
 have the same identities whatever authored them, and a document
-re-authored under the same label with different dimensions is the same
+re-authored under the same seed with different dimensions is the same
 id at a different pin — which is how a part legitimately changes on
 disk.
 """
@@ -105,16 +105,16 @@ FLAT_PACK_SHELF_Y = 0.9
 #: inset in y so the bench top overhangs front and back.
 ROOT_OFFSET_Y = (SHELF_DEPTH - POST_SECTION) / 2.0
 
-POST_LABEL = "pncad-demo-post"
-SHELF_LABEL = "pncad-demo-shelf"
-LAYOUT_LABEL = "pncad-demo-layout"
-STAND_LABEL = "pncad-demo-stand"
+POST_SEED = "pncad-demo-post"
+SHELF_SEED = "pncad-demo-shelf"
+LAYOUT_SEED = "pncad-demo-layout"
+STAND_SEED = "pncad-demo-stand"
 
 
 # ---- The part documents ----
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """A rectangular prism part document, rooted at the origin.
 
     The extrusion runs +z from the sketch plane at z = 0, so the part's
@@ -122,7 +122,7 @@ def prism(label, width, depth, height):
     Three nodes: the sketch frame, the section drawn on it, the
     extrude that consumes both.
     """
-    doc = Doc(label)
+    doc = Doc(seed)
     profile = doc.insert(
         Node.polygon(
             [
@@ -140,14 +140,14 @@ def prism(label, width, depth, height):
 
 def post(height=POST_HEIGHT, section=POST_SECTION):
     """The post: a square-section upright. The dimensions are arguments
-    so a caller can author the SAME part changed — same label, so same
+    so a caller can author the SAME part changed — same seed, so same
     identity, at a different pin."""
-    return prism(POST_LABEL, section, section, height)
+    return prism(POST_SEED, section, section, height)
 
 
 def shelf(thickness=SHELF_THICKNESS, length=SHELF_LENGTH, depth=SHELF_DEPTH):
     """The shelf: the board the posts carry."""
-    return prism(SHELF_LABEL, length, depth, thickness)
+    return prism(SHELF_SEED, length, depth, thickness)
 
 
 # ---- Naming and mates ----
@@ -260,7 +260,7 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
 
     Answers the document and its three nodes, in document order.
     """
-    doc = Doc(LAYOUT_LABEL)
+    doc = Doc(LAYOUT_SEED)
     post_i = doc.insert(Node.instantiate_part(post_ref))
     # The post is laid on its SIDE: a rotation, which is why the frame
     # stores a general linear part and not a translation.
@@ -303,7 +303,7 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     moves first, and the mate door clears that part's offset. Answers the document,
     its three instances and its two mates, each in document order.
     """
-    doc = Doc(STAND_LABEL)
+    doc = Doc(STAND_SEED)
     post_a = doc.insert(Node.instantiate_part(post_ref))
     doc.apply(
         DocEdit.set_offset(
@@ -363,7 +363,7 @@ def parts(store):
 
 
 def write(store):
-    """Author the whole scene into `store` and answer label -> `Doc`.
+    """Author the whole scene into `store` and answer seed -> `Doc`.
 
     The four documents are WRITTEN, so a caller that wants the scene as
     the persistence door hands it back resolves each one out of the

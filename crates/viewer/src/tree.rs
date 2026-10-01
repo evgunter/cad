@@ -5,8 +5,10 @@
 //! GQ2's ratified codomain is a per-node result — `Ok`, `Failed(e)`,
 //! `Poisoned { through }` — and the ratified error rule is that a
 //! failure is a typed value the GUI renders, never a string invented
-//! at the interaction layer. So a failing row's message is
-//! `NodeError`'s own `Display`, and nothing here composes a sentence
+//! at the interaction layer. So a failing row's message is the
+//! kernel's own rendering of the `NodeError`, its node spoken from the
+//! document the row is drawn over (`NodeError::spoken`), and nothing
+//! here composes a sentence
 //! about what went wrong. The two sentences this module writes ABOUT
 //! A FAILURE are a downstream row's pointer ([`downstream_wording`])
 //! and a failed row's link to the node to repair ([`link_wording`]),
@@ -180,9 +182,9 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr,
+    AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Doc, Evaluation, Expr, Label,
     MateFault, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
-    ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
+    ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
@@ -200,8 +202,8 @@ pub struct CarriedLine {
     /// The document, by file name ([`PartFiles::name`]), or
     /// [`THIS_DOCUMENT`] for the tree's own.
     pub document: String,
-    /// The node's refusal exactly as its own tree draws it:
-    /// `NodeError`'s `Display` for that node and kind.
+    /// The node's refusal exactly as its own tree draws it
+    /// (`CarriedLevel::line_in`).
     pub line: String,
 }
 
@@ -217,7 +219,7 @@ pub enum RowStatus {
     /// The node's own operation failed. `message` is the typed
     /// error's own rendering, and `carried` the refusals it carries.
     Failed {
-        /// `NodeError`'s `Display`.
+        /// `NodeError::spoken` over the tree's document.
         message: String,
         /// **The refusals `message` points at and does not quote**, one
         /// per level ([`carried_lines`]): another node's refusal, with
@@ -325,7 +327,8 @@ impl RowStatus {
 pub struct TreeRow {
     /// The recipe node this row is.
     pub id: RecipeNodeId,
-    /// The node as a sentence speaks it: its kind noun and its tag.
+    /// The node as a sentence speaks it: its kind noun, its label when
+    /// it has one, and its tag.
     pub spoken: SpokenNode,
     /// **Which one of its kind this node is**, when the node itself can
     /// say — a datum frame's pose ([`frame_pose`]), and an instance's
@@ -506,16 +509,73 @@ pub fn node_label(doc: &Doc<ProfileProgram>, id: RecipeNodeId, files: &PartFiles
     let pose = doc
         .node(id)
         .and_then(|node| frame_pose(doc, node).or_else(|| part_file(node, files)));
-    named(doc.spoken(id), pose.as_deref())
+    named(&doc.spoken(id), pose.as_deref())
 }
 
-/// A spoken node and its pose, as [`node_label`] and a tree row both
-/// draw them: `Datum frame 000000000002 — yz at (0, 0, 0) m`.
-pub fn named(spoken: SpokenNode, pose: Option<&str>) -> String {
+/// A spoken node and its pose, as [`node_label`] draws them:
+/// `Datum frame 000000000002 — yz at (0, 0, 0) m`, or
+/// `Datum frame "floor" (000000000002) — yz at (0, 0, 0) m` when the
+/// node is labelled.
+pub fn named(spoken: &SpokenNode, pose: Option<&str>) -> String {
     match pose {
         Some(pose) => format!("{spoken} — {pose}"),
         None => spoken.to_string(),
     }
+}
+
+/// **A feature-tree row's headline**, in its two voices: `lead` drawn
+/// as the row's text, and `muted` beside it, quieter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Headline {
+    /// What the row reads as.
+    pub lead: String,
+    /// What it says beside that, in a muted voice — `None` when the
+    /// lead already says everything.
+    pub muted: Option<String>,
+}
+
+/// **What a feature-tree row's headline says** (DESIGN.md Band 1,
+/// "Node labels"): a labelled node leads with its label, with its kind
+/// and tag muted beside it (`base plate` · `Extrude 3fa9c1d2a0b1`); an
+/// unlabelled one reads as [`named`] says it, kind, tag and pose.
+#[must_use]
+pub fn headline(spoken: &SpokenNode, pose: Option<&str>) -> Headline {
+    match (spoken.label(), spoken.kind()) {
+        (Some(label), Some(kind)) => Headline {
+            lead: label.to_string(),
+            muted: Some(format!("{kind} {}", spoken.id())),
+        },
+        _ => Headline {
+            lead: named(spoken, pose),
+            muted: None,
+        },
+    }
+}
+
+/// **The label a create form proposes** for a new node of kind `noun`
+/// ([`node_kind_noun`]'s word): `Kind N`, where N counts the live nodes
+/// of that kind at this moment, plus one — three extrudes, labelled or
+/// not, propose `Extrude 4` — stepping past any N whose `Kind N` a node
+/// of that kind already carries, so the proposal repeats no label of
+/// its kind. Only a proposal: the kernel mints no label, and this is
+/// stored only if the person commits it. `None` for a `noun` no label
+/// can hold (one with a control character).
+#[must_use]
+pub fn proposed_label(doc: &Doc<ProfileProgram>, noun: &str) -> Option<Label> {
+    let of_kind = || {
+        doc.order().iter().filter(|id| {
+            doc.node(**id)
+                .is_some_and(|node| node_kind_noun(node) == noun)
+        })
+    };
+    let taken: Vec<&str> = of_kind()
+        .filter_map(|id| doc.label(*id))
+        .map(Label::as_str)
+        .collect();
+    let text = (of_kind().count() + 1..)
+        .map(|n| format!("{noun} {n}"))
+        .find(|text| !taken.contains(&text.as_str()))?;
+    Label::new(text).ok()
 }
 
 /// **What the NODE says about a datum frame's pose** — the sentence
@@ -865,17 +925,21 @@ pub fn part_file(node: &Node<ProfileProgram>, files: &PartFiles) -> Option<Strin
 /// refusal — a part inside a part reads one level per document, and
 /// the last is the failing node's own refusal.
 ///
-/// Each line is that node's refusal exactly as its own tree draws it;
-/// the document it is in, whose numbering the line's node number is,
-/// is its label ([`CarriedLine::document`]).
-pub fn carried_lines(kind: &NodeErrorKind, files: &PartFiles) -> Vec<CarriedLine> {
+/// Each line is that node's refusal exactly as its own tree draws it,
+/// a node of `doc` spoken from it ([`pncad::document::CarriedLevel::line_in`]); the
+/// document it is in is its label ([`CarriedLine::document`]).
+pub fn carried_lines(
+    doc: &Doc<ProfileProgram>,
+    kind: &NodeErrorKind,
+    files: &PartFiles,
+) -> Vec<CarriedLine> {
     kind.carried_chain()
         .map(|level| CarriedLine {
             document: match level.document {
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
                 CarriedIn::Part(doc_ref) => files.name(doc_ref.id).to_owned(),
             },
-            line: level.line(),
+            line: level.line_in(doc),
         })
         .collect()
 }
@@ -928,11 +992,11 @@ fn status_of(
             cause_known,
         } => RowStatus::Poisoned {
             through,
-            message: cause_known.then(|| downstream_wording(doc.spoken(through))),
+            message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
         },
         Standing::Failed(error) => RowStatus::Failed {
-            message: error.to_string(),
-            carried: carried_lines(&error.kind, files),
+            message: error.spoken(doc),
+            carried: carried_lines(doc, &error.kind, files),
         },
     }
 }
@@ -1060,14 +1124,14 @@ pub fn interrogation_as_drawn(
 ///
 /// The row pointed at is named as the document speaks it
 /// ([`SpokenNode`]): this sentence is chrome, drawn in the tree.
-pub fn downstream_wording(through: SpokenNode) -> String {
+pub fn downstream_wording(through: &SpokenNode) -> String {
     format!("upstream failure at {through} — that row carries the cause")
 }
 
 /// **What a link to a node says**: the node as the document speaks it,
 /// and nothing about why — the why is drawn elsewhere, so this names
 /// only WHERE to go.
-pub fn link_wording(at: SpokenNode) -> String {
+pub fn link_wording(at: &SpokenNode) -> String {
     format!("see {at}")
 }
 

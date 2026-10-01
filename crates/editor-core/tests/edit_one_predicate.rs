@@ -109,7 +109,7 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m, frame_node),
+        Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m.id(), frame_node),
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 
@@ -620,7 +620,7 @@ fn an_offset_or_gauge_on_the_wrong_kind_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::OffsetOnNonInstance { node }) => assert_eq!(node, other),
+        Err(EditError::OffsetOnNonInstance { node }) => assert_eq!(node.id(), other),
         other => panic!("an offset on a non-instance must refuse typed, got {other:?}"),
     }
     match apply(
@@ -632,7 +632,9 @@ fn an_offset_or_gauge_on_the_wrong_kind_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::NotAGauge { node, gauge }) => assert_eq!((node, gauge), (ids[0], other)),
+        Err(EditError::NotAGauge { node, gauge }) => {
+            assert_eq!((node.id(), gauge.id()), (ids[0], other));
+        }
         other => panic!("a gauge reference to a non-gauge must refuse typed, got {other:?}"),
     }
     match apply(
@@ -644,7 +646,7 @@ fn an_offset_or_gauge_on_the_wrong_kind_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::GaugeOnNonPlaced { node }) => assert_eq!(node, other),
+        Err(EditError::GaugeOnNonPlaced { node }) => assert_eq!(node.id(), other),
         other => panic!("a gauge edit on a node that sits on none must refuse, got {other:?}"),
     }
 
@@ -731,8 +733,8 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(error @ EditError::NonRigidPlacement { node, at, .. }) => {
-            assert_eq!((node, at), (ids[0], step0));
+        Err(ref error @ EditError::NonRigidPlacement { ref node, at, .. }) => {
+            assert_eq!((node.id(), at), (ids[0], step0));
             let text = error.to_string();
             assert!(
                 text.contains("not definitely rigid") && text.contains("Recourse:"),
@@ -777,7 +779,9 @@ fn a_gauge_cycle_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::GaugeCycle { node, gauge }) => assert_eq!((node, gauge), (outer, inner)),
+        Err(EditError::GaugeCycle { node, gauge }) => {
+            assert_eq!((node.id(), gauge.id()), (outer, inner));
+        }
         other => panic!("a gauge cycle must refuse typed, got {other:?}"),
     }
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
@@ -876,7 +880,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node, non_sketch),
+        Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node.id(), non_sketch),
         other => panic!("a witness on a non-sketch must refuse typed, got {other:?}"),
     }
 
@@ -901,7 +905,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let (sketch, gone) = (doc.order()[1], doc.order()[2]);
     // Deleted rather than invented, so the id stays one the document
     // has minted and the load door's id walk passes it — the refusal read
-    // is then the site rule's and not `IdBeyondCounter`.
+    // is then the site rule's and not `NodeNotMinted`.
     let doc = apply(
         &doc,
         &DocEdit::DeleteNode { id: gone },
@@ -919,7 +923,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::UnknownNode { id }) => assert_eq!(id, gone),
+        Err(EditError::UnknownNode { id }) => assert_eq!(id.id(), gone),
         other => panic!("a witness on a missing node must refuse typed, got {other:?}"),
     }
 

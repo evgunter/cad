@@ -1138,7 +1138,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             assert_eq!(*name, body_name);
             let msg = format!("{}", SplitError::BodyNameCrossesCut { name });
             assert!(
-                msg.contains(&format!("minted by node {:012x}", ids[1].0)),
+                msg.contains(&format!(
+                    "minted by node {}",
+                    test_utils::refusal::tag(ids[1].0)
+                )),
                 "the message names the name: {msg}"
             );
             assert!(
@@ -1273,7 +1276,8 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
                 }
             );
             assert!(
-                msg.contains(&format!("node {:012x}", decl.0)) && msg.contains("outside the cut"),
+                msg.contains(&format!("node {}", test_utils::refusal::tag(decl.0)))
+                    && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
             );
         }
@@ -1642,7 +1646,7 @@ fn a_split_step_map_follows_a_non_contiguous_re_mint() {
     let part_profile = out.node_map[&p2];
     let minted = flat_ids(&out.part, part_profile);
     assert_eq!(
-        out.part.step_mint().log(),
+        out.part.mint().steps().collect::<Vec<_>>(),
         minted
             .iter()
             .copied()

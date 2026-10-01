@@ -210,12 +210,31 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
 /// own doc (`ssi/certify.rs:164-167`) reads "More spans ⇒ tighter hulls
 /// and a tighter tube".
 ///
-/// This probe MEASURES that. It reports the bound at four span lengths
-/// and asserts it is strictly span-dependent — i.e. that something IS
-/// tightenable. The measurement also shows how weakly: the bound falls
-/// far slower than the span, because at `T = Interval` it is dominated
-/// by the width the ring data carries rather than by the span, which is
-/// the honest version of the PR's claim.
+/// This probe MEASURES that, over eight span lengths from a full turn
+/// (`div = 0.25`) down to 1/64 of a quarter (`div = 64`), and asserts
+/// the escalation is a property of THIS SPAN rather than a floor:
+///
+/// - the quarter turn escalates, at about 1.02e-12;
+/// - a SHORTER arc certifies — so there is something to subdivide;
+/// - a LONGER arc certifies too — so the escalation is not a monotone
+///   floor the bound is pressed against, it is where this one span
+///   happens to sit.
+///
+/// Either of the last two alone falsifies "there is nothing to tighten
+/// and nothing to subdivide"; together they say the quarter turn is
+/// singular among its neighbours in both directions, which is a
+/// stronger and more useful statement than a monotone trend would be.
+///
+/// **This row was re-pointed when `insert_once_ring` took the convex
+/// insertion form, because its previous claim went vacuous.** Under the
+/// lerp form the bound was dominated by the width the ring data carried
+/// rather than by the span, so four spans sat within 1.6x of each other
+/// (1.80e-12, 1.30e-12, 1.14e-12, 1.14e-12) and NONE certified; the row
+/// asserted a strict decrease across them. The convex form took that
+/// floor away, every arc but the quarter turn now certifies, and a
+/// "strictly smaller bound" loop over them compares nothing — every
+/// iteration passes on `None`. A row named for span dependence that
+/// measures no span dependence is the defect, not the re-baseline.
 #[test]
 fn the_interval_hull_bound_is_span_dependent() {
     /// The `ssi_hull_sup` bound this route certifies at the interval
@@ -238,17 +257,26 @@ fn the_interval_hull_bound_is_span_dependent() {
             Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
         }
     }
-    let bounds: Vec<(f64, Option<f64>)> = [1.0, 2.0, 8.0, 64.0]
+    let bounds: Vec<(f64, Option<f64>)> = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 8.0, 64.0]
         .into_iter()
         .map(|d| (d, hull_sup_at_interval(d)))
         .collect();
     println!("ssi_hull_sup vs span divisor: {bounds:?}");
-    let full = bounds[0].1.expect("the quarter turn escalates");
-    let eighth = bounds[2].1.expect("an eighth of it still escalates");
+    let quarter = bounds
+        .iter()
+        .find(|(d, _)| *d == 1.0)
+        .and_then(|(_, b)| *b)
+        .unwrap_or_else(|| panic!("the quarter turn no longer escalates: {bounds:?}"));
     assert!(
-        eighth < full,
-        "the bound must move with the span — 'nothing to tighten' claims it cannot: \
-         {bounds:?}"
+        bounds.iter().any(|(d, b)| *d > 1.0 && b.is_none()),
+        "no arc SHORTER than the quarter turn certifies, so there is nothing to subdivide \
+         after all — the quarter turn escalates at {quarter:e}: {bounds:?}"
+    );
+    assert!(
+        bounds.iter().any(|(d, b)| *d < 1.0 && b.is_none()),
+        "no arc LONGER than the quarter turn certifies, so the escalation reads as a floor \
+         the bound is pressed against rather than as this span's own — the quarter turn \
+         escalates at {quarter:e}: {bounds:?}"
     );
 }
 

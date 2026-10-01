@@ -706,6 +706,13 @@ pub(crate) fn piece_text(piece: &pncad::select::ProfileEdgeRef) -> PyResult<Stri
     })
 }
 
+/// A text as a label, or the label rule's refusal at the call that
+/// offered it.
+fn label_from_text(py: Python<'_>, text: &str) -> PyResult<d::Label> {
+    d::Label::new(text)
+        .map_err(|fault| boundary_edit_err(py, BoundaryEdit::Label(&fault), fault.to_string()))
+}
+
 /// Read a stable name back from [`name_text`]'s output.
 ///
 /// Text that is not a name at all is a boundary `ValueError` — the
@@ -875,9 +882,15 @@ impl Doc {
         applied.record
     }
 
-    /// Insert a node and take the acceptance up: `insert`'s body,
-    /// which accepts internally rather than handing an un-accepted
-    /// `Applied` back for a caller to remember to swap.
+    /// Insert a node, label it when `label` is given, and take the
+    /// acceptance up: `insert`'s body, which accepts internally rather
+    /// than handing an un-accepted `Applied` back for a caller to
+    /// remember to swap.
+    ///
+    /// A labelled insert is the kernel's two edits — the insert, which
+    /// carries no label, then `SetLabel` on the id it minted — taken up
+    /// as one acceptance: both land or neither does, and the record and
+    /// maintenance are the insert's (a label edit performs none).
     ///
     /// `Ok(None)` is the contract violation "an accepted `InsertNode`
     /// minted no id", and the document is **not** swapped on that arm:
@@ -886,6 +899,7 @@ impl Doc {
     fn insert_node(
         &mut self,
         node: d::Node<d::ProfileProgram>,
+        label: Option<d::Label>,
         resolver: Option<&super::store::Workspace>,
     ) -> Result<Option<NodeId>, d::EditError> {
         let tol = Tol::witness();
@@ -899,9 +913,22 @@ impl Doc {
             tol,
             &reach,
         )?;
-        if applied.record.minted.is_none() {
+        let Some(id) = applied.record.minted else {
             return Ok(None);
-        }
+        };
+        let applied = match label {
+            None => applied,
+            Some(label) => {
+                let edit = d::DocEdit::SetLabel {
+                    node: id,
+                    label: Some(label),
+                };
+                d::Applied {
+                    doc: d::apply(&applied.doc, &edit, tol, &reach)?.doc,
+                    ..applied
+                }
+            }
+        };
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
@@ -933,19 +960,20 @@ impl Doc {
     /// A document's id answers WHICH PART, and a workspace refuses to
     /// hold two files claiming one — so `Doc()` mints a FRESH random
     /// identity and two documents authored here are two parts.
-    /// `Doc(label)` derives the id from the label instead: same
-    /// label, same id, on every platform, which is the spelling a
+    /// `Doc(seed)` derives the id from the seed text instead: same
+    /// seed, same id, on every platform, which is the spelling a
     /// caller whose saves must reproduce byte for byte wants — and
-    /// which therefore makes two same-label documents the SAME part,
-    /// deliberately.
+    /// which therefore makes two same-seed documents the SAME part,
+    /// deliberately. (The seed is not a label: a node's label is
+    /// `Doc.label`.)
     ///
     /// Raises `IdentityError` if the OS entropy source refuses.
     #[new]
-    #[pyo3(signature = (label = None))]
-    fn new(py: Python<'_>, label: Option<&str>) -> PyResult<Self> {
+    #[pyo3(signature = (seed = None))]
+    fn new(py: Python<'_>, seed: Option<&str>) -> PyResult<Self> {
         let tol = Tol::witness();
-        let inner = match label {
-            Some(label) => crate::identity::derived(label, tol),
+        let inner = match seed {
+            Some(seed) => crate::identity::derived(seed, tol),
             // The tag is the store's own, through `crate::tags`, not a
             // literal chosen here: `interactive` refuses with the whole
             // `WorkspaceError` vocabulary, and which of its arms a
@@ -1311,7 +1339,9 @@ impl Doc {
             .node(node.0)
             .map(crate::node_kind::node_kind)
             .ok_or_else(|| {
-                let err = d::EditError::UnknownNode { id: node.0 };
+                let err = d::EditError::UnknownNode {
+                    id: d::SpokenNode::absent(node.0),
+                };
                 let message = format!(
                     "{}. Recourse: ask for the kind of a node this document holds",
                     err.problem()
@@ -1322,14 +1352,21 @@ impl Doc {
 
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
-    #[pyo3(signature = (node, *, resolver=None))]
+    ///
+    /// `label=` labels the new node in the same call: the insert and a
+    /// `DocEdit.set_label`, both applied or neither. A text that is not
+    /// a label refuses before anything is applied (`label_blank`,
+    /// `label_line_break`, `label_control_character`).
+    #[pyo3(signature = (node, *, label=None, resolver=None))]
     fn insert(
         &mut self,
         py: Python<'_>,
         node: &Node,
+        label: Option<&str>,
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<NodeId> {
-        self.insert_node(node.inner.clone(), resolver)
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        self.insert_node(node.inner.clone(), label, resolver)
             .map_err(|err| edit_err(py, &err))?
             .ok_or_else(|| {
                 // The SAME contract violation `declare` refuses —
@@ -1370,15 +1407,45 @@ impl Doc {
     /// one plane should bind the id once and pass it twice — that
     /// sharing is a fact about the document, and now there is
     /// something in the document for it to be a fact about.
-    #[pyo3(signature = (plane=None, elevation=None))]
+    ///
+    /// `label=` labels the frame in the same call, as `insert`'s does.
+    #[pyo3(signature = (plane=None, elevation=None, *, label=None))]
     fn sketch_frame(
         &mut self,
         py: Python<'_>,
         plane: Option<SketchPlane>,
         elevation: Option<super::expr::Expr>,
+        label: Option<&str>,
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
-        self.insert(py, &node, None)
+        self.insert(py, &node, label, None)
+    }
+
+    /// The label a person gave `node`, or `None` when it has none.
+    ///
+    /// A label is document data beside the node: not unique, never
+    /// identity, and set or cleared only by `DocEdit.set_label` (or
+    /// `insert(..., label=...)`).
+    ///
+    /// Raises `EditError` (`unknown_node`) for a node this document
+    /// does not hold, as `node_kind` does: `None` is the answer about
+    /// a held node with no label, so it cannot also mean "no such
+    /// node".
+    fn label(&self, py: Python<'_>, node: &NodeId) -> PyResult<Option<String>> {
+        if self.inner.node(node.0).is_none() {
+            let err = d::EditError::UnknownNode {
+                id: d::SpokenNode::absent(node.0),
+            };
+            let message = format!(
+                "{}. Recourse: ask for the label of a node this document holds",
+                err.problem()
+            );
+            return Err(edit_err_saying(py, &err, message));
+        }
+        Ok(self
+            .inner
+            .label(node.0)
+            .map(|label| label.as_str().to_owned()))
     }
 
     /// Declare ONE inspected finding: insert a `Declare` node with
@@ -3547,12 +3614,34 @@ impl DocEdit {
         }
     }
 
-    /// Delete a node.
+    /// Delete a node. Its label, if any, goes with it.
     #[staticmethod]
     fn delete_node(id: &NodeId) -> Self {
         Self {
             inner: d::DocEdit::DeleteNode { id: id.0 },
         }
+    }
+
+    /// **Set or clear a node's label**: `label` replaces the label the
+    /// node has, `None` clears it. A label is document data beside the
+    /// node, so the edit recomputes nothing; it does move the content
+    /// pin, as a recolour does.
+    ///
+    /// Refuses at this call a text that is not a label (`EditError`:
+    /// `label_blank`, `label_line_break`, `label_control_character`),
+    /// and at `apply` a node the document does not hold
+    /// (`unknown_node`) or an edit that would leave the label as it is
+    /// (`label_unchanged`).
+    #[staticmethod]
+    #[pyo3(signature = (node, label))]
+    fn set_label(py: Python<'_>, node: &NodeId, label: Option<&str>) -> PyResult<Self> {
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        Ok(Self {
+            inner: d::DocEdit::SetLabel {
+                node: node.0,
+                label,
+            },
+        })
     }
 
     /// **Replace a node's whole LIST input** — a `Node.union`'s

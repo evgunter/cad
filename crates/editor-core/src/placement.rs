@@ -178,19 +178,10 @@ impl Frame {
         v: [f64; 3],
         band: Band,
     ) -> Result<Self, AxisRefusal> {
-        let dir = crate::eval::unit_direction(
-            Vec3::new(axis[0], axis[1], axis[2]),
-            PLACEMENT_AXIS_ROLE,
-            band,
-        )
-        .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
-        let m = Mat3::rotation_about(dir.get(), angle);
+        let dir = crate::eval::unit_direction(Vec3::from_array(axis), PLACEMENT_AXIS_ROLE, band)
+            .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
         Ok(Self {
-            columns: [
-                [m.c0.x, m.c0.y, m.c0.z],
-                [m.c1.x, m.c1.y, m.c1.z],
-                [m.c2.x, m.c2.y, m.c2.z],
-            ],
+            columns: Mat3::rotation_about(dir.get(), angle).to_cols_array(),
             translation: v,
         })
     }
@@ -207,13 +198,13 @@ impl Frame {
     /// keeps the coordinates it came in with.
     #[must_use]
     pub fn from_affine(a: geom_core::Affine3<f64>) -> Self {
+        let Affine3 {
+            linear,
+            translation,
+        } = a;
         Self {
-            columns: [
-                [a.linear.c0.x, a.linear.c0.y, a.linear.c0.z],
-                [a.linear.c1.x, a.linear.c1.y, a.linear.c1.z],
-                [a.linear.c2.x, a.linear.c2.y, a.linear.c2.z],
-            ],
-            translation: [a.translation.x, a.translation.y, a.translation.z],
+            columns: linear.to_cols_array(),
+            translation: translation.to_array(),
         }
     }
 
@@ -238,26 +229,14 @@ impl Frame {
     /// the column arrays become a matrix.
     #[must_use]
     fn linear_f64(&self) -> Mat3<f64> {
-        let col = |c: [f64; 3]| Vec3::new(c[0], c[1], c[2]);
-        Mat3::from_cols(
-            col(self.columns[0]),
-            col(self.columns[1]),
-            col(self.columns[2]),
-        )
+        Mat3::from_cols_array(self.columns)
     }
 
     /// The affine map at the scalar it is STORED in — the one place
     /// the stored arrays become geometry.
     #[must_use]
     fn affine_f64(&self) -> Affine3<f64> {
-        Affine3::from_parts(
-            self.linear_f64(),
-            Vec3::new(
-                self.translation[0],
-                self.translation[1],
-                self.translation[2],
-            ),
-        )
+        Affine3::from_parts(self.linear_f64(), Vec3::from_array(self.translation))
     }
 
     /// The affine map this frame denotes, in the backend scalar — what
@@ -451,10 +430,10 @@ impl FrameSite {
     /// numbers a chain's steps; a listed placement reads by its index,
     /// the one an instance's name carries.
     #[must_use]
-    pub fn subject(self, node: crate::node::RecipeNodeId) -> String {
+    pub fn subject(self, node: &crate::SpokenNode) -> String {
         match self {
-            Self::Listed { index } => format!("placement {index} of node {}", node),
-            Self::Step { index } => format!("step {} of node {}'s placement", index + 1, node),
+            Self::Listed { index } => format!("placement {index} of {node}"),
+            Self::Step { index } => format!("step {} of {node}'s placement", index + 1),
         }
     }
 }
@@ -976,11 +955,8 @@ mod tests {
         Band::linear(geom_core::Tol::witness()).expect("the witness tolerance forms a band")
     }
 
-    fn motion_bits(a: &Affine3<f64>) -> Vec<u64> {
-        [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-            .iter()
-            .flat_map(|c| [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()])
-            .collect()
+    fn motion_bits(a: &Affine3<f64>) -> [u64; 12] {
+        a.components().map(f64::to_bits)
     }
 
     /// Keeps [`Placement::literal`]'s claim: a one-step literal
@@ -1016,9 +992,9 @@ mod tests {
                 .eval::<f64>(&ParamEnv::default(), band())
                 .expect("a rigid step evaluates");
             let want = crate::eval::transform_map(
-                Vec3::new(t[0], t[1], t[2]),
+                Vec3::from_array(t),
                 crate::eval::unit_direction(
-                    Vec3::new(axis[0], axis[1], axis[2]),
+                    Vec3::from_array(axis),
                     crate::eval::TRANSFORM_AXIS_ROLE,
                     band(),
                 )

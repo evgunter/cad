@@ -814,9 +814,10 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
             &editor_core::RefusingReach,
         )
         .expect_err("a disagreeing Part refuses");
-    let editor_core::EditError::MateRefused { node: mate, fault } = err else {
+    let editor_core::EditError::MateRefused { node, fault } = err else {
         panic!("expected MateRefused, got {err:?}");
     };
+    let mate = node.id();
     let fault = *fault;
     let MateFault::PartSelectsAnotherCopy {
         mate: at,

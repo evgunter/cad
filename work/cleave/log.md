@@ -92,6 +92,24 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   Review: **dual**, because it reshapes a certification surface shared
   crate-wide. The mint-door collapse (`set_edge_curve` reading the
   policy, 46 call sites) follows as a second unit.
+- Section rings: PR 3658. Measured on main:
+  - The U-cutter's `LoopRoleInverted` no longer reproduces; CONTACT-6
+    fixed the sense bit. The cancelling-face encoding remains.
+  - The steep ringed-cap row comes from the join order: `u` was compared
+    bit-exactly, so crossings that are equal in truth were visited
+    outer, outer, ring, ring.
+  - The square-plus-disc row comes from the finish, which never nested
+    holes.
+
+  Both are fixed: column order in `order.rs`, and `nest_hole_sections`
+  in `finish.rs`, which falls back to the old encoding when it cannot
+  place a hole. The lane filed `split-pairs-curved-face-crossings-across-the-wrong-arc`
+  and `plane-section-reports-hole-polygons-clockwise-with-no-role`.
+  The first head was red only on `reach_volume_backstop` at 1e-12. That
+  is main's red, fixed by PR 3636, and merging main brought the fix in.
+  A dual review is dispatched on the frozen head `6ceb56ffb`.
+- The tangency lane stays held. Ev has not answered PR 3642, and the
+  build box is full (nurbs-lane, two fix passes, a dual).
 - Rehome rings merged (PR 3660) after a full review and one fix pass.
   The outcome depends on the pose: a circular cap refused
   `TornComponent`, and an elliptic run returned a silently wrong body
@@ -101,11 +119,52 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   (P3). TANG's `arc-aware-point-in-loop` may now be closable; that is
   TANG's call.
 - 2026-10-01: Seam note from SSI. `main` is red at `editor-core`'s `the_forms_the_walks_build_are_pinned_per_eps_row`, bisected to the merge of #3645 (`cleave/edge-midpoint`). Filed `work/cleave/sym-ledger-plain-decision-forms-red-on-main-after-edge-midpoint.md` on your slate; it is yours to re-baseline or fix. (SSI orchestrator)
+- SSI found a red main and bisected it to PR 3645: the editor-core sym
+  ledger reads forms 9852 against a pinned 9426 at slab, ε 1e-9. It is
+  probably a collision with PR 3652's re-baseline, which landed just
+  before; that is not yet checked. Raised to P0 because a red main
+  blocks every editor-core PR. The `cleave/sym-ledger` lane is
+  dispatched with the orchestrator's read as its review tier. Thanks to
+  SSI for the bisection.
+- NURBS lane: PR 3678 is green. Measured on main:
+  - `transform_rigid` and `insert_void` both refused the M7-8 cube.
+  - The forgery was confirmed: a zero-limbs closure certified a carrier
+    bowed 0.5 off both surfaces.
+
+  Built as designed. The lane counts 33 direct non-test
+  `set_edge_curve` sites for unit 2, not 46. It filed
+  `work/topo/euler-rebased-run-recertifies-through-the-plain-door`. A
+  dual review is dispatched on the frozen head `32d455d1a`.
+- Interior witness fix pass done (PR 3655). It is red only on main's
+  sym-ledger red, and merges once `cleave/sym-ledger` lands and main
+  is merged in. It filed three rows:
+  - the contact-vertex skip;
+  - two witness ladders that have drifted apart;
+  - no witness for a curved face's interior.
+- The nightly's rustdoc is red from a broken link to
+  `solid_contain::wrap_rims` (REACH's 70be4e1c3; the function now
+  lives in `surface_group`). That fix rides on `cleave/sym-ledger` as a
+  drive-by.
 - Interior witness merged (PR 3655) after a full review and one fix
   pass. The uncut-shell witness has one home, `shell_witness.rs`, and
   `join.rs` shares its candidate generation. The undecidable case
   refuses `ShellWitnessExhausted`. The fused `r4tri` orders pin their
   absent names by digest and their geometry as identical.
+- Section rings fix pass, PR 3658 at `4d3938fe4`, green. Both
+  reviewers' MAJOR was fixed by redesign rather than by a patch, so
+  each original reviewer is re-run as a delta review on the new head
+  before merge:
+  - order: the global order is exact lex again, and partners are fixed
+    per planar face along that face's own section line, refusing only
+    within one face;
+  - nesting: disjointness is decided per edge kind (new line × conic
+    and conic × conic predicates), and the hole keeps its face where it
+    is undecided;
+  - a parent tie refuses `NestingContradiction`.
+
+  Noted: a stored recipe naming SectionFace 0 on a holed section now
+  rebinds silently to the holed outline face. The delta review weighs
+  that.
 - Schedule midpoint, PR 3697 (merged on the orchestrator's read). PR
   3645 had split one point into two spellings: the certification
   schedule's middle station and WitnessMidpoint. The symbolic walk
@@ -113,3 +172,64 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   ledger. The schedule now assigns its ½ station from `mid_param`, and
   the ledger is back to PR 3652's counts (the slab's Plain/Decision is
   9426, and the plate's frozen counts are 672 and 372).
+- Section rings merged (PR 3658) after a dual review (DR-30), a fix
+  pass, delta reviews by both original reviewers, and a second fix
+  pass. Splits now pair each planar face's crossings along that face's
+  own line, and holed sections are one face with rings wherever
+  disjointness is decided. DR-30 brings the dual experiment's count to
+  twelve fair pairs that found a MAJOR, its readout point, so Ev is
+  asked in an `[ev]` PR. One naming change is recorded in the PR body
+  and judged acceptable: SectionFace 0 on a holed section now names
+  the holed outline face.
+- DR-30 is the dual stream's twelfth fair pair that found a MAJOR, so
+  its readout point is reached. Readout 2 is being written blind by a
+  separate agent on `analysis/dual-review/readout-2`, and the ruling
+  item `the-dual-review-streams-second-readout-is-owed` is filed with
+  `needs_ev`.
+- **Disclosure.** While looking up how readout 1 was delivered, I read
+  readout 1's contents (via PR 3342's file list). The NURBS dual (PR
+  3678) had both reviews delivered and adjudicated at that point, but
+  its row was not yet recorded. Its row carries this as a fairness
+  flag.
+- Wave 3 dispatched:
+  - **wrong-arc** (`cleave/wrong-arc`, P1 H): curved-face crossings are
+    paired across the outside arc. This is what the section-rings
+    fallback pins. Review: single full.
+  - **ladders** (`cleave/ladders`, P1 M): one cell-dimension witness
+    ladder shared by join role resolution and the uncut-shell witness.
+    It may also take the contact-skip row. Review: single full.
+  - **section-ccw** (`cleave/section-ccw`, P2 E): `plane_section`
+    returns regions, each an outer polygon with its holes. Review is
+    the orchestrator's read, or style if a public type changes.
+
+  Filed `edge-mint-doors-read-the-nurbs-lane-from-the-policy` (unit 2
+  of the NURBS-lane design); held until PR 3678 lands.
+- NURBS lane merged (PR 3678) after a dual review (DR-31, no MAJOR) and
+  one fix pass. The lane is sealed and held per scalar by
+  `AtRestPolicy::nurbs_lane()`. `transform_rigid` reads it, the void
+  graft carries certificates, and refusals now name the cause that is
+  actually known where they are raised. The dead `tol` left the
+  `insert_void`/`graft_disjoint*` doors. Four rows closed, including
+  SHELL's P0 transform row and EXCH's placed-instance row. Unit 2
+  (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) is
+  dispatchable. Known gap: `PcurveCertifyError::FittedLaneUnsupported`
+  has the same conflation of causes, though its claim holds in
+  production today; not filed.
+- Unit 2 (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) dispatched on `cleave/mint-doors`; it also takes TOPO's `euler-rebased-run-...` row. Review: single, full.
+- Ev ruled on PR 3642: derive, no declaration (fork row 34; both designers' recommendation). The tangency lane is dispatched on `cleave/tangency`. Review: single, full.
+- `plane_section` regions merged (PR 3714) after a style review and one
+  fix pass. `plane_section` returns `regions` (an outline with its
+  holes, oriented by role) and its own `SectionError`.
+  `splitting/section_loops.rs` is the one home of the section-loop
+  sense, the hole nesting, and the side-normal and u-axis rules, which
+  the split's finish and `plane_section` both read. The ring-vs-ring
+  guard is split-only. Filed `plane-section-polygons-drop-their-arcs`
+  (P2).
+- Witness ladders merged (PR 3716) after a full review and one fix
+  pass. There is one cell-dimension ladder (`complex_side`) with one
+  "inconclusive" rule, and first-decisive applies to both callers.
+  Join's loop-roles cross-check is now a pure function pinned by
+  synthetic rows, and the contact skip is deleted under a debug guard.
+  Refusals no longer name a remote witness. The contact-skip row closed
+  with it. Filed `point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`
+  (P2), for the 26-in-band `wide_wedge` case.

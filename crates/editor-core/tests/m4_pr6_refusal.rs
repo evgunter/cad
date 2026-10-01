@@ -422,30 +422,45 @@ fn a_recorded_refusal_does_not_reach_the_next_load() {
 
 #[test]
 fn snapshot_invariant_violations_refuse_typed() {
-    let (_, text) = small();
-    // next_id below the live ids (a replay would re-mint id 2).
-    let clipped = text.replace("\"next_id\": 3", "\"next_id\": 2");
-    assert_ne!(clipped, text);
-    match load(&clipped, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id: 2 })) => {
-            assert_eq!(id, RecipeNodeId(2));
+    let (doc, text) = small();
+    let (header, body) = text.split_once('\n').expect("a header line, then the body");
+    let body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let edited = |edit: &dyn Fn(&mut serde_json::Value)| {
+        let mut v = body.clone();
+        edit(&mut v);
+        format!("{header}\n{v}\n")
+    };
+    // A live node the mint log does not hold (a replay could re-mint
+    // its id): the last insert's entry taken out of the log.
+    let last = *doc.order().last().expect("the fixture inserts");
+    let unlogged = edited(&|v| {
+        let log = v["snapshot"]["mint"]["log"]
+            .as_array_mut()
+            .expect("the file carries its mint log");
+        let before = log.len();
+        log.retain(|entry| entry["node"].as_u64() != Some(last.0));
+        assert_eq!(log.len() + 1, before, "the log held the node once");
+    });
+    match load(&unlogged, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
+            assert_eq!(id, last);
         }
-        other => panic!("expected IdBeyondCounter, got {other:?}"),
+        other => panic!("expected NodeNotMinted, got {other:?}"),
     }
-    // order/nodes disagreement.
-    let unordered = text.replace(
-        "\"order\": [\n      0,\n      1,\n      2\n    ]",
-        "\"order\": [0]",
+    // order/nodes disagreement: the order cut to its first entry.
+    let unordered = edited(&|v| {
+        let order = v["snapshot"]["order"]
+            .as_array_mut()
+            .expect("the file carries its order");
+        order.truncate(1);
+    });
+    assert!(
+        matches!(
+            load(&unordered, Tol::witness()),
+            Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
+        ),
+        "order mismatch must refuse"
     );
-    if unordered != text {
-        assert!(
-            matches!(
-                load(&unordered, Tol::witness()),
-                Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
-            ),
-            "order mismatch must refuse"
-        );
-    }
 }
 
 #[test]

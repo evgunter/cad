@@ -110,10 +110,11 @@ The memo reads the stamp too and refuses differently, since `evaluate`
 returns no `Result`: a prior of another document is dropped whole
 before the schedule is built, and the run records the drop as
 `Evaluation::prior_refused` while recomputing everything. Node ids
-alone could not decide any of this — they are minted by a per-document
-counter, so two documents built from one recipe carry the SAME ids for
-the same nodes, and a gather over the wrong one would succeed, in
-full, about other geometry.
+alone could not decide any of this — they are minted from the edits
+that inserted them and not from the document's identity, so two
+documents built from one recipe carry the SAME ids for the same nodes,
+and a gather over the wrong one would succeed, in full, about other
+geometry.
 
 What the stamp decides is the DOCUMENT half only, at every door
 here. A LATER evaluation of the same document is admitted — by the

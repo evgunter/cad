@@ -5,9 +5,10 @@
 //!  - replay bit-identity holds for BOTH authorings;
 //!  - the two docs are payload-ISOMORPHIC under the id relabeling
 //!    induced by the authoring orders (slot floats bit-equal);
-//!  - `diff` between them is EXACTLY the relabeling residue:
-//!    Changed on every id but the shared first insert, no
-//!    Added/Removed, no order/param/ε deltas.
+//!  - `diff` between them is EXACTLY the relabeling residue: the
+//!    shared first insert unchanged, every other node of one Removed
+//!    and of the other Added (the two edit sequences part after the
+//!    first insert, so their mints do), no param/ε deltas.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, scl};
@@ -16,7 +17,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
@@ -325,17 +326,25 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);
 
-    // The diff is EXACTLY the relabeling residue: both docs mint one
-    // set of 46 ids in one order, insert #0 (cube profile) coincides in
-    // both, every other id's payload differs → each of the rest
-    // Changed, in id order, nothing else.
-    assert_eq!(theirs.doc.order(), mine.doc.order(), "one id per insert");
+    // The diff is EXACTLY the relabeling residue. The first insert is
+    // one edit from one mint in both authorings, so it is one id and
+    // unchanged; from the second on the edit sequences differ, so the
+    // two share no other id: the rest of theirs Removed in its order,
+    // the rest of mine Added in its.
+    assert_eq!(
+        theirs.doc.order()[0],
+        mine.doc.order()[0],
+        "one first edit, one first id"
+    );
     let d = theirs.doc.diff(&mine.doc);
-    let mut relabeled = theirs.doc.order()[1..].to_vec();
-    relabeled.sort();
-    let expected: Vec<NodeChange> = relabeled.into_iter().map(NodeChange::Changed).collect();
+    let expected: Vec<NodeChange> = theirs.doc.order()[1..]
+        .iter()
+        .copied()
+        .map(NodeChange::Removed)
+        .chain(mine.doc.order()[1..].iter().copied().map(NodeChange::Added))
+        .collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
     assert!(d.params.is_empty(), "same params");
-    assert!(!d.order_changed, "both orders are the same ids");
+    assert!(d.order_changed, "the orders share only the first id");
     assert!(!d.epsilon_changed && !d.metadata_changed);
 }

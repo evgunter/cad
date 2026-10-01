@@ -230,7 +230,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
             node,
             slot,
         }) => {
-            assert_eq!((n, node, slot), (missing, extrude, SlotId::Distance));
+            assert_eq!((n, node.id(), slot), (missing, extrude, SlotId::Distance));
         }
         other => panic!("the edit door must refuse an undeclared parameter, got {other:?}"),
     }
@@ -282,7 +282,10 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
             declared,
             referenced,
         }) => {
-            assert_eq!((n, node, slot), (name.clone(), extrude, SlotId::Distance));
+            assert_eq!(
+                (n, node.id(), slot),
+                (name.clone(), extrude, SlotId::Distance)
+            );
             assert_eq!(
                 (declared, referenced),
                 (Dimension::Angle, Dimension::Length)

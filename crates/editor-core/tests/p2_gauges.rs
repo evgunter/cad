@@ -327,8 +327,13 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     );
     // The mate places: the top seats on the base.
     let poses = solve(&loaded.doc, &o, Tol::witness());
+    let mate_id = *loaded
+        .doc
+        .order()
+        .last()
+        .expect("the mate is the last node");
     assert_eq!(
-        poses.role(RecipeNodeId(2)),
+        poses.role(mate_id),
         Some(MateRole::Determining),
         "the mate placed the top"
     );

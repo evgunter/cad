@@ -13,7 +13,7 @@ use editor_core::{Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, Reci
 use geom_core::Tol;
 
 /// Opaque profile payload (spec D1/D3): tests never look inside.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).

@@ -174,9 +174,8 @@ mod over_a_param_box {
             panic!("a profile value");
         };
         let a = pv.validated.plane().placement;
-        let cols = [a.linear.c0, a.linear.c1, a.linear.c2, a.translation];
-        cols.iter()
-            .flat_map(|c| [c.x, c.y, c.z])
+        a.components()
+            .into_iter()
             .map(|v: Interval| (v.lo().to_bits(), v.hi().to_bits()))
             .collect()
     }

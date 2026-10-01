@@ -7,6 +7,7 @@
 
 use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
+use test_utils::refusal::tagged;
 
 use editor_core::NodeStanding;
 use editor_core::{
@@ -280,9 +281,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         }))
     );
     assert_eq!(
-        body_name(&ev, RecipeNodeId(9999), 0),
+        body_name(&ev, RecipeNodeId(tagged(9999)), 0),
         Err(HitTestError::Standing(NodeStanding::NotInDocument {
-            node: RecipeNodeId(9999)
+            node: RecipeNodeId(tagged(9999))
         }))
     );
     // The Unnamed bug door: a node whose (legitimately empty) table
@@ -340,8 +341,8 @@ test_utils::f6_variants! {
 /// cites, and its roster had drifted from the other one.
 #[test]
 fn hit_test_error_display_names_its_content_not_its_struct() {
-    let node = RecipeNodeId(7);
-    let through = RecipeNodeId(3);
+    let node = RecipeNodeId(tagged(7));
+    let through = RecipeNodeId(tagged(3));
     // Two faces of ONE node, differing only in their role path — the
     // shared-edge tie's own shape, and the case that says the
     // rendering carries the path.

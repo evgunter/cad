@@ -27,7 +27,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::profile::{ConstructedLoop, SketchPlane};
 
 /// The spine frame the tube doors take: ring centre, spine axis, and
 /// the reference radial the window's angles start from. The axis is
@@ -72,12 +72,12 @@ macro_rules! poly {
     ($tol:expr, $first:expr, $($rest:expr),+ $(,)?) => {{
         let b = Open.at($first);
         $( let b = b.line_to($rest, $tol).expect("side"); )+
-        let lp: ProfileLoop<f64> = b.line_to(Start, $tol).expect("close").into();
+        let lp: ConstructedLoop<f64> = b.line_to(Start, $tol).expect("close").into();
         lp
     }};
 }
 
-fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
+fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("meridian validates"),
         RevolveAxis {
@@ -91,7 +91,7 @@ fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     .body
 }
 
-fn revolved_partial(lp: ProfileLoop<f64>, theta: f64, tol: Tol) -> Body<f64> {
+fn revolved_partial(lp: ConstructedLoop<f64>, theta: f64, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("meridian validates"),
         RevolveAxis {
@@ -105,7 +105,7 @@ fn revolved_partial(lp: ProfileLoop<f64>, theta: f64, tol: Tol) -> Body<f64> {
     .body
 }
 
-fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
+fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("footprint validates"),
         Extrusion::Distance(h),
@@ -160,7 +160,7 @@ fn offset_refusal(e: &ShellError<f64>) -> String {
 fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
     let tol = Tol::witness();
     let top = 0.37;
-    let lp: ProfileLoop<f64> = Open
+    let lp: ConstructedLoop<f64> = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(0.11, 0.0), tol)
         .expect("base")
@@ -219,7 +219,7 @@ fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
 fn r2_revolved_tube_separates_seam_from_axis() {
     let tol = Tol::witness();
     let (ri, ro, h) = (0.30, 0.50, 0.40);
-    let lp: ProfileLoop<f64> = Open
+    let lp: ConstructedLoop<f64> = Open
         .at(Point2::new(ri, 0.0))
         .line_to(Point2::new(ro, 0.0), tol)
         .expect("base annulus")
@@ -271,7 +271,7 @@ fn r2_revolved_tube_separates_seam_from_axis() {
 fn r2_partial_revolve_one_cap_face() {
     let tol = Tol::witness();
     let (r, h) = (0.5, 0.4);
-    let lp: ProfileLoop<f64> = Open
+    let lp: ConstructedLoop<f64> = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(r, 0.0), tol)
         .expect("base")
@@ -326,7 +326,7 @@ fn r2_partial_revolve_one_cap_face() {
 fn r2_ring_anatomy_on_a_drum() {
     let tol = Tol::witness();
     let (r, h, t) = (0.5, 0.4, 0.05);
-    let lp: ProfileLoop<f64> = Open
+    let lp: ConstructedLoop<f64> = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(r, 0.0), tol)
         .expect("base")
@@ -425,7 +425,7 @@ fn r2_ring_anatomy_on_a_drum() {
 fn r2_box_control_is_right() {
     let tol = Tol::witness();
     let (w, d, h, t) = (1.3, 0.7, 0.9, 0.11);
-    let lp: ProfileLoop<f64> = Open
+    let lp: ConstructedLoop<f64> = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(w, 0.0), tol)
         .expect("a")
@@ -562,7 +562,7 @@ fn r2_tangent_bullet_which_door() {
     let tol = Tol::witness();
     let r = 3.0 / 64.0;
     let top = 8.0 / 64.0;
-    let lp: ProfileLoop<f64> = Open
+    let lp: ConstructedLoop<f64> = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(r, 0.0), tol)
         .expect("base")
@@ -588,7 +588,7 @@ fn r2_tangent_bullet_which_door() {
     // different door tracks the AUTHORING ROUTE rather than the pair.
     let d = 0.02;
     let rr = (r * r + d * d).sqrt();
-    let lp2: ProfileLoop<f64> = Open
+    let lp2: ConstructedLoop<f64> = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(r, 0.0), tol)
         .expect("base")

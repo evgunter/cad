@@ -11,13 +11,13 @@
 
 use editor_core::{
     CapEnd, DocumentId, EditError, EntityKind, InlineError, MateSide, ParamName, PersistError,
-    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, StableName, StepId,
-    StepMapDivergence, Unplaced,
+    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenNode, StableName,
+    StepId, Unplaced,
 };
 use test_utils::refusal::Admission;
 
 fn n(id: u64) -> RecipeNodeId {
-    RecipeNodeId(id)
+    RecipeNodeId(test_utils::refusal::tagged(id))
 }
 
 fn name() -> Box<StableName> {
@@ -32,14 +32,6 @@ fn param() -> ParamName {
     ParamName::from_static("width")
 }
 
-fn diverged() -> StepMapDivergence {
-    StepMapDivergence {
-        step: StepId(4),
-        precomputed: Some(StepId(5)),
-        minted: None,
-    }
-}
-
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
@@ -47,7 +39,7 @@ test_utils::f6_variants! {
         UnplacedAlone, WouldStartPlacing, MateFrameCrosses, MateFaceFrameCrosses,
         HoistedMemberOffset, UncutParamReference, PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
-        RemainderEdit, StepMapDiverged,
+        RemainderEdit,
     ];
 }
 
@@ -57,7 +49,7 @@ test_utils::f6_variants! {
         PartCarriesMetadata, ParamConflict, UnplaceableFrame, MatePlaced, Unplaced,
         NeedsAGauge, PartDeadGauge, MateFrameCrosses, MateFaceFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
-        StrandedPartName, Edit, StepMapDiverged,
+        StrandedPartName, Edit,
     ];
 }
 
@@ -132,12 +124,15 @@ fn split_refusals() -> Vec<SplitError> {
             }),
         },
         SplitError::PartEdit {
-            error: Box::new(EditError::UnknownNode { id: n(9) }),
+            error: Box::new(EditError::UnknownNode {
+                id: SpokenNode::absent(n(9)),
+            }),
         },
         SplitError::RemainderEdit {
-            error: Box::new(EditError::UnknownNode { id: n(9) }),
+            error: Box::new(EditError::UnknownNode {
+                id: SpokenNode::absent(n(9)),
+            }),
         },
-        SplitError::StepMapDiverged(diverged()),
     ]
 }
 
@@ -196,9 +191,10 @@ fn inline_refusals() -> Vec<InlineError> {
             missing: n(6),
         },
         InlineError::Edit {
-            error: Box::new(EditError::UnknownNode { id: n(9) }),
+            error: Box::new(EditError::UnknownNode {
+                id: SpokenNode::absent(n(9)),
+            }),
         },
-        InlineError::StepMapDiverged(diverged()),
     ]
 }
 
@@ -226,7 +222,6 @@ const FILED_NO_RECOURSE: &[&str] = &[
     "Split/NameOnDroppedStep",
     "Split/BodyNameCrossesCut",
     "Split/Pin",
-    "Split/StepMapDiverged",
     "Inline/UnknownNode",
     "Inline/NotAnInstance",
     "Inline/InstanceConsumed",
@@ -238,7 +233,6 @@ const FILED_NO_RECOURSE: &[&str] = &[
     "Inline/ForeignInstanceName",
     "Inline/NameOnDroppedStep",
     "Inline/StrandedPartName",
-    "Inline/StepMapDiverged",
 ];
 
 /// The rows that name a document by its hex id, filed with their owner.

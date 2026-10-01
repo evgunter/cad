@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use test_utils::refusal::tagged;
 
 use editor_core::{
     BooleanOp, CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
@@ -441,7 +442,7 @@ fn node_level_prose_carries_the_emitter_payload() {
     assert!(s.contains("edge") && s.contains('1'), "{s}");
 
     let s = carried(NamingError::MissingUpstream {
-        node: RecipeNodeId(7),
+        node: RecipeNodeId(tagged(7)),
     });
     assert!(s.contains('7'), "{s}");
 

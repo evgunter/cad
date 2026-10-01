@@ -48,10 +48,10 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
 /// the names only have to be well formed, spell a minted step, and sort
 /// by `segment` — so `edge(n, 0) < edge(n, 2)`.
 fn edge(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
-    let step = *doc
-        .step_mint()
-        .log()
-        .first()
+    let step = doc
+        .mint()
+        .steps()
+        .next()
         .expect("the prism minted its steps");
     StableName {
         kind: EntityKind::Edge,

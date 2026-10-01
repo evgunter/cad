@@ -1009,7 +1009,7 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
         .map(|e| e.to_string())
         .unwrap_or_default();
     assert!(
-        said.contains(editor_core::UNPLACED_RECOURSE) && said.contains("node 000000000000"),
+        said.contains(editor_core::UNPLACED_RECOURSE) && said.contains(&format!("node {x}")),
         "{said}"
     );
     match editor_core::assemble(&doc, &ev, Tol::witness()) {
@@ -1318,7 +1318,9 @@ fn the_compound_door_refuses_a_regauge_that_would_start_a_declaring_mate_placing
     let (doc, m1) = insert(doc, seat(head(p.top_cap(a1)), head(p.base_cap(c))));
     match editor_core::regauge_then_mate(&doc, seat(head(p.top_cap(a1)), head(p.base_cap(b)))) {
         Err(e @ editor_core::EditError::WouldStartPlacing { .. }) => {
-            assert!(matches!(e, editor_core::EditError::WouldStartPlacing { mate } if mate == m1));
+            assert!(
+                matches!(&e, editor_core::EditError::WouldStartPlacing { mate } if mate.id() == m1)
+            );
             let said = e.to_string();
             assert!(
                 said.contains("Recourse: delete mate 000000000005") || said.contains("Recourse:"),

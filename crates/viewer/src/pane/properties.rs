@@ -361,6 +361,13 @@ impl ViewerBehavior<'_> {
     /// `DocSession::slot_rows` refuses to produce them. Two places
     /// would be two policies.
     pub(crate) fn standing_ui(&mut self, ui: &mut egui::Ui, standing: &Standing) {
+        self.drafts.rename_shown_for(match standing {
+            Standing::Node {
+                node,
+                present: true,
+            } => Some(*node),
+            _ => None,
+        });
         match standing {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
@@ -376,6 +383,9 @@ impl ViewerBehavior<'_> {
                     // Beside the node's name, which is the node it is about.
                     standing_verdict(ui, &self.theme, standing);
                 });
+                if *present {
+                    self.label_ui(ui, *node);
+                }
                 return;
             }
             Standing::Face { face, .. } => {
@@ -386,6 +396,44 @@ impl ViewerBehavior<'_> {
             }
         }
         standing_verdict(ui, &self.theme, standing);
+    }
+
+    /// **The rename field** (DESIGN.md Band 1, "Node labels"): the
+    /// node's label, editable in place. Leaving the field commits what
+    /// was typed as one [`SessionOp::SetLabel`] — blank clears the
+    /// label, and the label the node already has is no edit
+    /// (`DocSession::writes_nothing`). A text the label rule refuses
+    /// is said on the status line, and the field goes back to the
+    /// node's label.
+    fn label_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
+        let mut text = match &self.drafts.label_text {
+            Some((typed_for, typed)) if *typed_for == node => typed.clone(),
+            _ => self
+                .session
+                .doc()
+                .label(node)
+                .map(|label| label.as_str().to_owned())
+                .unwrap_or_default(),
+        };
+        ui.horizontal(|ui| {
+            ui.label("label");
+            let response = ui.text_edit_singleline(&mut text);
+            if response.changed() {
+                self.drafts.label_text = Some((node, text));
+            }
+            if response.lost_focus()
+                && let Some((typed_for, typed)) = self.drafts.label_text.take()
+                && typed_for == node
+            {
+                match crate::drafts::label_typed(&typed) {
+                    Ok(label) => self.ops.push(SessionOp::SetLabel { node, label }),
+                    Err(fault) => self.notices.push(crate::frame::tool_news(
+                        format!("label: {fault}"),
+                        crate::frame::Retold::Again,
+                    )),
+                }
+            }
+        });
     }
 
     /// A picked entity's header line: which feature it belongs to, and
@@ -1479,7 +1527,7 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
 
-    const NODE: RecipeNodeId = RecipeNodeId(4);
+    const NODE: RecipeNodeId = RecipeNodeId(test_utils::refusal::tagged(4));
 
     fn thickness() -> ParamName {
         ParamName::from_static("thickness")
@@ -1557,9 +1605,9 @@ mod tests {
     /// The fault a fused instance's display doors refuse with.
     fn fused() -> AdmissionFault {
         AdmissionFault::FusedGeometry {
-            instance: RecipeNodeId(0),
-            root: RecipeNodeId(2),
-            others: vec![RecipeNodeId(1)],
+            instance: RecipeNodeId(test_utils::refusal::tagged(0)),
+            root: RecipeNodeId(test_utils::refusal::tagged(2)),
+            others: vec![RecipeNodeId(test_utils::refusal::tagged(1))],
         }
     }
 
@@ -1788,7 +1836,7 @@ mod verdict_tests {
     fn name(kind: EntityKind) -> StableName {
         StableName {
             kind,
-            node: RecipeNodeId(1),
+            node: RecipeNodeId(test_utils::refusal::tagged(1)),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -1797,7 +1845,7 @@ mod verdict_tests {
         Standing::Face {
             face: FaceSelection {
                 name: name(EntityKind::Face),
-                node: RecipeNodeId(2),
+                node: RecipeNodeId(test_utils::refusal::tagged(2)),
                 body: 0,
             },
             resolution: resolution.map(Box::new),
@@ -1809,7 +1857,7 @@ mod verdict_tests {
             error: ResolveError::NodeGone {
                 name: name(EntityKind::Face),
                 edit: RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(1),
+                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
                 },
             },
             offers,
@@ -1846,12 +1894,12 @@ mod verdict_tests {
         let standing = Standing::Edge {
             edge: EdgeSelection {
                 name: name(EntityKind::Edge),
-                node: RecipeNodeId(2),
+                node: RecipeNodeId(test_utils::refusal::tagged(2)),
                 body: 0,
             },
             resolution: Some(Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                 standing: NodeStanding::Failed {
-                    node: RecipeNodeId(1),
+                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
                 },
             }))),
         };
@@ -1877,7 +1925,7 @@ mod verdict_tests {
     #[test]
     fn a_deleted_nodes_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Node {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId(test_utils::refusal::tagged(3)),
             present: false,
         });
         assert_eq!(find(&painted, "deleted").ink, Some(voices.actionable));
@@ -1904,7 +1952,7 @@ mod verdict_tests {
         for standing in [
             Standing::Empty,
             Standing::Node {
-                node: RecipeNodeId(3),
+                node: RecipeNodeId(test_utils::refusal::tagged(3)),
                 present: true,
             },
             Standing::Param {
