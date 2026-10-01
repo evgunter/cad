@@ -4936,3 +4936,37 @@ stranding check and before any write.
 
 PR 3592 and PR 3598 each add an `EulerOpError` variant. Whichever
 merges second resolves the conflict.
+
+## PR 3592 reviewed: APPROVE-WITH-FIXES; fix pass dispatched (2026-10-01)
+
+The single full review ran on the frozen head `bfab1dc0f8`: 0 MAJOR,
+2 MINOR, 4 NOTE, 13 style. Every executed claim held:
+- red-first on the true base;
+- 49 witness calls refusing deep-unchanged;
+- 9 two-fault orders;
+- 0 over-refusals across 14 valid bodies;
+- the probe arithmetic, re-run on seeds 1..=100;
+- every mutant red, plus three of the reviewer's own.
+
+`Clearing.links` is the writes the mutation makes, through one function
+(evaluated twice in kev and kef). `movefac`'s "both" equals tier 1.
+
+**Adjudicated:**
+- **M1, M2: fix.** `UnclaimedHalfEdge`'s doc is missing `movefac`'s
+  site, and `NotOwned`'s `Display` is false at R8 and R9.
+- **N1: fix.** `require_halves_unnamed` asks one question and refuses
+  through two variants. D4 ¶1 (iv) asks for one story, so all of it
+  goes through `KillLeavesDangling`, after checking PR 3570's raises.
+- **N2: file.** `movefac`'s mate hop does not prove the converse, and
+  on torn input its partition depends on seed order.
+- **N3: probe.** Can a kev fan hold both halves of a null edge? Then
+  file or close.
+- **N4: fix the header premise.**
+- **Style taken:** S3 (one home for the proven mate hop), S6 (the census
+  reds when a scan goes), S8 (rename), S9 (gate header), S10 and S2.
+
+The review reported one surface naming a model: a commit trailer.
+
+Fix pass dispatched on the rebase target. It merges after CI, with the
+orchestrator reading the diff; there is no second review, since the
+fixes are local.
