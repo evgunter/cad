@@ -227,7 +227,7 @@ fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
         matches!(
             e,
             PcurveCertifyError::ImageMismatch {
-                image: "Spiric",
+                image: geom_brep::PcurveKind::Spiric,
                 ..
             }
         ),
@@ -550,9 +550,9 @@ fn the_mirror_torus_holds_the_oval_and_is_uncovered() {
         matches!(
             e,
             PcurveCertifyError::UnsupportedCarrier {
-                chart: "torus",
-                carrier: "spiric",
-                ..
+                chart: geom_brep::SurfaceKind::Torus,
+                carrier: geom_brep::CurveKind::Spiric,
+                class: geom_brep::UncoveredClass::MirrorTorusSpiric,
             }
         ),
         "{e:?}"
@@ -589,7 +589,13 @@ fn a_zero_offset_spiric_off_its_torus_is_uncovered() {
     let e = geom_brep::chart_pcurve(&meridian, &sphere, band())
         .unwrap_err_or_else_msg("zero-offset spiric on a sphere");
     assert!(
-        matches!(e, PcurveCertifyError::UnsupportedCarrier { .. }),
+        matches!(
+            e,
+            PcurveCertifyError::UnsupportedCarrier {
+                class: geom_brep::UncoveredClass::ZeroOffsetSpiric,
+                ..
+            }
+        ),
         "{e:?}"
     );
 }

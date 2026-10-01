@@ -198,6 +198,21 @@ fn a_line_carrier_leaves_the_face_uncached<T: AtRestPolicy>() {
         .filter(|(he, _)| body.pcurve(*he).is_some())
         .count();
     assert_eq!(rows, 0, "no half-edge carries a row, at {}", T::NAME);
+    // The face the mint legally left uncached has no certificate for
+    // its General images, so its description is not yet available —
+    // which is what `chart_boundary` says, rather than a defect.
+    let band = geom_core::Band::linear(tol).unwrap();
+    let chart = body
+        .get_surface(body.get_face(faces[0]).unwrap().surface)
+        .unwrap()
+        .clone();
+    let got = topo::pcurves::chart_boundary(&body, faces[0], &chart, band);
+    assert!(
+        matches!(got, Err(PcurveMintError::UncertifiedImage { .. })),
+        "an uncached face's General images have no certificate, at {}: {:?}",
+        T::NAME,
+        got.err()
+    );
 }
 
 /// A spline carrier passes check 1 and refuses on its missing mate —

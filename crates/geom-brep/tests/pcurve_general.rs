@@ -134,7 +134,7 @@ fn the_closed_form_door_refuses_a_general_image() {
         matches!(
             got,
             Err(PcurveCertifyError::ImageMismatch {
-                image: "General",
+                image: geom_brep::PcurveKind::General,
                 ..
             })
         ),

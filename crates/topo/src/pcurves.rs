@@ -471,11 +471,14 @@ pub enum PcurveMintError {
     },
     /// The run's linear band could not be built.
     Band(BandError),
-    /// A half-edge's walked image is a `Fitted` or `General` one and
-    /// carries no stored certificate: the certificate's envelope is the
-    /// only statement bounding such an image against its carrier, and
-    /// the description refuses rather than claim a bound it does not
-    /// hold.
+    /// A half-edge's walked image is a `Fitted` or `General` one, and
+    /// its face stores no pcurve rows, so no certificate bounds the
+    /// image against its carrier: the description refuses rather than
+    /// claim a bound it does not hold. The face is either unminted or
+    /// one the mint leaves uncached for a pair no lane covers yet
+    /// ([`PcurveCertifyError::UnsupportedCarrier`]) — a legal at-rest
+    /// state, not a defect. A face that stores OTHER rows refuses
+    /// [`PcurveMintError::MissingCache`] instead.
     UncertifiedImage {
         /// The half-edge whose image has no stored certificate.
         half_edge: HalfEdgeKey,
@@ -557,9 +560,11 @@ impl core::fmt::Display for PcurveMintError {
             Self::Band(e) => write!(f, "{e}"),
             Self::UncertifiedImage { half_edge } => write!(
                 f,
-                "half-edge {half_edge:?} has a fitted or general chart image with no stored \
-                 certificate, so nothing bounds the image against its carrier. Recourse: \
-                 re-mint the body's pcurves, which certifies such an image as it stores it"
+                "half-edge {half_edge:?} has a fitted or general chart image, and its face \
+                 stores no pcurves, so no certificate bounds the image against its carrier \
+                 and the face has no description yet. Recourse: mint the body's pcurves and \
+                 ask again; a face the mint still leaves uncached is bounded by a carrier \
+                 class no lane covers yet, and has no description until one does"
             ),
             Self::PlaceholderChart { face } => write!(
                 f,
@@ -3091,15 +3096,20 @@ fn pin_branch<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PcurveMintError::UncertifiedImage`] for a `Fitted` or `General`
-/// image carrying no stored certificate: its envelope is the only
-/// statement bounding the image against its carrier, and inventing one
-/// would widen nothing while claiming a bound.
+/// A `Fitted` or `General` image carrying no stored certificate: its
+/// envelope is the only statement bounding the image against its
+/// carrier, and inventing one would widen nothing while claiming a
+/// bound. [`PcurveMintError::UncertifiedImage`] when the face stores
+/// no row at all (`minted` false — never minted, or left uncached by
+/// the mint for a pair no lane covers yet), and
+/// [`PcurveMintError::MissingCache`] when it stores others: a
+/// half-minted face.
 fn chart_edge<T: Decide>(
     body: &Body<T>,
     walked: &Walked<T>,
     chart: &Surface<T>,
     plus: bool,
+    minted: bool,
 ) -> Result<ChartEdge<T>, PcurveMintError> {
     let (entry_t, exit_t) = if plus {
         (walked.t0, walked.t1)
@@ -3150,11 +3160,12 @@ fn chart_edge<T: Decide>(
         // and the carrier is the stored certificate's envelope — in
         // metres, so `metred` is where it widens the box.
         Pcurve::Fitted(_) | Pcurve::General(_) => {
-            let cache = body
-                .pcurve(walked.key)
-                .ok_or(PcurveMintError::UncertifiedImage {
-                    half_edge: walked.key,
-                })?;
+            let half_edge = walked.key;
+            let cache = body.pcurve(half_edge).ok_or(if minted {
+                PcurveMintError::MissingCache { half_edge }
+            } else {
+                PcurveMintError::UncertifiedImage { half_edge }
+            })?;
             let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
             Ok(ChartEdge::Envelope {
                 a,
@@ -3230,7 +3241,9 @@ fn chart_edge<T: Decide>(
 /// a typed chart refusal such as [`PcurveCertifyError::UnsupportedCarrier`]
 /// for a `Nurbs` carrier on an analytic chart, a discontinuous or
 /// unclosed walk); [`PcurveMintError::UncertifiedImage`] for a fitted
-/// or general image with no stored certificate; [`PcurveMintError::SingularChartJoint`] for a loop
+/// or general image on a face that stores no rows, and
+/// [`PcurveMintError::MissingCache`] for one missing from a face that
+/// stores others; [`PcurveMintError::SingularChartJoint`] for a loop
 /// through a pole or an apex; [`PcurveMintError::LoopWraps`] for a
 /// walk that closes a whole period off; and
 /// [`PcurveMintError::OuterSpansPeriod`] from
@@ -3243,6 +3256,7 @@ pub fn chart_boundary<T: AtRestPolicy>(
 ) -> Result<ChartBound<T>, PcurveMintError> {
     let described = DescribedChart::of(chart).ok_or(PcurveMintError::PlaceholderChart { face })?;
     let face_data = body.get_face(face).ok_or(PcurveMintError::Corrupt)?;
+    let minted = stored_rows(body, face_data).window.is_some();
     let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
         .chain(face_data.rings.iter().copied())
         .collect();
@@ -3331,7 +3345,7 @@ pub fn chart_boundary<T: AtRestPolicy>(
         }
         let mut edges = Vec::with_capacity(walked.len());
         for w in &walked {
-            edges.push(chart_edge(body, w, chart, is_plus(body, w.key)?)?);
+            edges.push(chart_edge(body, w, chart, is_plus(body, w.key)?, minted)?);
         }
         let described = ChartLoop {
             edges,
@@ -4405,8 +4419,8 @@ mod recourse_tests {
             escalate: 1e-9,
         };
         let certify_error = PcurveCertifyError::CarrierOffChart {
-            chart: "sphere",
-            carrier: "line",
+            chart: geom_brep::SurfaceKind::Sphere,
+            carrier: geom_brep::CurveKind::Line,
             why: "a sphere holds no line",
         };
         let arms = [

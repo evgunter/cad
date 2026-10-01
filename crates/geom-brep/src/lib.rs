@@ -110,9 +110,9 @@ pub use implicit::{
     implicit_residual, min_radius_of_curvature,
 };
 pub use intersect::{
-    CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
-    PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
-    Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
+    CoaxialEvidence, ConeCylinderSection, CurveKind, CylinderSphereSection, EqualCylinderSection,
+    PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
+    RadiusEvidence, Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
     cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
     plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
 };
@@ -134,8 +134,8 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, SpiricImage, chart_pcurve,
-    chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, SpiricImage, UncoveredClass,
+    chart_pcurve, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

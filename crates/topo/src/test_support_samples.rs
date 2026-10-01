@@ -335,17 +335,17 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
     let mut v = vec![
         PcurveCertifyError::UnsupportedChart { chart: "torus" },
         PcurveCertifyError::UnsupportedCarrier {
-            chart: "torus",
-            carrier: "circle",
-            class: "an oblique circle",
+            chart: geom_brep::SurfaceKind::Torus,
+            carrier: geom_brep::CurveKind::Circle,
+            class: geom_brep::UncoveredClass::TorusGeneralCircle,
         },
         PcurveCertifyError::CarrierOffChart {
-            chart: "sphere",
-            carrier: "line",
+            chart: geom_brep::SurfaceKind::Sphere,
+            carrier: geom_brep::CurveKind::Line,
             why: "a sphere holds no line",
         },
         PcurveCertifyError::ImageMismatch {
-            image: "General",
+            image: geom_brep::PcurveKind::General,
             why: "a fitted-grade image at the closed-form door",
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
