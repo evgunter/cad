@@ -569,7 +569,12 @@ BOUNDS_ALLOWLIST=(
   # in a `#[cfg(test)]` module that reads no bracket.
   'crates/geom-brep/src/fitted_lane.rs 2 M6-2, the SSI rung-3 certificate; the fitted door value `FittedLane::certified` and its wiring row at the same bound'
   'crates/geom-brep/src/ssi.rs 2 M6-2, the SSI rung-3 certificate'
-  'crates/geom-brep/src/ssi/certify.rs 16 M6-2, the SSI rung-3 certificate'
+  # 16 -> 14: the rung-3 witness helper `witness` (`Decide + Bounds +
+  # CertifiedEnclosure`, two occurrences) went: it evaluated the carrier
+  # at its domain middle and read no bracket, and its callers in
+  # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
+  # The seam is unmoved: the branch certificate keeps its bounds.
+  'crates/geom-brep/src/ssi/certify.rs 14 M6-2, the SSI rung-3 certificate'
   # M7-8, the declare-and-check edge lane.
   'crates/geom-brep/src/edge_nurbs.rs 6 M7-8, the declare-and-check edge lane'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the two

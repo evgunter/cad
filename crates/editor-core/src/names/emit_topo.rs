@@ -7,8 +7,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom::Surface;
-use geom_brep::OutwardNormal;
 use geom_core::k_stats::decide;
 use geom_core::{Decide, Margin, Point3, Sign, Vec3};
 use topo::splitting::{PlaneSide, SplitNaming};
@@ -35,91 +33,6 @@ struct Side<'a, T: Decide> {
     body: &'a Body<T>,
     ix: u32,
     half: SplitHalf,
-}
-
-/// The operand-face plane, **oriented outward** ([`carrier_plane`]),
-/// for a caller whose face is planar by construction.
-pub(super) fn face_plane<T: Decide>(
-    body: &Body<T>,
-    f: FaceKey,
-) -> Result<(Point3<T>, Vec3<T>), NamingError> {
-    carrier_plane(body, f)?.ok_or(NamingError::Emission {
-        what: "face_plane: non-planar carrier in planar pipeline",
-    })
-}
-
-/// A point on a carrier plane and its outward normal ([`carrier_plane`]).
-pub(super) type OrientedPlane<T> = (Point3<T>, Vec3<T>);
-
-/// A face's carrier plane, **oriented outward** (result carriers are
-/// the N2 references): `None` for a carrier that is not a plane.
-///
-/// S10 CATEGORY A: the returned normal is the face's outward normal —
-/// the chart normal with `Face::sense` folded in through
-/// [`OutwardNormal::from_chart`], unwrapped at this door because every
-/// consumer reads it as geometry — not the raw chart normal.
-/// Every consumer uses the direction as an *oriented reference* whose
-/// sign lands in a stable name — `n_a × n_b` orients the carrier
-/// [`order_along`] ranks fragments along (`Qualifier::OrderAlong`).
-/// Reading the chart normal raw would let a sense flip silently
-/// reverse every rank,
-/// renaming fragments that did not move: an N4 covariance break, since
-/// a face's orientation sense is part of the geometry names are
-/// covariant *with*, not a private encoding detail the naming layer
-/// may ignore. The fold is exact structure (a `bool` selecting a
-/// negation), so no new numeric decision enters here, and every face
-/// this build mints has `sense: true` — the fold is the identity and
-/// no name moves.
-pub(super) fn carrier_plane<T: Decide>(
-    body: &Body<T>,
-    f: FaceKey,
-) -> Result<Option<OrientedPlane<T>>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let face = body
-        .get_face(f)
-        .ok_or_else(|| bug("face_plane: dangling"))?;
-    match body
-        .get_surface(face.surface)
-        .ok_or_else(|| bug("face_plane: dangling surface"))?
-    {
-        Surface::Plane { origin, normal, .. } => Ok(Some((
-            *origin,
-            OutwardNormal::from_chart(*normal, face.sense).vec(),
-        ))),
-        _ => Ok(None),
-    }
-}
-
-/// A face's extent along `dir` (probe values stay here; only order
-/// enters names).
-fn face_extent<T: Decide>(
-    body: &Body<T>,
-    f: FaceKey,
-    dir: Vec3<T>,
-) -> Result<Extent<T>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let mut min: Option<T> = None;
-    let mut max: Option<T> = None;
-    for he in face_half_edges(body, f)? {
-        let v = body
-            .get_half_edge(he)
-            .ok_or_else(|| bug("face_extent: dangling half-edge"))?
-            .start;
-        let p = vertex_point(body, v)?;
-        let t = Vec3::new(p.x, p.y, p.z).dot(dir);
-        min = Some(match min {
-            None => t,
-            Some(m) => m.min(t),
-        });
-        max = Some(match max {
-            None => t,
-            Some(m) => m.max(t),
-        });
-    }
-    match (min, max) {
-        (Some(min), Some(max)) => Ok(Extent { min, max }),
-        _ => Err(bug("face_extent: face has no vertices")),
-    }
 }
 
 /// Chases a face key through fragment rows to its root (the key that
@@ -225,7 +138,6 @@ pub(crate) fn name_split<T: Decide>(
     target_node: RecipeNodeId,
     target_table: &NameTable,
     target_body: &Body<T>,
-    tool_normal: Vec3<T>,
     tol: Tol,
 ) -> Result<Emitted, NamingError> {
     let b = band(tol)?;
@@ -303,8 +215,6 @@ pub(crate) fn name_split<T: Decide>(
         target_node,
         target_table,
         target_body,
-        tool_normal,
-        b,
     )?;
     tie.flush(&mut t)?;
     name_split_edges_vertices(
@@ -317,6 +227,8 @@ pub(crate) fn name_split<T: Decide>(
         naming,
         target_node,
         target_table,
+        target_body,
+        b,
     )?;
     tie.flush(&mut t)?;
 
@@ -360,7 +272,10 @@ pub(super) fn chord_faces<T: geom_core::Real>(
 }
 
 /// Split edges + vertices: pass-through, `SectionEdge` (chords),
-/// `SplitFragment` (crossing-cut operand edges), `CrossingVertex`.
+/// `SplitFragment` (crossing-cut operand edges), `CrossingVertex`,
+/// `OnToolVertex`. The edges are grouped by their parent first, the
+/// vertices named from those parents, and then several pieces of one
+/// parent qualified by their ends ([`name_edge_pieces`]).
 #[allow(clippy::too_many_arguments)]
 fn name_split_edges_vertices<T: Decide>(
     node: RecipeNodeId,
@@ -372,32 +287,43 @@ fn name_split_edges_vertices<T: Decide>(
     naming: &SplitNaming,
     target_node: RecipeNodeId,
     target_table: &NameTable,
+    target_body: &Body<T>,
+    bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
     let copy_to_original: BTreeMap<VertexKey, VertexKey> =
         naming.vertex_pairs.iter().copied().collect();
-    for s in sides {
+    // (side, base) → (from a tie, the side's edges under it).
+    let mut edge_groups: BTreeMap<(usize, StableName), (bool, Vec<EdgeKey>)> = BTreeMap::new();
+    // A divided parent is collected across BOTH sides first: a
+    // kept-key first child looks like an intact operand edge in ITS
+    // side alone.
+    let mut divided_edges: BTreeSet<EdgeKey> = BTreeSet::new();
+    for sb in sides {
+        for (e, _) in sb.body.edges() {
+            // FRESH children only: an edge the target table already
+            // names is the target's own entity, not a product of THIS
+            // split.
+            if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_none()
+                && matches!(
+                    sb.body.edge_provenance_of(e),
+                    Some(Provenance::SplitEdge { .. })
+                )
+            {
+                divided_edges.insert(chase_split_edge_to_table(sides, target_table, e)?);
+            }
+        }
+    }
+    for (slot, s) in sides.iter().enumerate() {
         let body = s.body;
         let chord_faces = chord_faces(body, &naming.sections, section_keys)?;
         // Chord edges named by the operand face their section boundary
-        // runs across. `SectionEdge{side, face}` carries only that
-        // face's name, so a section line that re-enters ONE operand
-        // face — an inner loop, or any non-convex face — would mint
-        // one name twice.
-        //
-        // A2 (ratified, #512): those chords become an N2 TIE rather
-        // than a refusal. They are equally admissible under the one
-        // name the vocabulary can spell; the selector layer narrows to
-        // a specific chord geometrically (`select_where`), which is
-        // the same disambiguation story ties have everywhere else. No
-        // ordering is invented: the chords bound one section face and
-        // have no covariant order-along direction of their own.
-        let mut chords_by_face: BTreeMap<FaceKey, Vec<EdgeKey>> = BTreeMap::new();
+        // runs across. A section line that re-enters ONE operand face
+        // (an inner loop, or any non-convex face) cuts several chords
+        // `SectionEdge{side, face}` spells alike: pieces of one parent,
+        // told apart by their ends like any other (N2).
         for (&e, &other) in &chord_faces {
             let root = chase(frag_rows, other)?;
-            chords_by_face.entry(root).or_default().push(e);
-        }
-        for (root, edges) in chords_by_face {
             if section_keys.contains(&root) {
                 return Err(bug("section chord adjacent to a section face"));
             }
@@ -410,32 +336,11 @@ fn name_split_edges_vertices<T: Decide>(
                     face: parent.name,
                 },
             );
-            let ents = edges
-                .iter()
-                .map(|&e| ent(s.ix, EntityKey::Edge(e)))
-                .collect();
-            mint_candidates(t, tie, parent.tied, name, ents)?;
+            let group = edge_groups.entry((slot, name)).or_default();
+            group.0 |= parent.tied;
+            group.1.push(e);
         }
-        // Remaining edges: pass-through or crossing-cut fragments. A
-        // kept-key first child looks like an intact operand edge in
-        // ITS side alone, so divided parents are collected across
-        // BOTH sides first.
-        let mut divided_edges: BTreeSet<EdgeKey> = BTreeSet::new();
-        for sb in sides {
-            for (e, _) in sb.body.edges() {
-                // FRESH children only: an edge the target table
-                // already names is the target's own entity, not a
-                // product of THIS split.
-                if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_none()
-                    && matches!(
-                        sb.body.edge_provenance_of(e),
-                        Some(Provenance::SplitEdge { .. })
-                    )
-                {
-                    divided_edges.insert(chase_split_edge_to_table(sides, target_table, e)?);
-                }
-            }
-        }
+        // Remaining edges: pass-through or crossing-cut fragments.
         for (e, _) in body.edges() {
             if chord_faces.contains_key(&e) {
                 continue;
@@ -456,20 +361,17 @@ fn name_split_edges_vertices<T: Decide>(
                 return Err(bug("edge descent reached no operand edge"));
             }
             let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(root)))?;
-            put(
-                t,
-                tie,
-                parent.tied,
-                name1(
-                    EntityKind::Edge,
-                    node,
-                    RoleSeg::SplitFragment {
-                        side: s.half,
-                        parent: parent.name,
-                    },
-                ),
-                ent(s.ix, EntityKey::Edge(e)),
-            )?;
+            let name = name1(
+                EntityKind::Edge,
+                node,
+                RoleSeg::SplitFragment {
+                    side: s.half,
+                    parent: parent.name,
+                },
+            );
+            let group = edge_groups.entry((slot, name)).or_default();
+            group.0 |= parent.tied;
+            group.1.push(e);
         }
         // Vertices. Pair membership FIRST: a vertex the tool plane
         // passed through exists as a coincident copy in BOTH halves
@@ -478,6 +380,9 @@ fn name_split_edges_vertices<T: Decide>(
         // bare name would alias across the two halves).
         let pair_originals: BTreeSet<VertexKey> =
             naming.vertex_pairs.iter().map(|&(_, o)| o).collect();
+        // Crossing vertices, by the operand edge they cross: (from a
+        // tie, the vertices).
+        let mut crossings: BTreeMap<EdgeKey, (Upstream, Vec<VertexKey>)> = BTreeMap::new();
         for (v, _) in body.vertices() {
             let is_pair_member = copy_to_original.contains_key(&v) || pair_originals.contains(&v);
             if !is_pair_member
@@ -502,21 +407,20 @@ fn name_split_edges_vertices<T: Decide>(
                     _ => None,
                 })
                 .transpose()?;
-            let (seg, from_tie) = if let Some(parent_edge) = parent_edge {
+            if let Some(parent_edge) = parent_edge {
                 // Crossing vertex: minted where the plane crossed an
                 // operand edge's interior.
-                let parent = upstream_name(
-                    target_table,
-                    target_node,
-                    ent(0, EntityKey::Edge(parent_edge)),
-                )?;
-                (
-                    RoleSeg::CrossingVertex {
-                        side: s.half,
-                        edge: parent.name,
-                    },
-                    parent.tied,
-                )
+                match crossings.get_mut(&parent_edge) {
+                    Some((_, vs)) => vs.push(v),
+                    None => {
+                        let parent = upstream_name(
+                            target_table,
+                            target_node,
+                            ent(0, EntityKey::Edge(parent_edge)),
+                        )?;
+                        crossings.insert(parent_edge, (parent, vec![v]));
+                    }
+                }
             } else if target_table
                 .name_of(&ent(0, EntityKey::Vertex(src)))
                 .is_some()
@@ -526,26 +430,55 @@ fn name_split_edges_vertices<T: Decide>(
                 // from the pair row, side from body membership (a
                 // recorded verdict).
                 let of = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(src)))?;
-                (
-                    RoleSeg::OnToolVertex {
-                        side: s.half,
-                        of: of.name,
-                    },
+                put(
+                    t,
+                    tie,
                     of.tied,
-                )
+                    name1(
+                        EntityKind::Vertex,
+                        node,
+                        RoleSeg::OnToolVertex {
+                            side: s.half,
+                            of: of.name,
+                        },
+                    ),
+                    ent(s.ix, EntityKey::Vertex(v)),
+                )?;
             } else {
                 return Err(bug(
                     "on-plane vertex with neither a SplitEdge record nor an operand identity",
                 ));
-            };
-            put(
-                t,
-                tie,
-                from_tie,
-                name1(EntityKind::Vertex, node, seg),
-                ent(s.ix, EntityKey::Vertex(v)),
-            )?;
+            }
         }
+        // A plane crosses a straight edge at most once, and an arc it
+        // crosses twice leaves both crossings on both sides: ranked
+        // along the crossed edge (N2).
+        for (crossed, (parent, verts)) in crossings {
+            let base = name1(
+                EntityKind::Vertex,
+                node,
+                RoleSeg::CrossingVertex {
+                    side: s.half,
+                    edge: parent.name.clone(),
+                },
+            );
+            let crossings = verts
+                .iter()
+                .map(|&v| Ok((ent(s.ix, EntityKey::Vertex(v)), vertex_point(body, v)?)))
+                .collect::<Result<Vec<_>, NamingError>>()?;
+            let edge = CrossedEdge {
+                body: target_body,
+                table: target_table,
+                edge: crossed,
+                name: &parent.name,
+            };
+            rank_crossings(t, tie, parent.tied, &base, &edge, &crossings, bnd)?;
+        }
+    }
+    tie.flush(t)?;
+    for ((slot, base), (from_tie, edges)) in edge_groups {
+        let s = &sides[slot];
+        name_edge_pieces(t, tie, from_tie, &base, s.body, s.ix, &edges)?;
     }
     Ok(())
 }
@@ -556,7 +489,7 @@ pub(crate) struct OperandCtx<'a, T: Decide> {
     pub node: RecipeNodeId,
     /// Its name table (total over its body).
     pub table: &'a NameTable,
-    /// Its body (order-along carrier geometry).
+    /// Its body (the carriers its crossed edges are ranked along).
     pub body: &'a Body<T>,
 }
 
@@ -976,10 +909,8 @@ pub(crate) fn name_boolean<T: Decide>(
     }
     tie.flush(&mut t)?;
 
-    name_boolean_edges(
+    let edge_groups = name_boolean_edges(
         node,
-        &mut t,
-        &mut tie,
         &mut rec,
         body,
         naming,
@@ -994,7 +925,6 @@ pub(crate) fn name_boolean<T: Decide>(
         &merged_descents,
         bnd,
     )?;
-    tie.flush(&mut t)?;
     name_boolean_vertices(
         node,
         &mut t,
@@ -1006,8 +936,13 @@ pub(crate) fn name_boolean<T: Decide>(
         a,
         b,
         &inc,
+        &edge_groups,
         bnd,
     )?;
+    tie.flush(&mut t)?;
+    for g in &edge_groups {
+        name_edge_pieces(&mut t, &mut tie, g.from_tie, &g.base, body, 0, &g.edges)?;
+    }
     tie.flush(&mut t)?;
 
     super::emit::check_total(&t, body, 0)?;
@@ -1062,13 +997,12 @@ pub(super) fn name_parent_faces<T: geom_core::Real, K: Ord + Clone>(
     }
 }
 
-/// Boolean edges: `Seam` for zip-minted edges, `FromA`/`FromB` (with
-/// order-along fragment qualifiers) for operand-descended ones.
+/// Boolean edges, grouped by parent: `Seam` for zip-minted edges,
+/// `FromA`/`FromB` for operand-descended ones. A group's pieces are
+/// qualified once the vertices are named ([`EdgeGroup`]).
 #[allow(clippy::too_many_arguments)]
 fn name_boolean_edges<T: Decide>(
     node: RecipeNodeId,
-    t: &mut NameTable,
-    tie: &mut TieRows,
     rec: &mut GroupRecord,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
@@ -1082,7 +1016,7 @@ fn name_boolean_edges<T: Decide>(
     operand_face_name: &impl Fn(OpSide<FaceKey>) -> Result<Upstream, NamingError>,
     merged_descents: &BTreeMap<FaceKey, Vec<OpSide<FaceKey>>>,
     bnd: geom_core::Band,
-) -> Result<(), NamingError> {
+) -> Result<Vec<EdgeGroup>, NamingError> {
     let bug = |what| NamingError::Emission { what };
 
     // ---- Seam edges (zip-listed AND derived — see below), grouped
@@ -1340,93 +1274,46 @@ fn name_boolean_edges<T: Decide>(
             }
         }
     }
+    let mut out = Vec::with_capacity(seam_groups.len() + groups.len());
     for ((fa, fb), (from_tie, edges)) in seam_groups {
-        let base = name1(
-            EntityKind::Edge,
-            node,
-            RoleSeg::Seam {
-                a: fa.clone(),
-                b: fb.clone(),
-            },
-        );
+        let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
         rec.record_by_name(
             &base,
             edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
             from_tie,
         );
-        if edges.len() == 1 {
-            put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
-            continue;
-        }
-        // Collinear chain: order along the pair's intersection line,
-        // oriented n_a × n_b with the A-side face first — the side read
-        // off the face's descent (structure, never list order). A later
-        // step that knows this seam only by its name reads the same
-        // orientation back through `seam_line_dir`.
-        //
-        // The SIGN of `dir` is load-bearing, not just its axis:
-        // `edge_extent` projects onto it and `order_along` ranks by
-        // that signed parameter, so negating `dir` reverses every
-        // `OrderAlong` rank and renames the whole chain. Hence
-        // `seam_side_normal` returns OUTWARD normals (S10 category A): the
-        // orientation of this line is a fact about the two faces'
-        // material sides, and it must move only when they do.
-        let faces = inc
-            .edge_faces
-            .get(&edges[0])
-            .ok_or_else(|| bug("seam group lost its faces"))?;
-        let (f0, f1) = (faces[0], faces[1]);
-        let (fa_key, fb_key) = match descend_face(f0)? {
-            OpSide::A(_) => (f0, f1),
-            OpSide::B(_) => (f1, f0),
-        };
-        let na = seam_side_normal(body, fa_key, &base, fa.name())?;
-        let nb = seam_side_normal(body, fb_key, &base, fb.name())?;
-        let dir = na.cross(nb);
-        let extents = edges
-            .iter()
-            .map(|&e| edge_extent(body, e, dir))
-            .collect::<Result<Vec<_>, _>>()?;
-        insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
-            ent(0, EntityKey::Edge(e))
-        })?;
+        out.push(EdgeGroup {
+            base,
+            from_tie,
+            edges,
+        });
     }
     for (root, edges) in groups {
         let (op, root_key) = root.of(a, b);
         let inner = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(root_key)))?;
-        let op_body = op.body;
-        let from_tie = inner.tied;
-        let seg = root.wrap(inner.name.clone());
-        let base = name1(EntityKind::Edge, node, seg);
+        let base = name1(EntityKind::Edge, node, root.wrap(inner.name));
         rec.record(
             &base,
             edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
             root.map(EntityKey::Edge).parent(),
         );
-        if edges.len() == 1 {
-            put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
-            continue;
-        }
-        // Sub-edge chain: order along the parent's line. A parent that
-        // is itself a SEAM edge is ordered the way a seam chain is — along
-        // its pair's `n_a × n_b`, in the pair's minted order — because
-        // the same pieces are a seam chain in an order that cuts the line
-        // before it is minted; one line, one orientation, whichever step
-        // cut it. Any other parent is ordered along its own oriented
-        // carrier (operand geometry).
-        let dir = match seam_pair::seam_line_pair(&inner.name) {
-            Some(pair) => seam_line_dir(op.body, op.table, op.node, root_key, &base, pair)?,
-            None => edge_dir(op_body, root_key)?,
-        };
-        let extents = edges
-            .iter()
-            .map(|&e| edge_extent(body, e, dir))
-            .collect::<Result<Vec<_>, _>>()?;
-        insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
-            ent(0, EntityKey::Edge(e))
-        })?;
+        out.push(EdgeGroup {
+            base,
+            from_tie: inner.tied,
+            edges,
+        });
     }
-    Ok(())
+    Ok(out)
+}
+
+/// The edges of a pair boolean's result that share one parent: its
+/// name, whether that descends from a tie, and the edges. Their
+/// vertices are named from `base` (a vertex cites an edge by its head),
+/// and the edges then by their ends ([`name_edge_pieces`]).
+struct EdgeGroup {
+    base: StableName,
+    from_tie: bool,
+    edges: Vec<EdgeKey>,
 }
 
 /// Boolean vertices: operand pass-downs (`FromA`/`FromB`), and seam
@@ -1445,9 +1332,16 @@ fn name_boolean_vertices<T: Decide>(
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
     inc: &Incidence,
+    edge_groups: &[EdgeGroup],
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
+    // Each edge's parent, the head a vertex cites it by, and whether
+    // that descends from a tie.
+    let edge_base: BTreeMap<EdgeKey, (&StableName, bool)> = edge_groups
+        .iter()
+        .flat_map(|g| g.edges.iter().map(move |&e| (e, (&g.base, g.from_tie))))
+        .collect();
     // Zip fusions: kept key → dead partners (a fused vertex may owe
     // its operand identity to a DEAD partner's key — e.g. a B corner
     // vertex fused into an A-side crossing key on a shared plane).
@@ -1512,7 +1406,8 @@ fn name_boolean_vertices<T: Decide>(
             .get(&v)
             .ok_or_else(|| bug("seam vertex without incident edges"))?;
         // The parentage a seam vertex is named from is read off the
-        // incident EDGE names and put straight back into this vertex's
+        // incident edges' HEADS (N2: never a piece's qualifier, which is
+        // named from its ends) and put straight back into this vertex's
         // own name, so it travels as the operand tables' handles: no
         // copy is made and the order cache survives the trip.
         let mut a_edges: Vec<NameRef> = Vec::new();
@@ -1523,15 +1418,15 @@ fn name_boolean_vertices<T: Decide>(
         // several incident seam edges lie on one line. The junction's
         // name is these lines, and `names::canonical` orders them.
         let mut seam_lines: BTreeSet<(NameRef, NameRef)> = BTreeSet::new();
-        // B1: a seam vertex reads its parentage off the incident EDGE
-        // names, so an edge name that is itself tied makes the vertex
+        // B1: a seam vertex reads its parentage off the incident edges'
+        // parents, so a parent descended from a tie makes the vertex
         // name tie-descended too.
         let mut from_tie = false;
         for &e in edges {
-            let Some(ename) = t.name_of(&ent(0, EntityKey::Edge(e))) else {
+            let Some(&(ename, tied)) = edge_base.get(&e) else {
                 return Err(bug("seam vertex incident to an unnamed edge"));
             };
-            from_tie |= t.is_tied(ename);
+            from_tie |= tied;
             match ename.path.first() {
                 Some(RoleSeg::FromA(x)) => a_edges.push(x.clone()),
                 Some(RoleSeg::FromB(x)) => b_edges.push(x.clone()),
@@ -1707,13 +1602,13 @@ fn name_boolean_vertices<T: Decide>(
             put(t, tie, from_tie, base, ent(0, EntityKey::Vertex(verts[0])))?;
             continue;
         }
-        // Same pair crossing more than once: order along the edge
-        // parent's own carrier (prefer the A side).
-        let carrier = match resolve_edge_carrier(&pa, a, &base)? {
-            Some(dir) => Some(dir),
-            None => resolve_edge_carrier(&pb, b, &base)?,
+        // Same pair crossing more than once: ranked along the edge
+        // parent (the A side's where both are edges).
+        let crossed = match crossed_edge(&pa, a.table) {
+            Some(k) => Some((a, k, &pa)),
+            None => crossed_edge(&pb, b.table).map(|k| (b, k, &pb)),
         };
-        let Some(dir) = carrier else {
+        let Some((op, k, parent)) = crossed else {
             let ents = verts
                 .iter()
                 .map(|&v| ent(0, EntityKey::Vertex(v)))
@@ -1721,17 +1616,17 @@ fn name_boolean_vertices<T: Decide>(
             mint_candidates(t, tie, from_tie, base, ents)?;
             continue;
         };
-        let extents = verts
+        let crossings = verts
             .iter()
-            .map(|&v| {
-                let p = vertex_point(body, v)?;
-                let tv = Vec3::new(p.x, p.y, p.z).dot(dir);
-                Ok(Extent { min: tv, max: tv })
-            })
+            .map(|&v| Ok((ent(0, EntityKey::Vertex(v)), vertex_point(body, v)?)))
             .collect::<Result<Vec<_>, NamingError>>()?;
-        insert_ranked_or_tied(t, tie, from_tie, &base, &verts, &extents, bnd, |&v| {
-            ent(0, EntityKey::Vertex(v))
-        })?;
+        let edge = CrossedEdge {
+            body: op.body,
+            table: op.table,
+            edge: k,
+            name: parent,
+        };
+        rank_crossings(t, tie, from_tie, &base, &edge, &crossings, bnd)?;
     }
     Ok(())
 }
@@ -1757,49 +1652,19 @@ fn one_partner(vertex: VertexKey, named: Vec<Upstream>) -> Result<Option<Upstrea
     Ok(distinct.pop())
 }
 
-/// The oriented carrier of an operand-edge parent name, if the name
-/// denotes an edge in that operand's table.
-///
-/// A parent that is not a uniquely named edge of that table has no
-/// carrier (`None`); an edge the table names whose geometry does not
-/// resolve is a corrupt operand body, and refuses rather than reading as
-/// "no carrier" and demoting the group to a tie.
-fn resolve_edge_carrier<T: Decide>(
-    parent: &StableName,
-    op: &OperandCtx<'_, T>,
-    group: &StableName,
-) -> Result<Option<Vec3<T>>, NamingError> {
+/// The operand edge a seam vertex's parent name denotes, if it is a
+/// uniquely named edge of that operand's table.
+fn crossed_edge(parent: &StableName, table: &NameTable) -> Option<EdgeKey> {
     if parent.kind != EntityKind::Edge {
-        return Ok(None);
+        return None;
     }
-    match op.table.lookup(parent) {
-        Some(Entry::Unique(e)) => match (e.key, seam_pair::seam_line_pair(parent)) {
-            // An edge on a seam line is ranked along that line, the one
-            // orientation every ranker along a seam line uses.
-            (EntityKey::Edge(k), Some(pair)) => {
-                seam_line_dir(op.body, op.table, op.node, k, group, pair).map(Some)
-            }
-            (EntityKey::Edge(k), None) => edge_dir(op.body, k).map(Some),
-            _ => Ok(None),
+    match table.lookup(parent) {
+        Some(Entry::Unique(e)) => match e.key {
+            EntityKey::Edge(k) => Some(k),
+            _ => None,
         },
-        _ => Ok(None),
+        _ => None,
     }
-}
-
-/// An edge's endpoint-extent along `dir`.
-pub(super) fn edge_extent<T: Decide>(
-    body: &Body<T>,
-    e: EdgeKey,
-    dir: Vec3<T>,
-) -> Result<Extent<T>, NamingError> {
-    let (v0, v1) = edge_ends(body, e)?;
-    let (p0, p1) = (vertex_point(body, v0)?, vertex_point(body, v1)?);
-    let t0 = Vec3::new(p0.x, p0.y, p0.z).dot(dir);
-    let t1 = Vec3::new(p1.x, p1.y, p1.z).dot(dir);
-    Ok(Extent {
-        min: t0.min(t1),
-        max: t0.max(t1),
-    })
 }
 
 /// Where a point lies against a [`Segment`].
@@ -1817,7 +1682,7 @@ pub(super) enum OnSegment {
 
 /// **An edge's closed segment, start to end** — the one place a point's
 /// position against an edge is read: [`Segment::place`] says whether it
-/// lies on the segment, [`Segment::along`] how far along it.
+/// lies on the segment.
 pub(super) struct Segment<T: Decide> {
     q0: Point3<T>,
     q1: Point3<T>,
@@ -1839,9 +1704,22 @@ impl<T: Decide> Segment<T> {
         })
     }
 
-    /// The signed length from the start to `p`'s foot on the line.
-    pub(super) fn along(&self, p: Point3<T>) -> T {
-        (p - self.q0).dot(self.d) / self.len
+    /// Whether `p` lies on the segment's LINE, decided through
+    /// `predicate` over its distance off it: the first verdict
+    /// [`Segment::place`] takes.
+    pub(super) fn on_line(
+        &self,
+        p: Point3<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<bool, NamingError> {
+        let off = decide(
+            predicate,
+            Margin::over_lever((p - self.q0).cross(self.d).norm(), self.len),
+            bnd,
+        )
+        .map_err(|source| NamingError::Escalated { predicate, source })?;
+        Ok(off == Sign::Zero)
     }
 
     /// Where `p` lies, decided through `predicate` over lengths: first
@@ -1855,16 +1733,12 @@ impl<T: Decide> Segment<T> {
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<OnSegment, NamingError> {
+        if !self.on_line(p, predicate, bnd)? {
+            return Ok(OnSegment::Off);
+        }
         let sign = |m: Margin<T>| {
             decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { predicate, source })
         };
-        let off = sign(Margin::over_lever(
-            (p - self.q0).cross(self.d).norm(),
-            self.len,
-        ))?;
-        if off != Sign::Zero {
-            return Ok(OnSegment::Off);
-        }
         let past0 = sign(Margin::over_lever((p - self.q0).dot(self.d), self.len))?;
         let past1 = sign(Margin::over_lever((self.q1 - p).dot(self.d), self.len))?;
         Ok(match (past0, past1) {
@@ -1930,12 +1804,6 @@ fn rim_holding<T: Decide>(
     Ok(holding)
 }
 
-/// The oriented direction of an operand edge (he_plus start → end).
-pub(super) fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingError> {
-    let (v0, v1) = edge_ends(body, e)?;
-    Ok(vertex_point(body, v1)? - vertex_point(body, v0)?)
-}
-
 /// A ranked group's size as its names' `OrderAlong { of }`, through
 /// [`super::emit::to_u32`]: a saturated `of` would be a wrong count in
 /// every name of the group, and two different oversized groups would
@@ -1947,74 +1815,204 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
     )
 }
 
-/// The direction a chain along a seam line is ranked in: the pair's
-/// `n_a × n_b`, with `a` and `b` the pair's two sides as its name
-/// records them (`super::seam_pair`). They are matched by NAME to the
-/// two faces of `edge` in `body`, whose names `table` holds, and the
-/// outward normals are read from those faces. `node` is the node whose
-/// body this is, and `group` the group being ranked; the refusals
-/// carry them.
+/// **Names the pieces of one parent edge** (N2): a lone piece is
+/// `base`, and each of several is `base` + `Fragment(Ends)`, the sorted
+/// pair of its two end vertices' names as `t` publishes them, read off
+/// body `ix`. Pieces with equal pairs are N4's tie. Every end vertex is
+/// named before this runs, so `t` holds its name.
 ///
-/// The rankers that know a seam only by its NAME read their direction
-/// here: the descent ranker and the vertex carrier, on an operand body.
-/// The seam-chain ranker knows its sides structurally and computes the
-/// same `n_a × n_b` from them. So the pieces of one line are ranked one
-/// way, whichever step cut it.
-fn seam_line_dir<T: Decide>(
+/// # Errors
+///
+/// [`NamingError::Emission`] for a piece ending at a vertex `t` does
+/// not name, and the insert doors' own refusals.
+pub(super) fn name_edge_pieces<T: geom_core::Real>(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
+    base: &StableName,
+    body: &Body<T>,
+    ix: u32,
+    edges: &[EdgeKey],
+) -> Result<(), NamingError> {
+    if let [one] = edges {
+        return Ok(put(
+            t,
+            tie,
+            from_tie,
+            base.clone(),
+            ent(ix, EntityKey::Edge(*one)),
+        )?);
+    }
+    let mut pieces = Vec::with_capacity(edges.len());
+    for &e in edges {
+        let (v0, v1) = edge_ends(body, e)?;
+        let mut ends = Vec::with_capacity(2);
+        for v in [v0, v1] {
+            ends.push(
+                t.name_of(&ent(ix, EntityKey::Vertex(v)))
+                    .ok_or(NamingError::Emission {
+                        what: "an edge piece ends at a vertex the table does not name",
+                    })?
+                    .clone(),
+            );
+        }
+        ends.sort();
+        pieces.push((Qualifier::Ends(ends), ent(ix, EntityKey::Edge(e))));
+    }
+    mint_qualified(t, tie, from_tie, base, pieces)
+}
+
+/// Mints each piece as `base` + `Fragment(q)` over its qualifier, the
+/// pieces that share one qualifier as N4's tie.
+fn mint_qualified(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
+    base: &StableName,
+    pieces: impl IntoIterator<Item = (Qualifier, super::table::EntityRef)>,
+) -> Result<(), NamingError> {
+    let mut by_qualifier: BTreeMap<Qualifier, Vec<super::table::EntityRef>> = BTreeMap::new();
+    for (q, e) in pieces {
+        by_qualifier.entry(q).or_default().push(e);
+    }
+    for (q, ents) in by_qualifier {
+        let mut name = base.clone();
+        name.path.push(RoleSeg::Fragment(q));
+        mint_candidates(t, tie, from_tie, name, ents)?;
+    }
+    Ok(())
+}
+
+/// The way the crossings of edge `e` of `body`, named `name` in its
+/// own table `table`, are ranked along it (N2): `Some(true)` along the
+/// edge as `body` stores it, `Some(false)` against it, and `None` where
+/// no orientation is defined, which ties the crossings.
+///
+/// An edge on a seam line runs as the loop of its pair's first side
+/// runs along it, the side found by name among the edge's two faces
+/// (`seam_pair::a_side_is_first`). A pair whose two sides carry one
+/// name has no first side, nor does one whose faces the names do not
+/// tell apart; both tie. Any other edge runs as stored.
+pub(super) fn crossed_edge_orientation<T: geom_core::Real>(
     body: &Body<T>,
     table: &NameTable,
-    node: RecipeNodeId,
-    edge: EdgeKey,
-    group: &StableName,
-    (a, b): (&StableName, &StableName),
-) -> Result<Vec3<T>, NamingError> {
+    e: EdgeKey,
+    name: &StableName,
+) -> Result<Option<bool>, NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let e = body
-        .get_edge(edge)
-        .ok_or_else(|| bug("seam line edge not live in its body"))?;
-    let mut faces = [None, None];
-    for (slot, he) in faces
-        .iter_mut()
-        .zip([Some(e.he_plus), body.mate(e.he_plus)])
-    {
-        let he = he.ok_or_else(|| bug("seam line edge without a mate"))?;
+    let Some((a, b)) = seam_pair::seam_edge_sides(name) else {
+        return Ok(Some(true));
+    };
+    if a == b {
+        return Ok(None);
+    }
+    let edge = body
+        .get_edge(e)
+        .ok_or_else(|| bug("a crossed seam edge is not live in its body"))?;
+    let mut names = Vec::with_capacity(2);
+    for he in [edge.he_plus, edge.he_minus] {
         let face = body
             .get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))
             .map(|l| l.face)
-            .ok_or_else(|| bug("seam line edge half-edge off any face"))?;
-        let name = table
-            .name_of(&ent(0, EntityKey::Face(face)))
-            .ok_or_else(|| bug("seam line edge face unnamed"))?;
-        *slot = Some((face, name));
+            .ok_or_else(|| bug("a crossed seam edge's half-edge lies on no face"))?;
+        names.push(
+            table
+                .name_of(&ent(0, EntityKey::Face(face)))
+                .ok_or_else(|| bug("a crossed seam edge's face is unnamed"))?,
+        );
     }
-    let [Some((f0, n0)), Some((f1, n1))] = faces else {
-        return Err(bug("seam line edge without two faces"));
-    };
-    let (fa, fb) = match seam_pair::a_side_is_first(n0, n1, a, b) {
-        Some(true) => (f0, f1),
-        Some(false) => (f1, f0),
-        None => return Err(NamingError::SeamLineSides { node, edge }),
-    };
-    let na = seam_side_normal(body, fa, group, a)?;
-    let nb = seam_side_normal(body, fb, group, b)?;
-    Ok(na.cross(nb))
+    Ok(seam_pair::a_side_is_first(names[0], names[1], a, b))
 }
 
-/// The outward normal of `face`, the side the seam's name records as
-/// `reference`, for ranking `group` along the seam. A curved carrier has no plane to
-/// rank the seam's pieces against, and refuses as the missing rule
-/// ([`NamingError::SplitReference`]).
-fn seam_side_normal<T: Decide>(
+/// Where `p`, a point on edge `e` of `body`, lies along it: the edge's
+/// carrier's own parameter, increasing as the edge runs as stored.
+/// `None` for a carrier with no closed-form parameter here (a NURBS
+/// curve). The parameter is read near the middle of the edge's
+/// certified interval, so a closed edge's crossings, which lie inside
+/// it, are read without the period's cut between them.
+pub(super) fn param_along<T: Decide>(
     body: &Body<T>,
-    face: FaceKey,
-    group: &StableName,
-    reference: &StableName,
-) -> Result<Vec3<T>, NamingError> {
-    match carrier_plane(body, face)? {
-        Some((_, n)) => Ok(n),
-        None => Err(NamingError::split_reference(group, reference, true)),
+    e: EdgeKey,
+    p: Point3<T>,
+) -> Result<Option<T>, NamingError> {
+    use geom::Curve3;
+    let bug = |what| NamingError::Emission { what };
+    let edge = body
+        .get_edge(e)
+        .ok_or_else(|| bug("a crossed edge is not live in its body"))?;
+    let curve = body
+        .get_curve_geom(edge.curve)
+        .ok_or_else(|| bug("a crossed edge's carrier is dangling"))?
+        .certified()
+        .ok_or_else(|| bug("a crossed edge carries no certified carrier"))?;
+    let (t0, t1) = curve.params();
+    let near = (t0 + t1) * T::from_f64(0.5);
+    Ok(match curve.carrier() {
+        Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => {
+            let w = p - *center;
+            let (x, y) = (w.dot(*u_ref) / *major, w.dot(axis.cross(*u_ref)) / *minor);
+            let (s, c) = near.sin_cos();
+            Some(near + (y * c - x * s).atan2(x * c + y * s))
+        }
+        carrier => carrier.param_near(p, near),
+    })
+}
+
+/// The edge a group of crossings lies on: edge `edge` of `body`, named
+/// `name` in its own table `table`.
+pub(super) struct CrossedEdge<'a, T: geom_core::Real> {
+    pub(super) body: &'a Body<T>,
+    pub(super) table: &'a NameTable,
+    pub(super) edge: EdgeKey,
+    pub(super) name: &'a StableName,
+}
+
+/// **Ranks the crossings of one edge by one face** (N2): a lone crossing
+/// is `base`, and several, each an entity and the point it lies at on
+/// the crossed edge, take `base` + `Fragment(OrderAlong)` by the edge's
+/// carrier parameter, oriented by [`crossed_edge_orientation`]; with no
+/// orientation or no parameter they tie.
+pub(super) fn rank_crossings<T: Decide>(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
+    base: &StableName,
+    crossed: &CrossedEdge<'_, T>,
+    crossings: &[(super::table::EntityRef, Point3<T>)],
+    bnd: geom_core::Band,
+) -> Result<(), NamingError> {
+    let keys: Vec<super::table::EntityRef> = crossings.iter().map(|&(e, _)| e).collect();
+    if let [one] = keys.as_slice() {
+        return Ok(put(t, tie, from_tie, base.clone(), *one)?);
     }
+    let CrossedEdge {
+        body,
+        table,
+        edge,
+        name,
+    } = *crossed;
+    let Some(forward) = crossed_edge_orientation(body, table, edge, name)? else {
+        return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?);
+    };
+    let mut extents = Vec::with_capacity(crossings.len());
+    for &(_, p) in crossings {
+        let Some(along) = param_along(body, edge, p)? else {
+            return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?);
+        };
+        let along = if forward { along } else { -along };
+        extents.push(Extent {
+            min: along,
+            max: along,
+        });
+    }
+    insert_ranked_or_tied(t, tie, from_tie, base, &keys, &extents, bnd, |e| *e)
 }
 
 /// Inserts a same-name group ranked by order-along, or tied when
@@ -2052,8 +2050,8 @@ pub(super) fn insert_ranked_or_tied<T: Decide, K: Copy>(
 }
 
 /// Split faces: pass-through for uncut operand faces; `SplitFragment`
-/// (side-discriminated, same-side multiplicity by order-along the
-/// parent's section line) for cut ones.
+/// (side-discriminated, same-side multiplicity by `Keeps`) for cut
+/// ones.
 #[allow(clippy::too_many_arguments)]
 fn name_split_faces<T: Decide>(
     node: RecipeNodeId,
@@ -2066,8 +2064,6 @@ fn name_split_faces<T: Decide>(
     target_node: RecipeNodeId,
     target_table: &NameTable,
     target_body: &Body<T>,
-    tool_normal: Vec3<T>,
-    b: geom_core::Band,
 ) -> Result<(), NamingError> {
     // Every root that was ever divided: fragments cover it.
     let divided: BTreeSet<FaceKey> = frag_rows
@@ -2120,38 +2116,54 @@ fn name_split_faces<T: Decide>(
             put(t, tie, from_tie, base_name, ent(ix, EntityKey::Face(f)))?;
             continue;
         }
-        // Same-side multiplicity: order along the parent's section
-        // line, oriented n_parent × n_tool (both recipe-covariant).
-        // Sign-dependent, as in the seam-chain case above: ranks
-        // reverse with `dir`. `n_parent` is the parent face's OUTWARD
-        // normal (S10 category A, via `face_plane`); `tool_normal` is
-        // the split plane's own oriented normal, a recipe parameter
-        // carrying no face sense.
-        let (_, n_parent) = face_plane(target_body, root)?;
-        let dir = n_parent.cross(tool_normal);
-        let body = members
-            .iter()
-            .map(|&(ix, _, _)| sides.iter().find(|s| s.ix == ix))
-            .next()
-            .flatten()
-            .ok_or(NamingError::Emission {
-                what: "split fragment group without a side body",
-            })?
-            .body;
-        let extents = members
-            .iter()
-            .map(|&(_, _, f)| face_extent(body, f, dir))
-            .collect::<Result<Vec<_>, _>>()?;
-        insert_ranked_or_tied(
-            t,
-            tie,
-            from_tie,
-            &base_name,
-            &members,
-            &extents,
-            b,
-            |&(ix, _, f)| ent(ix, EntityKey::Face(f)),
-        )?;
+        // Same-side multiplicity: each piece by the parent's boundary
+        // edges it holds a stretch of (N2's `Keeps`), cited by their
+        // operand names. A piece's edge is one of them when it descends
+        // from one: whole, or as a piece the plane cut.
+        let boundary: BTreeSet<EdgeKey> = face_half_edges(target_body, root)?
+            .into_iter()
+            .map(|he| {
+                target_body
+                    .get_half_edge(he)
+                    .map(|h| h.edge)
+                    .ok_or(NamingError::Emission {
+                        what: "a split parent's half-edge is dangling",
+                    })
+            })
+            .collect::<Result<_, _>>()?;
+        let mut pieces = Vec::with_capacity(members.len());
+        for &(ix, _, f) in &members {
+            let body = sides
+                .iter()
+                .find(|s| s.ix == ix)
+                .ok_or(NamingError::Emission {
+                    what: "split fragment group without a side body",
+                })?
+                .body;
+            let mut kept: BTreeSet<StableName> = BTreeSet::new();
+            for he in face_half_edges(body, f)? {
+                let e = body
+                    .get_half_edge(he)
+                    .ok_or(NamingError::Emission {
+                        what: "a split piece's half-edge is dangling",
+                    })?
+                    .edge;
+                let root_edge = chase_split_edge_to_table(sides, target_table, e)?;
+                if boundary.contains(&root_edge) {
+                    let up = upstream_name(
+                        target_table,
+                        target_node,
+                        ent(0, EntityKey::Edge(root_edge)),
+                    )?;
+                    kept.insert((*up.name).clone());
+                }
+            }
+            pieces.push((
+                Qualifier::Keeps(kept.into_iter().collect()),
+                ent(ix, EntityKey::Face(f)),
+            ));
+        }
+        mint_qualified(t, tie, from_tie, &base_name, pieces)?;
     }
     Ok(())
 }

@@ -2382,6 +2382,7 @@ fn node_error_tags_are_the_published_words() {
         MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
         MateSelf => "mate_self",
         MateUnleverable => "mate_unleverable",
+        MateFaceUnresolved => "mate_face_unresolved",
         CrossingUnverified => "crossing_unverified",
         MeasureRefResolve => "measure_ref_resolve",
         MeasureRefUnreadable => "measure_ref_unreadable",
@@ -4902,6 +4903,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "face_refusal_tag",
+        values: &[
+            "ambiguous",
+            "no_such_name",
+            "not_a_face",
+            "not_an_instance",
+            "part_unresolved",
+            "readback",
+            "unpinned",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "fmt_quantity_error_tag",
         values: &["non_finite"],
         delegates: &[],
@@ -5075,12 +5089,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "merged_chord_constituents",
             "merged_chord_off_rim",
             "missing_upstream",
-            "narrow_band",
-            "seam_line_sides",
             "seam_vertex_parentage",
             "seam_vertex_partners",
             "split_lineage_cycle",
-            "split_reference",
             "unnamed",
         ],
         delegates: &["band_error_tag", "rim_share_tag"],
@@ -5124,6 +5135,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_class_not_admitted",
             "mate_contradictory",
             "mate_dangling_head",
+            "mate_face_unresolved",
             "mate_frame_degenerate",
             "mate_indeterminate",
             "mate_part_selects_another_copy",
@@ -6005,7 +6017,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// whenever a map does, and a prose count of it has gone stale twice.
 ///
 /// The row does not say which of the entries below are one concept and
-/// which are coincidence — all but twelve are unread, and `work/census/`'s
+/// which are coincidence — most are unread, and `work/census/`'s
 /// `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
 /// is where that question lives. What it does is make the population
 /// OBSERVED: a word that starts colliding, or stops, or picks up a
@@ -6019,7 +6031,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// the guard on THAT is this row's two directions: an entry no longer
 /// shared fails exactly as a new sharing does.
 const SHARED_TAG_WORDS: &[(&str, usize)] = &[
-    ("ambiguous", 3),
+    ("ambiguous", 4),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
     ("assertion_target", 2),
@@ -6067,19 +6079,20 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("name_on_dropped_step", 2),
     ("no_at_rest_record", 2),
     ("no_such_body", 2),
+    ("no_such_name", 2),
     ("node_failed", 2),
     ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
     ("not_a_body", 2),
-    ("not_an_instance", 2),
+    ("not_an_instance", 3),
     // One predicate (`topo::check_rigid`), one word: the kernel's own
     // refusal of a map, and a frame a document door refuses by it.
     ("not_rigid", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
-    ("part_unresolved", 2),
+    ("part_unresolved", 3),
     // ONE concept, and pinned as one: the param-ref convention
     // `editor_core::EditError`'s enum doc states. That the two maps
     // agree word for word is held by
@@ -6158,6 +6171,70 @@ fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
             detail.join("\n  ")
         );
     }
+}
+
+/// **A face refusal spells the facts it shares the way their own maps
+/// do** — four of `SHARED_TAG_WORDS`' entries are one fact, not a
+/// coincidence. `FaceRefusal` mirrors `LeverRefusal` over the member
+/// walk and the resolver (a part not in hand, a member on no instance:
+/// the same two refusals, met while resolving a face instead of while
+/// levering), and its name arms are the name table's own answers that
+/// `InterrogateError` publishes (no row, a tie). A binding reading
+/// `inner_variant` across `mate_unleverable` and `mate_face_unresolved`,
+/// or across a mate and a measure, reads one word for one fact.
+#[test]
+fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
+    use crate::tags::{face_refusal_tag, interrogate_error_tag, lever_refusal_tag};
+    use pncad::document::{
+        ContentPin, DocRef, DocumentId, FaceName, FaceRefusal, LeverRefusal, PartFault,
+        RecipeNodeId,
+    };
+    use pncad::select::{EntityKind, InterrogateError};
+
+    let instance = RecipeNodeId(0);
+    let part = DocRef {
+        id: DocumentId::derive("face-refusal-words"),
+        pin: ContentPin([0u8; 32]),
+    };
+    let face = FaceName::new(pncad::prelude::StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(1),
+        path: vec![],
+    })
+    .expect("a face");
+    assert_eq!(
+        face_refusal_tag(&FaceRefusal::PartUnresolved {
+            instance,
+            part,
+            face: face.clone(),
+            fault: PartFault::NoResolver,
+        }),
+        lever_refusal_tag(&LeverRefusal::PartUnresolved {
+            instance,
+            fault: PartFault::NoResolver,
+        }),
+    );
+    assert_eq!(
+        face_refusal_tag(&FaceRefusal::NotAnInstance { node: instance }),
+        lever_refusal_tag(&LeverRefusal::NotAnInstance { node: instance }),
+    );
+    assert_eq!(
+        face_refusal_tag(&FaceRefusal::NoSuchName {
+            instance,
+            part,
+            face: face.clone(),
+        }),
+        interrogate_error_tag(&InterrogateError::NoSuchName),
+    );
+    assert_eq!(
+        face_refusal_tag(&FaceRefusal::Ambiguous {
+            instance,
+            part,
+            face,
+            candidates: 2,
+        }),
+        interrogate_error_tag(&InterrogateError::Ambiguous { candidates: 2 }),
+    );
 }
 
 /// The committed inventory of `src/tags.rs`'s `pub const` tag words —

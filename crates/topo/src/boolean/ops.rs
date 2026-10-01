@@ -1709,50 +1709,16 @@ pub(super) fn describe_minted_edges<T: Decide>(
         let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(corrupt());
         };
-        // Curved seam edges (M5 PR 9) keep their minted conic carrier
-        // and pin the witness at the carrier's mid parameter (the S2
-        // contract); planar chords keep the M3 line lane bit-
-        // identically (fresh chord carrier, lerp witness).
         let existing = body
             .get_curve_geom(edge_data.curve)
             .and_then(crate::null::CurveGeom::certified)
             .cloned();
-        let curved = existing
-            .as_ref()
-            .is_some_and(|c| !matches!(c.carrier(), geom::Curve3::Line { .. }));
-        let (witness, extent) = if curved {
-            let c = existing.as_ref().ok_or_else(corrupt)?;
-            let (t0, t1) = c.params();
-            let mid = c.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
-            (
-                mid,
-                geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1)),
-            )
-        } else {
-            (p0.lerp(p1, T::from_f64(0.5)), p0.distance(p1))
-        };
+        let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
+        let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
+        let (witness, extent) = (draft.witness, draft.extent);
         match geom_brep::classify_dihedral(surf1, surf2, witness, extent, band) {
             Ok(geom_brep::DihedralClass::Transverse) => {
-                let spec = if curved {
-                    let c = existing.as_ref().ok_or_else(corrupt)?;
-                    let (t0, t1) = c.params();
-                    geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeDescriptionSpec::Intersection {
-                            s1,
-                            s2,
-                            witness,
-                        },
-                        carrier: c.carrier().clone(),
-                        param_start: t0,
-                        param_end: t1,
-                    }
-                } else {
-                    let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                    spec.description =
-                        geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
-                    spec
-                };
-                body.set_edge_curve(edge, spec, tol)
+                body.set_edge_curve(edge, draft.into_spec(s1, s2), tol)
                     .map_err(|_| BooleanError::JoinDesync {
                         what: "minted-edge description failed certification",
                     })?;

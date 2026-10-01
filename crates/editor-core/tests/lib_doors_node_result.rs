@@ -534,7 +534,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             &[
                 "face name minted by node 5",
                 "no longer resolves",
-                "the margin deciding the order of two pieces along an edge flipped from zero to \
+                "the margin deciding the order of two crossings along an edge flipped from zero to \
                  positive",
             ],
         ),

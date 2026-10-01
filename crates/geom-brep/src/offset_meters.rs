@@ -85,9 +85,10 @@
 //!
 //! **The lever is the patch's own faster chart speed**:
 //! [`offset_normal_floor`] classifies
-//! `Margin::over_lever(floor, max(sup‖S_u‖, sup‖S_v‖))` — the
+//! `Margin::over_lever_down(floor, max(sup‖S_u‖, sup‖S_v‖))` — the
 //! `over_lever` door's own named case, a chart-orientation area over
-//! the length that scales it. The quotient is
+//! the length that scales it, with the quotient rounded down so the
+//! lower bound stays one. The quotient is
 //! `min(‖S_u‖, ‖S_v‖)·sin∠(S_u, S_v)` up to the sup-side slack: the
 //! **thinness of the chart parallelogram**, in metres, and exactly
 //! the length that goes to zero as the normal degenerates.
@@ -143,6 +144,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{div_down, norm_sq, norm_sup, sqrt_down, sqrt_up};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -398,17 +400,6 @@ pub fn mig(i: Interval) -> f64 {
     }
 }
 
-/// `√x` rounded DOWN (a lower bound), zero for a non-positive or
-/// non-finite argument.
-pub fn sqrt_down(x: f64) -> f64 {
-    if x > 0.0 { x.sqrt().next_down() } else { 0.0 }
-}
-
-/// `√x` rounded UP (an upper bound); NaN flows.
-pub fn sqrt_up(x: f64) -> f64 {
-    if x > 0.0 { x.sqrt().next_up() } else { x }
-}
-
 /// Interval dot product, fixed ascending order (D9).
 fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
@@ -417,45 +408,17 @@ fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
 /// Interval cross product, fixed component order (D9).
 ///
 /// Component-for-component `ssi::enclose::cross3`, which is private
-/// to that module and takes its operands by value. The three vector
-/// helpers here ([`dot`], `cross`, [`norm_sq`]) are this module's
-/// borrow-shaped triple; if a third consumer ever wants them, the
-/// pair collapses into one `geom_core` home — noted at both sites so
-/// the duplication is a decision rather than an accident.
+/// to that module and takes its operands by value. [`dot`] and this
+/// are the borrow-shaped pair; if a third consumer ever wants them,
+/// the pair collapses into one `geom_core` home beside
+/// [`norm_sq`], which already has — noted at both sites so the
+/// duplication is a decision rather than an accident.
 fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
         a[0] * b[1] - a[1] * b[0],
     ]
-}
-
-/// The enclosure of `‖v‖²` — the DEPENDENT square per component, so
-/// a component straddling zero cannot drag the lower end negative
-/// (`x·x` treats its factors as independent; `x.sqr()` does not).
-pub(crate) fn norm_sq(v: &[Interval; 3]) -> Interval {
-    v[0].sqr() + v[1].sqr() + v[2].sqr()
-}
-
-/// A certified upper bound on `‖v‖` for a componentwise enclosure.
-///
-/// Every step rounds outward: the per-component `sqr()` and the two
-/// ring sums, then [`sqrt_up`]. An `f64` fold of the same endpoints
-/// rounds to nearest at each step and can land BELOW the real norm
-/// by ulps, which is the unsound side wherever the result is a
-/// divisor of a lower bound — so a site that wants an upper bound on
-/// a norm calls this rather than re-spelling the fold.
-/// A refused enclosure answers `NaN` — no bound at all, which is what
-/// every consumer of this value already treats as unbounded. The
-/// refusal is asked by name because a refused enclosure carries ordinary
-/// endpoints and `sqrt_up` of one would be a plausible bound with
-/// nothing behind it.
-pub(crate) fn norm_sup(v: &[Interval; 3]) -> f64 {
-    let sq = norm_sq(v);
-    if !sq.is_certified() {
-        return f64::NAN;
-    }
-    sqrt_up(sq.hi())
 }
 
 /// One cell's chart-normal facts: the enclosure of `S_u × S_v` and
@@ -503,7 +466,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // bound when `d̂` is unit only to rounding.
     let mid = |i: Interval| (i.lo() + i.hi()) * 0.5;
     let dv = [mid(m[0]), mid(m[1]), mid(m[2])];
-    let dn = sqrt_up(dv[0].mul_add(dv[0], dv[1].mul_add(dv[1], dv[2] * dv[2])));
+    let dn = norm_sup(&dv.map(Interval::point));
     let b = if dn > 0.0 && dn.is_finite() {
         let proj = Interval::point(dv[0]) * m[0]
             + Interval::point(dv[1]) * m[1]
@@ -579,17 +542,18 @@ pub struct PatchRegularity {
 
 impl PatchRegularity {
     /// The lever the regularity predicate divides by: the patch's
-    /// faster chart speed, in metres per unit parameter. The max of
-    /// two sup bounds is a sup bound, so the pair's tag survives the
-    /// fold.
+    /// faster chart speed, in metres per unit parameter, folded on the
+    /// rate type so a refused axis refuses the lever.
     pub fn speed_lever(&self) -> SupSpeed<f64> {
-        SupSpeed::new(self.speed_u.get().max(self.speed_v.get()))
+        self.speed_u.max(self.speed_v)
     }
 
     /// The margin [`offset_normal_floor`] classifies — the chart
     /// parallelogram's certified thinness in metres,
     /// `floor / max(sup‖S_u‖, sup‖S_v‖)`, which is
     /// `min(‖S_u‖, ‖S_v‖)·sin∠(S_u, S_v)` up to the sup-side slack.
+    /// The quotient rounds DOWN ([`div_down`]): a lower bound over an
+    /// upper bound stays a lower bound only that way.
     ///
     /// Deliberately UNGUARDED, so this and the predicate are the same
     /// number on every input: a zero lever leaves `0/0`, which
@@ -604,11 +568,11 @@ impl PatchRegularity {
     /// denominator). What makes it the metres the predicate
     /// classifies is the module's own unit-parameter-cell convention
     /// (module docs, *The margin and its lever*), which is
-    /// [`Margin::over_lever`]'s argument and not the rate pair's. So
+    /// [`Margin::over_lever_down`]'s argument and not the rate pair's. So
     /// the quotient leaves this door untyped rather than reaching for
     /// one whose dimensional argument does not cover it.
     pub fn thinness(&self) -> f64 {
-        self.floor / self.speed_lever().get()
+        div_down(self.floor, self.speed_lever().get())
     }
 }
 
@@ -617,8 +581,8 @@ impl PatchRegularity {
 pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     let mut floor = f64::INFINITY;
     let mut sup = 0.0f64;
-    let mut speed_u = 0.0f64;
-    let mut speed_v = 0.0f64;
+    let mut speed_u = SupSpeed::new(0.0f64);
+    let mut speed_v = SupSpeed::new(0.0f64);
     for cell in cells {
         let n = cell_normal(cell);
         // `cell_normal` never answers a NaN floor — its assemblies
@@ -630,8 +594,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
             floor = n.floor;
         }
         sup = sup.max(n.sup);
-        speed_u = speed_u.max(norm_sup(&cell.s_u));
-        speed_v = speed_v.max(norm_sup(&cell.s_v));
+        speed_u = speed_u.max(SupSpeed::new(norm_sup(&cell.s_u)));
+        speed_v = speed_v.max(SupSpeed::new(norm_sup(&cell.s_v)));
         if n.sup.is_nan() {
             sup = f64::NAN;
         }
@@ -639,9 +603,9 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     if cells.is_empty() {
         floor = 0.0;
     }
-    let denom = speed_u * speed_v;
+    let denom = speed_u.get() * speed_v.get();
     let sine_floor = if denom > 0.0 && denom.is_finite() {
-        (floor / denom).next_down()
+        div_down(div_down(floor, speed_u.get()), speed_v.get())
     } else {
         0.0
     };
@@ -649,8 +613,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     PatchRegularity {
         floor,
         sup,
-        speed_u: SupSpeed::new(speed_u),
-        speed_v: SupSpeed::new(speed_v),
+        speed_u,
+        speed_v,
         sine_floor,
         cells: cells.len() as u32,
     }
@@ -670,7 +634,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 /// ambiguity band or is refused.
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
     let meter = Meter::NormalFloor;
-    let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
+    let margin = Margin::over_lever_down(reg.floor, reg.speed_lever().get());
     let decided = decide_reported(meter.predicate(), margin, band)
         .map_err(|source| MeterError::Escalated { meter, source })?;
     match Refused::of(decided, band) {
@@ -1214,5 +1178,77 @@ mod tests {
             ),
             "{escalation:?}"
         );
+    }
+
+    /// **A refused cell refuses the patch's chart speed.** One cell
+    /// whose `S_u` enclosure is refused, beside a healthy one, in both
+    /// orders: the fold answers NaN for `sup ‖S_u‖`, the lever NaN with
+    /// it, and the predicate escalates. Red under the inherent
+    /// `f64::max`, which returns the healthy cell's speed and so
+    /// certifies a lever over the cells it could read.
+    #[test]
+    fn a_refused_cell_poisons_the_chart_speed_fold() {
+        let p =
+            |x: f64, y: f64, z: f64| [Interval::point(x), Interval::point(y), Interval::point(z)];
+        let healthy = PatchCell {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+            s_u: p(1.0, 0.0, 0.0),
+            s_v: p(0.0, 1.0, 0.0),
+            s_uu: p(0.0, 0.0, 0.0),
+            s_uv: p(0.0, 0.0, 0.0),
+            s_vv: p(0.0, 0.0, 0.0),
+        };
+        let refused = PatchCell {
+            u: (1.0, 2.0),
+            s_u: [
+                Interval::refused(),
+                Interval::point(0.0),
+                Interval::point(0.0),
+            ],
+            ..healthy
+        };
+        for (order, cells) in [
+            ("refused last", [healthy, refused]),
+            ("refused first", [refused, healthy]),
+        ] {
+            let reg = patch_regularity(&cells);
+            assert!(
+                reg.speed_u.get().is_nan(),
+                "{order}: sup ‖S_u‖ = {:e} dropped the refused cell",
+                reg.speed_u.get()
+            );
+            assert!(
+                reg.speed_v.get().is_finite(),
+                "{order}: the healthy axis must stay readable"
+            );
+            assert!(
+                reg.speed_lever().get().is_nan(),
+                "{order}: the lever dropped the refused axis"
+            );
+            assert!(
+                matches!(
+                    offset_normal_floor(&reg, band()),
+                    Err(MeterError::Escalated { .. })
+                ),
+                "{order}: a refused lever must escalate"
+            );
+        }
+        // The lever folds the two axes on the type: a NaN on either
+        // side survives, whichever side it is on.
+        for (su, sv) in [(f64::NAN, 1.0), (1.0, f64::NAN)] {
+            let reg = PatchRegularity {
+                floor: 1.0,
+                sup: 1.0,
+                speed_u: SupSpeed::new(su),
+                speed_v: SupSpeed::new(sv),
+                sine_floor: 0.0,
+                cells: 1,
+            };
+            assert!(
+                reg.speed_lever().get().is_nan(),
+                "speed_lever({su:e}, {sv:e}) dropped the NaN"
+            );
+        }
     }
 }
