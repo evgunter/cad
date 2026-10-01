@@ -63,6 +63,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Finish/Euler",
+    "Split/Finish/NestingContradiction",
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/NullScaffold",
@@ -1488,6 +1489,17 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::DescribeEscalated { edge, diag: diag() },
         ),
         ("SectionCusp", F::SectionCusp { edge, face }),
+        (
+            "SectionWindingUndecided",
+            F::SectionWindingUndecided {
+                face,
+                diag: Some(diag()),
+            },
+        ),
+        (
+            "NestingContradiction",
+            F::NestingContradiction { hole: face },
+        ),
     ]
     .map(|(n, e)| (format!("Finish/{n}"), SplitError::Finish(e)));
     reduce
