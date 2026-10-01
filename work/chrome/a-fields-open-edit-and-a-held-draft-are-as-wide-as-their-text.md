@@ -4,11 +4,16 @@ kind: issue
 title: viewer: a value field's open keyboard edit, and the draft a refused expression leaves in it, are as wide as their text
 status: open
 opened: 2026-09-29
+needs_ev: true
 priority: P3
 cost: M
 design: true
 refs: [a-driven-slots-field-draws-its-expression-source-at-any-width]
 ---
+
+## Question
+
+How should a value field that edits expressions be shaped? A driven slot's field at rest is bounded since PR 3478. Two of its states are still as wide as their text: the open keyboard edit (egui's `DragValue` edit grows with its buffer) and a held draft (a refused expression shown in the field). Both run past the pane in a non-wrapping row. The choice is the field's shape: where its open edit is drawn, and where a held draft is said.
 
 
 Found by `chrome/slot-width`, which bounded a driven slot's field AT
