@@ -34,3 +34,20 @@ for vertex-only witness walks. No fixture has been built that reaches
 
 Read the witness from `shell_witness` (tiers 2 and 3) after the
 vertices run out. It is `pub(super)` to `boolean` today.
+
+## Disposition from the ladder unit (CLEAVE `cleave/ladders`, PR 3716)
+
+PR 3716's sweep listed this probe as "not this unit: a different
+question". That holds for its first pass, which looks for ANY vertex of
+`inner` that is `In` and continues past `Out`. It does not hold for the
+residue this row is about. When every vertex reads `OnBoundary`, the
+remaining question is the ladder's own: which side of `outer` is
+`inner` on. So this row's prescription stands.
+
+The ladder is now one function, `shell_witness.rs` `complex_side`. It
+reads vertices, then edge carrier midpoints, then certified planar-face
+interior points, and passes over in-band readings. Census cannot call
+it as it stands. Census probes a SOLID's face selection
+(`point_in_solid_faces`), and `complex_side` probes a whole body
+(`point_in_solid`). The fix makes the probe a parameter of the ladder,
+or moves it next to `SolidFaces`, and runs the ladder on `AllOn`.
