@@ -49,19 +49,19 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram, Node,
-    ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, StepId,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node, ParamEnv,
+    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, StepId,
     ValuePayload, resolve_loops, unparse,
 };
-use pncad::geom_core::{Point2, Tol};
+use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
-    ArcData, ArcMode, ArcSide, ArcSweep, PathErrorKind, PieceRole, Profile, ProfileError,
-    ProfileLoop, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms, Step,
-    Target, TargetKind, TipState, Verb, arc_specs_at, replay, replay_recording,
+    ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
+    PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
+    Step, Target, TargetKind, TipState, Verb, arc_specs_at, replay, replay_recording,
 };
-use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 
 use crate::frame::Tone;
+use crate::props::Notation;
 use crate::session::refuse::{NodeKindWanted, admits};
 
 /// One loop of the add-profile door: a template shape, or a PATH
@@ -223,63 +223,28 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
     }
 }
 
-/// **The notation a form is authoring in** — one length unit and one
-/// angle unit, carried into every literal a lowering mints.
+/// **`notation` over every argument `program` holds** — each `Length`
+/// argument written in its length unit, each `Angle` one in its angle
+/// unit, and every other argument (a bulge, a director component) left
+/// with the one spelling a dimensionless number has.
 ///
-/// It exists because the units are a fact about the PERSON at the
-/// keyboard rather than about any one field (`app`'s drafts say so):
-/// a form writes every literal it mints in one notation, so the
-/// notation is one value handed to the lowering rather than a unit per
-/// field.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Notation {
-    /// Every `Length` literal is written in this.
-    pub length: LengthUnit,
-    /// Every `Angle` literal is written in this.
-    pub angle: AngleUnit,
-}
-
-impl Notation {
-    /// The canonical spellings — metres and radians, said out loud.
-    /// The forms' own default is `app`'s, not this.
-    pub const CANONICAL: Self = Self {
-        length: quantity::M,
-        angle: quantity::RAD,
-    };
-
-    /// A `Length` literal from an already-canonical value, remembering
-    /// this notation — the form's shape (`WrittenLength::canonical_in`:
-    /// a draft field holds metres whatever the picker shows).
-    fn length(self, metres: f64) -> Result<Expr, DimensionError> {
-        Expr::written_length(WrittenLength::canonical_in(metres, self.length))
-    }
-
-    /// A literal point.
-    fn point(self, p: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
-        Ok([self.length(p[0])?, self.length(p[1])?])
-    }
-
-    /// **This notation over every argument `program` holds** — each
-    /// `Length` argument written in [`Notation::length`], each `Angle`
-    /// one in [`Notation::angle`], and every other argument (a bulge, a
-    /// director component) left with the one spelling a dimensionless
-    /// number has.
-    ///
-    /// Asked of the PROGRAM, through its own argument enumeration,
-    /// rather than of the steps: which roles a step holds is the
-    /// document layer's table, and a second copy of it here is how a
-    /// verb's radius would come to be minted without its unit.
-    fn over(self, program: &LoopProgram) -> Result<RecordedNotation, DimensionError> {
-        let mut notation = RecordedNotation::new();
-        for (step, arg) in program.step_args() {
-            match arg.dimension() {
-                Dimension::Length => notation.set(step, arg, self.length.def())?,
-                Dimension::Angle => notation.set(step, arg, self.angle.def())?,
-                Dimension::Scalar | Dimension::Count => {}
-            }
+/// Asked of the PROGRAM, through its own argument enumeration, rather
+/// than of the steps: which roles a step holds is the document layer's
+/// table, and a second copy of it here is how a verb's radius would
+/// come to be minted without its unit.
+fn recorded_notation(
+    notation: Notation,
+    program: &LoopProgram,
+) -> Result<RecordedNotation, DimensionError> {
+    let mut recorded = RecordedNotation::new();
+    for (step, arg) in program.step_args() {
+        match arg.dimension() {
+            Dimension::Length => recorded.set(step, arg, notation.length.def())?,
+            Dimension::Angle => recorded.set(step, arg, notation.angle.def())?,
+            Dimension::Scalar | Dimension::Count => {}
         }
-        Ok(notation)
     }
+    Ok(recorded)
 }
 
 /// Lower one template shape to its loop program, minting every literal
@@ -313,7 +278,7 @@ pub fn loop_program(
         ProfileShape::Circle { centre, radius } => loop_program(
             &ProfileShape::Path {
                 steps: vec![Step::Circle {
-                    centre: Point2::new(centre[0], centre[1]),
+                    centre: Point2::from_array(*centre),
                     radius: *radius,
                 }],
             },
@@ -334,7 +299,7 @@ pub fn loop_program(
             let corners = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)];
             let corners = corners
                 .into_iter()
-                .map(|(x, y)| notation.point([x, y]))
+                .map(|(x, y)| notation.point_literals([x, y]))
                 .collect::<Result<Vec<_>, DimensionError>>()?;
             Ok(LoopProgram::polygon_expr(corners))
         }
@@ -342,7 +307,7 @@ pub fn loop_program(
             // Lifted once to learn which arguments the program holds,
             // then again with the notation written over them: the lift
             // is the only thing that knows the roles.
-            let written = notation.over(&LoopProgram::from_recorded(steps)?)?;
+            let written = recorded_notation(notation, &LoopProgram::from_recorded(steps)?)?;
             LoopProgram::from_recorded_with_notation(steps, &written)
         }
     }
@@ -523,13 +488,13 @@ pub enum HeldRefusal {
 impl core::fmt::Display for HeldRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAProfile { node } => write!(f, "feature {} is not a profile", node.0),
+            Self::NotAProfile { node } => write!(f, "node {} is not a profile", node),
             Self::Driven { node, slots } => {
                 write!(
                     f,
-                    "feature {}'s program is driven by expressions, which the editor's \
+                    "node {}'s program is driven by expressions, which the editor's \
                      number fields cannot hold — edit those in the slot rows: ",
-                    node.0
+                    node
                 )?;
                 for (index, (slot, source)) in slots.iter().enumerate() {
                     if index > 0 {
@@ -610,7 +575,7 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 ///
 /// The pair is one value because the two facts are one drawing
 /// decision. A closed loop's last point joins its first, which is what
-/// [`ProfileLoop`] means by being closed by construction; an OPEN
+/// [`ProfileLoop`](pncad::profile::ProfileLoop) means by being closed by construction; an OPEN
 /// one's must not, and a consumer handed a bare point list has nothing
 /// to read that from — it would either invent a leg nobody authored or
 /// drop one that was.
@@ -1122,7 +1087,7 @@ pub fn preview(
     let env = ParamEnv::default();
     let resolved = resolve_loops(&programs, &env)
         .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
-    let mut loops: Vec<ProfileLoop<f64>> = Vec::with_capacity(resolved.len());
+    let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());
     let mut ends: Vec<LoopEnd> = Vec::with_capacity(resolved.len());
     // Every refusal met, in loop order: the refused loops' and the
     // undrawable loops' alike, so the one said is chosen over all.
@@ -1196,13 +1161,17 @@ pub fn preview(
         .zip(ends)
         .enumerate()
         .map(|(loop_, (lp, end))| {
-            let (points, vertices) = flatten(lp.vertices(), lp.bulges().iter().copied(), chord)
-                .map_err(|vertex| {
-                    refusals
-                        .first()
-                        .cloned()
-                        .unwrap_or(PreviewError::Unflattenable { loop_, vertex })
-                })?;
+            let lp = lp.as_loop();
+            let arcs = lp.segments().iter().map(|s| match *s {
+                pncad::profile::Segment::Line => None,
+                pncad::profile::Segment::Arc(arc) => Some(arc),
+            });
+            let (points, vertices) = flatten(lp.vertices(), arcs, chord).map_err(|vertex| {
+                refusals
+                    .first()
+                    .cloned()
+                    .unwrap_or(PreviewError::Unflattenable { loop_, vertex })
+            })?;
             Ok(PreviewLoop {
                 points,
                 vertices,
@@ -1214,7 +1183,9 @@ pub fn preview(
     // writing; through a provisional close it would report on a leg
     // nobody wrote.
     let invalid = if whole {
-        Profile::new(plane, loops).validate(tol).err()
+        // The loops are the replay's own construction, so validation
+        // decides no arc's consistency checks (D1).
+        ConstructedProfile::new(plane, loops).validate(tol).err()
     } else {
         None
     };
@@ -1243,7 +1214,7 @@ pub fn preview(
 fn replay_provisionally_closed(
     steps: &[Step<f64>],
     tol: Tol,
-) -> Result<(ProfileLoop<f64>, ReplayStructure), ReplayError<f64>> {
+) -> Result<(ConstructedLoop<f64>, ReplayStructure), ReplayError<f64>> {
     let closed_by = |straight_on: bool, seam_declared: bool| {
         let start = if seam_declared {
             Target::StartArriving
@@ -1285,7 +1256,7 @@ fn replay_provisionally_closed(
 /// **A prefix [`prefix_loop`] draws**: its replay, whether the
 /// author's own steps close it, and how many of them it holds.
 struct Prefix {
-    replayed: ProfileLoop<f64>,
+    replayed: ConstructedLoop<f64>,
     closes: bool,
     steps: usize,
 }
@@ -1402,7 +1373,7 @@ fn closed_on_start(prefix: &[Step<f64>], start: Point2<f64>) -> Option<Vec<Step<
 /// replay's record of which step drew which piece, so what counts as
 /// "completing something pending" is the driver's answer and not this
 /// module's.
-fn drew_only_its_leg(prefix: &[Step<f64>], tol: Tol) -> Option<ProfileLoop<f64>> {
+fn drew_only_its_leg(prefix: &[Step<f64>], tol: Tol) -> Option<ConstructedLoop<f64>> {
     let (replayed, structure) = replay_provisionally_closed(prefix, tol).ok()?;
     let close = prefix.len();
     let drew: Vec<PieceRole> = structure
@@ -1495,8 +1466,11 @@ pub fn committed(
             .loops()
             .iter()
             .map(|lp| {
-                let bulges = lp.segments().iter().map(|s| s.bulge);
-                flatten(lp.vertices(), bulges, chord).map(|(points, vertices)| PreviewLoop {
+                let arcs = lp.segments().iter().map(|s| match s.kind {
+                    pncad::profile::SegmentKind::Line => None,
+                    pncad::profile::SegmentKind::Arc { arc, .. } => Some(arc),
+                });
+                flatten(lp.vertices(), arcs, chord).map(|(points, vertices)| PreviewLoop {
                     points,
                     vertices,
                     end: LoopEnd::Closed,
@@ -1704,14 +1678,14 @@ fn drawable(point: [f64; 2]) -> bool {
     point[0].is_finite() && point[1].is_finite()
 }
 
-/// One loop as a closed polyline: every vertex, with each bulged
-/// segment subdivided finely enough that it sags less than `chord`.
+/// One loop as a closed polyline: every vertex, with each arc segment
+/// subdivided finely enough that it sags less than `chord`.
 ///
-/// The bulge convention is [`pncad::profile::ProfileLoop::bulges`]'s
-/// — `b = tan(θ/4)` for the segment LEAVING each vertex, positive
-/// counterclockwise, the last vertex's belonging to the closing
-/// segment — so this reads the loop exactly as the kernel writes it
-/// and invents no second convention.
+/// `arcs` is each vertex's LEAVING segment, the last vertex's the
+/// closing one — `None` for a line, the stored carrier and sweep for an
+/// arc — so this reads the loop exactly as the kernel stores it, and
+/// every point along an arc is the kernel's own evaluation of it
+/// ([`Arc2::point_from`] from the segment's start vertex).
 ///
 /// # Errors
 ///
@@ -1724,7 +1698,7 @@ fn drawable(point: [f64; 2]) -> bool {
 /// along.
 fn flatten(
     vertices: &[Point2<f64>],
-    bulges: impl IntoIterator<Item = f64>,
+    arcs: impl IntoIterator<Item = Option<Arc2<f64>>>,
     chord: f64,
 ) -> Result<(Vec<[f64; 2]>, Vec<usize>), usize> {
     let mut out: Vec<[f64; 2]> = Vec::with_capacity(vertices.len());
@@ -1734,78 +1708,42 @@ fn flatten(
     // indistinguishable from its ends — so the flattener, which is the
     // one place that knows, says it.
     let mut at: Vec<usize> = Vec::with_capacity(vertices.len());
-    for (index, (&from, bulge)) in vertices.iter().zip(bulges).enumerate() {
-        let to = vertices[(index + 1) % vertices.len()];
+    for (index, (&from, arc)) in vertices.iter().zip(arcs).enumerate() {
         // The loop's own vertex, asked the same question its arcs are
         // asked below and asked BEFORE it is emitted. A replay whose
         // literals are all finite can still land one past the top of
         // the exponent range, and every guard under this loop is about
-        // an arc — so a loop with no bulges at all reaches none of
-        // them and a polygon drawn through a point that is nowhere is
+        // an arc — so a loop with no arcs at all reaches none of them
+        // and a polygon drawn through a point that is nowhere is
         // exactly what this module says it refuses.
-        let place = [from.x, from.y];
+        let place = from.to_array();
         if !drawable(place) {
             return Err(index);
         }
         at.push(out.len());
         out.push(place);
-        if bulge == 0.0 {
+        let Some(arc) = arc else {
             continue;
-        }
-        // θ is the segment's included angle, signed with the bulge;
-        // the carrier's centre sits on the left of travel for a
-        // positive one, and the sign of `tan(θ/2)` is what carries
-        // that across the half turn (a major arc's centre is on the
-        // other side of its own chord).
-        let theta = 4.0 * bulge.atan();
-        let (dx, dy) = (to.x - from.x, to.y - from.y);
-        let half = dx.hypot(dy) / 2.0;
-        let sin_half = (theta / 2.0).sin();
-        if half == 0.0 || sin_half == 0.0 {
-            continue;
-        }
-        let radius = (half / sin_half).abs();
-        let apothem = half / (theta / 2.0).tan();
-        // The left normal of travel, unit length.
-        let (nx, ny) = (-dy / (2.0 * half), dx / (2.0 * half));
-        let centre = [
-            (from.x + to.x) / 2.0 + nx * apothem,
-            (from.y + to.y) / 2.0 + ny * apothem,
-        ];
-        let start = (from.y - centre[1]).atan2(from.x - centre[0]);
-        // **Every point below is `centre + radius·(cos, sin)` of an
-        // angle built from `start` and `theta`**, so those four are
-        // asked to be numbers before any of them is used. The two
-        // guards above this block — `bulge == 0.0` and `half == 0.0
-        // || sin_half == 0.0` — are the degenerate segments a loop
-        // legitimately holds, and a value that is not a number takes
-        // neither side of either: a `NaN` is not equal to zero, so it
-        // reads as an ordinary arc all the way to the coordinates.
+        };
+        // **Every point below is the arc evaluated from `from`**, a
+        // rotation about `centre` by a fraction of `sweep`, so the
+        // centre, radius and sweep are asked to be numbers before any
+        // of them is used: a value that is not a number would otherwise
+        // read as an ordinary arc all the way to the coordinates.
         //
-        // **A frame of four numbers does not make a point one**, so
-        // each point is asked again as it is minted: a centre a few
-        // hundred orders of magnitude from the origin and a radius to
-        // match sum past the top of the range on the far side of the
-        // arc, with every value here finite.
-        //
-        // `radius` carries `centre` with it. `apothem` is
-        // `±radius·cos(θ/2)` written as `half / tan(θ/2)`, so it is
-        // bounded by `radius`; a `half` that is not finite makes
-        // `radius` not finite too. What `radius` does NOT carry is the
-        // chord's own midpoint, which overflows on its own for two
-        // vertices near the top of the exponent range — hence
-        // `centre`, and `start` after it.
-        let Some(count) =
-            arc_points(radius, theta, chord).filter(|_| drawable(centre) && start.is_finite())
+        // **A frame of numbers does not make a point one**, so each
+        // point is asked again as it is minted: a centre a few hundred
+        // orders of magnitude from the origin and a radius to match sum
+        // past the top of the range on the far side of the arc, with
+        // every value here finite.
+        let Some(count) = arc_points(arc.radius, arc.sweep, chord)
+            .filter(|_| drawable([arc.centre.x, arc.centre.y]))
         else {
             return Err(index);
         };
         for ordinal in 1..count {
-            let angle = start + theta * (ordinal as f64) / (count as f64);
-            let place = [
-                centre[0] + radius * angle.cos(),
-                centre[1] + radius * angle.sin(),
-            ];
+            let p = arc.point_from(from, ordinal as f64 / count as f64);
+            let place = [p.x, p.y];
             if !drawable(place) {
                 return Err(index);
             }

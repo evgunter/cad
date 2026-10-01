@@ -42,10 +42,10 @@ fn an_edge_named_pick_is_refused_by_the_mate_tool() {
     // that rule keeps it a face.
     a.name.kind = EntityKind::Edge;
     let mut tool = MateTool::new();
-    tool.pick(a);
-    tool.pick(b);
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
     let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()) {
+    match tool.proposal(doc, eval, asm::seat_choice()) {
         Err(MateToolError::PickIsNotAFace { side, refusal }) => {
             assert_eq!(side, MateSide::A);
             assert_eq!(refusal.found, EntityKind::Edge);

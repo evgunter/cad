@@ -252,7 +252,22 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             sample: 4,
             cause: diag(),
         },
-        PlaneNurbsRefusal::Escalated(diag()),
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::OnLocus,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::HullSup,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::Tube,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
+        PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
+            axis: geom_brep::ChartAxis::U,
+        }),
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },
@@ -263,11 +278,12 @@ fn certify_errors() -> Vec<CertifyError> {
     let key = geom_brep::SurfaceKey::default();
     let mut v = vec![
         CertifyError::ChartImageUnavailable {
-            chart: "cone",
-            carrier: "ellipse",
+            chart: geom_brep::SurfaceKind::Cone,
+            carrier: geom_brep::CurveKind::Ellipse,
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
+        CertifyError::NurbsLaneNotSupplied,
         CertifyError::IntersectionSameSurface { key },
         CertifyError::SeamOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
@@ -318,8 +334,23 @@ fn certify_errors() -> Vec<CertifyError> {
 
 fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
     let mut v = vec![
-        PcurveCertifyError::UnsupportedChart { chart: "torus" },
-        PcurveCertifyError::UnsupportedCarrier,
+        PcurveCertifyError::UnsupportedChart {
+            chart: geom_brep::SurfaceKind::Torus,
+        },
+        PcurveCertifyError::UnsupportedCarrier {
+            chart: geom_brep::SurfaceKind::Torus,
+            carrier: geom_brep::CurveKind::Circle,
+            class: geom_brep::UncoveredClass::TorusGeneralCircle,
+        },
+        PcurveCertifyError::CarrierOffChart {
+            chart: geom_brep::SurfaceKind::Sphere,
+            carrier: geom_brep::CurveKind::Line,
+            why: "a sphere holds no line",
+        },
+        PcurveCertifyError::ImageMismatch {
+            image: geom_brep::PcurveKind::General,
+            why: "a fitted-grade image at the closed-form door",
+        },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
         PcurveCertifyError::IsoUnsupported {
@@ -340,6 +371,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::FittedEscalated { cause: diag() },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
+        PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
@@ -372,6 +404,8 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::UncertifiedImage { half_edge },
+        PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,
             cause: diag(),
@@ -777,6 +811,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             face,
             named_loop: loop_,
         },
+        ValidationError::StaleNullFaceOwnership {
+            face,
+            named_loop: loop_,
+        },
         ValidationError::NullEdgeAtRest { edge },
         ValidationError::NullFaceAtRest { face },
         // Tier 3 arms that carry nothing nested.
@@ -929,6 +967,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             s.push((format!("{arm}{m}"), e));
         }
         for check in [
+            WedgeCheck::Arm,
             WedgeCheck::Dihedral,
             WedgeCheck::SecondOrder,
             WedgeCheck::MaterialSide,

@@ -45,7 +45,9 @@ use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
 use super::build::fan_at;
-use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, decide};
+use super::{
+    BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
+};
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
 /// same question as "which [`MarginDiag`] arm does its classifier
@@ -139,13 +141,13 @@ pub(crate) fn measured<T: Bounds>(value: T) -> MarginDiag {
 /// poison instead of deciding it), and a payload that cannot be
 /// printed is worse than one that prints an impossibility.
 pub(crate) fn classified<T: Bounds>(
-    predicate: &'static str,
+    decision: BlendDecision,
     margin: T,
     band: Band,
     sign: Sign,
 ) -> ClassifiedMargin {
     ClassifiedMargin {
-        predicate,
+        predicate: decision.predicate(),
         reading: measured(margin),
         band,
         sign,
@@ -432,10 +434,22 @@ pub struct BatteryVerdict<T: Real> {
     pub transverse_caps: Vec<VertexKey>,
 }
 
-/// Escalate at a site (the shared shape, so the two-tolerance text
-/// can never drift between predicates).
-fn esc(site: BlendSite, source: Indeterminate) -> BlendError {
-    BlendError::Escalated { site, source }
+/// A junction arm `fillet3_chain_arm` decided non-positive: an angle at
+/// so short an arm is not a question, so it refuses at `site` as that
+/// decision, carrying the arm it read — the band-decided sibling of an
+/// in-band arm, with the same ending (D4 ¶1 (iv)).
+fn short_arm<T: Bounds>(site: BlendSite, arm: T, band: Band) -> BlendError {
+    let decision = BlendDecision::ChainArm;
+    BlendError::Escalated {
+        site,
+        decision,
+        source: Indeterminate {
+            margin: measured(arm),
+            band,
+            predicate: Some(decision.predicate()),
+            terminal_sliver: false,
+        },
+    }
 }
 
 /// A face's outward normal at `p`: the implicit gradient folded
@@ -471,12 +485,6 @@ fn carrier_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(Curve3<T>, T,
 /// straight edges is bit-exact.
 fn chain_sample_at<T: Decide>(t0: T, t1: T, i: u32) -> T {
     geom_brep::schedule_param(t0, t1, i, CHAIN_SAMPLES)
-}
-
-/// The midpoint parameter of a link — the dihedral classifier's
-/// sample, spelled once.
-fn mid_param<T: Decide>(t0: T, t1: T) -> T {
-    (t0 + t1) / T::from_f64(2.0)
 }
 
 /// The lever arm of a link's edge — the curvature-free straight
@@ -559,13 +567,16 @@ pub fn radius_headroom<T: Decide + Bounds>(
     // `(1 − r/arm)·r`, written so a plane's unbounded arm saturates
     // at `r` rather than dividing by an infinity.
     let margin = radius - radius.powi(2) / arm;
-    match decide("fillet3_radius_headroom", Margin::of(margin), band)
-        .map_err(|e| esc(BlendSite::Chain, e))?
-    {
+    match classify(
+        BlendSite::Chain,
+        BlendDecision::RadiusHeadroom,
+        Margin::of(margin),
+        band,
+    )? {
         Sign::Positive => Ok(()),
         sign => Err(BlendError::RadiusHeadroom {
             face,
-            margin: classified("fillet3_radius_headroom", margin, band, sign),
+            margin: classified(BlendDecision::RadiusHeadroom, margin, band, sign),
             radius: radius.lo(),
         }),
     }
@@ -602,12 +613,15 @@ pub fn spine_regularity<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let margin = radius - radius.powi(2) * spine_curvature;
-    match decide("fillet3_spine_regularity", Margin::of(margin), band)
-        .map_err(|e| esc(BlendSite::Chain, e))?
-    {
+    match classify(
+        BlendSite::Chain,
+        BlendDecision::SpineRegularity,
+        Margin::of(margin),
+        band,
+    )? {
         Sign::Positive => Ok(()),
         sign => Err(BlendError::SpineIrregular {
-            margin: classified("fillet3_spine_regularity", margin, band, sign),
+            margin: classified(BlendDecision::SpineRegularity, margin, band, sign),
             radius: radius.lo(),
         }),
     }
@@ -636,9 +650,10 @@ pub fn spine_regularity<T: Decide + Bounds>(
 /// on a flip rather than blending each run silently.
 ///
 /// The fold is gated by `fillet3_chain_arm` exactly as the chain-G1
-/// margin is: an angle at a collapsed arm is not a question, so a
-/// non-positive arm escalates `Invalid` rather than classifying —
-/// the same predicate at the LINK site instead of the joint.
+/// margin is: an angle at an arm not definitely positive is not a
+/// question, so such an arm refuses as that gate, carrying the arm it
+/// read (`short_arm`), rather than classifying — the same predicate at
+/// the LINK site instead of the joint.
 ///
 /// # Errors
 ///
@@ -653,23 +668,15 @@ pub fn convexity_at<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(Convexity, ClassifiedMargin), BlendError> {
     let site = BlendSite::Link { edge };
-    match decide("fillet3_chain_arm", Margin::of(arm), band).map_err(|e| esc(site, e))? {
+    match classify(site, BlendDecision::ChainArm, Margin::of(arm), band)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            return Err(esc(
-                site,
-                Indeterminate {
-                    margin: MarginDiag::INVALID,
-                    band,
-                    predicate: Some("fillet3_chain_arm"),
-                    terminal_sliver: false,
-                },
-            ));
+            return Err(short_arm(site, arm, band));
         }
     }
     let margin = Margin::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
-    let sign = decide("fillet3_convexity_sign", margin, band).map_err(|e| esc(site, e))?;
-    let reading = |s| classified("fillet3_convexity_sign", margin.value(), band, s);
+    let sign = classify(site, BlendDecision::ConvexitySign, margin, band)?;
+    let reading = |s| classified(BlendDecision::ConvexitySign, margin.value(), band, s);
     match sign {
         Sign::Positive => Ok((Convexity::Convex, reading(Sign::Positive))),
         Sign::Negative => Ok((Convexity::Concave, reading(Sign::Negative))),
@@ -699,9 +706,9 @@ pub fn convexity_at<T: Decide + Bounds>(
 /// classifier uses one dimension up, with `θ` the angle between the
 /// two carriers' unit tangents at the junction and `arm` the smaller
 /// of the two links' extents. It is gated by `fillet3_chain_arm`
-/// exactly as the dihedral is: an angle at a collapsed arm is not a
-/// question, so a non-positive arm escalates `Invalid` rather than
-/// classifying.
+/// exactly as the dihedral is: an angle at an arm not definitely
+/// positive is not a question, so such an arm refuses as that gate,
+/// carrying the arm it read (`short_arm`), rather than classifying.
 ///
 /// A closed chain must be G1 at EVERY junction (including the
 /// wrap-around) for a constant-radius spine to exist through it;
@@ -718,23 +725,15 @@ pub fn chain_g1<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let site = BlendSite::Joint { vertex };
-    match decide("fillet3_chain_arm", Margin::of(arm), band).map_err(|e| esc(site, e))? {
+    match classify(site, BlendDecision::ChainArm, Margin::of(arm), band)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            return Err(esc(
-                site,
-                Indeterminate {
-                    margin: MarginDiag::INVALID,
-                    band,
-                    predicate: Some("fillet3_chain_arm"),
-                    terminal_sliver: false,
-                },
-            ));
+            return Err(short_arm(site, arm, band));
         }
     }
     let sin_theta = tau_in.normalize().cross(tau_out.normalize()).norm();
     let margin = Margin::levered(sin_theta, arm);
-    match decide("fillet3_chain_g1", margin, band).map_err(|e| esc(site, e))? {
+    match classify(site, BlendDecision::ChainG1, margin, band)? {
         // A POSITIVE margin is the failure here (a corner), and a
         // ZERO one the success (tangent continuity) — the inverted
         // polarity of a coincidence predicate, stated so no reader
@@ -742,7 +741,7 @@ pub fn chain_g1<T: Decide + Bounds>(
         Sign::Zero => Ok(()),
         sign => Err(BlendError::ChainNotG1 {
             vertex,
-            margin: classified("fillet3_chain_g1", margin.value(), band, sign),
+            margin: classified(BlendDecision::ChainG1, margin.value(), band, sign),
             arm: measured(arm),
         }),
     }
@@ -809,10 +808,14 @@ pub fn corner_config<T: Decide + Bounds>(
     }
     let det = normals[0].dot(normals[1].cross(normals[2]));
     let margin = Margin::levered(det.abs(), radius);
-    match decide("fillet3_corner_independence", margin, band) {
-        Ok(Sign::Positive) => Ok(()),
-        Ok(_) => Err(refuse(CornerConfig::DependentNormals)),
-        Err(source) => Err(esc(BlendSite::Joint { vertex }, source)),
+    match classify(
+        BlendSite::Joint { vertex },
+        BlendDecision::CornerIndependence,
+        margin,
+        band,
+    )? {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(refuse(CornerConfig::DependentNormals)),
     }
 }
 
@@ -880,13 +883,16 @@ pub fn face_clearance<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let margin = gap - setback_here - setback_there;
-    match decide("fillet3_face_clearance", Margin::of(margin), band)
-        .map_err(|e| esc(BlendSite::Chain, e))?
-    {
+    match classify(
+        BlendSite::Chain,
+        BlendDecision::FaceClearance,
+        Margin::of(margin),
+        band,
+    )? {
         Sign::Positive => Ok(()),
         sign => Err(BlendError::FaceClearanceUncertified {
             face,
-            margin: classified("fillet3_face_clearance", margin, band, sign),
+            margin: classified(BlendDecision::FaceClearance, margin, band, sign),
             gap: measured(gap),
             cross_chain,
         }),
@@ -912,7 +918,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
     let extent = extent_of(&carrier, t0, t1);
-    let mid = mid_param(t0, t1);
+    let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;
@@ -1014,9 +1020,12 @@ fn support_coaxiality<T: Decide + Bounds>(
     band: Band,
     supports: &'static str,
 ) -> Result<(), BlendError> {
-    match decide("fillet3_support_coaxiality", Margin::of(departure), band)
-        .map_err(|e| esc(BlendSite::Chain, e))?
-    {
+    match classify(
+        BlendSite::Chain,
+        BlendDecision::SupportCoaxiality,
+        Margin::of(departure),
+        band,
+    )? {
         Sign::Zero => Ok(()),
         _ => Err(BlendError::SpineUnsupported { edge, supports }),
     }
@@ -1748,9 +1757,12 @@ pub fn cap_transverse<T: Decide + Bounds>(
         cap_normal.normalize().cross(ruling.normalize()).norm(),
         lever,
     );
-    match decide("fillet3_cap_transverse", margin, band)
-        .map_err(|e| esc(BlendSite::Joint { vertex }, e))?
-    {
+    match classify(
+        BlendSite::Joint { vertex },
+        BlendDecision::CapTransverse,
+        margin,
+        band,
+    )? {
         Sign::Zero => Ok(()),
         _ => Err(super::surgery::unbuilt_run_out(
             EntityId::Vertex(vertex),
@@ -1841,7 +1853,16 @@ fn corner_at<T: Decide + Bounds>(
     // In key order, so the supports below are gathered — and their
     // normals reach the independence determinant — in an order that
     // does not depend on where the vertex's orbit starts.
-    let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(indeterminate)?;
+    // An unresolved key at the corner is a body that does not hold
+    // together there, not a configuration: every such arm below
+    // refuses as `BodyNotIntact`.
+    let not_intact = |at: EntityId, detail: &'static str| BlendError::BodyNotIntact { at, detail };
+    let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(|| {
+        not_intact(
+            EntityId::Vertex(vertex),
+            "a chain end's edge fan, for its corner configuration",
+        )
+    })?;
     edges.sort_unstable();
     let valence = edges.len();
     // A chart seam crossing a smooth rim is NOT a corner, so it is
@@ -1859,9 +1880,14 @@ fn corner_at<T: Decide + Bounds>(
     // any neighbour is resolved as a link — the cap's rim edges are
     // not blended and need no arm.
     if link.arm.is_ruled() && valence == 3 {
+        // `None` only at a non-manifold vertex or a stale key
+        // (`cap_incidence`).
         let Some((_, _, cap)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
         else {
-            return Err(indeterminate());
+            return Err(not_intact(
+                EntityId::Vertex(vertex),
+                "a ruled link's end, whose three faces do not meet as a cap",
+            ));
         };
         let Some(Surface::Plane { normal, .. }) =
             body.get_face(cap).and_then(|f| body.get_surface(f.surface))
@@ -1936,17 +1962,21 @@ fn corner_at<T: Decide + Bounds>(
         .get_vertex(vertex)
         .and_then(|v| body.get_point(v.point))
     else {
-        return Err(indeterminate());
+        return Err(not_intact(
+            EntityId::Vertex(vertex),
+            "a chain end's vertex point, for its support normals",
+        ));
     };
     if faces.len() != 3 {
         return corner_config(vertex, faces.len(), convex, normals, radius, band).map(|()| None);
     }
     for (i, f) in faces.iter().enumerate() {
-        // A support whose outward normal does not resolve leaves a
-        // ZERO normal, which drives the independence determinant to
-        // zero and lands on `DependentNormals` — a refusal, never a
-        // pass. Documented rather than silent (fix pass F6).
-        normals[i] = outward(body, *f, *p).unwrap_or(Vec3::new(T::zero(), T::zero(), T::zero()));
+        normals[i] = outward(body, *f, *p).ok_or_else(|| {
+            not_intact(
+                EntityId::Face(*f),
+                "a corner's support face or its stored surface, for its outward normal",
+            )
+        })?;
     }
     corner_config(vertex, valence, convex, normals, radius, band).map(|()| None)
 }

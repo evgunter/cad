@@ -769,4 +769,83 @@ document loses decisions: six on the parameter bulge documents.
 
 Spec `docs/DECIDE-8-SPEC.md`. Branch `decide/8-apothem-sign` from
 `props/sign-hull` at DECIDE-7's merge.
+
+## 2026-09-26 — DECIDE-8 stops at Phase 1; the fork is weighed by two designers and goes to Ev as #3283
+
+**What Phase 1 found** (draft #3282, head `cbcf445ae`): nothing upstream
+decides the apothem's sign. The six are asked in the profile's pair pass,
+before the sweep, so no sweep-side spelling reaches them. The measured
+read, `signed_root_last` behind a dial shipped off:
+- takes the six, plus 28 on the bracket;
+- re-labels nothing;
+- misses the `0.4` parameter pair;
+- costs +39% on the bracket's leaf.
+
+**The designers.** One Opus and one Fable designer, concurrent and blind,
+with the same problem statement (`docs/DESIGN-FORK-PROTOCOL.md` at
+`bb10a4cdd`; the blinding byte is on `analysis/design-fork/the-apothems-sign`).
+Both rejected the framing, the same way: the six are the pair pass
+recomputing an adjacent pair's shared vertex as a root. Both recommend
+that `pair_contacts` take the shared vertices, and that the read not
+ship. They split only on landing the dial off. No reconciliation round.
+
+**Put to Ev as `[ev]` #3283.** It files:
+- the PATHS row `an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`;
+- `the-brackets-fillet-decisions-owe-a-structural-look` (P3);
+- the design-fork log's row 2.
+
+The orchestrator leans on the dial with B: close #3282 unmerged.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer | 322k | 48 min |
+| designer (Opus) | 122k | 3 min |
+| designer (Fable) | 165k | 9 min |
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-30 — Seam note from PATHS (5a, `retire-the-stored-bulge`):
+  - **The registrants moved.** The sweep's unconditional arc rim and span registrations are gone. The construction registers now: the profile's bulge-mode lowering registers each arc's 2-D endpoint facts through `Arc2::register_endpoints` (rim at each end ≡ radius; landing and carrier end from each end ≡ the other end, per component). The sweep registers rigidity only, which holds for any carrier: `register_rigidity` (placed rim ≡ sketch rim) and `register_placed_carrier_end` (carrier at span ≡ `place(carrier_end(a))`, per component). The alias chains through the lowering's facts in the early walk, and d_tab stays 12/0 on `carrier_endpoint_end`. `scripts/gates/register-equal-allowlist.sh` gains `crates/geom-core/src/arc.rs`.
+  - **A copied or fixture-written arc registers nothing** (#3453). A `Sym` row built through `test_support::bulge_loop` loses the discharges the sweep used to register (`work/paths/fixture-built-sym-rows-lose-registered-discharges.md`).
+  (PATHS orchestrator)
+
+## 2026-10-01 — Ev rules on #3283; DECIDE-8 closes at Phase 1
+
+Ev asked what "the dial" was. The PR description was rewritten to open
+with context: the tier's four classes, the six, the new rule, and what a
+dial is. Ev then ruled yes to all three decisions:
+1. the six are answered in the profile's pair pass;
+2. the certified-sign read does not ship, and #3282 is closed unmerged;
+3. the bracket's 28 get a structural look first.
+
+**Changes:**
+- `the-apothems-sign-is-a-value-read` closes on the ruling.
+- DECIDE-8 closes at Phase 1, and its spec is deleted with a ledger note.
+- Design-fork log row 33 is completed: both designers matched on the
+  layer and the fix, and B matched on the dial.
+
+**Next: the PATHS row is PATHS' to schedule.** That row is
+`an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`. PATHS is
+active and in the middle of the arc carrier (`store-constructed-carriers`,
+unit 5's split), in the same `seg.rs`. A DECIDE unit there would cross its
+in-flight work. When the row lands on `main`, DECIDE measures what it
+moves on the tier, on `props/sign-hull`.
+
+## 2026-10-01 — #3283 and #3649 merged; DECIDE idles until a gate lifts
+
+Both P1 rows are still gated: the declared tangency on ROUND's
+`fillet-tangency-is-not-the-constructors-node`, and the revolve carriers
+on E6. Neither P2 moves a measured document:
+- `rule-g-trades-sixteen-…`'s residue is the coefficient ring and the
+  term budget;
+- `the-exact-quotient-re-keys-…` needs a multivariate factorisation.
+
+The P3 `the-brackets-fillet-decisions-owe-a-structural-look` most likely
+leads into the gated declared-tangency P1 (18 of its 28 are fillet
+tangencies), so the item now says where its look starts.
+
+**No unit is dispatched.** DECIDE resumes when one of these happens:
+- ROUND's row closes, which ungates the declared tangency;
+- E6 moves;
+- PATHS lands `an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`,
+  after which DECIDE measures its tier effect on `props/sign-hull`.

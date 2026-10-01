@@ -309,7 +309,7 @@ impl core::fmt::Display for PairingViolation {
                 "the paired f64 evaluation is STALE at node {}: its content key is not \
                  the document's own build's, so differentiating now would report a \
                  sensitivity of a build nobody validated",
-                node.0
+                node
             ),
             Self::ResultArm {
                 node,
@@ -320,13 +320,13 @@ impl core::fmt::Display for PairingViolation {
                 "node {} is {found} where the build of record has it {expected} — the \
                  two runs disagree about which nodes evaluate, and not by one of the \
                  lift's typed limits",
-                node.0
+                node
             ),
             Self::ValueChannel { node } => write!(
                 f,
                 "the seeded pass's value channel at node {} is not the validated \
                  build's, bit for bit — the dual contract is broken there",
-                node.0
+                node
             ),
         }
     }
@@ -371,7 +371,7 @@ pub enum SensitivityRefusal {
 impl core::fmt::Display for SensitivityRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAMeasure { node } => write!(f, "node {} is not a Measure node", node.0),
+            Self::NotAMeasure { node } => write!(f, "node {} is not a Measure node", node),
             Self::ForeignVerdict => f.write_str(
                 "the chamber verdict's root box does not span this document's continuous \
                  parameters — it was driven over a different parameter set and certifies \
@@ -382,7 +382,7 @@ impl core::fmt::Display for SensitivityRefusal {
                 "the chamber verdict is not of this build: its certified leaf replays with \
                  a different content key at node {} — the document changed since the \
                  drive, or the verdict is another document's; drive again",
-                node.0
+                node
             ),
             Self::Pairing(v) => write!(f, "pairing violation: {v}"),
         }
@@ -839,7 +839,7 @@ impl Digest {
 
 /// The value-channel digest of one payload: its arm, its counts, and
 /// every scalar it stores — body points, datum frames, profile
-/// vertices and bulges, measured values, verdict numbers — through the
+/// vertices and arc carriers, measured values, verdict numbers — through the
 /// scalar's own value bracket, so an `f64` build and a `Dual64` pass
 /// digest identically exactly when their value channels agree.
 fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
@@ -891,13 +891,25 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(14);
             for lp in p.validated.loops() {
                 d.u64(lp.vertices().len() as u64);
-                // Each vertex with the bulge its segment was lowered
-                // from: an arc's carrier and sweep are functions of
-                // these, so they are digested through them.
+                // Each vertex with its leaving segment's classified
+                // carrier: a kind tag, and an arc's centre, radius and
+                // sweep — every scalar the segment stores.
                 for (v, s) in lp.vertices().iter().zip(lp.segments()) {
                     d.scalar(v.x);
                     d.scalar(v.y);
-                    d.scalar(s.bulge);
+                    match s.kind {
+                        profile::SegmentKind::Line => d.u64(0),
+                        profile::SegmentKind::Arc { arc, turn } => {
+                            d.u64(match turn {
+                                geom_core::Sign::Negative => 2,
+                                geom_core::Sign::Zero | geom_core::Sign::Positive => 1,
+                            });
+                            d.scalar(arc.centre.x);
+                            d.scalar(arc.centre.y);
+                            d.scalar(arc.radius);
+                            d.scalar(arc.sweep);
+                        }
+                    }
                 }
             }
         }
@@ -1269,7 +1281,7 @@ impl Stackup {
         let _ = writeln!(
             s,
             "stackup measure={} nominal={} chamber={}",
-            self.measurement.0,
+            self.measurement.full(),
             match &self.nominal {
                 Ok(v) => format!("{:016x}", v.to_bits()),
                 Err(why) => format!("unavailable:{}", why.verb()),
@@ -1277,7 +1289,7 @@ impl Stackup {
             match &self.chamber {
                 Chamber::ChamberCertified {
                     verdict_vector_key, ..
-                } => format!("certified:{:032x}", verdict_vector_key.0),
+                } => format!("certified:{verdict_vector_key:032x}"),
                 Chamber::LocalOnly => "local_only".to_owned(),
             }
         );
@@ -1358,7 +1370,7 @@ impl Stackup {
     pub fn render(&self, analyzed: &crate::analysis::AnalyzedBox) -> String {
         use core::fmt::Write as _;
         let mut s = String::new();
-        let _ = writeln!(s, "stackup of measure node {}", self.measurement.0);
+        let _ = writeln!(s, "stackup of measure node {}", self.measurement);
         let _ = writeln!(
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
@@ -1481,19 +1493,19 @@ pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
             format!("degraded tangent ({tangent})")
         }
         SensitivityOutcome::MeasureRefused { node, cause } => {
-            format!("refused at node {}: {cause}", node.0)
+            format!("refused at node {}: {cause}", node)
         }
         // Spelled out rather than `Debug`-printed: this string is read
         // by a person in `render` and compared by a golden in
         // `serialize`, and `Debug` is a form neither of those wants.
         SensitivityOutcome::Unliftable { node, refusal } => format!(
             "unliftable at node {}: {}",
-            node.0,
+            node,
             match refusal {
                 LiftRefusal::PinnedSection { section, param } => format!(
                     "{} feeds the section of node {}, which stays f64 (C6/D9)",
                     param.as_str(),
-                    section.0
+                    section
                 ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \
@@ -1610,7 +1622,7 @@ impl core::fmt::Display for StackupRefusal {
                 f,
                 "the measure refuses at the nominal build (node {}), so there is no \
                  nominal to report: {cause}",
-                node.0
+                node
             ),
             Self::NothingCertified { receipt, .. } => write!(
                 f,
@@ -1624,7 +1636,7 @@ impl core::fmt::Display for StackupRefusal {
                 "a certified leaf tied to this build by its content keys refused at node {} \
                  on replay — same inputs, a different result (a D9 replay-identity \
                  break): {cause}",
-                node.0
+                node
             ),
             Self::WorstCaseUncertified { .. } => f.write_str(
                 "a certified leaf's measure enclosure carries a domain violation — a \

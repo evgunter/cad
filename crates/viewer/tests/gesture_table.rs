@@ -112,7 +112,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 47;
+const OP_COUNT: usize = 49;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -143,16 +143,8 @@ fn face(node: RecipeNodeId) -> StableName {
 /// A seat for the mate door — well-formed and never evaluated here.
 fn alignment() -> Alignment {
     Alignment {
-        a: MateFrame {
-            origin: [0.0; 3],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [0.0; 3],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
+        a: MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+        b: MateFrame::authored([0.0; 3], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking: None,
@@ -164,7 +156,7 @@ fn alignment() -> Alignment {
 /// The values are well-formed and otherwise arbitrary: a refused op
 /// never reaches its own validation, and a permitted one is asserted
 /// on WHICH refusal it gives, not on succeeding.
-fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
+pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
     let param = ParamName::from_static("thickness");
     vec![
         SessionOp::Select(Selection::Node(node)),
@@ -338,6 +330,17 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             loops: vec![],
             ids: vec![],
         },
+        SessionOp::SetLabel {
+            node,
+            label: Some(pncad::document::Label::new("renamed").expect("a label")),
+        },
+        SessionOp::CreateLabelled {
+            creation: viewer::session::Creation::of(SessionOp::AddDatum {
+                datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+            })
+            .expect("adding a datum creates a node"),
+            label: pncad::document::Label::new("Datum frame 1").expect("a label"),
+        },
     ]
 }
 
@@ -421,6 +424,10 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // It commits an action to the history (every reference to the
         // part moves), which is what a drag has to be protected from.
         SessionOp::AcceptPartVersion { .. } => (46, false),
+        // A rename is a document edit, fenced for `SetParam`'s reason,
+        // and a labelled creation is a creation.
+        SessionOp::SetLabel { .. } => (47, false),
+        SessionOp::CreateLabelled { .. } => (48, false),
     }
 }
 
@@ -871,7 +878,9 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. } => false,
+        | SessionOp::AcceptPartVersion { .. }
+        | SessionOp::SetLabel { .. }
+        | SessionOp::CreateLabelled { .. } => false,
     }
 }
 
@@ -1474,7 +1483,9 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. } => false,
+        | SessionOp::AcceptPartVersion { .. }
+        | SessionOp::SetLabel { .. }
+        | SessionOp::CreateLabelled { .. } => false,
     }
 }
 

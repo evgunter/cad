@@ -29,7 +29,7 @@ const L_PROFILE: [(f64, f64); 6] = [
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 
@@ -241,7 +241,7 @@ fn a_pierce_between_a_and_c_leaves_the_a_b_pair_to_its_own_findings() {
     let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
     let piercer = common::brick::<f64>((2.3, 2.7), (-0.5, 0.5), (0.3, 0.7), Tol::witness());
     let mut body = assembly(&l.body, &part);
-    topo::graft_disjoint(&mut body, &piercer, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &piercer).unwrap();
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the pierce refuses");
     assert!(!crossings(&errors).is_empty(), "{errors:?}");
@@ -283,7 +283,7 @@ fn a_hollow_part_in_the_concavity_clears() {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut part, solid, hole, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut part, solid, hole, &evidence).unwrap();
     assert_eq!(part.shells().count(), 2);
     let body = assembly(&l.body, &part);
     assert_eq!(

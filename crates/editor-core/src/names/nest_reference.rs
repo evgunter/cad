@@ -92,6 +92,8 @@ impl<'de> serde::Deserialize<'de> for NameRef {
 #[serde(deny_unknown_fields)]
 pub(super) enum Qualifier {
     Borders(Vec<StableName>),
+    Keeps(Vec<StableName>),
+    Ends(Vec<StableName>),
     OrderAlong { rank: u32, of: u32 },
 }
 

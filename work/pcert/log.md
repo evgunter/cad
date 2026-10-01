@@ -199,3 +199,123 @@ Bisected to PR 3612: `m10_sym_profile_interval` `the_forms_the_walks_build_are_p
 is red on main at the default ε. Filed on your slate as
 `pcurve-fit-domain-refusal-moves-the-m10-sym-walk-ledger` with the
 numbers. Whether to re-baseline is your call. — (REACH orchestrator)
+
+## 2026-10-01 — two merged, one red on main, Ev's questions
+
+**Merged:** PR 3610 (`pcurve-chart-box-is-looser-than-harmonic-extent`)
+and PR 3612 (`pcurve-fit-refusal-drops-the-domain-doors-reason`), by a
+merge-steward lane in sequence after their fix passes went green. Both
+rows closed here rather than on their own branches: a state-sync commit
+on a merged-code branch would have re-earned the gate for no code.
+
+**3612 turned main red.** Its exact end samples moved `editor-core`'s
+`m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row`
+ledger, which its change filter did not run (the steward bisected
+3610's merge green, 3612's red). The re-baseline is this program's debt,
+on `pcert/rebaseline-sym-ledger`, ported into PR 3614, whose CI it
+reds. 3614's other red, `sweep`'s `reach_volume_backstop` off the
+default ε, is REACH's (`work/reach/reach-volume-backstop-fails-off-the-default-eps.md`,
+caused by PR 3611): inherited, annotated on the PR, not absorbed.
+
+**`D36`** stopped at its gate (3614 unmerged) with its per-site
+classification done: three meanings, about 9 uncovered (two gated by a
+new sphere incidence trilean), 14 not on the chart, 5 image mismatches,
+8 unreachable or fixed by a type change. It resumes when 3614 lands.
+
+**Ev asked on PR 3617** why `extrude` does not mint and why the octant
+is uncached. Answered there: no reason is recorded for extrude
+(filed on CARVE as `extrude-mints-no-pcurve-rows`), and the octant can
+be cached — the fitted Circle route exists, no mint site reaches it
+(filed here as `mint-has-no-route-to-the-fitted-general-circle-arm`).
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — 3614 and the ledger re-baseline merged
+
+PR 3652 re-baselined `editor-core`'s sym walk ledger (main red since
+3612's merge): only the decision walks moved, the same calls building
+fewer forms, at every ε row for the slab and once for the plate, whose
+move was hidden behind the slab's failing assertion until that one was
+fixed. Measured locally at all three ε rows; green hosted.
+
+PR 3614 (`placeholder-chart-sup-arms-are-not-a-bound`) merged with the
+re-baseline ported in. Its one remaining red was confirmed at the step
+level as inherited: default ε, the slow set and doc-tests green; the
+off-ε step failed on exactly the four `reach_volume_backstop` rows
+REACH has filed (`reach-volume-backstop-fails-off-the-default-eps`,
+PR 3611's). Annotated on the PR before merging; REACH keeps the debt.
+
+`D36` resumes now that its gate (3614) has landed.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — D36's review adjudicated
+
+PR 3664 (`D36`) was implemented and reviewed in their own cloud
+sessions so this one stayed responsive. The reviewer posted its report
+as a PR comment, which did not wake this session (a comment from the
+same account reads as this session's own); the check-in caught it.
+
+Verdict mergeable with fixes. One MAJOR, by execution: the sphere polar
+arm's centring gate reads an amplified quantity (`h·sin θ` after an
+axial gate on `ρ·sin θ`), so a near-pole small circle exactly on the
+sphere reads `CarrierOffChart` and the mint refuses a valid body; it
+goes through the incidence test like the meridian arm. Also adjudicated
+in: two uncovered classes missing from the residual row; typed
+chart/carrier/class payloads instead of hand-written strings (the fix
+re-minting the defect it closes); per-class recourses; rows asserting
+the site, not just the variant. The reviewer's instrumented full
+workspace (10494 rows, slow set included) found no committed producer
+leaning on the old swallow for an off-chart carrier.
+
+Filed `site-rows-leaves-an-off-chart-edge-silent` (P0): the Euler
+site mint clears an off-chart edge's face, so the op and tier 3 stay
+silent where the mint refuses. Its fix depends on PR 3617's ruling.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — Ev's first ruling on PR 3617
+
+Ev, on PR 3617: *"i do think that wiring those up, rather than
+explicitly permitting them to be missing, makes sense"* — answering the
+orchestrator's choice between a coverage-status channel for uncovered
+faces and wiring their routes. Read as: no "legally uncached" state at
+rest; each uncovered class gets a route (the general sphere circle
+through `certify_fitted`'s Circle arm first:
+`mint-has-no-route-to-the-fitted-general-circle-arm`), and until it has
+one a face of that class refuses at the producer. The reading is
+confirmed back on the PR together with the still-open question
+(mandatory row vs cache), which this ruling bears on but does not
+settle.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — D36 merged
+
+PR 3664 merged (`97a207f`) after a full review and a delta review, both
+in their own cloud sessions, and two fix passes. One live wrong answer
+closed (an edge not on its face no longer passes the mint), and two
+were found and closed in review that the split itself would have
+introduced (on-chart circles near a sphere's pole and on a wide cone
+called off-chart). Filed by the lane on other slates: chart's
+`plane-chart-polygon-erases-the-chart-pcurve-refusal` and
+`chart-region-arm-unbounded-names-its-chart-by-string`, export's
+`step-export-carrier-kind-duplicates-curve-kind`, and in `work/issues/`
+`chart-image-unavailable-folds-uncovered-and-off-chart` and
+`uncovered-chart-classes-have-no-incidence-test`.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — Ev's second ruling on PR 3617
+
+Ev, on PR 3617: *"i don't see the benefit to them not being mandatory
+after everything wires them up? how would an object that's missing them
+come to exist?"* The orchestrator agreed: once every class is wired,
+only a producer's omission (`extrude`) or an un-minted assembly of
+Euler operations leaves a body rowless, and a tier-3 finding is the
+right answer to both; the cache answer's one payoff (simpler Euler
+doors) is had under "doors may drop, producers mint". C4 on PR 3617
+now states mandatory rows; that PR merges on Ev's confirmation of the
+text. Neither designer's first recommendation (both leaned cache).
+
+Signed (PCERT orchestrator).

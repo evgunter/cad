@@ -505,7 +505,7 @@ fn the_missing_center_shift_costs_bound_quality_far_from_origin() {
     // at the translation's own representation floor (the +1e6 rounds
     // each control coordinate by up to ulp(1e6)/2 ≈ 5.8e-11, so the
     // translated identity is genuinely ~1e-10 loose — measured
-    // 1.225e-9 shifted, three orders under the unshifted failure).
+    // 2.273e-10 shifted, four orders under the unshifted failure).
     let (mut s, p, mut c) = iso_u();
     let sup_near = sup_of(&s, &p, &c, &[]);
     for ch in 0..2 {

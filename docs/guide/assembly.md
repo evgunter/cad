@@ -72,9 +72,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -98,7 +98,7 @@ assert store.resolve(shelf_ref).id == shelf.id
 
 # The shelf legitimately changes: same part, new content, new pin.
 thicker = prism("bench-shelf", 0.9, 0.30, 0.08)
-assert thicker.id == shelf.id, "same label, same part"
+assert thicker.id == shelf.id, "same seed, same part"
 assert content_pin(thicker) != content_pin(shelf)
 store.resave(thicker)
 
@@ -131,16 +131,16 @@ meant yesterday" a fact rather than a hope.
 
 ## 2. Authoring an assembly
 
-Three doors — and one property, *placement lives on the cluster*,
+Three doors — and one property, *placement lives on the group*,
 that explains the second of them.
 
 `Node.instantiate_part(reference)` is an instance: a **leaf** whose
 material crosses the document seam. It takes no frame.
 
 `DocEdit.set_placement(node, frame)` is where the frame goes — and it
-places the instance's **cluster**, not the instance. Instances coupled
+places the instance's **group**, not the instance. Instances coupled
 by mates share one recorded frame, held by the earliest of them in
-document order (their **gauge**); every other member's pose is
+document order (their **root**); every other member's pose is
 *solved*. That is why a document can carry three instances and one
 frame, and why zero-anchor and multi-anchor states are
 unrepresentable here rather than merely refused.
@@ -184,10 +184,10 @@ from pncad import (
     SegTag,
     Selector,
     Workspace,
-    clusters,
+    groups,
     content_pin,
     evaluate,
-    gauge_of,
+    root_of,
     m,
     reading_edges,
 )
@@ -196,9 +196,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -220,9 +220,19 @@ def instance_cap(ev, instance, side):
 
 
 def frame_at(x, y, z):
-    """A mate frame: +z axis, +x clocking reference."""
+    """An AUTHORED mate frame: +z axis, +x clocking reference."""
     return MateFrame(origin=(x * m, y * m, z * m), axis=(0.0, 0.0, 1.0),
                      reference=(1.0, 0.0, 0.0))
+
+
+def part_cap(part, side):
+    """A cap face of a PART, by the part's own name: selected on the
+    part document's own evaluation, with no instance wrapped round it
+    — what a mate frame that names a face stores."""
+    cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
+    found = evaluate(part).select(part.roots[0], Selector.of(cap))
+    assert len(found) == 1, f"expected one face, got {found}"
+    return found[0]
 
 
 store = Workspace(tempfile.mkdtemp())
@@ -235,7 +245,7 @@ shelf_ref = DocRef(shelf.id, content_pin(shelf))
 
 stand = Doc("bench-stand")
 post_a = stand.insert(Node.instantiate_part(post_ref))
-# Only the gauge is placed by hand. The other two poses are solved.
+# Only the root is placed by hand. The other two poses are solved.
 stand.apply(
     DocEdit.set_placement(
         post_a,
@@ -253,9 +263,16 @@ b_top = instance_cap(ev, post_b, CapEnd.End)
 shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 
 # Where each post's top meets the shelf's underside, each written in
-# its OWN part's coordinates. The posts sit flush with the shelf's
-# two ends, which is the obvious way to draw a bench.
-post_seat = frame_at(POST_SECTION / 2, POST_SECTION / 2, POST_HEIGHT)
+# its OWN part's coordinates. The post's seat IS its top cap face, by
+# the post's own name: the solve reads the cap's pose off the post's
+# evaluation every time, so a post whose height changes moves the
+# seat with it. The shelf's seats are authored numbers: both posts
+# meet ONE face of the shelf, its underside, and a face frame is that
+# face's canonical origin with no offset inside the face, so two seats
+# spelled as the face would land on the same point. The posts sit
+# flush with the shelf's two ends, which is the obvious way to draw a
+# bench.
+post_seat = MateFrame.from_face(part_cap(post, CapEnd.End))
 seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 seat_b = frame_at(SHELF_LENGTH - POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 
@@ -265,23 +282,28 @@ def seat(a, b):
     return Alignment(a, b, MatePrimitive.frame_coincidence(), AxisSense.Aligned)
 
 
+# The insert asks the solve's own admission of each mate, and a side
+# that names a face is resolved there — through the store, since the
+# face is the part's.
 mate_a = stand.insert(
     Node.mate(
         post_a, a_top, shelf_i, shelf_underside, ContactClass.Rest,
         seat(post_seat, seat_a),
-    )
+    ),
+    resolver=store,
 )
 mate_b = stand.insert(
     Node.mate(
         shelf_i, shelf_underside, post_b, b_top, ContactClass.Rest,
         seat(seat_b, post_seat),
-    )
+    ),
+    resolver=store,
 )
 
-# The two mates couple all three instances into ONE cluster, gauged
-# by the earliest of them.
-assert clusters(stand) == [[post_a, shelf_i, post_b]]
-assert all(gauge_of(stand, n) == post_a for n in (post_a, shelf_i, post_b))
+# The two mates couple all three instances into ONE group, rooted
+# at the earliest of them.
+assert groups(stand) == [[post_a, shelf_i, post_b]]
+assert all(root_of(stand, n) == post_a for n in (post_a, shelf_i, post_b))
 
 # ...so exactly one instance carries an authored frame. The other two
 # never will.
@@ -319,13 +341,30 @@ assert stand.roots[:3] == [shelf_i, post_a, post_b]
 
 Two things in that block are worth pausing on.
 
-**Nothing checks a mate's alignment against the faces it names.** A
-`MateFrame` is *authored* data — the solve is structural plus decided
-predicates over exactly those numbers. So a mate can solve perfectly
-and still be refuted at the gate, and that is not a hole: it is the
+**A mate frame is a face of the part, or three authored vectors.**
+`MateFrame.from_face(name)` names a face in the PART's own spelling
+and the solve resolves it from the part's own evaluation at every
+evaluation — its origin, its chart axis and the carrier's own roll
+reference — so nothing is stored twice and the mate follows the face
+when the part is edited; a face with no canonical frame (a NURBS
+carrier) refuses typed and keeps taking authored vectors. The name is
+the whole frame: a face frame's roll is the carrier's, and its origin
+is the face's canonical one. Authored vectors are the spelling for a
+point that is not a face's origin (the shelf's two seats above, both
+on its one underside), and for a roll the carrier does not give. A
+face frame also resolves at the NOMINAL value only: under an analysis
+lane — `stackup.sensitivities`' dual passes, a certified `clearance`'s
+interval leaf — the part's product pins no single number, the face
+side refuses `unpinned`, and those two doors refuse an assembly that
+holds one, where the same mate authored as vectors still solves. The
+solve's
+*algorithm* is unchanged — coset intersection over decided
+predicates, no numeric fitting — and its inputs are the document plus
+its mated parts' evaluations. What is still not checked is an
+AUTHORED frame against the faces the mate names: such a mate can
+solve perfectly and still be refuted at the gate, which is the
 boundary between "where you said the parts meet" and "where they
-actually do", kept visible. (Nothing yet mints a mate frame from a
-selected face; that is issue #944.)
+actually do", kept visible.
 
 **What the solve would refuse about a mate on its own, the insert
 refuses.** A head that resolves to no member, one member named
@@ -337,8 +376,9 @@ against the mate whenever it reads the datum. So `Doc.insert` asks
 the solve's own per-mate admission and raises `EditError` with
 variant `mate_refused`, `fault` carrying the solve's `MateFault`
 whole. The rider on a coincidence is decided over the mated parts'
-extent, so that one needs `resolver=` at the insert; everything else
-is decided on the datum alone. The doors decide edits and the solve
+extent, and a side that names a face is resolved from the part's own
+evaluation, so those two need `resolver=` at the insert; everything
+else is decided on the datum alone. The doors decide edits and the solve
 decides states: a verdict about a *pair* — under-determined, two
 mates that contradict each other — is the solve's, met at evaluation
 as below, and so is a per-mate fault a mate comes to carry after
@@ -405,9 +445,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -421,7 +461,7 @@ store.create(post)
 store.create(shelf)
 
 # The flat-pack layout: a post and the shelf beside it, nothing
-# touching. No mates, so each instance is its own cluster and each
+# touching. No mates, so each instance is its own group and each
 # carries its own frame.
 layout = Doc("bench-layout")
 post_i = layout.insert(Node.instantiate_part(DocRef(post.id, content_pin(post))))
@@ -495,9 +535,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -556,8 +596,8 @@ Two doors, and they check different things.
 
 `solve_document(doc, resolver=store)` folds the mates: per-pair
 cosets along a deterministic spanning tree, producing each instance's
-pose relative to its cluster gauge. It is **total** — a refusing
-cluster must not fail an unrelated one, so refusals are read back per
+pose relative to its group root. It is **total** — a refusing
+group must not fail an unrelated one, so refusals are read back per
 node through `SolvedPoses.fault` rather than raised. It inspects no
 geometry except each mated part's own extent — an upper bound taken
 from its evaluated body, which is why it crosses the same `resolver=`
@@ -611,9 +651,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -683,7 +723,7 @@ assert all(solved.fault(n) is None for n in (post_a, shelf_i, post_b, *mates))
 # contact declaration is `Declaring`.
 assert [solved.role(mate) for mate in mates] == [MateRole.Determining] * 2
 
-# The gauge's relative pose is the identity, bit-exactly, so its
+# The root's relative pose is the identity, bit-exactly, so its
 # world placement is its recorded frame verbatim...
 assert solved.placement(stand, post_a).origin == stand.placement(post_a).origin
 # ...and the other two are composed outward along the mate tree,
@@ -760,9 +800,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -959,9 +999,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -1075,9 +1115,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -1143,9 +1183,12 @@ is one node whose placements are a rule; a mate names an instance. The
 bench's flat-pack layout and its assembled stand are two documents for
 this reason, not one.
 
-**A mate frame is not minted from a face** (issue #944). You select
-the face for the reference and *author* the frame separately, and
-nothing checks that the two agree — which is why the gate exists, and
+**A face frame gives up two things authored vectors keep.** Its roll
+is the carrier's own reference, so it cannot turn a mate about its
+axis; and it resolves on the nominal lane only, so sensitivities and
+certified clearance refuse an assembly that holds one. An authored
+frame keeps both, and pays for them the old way: nothing checks it
+against the faces the mate names, which is why the gate exists, and
 why a mate that solves is not yet a mate that certifies.
 
 **A mate is a product root.** Roots are the live nodes nothing else

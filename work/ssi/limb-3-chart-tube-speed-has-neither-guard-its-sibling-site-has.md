@@ -2,11 +2,14 @@
 id: limb-3-chart-tube-speed-has-neither-guard-its-sibling-site-has
 kind: issue
 title: limb 3's chart tube divides by a chart speed with neither the zero nor the non-finite guard plane_nurbs_ssi refuses on, and both collapses certify silently instead of refusing
-status: open
+status: closed
 opened: 2026-09-15
 refs: [ssi-tube-pad-folds-both-axes-by-max-speed-where-limb-3-proved-per-axis]
 priority: P0
 cost: E
+closed: 2026-10-01
+pr: 3683
+branch: ssi/chart-tube
 ---
 
 
@@ -92,3 +95,12 @@ zero case as ending at `SsiError::TubeProbeSilent`; two independent
 reviews of that PR ran it and found the ladder answers instead, and the
 mechanism above is what execution shows. `ssi*` is TRIM's ground behind
 PCURVE P-2 per PROPS' and BOOL's `keep_out`.
+
+## Design (2026-10-01)
+
+Decided with three sibling rows; the spec is the "Design" section of
+`ssi-chart-speed-usability-boundary`.
+
+## Closed (2026-10-01, PR 3683)
+
+The chart speed is minted once per axis (`NurbsBoxes::chart_speeds`, which refuses zero or non-finite by axis) at every door, and limb 3's NaN closure is gone. The certificate records `SsiTube::Chart { rung, pad_u, pad_v }`, and one `chart_tube_windows` builds the probe's and the accounting's windows, so the region banked is the region proved. Review was a single FULL review with one fix pass.

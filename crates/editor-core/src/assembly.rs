@@ -147,13 +147,9 @@ impl Route {
 // each instance below it.
 impl core::fmt::Display for Route {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "document {} through instance {}",
-            self.of, self.through.0
-        )?;
+        write!(f, "document {} through instance {}", self.of, self.through)?;
         for node in &self.via {
-            write!(f, " → instance {}", node.0)?;
+            write!(f, " → instance {}", node)?;
         }
         Ok(())
     }
@@ -429,7 +425,7 @@ impl core::fmt::Display for Attribution {
                 write!(
                     f,
                     "mate {}'s declared {} contact, {}",
-                    m.mate.0,
+                    m.mate,
                     m.class.name(),
                     relation.name()
                 )
@@ -566,7 +562,7 @@ impl core::fmt::Display for MintRefusal {
             } => write!(
                 f,
                 "mate {}'s {} reference ({} {name}) does not name a face of the product: {why}",
-                mate.0,
+                mate,
                 side.name(),
                 name.kind.article(),
             ),
@@ -574,7 +570,7 @@ impl core::fmt::Display for MintRefusal {
                 f,
                 "mate {}'s class {} has no at-rest kernel record — {why}; the record is \
                  not minted with an invented witness — {NO_AT_REST_RECORD_RECOURSE}",
-                mate.0,
+                mate,
                 class.name()
             ),
         }
@@ -697,7 +693,7 @@ impl core::fmt::Display for RefusedRef {
                 f,
                 "it is read at node {}, which is not a root of the product, and a reference \
                  resolves against a root's own rows",
-                at.0
+                at
             ),
             Self::Ambiguous { width } => write!(
                 f,
@@ -1418,6 +1414,7 @@ fn attribute(
         | ValidationError::NullScaffoldShared { .. }
         | ValidationError::LeakedNullFaceRecord { .. }
         | ValidationError::StaleNullFaceLoop { .. }
+        | ValidationError::StaleNullFaceOwnership { .. }
         | ValidationError::NullEdgeAtRest { .. }
         | ValidationError::NullFaceAtRest { .. } => Attribution::Unattributed,
     }

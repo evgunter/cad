@@ -156,11 +156,11 @@ fn the_minted_wall_and_cap_images_certify_with_a_zero_envelope() {
 ///
 /// - `η = 0.8·ε/(R + r)` is INSIDE check 1's window, so check 1 admits it and
 ///   the refusal comes from check 4 — the envelope, where the drift
-///   this gate admitted is priced. Under the retired `over_lever`
-///   door the window was `|η| ≤ ε·(R + r) ≈ 1.6e-10` and this same
-///   input refused at check 1 as `UnsupportedCarrier`, 37× early.
+///   this gate admitted is priced. A window of `ε·(R + r)` (the
+///   `over_lever` door) would refuse this input at check 1, 37× early.
 /// - `η = 50·ε/(R + r)` is past the escalation threshold either way
-///   and refuses `UnsupportedCarrier`.
+///   and refuses at check 1: a sense that is not a unit sign is not
+///   the carrier's image (`ImageMismatch`).
 ///
 /// And the price itself is the second half of the fix: the envelope's
 /// `sense` term carries BOTH channels. `v` moves by `η·reach` at
@@ -185,13 +185,12 @@ fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
     // Just inside: admitted by check 1, and refused DOWNSTREAM of it
     // — by the schedule or the envelope, both of which price the
     // displacement `η` buys. What the row pins is which check did NOT
-    // answer: `UnsupportedCarrier` is check 1's refusal, and under the
-    // retired `over_lever` door that is exactly what this input got,
-    // 37× early.
+    // answer: `ImageMismatch` is check 1's refusal, which an
+    // `over_lever` window would have given this input, 37× early.
     let e = certify(wall(1.0 + 0.8 * window, 0.0), &torus(), band())
         .expect_err("a drift this size is a displacement over eps");
     assert!(
-        !matches!(e, PcurveCertifyError::UnsupportedCarrier),
+        !matches!(e, PcurveCertifyError::ImageMismatch { .. }),
         "check 1 must ADMIT a residue inside its own levered window; got {e:?}"
     );
     assert!(
@@ -224,7 +223,16 @@ fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
     // Outside both windows.
     let e = certify(wall(1.0 + 50.0 * window, 0.0), &torus(), band())
         .expect_err("a definite sense residue is not a unit sign");
-    assert!(matches!(e, PcurveCertifyError::UnsupportedCarrier), "{e:?}");
+    assert!(
+        matches!(
+            e,
+            PcurveCertifyError::ImageMismatch {
+                image: geom_brep::PcurveKind::Spiric,
+                ..
+            }
+        ),
+        "{e:?}"
+    );
 }
 
 /// **The identity's other premise: the chart IS the carrier's torus.**
@@ -238,7 +246,9 @@ fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
 /// The author's choice between the adjudication's two options is
 /// taken here and stated: a drift the band ADMITS certifies with a
 /// NONZERO envelope (the number is the honest one), and a drift the
-/// band calls definite refuses `UnsupportedCarrier`.
+/// band calls definite refuses `CarrierOffChart` — a non-circular
+/// spiric oval lies on no torus but its own and its mirror's
+/// ([`the_mirror_torus_holds_the_oval_and_is_uncovered`]).
 #[test]
 fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
     let drifted = |f: &dyn Fn(&mut Surface<f64>)| {
@@ -341,7 +351,7 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
     ] {
         let e = certify(wall(1.0, 0.0), &surface, band()).unwrap_err_or_else_msg(what);
         assert!(
-            matches!(e, PcurveCertifyError::UnsupportedCarrier),
+            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
             "{what}: {e:?}"
         );
     }
@@ -487,7 +497,7 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     ] {
         let e = geom_brep::chart_pcurve(&c, &surface, band()).unwrap_err_or_else_msg(what);
         assert!(
-            matches!(e, PcurveCertifyError::UnsupportedCarrier),
+            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
             "{what}: {e:?}"
         );
     }
@@ -503,5 +513,89 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     };
     let e = geom_brep::chart_pcurve(&c, &perpendicular, band())
         .unwrap_err_or_else_msg("perpendicular torus");
-    assert!(matches!(e, PcurveCertifyError::UnsupportedCarrier), "{e:?}");
+    assert!(
+        matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+        "{e:?}"
+    );
+}
+
+/// **The one foreign torus that holds the oval.** Reflecting the
+/// carrier's torus through the cutting plane (centre moved `2·D` along
+/// the plane normal) leaves the section unchanged, so the oval lies on
+/// that MIRROR torus — measured here at every sample — while the wall
+/// image, which maps through the carrier's own torus, does not apply.
+/// The pair is uncovered, not off the chart.
+#[test]
+fn the_mirror_torus_holds_the_oval_and_is_uncovered() {
+    let mirror = Surface::Torus {
+        center: Point3::new(2.0 * D, 0.0, 0.0),
+        axis: Vec3::unit_y(),
+        major_radius: R,
+        minor_radius: RR,
+        u_ref: Vec3::unit_x(),
+    };
+    let c = carrier();
+    for k in 0..16 {
+        let p = c.eval(T0 + (T1 - T0) * f64::from(k) / 15.0);
+        // The mirror torus's implicit form, about (2D, 0, 0) and +y.
+        let (x, y, z) = (p.x - 2.0 * D, p.y, p.z);
+        let rho = x.hypot(z);
+        let implicit = (rho - R).powi(2) + y * y - RR * RR;
+        assert!(implicit.abs() < 1e-14, "on the mirror torus: {implicit:e}");
+    }
+    let e = geom_brep::chart_pcurve(&c, &mirror, band())
+        .and_then(|p| certify(p, &mirror, band()))
+        .unwrap_err_or_else_msg("mirror torus");
+    assert!(
+        matches!(
+            e,
+            PcurveCertifyError::UnsupportedCarrier {
+                chart: geom_brep::SurfaceKind::Torus,
+                carrier: geom_brep::CurveKind::Spiric,
+                class: geom_brep::UncoveredClass::MirrorTorusSpiric,
+            }
+        ),
+        "{e:?}"
+    );
+}
+
+/// **A zero-offset spiric is a circle**, the torus's meridian, and a
+/// circle lies on charts the spiric lane has no route for: a sphere
+/// centred on it, of its radius, holds it — measured here — so the
+/// pair is uncovered rather than off the chart.
+#[test]
+fn a_zero_offset_spiric_off_its_torus_is_uncovered() {
+    let meridian = Curve3::Spiric {
+        center: Point3::origin(),
+        axis: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+        major_radius: R,
+        minor_radius: RR,
+        offset: 0.0,
+    };
+    // `m = axis × u_ref = −z`: the oval is the meridian circle centred
+    // at `−R·z`, radius `r`.
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, -R),
+        radius: RR,
+        axis: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    for k in 0..16 {
+        let p = meridian.eval(f64::from(k) * core::f64::consts::TAU / 16.0);
+        let d = (p - Point3::new(0.0, 0.0, -R)).norm() - RR;
+        assert!(d.abs() < 1e-14, "on the sphere: {d:e}");
+    }
+    let e = geom_brep::chart_pcurve(&meridian, &sphere, band())
+        .unwrap_err_or_else_msg("zero-offset spiric on a sphere");
+    assert!(
+        matches!(
+            e,
+            PcurveCertifyError::UnsupportedCarrier {
+                class: geom_brep::UncoveredClass::ZeroOffsetSpiric,
+                ..
+            }
+        ),
+        "{e:?}"
+    );
 }

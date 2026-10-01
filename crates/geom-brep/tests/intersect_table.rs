@@ -835,22 +835,22 @@ fn declared_coaxial_tangency_is_classification_data_at_both_doors() {
         // beside it; `CertificateLimb` is not a tangency door at all —
         // it is a certificate limb failing — so accepting it would
         // have let the consistency claim green on a refusal that says
-        // nothing about tangency. Measured payload at this pose:
-        // `sin θ = 0`, `arm = 1`, `σ₂ = 0` — a transversality that is
-        // exactly, not nearly, dead.
+        // nothing about tangency. The payload is the pair's own gap
+        // from the tangent pose, decided zero to tolerance.
         let err = geom_brep::ssi::cylinder_sphere_ssi(&cyl, &sph, domain, band())
             .expect_err("the marcher must refuse a tangency");
-        let geom_brep::ssi::SsiError::TransversalityBand {
-            sin_theta,
-            arm,
-            sigma_min,
+        let geom_brep::ssi::SsiError::PairTangent {
+            verdict: geom_brep::recourse::Refused::Zero(classified),
         } = err
         else {
             panic!("{label}: expected the SSI's TANGENCY door, got {err:?}");
         };
-        assert_eq!(sin_theta, 0.0, "{label}");
-        assert_eq!(arm, 1.0, "{label}");
-        assert_eq!(sigma_min, 0.0, "{label}");
+        let geom_core::ErrorTextReading::Value(gap) =
+            classified.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("{label}: the gap is a value: {classified:?}");
+        };
+        assert_eq!(gap, 0.0, "{label}: the coaxial pose is tangent exactly");
     }
 }
 
@@ -2503,8 +2503,16 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
     ] {
         let err = cone_cylinder_section(cone, &cyl, 1.0, band())
             .expect_err("an in-band guard must escalate");
-        let SectionError::Escalated(diag) = err else {
-            panic!("{what}: expected escalation, got {err:?}");
+        // The radius guard names whose radius it read; the aperture
+        // guards escalate untyped
+        // (`work/issues/section-arm-guards-escalate-untyped-and-certify-reads-the-dihedral-arm-as-transversality.md`).
+        let diag = match err {
+            SectionError::RadiusEscalated {
+                radius: geom_brep::SectionRadius::Cylinder,
+                diag,
+            } if what == "radius" => diag,
+            SectionError::Escalated(diag) if what != "radius" => diag,
+            _ => panic!("{what}: expected its escalation, got {err:?}"),
         };
         assert_eq!(diag.predicate, Some(predicate), "{what}");
     }

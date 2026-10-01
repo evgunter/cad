@@ -95,7 +95,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 #[path = "common/census.rs"]
 mod census;
@@ -105,7 +105,7 @@ use pncad::topo::{Body, ReplaceFaceError, ShellError};
 /// Every fixture's mouth plane.
 const TOP: f64 = 8.0 / 64.0;
 
-fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
+fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
         RevolveAxis {
@@ -119,7 +119,7 @@ fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     .body
 }
 
-fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
+fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the footprint validates"),
         Extrusion::Distance(h),

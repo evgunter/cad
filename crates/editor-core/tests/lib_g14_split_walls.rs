@@ -13,20 +13,22 @@
 //! PROPAGATE, in both directions off the survey's measured fixture:
 //! split-over-a-tied-boolean, and boolean-over-a-tied-boolean.
 //!
-//! **Wall A (A2)** — `RoleSeg::SectionEdge{side, face}` names a chord
+//! **Wall A** — `RoleSeg::SectionEdge{side, face}` names a chord
 //! only by the operand face it crosses, so a section line that enters
 //! one face TWICE would mint one name twice. It refused, on scenes
 //! with no boolean anywhere (a plain L-shaped single-loop extrude cut
-//! across both legs). Those chords now become one N2 TIE.
+//! across both legs). Those chords are pieces of one parent now, each
+//! named by its ends (N2's `Ends`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use test_utils::refusal::tagged;
 
 use editor_core::{
     BooleanOp, CancelToken, Cmp, CurveKind, CurveKindSet, Datum, EntityKind, Entry, EvalOptions,
     Evaluation, GeomPred, NamePat, NameTable, NamingError, Node, NodeErrorKind, ParamEnv,
-    ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, SelectRefusal, Selector, SplitHalf,
-    StableName, evaluate, select, select_where,
+    ProfileDoc, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector, StableName, evaluate, select,
+    select_where,
 };
 
 // `table` panics on a node with no value rather than answering `None`,
@@ -247,11 +249,12 @@ fn a_tie_with_one_surviving_candidate_narrows_back_to_unique() {
 /// Ties are a candidate LIST, so their order is a determinism risk
 /// that unique names do not carry. `insert_tied` sorts and dedups and
 /// every table on the path is a `BTreeMap`; this pins that end to end,
-/// over both a propagated tie (B1) and a minted one (A2).
+/// over a propagated tie (B1), and over chords told apart by their
+/// ends.
 ///
 /// Adopted from the review's `probe_naming_is_deterministic_across_runs`.
 #[test]
-fn tie_bearing_name_tables_are_identical_across_evaluations() {
+fn tied_and_end_qualified_name_tables_are_identical_across_evaluations() {
     let builds: [fn() -> (ProfileDoc, RecipeNodeId); 2] = [
         || {
             let (doc, _, n) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
@@ -264,21 +267,21 @@ fn tie_bearing_name_tables_are_identical_across_evaluations() {
             (doc, split)
         },
     ];
-    for build in builds {
+    for (build, exercises) in builds.into_iter().zip(["Ends", "Tied"]) {
         let (doc, n) = build();
         let a = format!("{:?}", table(&run(&doc), n));
         let b = format!("{:?}", table(&run(&doc), n));
         assert_eq!(a, b, "naming differed across two evaluations");
-        assert!(a.contains("Tied"), "fixture should exercise ties");
+        assert!(a.contains(exercises), "fixture should exercise {exercises}");
     }
 }
 
-// ---- Wall A (A2): two chords across one operand face TIE. ----
+// ---- Wall A: two chords across one operand face, by their ends. ----
 
 /// The survey's boolean-free repro. An L-shaped SINGLE-loop extrude
 /// (no hole, no boolean anywhere in the document) cut by a vertical
 /// plane that crosses both legs: each CAP face takes TWO section
-/// chords, which `SectionEdge{side, face}` can only spell once.
+/// chords, which `SectionEdge{side, face}` alone spells once.
 fn l_split(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // L in xy: [0,3]×[0,1] ∪ [0,1]×[1,3], extruded z ∈ [0,1].
     let (doc, ext) = prism(
@@ -302,80 +305,64 @@ fn l_split(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 }
 
 #[test]
-fn l_shaped_extrude_cut_across_both_legs_names_with_tied_chords() {
+fn l_shaped_extrude_cut_across_both_legs_names_its_chords_by_their_ends() {
     let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let ev = run(&doc);
     let t = table(&ev, split);
     // The wall was here: this document has no boolean at all, so the
     // refusal it used to raise had nothing to do with provenance.
-    let chords: Vec<(&StableName, &Entry)> = t
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::SectionEdge { .. })))
-        .collect();
-    assert!(!chords.is_empty(), "no section chords named at all");
-    let tied: Vec<&StableName> = chords
-        .iter()
-        .filter(|(_, e)| matches!(e, Entry::Tied(_)))
-        .map(|(n, _)| *n)
-        .collect();
-    assert!(
-        !tied.is_empty(),
-        "a cap face crossed twice should mint ONE tied SectionEdge, got: {:?}",
-        chords.iter().map(|(n, _)| *n).collect::<Vec<_>>()
-    );
-    for n in &tied {
-        let Some(Entry::Tied(c)) = t.lookup(n) else {
-            panic!("tie lost")
+    let mut by_parent: std::collections::BTreeMap<RoleSeg, Vec<&StableName>> =
+        std::collections::BTreeMap::new();
+    for (n, e) in t.iter() {
+        let Some(head @ RoleSeg::SectionEdge { .. }) = n.path.first() else {
+            continue;
         };
-        assert_eq!(c.len(), 2, "a cap takes exactly two chords: {n:?}");
+        assert!(matches!(e, Entry::Unique(_)), "a chord ties: {n:?} {e:?}");
         assert_eq!(n.kind, EntityKind::Edge);
-        // The tie is per (face, SIDE) — the side is in the name.
-        assert!(matches!(
-            n.path.first(),
-            Some(RoleSeg::SectionEdge { side, .. })
-                if *side == SplitHalf::Above || *side == SplitHalf::Below
-        ));
+        by_parent.entry(head.clone()).or_default().push(n);
+    }
+    assert!(!by_parent.is_empty(), "no section chords named at all");
+    // Each cap, on each side, takes exactly two chords, each its own
+    // name by its ends.
+    let twice: Vec<_> = by_parent.values().filter(|ns| ns.len() > 1).collect();
+    assert_eq!(twice.len(), 4, "two caps a side: {by_parent:#?}");
+    for ns in twice {
+        assert_eq!(ns.len(), 2, "a cap takes exactly two chords: {ns:?}");
+        for n in ns {
+            assert!(
+                matches!(
+                    n.path.as_slice(),
+                    [_, RoleSeg::Fragment(editor_core::Qualifier::Ends(ends))] if ends.len() == 2
+                ),
+                "a chord of two is named by its ends: {n:?}"
+            );
+        }
     }
 }
 
-/// Reachability of the tied chords through the SELECTOR layer, as A2's
-/// ratified text asks — MEASURED, not assumed.
-///
-/// What holds: the tied name is in the selectable corpus (`select`
-/// returns it), and an exact geometric atom every candidate satisfies
-/// keeps it (`select_where` with `curve_kind(Line)`), so the tie is a
-/// first-class query result and not a hole.
-///
-/// What does NOT hold (REPORTED, LIB-G14 finding 3): `select_where`
-/// cannot narrow a tie to ONE of its candidates. Its GS-Q4 rule is
-/// all-or-nothing per NAME — mixed candidates are
-/// `SelectRefusal::TiedDisagrees`, by design, because a filter that
-/// half-selected a name would lie in one direction or the other.
-/// Picking a specific chord needs a per-candidate narrowing door in
-/// the SEL layer, which does not exist today. The second half of this
-/// row EXECUTES that escalation rather than asserting it in prose
-/// (adopted from the review's `probe_select_where_cannot_narrow_the_
-/// a2_tie`), which also settles the useful half of the question: the
-/// atom set CAN tell the two cap chords apart — that is precisely why
-/// it escalates — so a SEL narrowing door, when built, would have
-/// signal to work with (review NOTE-3).
+/// The chords are reachable through the SELECTOR layer one by one: each
+/// is its own name, so a decided atom that tells the two cap chords
+/// apart narrows to the ones it keeps rather than escalating over a
+/// tie.
 #[test]
-fn the_tied_chords_are_reachable_through_the_selector_layer() {
+fn the_chords_are_reachable_one_by_one_through_the_selector_layer() {
     let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let ev = run(&doc);
     let params = ParamEnv::default();
-    let sel =
-        Selector::of(NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::SectionEdge)));
+    // The chords of a cap crossed twice: `[SectionEdge, Fragment(Ends)]`.
+    let sel = Selector::of(NamePat::of_kind(EntityKind::Edge).path([
+        SegPat::tag(SegTag::SectionEdge),
+        SegPat::tag(SegTag::Fragment),
+    ]));
     let plain = select(&ev, split, &sel);
-    assert!(!plain.is_empty(), "no SectionEdge name is selectable");
+    assert_eq!(plain.len(), 8, "two chords a cap a side: {plain:?}");
     let t = table(&ev, split);
     assert!(
-        plain.iter().any(|n| t.is_tied(n)),
-        "the tied chord name is not in the selectable corpus"
+        plain.iter().all(|n| !t.is_tied(n)),
+        "a chord name is tied: {plain:?}"
     );
     // Every chord of a polygonal prism cut by a plane is a line, so
-    // the exact atom keeps the whole corpus — ties included, in one
-    // piece.
+    // the exact atom keeps the whole corpus.
     let lines = select_where(
         &ev,
         split,
@@ -387,11 +374,11 @@ fn the_tied_chords_are_reachable_through_the_selector_layer() {
     .expect("an exact atom never refuses");
     assert_eq!(lines, plain, "the exact atom dropped a chord");
 
-    // A DECIDED atom that separates the two cap chords: the tie must
-    // ESCALATE, naming itself and its split, never half-select.
+    // A DECIDED atom that separates the two cap chords keeps some and
+    // drops the others.
     let (doc, datum) = plane(doc, [1.25, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let ev = run(&doc);
-    let refusal = select_where(
+    let far = select_where(
         &ev,
         split,
         &sel,
@@ -403,20 +390,11 @@ fn the_tied_chords_are_reachable_through_the_selector_layer() {
         &params,
         Tol::witness(),
     )
-    .expect_err("a separating atom over a tie must refuse, not narrow");
-    let SelectRefusal::TiedDisagrees {
-        name,
-        matched,
-        candidates,
-    } = refusal
-    else {
-        panic!("expected TiedDisagrees, got {refusal:?}");
-    };
-    assert_eq!((matched, candidates), (1, 2));
-    assert!(matches!(
-        name.path.first(),
-        Some(RoleSeg::SectionEdge { .. })
-    ));
+    .expect("a separating atom over names that do not tie narrows");
+    assert!(
+        !far.is_empty() && far.len() < plain.len(),
+        "the atom keeps some chords and drops others: {far:?} of {plain:?}"
+    );
 }
 
 /// The retired refusal, from the outside: the L-split's chain names
@@ -464,7 +442,7 @@ fn node_level_prose_carries_the_emitter_payload() {
     assert!(s.contains("edge") && s.contains('1'), "{s}");
 
     let s = carried(NamingError::MissingUpstream {
-        node: RecipeNodeId(7),
+        node: RecipeNodeId(tagged(7)),
     });
     assert!(s.contains('7'), "{s}");
 

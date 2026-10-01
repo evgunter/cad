@@ -85,11 +85,7 @@ fn in_part_in_part(
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 /// A `Rest` mate declaring `a`'s TOP face against `b`'s BOTTOM face,
@@ -797,8 +793,9 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
             );
             let rendered = AssemblyError::Mint { refusals }.to_string();
             assert!(
-                rendered.contains(&format!("mate {}", first_bad.0))
-                    && rendered.contains(&format!("mate {}", second_bad.0)),
+                rendered.contains(&format!("mate {}", test_utils::refusal::tag(first_bad.0)))
+                    && rendered
+                        .contains(&format!("mate {}", test_utils::refusal::tag(second_bad.0))),
                 "and both are in the one message: {rendered:?}"
             );
         }

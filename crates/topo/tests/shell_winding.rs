@@ -68,7 +68,7 @@ fn shells_of(body: &Body<f64>, solid: SolidKey, role: ShellRole) -> Vec<ShellKey
 /// that solid rather than minting their own.
 fn graft_onto(dst: &mut Body<f64>, target: SolidKey, src: &Body<f64>) {
     let targets = vec![target; src.solids().count()];
-    topo::graft_disjoint_all_onto_keyed(dst, &targets, src, tol()).expect("the graft");
+    topo::graft_disjoint_all_onto_keyed(dst, &targets, src).expect("the graft");
 }
 
 fn positive_total(body: &Body<f64>) {

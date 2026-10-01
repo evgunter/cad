@@ -225,7 +225,7 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
         &carrier,
         Some(&bad),
         &SsiOperand::Analytic(&p),
-        &SsiOperand::Nurbs(&w),
+        &SsiOperand::nurbs(&w).expect("the wall's chart speeds mint"),
         TubeScale::uniform(1.5),
         band(),
     )
@@ -277,6 +277,7 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
             match e {
                 SsiError::CertificateLimb { .. }
                 | SsiError::Escalated(_)
+                | SsiError::CertificateEscalated { .. }
                 | SsiError::FitSampleBudget { .. }
                 | SsiError::ExhaustivenessInconclusive(_) => {}
                 other => panic!("unexpected refusal shape: {other}"),

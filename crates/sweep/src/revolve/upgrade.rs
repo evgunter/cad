@@ -9,8 +9,8 @@
 
 use geom::Curve3;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryVerdict, classify_dihedral,
-    edge_extent, must_carry_over_edge,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal,
+    classify_dihedral, edge_extent, must_carry_over_edge,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
@@ -57,7 +57,7 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
         })?;
     let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
-    let witness = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
+    let witness = curve.mid_point();
     let he_plus = edge_rec.he_plus;
     let start = body
         .get_half_edge(he_plus)
@@ -140,6 +140,20 @@ pub(super) fn upgrade_intersection<T: Decide>(
         // predicate at the same stations, so the demanded set and the
         // stored set stay one set.
         Ok(DihedralClass::Smooth) => {
+            // In-band: near-osculating geometry, certifiable as
+            // neither intrinsic nor conventional. A conventional
+            // description is not an escape hatch from ill-conditioned
+            // geometry (D2), so the escalation is typed through the
+            // caller's own `sliver` (D4 ¶3) — the same answer the
+            // transverse arm's `Err` below gives, and the same one the
+            // extrude strut gives. A station that reads the join a
+            // corner where the witness read it smooth refutes this
+            // arm's premise, and the edge refuses rather than store a
+            // description neither reading chose.
+            let refused = |refusal| match refusal {
+                MustCarryRefusal::InBand(source) => sliver(source),
+                MustCarryRefusal::Refuted => RevolveError::SmoothJoinRefuted { edge },
+            };
             match must_carry_over_edge(
                 &surf1,
                 &surf2,
@@ -148,21 +162,20 @@ pub(super) fn upgrade_intersection<T: Decide>(
                 data.t1,
                 data.extent,
                 band,
-            ) {
-                MustCarryVerdict::JetDeterminate => {
+            )
+            .description(s1, s2, data.witness)
+            .map_err(refused)?
+            {
+                MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {
-                        description: EdgeDescriptionSpec::TangentIntersection {
-                            s1,
-                            s2,
-                            witness: data.witness,
-                        },
+                        description,
                         carrier: data.carrier,
                         param_start: data.t0,
                         param_end: data.t1,
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                MustCarryVerdict::UnderDetermined => {
+                MustCarryDescription::Conventional => {
                     // The surfaces UNDER-determine the locus, so the
                     // description stays CONVENTIONAL — but the edge is
                     // at rest between two faces now, so it says where
@@ -173,25 +186,10 @@ pub(super) fn upgrade_intersection<T: Decide>(
                     // prefer-intrinsic reading unchanged.
                     body.describe_at_rest(edge, s1, tol)?;
                 }
-                // In-band: near-osculating geometry, certifiable as
-                // neither intrinsic nor conventional. A conventional
-                // description is not an escape hatch from
-                // ill-conditioned geometry (D2), so the escalation is
-                // typed through the caller's own `sliver` (D4 ¶3) —
-                // the same answer the transverse arm's `Err` below
-                // gives, and the same one the extrude strut gives.
-                MustCarryVerdict::InBand(source) => return Err(sliver(source)),
-                // A station reads the join a corner where the witness
-                // read it smooth: this arm's premise is refuted, and
-                // the edge refuses rather than store a description
-                // neither reading chose.
-                MustCarryVerdict::Transverse => {
-                    return Err(RevolveError::SmoothJoinRefuted { edge });
-                }
             }
             Ok(())
         }
-        Err(source) => Err(sliver(source)),
+        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(sliver(source)),
     }
 }
 

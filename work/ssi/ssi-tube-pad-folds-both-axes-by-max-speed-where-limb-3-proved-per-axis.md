@@ -2,11 +2,13 @@
 id: ssi-tube-pad-folds-both-axes-by-max-speed-where-limb-3-proved-per-axis
 kind: issue
 title: plane_nurbs_ssi pads its uniqueness tubes by max(su, sv) on both chart axes where limb 3 proved a per-axis pad, and the comment says they are the same region
-status: open
+status: closed
 opened: 2026-09-12
 priority: P1
-cost: H
-design: true
+cost: M
+closed: 2026-10-01
+pr: 3683
+branch: ssi/chart-tube
 ---
 
 
@@ -29,3 +31,12 @@ with, which `SsiCertificate` currently does not store — every consumer
 re-derives the speed) or the sentence says "a subset of". Found by the
 SCALAR rate census, 2026-09-12; `ssi*` is TRIM's ground per PROPS'
 `keep_out`.
+
+## Design (2026-10-01)
+
+Decided with three sibling rows; the spec is the "Design" section of
+`ssi-chart-speed-usability-boundary`.
+
+## Closed (2026-10-01, PR 3683)
+
+The chart speed is minted once per axis (`NurbsBoxes::chart_speeds`, which refuses zero or non-finite by axis) at every door, and limb 3's NaN closure is gone. The certificate records `SsiTube::Chart { rung, pad_u, pad_v }`, and one `chart_tube_windows` builds the probe's and the accounting's windows, so the region banked is the region proved. Review was a single FULL review with one fix pass.

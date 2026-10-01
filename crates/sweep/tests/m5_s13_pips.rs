@@ -304,10 +304,9 @@ fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
     let b1 = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let b2 = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 1.9), Tol::witness());
     let err = topo::union(&b1, &b2, Tol::witness()).expect_err("no sphere×sphere seam lane");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+    let BooleanError::SpheresMeet { .. } = err else {
         panic!("expected the scan's typed refusal, got {err:?}");
     };
-    assert!(what.contains("sphere"), "{what}");
 }
 
 /// **The scan's TRIMMED-GROUP arm, and where it actually bites.** A pip

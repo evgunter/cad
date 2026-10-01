@@ -14,19 +14,19 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Expr, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
+    BooleanOp, Dimension, DimensionError, Doc, Expr, Label, LabelFault, LoopProgram, Maintenance,
+    Node, ParamName, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
 use pncad::profile::{Step, Target};
-use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 use pncad::select::SplitHalf;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
 use crate::forms::{DatumKindChoice, PartSelectChoice, PatternKindChoice, ShapeKind};
 use crate::history::HistoryId;
+use crate::props::Notation;
 use crate::seats::SeatError;
 use crate::session::{
     DatumSpec, DeclareOffer, FaceSelection, ProfilePlane, ProfileShape, SessionOp,
@@ -40,14 +40,14 @@ use crate::sketch::{self, HeldRefusal};
 /// abandoned by selecting elsewhere leaves nothing behind.
 #[derive(Debug)]
 pub(crate) struct Drafts {
-    /// The View pane's δ field, in millimetres AS TYPED: `Some` only
+    /// The View pane's δ field, in the working length unit AS TYPED: `Some` only
     /// once a keystroke has landed in it, and only while it holds the
     /// focus that keystroke arrived under. `None` otherwise, so a
     /// field nobody has typed into shows the δ actually in force —
     /// including one the triangle budget chose after this field last
     /// committed — and has nothing of its own to commit when the focus
     /// leaves it.
-    pub(crate) delta_mm: Option<String>,
+    pub(crate) delta_text: Option<String>,
     /// The slot whose value field is holding REFUSED text.
     ///
     /// The field's text is egui's while it has focus and the
@@ -160,25 +160,6 @@ pub(crate) struct Drafts {
     /// about the face's outward normal. Opens at zero, the
     /// carrier's own u-reference.
     pub(crate) datum_spin: f64,
-    /// **The unit every creation form's LENGTH field is written in.**
-    ///
-    /// ONE choice for all the forms, not one per form. The panel's
-    /// pickers are per literal because a literal is a thing in a
-    /// document that remembers its own notation; a form's is a
-    /// statement about how the person at the keyboard is working, and
-    /// somebody who authors a datum in millimetres is not then
-    /// authoring the extrude that consumes it in metres. The drafts
-    /// behind the fields stay canonical either way ([`crate::widgets::unit_field`]),
-    /// so moving the picker re-writes what is on screen and changes
-    /// no value.
-    /// Not optional: an authored value always names the notation it is
-    /// written in (`quantity::written`'s module docs), so the field and
-    /// the picker beside it read one fact rather than each resolving an
-    /// absence its own way.
-    pub(crate) length_unit: LengthUnit,
-    /// The same for every ANGLE field. Defaults to half turns
-    /// (`pi rad`), the notation this editor says angles in.
-    pub(crate) angle_unit: AngleUnit,
     /// The add-profile form's shape choice — `None` until the user
     /// makes one.
     ///
@@ -272,6 +253,29 @@ pub(crate) struct Drafts {
     /// selected, and dropped the moment the selection leaves the node
     /// it was loaded from ([`Drafts::abandon_profile_edit_off`]).
     pub(crate) profile_edit: Option<ProfileEdit>,
+    /// **The rename field's text, as typed**, and the node it renames:
+    /// `Some` once a keystroke has landed, taken when the field
+    /// commits. `None` shows the label the node has.
+    pub(crate) label_text: Option<(RecipeNodeId, String)>,
+    /// **A create form's label, as typed**, by the kind noun the form
+    /// creates. A form nobody has typed into has no entry and shows
+    /// the proposal ([`crate::tree::proposed_label`]) for that moment;
+    /// the entry is taken when the form commits.
+    pub(crate) creation_labels: BTreeMap<&'static str, String>,
+}
+
+/// **A label field's text, as the document's label**: blank clears
+/// (`None`); anything else is held to the label rule.
+///
+/// # Errors
+///
+/// [`LabelFault`] for a text the rule refuses — one with a line break
+/// or another control character.
+pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    Label::new(text).map(Some)
 }
 
 /// **One value per door of the profile editor** — the add-profile
@@ -473,7 +477,7 @@ impl ProfileEdit {
         at: HistoryId,
         door: impl FnOnce(Vec<LoopProgram>, Vec<Vec<Option<StepId>>>) -> Vec<Maintenance>,
     ) -> &[Maintenance] {
-        let Ok(loops) = self.programs(sketch::Notation::CANONICAL) else {
+        let Ok(loops) = self.programs(Notation::CANONICAL) else {
             return &[];
         };
         let ids = self.ids();
@@ -506,7 +510,7 @@ impl ProfileEdit {
     /// [`sketch::loop_program`]'s: a non-finite field.
     pub(crate) fn programs(
         &self,
-        notation: sketch::Notation,
+        notation: Notation,
     ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
         sketch::loop_programs(&self.shapes(), notation)
     }
@@ -518,7 +522,7 @@ impl ProfileEdit {
     /// its refusal is said.
     pub(crate) fn moved(&self) -> bool {
         let untouched = self
-            .programs(sketch::Notation::CANONICAL)
+            .programs(Notation::CANONICAL)
             .is_ok_and(|loops| sketch::is_committed(&self.base, &loops, &self.ids()));
         !untouched
     }
@@ -601,7 +605,7 @@ impl Default for Drafts {
     fn default() -> Self {
         let (_, xy_u, xy_v) = ProfilePlane::xy_numbers();
         Self {
-            delta_mm: None,
+            delta_text: None,
             expr_target: None,
             expr_text: String::new(),
             new_param_name: String::new(),
@@ -628,8 +632,6 @@ impl Default for Drafts {
             datum_in_frame_direction: [0.0, 1.0],
             datum_face: None,
             datum_spin: 0.0,
-            length_unit: quantity::M,
-            angle_unit: quantity::PI,
             profile_shape: None,
             profile_path: vec![
                 Step::At(Point2::origin()),
@@ -667,6 +669,8 @@ impl Default for Drafts {
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
             profile_edit: None,
+            label_text: None,
+            creation_labels: BTreeMap::new(),
         }
     }
 }
@@ -746,6 +750,11 @@ impl Drafts {
     /// untouched again, and still open on the node, which is where the
     /// person is still working.
     pub(crate) fn accepted(&mut self, op: &SessionOp, minted: &[RecipeNodeId]) {
+        // A labelled creation settles the form its creation came from.
+        let op = match op {
+            SessionOp::CreateLabelled { creation, .. } => creation.op(),
+            op => op,
+        };
         let SessionOp::AddProfile { plane, .. } = op else {
             return;
         };
@@ -760,12 +769,31 @@ impl Drafts {
         }
     }
 
-    /// **The notation these forms are authoring in** — the two pickers,
-    /// as the lowering wants them.
-    pub(crate) fn notation(&self) -> sketch::Notation {
-        sketch::Notation {
-            length: self.length_unit,
-            angle: self.angle_unit,
+    /// **The rename field is showing `shown`'s label** (`None`: no
+    /// rename field is showing). A rename typed for any other node is
+    /// dropped, so it can neither reappear on a later visit nor commit
+    /// against a node it was not typed for.
+    pub(crate) fn rename_shown_for(&mut self, shown: Option<RecipeNodeId>) {
+        if self
+            .label_text
+            .as_ref()
+            .is_some_and(|(typed_for, _)| Some(*typed_for) != shown)
+        {
+            self.label_text = None;
+        }
+    }
+
+    /// **A creation landed**: the label its form held is spent, so the
+    /// next creation of that kind proposes afresh. The form is found by
+    /// the kind noun of the last node the action minted — the noun a
+    /// form's label field is keyed by, which is that node's kind
+    /// (`each_datum_choices_noun_is_the_kind_of_the_node_it_commits`,
+    /// `creation_nouns`). Called only for an op that committed, so a
+    /// refused creation keeps what was typed.
+    pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
+        if let Some(node) = minted.last().and_then(|id| doc.node(*id)) {
+            self.creation_labels
+                .remove(pncad::document::node_kind_noun(node));
         }
     }
 
@@ -802,7 +830,7 @@ impl Drafts {
             self.profile_edit = None;
             let loops = sketch::held_loops(doc, node)?;
             let Some(base) = current else {
-                unreachable!("`held_loops` loaded feature {} as a profile", node.0)
+                unreachable!("`held_loops` loaded node {} as a profile", node)
             };
             self.profile_edit = Some(ProfileEdit::load(node, base, loops));
         }
@@ -882,55 +910,18 @@ impl Drafts {
     }
 
     /// The loop PROGRAMS the add-profile form would author right now:
-    /// [`Drafts::profile_loops`] lowered in this form's notation, which
+    /// [`Drafts::profile_loops`] lowered in the working `notation`, which
     /// is what the op carries.
     ///
     /// # Errors
     ///
     /// A non-finite field, or a path that is not a program's shape
     /// ([`sketch::loop_program`]'s refusals).
-    pub(crate) fn profile_programs(&self) -> Result<Vec<LoopProgram>, RecordedProgramError> {
-        sketch::loop_programs(&self.profile_loops(), self.notation())
-    }
-
-    /// A `Length` literal from a draft field, remembering the form's
-    /// notation. The draft is already canonical — a picker re-writes
-    /// what is on screen and changes no value — so this attaches the
-    /// unit without applying it.
-    ///
-    /// # Errors
-    ///
-    /// A non-finite draft (the literal door's refusal).
-    pub(crate) fn length(&self, metres: f64) -> Result<Expr, DimensionError> {
-        Expr::written_length(WrittenLength::canonical_in(metres, self.length_unit))
-    }
-
-    /// An `Angle` literal from a draft field — [`Drafts::length`]'s
-    /// twin.
-    ///
-    /// # Errors
-    ///
-    /// A non-finite draft.
-    pub(crate) fn angle(&self, radians: f64) -> Result<Expr, DimensionError> {
-        Expr::written_angle(WrittenAngle::canonical_in(radians, self.angle_unit))
-    }
-
-    /// Three `Length` literals — a datum origin, a translation.
-    ///
-    /// # Errors
-    ///
-    /// A non-finite component.
-    pub(crate) fn lengths(&self, v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
-        Ok([self.length(v[0])?, self.length(v[1])?, self.length(v[2])?])
-    }
-
-    /// Two `Length` literals — a point in a sketch frame.
-    ///
-    /// # Errors
-    ///
-    /// A non-finite component.
-    pub(crate) fn lengths2(&self, p: Point2<f64>) -> Result<[Expr; 2], DimensionError> {
-        Ok([self.length(p.x)?, self.length(p.y)?])
+    pub(crate) fn profile_programs(
+        &self,
+        notation: Notation,
+    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+        sketch::loop_programs(&self.profile_loops(), notation)
     }
 
     /// **Another document replaced the one the held face was picked
@@ -976,19 +967,20 @@ impl Drafts {
     pub(crate) fn datum_spec(
         &self,
         face_seat: Option<&(RecipeNodeId, StableName)>,
+        notation: Notation,
     ) -> Result<Option<DatumSpec>, DimensionError> {
         Ok(Some(match self.datum_kind {
             DatumKindChoice::Plane => DatumSpec::Plane {
-                origin: self.lengths(self.datum_origin)?,
+                origin: notation.length_literals(self.datum_origin)?,
                 normal: scalars(self.datum_direction)?,
             },
             DatumKindChoice::Frame => DatumSpec::Frame {
-                origin: self.lengths(self.datum_origin)?,
+                origin: notation.length_literals(self.datum_origin)?,
                 u: scalars(self.datum_u)?,
                 v: scalars(self.datum_v)?,
             },
             DatumKindChoice::Axis => DatumSpec::Axis {
-                origin: self.lengths(self.datum_origin)?,
+                origin: notation.length_literals(self.datum_origin)?,
                 direction: scalars(self.datum_direction)?,
             },
             DatumKindChoice::AxisInPlane => {
@@ -997,7 +989,7 @@ impl Drafts {
                 };
                 DatumSpec::AxisInPlane {
                     plane,
-                    origin: self.lengths2(self.datum_in_frame_origin)?,
+                    origin: notation.point_literals(self.datum_in_frame_origin.to_array())?,
                     direction: scalars2(self.datum_in_frame_direction)?,
                 }
             }
@@ -1011,11 +1003,11 @@ impl Drafts {
                 DatumSpec::FaceFrame {
                     at: *at,
                     face: face.clone(),
-                    spin: self.angle(self.datum_spin)?,
+                    spin: notation.angle_literal(self.datum_spin)?,
                 }
             }
             DatumKindChoice::Point => DatumSpec::Point {
-                position: self.lengths(self.datum_origin)?,
+                position: notation.length_literals(self.datum_origin)?,
             },
         }))
     }
@@ -1102,6 +1094,7 @@ mod tests {
 
     use super::{Drafts, ProfileEdit, RowEdit};
     use crate::forms::{DatumKindChoice, ShapeKind};
+    use crate::props::Notation;
     use crate::seats::Seat;
     use crate::session::SessionOp;
     use crate::session::author::datum_node;
@@ -1128,7 +1121,7 @@ mod tests {
             ..Drafts::default()
         };
         let loops = drafts
-            .profile_programs()
+            .profile_programs(Notation::DEFAULT)
             .expect("the default circle lowers");
         drafts.accepted(
             &SessionOp::AddProfile {
@@ -1145,6 +1138,68 @@ mod tests {
         assert_eq!(drafts.profile_shape, None, "the shape still rests");
     }
 
+    /// A rename draft survives only while its own node's field shows.
+    #[test]
+    fn a_rename_draft_is_dropped_when_the_pane_moves_off_its_node() {
+        let (typed_for, other) = (RecipeNodeId(3), RecipeNodeId(4));
+        let mut drafts = Drafts {
+            label_text: Some((typed_for, "lid".to_owned())),
+            ..Drafts::default()
+        };
+        drafts.rename_shown_for(Some(typed_for));
+        assert!(drafts.label_text.is_some(), "kept while its node shows");
+        drafts.rename_shown_for(Some(other));
+        assert_eq!(drafts.label_text, None, "dropped on another node");
+        drafts.label_text = Some((typed_for, "lid".to_owned()));
+        drafts.rename_shown_for(None);
+        assert_eq!(drafts.label_text, None, "dropped with no node shown");
+    }
+
+    /// A labelled creation settles its form as the bare creation does,
+    /// and spends the label draft of the kind it minted — only once it
+    /// has landed, and only that kind's.
+    #[test]
+    fn a_landed_creation_spends_its_kinds_label_draft_and_settles_its_form() {
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("drafts-creation-landed", tol);
+        let (doc, frame) = inserted(&doc, xy_frame(), tol);
+        let mut drafts = Drafts {
+            profile_plane: Some(ProfilePlane::NewXy),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+        drafts
+            .creation_labels
+            .insert("Datum frame", "floor".to_owned());
+        drafts.creation_labels.insert("Extrude", "plate".to_owned());
+        let loops = drafts
+            .profile_programs(Notation::DEFAULT)
+            .expect("the default circle lowers");
+        let creation = crate::session::Creation::of(SessionOp::AddProfile {
+            plane: ProfilePlane::NewXy,
+            loops,
+        })
+        .expect("adding a profile creates a node");
+        drafts.accepted(
+            &SessionOp::CreateLabelled {
+                creation,
+                label: pncad::document::Label::new("sketch").expect("a label"),
+            },
+            &[frame],
+        );
+        assert_eq!(
+            drafts.profile_plane,
+            Some(ProfilePlane::Existing(frame)),
+            "the labelled add settles the form as the bare one does"
+        );
+        drafts.creation_landed(&doc, &[frame]);
+        assert_eq!(
+            drafts.creation_labels.keys().copied().collect::<Vec<_>>(),
+            vec!["Extrude"],
+            "the frame's draft is spent, the extrude's kept"
+        );
+    }
+
     /// An accepted add on an EXISTING frame leaves the pick where it
     /// was — the arm that must not follow the rule above, since the
     /// one id it minted is the profile.
@@ -1157,7 +1212,7 @@ mod tests {
             ..Drafts::default()
         };
         let loops = drafts
-            .profile_programs()
+            .profile_programs(Notation::DEFAULT)
             .expect("the default circle lowers");
         drafts.accepted(
             &SessionOp::AddProfile {
@@ -1189,7 +1244,7 @@ mod tests {
             ..Drafts::default()
         };
         let form = drafts
-            .datum_spec(None)
+            .datum_spec(None, Notation::DEFAULT)
             .expect("the default frame lowers")
             .expect("the frame kind needs no pick");
         let mint = ProfilePlane::world_xy().expect("the mint's own numbers lower");
@@ -1252,6 +1307,40 @@ mod tests {
         )
     }
 
+    /// **A datum choice's noun is the kind of the node it lowers to**:
+    /// the add-datum form's proposed label counts by
+    /// [`DatumKindChoice::noun`], so it has to be `node_kind_noun`'s
+    /// word for what the form commits.
+    #[test]
+    fn each_datum_choices_noun_is_the_kind_of_the_node_it_commits() {
+        for (datum_kind, _) in DatumKindChoice::ALL {
+            let spec = picked(datum_kind)
+                .datum_spec(Some(&seated()), Notation::DEFAULT)
+                .expect("the default drafts are finite")
+                .expect("every pick is filled");
+            assert_eq!(
+                pncad::document::node_kind_noun(&datum_node(spec)),
+                datum_kind.noun(),
+                "{datum_kind:?}"
+            );
+        }
+    }
+
+    /// Blank clears; a label is kept as typed; a text the rule refuses
+    /// is refused.
+    #[test]
+    fn a_label_field_reads_blank_as_clear_and_holds_the_rest_to_the_rule() {
+        assert_eq!(super::label_typed(" \t "), Ok(None));
+        assert_eq!(
+            super::label_typed(" lid ").map(|label| label.map(|l| l.as_str().to_owned())),
+            Ok(Some(" lid ".to_owned()))
+        );
+        assert!(matches!(
+            super::label_typed("a\u{7}b"),
+            Err(pncad::document::LabelFault::Control { at: 1, .. })
+        ));
+    }
+
     /// **Every seat a datum fills can be filled from the add-datum
     /// form.** Each choice the form offers is lowered from its default
     /// drafts, with a frame picked, and every datum seat must admit at
@@ -1267,7 +1356,7 @@ mod tests {
             .into_iter()
             .map(|(datum_kind, _)| {
                 let spec = picked(datum_kind)
-                    .datum_spec(Some(&seated()))
+                    .datum_spec(Some(&seated()), Notation::DEFAULT)
                     .expect("the default drafts are finite");
                 datum_node(spec.expect("every pick is filled"))
             })
@@ -1327,7 +1416,7 @@ mod tests {
         assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
 
         let loops = drafts
-            .profile_programs()
+            .profile_programs(Notation::DEFAULT)
             .expect("the default circle lowers");
         let (doc, profile) = inserted(
             &doc,
@@ -1392,7 +1481,7 @@ mod tests {
                 datum_kind: kind,
                 ..Drafts::default()
             };
-            let waiting = matches!(empty.datum_spec(None), Ok(None));
+            let waiting = matches!(empty.datum_spec(None, Notation::DEFAULT), Ok(None));
             assert_eq!(
                 waiting,
                 kind.unmet_seat().is_some(),
@@ -1402,7 +1491,10 @@ mod tests {
             // And a kind whose picks ARE filled lowers, so the
             // sentence is about the PICK and not about the kind.
             assert!(
-                matches!(picked(kind).datum_spec(Some(&seated())), Ok(Some(_))),
+                matches!(
+                    picked(kind).datum_spec(Some(&seated()), Notation::DEFAULT),
+                    Ok(Some(_))
+                ),
                 "the {label} kind lowers once its picks are filled",
             );
             if let Some(sentence) = kind.unmet_seat() {
@@ -1436,7 +1528,6 @@ mod tests {
         let drafts = Drafts {
             datum_kind: DatumKindChoice::FaceFrame,
             datum_spin: core::f64::consts::FRAC_PI_2,
-            angle_unit: pncad::quantity::DEG,
             ..picked(DatumKindChoice::FaceFrame)
         };
         let held = drafts.datum_face.clone().expect("the form holds a pick");
@@ -1445,7 +1536,13 @@ mod tests {
             at,
             face: name,
             spin,
-        })) = drafts.datum_spec(Some(&seat))
+        })) = drafts.datum_spec(
+            Some(&seat),
+            Notation {
+                angle: pncad::quantity::DEG,
+                ..Notation::DEFAULT
+            },
+        )
         else {
             panic!("a filled seat lowers");
         };
@@ -1479,7 +1576,9 @@ mod tests {
             profile_plane: Some(ProfilePlane::Existing(plane)),
             ..Drafts::default()
         };
-        let loops = drafts.profile_programs().expect("the default path lowers");
+        let loops = drafts
+            .profile_programs(Notation::DEFAULT)
+            .expect("the default path lowers");
         let node = Node::Profile(ProfileProgram {
             plane,
             loops,
@@ -1495,7 +1594,7 @@ mod tests {
     fn applied(
         doc: &Doc<ProfileProgram>,
         edit: &ProfileEdit,
-        notation: sketch::Notation,
+        notation: Notation,
     ) -> Doc<ProfileProgram> {
         let edit = DocEdit::SetProgram {
             node: edit.node,
@@ -1514,7 +1613,7 @@ mod tests {
     fn the_forms_profile_opens_untouched_and_would_write_nothing() {
         let (doc, mut drafts, profile) = authored_by_the_form();
         let authored = drafts.profile_loops();
-        let notation = drafts.notation();
+        let notation = Notation::DEFAULT;
         let edit = drafts
             .profile_edit(&doc, profile)
             .expect("the editor holds the form's profile");
@@ -1541,7 +1640,7 @@ mod tests {
     #[test]
     fn the_edit_draft_reloads_on_undo_and_is_abandoned_off_selection() {
         let (before, mut drafts, profile) = authored_by_the_form();
-        let notation = drafts.notation();
+        let notation = Notation::DEFAULT;
         let moved_to = Step::LineTo(Target::Point(Point2::new(0.02, 0.0)));
         let same_step = |a: Step<f64>, b: Step<f64>| {
             sketch::authors_same_loops(
@@ -1588,7 +1687,7 @@ mod tests {
         let loops = vec![
             sketch::loop_program(
                 &crate::session::ProfileShape::Path { steps },
-                sketch::Notation::CANONICAL,
+                Notation::CANONICAL,
             )
             .expect("finite"),
         ];

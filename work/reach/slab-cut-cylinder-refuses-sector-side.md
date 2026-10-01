@@ -43,6 +43,24 @@ member orders. Found by the obstacle-mechanism measurement (branch
 fixture `round_boss_slab`); it keeps the naming layer's curved dividers
 untested.
 
+## Evidence (2026-10-01, `reach-snowman`): a bar through a ball
+
+The sphere form reaches the same site. A square bar
+`brick((0.5, 2.0), (-0.3, 0.3), (-0.3, 0.3))` poking out of the unit
+ball (a full revolve about `y`) refuses `CurvedSectorSideUnsupported`
+under ∪, ∩ and ∖ once the crossing layer has a line × sphere root lane;
+before it, the same pair stopped at the pierce door. The variant's one
+raise is `sectors::side_code`'s `(_, Ok(_))` arm, so the sagitta charge
+`arm²/lever` (lever = the sphere's radius) swamped the first-order
+displacement at both the sector's arm and the reach's length. Pinned
+as `crates/sweep/tests/snowman.rs`,
+`a_bar_through_a_ball_crosses_the_sphere`. With the charge read at
+its peak (below) the bar's sector sides certify and every op stops at
+the pierce-ring door instead; the row now pins that door. The sibling
+`m5_s13_review_probes::probe_edge_escape_refuses_typed_before_the_scan`
+(a ball whose section circle crosses a slab face's edge) moved the same
+way, to the join's `SectionNotPolar`.
+
 ## Measured (REACH slab-cut lane, 2026-10-01)
 
 Both repros raise at `boolean::sectors::side_code`'s curvature charge,

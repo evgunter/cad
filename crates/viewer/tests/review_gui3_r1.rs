@@ -487,7 +487,13 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
                 );
                 assert_eq!(
                     message.as_deref(),
-                    Some(viewer::tree::downstream_wording(extrude).as_str()),
+                    Some(
+                        format!(
+                            "upstream failure at Extrude {} — that row carries the cause",
+                            test_utils::refusal::tag(extrude.0)
+                        )
+                        .as_str()
+                    ),
                     "and points the reader at that row rather than reciting its error"
                 );
             }

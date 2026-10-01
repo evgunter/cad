@@ -145,6 +145,23 @@ rows, the engraving pose) shared that cause is unmeasured; the
 engraving pose's "a ring in a line-bounded planar face joins" control
 is consistent with it.
 
+## Evidence (2026-10-01, PR 3659): a SPHERE face, the spun snowman
+
+Two full-revolve balls on one axis (r 1.0 at `y = 0`, r 0.8 at
+`y = 1.4`) build under every boolean when their seams are coplanar —
+each seam meridian then pierces the other sphere ON the other's seam.
+Spin B about the shared axis by any angle other than `0` or `π`
+(measured by the PR's review at 1e-6, 1e-3, 0.1, 0.9, π/2, 4.0 and
+2π − 1e-3, at all three ε rows) and every op refuses
+`Join(SectionArcWindow { case: NoChartedRun })`: the pierce lands
+inside B's half-band, so the pierced sphere face carries this row's
+ring. Pinned by `crates/sweep/tests/snowman.rs`,
+`a_spun_snowman_refuses_at_the_pierce_ring_door` (1e-3, 0.9, π/2). The
+sphere pair's join arm itself (`boolean::join`, the radical plane on
+both sides) has nothing missing for this pose — the section and its
+plane are the coplanar pose's — so this is the third carrier on which
+the ring lane, and only it, is owed.
+
 ## 2026-10-01 — the wall rows reach the join again, asymmetric pose included (REACH)
 
 The sector-side curvature charge (`boolean::sectors::side_code`) is now
@@ -169,5 +186,8 @@ the poses that stopped one layer early now reach this unit's doors:
   (`verbs_germarms::a_long_armed_bar_reaches_the_same_join_door`),
   `block ∖ cylinder` grooves (`review_fillet_h7_r1_probes`) and the
   axis laps (`axis_lap::laps_off_the_rulings_stop_at_the_wall_pierce_ring`).
+- **A sphere face, too**: the bar through the ball
+  (`snowman::a_bar_through_a_ball_crosses_the_sphere`, every op at every
+  ε row) now reaches this door rather than the sector side.
 - The story suite's rook keeps its square crown for this door; its
   module docs say so (`crates/viewer/tests/story_authoring.rs`).

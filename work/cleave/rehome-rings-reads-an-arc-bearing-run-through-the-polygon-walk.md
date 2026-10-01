@@ -1,16 +1,39 @@
 ---
 id: rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk
 kind: issue
-title: chord_join::rehome_rings places a bystander ring against the run through point_in_loop with no loop_shape dispatch: on an arc-bearing run (a planar cylinder cap cut by a straight chord) a ring in the lune reads Out and stays on the wrong face (unreproduced)
-status: open
+title: chord_join::rehome_rings places a bystander ring against the run through point_in_loop with no loop_shape dispatch: on an arc-bearing run (a planar cylinder cap cut by a straight chord) a ring in the lune reads Out and stays on the wrong face: a torn-shell refusal or a silent wrong half, by pose
+status: closed
 opened: 2026-09-24
-priority: P1
+priority: P0
 cost: M
 refs: [arc-aware-point-in-loop, three-answers-to-is-this-loop-inside-that-one]
+branch: cleave/rehome-rings
+pr: 3660
+closed: 2026-10-01
 ---
 
 
-**Unreproduced — a hypothesis from reading the code, with a concrete
+**Reproduced 2026-10-01 (CLEAVE): what happens depends on the pose.
+It is a refusal where a correct answer exists on the circular cap, and
+a silent wrong answer on an elliptic one, so P0.** The named case, built through the public doors
+(a holed `Profile`, `extrude`, then `split` at `x = 0`), refuses
+`SplitError::Finish(TornComponent)` in every orientation — two- and
+four-arc discs, bore at `(±1.6, 0.8)`, plane normal `±x` — and so does
+every `intersect`/`subtract` of the bored disc with a slab `x ≷ 0`
+(`BooleanError::TornComponent`). The bore inside the polygon
+(`(0.8, 0.4)`, `(−0.8, −0.4)`) splits and validates. Tier 3 never sees
+the ring on the wrong half: the shell it is left on carries both halves'
+section faces, and the finish refuses it first. **On an ellipse-bearing
+run the split answers `Ok` instead** (found in review). Cut the bored
+disc on `z = 0.5 − 0.2y`, then divide the lower piece at `x = 0` with the
+bore at `(−1.6, 0.8)`: one half carries the bore's ring outside its
+outer loop (tier 3 `RingOutsideOuter`). The other half passes tier 3
+with no bore, and its volume is off by the bore's column (≈ 0.024). With the run read through
+`point_in_carrier_loop` every row splits, passes tier 3 and measures the
+half-disc's volume less the bore on the half that holds it
+(`crates/sweep/tests/rehome_rings_lune.rs`).
+
+**Filed unreproduced — a hypothesis from reading the code, with a concrete
 case to try.** Found by ATREST-5's sweep (PR #3179) of every caller of
 `splitting::point_in_loop` for the shape "a loop's region read off the
 polygon walk with no `boolean::contain::loop_shape` dispatch".

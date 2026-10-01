@@ -23,7 +23,7 @@ use pncad::document::{
     CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
     RecipeNodeId, content_pin, evaluate,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
 use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
@@ -50,7 +50,7 @@ pub struct Bench {
     pub dir: PathBuf,
     /// The assembly document's save file inside it.
     pub asm_path: PathBuf,
-    /// The gauge post instance (identity placement).
+    /// The root post instance (identity placement).
     pub post_a: RecipeNodeId,
     /// The shelf instance (explicit frame).
     pub shelf_i: RecipeNodeId,
@@ -173,16 +173,47 @@ pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
     session
 }
 
-/// The instance-qualified spelling of a part-local name (the GQ4
-/// wrapper), for rows that author a mate directly.
+/// The instance-qualified spelling of a part-local face (the GQ4
+/// wrapper), for rows that author a mate directly — the kernel's own
+/// wrapper (`FaceName::in_part`), the inverse of the unwrap the mate
+/// tool stores a face frame's name by.
 pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
-    StableName {
-        kind: local.kind,
-        node: instance,
-        path: vec![pncad::select::RoleSeg::InPart {
-            of: local.clone().into(),
-        }],
-    }
+    pncad::document::FaceName::new(local.clone())
+        .expect("a mate head is a face")
+        .in_part(instance)
+        .into_name()
+}
+
+/// **The frame the mate tool authors for a picked face**: the face's
+/// PART-LOCAL name, resolved by the solve at every evaluation — the
+/// whole of the frame. What every tool row compares a proposal's
+/// side against.
+pub fn from_face(local: &StableName) -> pncad::document::MateFrame {
+    pncad::document::MateFrame::from_face(
+        pncad::document::FaceName::new(local.clone()).expect("a cap is a face"),
+    )
+}
+
+/// **A world pose pulled back through a placement into part
+/// coordinates, as three authored vectors** — the hand-authored
+/// spelling a row uses where it wants a roll of its own
+/// (`reference` is the roll reference, in WORLD), which a face
+/// frame cannot carry beside the carrier's own. The placement is a
+/// rigid frame, so the pull-back is its inverse.
+pub fn authored_from_world(
+    placement: &pncad::geom_core::Affine3<f64>,
+    pose: &pncad::topo::readback::Pose<f64>,
+    reference: Vec3<f64>,
+) -> pncad::document::MateFrame {
+    let inverse = placement.inverse();
+    let origin = inverse.transform_point(pose.origin);
+    let axis = inverse.transform_vec(pose.axis);
+    let reference = inverse.transform_vec(reference);
+    pncad::document::MateFrame::authored(
+        [origin.x, origin.y, origin.z],
+        [axis.x, axis.y, axis.z],
+        [reference.x, reference.y, reference.z],
+    )
 }
 
 // The assembly suites say `asm::down_at` / `asm::up_at`; both name the
@@ -204,7 +235,7 @@ pub fn seat_choice() -> viewer::matetool::MateChoice {
 /// **The seat as a planar REST alone**, at `b_x` along the shelf: one
 /// planar rest fixes the seating plane and nothing else, so the pair
 /// may still slide and spin in it and the solve refuses UNDER, naming
-/// the one mate. The refusal the badge rows build a refused cluster
+/// the one mate. The refusal the badge rows build a refused group
 /// from — a verdict about the PAIR, which the edit door admits and the
 /// solve decides (a mate the table refuses on its own datum is
 /// refused at the insert).
@@ -222,7 +253,7 @@ pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
 /// rider.
 ///
 /// One home because it is one geometric fact about this fixture — the
-/// two suites that build refused clusters differ only in where along
+/// two suites that build refused groups differ only in where along
 /// the shelf a post lands and whether a rider rides, and a per-suite
 /// copy of the ladder could only drift from the bench it addresses.
 /// (`seat` above is the mate TOOL's choice for the same seat; this is
@@ -230,16 +261,16 @@ pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
 pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment {
     use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive};
     Alignment {
-        a: MateFrame {
-            origin: [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [b_x, SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
+        a: MateFrame::authored(
+            [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+        ),
+        b: MateFrame::authored(
+            [b_x, SHELF_DEPTH / 2.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [1.0, 0.0, 0.0],
+        ),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking,

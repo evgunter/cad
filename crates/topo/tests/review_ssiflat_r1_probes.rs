@@ -42,7 +42,7 @@ use geom_core::{Band, Point2, Point3, Real, Vec3};
 /// (`1.799_393_940_644_834_8e-12` before): the backend pads only where
 /// an operation is inexact, so the bound is tighter. Probe 3's
 /// strict-ceiling claim and probe 1's arm selection are unmoved.
-const HULL_SUP_AT_INTERVAL: f64 = 1.798_501_029_796_955_5e-12;
+const HULL_SUP_AT_INTERVAL: f64 = 1.016_430_181_835_071_8e-12;
 
 fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
@@ -311,7 +311,7 @@ mod interval_lane {
             // Both endpoints of the degenerate enclosure — rendered
             // twice, since lo == hi.
             assert_eq!(
-                text.matches("1.7985010297969555e-12").count(),
+                text.matches("1.0164301818350718e-12").count(),
                 2,
                 "both enclosure endpoints must be visible: {text}"
             );

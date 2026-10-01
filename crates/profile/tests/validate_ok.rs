@@ -87,16 +87,11 @@ fn circle_as_two_arcs_is_the_minimal_closed_carrier() {
     for s in lp.segments() {
         match s.kind {
             SegmentKind::Arc {
-                arc:
-                    Arc2 {
-                        centre: center,
-                        radius,
-                        ..
-                    },
+                arc: Arc2 { centre, radius, .. },
                 turn,
                 ..
             } => {
-                assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12);
+                assert!(centre.x.abs() < 1e-12 && centre.y.abs() < 1e-12);
                 assert!((radius - 2.0).abs() < 1e-12);
                 assert_eq!(turn, Sign::Positive);
             }
@@ -111,11 +106,18 @@ fn annulus_roles_and_hole_reorientation() {
     assert_eq!(vp.loops().len(), 2);
     assert_eq!(vp.loops()[0].role(), LoopRole::Outer);
     assert_eq!(vp.loops()[1].role(), LoopRole::Hole);
-    // Outer stays counterclockwise (positive bulges), the hole is
-    // re-oriented clockwise (bulges negated by the reversal).
+    // Outer stays counterclockwise (positive sweeps), the hole is
+    // re-oriented clockwise (sweeps negated by the reversal).
     assert_eq!(kinds(&vp, 0), vec!['+', '+']);
     assert_eq!(kinds(&vp, 1), vec!['-', '-']);
-    assert_eq!(vp.loops()[1].segments()[0].bulge, -1.0);
+    assert!(
+        matches!(
+            vp.loops()[1].segments()[0].kind,
+            profile::SegmentKind::Arc { arc, .. } if arc.sweep == -std::f64::consts::PI
+        ),
+        "the hole's first semicircle, reversed: {:?}",
+        vp.loops()[1].segments()[0]
+    );
     // Canonical starts: each circle's authored start.
     let o0 = vp.loops()[0].vertices()[0];
     let h0 = vp.loops()[1].vertices()[0];
@@ -149,16 +151,11 @@ fn rounded_rectangle_alternates_lines_and_ccw_arcs() {
     // about (3.5, 0.5) with radius 0.5.
     match lp.segments()[1].kind {
         SegmentKind::Arc {
-            arc:
-                Arc2 {
-                    centre: center,
-                    radius,
-                    ..
-                },
+            arc: Arc2 { centre, radius, .. },
             ..
         } => {
-            assert!((center.x - 3.5).abs() < 1e-12);
-            assert!((center.y - 0.5).abs() < 1e-12);
+            assert!((centre.x - 3.5).abs() < 1e-12);
+            assert!((centre.y - 0.5).abs() < 1e-12);
             assert!((radius - 0.5).abs() < 1e-12);
         }
         SegmentKind::Line => panic!("corner must classify as an arc"),
@@ -203,8 +200,8 @@ fn reversal_is_a_bit_exact_involution() {
             assert_eq!(a.x.to_bits(), b.x.to_bits());
             assert_eq!(a.y.to_bits(), b.y.to_bits());
         }
-        for (a, b) in lp.bulges().iter().zip(back.bulges().iter()) {
-            assert_eq!(a.to_bits(), b.to_bits());
+        for (a, b) in lp.segments().iter().zip(back.segments().iter()) {
+            assert_eq!(format!("{a:?}"), format!("{b:?}"));
         }
     }
 }

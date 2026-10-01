@@ -255,7 +255,8 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
         rows.iter().map(|r| &r.status).collect::<Vec<_>>()
     );
     assert!(
-        rows.iter().any(|row| row.kind == "Revolve" && row.root),
+        rows.iter()
+            .any(|row| row.spoken.kind() == Some("Revolve") && row.root),
         "the revolve is the product root"
     );
 
@@ -359,7 +360,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     let rendered = separation[0].to_string();
     for root in &roots {
         assert!(
-            rendered.contains(&format!("root {}", root.0)),
+            rendered.contains(&format!("root {}", test_utils::refusal::tag(root.0))),
             "the finding names both roots: {rendered}"
         );
     }

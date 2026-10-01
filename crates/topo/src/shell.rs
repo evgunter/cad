@@ -1216,7 +1216,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             && out.solids().map(|(k, _)| k).eq(solids.iter().copied()),
         "a clone reordered its solid arena",
     );
-    let inserted = insert_voids(&mut out, &solids, cavity, &evidence, tol)
+    let inserted = insert_voids(&mut out, &solids, cavity, &evidence)
         .map_err(|error| ShellError::Insert { error })?;
 
     // ---- The record: the inner twins, read off the graft map at the

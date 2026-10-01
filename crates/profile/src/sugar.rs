@@ -33,7 +33,7 @@ use crate::validate::{FilletLeg, NoCornerReason};
 
 /// The sweep direction hint for [`bulge_from_center`] /
 /// the closing arc constructors: which way the arc winds about its
-/// center (a hint consumed by sugar — the stored bulge carries the same
+/// center (a hint consumed by sugar — the stored sweep carries the same
 /// information as its sign).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ArcSweep {

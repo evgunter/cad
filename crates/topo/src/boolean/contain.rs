@@ -820,7 +820,7 @@ struct TorusChart<T: geom_core::Real> {
 ///   all, is the honest remainder rather than corruption of the
 ///   caller's query, as in the cylinder arm. `None`.
 /// - A coordinate the face ALONE wraps
-///   ([`super::solid_contain::wrap_rims`], the structural test every
+///   ([`super::surface_group::wrap_rims`], the structural test every
 ///   chart shares) is NOT a remainder, as it is not on the cylinder
 ///   arm's full-turn band: there is no window in it to trim by. A window
 ///   that reads a whole period on a face that does not wrap alone is

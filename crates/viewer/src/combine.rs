@@ -39,7 +39,7 @@ use crate::vocab::vocabulary;
 /// The operand order is DATA, not a convenience: `Subtract` keeps the
 /// first pick and removes the second, so the panel says which held pick
 /// is which and the seats are named for it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BooleanTool {
     seats: Seats,
 }
@@ -116,7 +116,7 @@ impl BooleanTool {
 /// tool operand is the plane the cut is taken on, which is why this
 /// tool's two seats want different kinds where the boolean's want the
 /// same one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitTool {
     seats: Seats,
 }
@@ -181,7 +181,7 @@ impl SplitTool {
 
 /// **The transform tool**: one body pick plus the placement fields,
 /// committing one [`SessionOp::AddTransform`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransformTool {
     seats: Seats,
 }
@@ -300,7 +300,7 @@ vocabulary! {
 /// would either carry an axis the linear arm ignores or an `Option`
 /// every caller has to fill. The chrome's rule choice picks the door,
 /// which is the same decision it was already making.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatternTool {
     seats: Seats,
 }
@@ -490,7 +490,7 @@ fn rule_kind(rule: PatternRuleSpec) -> PatternKind {
 /// either, and the half-against-a-pattern pairing checked somewhere
 /// below — would be a second authority on a question the seat already
 /// answers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartTool {
     seats: Seats,
 }
@@ -582,7 +582,7 @@ impl PartTool {
 /// numbers
 /// land in ordinary slots of the pattern node the gesture authors,
 /// editable in the property panel the moment the edit lands.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateTool {
     seats: Seats,
 }
@@ -743,20 +743,18 @@ impl core::fmt::Display for DuplicateFault {
             Self::NoValue(standing) => write!(f, "there is no body to copy: {standing}"),
             Self::NotOneBody { input } => write!(
                 f,
-                "feature {}'s value is several bodies; a duplicate copies ONE — project the one \
+                "node {}'s value is several bodies; a duplicate copies ONE — project the one \
                  you mean first",
-                input.0
+                input
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
-                "feature {}'s body could not be measured for the copy's step: {error}",
-                input.0
+                "node {}'s body could not be measured for the copy's step: {error}",
+                input
             ),
-            Self::NoExtent { input } => write!(
-                f,
-                "feature {}'s body has no width to step a copy by",
-                input.0
-            ),
+            Self::NoExtent { input } => {
+                write!(f, "node {}'s body has no width to step a copy by", input)
+            }
         }
     }
 }
@@ -816,9 +814,11 @@ pub fn duplicate_step(
     let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;
     // The floor mesh's box diagonal: the body's size, read before a
     // chord can be chosen for it.
-    let [wx, wy, wz] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-        .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0));
-    let scale = Vec3::new(wx, wy, wz).norm();
+    let scale = Vec3::from_array(
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+            .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0)),
+    )
+    .norm();
     if !(scale.is_finite() && scale > 0.0) {
         return Err(DuplicateFault::NoExtent { input });
     }
@@ -834,8 +834,7 @@ pub fn duplicate_step(
 /// largest projection less the smallest. `None` for no points or a
 /// zero direction.
 fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) -> Option<f64> {
-    let [dx, dy, dz] = direction;
-    let direction = Vec3::new(dx, dy, dz);
+    let direction = Vec3::from_array(direction);
     let norm = direction.norm();
     if !(norm.is_finite() && norm > 0.0) {
         return None;
