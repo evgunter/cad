@@ -47,3 +47,15 @@ because `work/carve/` does not exist on main at the time of filing.
 Filed by BLEND unit 15's fix pass after the cut branch was drawn, so it
 missed the cut; moved here at BLEND's exit walk. `crates/sweep/src/blend/mod.rs`
 is CARVE's ground.
+
+## Closed (band/recourse-tables-decide-per-tag)
+
+Both maps are exhaustive matches over the tag, so a new variant is a
+build error in each. Deciding every tag moved one answer:
+`DependentNormals` is the decided-Zero arm of
+`fillet3_corner_independence`, so its recourse is that decision's lever
+(`FILLET3_CORNER_INDEPENDENCE_RECOURSE`, shared with the in-band arm, D4
+¶1 (iv)), not the corner sentence whose configuration clause it already
+satisfies. Its policy was left as it stood; that it names a corner
+patch the tag says it cannot have is
+`dependent-normals-names-a-run-out-policy-the-tag-says-cannot-help`.

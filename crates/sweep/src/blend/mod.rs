@@ -243,7 +243,10 @@ pub enum BlendDecision {
     SupportCoaxiality,
     /// `tangent_second_order`: the must-carry rule's reading of a
     /// contact edge the surgery is about to describe. Either definite
-    /// sign builds.
+    /// sign builds. Decided in `geom_brep` (`must_carry_over_edge`),
+    /// whose in-band verdict may instead carry a station's first-order
+    /// wedge reading (`dihedral_wedge`, `dihedral_arm`); the surgery
+    /// reports either as this decision.
     ContactSecondOrder,
     /// `fillet3_corner_independence`: a uniform trivalent corner's three
     /// support normals are independent.

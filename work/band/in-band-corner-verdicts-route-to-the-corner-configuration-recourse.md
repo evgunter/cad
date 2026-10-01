@@ -42,3 +42,22 @@ tolerance. A routed sentence of its own, naming those, is the shape
 
 Found by the CHROME concision fix pass (PR #3108 review, NOTE-2); not
 repaired there, since the right sentence is this program's call.
+
+## Closed (band/recourse-tables-decide-per-tag)
+
+`fillet3_corner_independence` has its own lever,
+`FILLET3_CORNER_INDEPENDENCE_RECOURSE` ("tilt the faces meeting at the
+corner so the three are clearly not all parallel to one line, or blend
+at a larger size, which the margin grows with"), and its tolerance arm
+is derived by `geom_brep::recourse::SizedDecision` (passes on a positive
+sign, so the valued conditional tighten). Followed lever by lever in
+`blend_recourse_followability::the_corner_independence_recourse_is_followed_by_each_of_its_levers`.
+
+Two claims above measured wrong for `fillet3_cap_transverse`: its lever
+arm is the link's extent (`Link::arm_len`), not the radius, and it
+passes only at zero (Zero is the transverse cap), so D4 ¶1 (i) gives it
+no tolerance arm — a smaller tolerance decides an in-band cap oblique,
+which refuses. Its in-band arm keeps `FILLET3_CORNER_RECOURSE`, which
+its definite (oblique) sibling `UnsupportedRunOut` carries, and whose
+"or in TRANSVERSE CAPS on a straight cylinder edge" clause is the lever
+that decides it: make the end face perpendicular to the ruling.

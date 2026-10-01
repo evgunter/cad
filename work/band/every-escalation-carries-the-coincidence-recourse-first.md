@@ -142,3 +142,20 @@ table routes) still renders the full `Indeterminate` Display, because
 `sweep/tests/review_recourse_roster_r2_probes.rs` holds the shared
 recourse on it; that arm, and the joint decision with
 `escalation-recourse-dispatch-has-three-homes`, are what stay open.
+
+## Closed (band/recourse-tables-decide-per-tag)
+
+The fall-through should not exist, and now cannot. Measured: every
+`BlendError::Escalated` the crate builds comes from one of eleven sites
+— the nine battery gates, the ring-clearance screen, and the surgery's
+must-carry relay — each asking one known question. `Escalated` now
+carries a closed `BlendDecision`, and its `Display` is
+`{decision.subject()} is undecided: {source.payload()}. {ending}` for
+every value: no arm renders the `Indeterminate` Display whole, so
+`COINCIDENCE_RECOURSE` is in no blend refusal, and no name is routed.
+`review_recourse_roster_r2_probes`'s blend leg (the shared gap sentence
+at both doors) is gone because the blend half is unconstructible; the
+path door's leg stays. The joint decision with
+`escalation-recourse-dispatch-has-three-homes` is D4 ¶1 (i)/(ii) as
+ratified since: `Indeterminate` carries data and the site's closed
+decision appends the one ending.
