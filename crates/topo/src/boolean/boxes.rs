@@ -717,55 +717,6 @@ pub(crate) fn meet<T: Real>(a: SpanBox<T>, b: SpanBox<T>) -> SpanBox<T> {
     }
 }
 
-/// One stored pcurve's CHART-CHANNEL extent over the span it is
-/// certified on: `hull(P(t₀), P(t₁))` widened per channel by the
-/// trigonometric part's chord dip `hypot(paᵢ, pbᵢ)·(t₁ − t₀)²/8`.
-///
-/// `P(t) = p0 + pa·cos t + pb·sin t + pl·t`, so `P″(t)` is
-/// `−(pa·cos t + pb·sin t)` and a C² function leaves the chord of an
-/// interval of width `h` by at most `max|P″|·h²/8` — [`arc_extent`]'s
-/// own charge, taken here on the chart's two channels instead of
-/// space's three. The linear channel contributes nothing to `P″` and
-/// is exact at the endpoints.
-///
-/// **Not [`geom_brep::Pcurve::chart_box`].** That enclosure is
-/// `p0 ± (|pa| + |pb| + |pl|·max(|t₀|, |t₁|))` — a ball about the
-/// CONSTANT term rather than a hull of the span the edge occupies. For
-/// an edge running `t ∈ [0, 22°]` on a linear channel it claims
-/// `p0 ± 22°`, which is twice the true reach and centred on the wrong
-/// point; a window built from it would not be the face's.
-///
-/// `None` for every other [`geom_brep::Pcurve`] variant: their images
-/// are not this family and this bound says nothing about them.
-pub(crate) fn harmonic_extent<T: Real>(
-    pcurve: &geom_brep::Pcurve<T>,
-    t0: T,
-    t1: T,
-) -> Option<(Span<T>, Span<T>)> {
-    let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = pcurve else {
-        return None;
-    };
-    let at = |t: T| {
-        let (s, c) = t.sin_cos();
-        (
-            p0.x + pa.x * c + pb.x * s + pl.x * t,
-            p0.y + pa.y * c + pb.y * s + pl.y * t,
-        )
-    };
-    let (a, b) = (at(t0), at(t1));
-    let channel = |x: T, y: T, ca: T, cb: T| {
-        Span {
-            lo: x.min(y),
-            hi: x.max(y),
-        }
-        .widen(subdivision_charge(
-            (ca.powi(2) + cb.powi(2)).sqrt(),
-            t1 - t0,
-        ))
-    };
-    Some((channel(a.0, b.0, pa.x, pb.x), channel(a.1, b.1, pa.y, pb.y)))
-}
-
 /// A torus face's chart window: the `u` (major azimuth) and `v`
 /// (minor angle) channels' spans, in that order.
 pub(crate) type TorusWindowPair<T> = (Span<T>, Span<T>);
@@ -931,9 +882,17 @@ impl<T: Real> TorusChartWindow<T> {
             return;
         };
         let (t0, t1) = cache.params();
-        let Some((u, v)) = harmonic_extent(cache.pcurve(), t0, t1) else {
+        let Some(b) = cache.pcurve().harmonic_span_box(t0, t1) else {
             self.ok = false;
             return;
+        };
+        let u = Span {
+            lo: b.u_min,
+            hi: b.u_max,
+        };
+        let v = Span {
+            lo: b.v_min,
+            hi: b.v_max,
         };
         let Some(travel) = harmonic_travel(cache.pcurve(), t0, t1, forward) else {
             self.ok = false;
@@ -4022,13 +3981,13 @@ mod tests {
         );
     }
 
-    /// **The window is the EDGE'S OWN SPAN**, not
-    /// `geom_brep::Pcurve::chart_box`'s ball about the constant term:
-    /// a 22° patch's `u` window is 22° wide and sits where the face
-    /// does, where `chart_box` would give `p0 ± 22°` — 44° wide and
-    /// centred on the wrong point.
+    /// **The window is the EDGE'S OWN SPAN, and it is the stored rows'
+    /// `chart_box` hull** — the window reads the one harmonic span box,
+    /// so a 22° patch's `u` window is 22° wide and sits where the face
+    /// does, and so is the hull the mint's check 5 measures the same
+    /// rows by.
     #[test]
-    fn the_torus_window_is_the_edges_own_span_not_its_chart_box() {
+    fn the_torus_window_is_the_edges_own_span_and_its_chart_box_hull() {
         let (major, minor) = (5.0, 0.06);
         let (u0, u1) = (0.0, 22.0_f64.to_radians());
         let (v0, v1) = (-0.4, 0.9);
@@ -4043,26 +4002,36 @@ mod tests {
         );
         let (u, v) = read_window(&body, face, major, minor)
             .expect("every half-edge stores a certified cache and the window reads");
+        let hull = face_window_steps(&body, face)
+            .expect("the face walks")
+            .into_iter()
+            .flatten()
+            .map(|step| {
+                let (cache, _) = step.expect("every half-edge stores a certified cache");
+                let (t0, t1) = cache.params();
+                cache.pcurve().chart_box(t0, t1)
+            })
+            .reduce(geom_brep::ChartWindow::hull)
+            .expect("the face has half-edges");
         // The slack is `2·envelope/(R − r)` and `2·envelope/r` on a
         // fixture whose images are exact, so it is at the mint's own
         // residual scale — orders below the spans themselves.
         let slack = 1e-6;
-        for (got, want, what) in [
-            (u.lo, u0, "u lo"),
-            (u.hi, u1, "u hi"),
-            (v.lo, v0, "v lo"),
-            (v.hi, v1, "v hi"),
+        for (got, span_end, boxed, what) in [
+            (u.lo, u0, hull.u_min, "u lo"),
+            (u.hi, u1, hull.u_max, "u hi"),
+            (v.lo, v0, hull.v_min, "v lo"),
+            (v.hi, v1, hull.v_max, "v hi"),
         ] {
             assert!(
-                (got - want).abs() < slack,
-                "the {what} window end is {got}, the edge's own span end {want}"
+                (got - span_end).abs() < slack,
+                "the {what} window end is {got}, the edge's own span end {span_end}"
+            );
+            assert!(
+                (got - boxed).abs() < slack,
+                "the {what} window end is {got}, the rows' chart_box hull end {boxed}"
             );
         }
-        let chart_box_reach = u1;
-        assert!(
-            u.hi - u.lo < 1.5 * chart_box_reach,
-            "the window is the 22° span, not `chart_box`'s ±22°: {u:?}"
-        );
     }
 
     /// **`TorusWindow`**, both halves of the rule.
