@@ -1485,6 +1485,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::RestZipUnsupported => "rest_zip_unsupported",
         BooleanErrorKind::JoinDesync => "join_desync",
         BooleanErrorKind::TornComponent => "torn_component",
+        BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
         BooleanErrorKind::Containment => "containment",
         BooleanErrorKind::Revert => "revert",
         BooleanErrorKind::SeamOrientation => "seam_orientation",

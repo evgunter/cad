@@ -1893,36 +1893,14 @@ fn resolve_roles_geometric<T: Decide>(
                             // the oriented one regardless (S10).
                             let (_, normal) = super::solid_contain::face_plane(body, region_face)
                                 .map_err(BooleanError::Containment)?;
-                            match super::solid_contain::point_in_face(
+                            if !super::shell_witness::certified_in_face(
                                 body,
                                 region_face,
                                 normal,
                                 p,
                                 band,
-                            ) {
-                                Ok(Some(true)) => {}
-                                // Not certified interior (outside, in a
-                                // ring, or grazing a loop) — or not
-                                // certifiable at all (an in-band margin,
-                                // an exhausted schedule, an outline the
-                                // walk cannot cross): the candidate is
-                                // discarded, never probed.
-                                Ok(_)
-                                | Err(
-                                    super::solid_contain::PointInSolidError::Escalated { .. }
-                                    | super::solid_contain::PointInSolidError::Loop(
-                                        crate::splitting::PointInLoopError::Escalated { .. }
-                                        | crate::splitting::PointInLoopError::RayExhausted {
-                                            ..
-                                        },
-                                    )
-                                    | super::solid_contain::PointInSolidError::EdgeCarrierUnsupported {
-                                        ..
-                                    },
-                                ) => continue,
-                                // A body the walk cannot read is corrupt,
-                                // not inconclusive.
-                                Err(e) => return Err(BooleanError::Containment(e)),
+                            )? {
+                                continue;
                             }
                         }
                         match super::solid_contain::point_in_solid(other_pristine, p, band, tol)

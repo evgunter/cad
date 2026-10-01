@@ -91,6 +91,8 @@ mod contact7_touch_sweeps;
 mod contact8_dangling_seam;
 #[path = "contact9_side_codes.rs"]
 mod contact9_side_codes;
+#[path = "contained_flush_witness.rs"]
+mod contained_flush_witness;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
