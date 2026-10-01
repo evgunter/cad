@@ -2,8 +2,10 @@
 id: the-at-rest-badge-restates-a-failed-root-louder-than-its-row
 kind: issue
 title: the at-rest badge restates a failed or poisoned root as an Actionable refusal naming no cause, above the tree row that carries it
-status: open
+status: closed
 opened: 2026-09-25
+closed: 2026-10-01
+pr: 3632
 priority: P3
 cost: E
 refs: [a-derived-pick-index-failure-outshouts-its-cause, band-refusal-still-badges-every-row]
@@ -45,3 +47,14 @@ the message, and `session.rs` is AUTHOR's. CHROME's
 from the other side — option (b) there puts the cause INTO it — so a
 taker should read that row first; the two answers are not the same, and
 one of them has to be chosen.
+
+## Closed
+
+PR 3632, by Ev's ruling on
+`work/chrome/at-rest-badge-repeats-a-gather-refusal-another-channel-carries.md`:
+the at-rest badge takes no verdict on any gather refusal, so a failed
+or poisoned root is said only by its tree row (and `frame::badge_site`
+keeps `RootFailed`/`RootPoisoned` off `product_badge`). The session
+need not keep the class beside the message: `AtRestBadge::Refused` is
+now only the gate's own refusal. `tree_badges::every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node`
+asserts the badge is `None` over a cluster-refused root.

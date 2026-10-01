@@ -531,7 +531,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let bad = displaced(&carrier, n, d);
     let (t0, t1) = bad.domain();
     for i in 0..CERT_SAMPLES {
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = geom_brep::sample_param(t0, t1, i);
         let r = geom_brep::implicit_residual(&c, bad.eval(t)).abs();
         assert!(
             r <= eps(),
@@ -1479,7 +1479,7 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
     };
     let v_ref = normal.cross(u_ref);
     for i in 0..CERT_SAMPLES {
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = geom_brep::sample_param(t0, t1, i);
         let c = carrier.eval(t);
         // The wall chart, through the NURBS map.
         let q = pb.eval(t);

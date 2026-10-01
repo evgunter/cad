@@ -72,13 +72,15 @@
 //! one class of margin decides and nothing about the certificate, and
 //! a bound says that without an impl to write.
 
+use core::num::NonZeroUsize;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::spline::SplineError;
+use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
-use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
+use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, Real, Vec3};
 
-use crate::certify::{CERT_SAMPLES, CertCheck, recourse};
+use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
 use crate::recourse::{Reading, Refused, RefusedArm};
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
 
@@ -135,10 +137,16 @@ pub enum PlaneNurbsRefusal {
         /// The verdict on the levered angle, with its reporting margin.
         verdict: Refused,
     },
-    /// The chart image could not be interpolated through the schedule's
-    /// foot points (a degenerate parameterization — coincident feet, a
-    /// singular collocation system).
+    /// The interpolation through the schedule's foot points refused
+    /// ([`PCURVE_FIT_REFUSAL`]). The parameters are the schedule's own,
+    /// fixed and strictly ascending, so nothing a caller sets reaches it.
     PcurveFit,
+    /// The interpolated image could not be re-expressed on the
+    /// carrier's own parameter domain: the domain door's refusal,
+    /// carried whole. Told apart from [`PcurveFit`](Self::PcurveFit)
+    /// because its recourse is the carrier's parameterization, not a
+    /// defect report.
+    CarrierDomain(CarrierDomainRefusal),
     /// A certificate limb exceeded ε, with the measured bound. **The
     /// declare-and-check refusal**: the file's carrier is not on both
     /// surfaces to the run's tolerance, and this is by how much.
@@ -187,6 +195,100 @@ pub enum PlaneNurbsRefusal {
     },
 }
 
+/// What [`PlaneNurbsRefusal::PcurveFit`] states, and the pcurve mint's
+/// refusal for the same failure of the same producer
+/// ([`crate::FittedLane::general_image`]).
+pub(crate) const PCURVE_FIT_REFUSAL: &str = "the chart image could not be interpolated through the schedule's foot points: on the \
+     schedule's fixed, strictly ascending parameters the interpolation refuses only a foot it \
+     cannot take (a non-finite one) or a collocation system it cannot solve";
+
+/// The one recourse for a carrier whose parameter domain its chart
+/// image cannot be expressed on ([`CarrierDomainRefusal`]), read by the
+/// lane's refusal and by `topo`'s at-rest classifier alike.
+pub const CARRIER_DOMAIN_RECOURSE: &str = "Recourse: give the curve a parameter range of moderate \
+     width near zero, such as 0 to 1; an affine reparameterization moves no point of it";
+
+/// The chart image could not be re-expressed on the carrier's own
+/// parameter domain `[lo, hi]`: the domain door
+/// (`NurbsCurve2::on_domain`) refused, and its typed reason rides here.
+///
+/// The image lives on the carrier's parameter by construction (the OQ4
+/// identity, module docs), so no image of this carrier can be expressed
+/// on a domain the door refuses. An affine reparameterization of the
+/// carrier moves no point of it and gives the door a domain it accepts,
+/// which is why that is the recourse.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CarrierDomainRefusal {
+    /// The carrier's domain start.
+    pub lo: f64,
+    /// The carrier's domain end.
+    pub hi: f64,
+    /// Which of the door's two refusals.
+    pub fault: CarrierDomainFault,
+}
+
+/// The domain door's refusal of a carrier domain, in the two shapes it
+/// takes on a validated image: `SplineError`'s other arms are about
+/// weights and counts, which the door carries over verbatim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarrierDomainFault {
+    /// [`SplineError::DomainInvalid`]: the interval is not a finite
+    /// increasing interval of finite width — for a validated carrier,
+    /// a width that overflows.
+    Interval,
+    /// [`SplineError::KnotVectorInvalid`]: `f64` rounding collapsed the
+    /// image's knots onto a domain too narrow for the magnitude of its
+    /// ends, and the clamp contract refused the result by this clause.
+    Collapse(KnotVectorIssue),
+}
+
+impl CarrierDomainRefusal {
+    /// The domain door's refusal on `[lo, hi]`, typed.
+    ///
+    /// # Panics
+    ///
+    /// On a weight or count arm of [`SplineError`], which the door
+    /// never returns: it re-expresses the knots alone and carries the
+    /// validated net and weights over verbatim.
+    fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
+        let fault = match e {
+            SplineError::DomainInvalid { .. } => CarrierDomainFault::Interval,
+            SplineError::KnotVectorInvalid { reason } => CarrierDomainFault::Collapse(*reason),
+            SplineError::NonPositiveWeight { .. }
+            | SplineError::NonFiniteWeight { .. }
+            | SplineError::ControlCountMismatch { .. }
+            | SplineError::WeightCountMismatch { .. } => unreachable!(
+                "the domain door re-expresses knots only, so it cannot refuse a weight or a \
+                 count: {e:?}"
+            ),
+        };
+        Self { lo, hi, fault }
+    }
+}
+
+impl core::fmt::Display for CarrierDomainRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let (lo, hi) = (Readable(self.lo), Readable(self.hi));
+        match self.fault {
+            CarrierDomainFault::Interval => write!(
+                f,
+                "the carrier's parameter domain [{lo}, {hi}] is not a finite increasing interval \
+                 of finite width"
+            )?,
+            CarrierDomainFault::Collapse(_) => write!(
+                f,
+                "f64 rounding collapsed the chart image's knots onto the carrier's parameter \
+                 domain [{lo}, {hi}], which is too narrow for the magnitude of its ends"
+            )?,
+        }
+        write!(
+            f,
+            ", so the chart image, which lives on the carrier's own parameter, cannot be \
+             expressed on it. {CARRIER_DOMAIN_RECOURSE}"
+        )
+    }
+}
+
 impl PlaneNurbsRefusal {
     /// The ending this refusal's decision gives it, read at `reading`
     /// ([`recourse`]), or `None` for a refusal that is no decision's
@@ -221,7 +323,10 @@ impl PlaneNurbsRefusal {
                 CertCheck::PlaneNurbsCertificate,
                 RefusedArm::Undecided(diag),
             ),
-            Self::FootPointInconclusive { .. } | Self::PcurveFit | Self::Unsupported { .. } => {
+            Self::FootPointInconclusive { .. }
+            | Self::PcurveFit
+            | Self::CarrierDomain(_)
+            | Self::Unsupported { .. } => {
                 return None;
             }
         })
@@ -250,11 +355,8 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                  close to call: {}",
                 cause.payload()
             ),
-            Self::PcurveFit => write!(
-                f,
-                "the chart image could not be interpolated through the schedule's foot \
-                 points (a degenerate parameterization)"
-            ),
+            Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
+            Self::CarrierDomain(refusal) => write!(f, "{refusal}"),
             Self::Limb { limb, value } => write!(
                 f,
                 "{} measured {value:e} m against the run tolerance — the declared carrier \
@@ -362,8 +464,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     };
     if wall.is_placeholder() {
         return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
-                   surface to certify against",
+            what: geom::PLACEHOLDER_SURFACE,
         });
     }
 
@@ -468,11 +569,13 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ///
 /// # Errors
 ///
+/// [`PlaneNurbsRefusal::CarrierDomain`] before any sample when the
+/// carrier's domain is not an interval the door accepts, or after the
+/// fit when the image's knots collapse on it;
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] at the first sample
-/// whose projection does not converge (never a best-effort foot),
-/// [`PlaneNurbsRefusal::PcurveFit`] for a degenerate interpolation or
-/// for a degenerate carrier interval (the domain door's refusal, which
-/// `PcurveFit` does not carry), or whatever `per_sample` returns.
+/// whose projection does not converge (never a best-effort foot);
+/// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses; or
+/// whatever `per_sample` returns.
 pub(crate) fn chart_image<T, F>(
     carrier: &NurbsCurve3<T>,
     wall: &NurbsSurface<T>,
@@ -484,34 +587,35 @@ where
 {
     if wall.is_placeholder() {
         // The same refusal `plane_nurbs_limbs` states before it gets here, kept at
-        // the producer too: the mvfs placeholder is a mid-surgery "no
-        // description yet" fact, and projecting onto it would return
+        // the producer too: the placeholder has no description
+        // yet, and projecting onto it would return
         // feet of a surface that does not exist. `plane_nurbs_limbs`
         // still checks first, so its own refusal ORDER is unchanged.
         return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
-                   surface to derive a chart image on",
+            what: geom::PLACEHOLDER_SURFACE,
         });
     }
     let (t0, t1) = carrier.domain();
+    let domain_refusal = |e| PlaneNurbsRefusal::CarrierDomain(CarrierDomainRefusal::of(t0, t1, &e));
+    // The domain door, asked first on a vector with no interior knots
+    // (so only the interval itself can refuse): a domain whose width
+    // overflows would otherwise reach the schedule as NaN parameters and
+    // refuse as a foot that did not converge, hiding the carrier's own
+    // fault behind the projection's.
+    KnotVector::unit_segment(NonZeroUsize::MIN)
+        .on_domain(t0, t1)
+        .map_err(domain_refusal)?;
     // The schedule is a SUPERSET of the certificate's own
-    // ([`CERT_SAMPLES`] divides it), so limb 1 re-projects at
-    // parameters the image passes through exactly. Its ends are the
-    // carrier's ends ASSIGNED: the image is re-expressed on `[t0, t1]`
-    // exactly (`on_carrier_domain`), so the foot its last knot carries
-    // has to be the projection at `t1` itself, and `t0 + (t1 − t0)·1`
-    // is an ulp off `t1` in general.
+    // ([`CERT_SAMPLES`] divides it) and both are `schedule_param`, so
+    // limb 1 re-projects at parameters the image passes through
+    // exactly, its assigned ends included: the image is re-expressed
+    // on `[t0, t1]` exactly (`on_carrier_domain`), so the foot its last
+    // knot carries is the projection at `t1` itself.
     let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     for i in 0..PXN_FIT_SAMPLES {
-        let frac = f64::from(i) / f64::from(PXN_FIT_SAMPLES - 1);
-        let t = if i == 0 {
-            t0
-        } else if i == PXN_FIT_SAMPLES - 1 {
-            t1
-        } else {
-            t0 + (t1 - t0) * frac
-        };
+        let frac = schedule_fraction(i, PXN_FIT_SAMPLES);
+        let t = schedule_param(t0, t1, i, PXN_FIT_SAMPLES);
         let p = carrier.eval(T::from_f64(t));
         let proj = wall
             .project(p)
@@ -526,7 +630,7 @@ where
     }
     let image = NurbsCurve2::<f64>::interpolate_with_params(&uv, PXN_IMAGE_DEGREE, &params)
         .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
-    on_carrier_domain(&image, t0, t1).map_err(|_| PlaneNurbsRefusal::PcurveFit)
+    on_carrier_domain(&image, t0, t1).map_err(domain_refusal)
 }
 
 /// **The certified foot of ONE point** on a NURBS wall, in the wall's
@@ -536,7 +640,7 @@ where
 ///
 /// Its consumer is the pcurve mint's rim arms, which need to know WHERE
 /// on the chart an edge's endpoint actually lands rather than assuming
-/// it lands on a knot-domain end. One foot rather than the image's 33,
+/// it lands on a knot-domain end. One foot rather than the image's [`PXN_FIT_SAMPLES`],
 /// because those arms already know the SHAPE of their image (a chart
 /// row or column) and are only missing its position.
 ///
@@ -548,7 +652,7 @@ where
 ///
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] when the projection
 /// will not converge (never a best-effort foot), or
-/// [`PlaneNurbsRefusal::Unsupported`] on the mvfs placeholder.
+/// [`PlaneNurbsRefusal::Unsupported`] on the placeholder (`geom::PLACEHOLDER_SURFACE`).
 pub(crate) fn chart_foot<T>(
     point: Point3<T>,
     wall: &NurbsSurface<T>,
@@ -558,8 +662,7 @@ where
 {
     if wall.is_placeholder() {
         return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
-                   surface to derive a chart image on",
+            what: geom::PLACEHOLDER_SURFACE,
         });
     }
     let proj = wall
