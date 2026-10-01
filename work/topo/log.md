@@ -4970,3 +4970,37 @@ The review reported one surface naming a model: a commit trailer.
 Fix pass dispatched on the rebase target. It merges after CI, with the
 orchestrator reading the diff; there is no second review, since the
 fixes are local.
+
+## PR 3598 reviewed: APPROVE-WITH-FIXES; fix pass dispatched (2026-10-01)
+
+The single full review ran on the frozen head `dea9efeb87`: 0 MAJOR,
+3 MINOR, 5 NOTE. Everything it executed held:
+- **The check:** exact and atomic.
+- **The measurement:** reproduced. The split finish is the only
+  production refusal, 197 of 605 calls in the reviewer's run.
+- **The split-finish move:** equivalent by deep snapshot, 605/605.
+- **Mutants:** none survived, including the reviewer's own four.
+
+The defects are in the text:
+- **MINOR-1.** On a curved chart the refusal sends the caller to a door
+  that "checks", and that door checks nothing there (#638).
+- **MINOR-2.** The test door's hand-kept caller list is false.
+- **MINOR-3.** The refusal names a door but gives no geometric lever,
+  which D4 ¶1 (i) asks for.
+
+**Adjudicated:**
+- **Fix:** all three MINORs.
+  - MINOR-1: the text says what each door certifies on each chart kind.
+  - MINOR-2: the list is replaced by a reason at each call site, since a
+    hand-kept list nothing checks is a fresh prose obligation.
+  - MINOR-3: both keys-only refusals (including PR 3580's
+    `RechartStrandsDescriptions`) get their own lever.
+- **Fix: one walk** yields the stranded and unvouched sets.
+- **Correct the stated reasons:** for `same_chart` (a certificate is a
+  function of the payload) and for the lone vertex (tier 2 bans empty
+  loops at rest).
+- **File:** the larger one-home row (keys vs band residuals, which
+  `mef`, `mfkrh` and `ring_move` will need) and the test door's rename.
+
+Fix pass dispatched on the walk target. It merges after CI and an
+orchestrator read.
