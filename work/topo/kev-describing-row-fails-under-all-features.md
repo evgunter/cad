@@ -2,10 +2,12 @@
 id: kev-describing-row-fails-under-all-features
 kind: issue
 title: euler_kill's kev_describing_asks_the_survivors_point row fails tier-1 DanglingGeometry under --all-features, a feature set no CI row runs
-status: open
+status: review
 opened: 2026-10-01
 priority: P3
 cost: M
+pr: 3648
+branch: topo/kev-all-features
 ---
 
 
@@ -27,3 +29,14 @@ what `kev` leaves behind — a real defect on a configuration a user can
 build — or the row asserts something a feature legitimately changes.
 Which is this row's work; the feature that flips it is the first fact
 to establish.
+
+## Found
+
+The feature is `per-op-postcondition` (alone it reds both rows;
+`probe` alone reds neither). The row asserts something the scalpel
+legitimately changes: it kills on a body it tore on purpose, inside a
+surgery scope it drops unswept, and the scalpel sweeps after every
+operator inside a scope too, so the kill's own sweep reports the
+planted dangle. `kill_anchors_on_a_few_torn_bodies` is the same cause.
+The rows (and the movefac tear rows, same shape) now run through
+`fixtures::through_the_scalpel` and hold under every feature set.
