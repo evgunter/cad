@@ -5096,3 +5096,31 @@ and probes three things:
 - the census's per-decision keying;
 - whether the withdrawn levers are true;
 - the `vtxfac` ε sweep.
+
+## PR 3598 fix pass delivered; row closed; merge on CI (2026-10-01)
+
+The fix pass landed `129ad62170`, and CI run 36811301320 went green.
+Main was merged in, with both `EulerOpError` sets kept.
+
+My read of the diff:
+- `rechart_edges` yields the stranded and the unvouched sets in one
+  pass (`Sides::vouched`).
+- Both keys-only refusals end in a chart lever, and each is pinned by a
+  real raise.
+- The curved-chart text is true: the describing door certifies the
+  listed descriptions everywhere and the residuals on a plane only,
+  citing #638's row.
+- The hand-kept list is replaced by a measured `// Lifts …` reason at
+  each of 85 call sites.
+
+**Seven `boxes` relabels moved to the describing door.** They pass
+there only because #638 is open. I added that as evidence on #638's
+row (`work/restfront/validate-tier3-curved-boundary-containment.md`),
+so the fixer moves them back.
+
+**Filed:**
+- the two-homes row;
+- the test door's rename;
+- `MergeRebasesCarriers` naming no geometric lever, on the kill family.
+
+The row is closed on the branch (`7977a0974d`). The PR merges on green.
