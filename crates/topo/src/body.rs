@@ -178,10 +178,11 @@ pub struct Body<T: Real> {
     // derive-on-demand status, C4 verbatim), so an all-planar body
     // carries an empty map. Absence is never a claim about geometry.
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
-    // M3 PR 1 null-face annotations (F9): typed loop-role attributes on
-    // null (section-polygon) faces, parallel to the face arena like the
-    // provenance maps — a record never outlives its face (kill-op
-    // hygiene; the validator makes leaks loud). See `crate::null`.
+    // Null-face annotations (F9): typed loop-role attributes on null
+    // (section-polygon) faces, parallel to the face arena like the
+    // provenance maps. A record lives only while its face holds both
+    // loops it names (kill-op hygiene; the validator makes leaks loud).
+    // See `crate::null`.
     pub(crate) null_faces: SecondaryMap<FaceKey, NullFacePair>,
     // D5 provenance, parallel to the topology arenas (see
     // `crate::provenance` for the SecondaryMap-vs-inline rationale).
@@ -504,6 +505,17 @@ impl<T: Real> Body<T> {
             self.remove_surface_if_orphaned(surface);
         }
         true
+    }
+
+    /// Drops every null-face record naming `r#loop`, whichever face
+    /// carries it. A null-face record lives only while its face holds
+    /// both loops it names ([`crate::null`]), so every op that removes a
+    /// loop or moves it off its face calls this in its mutation phase,
+    /// as F9's kill-op hygiene. Maintenance, not a refusal, so the op
+    /// stays `Ok`.
+    pub(crate) fn drop_null_face_records_naming(&mut self, r#loop: LoopKey) {
+        self.null_faces
+            .retain(|_, pair| !pair.loops().contains(&r#loop));
     }
 
     /// Removes `surface` from the surface arena iff nothing references

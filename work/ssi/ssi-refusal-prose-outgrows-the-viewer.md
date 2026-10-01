@@ -2,9 +2,14 @@
 id: ssi-refusal-prose-outgrows-the-viewer
 kind: issue
 title: geom-brep: SsiError::FitSampleBudget is over 50 words (Ev's concision request)
-status: open
+status: closed
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+cost: E
+priority: P4
+closed: 2026-10-01
+pr: 3651
+branch: ssi/diagnoses
 ---
 
 
@@ -52,3 +57,7 @@ asks for should end the arm as the loosening clause followed by
 gives one. The ENCL kernel-limit lane found it with a second sweep pass
 for loosening spelled without the word "loosen", and left it here as
 SSI's ground.
+
+## Closed (2026-10-01, PR 3651)
+
+Landed in `ssi/diagnoses`. Every SSI refusal now names its operand and decision, and ends by `certify::recourse`. The PR body records each decision; review was a single FULL review with one fix pass.

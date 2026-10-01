@@ -117,8 +117,9 @@ use crate::euler::{EulerOpError, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::fixtures::{
     KillAnchorFault, assert_kill_refuses, deep_snapshot, kill_anchor_faults, ops_genus2,
-    ops_holed_box, ops_ring_bridge, ops_strut_cube,
+    ops_holed_box, ops_ring_bridge, ops_strut_cube, ops_two_ring_face, through_the_scalpel,
 };
+use crate::null::NullFacePair;
 use crate::test_support_fixtures::declined_cube;
 use geom_core::Tol;
 #[cfg(not(debug_assertions))]
@@ -1689,16 +1690,86 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
     }),
 ];
 
+/// Marks every face that has a ring as a null face, through the door:
+/// its outer loop above, its first ring below. The bodies whose kills
+/// and moves read the null-face hygiene
+/// ([`Body::drop_null_face_records_naming`]).
+fn mark_ringed_faces(body: &mut Body<f64>) {
+    let marks: Vec<(FaceKey, NullFacePair)> = body
+        .faces()
+        .filter_map(|(face, data)| {
+            let below_loop = *data.rings.first()?;
+            let above_loop = data.outer;
+            Some((
+                face,
+                NullFacePair::Split {
+                    above_loop,
+                    below_loop,
+                },
+            ))
+        })
+        .collect();
+    for (face, pair) in marks {
+        body.set_null_face_pair(face, pair)
+            .expect("a face's own outer loop and ring mark it");
+    }
+}
+
+/// How an op that took `before` to `after` left `before`'s null-face
+/// records: `[kept, dropped]`. A record stands exactly where both its
+/// loops are still its face's own and falls exactly where one died or
+/// left the face, so a drop of a record whose loops stay (an
+/// over-reach) and a record left naming a loop gone from its face each
+/// panic, naming `context`.
+fn null_records_maintained(
+    before: &Body<f64>,
+    after: &Body<f64>,
+    context: impl Fn() -> String,
+) -> [usize; 2] {
+    let mut counts = [0usize; 2];
+    for (face, record) in before.null_faces() {
+        let held = record.loops().iter().all(|&l| {
+            after.get_loop(l).is_some_and(|data| data.face == face)
+                && after
+                    .get_face(face)
+                    .is_some_and(|data| data.outer == l || data.rings.contains(&l))
+        });
+        match (held, after.null_face_pair(face)) {
+            (true, Some(kept)) if kept == record => counts[0] += 1,
+            (false, None) => counts[1] += 1,
+            (held, left) => panic!(
+                "{}: {face:?}'s record {record:?} with its loops held {held} is left {left:?}",
+                context()
+            ),
+        }
+    }
+    assert!(
+        after
+            .null_faces()
+            .all(|(face, _)| before.null_face_pair(face).is_some()),
+        "{}: a record appeared",
+        context()
+    );
+    counts
+}
+
 /// No over-refusal of the anchor, run and removal proofs: on every
 /// valid body [`FIXTURES`], [`BESIDE_A_LONE_VERTEX`],
 /// [`RING_ABOUT_AN_EMPTY_OUTER`], [`EMPTY_RING_BESIDE_A_CYCLE`],
 /// [`TWO_EMPTY_LOOPS`], [`TWO_SHELLS_OF_ONE_SOLID`],
-/// [`NULL_SCAFFOLDING`], the genus-2 body and the holed box build, every
+/// [`NULL_SCAFFOLDING`], the genus-2 body, the holed box and its
+/// two-ring face build, every
 /// [`anchor_calls`] call, through each door its operator has
 /// ([`AnchorCall::run_twin`]), and `movefac` at every shell, refuses
 /// nothing that reports a torn arena
 /// ([`EulerOpError::reports_tier1_corruption`]). An enumeration, not a
-/// sample.
+/// sample. Every ringed face is marked as a null face
+/// ([`mark_ringed_faces`]), and each `Ok`, and `mfkrh` and `ring_move`
+/// (to every face of its shell, its own included) at every ring of a
+/// marked face, keeps exactly the records whose loops stay on their
+/// face ([`null_records_maintained`]). The two-ring face's second ring
+/// is one no record names, so a drop keyed on the face rather than the
+/// loop reds here.
 ///
 /// Each proof sits late in its plan, so a sweep whose calls all refused
 /// earlier would pass having asked none of them; the floors say each
@@ -1708,11 +1779,14 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
 /// its merged fan does not prove, and at a null edge, whose merge moves
 /// nothing, and each kill emptied a loop somewhere, the write whose
 /// proof reads every member: `kev` at the segment, `kef` at the circle
-/// (the `Lone` inverse), and `kemr` at the strut from its tip.
+/// (the `Lone` inverse), and `kemr` at the strut from its tip; and a
+/// record stood somewhere, and fell to `mekr`; and `mfkrh` and
+/// `ring_move` each moved off a marked face a ring its record names and
+/// one it does not, and a `ring_move` within a marked face ran.
 #[test]
 fn valid_fixtures_never_refuse_a_kill_anchor() {
     let tol = Tol::witness();
-    let bodies: [(&str, BuildFixture); 13] = [
+    let bodies: [(&str, BuildFixture); 14] = [
         FIXTURES[0],
         FIXTURES[1],
         FIXTURES[2],
@@ -1726,6 +1800,7 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
         NULL_SCAFFOLDING[1],
         ("ops_genus2", ops_genus2),
         ("ops_holed_box", |tol| ops_holed_box(tol).body),
+        ("ops_two_ring_face", |tol| ops_two_ring_face(tol).body),
     ];
     // Per operator: calls run to `Ok` through the first door, kills
     // that emptied a loop, and calls run to `Ok` through the twin.
@@ -1735,8 +1810,16 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
     let mut mekr_sites = [0usize; 4];
     let mut kfmrh_fusions = 0usize;
     let mut movefacs = 0usize;
+    // Null-face records kept and dropped by the anchor calls; the rings
+    // `mfkrh` and `ring_move` moved off a marked face, [unnamed, named]
+    // by its record; and the `ring_move`s within a marked face.
+    let mut records = [0usize; 2];
+    let mut moves = [[0usize; 2]; 2];
+    let mut same_face_moves = 0usize;
     for (fixture, build) in bodies {
-        let body = build(tol);
+        let mut body = build(tol);
+        mark_ringed_faces(&mut body);
+        let body = body;
         assert_eq!(
             crate::validate::validate(&body),
             Ok(()),
@@ -1754,7 +1837,12 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
         for call in anchor_calls(&body) {
             let mut twin = body.clone();
             match call.run_twin(&mut twin, tol) {
-                Some(Ok(())) => ran[call.op()][2] += 1,
+                Some(Ok(())) => {
+                    ran[call.op()][2] += 1;
+                    null_records_maintained(&body, &twin, || {
+                        format!("{call:?}'s twin on {fixture}")
+                    });
+                }
                 Some(Err(refusal)) if refusal.reports_tier1_corruption() => {
                     panic!("{call:?}'s twin door on the valid {fixture} refuses {refusal:?}")
                 }
@@ -1764,6 +1852,10 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
             match call.run(&mut trial, tol) {
                 Ok(()) => {
                     ran[call.op()][0] += 1;
+                    let [kept, dropped] =
+                        null_records_maintained(&body, &trial, || format!("{call:?} on {fixture}"));
+                    records[0] += kept;
+                    records[1] += dropped;
                     // The loop a kill empties where it empties one: the
                     // mate's for `kef`, whose own loop dies, else `he`'s.
                     let emptiable = match call {
@@ -1811,7 +1903,51 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
                 Err(_) => {}
             }
         }
+        // The moves `anchor_calls` does not make, at every ring of a
+        // marked face, named or not: `mfkrh` promoting it, and
+        // `ring_move` to every face of its shell, its own included.
+        for (face, record) in body.null_faces() {
+            let data = body.get_face(face).expect("a record's face resolves");
+            for &ring in &data.rings {
+                let named = usize::from(record.loops().contains(&ring));
+                let mut trial = body.clone();
+                if trial.mfkrh_plug(ring, true).is_ok() {
+                    null_records_maintained(&body, &trial, || {
+                        format!("mfkrh({ring:?}) on {fixture}")
+                    });
+                    moves[0][named] += 1;
+                }
+                for (to, to_data) in body.faces() {
+                    let mut trial = body.clone();
+                    if to_data.shell == data.shell && trial.ring_move(ring, to).is_ok() {
+                        null_records_maintained(&body, &trial, || {
+                            format!("ring_move({ring:?}, {to:?}) on {fixture}")
+                        });
+                        if to == face {
+                            same_face_moves += 1;
+                        } else {
+                            moves[1][named] += 1;
+                        }
+                    }
+                }
+            }
+        }
     }
+    assert!(
+        records.iter().all(|&n| n > 0),
+        "the anchor calls kept and dropped [{}, {}] null-face records on the valid bodies",
+        records[0],
+        records[1]
+    );
+    assert!(
+        moves.iter().flatten().all(|&n| n > 0),
+        "`mfkrh` and `ring_move` moved [unnamed, named] rings {moves:?} off a marked face \
+         on the valid bodies"
+    );
+    assert!(
+        same_face_moves > 0,
+        "no `ring_move` within a marked face ran to Ok on the valid bodies"
+    );
     for (op, [ok, emptied, twin]) in ANCHOR_OPS.iter().zip(ran) {
         assert!(ok > 0, "no `{op}` ran to Ok on the valid bodies: {ran:?}");
         assert!(
@@ -1884,13 +2020,16 @@ type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 /// seed, one and two tears on every [`FIXTURES`] body, the genus-2 body,
 /// the holed box, [`BESIDE_A_LONE_VERTEX`],
 /// [`RING_ABOUT_AN_EMPTY_OUTER`], [`EMPTY_RING_BESIDE_A_CYCLE`],
-/// [`TWO_EMPTY_LOOPS`] and [`TWO_SHELLS_OF_ONE_SOLID`], then every
+/// [`TWO_EMPTY_LOOPS`] and [`TWO_SHELLS_OF_ONE_SOLID`], each ringed
+/// face marked first ([`mark_ringed_faces`]), then every
 /// [`anchor_calls`] call, each on a
 /// clone. An `Ok` counts in a fault column where it leaves a
 /// [`kill_anchor_faults`] fault the tear did not plant, which is one the
 /// operator wrote. Each call runs inside a surgery scope, so a debug
 /// build's tier-1 postcondition, which a torn input fails whatever the
-/// operator writes, does not answer first.
+/// operator writes, does not answer first; under the scalpel, whose
+/// sweep answers after the operator's last write, a fired sweep counts
+/// as the `Ok` it stood in front of ([`through_the_scalpel`]).
 fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
     use test_utils::fuzz::Rng;
     let tol = Tol::witness();
@@ -1912,6 +2051,7 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
         for tears in [1, 2] {
             for (_, build) in bodies {
                 let mut body = build(tol);
+                mark_ringed_faces(&mut body);
                 let mut rng = Rng::from_seed(seed);
                 for _ in 0..tears {
                     plant(&mut body, tear, &mut rng, HalfEdgeKey::default());
@@ -1920,8 +2060,13 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
                 for call in anchor_calls(&body) {
                     let cells = &mut table[call.op()];
                     let mut trial = body.clone();
+                    let doors: &[&str] = match call {
+                        AnchorCall::Kev(_) => &["kev", "kev_describing"],
+                        _ => &ANCHOR_OPS[call.op()..=call.op()],
+                    };
                     let mut scope = trial.begin_surgery();
-                    let outcome = call.run(&mut scope, tol);
+                    let outcome =
+                        through_the_scalpel(doors, || call.run(&mut scope, tol)).unwrap_or(Ok(()));
                     drop(scope);
                     cells[0] += 1;
                     if outcome.is_err() {
@@ -1946,6 +2091,7 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
                             KillAnchorFault::DeadSolid(_) => 7,
                             KillAnchorFault::DeadEdge(_) => 8,
                             KillAnchorFault::DeadHalfEdge(_) => 9,
+                            KillAnchorFault::DeadNullFaceLoop(_) => 10,
                         };
                         columns[column] = true;
                     }
@@ -1960,7 +2106,7 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
 }
 
 /// The fault columns of an [`AnchorRows`] cell, after calls and `Err`.
-const ANCHOR_COLUMNS: [&str; 10] = [
+const ANCHOR_COLUMNS: [&str; 11] = [
     "a vertex anchor off its vertex",
     "`None` on a vertex that keeps edges",
     "a loop anchor off its loop",
@@ -1971,6 +2117,7 @@ const ANCHOR_COLUMNS: [&str; 10] = [
     "a dead solid left named",
     "a dead edge left named",
     "a dead half-edge left named",
+    "a null-face record naming a dead loop",
 ];
 
 /// Asserts every fault column of `table` is 0, naming the cell and
@@ -2514,7 +2661,8 @@ fn kev_refuses_a_far_vertex_a_torn_empty_loop_holds() {
     let he = halves[1];
     let m = body.mate(he).unwrap();
     assert_eq!(body.get_half_edge(m).unwrap().start, vertices[0]);
-    assert_kev_refuses(&mut body, he, &EulerOpError::LoopCycleBroken { r#loop: l });
+    let torn = dangling(EntityId::Loop(l), EntityId::Vertex(vertices[0]));
+    assert_kev_refuses(&mut body, he, &torn);
 }
 
 #[test]
@@ -2731,9 +2879,7 @@ fn kvfs_refuses_a_lone_record_another_record_names() {
             b.get_loop_mut(third.r#loop).unwrap().boundary = LoopBoundary::Empty {
                 vertex: lone.vertex,
             };
-            EulerOpError::LoopCycleBroken {
-                r#loop: third.r#loop,
-            }
+            dangling(EntityId::Loop(third.r#loop), EntityId::Vertex(lone.vertex))
         },
     ];
     for tear in tears {

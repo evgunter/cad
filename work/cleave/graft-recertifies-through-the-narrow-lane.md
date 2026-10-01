@@ -2,10 +2,11 @@
 id: graft-recertifies-through-the-narrow-lane
 kind: issue
 title: boolean graft re-certifies through the plain certify door, the second instance of the transform split
-status: open
+status: dispatched
 opened: 2026-09-12
 priority: P1
 cost: M
+branch: cleave/nurbs-lane
 ---
 
 
@@ -80,3 +81,55 @@ read that ruling before re-deriving it.
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+## Reachability, measured (CLEAVE, 2026-10-01)
+
+**No boolean reaches the graft's plain certify.** An M7-8 edge
+certifies only on a `Curve3::Nurbs` carrier, and the boolean refuses
+those everywhere ahead of the graft:
+- the operand gate (`boolean::reduce::gate_operand_edges`) refuses them
+  as `CurvedEdgeUnsupported`;
+- the join has no plane × NURBS arm;
+- the crossing layer refuses NURBS faces;
+- the containment fallback refuses a NURBS face as
+  `NurbsExtentUnsupported`.
+
+Against `m4_pr2_transform`'s `m7_8_cube`, `subtract(big, cube)` refuses
+`CurvedPairUnsupported`, and `union(cutter, cube)` and
+`subtract(cube, cutter)` refuse `CurvedEdgeUnsupported`.
+
+**The public void door reaches it.** `topo::insert_void` (and
+`insert_voids`) calls `cavity.revert()` and then
+`graft_solids_with(.., Bridge::Recertify, ..)`, with no NURBS gate on
+the way. Take the M7-8 cube as the cavity inside a [−1, 2]³ brick,
+with true `VoidContainment::Carried { sign: Positive }` evidence. It
+returns `Err(VoidInsertError::Recertify(Unimplemented))`. That is the
+plain door refusing a body the lane-injecting door would certify.
+Whether shell or offset can feed that door an M7-8 cavity has not been
+established. The question is therefore live, and it is the same one as
+`work/shell/plain-transform-rigid-still-refuses-the-m7-8-class`: which
+door the capability is reached through, given that the bound cannot be
+raised on a chain `verbs::Verb` instantiates at `Dual64`.
+
+## Decided (CLEAVE designer pair, 2026-10-01)
+
+The two designers converged after one reconciliation round.
+- **The certification right belongs to the scalar.** The plane × NURBS
+  lane becomes a sealed value (`NurbsLane::certified()`, the shape
+  `FittedLane` has) held per scalar by `AtRestPolicy::nurbs_lane()`.
+- **The transform re-derives.** `transform_rigid` reads its lane from
+  that policy, and `transform_rigid_via` goes.
+- **The graft carries certificates.** The graft copies geometry bit for
+  bit, so `insert_void[s]` uses `Bridge::RemapKeys` and does not
+  re-certify.
+- **A scalar without the lane gets its own refusal.**
+  `CertifyError::NurbsLaneUnsupported` replaces `Unimplemented`, and
+  `needs_nurbs_lane` retires.
+
+This applies H5 ruling 3 (PR 2701) to the one lane that predates it. No
+ratified text changes. The `real.rs` M7-8 paragraph is agent-written,
+and it is re-worded to match the new code. `AtRestPolicy`'s rustdoc counts
+its doors ("three doors, one policy"); that moves to four in the same
+change. Collapsing the mint doors (`set_edge_curve` reading the
+policy) is a second unit, sized separately: the bound raise reaches 46
+call sites.

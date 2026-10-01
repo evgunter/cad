@@ -21,6 +21,7 @@ use crate::body::Body;
 use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey, ShellKey};
 use crate::fixtures::{
     detached_digons, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strut_cube,
+    through_the_scalpel,
 };
 use crate::test_support_fixtures::declined_cube;
 
@@ -106,8 +107,20 @@ fn rows(tear: Tear, seeds: &[u64]) -> Row {
                     let truth = claimed_components(&body, shell);
                     let mut trial = body.clone();
                     let mut scope = trial.begin_surgery();
-                    let outcome = scope.movefac(shell);
+                    let outcome = through_the_scalpel(&["movefac"], || scope.movefac(shell));
                     drop(scope);
+                    // A fired sweep stood in front of the `Ok` naming the
+                    // shell and the shells the move minted.
+                    let outcome = outcome.unwrap_or_else(|_| {
+                        Ok(std::iter::once(shell)
+                            .chain(
+                                trial
+                                    .shells()
+                                    .map(|(k, _)| k)
+                                    .filter(|&k| body.get_shell(k).is_none()),
+                            )
+                            .collect())
+                    });
                     row[0] += 1;
                     let Ok(result) = outcome else {
                         row[1] += 1;

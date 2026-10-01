@@ -14,7 +14,8 @@
 //!
 //! Certification is closed-form residual evaluation at a **fixed
 //! schedule**: [`CERT_SAMPLES`] = 9 parameters
-//! `t_i = t₀ + (t₁ − t₀)·(i/8)`, i = 0…8 — endpoints included, the
+//! `t_i = t₀ + (t₁ − t₀)·(i/8)`, i = 0…8 — endpoints included and
+//! ASSIGNED (`t₀` and `t₁` themselves, [`schedule_param`]), the
 //! fractions exact dyadics, the arithmetic a fixed association order —
 //! so two runs over the same body produce byte-identical
 //! [`Certificate`]s. Interior samples (i = 1…7) additionally carry the
@@ -181,9 +182,11 @@ pub enum CertCheck {
     /// **sup-norm** bound over the whole span — the number that
     /// certifies (a bound, never a sampled max).
     PlaneNurbsHull,
-    /// Intersection, plane × NURBS (M7-8): the lane's own margins as a
-    /// whole, named when one of them escalates.
-    PlaneNurbsCertificate,
+    /// Intersection, plane × NURBS (M7-8): the lane's reported
+    /// transversality, the minimum sine over the interior samples that
+    /// each decided transverse — named when that aggregate is poisoned,
+    /// which no geometry and no tolerance reaches.
+    PlaneNurbsReportedTransversality,
 }
 
 /// The check's own name — the noun a refusal about it writes (the
@@ -243,7 +246,9 @@ impl core::fmt::Display for CertCheck {
             Self::ChartResidual => "the unified conventional residual",
             Self::PlaneNurbsOnLocus => "the plane × NURBS on-locus residual",
             Self::PlaneNurbsHull => "the plane × NURBS sup-norm bound",
-            Self::PlaneNurbsCertificate => "the plane × NURBS lane's margins",
+            Self::PlaneNurbsReportedTransversality => {
+                "the plane × NURBS lane's reported minimum crossing angle"
+            }
         })
     }
 }
@@ -489,11 +494,18 @@ impl core::fmt::Display for CertifyError {
             // the fifteen checks that reach this arm meter no residual
             // (two sup bounds, a parallelism defect, a component, an
             // excess), so the noun is not the sentence's to write.
-            Self::ResidualExceeded { check, sample } => write!(
-                f,
-                "{check} at sample {sample} definitely exceeds the tolerance \
-                 band (the cache does not represent the description, D4 ¶2)"
-            ),
+            Self::ResidualExceeded { check, sample } => {
+                if *sample == NOT_A_SAMPLE {
+                    write!(f, "{check} (not a sampled check)")?;
+                } else {
+                    write!(f, "{check} at sample {sample}")?;
+                }
+                write!(
+                    f,
+                    " definitely exceeds the tolerance band (the cache does not represent \
+                     the description, D4 ¶2)"
+                )
+            }
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
@@ -684,9 +696,12 @@ impl CertCheck {
             | Self::SeamSide
             | Self::ChartResidual => Ending::Unsized(Unsized::Defect),
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
+            // A fold over samples that each decided transverse: a poison
+            // that survives it is the kernel's.
+            Self::PlaneNurbsReportedTransversality => Ending::Unsized(Unsized::Defect),
             // Approximations: a fitted intersection carrier on its
             // surfaces, a certified sag bound, and the plane × NURBS
-            // lane's fitted image and rung-3 certificate. The surface
+            // lane's fitted image's two residual limbs. The surface
             // residuals take the last resort for EVERY carrier, the exact
             // analytic ones too, where a miss would be a defect: the
             // routing reads the decision alone and cannot see which kind
@@ -695,8 +710,7 @@ impl CertCheck {
             | Self::Surface2Residual
             | Self::TangentHull
             | Self::PlaneNurbsOnLocus
-            | Self::PlaneNurbsHull
-            | Self::PlaneNurbsCertificate => Ending::Unsized(Unsized::LastResort),
+            | Self::PlaneNurbsHull => Ending::Unsized(Unsized::LastResort),
         }
     }
 }
@@ -742,7 +756,7 @@ fn tube_separation<T: Decide>(
         Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { verdict }),
         Err(cause) => Err(CertifyError::Escalated {
             check: CertCheck::TangentTube,
-            sample: 0,
+            sample: NOT_A_SAMPLE,
             cause,
         }),
     }
@@ -1421,8 +1435,8 @@ impl<T: Real> EdgeCurve<T> {
         })
     }
 
-    /// The carrier parameter at schedule sample `i` (i ∈ 0…8):
-    /// `t₀ + (t₁ − t₀)·(i/8)`, the module-doc schedule. Exposed so the
+    /// The carrier parameter at schedule sample `i` (i ∈ 0…8): the
+    /// module-doc schedule ([`sample_param`]). Exposed so the
     /// tier-3 validator samples the *same* parameters the certification
     /// did (D9).
     pub fn sample_param(&self, i: u32) -> T {
@@ -1573,16 +1587,60 @@ impl<T: Real> EdgeCurve<T> {
     }
 }
 
-/// The schedule parameter `t₀ + (t₁ − t₀)·(i/8)` (exact dyadic
-/// fraction; fixed association order, D9).
+/// The certification schedule's parameter at sample `i` — the
+/// [`CERT_SAMPLES`]-point [`schedule_param`].
 ///
 /// Public because the contact vocabulary's tangency verification runs
 /// the SAME schedule over a locus that is not an edge yet
 /// (`topo::boolean::contact_verify`): two samplers over one schedule
 /// is the twin this export exists to prevent.
 pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
-    let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
-    t0 + (t1 - t0) * frac
+    schedule_param(t0, t1, i, CERT_SAMPLES)
+}
+
+/// The fraction `i / (samples − 1)` of a uniform `samples`-point
+/// schedule — an exact dyadic when `samples − 1` is a power of two, as
+/// every fixed schedule in this crate's certificates is. The same
+/// precondition as [`schedule_param`].
+pub(crate) fn schedule_fraction(i: u32, samples: u32) -> f64 {
+    f64::from(i) / f64::from(samples - 1)
+}
+
+/// **The one uniform sample schedule** over a parameter interval: sample
+/// `i` of `samples` (both ends included) over `[t₀, t₁]`.
+///
+/// The ends are ASSIGNED — `t₀` at sample 0, `t₁` at the last — and
+/// the interior is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in that
+/// association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in `f64` in
+/// general, and an image re-expressed on `[t₀, t₁]` exactly has its
+/// last knot at `t₁` itself, so a last sample computed rather than
+/// assigned sits an ulp outside it.
+///
+/// Every fixed sample schedule over a carrier's parameter interval
+/// reads this: the certification schedule ([`sample_param`], and
+/// through it the SSI certificate's limb 1, tier 3, the contact
+/// verifier, the importer's plane and arc-rim checks and the blend
+/// battery), the plane × NURBS chart image's foot schedule and the
+/// parameter its refusals report, and the ellipse-on-cylinder pcurve
+/// fit. A tessellation's chords and a quadrature's pieces partition an
+/// interval rather than sample it, and assign their ends themselves.
+///
+/// # Panics
+///
+/// When `samples < 2` or `i ≥ samples`: a schedule names both of its
+/// ends, and every caller passes a fixed count.
+pub fn schedule_param<T: Real>(t0: T, t1: T, i: u32, samples: u32) -> T {
+    assert!(
+        samples >= 2 && i < samples,
+        "schedule_param: sample {i} of a {samples}-point schedule"
+    );
+    if i == 0 {
+        t0
+    } else if i == samples - 1 {
+        t1
+    } else {
+        t0 + (t1 - t0) * T::from_f64(schedule_fraction(i, samples))
+    }
 }
 
 /// The honest spatial **extent** of an edge — the lever arm the
@@ -1698,6 +1756,33 @@ fn check_residual<T: Decide>(
             sample,
             cause,
         }),
+    }
+}
+
+/// The plane × NURBS lane's refusal in this module's vocabulary: a
+/// per-sample transversality refusal keeps its sample, and a limb's
+/// escalation or the poisoned aggregate, which no schedule point
+/// carries, names none ([`NOT_A_SAMPLE`]).
+fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
+    use crate::edge_nurbs::PlaneNurbsRefusal as P;
+    match e {
+        P::NotTransverse { sample, verdict } => CertifyError::NotTransverse { sample, verdict },
+        P::TransversalityEscalated { sample, cause } => CertifyError::Escalated {
+            check: CertCheck::Transversality,
+            sample,
+            cause,
+        },
+        P::Escalated { limb, cause } => CertifyError::Escalated {
+            check: limb.check(),
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        P::ReportedTransversalityPoisoned(cause) => CertifyError::Escalated {
+            check: CertCheck::PlaneNurbsReportedTransversality,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        other => CertifyError::PlaneNurbs(other),
     }
 }
 
@@ -2283,7 +2368,7 @@ fn run_checks<T: Decide>(
             // keeps it legal.
             Resolved::Scaffold(mc) => {
                 let p = spec.carrier.eval(t);
-                let s = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
+                let s = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
                 check_residual(
                     "carrier_matches_mapped_source",
                     CertCheck::MappedSource,
@@ -2381,7 +2466,7 @@ fn run_checks<T: Decide>(
                 // dropped it. Both would have been caught here rather
                 // than by a row someone thought to write.
                 if let Some(mc) = declared {
-                    let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
+                    let frac = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
                     check_residual(
                         "carrier_matches_mapped_source",
                         CertCheck::MappedSource,
@@ -2445,7 +2530,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "tangent_hull_sup",
             CertCheck::TangentHull,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(tangent_resid_max + bounds.residual_sag),
             band,
             &mut max_residual,
@@ -2475,28 +2560,11 @@ fn run_checks<T: Decide>(
         let Some(lane) = lane else {
             return Err(CertifyError::Unimplemented);
         };
-        let limbs = lane(carrier, plane, wall, extent, band).map_err(|e| match e {
-            crate::edge_nurbs::PlaneNurbsRefusal::NotTransverse { sample, verdict } => {
-                CertifyError::NotTransverse { sample, verdict }
-            }
-            crate::edge_nurbs::PlaneNurbsRefusal::TransversalityEscalated { sample, cause } => {
-                CertifyError::Escalated {
-                    check: CertCheck::Transversality,
-                    sample,
-                    cause,
-                }
-            }
-            crate::edge_nurbs::PlaneNurbsRefusal::Escalated(cause) => CertifyError::Escalated {
-                check: CertCheck::PlaneNurbsCertificate,
-                sample: 0,
-                cause,
-            },
-            other => CertifyError::PlaneNurbs(other),
-        })?;
+        let limbs = lane(carrier, plane, wall, extent, band).map_err(from_plane_nurbs)?;
         check_residual(
             "plane_nurbs_on_locus",
             CertCheck::PlaneNurbsOnLocus,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(limbs.on_locus_max),
             band,
             &mut max_residual,
@@ -2504,7 +2572,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "plane_nurbs_hull_sup",
             CertCheck::PlaneNurbsHull,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(limbs.hull_sup),
             band,
             &mut max_residual,
@@ -2529,7 +2597,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "witness_on_surface_1",
             CertCheck::WitnessSurface1,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(implicit_residual(surf1, *witness)),
             band,
             &mut max_residual,
@@ -2537,7 +2605,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "witness_on_surface_2",
             CertCheck::WitnessSurface2,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(implicit_residual(surf2, *witness)),
             band,
             &mut max_residual,
@@ -2565,7 +2633,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "witness_on_surface_1",
             CertCheck::WitnessSurface1,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(implicit_residual(plane, *witness)),
             band,
             &mut max_residual,
@@ -2634,6 +2702,35 @@ mod tests {
         Tol::witness().get().eps
     }
 
+    /// The one schedule's ends are the interval's own bits on an
+    /// interval where the computed last sample misses `t₁` by an ulp,
+    /// and the chart image's 33-point schedule passes through every
+    /// certification sample bit for bit — the superset limb 1
+    /// re-projects on.
+    #[test]
+    fn the_schedule_assigns_its_ends_and_the_image_schedule_contains_the_certificates() {
+        let (t0, t1) = (0.3_f64, 0.9_f64);
+        let computed = t0 + (t1 - t0) * 1.0;
+        assert_ne!(computed.to_bits(), t1.to_bits(), "the fixture must miss t1");
+        let fit = crate::edge_nurbs::PXN_FIT_SAMPLES;
+        let stride = (fit - 1) / (CERT_SAMPLES - 1);
+        for k in 0..CERT_SAMPLES {
+            let cert = sample_param(t0, t1, k);
+            let image = schedule_param(t0, t1, k * stride, fit);
+            assert_eq!(
+                cert.to_bits(),
+                image.to_bits(),
+                "sample {k}: {cert} vs {image}"
+            );
+        }
+        assert_eq!(sample_param(t0, t1, 0).to_bits(), t0.to_bits(), "first end");
+        assert_eq!(
+            sample_param(t0, t1, CERT_SAMPLES - 1).to_bits(),
+            t1.to_bits(),
+            "last end"
+        );
+    }
+
     /// Every member of the residual taxonomy, for the two censuses
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
@@ -2660,7 +2757,7 @@ mod tests {
         CertCheck::ChartResidual,
         CertCheck::PlaneNurbsOnLocus,
         CertCheck::PlaneNurbsHull,
-        CertCheck::PlaneNurbsCertificate,
+        CertCheck::PlaneNurbsReportedTransversality,
     ];
 
     /// **[`ALL_CHECKS`] is the WHOLE taxonomy**, pinned against a
@@ -2699,7 +2796,7 @@ mod tests {
             CertCheck::ChartResidual => 22,
             CertCheck::PlaneNurbsOnLocus => 22,
             CertCheck::PlaneNurbsHull => 22,
-            CertCheck::PlaneNurbsCertificate => 22,
+            CertCheck::PlaneNurbsReportedTransversality => 22,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -2898,7 +2995,7 @@ mod tests {
         m = m.max(spec.carrier.eval(t1).distance(end));
         for i in 0..CERT_SAMPLES {
             let p = spec.carrier.eval(sample_param(t0, t1, i));
-            let frac = f64::from(i) / f64::from(CERT_SAMPLES - 1);
+            let frac = schedule_fraction(i, CERT_SAMPLES);
             let v = v0 + (v1 - v0) * frac;
             m = m.max(p.distance(surface.eval(u, v)));
         }
@@ -3090,7 +3187,7 @@ mod tests {
             let p = mapped
                 .carrier
                 .eval(sample_param(mapped.param_start, mapped.param_end, i));
-            let s = f64::from(i) / f64::from(CERT_SAMPLES - 1);
+            let s = schedule_fraction(i, CERT_SAMPLES);
             mapped_legacy = mapped_legacy.max(p.distance(mc.eval(s)));
         }
         let mapped_delta = ulps(mapped_cert.max_residual, mapped_legacy);
@@ -3663,7 +3760,7 @@ mod tests {
             err,
             CertifyError::ResidualExceeded {
                 check: CertCheck::WitnessSurface1,
-                sample: 0
+                sample: NOT_A_SAMPLE
             }
         );
 
@@ -4218,13 +4315,97 @@ mod tests {
         for (reading, definite, undecided, exact) in rows {
             assert_eq!(limb.ending(reading).unwrap(), definite, "{reading:?}");
             assert_eq!(
-                P::Escalated(cause).ending(reading).unwrap(),
+                P::Escalated {
+                    limb: crate::ssi::SsiLimb::OnLocus,
+                    cause
+                }
+                .ending(reading)
+                .unwrap(),
                 undecided,
                 "{reading:?}"
             );
             assert_eq!(unavailable.ending(reading).unwrap(), exact, "{reading:?}");
             assert_eq!(chart.ending(reading).unwrap(), exact, "{reading:?}");
         }
+    }
+
+    /// **A certificate escalation ends by its limb's decision.** On the
+    /// lane's refusal and through its map into certification alike:
+    /// limbs 1 and 2 are residuals (the last resort at a build), limb
+    /// 3's margin in band is the transversality's (its lever and the
+    /// tolerance below `m/K`), and the poisoned reported transversality
+    /// ends in the kernel-defect ending. None of them was decided at a
+    /// schedule point, so certification renders none.
+    #[test]
+    fn a_certificate_escalation_ends_by_its_limbs_decision() {
+        use crate::edge_nurbs::PlaneNurbsRefusal as P;
+        use crate::ssi::SsiLimb;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cause = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("a_probe"),
+            terminal_sliver: false,
+        };
+        let tube = "Recourse: move the geometry so the faces cross at a clearer angle, or, if \
+                    this angle is intended, tighten the tolerance below 5e-10 m";
+        for (refusal, check, want) in [
+            (
+                P::Escalated {
+                    limb: SsiLimb::OnLocus,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+                CertCheck::PlaneNurbsOnLocus,
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                P::Escalated {
+                    limb: SsiLimb::HullSup,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+                CertCheck::PlaneNurbsHull,
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                P::Escalated {
+                    limb: SsiLimb::Tube,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+                CertCheck::Transversality,
+                tube,
+            ),
+            (
+                P::ReportedTransversalityPoisoned(cause(MarginDiag::INVALID)),
+                CertCheck::PlaneNurbsReportedTransversality,
+                KERNEL_DEFECT_ENDING,
+            ),
+        ] {
+            let (got_check, _) = refusal.decision().unwrap();
+            assert_eq!(got_check, check, "{refusal:?}");
+            assert_eq!(refusal.ending(Reading::Build).unwrap(), want, "{refusal:?}");
+            // Through certification: the same check, and no schedule
+            // point the limb never visited.
+            let certified = from_plane_nurbs(refusal);
+            assert_eq!(
+                certified.decision().map(|(c, _)| c),
+                Some(check),
+                "{certified:?}"
+            );
+            let shown = certified.to_string();
+            assert!(
+                shown.contains("(not a sampled check)") && !shown.contains("at sample"),
+                "a non-sampled limb renders no schedule point: {shown}"
+            );
+        }
+        let exceeded = CertifyError::ResidualExceeded {
+            check: CertCheck::PlaneNurbsHull,
+            sample: NOT_A_SAMPLE,
+        }
+        .to_string();
+        assert!(
+            exceeded.contains("(not a sampled check)") && !exceeded.contains("at sample"),
+            "{exceeded}"
+        );
     }
 
     /// Each decision family ends every refused arm the one way its
@@ -4239,7 +4420,9 @@ mod tests {
     ///   kernel-defect ending, the file's too at rest, and its definite
     ///   refusal ends the same;
     /// - an approximation (a fitted carrier on its surface, the
-    ///   plane × NURBS certificate) ends in the last resort.
+    ///   plane × NURBS residual limbs) ends in the last resort, and the
+    ///   plane × NURBS lane's poisoned reported transversality, which
+    ///   no geometry reaches, in the kernel-defect ending.
     #[test]
     fn each_decision_family_ends_in_its_routed_sentence() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -4296,8 +4479,15 @@ mod tests {
                 KERNEL_LIMIT_RECOURSE,
             ),
             (
-                undecided(CertCheck::PlaneNurbsCertificate, MarginDiag::INVALID),
+                undecided(CertCheck::PlaneNurbsHull, MarginDiag::value(5e-9)),
                 KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                undecided(
+                    CertCheck::PlaneNurbsReportedTransversality,
+                    MarginDiag::INVALID,
+                ),
+                KERNEL_DEFECT_ENDING,
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(0.0)),
@@ -4489,7 +4679,7 @@ mod tests {
             (CertCheck::ChartImage, Defect),
             (CertCheck::PlaneNurbsOnLocus, LastResort),
             (CertCheck::PlaneNurbsHull, LastResort),
-            (CertCheck::PlaneNurbsCertificate, LastResort),
+            (CertCheck::PlaneNurbsReportedTransversality, Defect),
         ];
         assert_eq!(table.len(), ALL_CHECKS.len());
         for check in ALL_CHECKS {

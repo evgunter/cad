@@ -274,9 +274,17 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         }
         Err(SsiError::FitSampleBudget { samples, budget }) => {
             assert!(samples > budget, "BUDGET: {samples} vs {budget}");
-            let msg = format!("{}", SsiError::FitSampleBudget { samples, budget });
+            let msg = SsiError::FitSampleBudget { samples, budget }
+                .render(geom_brep::recourse::Reading::Build);
             assert!(msg.contains("fit budget"), "BUDGET: {msg}");
-            assert!(msg.contains("raise the tolerance"), "BUDGET: {msg}");
+            assert!(
+                msg.ends_with(&format!(
+                    "Recourse: loosen the tolerance until a branch needs at most {budget} \
+                     samples, {}",
+                    geom_core::KERNEL_LIMIT_LAST_RESORT
+                )),
+                "BUDGET: {msg}"
+            );
             vacuity::stood_down(
                 &format!("planted fixture, eps = {:e}", eps()),
                 &format!(
@@ -495,9 +503,11 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             }
             // A hull bound that lands just ABOVE ε is inside the
             // escalation band, so limb 2 speaks as an F6 escalation
-            // rather than a definite refusal. Same limb, same meaning —
-            // and the predicate name is how they are told apart.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_hull_sup") => {
+            // rather than a definite refusal, naming the same limb.
+            Err(SsiError::CertificateEscalated {
+                limb: SsiLimb::HullSup,
+                ref cause,
+            }) if cause.predicate == Some("ssi_hull_sup") => {
                 found = Some((d, f64::NAN));
                 break;
             }
@@ -512,7 +522,10 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // own trilean legitimately lands in the escalation band on
             // the way past: that is limb 1 speaking, and the scan is
             // over.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_on_locus") => {
+            Err(SsiError::CertificateEscalated {
+                limb: SsiLimb::OnLocus,
+                ref cause,
+            }) if cause.predicate == Some("ssi_on_locus") => {
                 break;
             }
             Err(e) => panic!("LIMB-2: unexpected refusal while scanning: {e}"),
@@ -531,7 +544,7 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
     let bad = displaced(&carrier, n, d);
     let (t0, t1) = bad.domain();
     for i in 0..CERT_SAMPLES {
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = geom_brep::sample_param(t0, t1, i);
         let r = geom_brep::implicit_residual(&c, bad.eval(t)).abs();
         assert!(
             r <= eps(),
@@ -863,6 +876,8 @@ fn a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes() {
     let err = ssi::cylinder_sphere_ssi(&c, &s, slab(), band()).expect_err("must refuse");
     let msg = format!("{err}");
     match err {
+        // The pair's own tangency gap, decided before any rung.
+        SsiError::PairTangent { .. } => {}
         SsiError::TransversalityBand { sin_theta, .. } => {
             assert!(sin_theta < 1.0e-6, "sin θ = {sin_theta}");
         }
@@ -1331,7 +1346,10 @@ fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
             );
             assert!(out.branches[0].certificate.hull_sup <= eps());
         }
-        Err(SsiError::Escalated(ref d)) if d.predicate == Some("ssi_hull_sup_chart") => {
+        Err(SsiError::CertificateEscalated {
+            limb: SsiLimb::HullSup,
+            ref cause,
+        }) if cause.predicate == Some("ssi_hull_sup_chart") => {
             assert!(
                 band().zero() <= 10.0 * MEASURED_DEVIATION,
                 "in-band refusal where the band is far above the measured deviation"
@@ -1479,7 +1497,7 @@ fn oq4_the_two_pcurves_share_the_carriers_own_parameter() {
     };
     let v_ref = normal.cross(u_ref);
     for i in 0..CERT_SAMPLES {
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = geom_brep::sample_param(t0, t1, i);
         let c = carrier.eval(t);
         // The wall chart, through the NURBS map.
         let q = pb.eval(t);
@@ -2264,6 +2282,173 @@ fn an_underflowing_weight_reaches_the_chart_refusal_arm_without_magnitude() {
             out.exhaustiveness
         ),
     }
+}
+
+/// **A non-finite operand is refused as itself, at every door.** A
+/// plane whose origin or normal is not finite, cut against the ordinary
+/// wall, reached the chart sweep's refusal arm, whose sentence can only
+/// blame the wall's net; a wall with a NaN control point reached the
+/// march as a seed that would not settle; a non-finite sphere reached
+/// the pair's tangency trilean as an escalation. Each of the four SSI
+/// doors now names the operand and the datum before any sweep or march
+/// reads it. The healthy operand beside each is the file's own, so no
+/// other operand can be at fault.
+#[test]
+fn a_non_finite_operand_is_refused_at_the_door_by_name() {
+    use geom_brep::ssi::OperandDatum;
+    let plane = |origin: Point3<f64>, normal: Vec3<f64>| {
+        let Surface::Plane { u_ref, .. } = cutting_plane() else {
+            unreachable!("the cutting plane is a plane")
+        };
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        }
+    };
+    let Surface::Plane { origin, normal, .. } = cutting_plane() else {
+        unreachable!("the cutting plane is a plane")
+    };
+    let expect =
+        |got: Result<(), SsiError>, operand: &str, datum: OperandDatum, row: &str| match got {
+            Err(SsiError::OperandNotFinite {
+                operand: o,
+                datum: d,
+            }) if o == operand && d == datum => {
+                let msg = SsiError::OperandNotFinite { operand: o, datum }.to_string();
+                assert!(
+                    msg.contains(&format!("the {operand}'s {datum}")),
+                    "{row}: {msg}"
+                );
+            }
+            Err(other) => panic!("{row}: expected the {operand}'s own refusal, got {other}"),
+            Ok(()) => panic!("{row}: a non-finite {operand} traced"),
+        };
+    let field = OperandDatum::Field;
+    let wall = nurbs_wall();
+    // The plane, at both plane × NURBS doors.
+    for (row, p, datum) in [
+        (
+            "+inf origin",
+            plane(Point3::new(f64::INFINITY, 0.0, 0.4), normal),
+            field(geom::SurfaceDatum::Origin),
+        ),
+        (
+            "NaN origin",
+            plane(Point3::new(0.0, f64::NAN, 0.4), normal),
+            field(geom::SurfaceDatum::Origin),
+        ),
+        (
+            "NaN normal",
+            plane(origin, Vec3::new(0.0, f64::NAN, 1.0)),
+            field(geom::SurfaceDatum::Normal),
+        ),
+    ] {
+        expect(
+            ssi::plane_nurbs_ssi(&p, &wall, wall_domain(), band()).map(|_| ()),
+            "plane",
+            datum,
+            &format!("{row}, plane_nurbs_ssi"),
+        );
+        expect(
+            ssi::trace_plane_nurbs_uncertified(
+                &p,
+                &wall,
+                (0.5, 0.5),
+                wall_domain(),
+                band().zero(),
+                band(),
+            )
+            .map(|_| ()),
+            "plane",
+            datum,
+            &format!("{row}, trace_plane_nurbs_uncertified"),
+        );
+    }
+    // The wall: a NaN control point in its second column, whose first
+    // point is the net's third (two rows per column).
+    let mut cols = NURBS_WALL_COLS;
+    cols[1].0 = f64::NAN;
+    let bad_wall = wall_from_cols(cols);
+    expect(
+        ssi::plane_nurbs_ssi(&cutting_plane(), &bad_wall, wall_domain(), band()).map(|_| ()),
+        "NURBS wall",
+        OperandDatum::ControlPoint(2),
+        "NaN control point, plane_nurbs_ssi",
+    );
+    expect(
+        ssi::trace_plane_nurbs_uncertified(
+            &cutting_plane(),
+            &bad_wall,
+            (0.5, 0.5),
+            wall_domain(),
+            band().zero(),
+            band(),
+        )
+        .map(|_| ()),
+        "NURBS wall",
+        OperandDatum::ControlPoint(2),
+        "NaN control point, trace_plane_nurbs_uncertified",
+    );
+    // The analytic pair, at both ℝ³ doors.
+    let Surface::Sphere {
+        radius,
+        axis,
+        u_ref,
+        ..
+    } = sphere()
+    else {
+        unreachable!("the sphere is a sphere")
+    };
+    let bad_sphere = Surface::Sphere {
+        center: Point3::new(f64::NAN, 0.0, 0.0),
+        radius,
+        axis,
+        u_ref,
+    };
+    let centre = field(geom::SurfaceDatum::Center);
+    expect(
+        ssi::cylinder_sphere_ssi(&threaded_cylinder(), &bad_sphere, slab(), band()).map(|_| ()),
+        "sphere",
+        centre,
+        "NaN sphere centre, cylinder_sphere_ssi",
+    );
+    expect(
+        ssi::idealized_trace_r3(
+            &threaded_cylinder(),
+            &bad_sphere,
+            Point3::new(0.11, 0.0, 0.99),
+            slab(),
+            band(),
+        )
+        .map(|_| ()),
+        "second operand",
+        centre,
+        "NaN sphere centre, idealized_trace_r3",
+    );
+}
+
+/// **Internal tangency still crosses, and the refusal does not say
+/// otherwise.** Viviani's pose — a cylinder of half the sphere's radius
+/// through its centre, touching it from inside at one point — meets the
+/// sphere along a figure-eight that crosses itself at the tangency.
+/// The pair's tangency decision refuses it, and its words must be true
+/// of a pair that crosses.
+#[test]
+fn an_internally_tangent_pair_refuses_without_denying_the_crossing() {
+    let viv = Surface::Cylinder {
+        origin: Point3::new(0.5, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let e = ssi::cylinder_sphere_ssi(&viv, &surf::sphere(1.0), slab(), band()).unwrap_err();
+    assert!(
+        matches!(e, SsiError::PairTangent { .. }) && !e.to_string().contains("rather than cross"),
+        "{e}"
+    );
+    let rendered = e.render(geom_brep::recourse::Reading::Build);
+    assert!(!rendered.contains("rather than cross"), "{rendered}");
 }
 
 /// **The chart-speed guard**: a wall whose certified chart speed is not

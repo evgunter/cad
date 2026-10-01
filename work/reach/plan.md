@@ -29,11 +29,6 @@ Each lane measures its repro on current main before it builds: these
 rows were filed between 2026-08-31 and 2026-09-09, and the ground under
 them has moved since.
 
-- `full-period-wall-has-no-containment-verdict`: the fix is written in
-  the row (a height-only arm on the face door for a full-period wall).
-- `union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`:
-  three repros, one shape. The volume backstop reads a closed-form
-  volume the body's curved trims do not have.
 - `slab-cut-cylinder-refuses-sector-side`: wire the second-order sector
   trilean (`enters_material_order2`) into the curved sector-side verdict.
 - `sphere-union-sphere-refuses-though-the-section-is-closed-form`: the
