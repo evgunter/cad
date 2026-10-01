@@ -26,7 +26,7 @@ walk is `docs/guide/assembly.md`.
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
-| A11 (2) gauges, offsets, spaces | `Node::Gauge` and `InstantiatePart`'s `gauge`/`offset` in `src/node.rs`; `DocEdit::SetOffset`/`SetGauge`, the mate door (`clear_joined_offsets`) and `regauge_then_mate` in `src/edit.rs`; `group_frame`, `Pose`, `check_offsets`, `spaces_with` in `src/mate/solve.rs`; `instance_frame` in `src/eval/wire.rs`; the per-space gather in `src/product.rs` and `src/assembly.rs` |
+| A11 (2) gauges, offsets, spaces | `Node::Gauge` and `InstantiatePart`'s `gauge`/`offset` in `src/node.rs`; `DocEdit::SetOffset`/`SetGauge`, the mate door (`clear_joined_offsets`) and `regauge_then_mate` in `src/edit.rs`; `group_frame`, `Pose`, `check_offsets`, `spaces_with` in `src/mate/solve.rs`; `instance_frame` in `src/eval/wire.rs`; the per-space gather and gate (`Product::spaces`, `own_spaces`, `gate_spaces`) in `src/product.rs` and `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an unplaced group below as `CarriedUnplaced` (`Evaluation::unplaced_below`) |
 | A11 (3) roots | `root_and_cause` in `src/mate/solve.rs`: a group's members are `InstantiatePart` nodes, and a pattern's copies are values of the pattern node, never `InstantiatePart` nodes, so no pattern-placed instance is a root candidate |
 | A10 roots and gather | `src/roots.rs`, `src/product.rs`, `DocEdit::SetRoots` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |

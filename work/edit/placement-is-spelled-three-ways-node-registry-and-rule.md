@@ -277,3 +277,17 @@ P2 is cut in two, on the orchestrator's approval: P2-core here, and P2-split on 
 - **The interim refusal set**, which P2-split lifts (`work/edit/placement-split-and-inline-at-a-gauge-are-refused-until-p2-split.md`): `SplitError::CutHoldsGauge`, `InlineError::NeedsAGauge` and `InlineError::MatePlaced`. A `FromFace` side across the seam also refuses (`MateFaceFrameCrosses`), because its name is not re-spelled for the new member's part.
 
 The row stays open for P2-split.
+
+## Fix pass (P2-core, 2026-10-01, PR 3676)
+
+The dual review's union, as the orchestrator ruled it. PR 3676's body holds each item with its evidence and mutants.
+- **The mate door** clears every offset in the first operand's group when the second's is placed, one `OffsetCleared` row each; the second's root roots the merged group.
+- **The compound door** refuses `EditError::WouldStartPlacing` when the re-gauge would turn a declaring mate placing.
+- **Own spaces.** A `Product` carries each unplaced group's own space, and `assemble_gathered` gates them, so the viewer badge and Python check them; `assemble` checks them when the world has no body, and the world gather of unplaced material alone refuses `ProductError::Unplaced` naming the groups.
+- **The seam.** An unplaced group below crosses as a routed fact (`CarriedUnplaced`, `Evaluation::unplaced_below`); STEP refuses `ExportError::UnplacedBelow`.
+- **Split** refuses `PlacingMateLeft`, and every reference leaving the cut votes for the anchor (a plain or placer root votes the world; a group unplaced for lack of a root casts none).
+- **Readers across spaces** refuse typed (`across_spaces`): the flush detector, the clearance door, the kernel pick. The viewer picks each space by itself.
+- **Checked offsets** are checked in every group, unplaced or not, through `Pose::compose_around`; a member the tree cannot reach faults `OffsetCheck::Unreached`.
+- **Recourses** of `MatePlaced`, `NeedsAGauge`, `UnplaceableFrame` and `PartDeadGauge` are honourable; `refusal_concision_refactor.rs` guards every split and inline arm (older arms filed: `work/edit/split-and-inline-refusals-short-of-the-shape-guard.md`).
+- **Also:** the hoisted root's parameters stay in the host; `gauge`/`offset` are required on the wire; gauge references are reading edges; `DocEdit::InsertNode` boxes its node; one space fact (`Space`), one frame-rule predicate.
+
