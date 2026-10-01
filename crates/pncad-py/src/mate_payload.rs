@@ -403,10 +403,12 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             },
             error,
         ),
-        MateFault::ClassNotAdmitted { mate } => MateFaultPayload {
-            mate: Some(*mate),
-            ..none
-        },
+        MateFault::ClassNotAdmitted { mate } | MateFault::PoseOutOfRange { mate } => {
+            MateFaultPayload {
+                mate: Some(*mate),
+                ..none
+            }
+        }
         // A struct, not an enum: the escalation has no inner WORD,
         // and its shape is which margin attribute is set.
         MateFault::Indeterminate { mate, diag } => with_escalation(

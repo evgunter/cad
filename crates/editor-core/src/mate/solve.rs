@@ -438,7 +438,7 @@ struct Solve<'a, P> {
 /// - a decision about the PAIR once its mates are folded — the
 ///   determination check, the pair's static left factor — is the
 ///   pair's first mate's, the one its own refusals name
-///   ([`solve_cluster`] chooses it, once, for both).
+///   ([`solve_group`] chooses it, once, for both).
 ///
 /// A [`Detached`] is not `Clone`, so a decision recorded in one unit
 /// has no second home.
@@ -1064,6 +1064,9 @@ fn fold_pair<P: crate::ProfilePayload>(
                 Ok(next) => next,
                 Err(FoldStop::Indeterminate(diag)) => {
                     return Err(Box::new(MateFault::Indeterminate { mate, diag }));
+                }
+                Err(FoldStop::OutOfRange) => {
+                    return Err(Box::new(MateFault::PoseOutOfRange { mate }));
                 }
                 Err(FoldStop::Clash { predicate, clash }) => {
                     return Err(Box::new(MateFault::Contradictory {

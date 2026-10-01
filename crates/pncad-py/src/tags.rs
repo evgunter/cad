@@ -992,6 +992,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateTableLacks => "mate_table_lacks",
         C::MateIndeterminate => "mate_indeterminate",
+        C::MatePoseOutOfRange => "mate_pose_out_of_range",
         C::MateBand => "mate_band",
         C::MateContradictory => "mate_contradictory",
         C::MateUnder => "mate_under",

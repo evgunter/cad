@@ -31,6 +31,7 @@
 //! check is the same funnel: "an unsatisfiable candidate is empty,
 //! named", the table's own closing sentence.
 
+use geom_core::is_finite_length;
 use geom_core::k_stats::decide;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
@@ -266,50 +267,41 @@ impl Subgroup {
         }
     }
 
-    /// The orthogonal projector onto this subgroup's PURE-TRANSLATION
-    /// directions — the freedom a candidate translation may keep.
-    fn translation_freedom(&self) -> Mat3<f64> {
+    /// How many independent PURE translations this subgroup contains —
+    /// the freedom a candidate translation may keep.
+    fn translation_dimension(&self) -> u8 {
         match self {
-            Self::Se3 => Mat3::identity(),
-            Self::Planar { normal } => sub(Mat3::identity(), outer(normal.get(), normal.get())),
-            Self::Cylindrical { direction, .. } | Self::Prismatic { direction } => {
-                outer(direction.get(), direction.get())
-            }
-            Self::Revolute { .. } | Self::Trivial | Self::Empty => zero3(),
+            Self::Se3 => 3,
+            Self::Planar { .. } => 2,
+            Self::Cylindrical { .. } | Self::Prismatic { .. } => 1,
+            Self::Revolute { .. } | Self::Trivial | Self::Empty => 0,
         }
     }
 
-    /// This subgroup's translation CONSTRAINT at a known rotation `a`
-    /// (the candidate's rotation relative to the coset representative's):
-    /// the pair `(P, q)` for which membership reads `P·(t − q) = 0`.
+    /// The point `q` this subgroup's translation CONSTRAINT is anchored
+    /// at, given the candidate's rotation `a` relative to the coset
+    /// representative's and the representative's translation `r`:
+    /// membership reads `P·(t − q) = 0`, with `P` the projector onto
+    /// the directions the subgroup does not translate along — the
+    /// normal of a planar, the plane across a prismatic's or
+    /// cylindrical's direction, every direction for the rest.
     ///
-    /// Every entry is elementary once written down: a revolute's
-    /// elements fix their axis pointwise, a cylindrical's move it
-    /// only along itself, a planar's move no point across the plane.
-    /// The one thing worth stating is why a point enters at all — a
-    /// rotation about a line NOT through the origin carries a
-    /// translation `(I − Q)p`, so the affine part cannot be split off
-    /// and read separately.
-    fn translation_constraint(&self, a: Mat3<f64>, r: Vec3<f64>) -> (Mat3<f64>, Vec3<f64>) {
+    /// Why a point enters at all: a rotation about a line NOT through
+    /// the origin carries a translation `(I − Q)p`, so the affine part
+    /// cannot be split off and read separately. A revolute's elements
+    /// fix their axis pointwise, a cylindrical's move it only along
+    /// itself, a planar's move no point across the plane.
+    fn translation_anchor(&self, a: Mat3<f64>, r: Vec3<f64>) -> Vec3<f64> {
         let ar = a * r;
         match self {
-            Self::Se3 => (zero3(), Vec3::new(0.0, 0.0, 0.0)),
-            Self::Trivial | Self::Empty => (Mat3::identity(), ar),
-            Self::Prismatic { direction } => (
-                sub(Mat3::identity(), outer(direction.get(), direction.get())),
-                ar,
-            ),
-            Self::Planar { normal } => (outer(normal.get(), normal.get()), ar),
-            Self::Cylindrical { point, direction } => {
+            Self::Se3
+            | Self::Trivial
+            | Self::Empty
+            | Self::Prismatic { .. }
+            | Self::Planar { .. } => ar,
+            Self::Cylindrical { point, .. } | Self::Revolute { point, .. } => {
                 let p = *point - Point3::origin();
-                (
-                    sub(Mat3::identity(), outer(direction.get(), direction.get())),
-                    p - a * p + ar,
-                )
-            }
-            Self::Revolute { point, .. } => {
-                let p = *point - Point3::origin();
-                (Mat3::identity(), p - a * p + ar)
+                p - a * p + ar
             }
         }
     }
@@ -362,6 +354,12 @@ pub enum FoldStop {
         /// What it measured.
         clash: Clash,
     },
+    /// The cosets meet at a pose the format cannot hold: its
+    /// translation, or a length membership measures on it, has no
+    /// finite length. The solve divides only by numbers the table
+    /// decided away from zero ([`candidate_translation`]), so this is
+    /// the meeting point's own distance, not the solve's conditioning.
+    OutOfRange,
 }
 
 impl From<Indeterminate> for FoldStop {
@@ -727,8 +725,10 @@ impl Measured {
 /// # Errors
 ///
 /// [`FoldStop::Clash`] naming the failing predicate with what it
-/// measured — the CONTRADICTORY refusal's own quotation — or
-/// [`FoldStop::Indeterminate`] when a check landed in the band.
+/// measured — the CONTRADICTORY refusal's own quotation —,
+/// [`FoldStop::Indeterminate`] when a check landed in the band, or
+/// [`FoldStop::OutOfRange`] when a length it measures has none the
+/// format can hold.
 fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), FoldStop> {
     let arm = arm.get();
     let residual = |value: f64| Measured::Lever(Lever::Residual { value, arm });
@@ -795,6 +795,9 @@ fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), F
         ],
     };
     for (predicate, measured) in checks {
+        if matches!(measured, Measured::Length(m) if !is_finite_length(m)) {
+            return Err(FoldStop::OutOfRange);
+        }
         if decide(predicate.name(), measured.margin(), band)? != Sign::Zero {
             return Err(FoldStop::Clash {
                 predicate: predicate.name(),
@@ -826,7 +829,8 @@ fn rotation_residual(q: Mat3<f64>) -> f64 {
 ///
 /// [`FoldStop::Indeterminate`] when a case split or membership check
 /// lands in the ambiguity band; [`FoldStop::Clash`] when the
-/// intersection is empty.
+/// intersection is empty; [`FoldStop::OutOfRange`] when the candidate
+/// pose's translation has no finite length.
 pub fn intersect(held: Coset, added: Coset, band: Band, arm: Arm) -> Result<Coset, FoldStop> {
     if matches!(held.subgroup, Subgroup::Empty) || matches!(added.subgroup, Subgroup::Empty) {
         return Ok(Coset {
@@ -844,7 +848,10 @@ pub fn intersect(held: Coset, added: Coset, band: Band, arm: Arm) -> Result<Cose
     }
     let residual = intersect_subgroups(held.subgroup, added.subgroup, band, arm)?;
     let rotation = candidate_rotation(held, added, band, arm)?;
-    let translation = candidate_translation(held, added, residual, rotation);
+    let translation = candidate_translation(held, added, residual, rotation, arm);
+    if !is_finite_length(translation.norm()) {
+        return Err(FoldStop::OutOfRange);
+    }
     let x = Affine3::from_parts(rotation, translation);
     for coset in [held, added] {
         member_of(
@@ -976,68 +983,114 @@ fn axis_point(g: Subgroup) -> Option<Point3<f64>> {
 
 /// Stage two: the candidate's translation, with the rotation fixed.
 ///
-/// Each side contributes an affine condition `P·(t − q) = 0`. Solving
-/// the HELD side exactly and the added side in the remaining freedom
-/// is what makes a failure's margin the added mate's own clash. The
-/// assembled matrix is nonsingular by construction: it is the identity
-/// on the held side's constrained directions, the added side's
-/// projector on the rest, and the residual's own freedom fills the
-/// kernel that would otherwise remain.
+/// Each side contributes an affine condition `P·(t − q) = 0`
+/// ([`Subgroup::translation_anchor`]). The HELD side is met exactly —
+/// `t = q₁ + δ` with `δ` in the held subgroup's translation freedom —
+/// and the added side in the part of that freedom the residual does
+/// not keep, so a failure's margin is the added mate's own clash. That
+/// part is at most a plane, and each shape is solved in closed form in
+/// its own frame, by least squares where the added side over-asks.
+///
+/// **Every division is by a number the table decided away from zero,
+/// or by one near one.** Where the held freedom and the added
+/// constraint nearly align, the conditioning of the solve is the sine
+/// of a non-parallel verdict or the cosine of a non-perpendicular one,
+/// and the divisor is that very number, re-spelled bit for bit as
+/// [`parallel`] or [`perpendicular`] decided it: a levered sine at
+/// least `K·ε`, or a cosine whose levered margin left the zero band. So
+/// a pair the table separated has a finite candidate unless the point
+/// it names lies past the format, which [`intersect`] refuses.
 fn candidate_translation(
     held: Coset,
     added: Coset,
     residual: Subgroup,
     rotation: Mat3<f64>,
+    arm: Arm,
 ) -> Vec3<f64> {
+    use Subgroup::{Cylindrical, Planar, Prismatic};
     let a1 = rotation * held.representative.linear.transpose();
     let a2 = rotation * added.representative.linear.transpose();
-    let (p1, q1) = held
+    let q1 = held
         .subgroup
-        .translation_constraint(a1, held.representative.translation);
-    let (p2, q2) = added
+        .translation_anchor(a1, held.representative.translation);
+    let q2 = added
         .subgroup
-        .translation_constraint(a2, added.representative.translation);
-    let free1 = sub(Mat3::identity(), p1);
-    let k = add(add(free1 * p2 * free1, p1), residual.translation_freedom());
-    let rhs = free1 * (p2 * (q2 - q1));
-    q1 + inverse3(k) * rhs
+        .translation_anchor(a2, added.representative.translation);
+    let delta = q2 - q1;
+    let none = Vec3::new(0.0, 0.0, 0.0);
+    if held.subgroup.translation_dimension() == residual.translation_dimension() {
+        // The residual keeps every translation the held side frees.
+        return q1;
+    }
+    let step = match (held.subgroup, residual, added.subgroup) {
+        // Two planes meeting in the residual's line `d`: cross it
+        // within the held plane, along `e = d × n`, to the added
+        // plane. `m·e = d·(n × m)`, the sine `parallel` levered into
+        // `w` and decided at least K·ε.
+        (Planar { normal: n }, Prismatic { direction: d }, Planar { normal: m }) => {
+            let w = n.get().cross(m.get()) * arm.get();
+            let e = d.get().cross(n.get());
+            e * (m.get().dot(delta) * (arm.get() / w.norm()))
+        }
+        // A line along `u` perpendicular to the plane: the residual
+        // slides along it, so the step is across it within the plane,
+        // along `b = u × n`, whose length is the sine of a right
+        // angle.
+        (
+            Planar { normal: n },
+            Prismatic { .. },
+            Cylindrical { direction: u, .. } | Prismatic { direction: u },
+        ) => {
+            let b = u.get().cross(n.get());
+            b * (b.dot(delta) / b.norm_squared())
+        }
+        // A line along `u` that crosses the plane: the point where it
+        // does. `u·n` is the cosine `perpendicular` decided outside
+        // the zero band, or near one where `parallel` held instead.
+        (
+            Planar { normal: n },
+            _,
+            Cylindrical { direction: u, .. } | Prismatic { direction: u },
+        ) => delta - u.get() * (n.get().dot(delta) / u.get().dot(n.get())),
+        // An added side that pins the translation outright: the point
+        // of the plane nearest it.
+        (Planar { normal: n }, _, _) => delta - n.get() * n.get().dot(delta),
+        // A held line along `u` crossing an added plane: the point
+        // where it does, divided by the same cosine.
+        (
+            Cylindrical { direction: u, .. } | Prismatic { direction: u },
+            _,
+            Planar { normal: n },
+        ) => u.get() * (n.get().dot(delta) / u.get().dot(n.get())),
+        // Two lines the table called non-parallel: the point of the
+        // held line nearest the added one. Along `u` the added side's
+        // projector has length `|u × v|`, the sine `parallel` levered
+        // into `w`, so the step is `(v × ŵ)·Δ / sine`.
+        (
+            Cylindrical { direction: u, .. } | Prismatic { direction: u },
+            _,
+            Cylindrical { direction: v, .. } | Prismatic { direction: v },
+        ) => {
+            let w = u.get().cross(v.get()) * arm.get();
+            let across = v.get().cross(w.normalize());
+            u.get() * (across.dot(delta) * (arm.get() / w.norm()))
+        }
+        // An added side that pins the translation outright: the point
+        // of the held line nearest it.
+        (Cylindrical { direction: u, .. } | Prismatic { direction: u }, _, _) => {
+            u.get() * u.get().dot(delta)
+        }
+        // A held side with no translation freedom met the equality
+        // above; `intersect` returns before this stage for SE(3) and
+        // the empty coset on either side.
+        (Subgroup::Se3 | Subgroup::Revolute { .. } | Subgroup::Trivial | Subgroup::Empty, _, _) => {
+            none
+        }
+    };
+    q1 + step
 }
 
-// ---- Small fixed-order matrix arithmetic (D9: one written order) ----
-
-fn zero3() -> Mat3<f64> {
-    let z = Vec3::new(0.0, 0.0, 0.0);
-    Mat3::from_cols(z, z, z)
-}
-
-fn outer(u: Vec3<f64>, v: Vec3<f64>) -> Mat3<f64> {
-    Mat3::from_cols(u * v.x, u * v.y, u * v.z)
-}
-
-fn add(a: Mat3<f64>, b: Mat3<f64>) -> Mat3<f64> {
-    Mat3::from_cols(a.c0 + b.c0, a.c1 + b.c1, a.c2 + b.c2)
-}
-
+/// `a − b`, columnwise, in one written order (D9).
 fn sub(a: Mat3<f64>, b: Mat3<f64>) -> Mat3<f64> {
     Mat3::from_cols(a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2)
-}
-
-/// The inverse of a 3×3 by adjugate over determinant, in one written
-/// order. Only ever called on the assembled system above, whose
-/// nonsingularity is structural; a singular input would yield
-/// non-finite entries, which the membership check then refuses rather
-/// than passing off as a pose.
-fn inverse3(m: Mat3<f64>) -> Mat3<f64> {
-    let r0 = m.c1.cross(m.c2);
-    let r1 = m.c2.cross(m.c0);
-    let r2 = m.c0.cross(m.c1);
-    let det = m.c0.dot(r0);
-    let s = 1.0 / det;
-    // The adjugate's ROWS are these cross products, so the inverse's
-    // columns are their components.
-    Mat3::from_cols(
-        Vec3::new(r0.x, r1.x, r2.x) * s,
-        Vec3::new(r0.y, r1.y, r2.y) * s,
-        Vec3::new(r0.z, r1.z, r2.z) * s,
-    )
 }

@@ -938,6 +938,14 @@ pub enum MateFault {
         /// The predicate's diagnostics (it names itself).
         diag: Box<Indeterminate>,
     },
+    /// The pair's mates meet at a pose the floating-point format
+    /// cannot hold: the translation the fold solved for has no finite
+    /// length. The mates can both hold; the place they meet is past the
+    /// session's range.
+    PoseOutOfRange {
+        /// The mate being folded when the pose was solved.
+        mate: RecipeNodeId,
+    },
     /// The run's tolerance could not yield a band.
     Band {
         /// The band constructor's refusal.
@@ -1184,6 +1192,7 @@ impl MateFault {
             | Self::ClassNotAdmitted { .. }
             | Self::TableLacks { .. }
             | Self::Indeterminate { .. }
+            | Self::PoseOutOfRange { .. }
             | Self::Band { .. }
             | Self::Contradictory { .. }
             | Self::Under { .. }
@@ -1347,6 +1356,13 @@ impl core::fmt::Display for MateFault {
                 mate,
                 diag.payload(),
                 geom_core::NO_DECLARATION_RECOURSE
+            ),
+            Self::PoseOutOfRange { mate } => write!(
+                f,
+                "mate {}: the mates meet at a pose too far away for the number format to hold. \
+                 Recourse: {}",
+                mate,
+                geom_core::RANGE_RECOURSE
             ),
             Self::Band { error } => write!(f, "the mate solve could not build a band: {error}"),
             Self::Contradictory {

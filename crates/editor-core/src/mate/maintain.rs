@@ -325,6 +325,9 @@ fn undecided(fault: &MateFault) -> bool {
         | MateFault::Indeterminate { .. }
         | MateFault::Unleverable { .. }
         | MateFault::PlacerRefused { .. }
+        // The mates meet, past the format's range: a pose exists and
+        // nothing here can hold it.
+        | MateFault::PoseOutOfRange { .. }
         // A caller's mispairing is no verdict about the document.
         | MateFault::PosesOfAnotherDocument { .. } => true,
         // A face frame that did not resolve: the part not in hand, a

@@ -1194,6 +1194,7 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::ClassNotAdmitted { .. }
         | MateFault::TableLacks { .. }
         | MateFault::Indeterminate { .. }
+        | MateFault::PoseOutOfRange { .. }
         | MateFault::Under { .. }
         | MateFault::SelfMate { .. }
         | MateFault::Unleverable { .. }
@@ -1243,6 +1244,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::ClassNotAdmitted { mate }
         | MateFault::TableLacks { mate, .. }
         | MateFault::Indeterminate { mate, .. }
+        | MateFault::PoseOutOfRange { mate }
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PlacerRefused { mate, .. }
