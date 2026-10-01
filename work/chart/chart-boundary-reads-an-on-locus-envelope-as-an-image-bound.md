@@ -38,5 +38,5 @@ Wanted: `chart_edge` reads `statement` before it reads `envelope`, and
 refuses (or takes a bound that holds) for an `OnLocusHull` image —
 e.g. the chart's Lipschitz bound times a certified sup of `P − ψ∘C`,
 which the fitted lane does not compute today. The practical gap is
-small (the image is interpolated at 8 nodes per CERT interval), but the
+small (the image is interpolated at 8 spans per eighth of a turn), but the
 claim is a certificate's, and it is not one.
