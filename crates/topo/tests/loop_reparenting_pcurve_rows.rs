@@ -407,6 +407,21 @@ fn ring_move_onto_a_chart_that_mints_nothing_drops_the_rings_rows() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
+/// `face` alone onto a fresh key holding `surface`, stating `sense`,
+/// through the describing door with the stored description of every
+/// edge the move strands restated on it. Returns the new key.
+fn on_a_key_of_its_own(
+    body: &mut Body<f64>,
+    face: FaceKey,
+    surface: Surface<f64>,
+    sense: bool,
+) -> Result<topo::SurfaceKey, topo::EulerOpError> {
+    let charts = vec![topo::Rechart::new(surface, face, sense)];
+    let specs = body.carried_redescriptions(&charts)?;
+    let keys = body.set_face_surfaces_describing(charts, &specs, tol())?;
+    Ok(keys[0])
+}
+
 /// A ring whose rows do not stand on the minted curved face it moves
 /// onto is walked in that face's chart, whichever way they fail to
 /// stand: stated in another chart (the upper panel re-charted onto
@@ -419,15 +434,7 @@ fn ring_move_onto_a_minted_curved_face_mints_the_ring_in_its_chart() {
     for rowless in [false, true] {
         let mut s = sheet();
         if !rowless {
-            s.body
-                .set_face_surface(
-                    s.up,
-                    FaceSurface::New {
-                        surface: rotated_cylinder(),
-                        sense: true,
-                    },
-                )
-                .unwrap();
+            on_a_key_of_its_own(&mut s.body, s.up, rotated_cylinder(), true).unwrap();
             topo::mint_pcurves_of(&mut s.body, &[s.up], tol()).unwrap();
         }
         s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
@@ -539,15 +546,7 @@ fn a_remnant_held_open_by_a_null_edge_is_owed_nothing_by_either_kef() {
         let mut s = sheet();
         let up = s.up;
         if recharted {
-            s.body
-                .set_face_surface(
-                    up,
-                    FaceSurface::New {
-                        surface: rotated_cylinder(),
-                        sense: true,
-                    },
-                )
-                .unwrap();
+            on_a_key_of_its_own(&mut s.body, up, rotated_cylinder(), true).unwrap();
             topo::mint_pcurves_of(&mut s.body, &[up], tol()).unwrap();
         }
         let he = he_at(&s.body, s.low, at(U1, VM));
@@ -948,16 +947,7 @@ fn two_keys_holding_one_surface_read_as_two_charts_whatever_recipe_they_carry() 
     for stamped in [false, true] {
         let mut s = sheet();
         let cyl = s.body.get_face(s.low).unwrap().surface;
-        let second = s
-            .body
-            .set_face_surface(
-                s.up,
-                FaceSurface::New {
-                    surface: cylinder(),
-                    sense: true,
-                },
-            )
-            .unwrap();
+        let second = on_a_key_of_its_own(&mut s.body, s.up, cylinder(), true).unwrap();
         assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
         if stamped {
             s.body.set_surface_source(cyl, one_recipe()).unwrap();
@@ -1446,7 +1436,7 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
     let mut s = sheet();
     let forged = forge(&mut s);
     s.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.low,
             FaceSurface::Shared {
                 key: forged,
@@ -1643,15 +1633,7 @@ fn rotated_cylinder() -> Surface<f64> {
 #[test]
 fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
     let mut s = sheet();
-    s.body
-        .set_face_surface(
-            s.up,
-            FaceSurface::New {
-                surface: rotated_cylinder(),
-                sense: true,
-            },
-        )
-        .unwrap();
+    on_a_key_of_its_own(&mut s.body, s.up, rotated_cylinder(), true).unwrap();
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1696,8 +1678,11 @@ fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
 #[test]
 fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
     let mut s = sheet();
+    // A cylinder panel onto a plane its boundary does not lie on: the
+    // describing door refuses that (`RechartOffBoundary`), so the row
+    // takes the stranding door, whose rows are the real door's.
     s.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.low,
             FaceSurface::New {
                 surface: flat(),
@@ -1735,7 +1720,7 @@ fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
 fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them() {
     let mut s = sheet();
     s.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.low,
             FaceSurface::New {
                 surface: other_cylinder(),
@@ -1773,7 +1758,7 @@ fn a_swap_drops_the_rows_of_every_loop_of_the_face() {
     assert_eq!(s.body.get_face(s.low).unwrap().rings.len(), 1);
 
     s.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.low,
             FaceSurface::New {
                 surface: flat(),
@@ -1850,14 +1835,10 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
             s.body.set_surface_source(second, one_recipe()).unwrap();
         }
 
+        let charts = vec![topo::Rechart::shared(second, s.low, true)];
+        let specs = s.body.carried_redescriptions(&charts).unwrap();
         s.body
-            .set_face_surface(
-                s.low,
-                FaceSurface::Shared {
-                    key: second,
-                    sense: true,
-                },
-            )
+            .set_face_surfaces_describing(charts, &specs, tol())
             .unwrap();
         assert_eq!(rows_of(&s.body, s.low), (0, 4), "stamped: {stamped}");
 
@@ -2034,7 +2015,7 @@ fn arc_sheet(tied: bool) -> ArcSheet {
         };
         keys.push(
             s.body
-                .set_face_surface(
+                .set_face_surface_stranding_for_tests(
                     face,
                     FaceSurface::New {
                         surface: Surface::Nurbs(payload),
@@ -2617,16 +2598,15 @@ fn caps_on_flipped_planes(mut body: Body<f64>) -> Body<f64> {
         else {
             panic!("a planar cap");
         };
-        body.set_face_surface(
+        on_a_key_of_its_own(
+            &mut body,
             cap,
-            FaceSurface::New {
-                surface: Surface::Plane {
-                    origin,
-                    normal: -normal,
-                    u_ref,
-                },
-                sense: false,
+            Surface::Plane {
+                origin,
+                normal: -normal,
+                u_ref,
             },
+            false,
         )
         .unwrap();
     }
@@ -2771,7 +2751,7 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
     );
     let plane_key = body.get_face(top).unwrap().surface;
     let own = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             top,
             FaceSurface::New {
                 surface: Surface::Nurbs(cap_patch.clone()),
@@ -3071,16 +3051,7 @@ fn the_stamp_door_reads_every_holder_not_the_first() {
     let mut s = sheet();
     let forged = forge(&mut s);
     let cyl = s.body.get_face(s.low).unwrap().surface;
-    let third = s
-        .body
-        .set_face_surface(
-            s.up,
-            FaceSurface::New {
-                surface: cylinder(),
-                sense: true,
-            },
-        )
-        .unwrap();
+    let third = on_a_key_of_its_own(&mut s.body, s.up, cylinder(), true).unwrap();
     assert!(third != cyl && third != forged);
     let refused = refused_by_the_stamp_door(|| {
         s.body.set_surface_source(third, one_recipe()).unwrap();

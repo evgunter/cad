@@ -1170,6 +1170,12 @@ impl OpPlacement {
             | E::NotMergedMember { .. }
             | E::DuplicateRedescription { .. }
             | E::DescriptionNotAdjacent { .. }
+            | E::RechartStrandsDescriptions { .. }
+            | E::RechartUndescribed { .. }
+            | E::RechartFalsifies { .. }
+            | E::RechartOffBoundary { .. }
+            | E::RechartBoundaryEscalated { .. }
+            | E::FaceMovedTwice { .. }
             | E::FanStartMismatch { .. }
             | E::FanOrbitBroken { .. }
             | E::LoopNotEmpty { .. }

@@ -415,7 +415,7 @@ fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
         panic!("the band is a torus");
     };
     out.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             band_face,
             FaceSurface::New {
                 surface: Surface::Torus {

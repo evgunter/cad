@@ -3750,6 +3750,20 @@ pub(crate) mod staleness_posture {
              which that pass skips entirely",
             ),
             (
+                "set_face_surface_stranding_for_tests",
+                Transfers,
+                "the failure-injection twin of `set_face_surface`, whose rows it keeps and \
+             drops on the same terms",
+            ),
+            (
+                "set_face_surfaces_describing",
+                Transfers,
+                "`set_face_surface`'s swap per face, on its terms: a face's rows are kept \
+             across a move onto the same chart and dropped on any other. The edges it \
+             re-describes are the listed certified ones, whose rows stand as \
+             `set_edge_curve` leaves a certified edge's",
+            ),
+            (
                 "set_edge_curve",
                 Completes,
                 "a carrier swap is content staleness the tier-3 pass re-certifies against, \

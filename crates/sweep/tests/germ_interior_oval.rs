@@ -711,7 +711,7 @@ fn nurbs_bump() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .expect("the block has a top face");
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         top,
         topo::FaceSurface::New {
             surface: geom::Surface::Nurbs(std::sync::Arc::new(patch)),
