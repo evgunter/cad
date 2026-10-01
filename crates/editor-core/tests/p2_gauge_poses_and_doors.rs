@@ -873,8 +873,10 @@ fn a_cut_that_leaves_its_groups_placing_mate_behind_refuses() {
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     match split_of(&p, &doc, &[base, top], "r2-split-mate-part") {
         Err(e @ editor_core::SplitError::PlacingMateLeft { .. }) => {
-            assert!(matches!(e, editor_core::SplitError::PlacingMateLeft { mate: m } if m == mate));
-            assert!(e.to_string().contains("Recourse: add mate"), "{e}");
+            assert!(
+                matches!(&e, editor_core::SplitError::PlacingMateLeft { mate: m } if m.id() == mate)
+            );
+            assert!(e.to_string().contains("Recourse: add Mate"), "{e}");
         }
         other => panic!("a placing mate left behind refuses typed: {other:?}"),
     }
@@ -953,7 +955,10 @@ fn the_mate_placed_recourse_holds_when_an_earlier_member_roots_the_group() {
     );
     match editor_core::inline(&stated, top, &resolver, Tol::witness()) {
         Err(editor_core::InlineError::MatePlaced { root, mates, .. }) => {
-            assert_eq!((root, mates), (base, vec![mate]));
+            assert_eq!(
+                (root.id(), mates.iter().map(|m| m.id()).collect::<Vec<_>>()),
+                (base, vec![mate])
+            );
         }
         other => panic!("a checked member is still not the root: {other:?}"),
     }

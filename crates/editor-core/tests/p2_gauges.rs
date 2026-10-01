@@ -830,16 +830,16 @@ fn a_cut_holding_a_gauge_or_landing_on_two_anchors_refuses_typed() {
     };
     let err = split(&[g, on_g]).expect_err("the gauge hoist is not built");
     assert!(
-        matches!(err, editor_core::SplitError::CutHoldsGauge { gauge } if gauge == g),
+        matches!(&err, editor_core::SplitError::CutHoldsGauge { gauge } if gauge.id() == g),
         "{err:?}"
     );
     assert!(err.to_string().contains("Recourse:"), "{err}");
     let err = split(&[on_g, on_world]).expect_err("two anchors");
     assert!(
         matches!(
-            err,
+            &err,
             editor_core::SplitError::TwoAnchors { node, first, second }
-                if node == on_world && first == Some(g) && second.is_none()
+                if node.id() == on_world && first.as_ref().map(|f| f.id()) == Some(g) && second.is_none()
         ),
         "{err:?}"
     );
@@ -878,15 +878,15 @@ fn a_cut_reaching_a_dead_gauge_or_of_unplaced_material_alone_refuses_typed() {
     let err = split(&[dead]).expect_err("a dead gauge reference");
     assert!(
         matches!(
-            err,
+            &err,
             editor_core::SplitError::DeadGaugeReference { instance, gauge }
-                if instance == dead && gauge == g
+                if instance.id() == dead && gauge.id() == g
         ),
         "{err:?}"
     );
     let err = split(&[bare]).expect_err("unplaced material alone");
     assert!(
-        matches!(err, editor_core::SplitError::UnplacedAlone { group } if group == bare),
+        matches!(&err, editor_core::SplitError::UnplacedAlone { group } if group.id() == bare),
         "{err:?}"
     );
     for err in [split(&[dead]).unwrap_err(), split(&[bare]).unwrap_err()] {
@@ -932,7 +932,7 @@ fn the_group_hoist_and_the_frame_rule_at_a_split() {
     let checked = set_offset(doc.clone(), top, Some(Placement::literal(&solved)));
     let err = split(&checked, &[base, top, mate]).expect_err("a further offset");
     assert!(
-        matches!(err, editor_core::SplitError::HoistedMemberOffset { instance } if instance == top),
+        matches!(&err, editor_core::SplitError::HoistedMemberOffset { instance } if instance.id() == top),
         "{err:?}"
     );
 
@@ -960,9 +960,9 @@ fn the_group_hoist_and_the_frame_rule_at_a_split() {
     let err = split(&apart, &[base, top, mate]).expect_err("the frame rule");
     assert!(
         matches!(
-            err,
+            &err,
             editor_core::SplitError::MateFrameCrosses { mate: m, side }
-                if m == kept_mate && side == editor_core::MateSide::B
+                if m.id() == kept_mate && *side == editor_core::MateSide::B
         ),
         "{err:?}"
     );
@@ -1037,14 +1037,14 @@ fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed() {
     let err = editor_core::inline(&mated, out.instance, &r, Tol::witness())
         .expect_err("a mate-placed instance");
     assert!(
-        matches!(err, editor_core::InlineError::MatePlaced { instance, .. } if instance == out.instance),
+        matches!(&err, editor_core::InlineError::MatePlaced { instance, .. } if instance.id() == out.instance),
         "{err:?}"
     );
     let unplaced = set_offset(out.remainder.clone(), out.instance, None);
     let err = editor_core::inline(&unplaced, out.instance, &r, Tol::witness())
         .expect_err("an unplaced instance");
     assert!(
-        matches!(err, editor_core::InlineError::Unplaced { instance, cause: Unplaced::NoOffset } if instance == out.instance),
+        matches!(&err, editor_core::InlineError::Unplaced { instance, cause: Unplaced::NoOffset } if instance.id() == out.instance),
         "{err:?}"
     );
     // A part whose root does NOT sit at the empty chain needs a gauge.
@@ -1072,7 +1072,7 @@ fn inline_admits_the_sugar_and_the_empty_offset_and_refuses_the_rest_typed() {
     )
     .expect_err("an inline at an offset over a part not rooted at the empty chain");
     assert!(
-        matches!(err, editor_core::InlineError::NeedsAGauge { instance } if instance == out.instance),
+        matches!(&err, editor_core::InlineError::NeedsAGauge { instance } if instance.id() == out.instance),
         "{err:?}"
     );
     for err in [
@@ -1203,9 +1203,9 @@ fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
     let err = split_top(&faced).expect_err("the face side crosses");
     assert!(
         matches!(
-            err,
+            &err,
             editor_core::SplitError::MateFaceFrameCrosses { mate: m, side }
-                if m == mate && side == editor_core::MateSide::A
+                if m.id() == mate && *side == editor_core::MateSide::A
         ),
         "{err:?}"
     );
@@ -1251,9 +1251,9 @@ fn a_from_face_side_across_the_seam_refuses_typed_at_split_and_inline() {
     .expect_err("the face side crosses back");
     assert!(
         matches!(
-            err,
+            &err,
             editor_core::InlineError::MateFaceFrameCrosses { mate: m, side }
-                if m == face_mate && side == editor_core::MateSide::A
+                if m.id() == face_mate && *side == editor_core::MateSide::A
         ),
         "{err:?}"
     );
@@ -1296,7 +1296,7 @@ fn inline_refuses_two_placing_mates_of_one_pair_that_would_read_two_pairs() {
     let err =
         editor_core::inline(&host, h, &resolver(store), Tol::witness()).expect_err("two pairs");
     assert!(
-        matches!(err, editor_core::InlineError::MatePairSplits { first: f, second: s } if f == one && s == two),
+        matches!(&err, editor_core::InlineError::MatePairSplits { first: f, second: s } if f.id() == one && s.id() == two),
         "{err:?}"
     );
     assert!(err.to_string().contains("Recourse:"), "{err}");

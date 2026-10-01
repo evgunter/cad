@@ -17,7 +17,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, Node,
+    CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, ListFault, Node,
     NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
     SnapshotError, StableName, apply, evaluate, load, save,
 };
@@ -194,9 +194,9 @@ fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
 }
 
 /// **The load door refuses the same document with the same fault**,
-/// through `SnapshotError::InputList` — the arm every other
-/// `Node::input_fault` answer already loads through, so the blend's
-/// canonical form has no refusal of its own any more.
+/// through `SnapshotError::InputList` — the load door's arm for every
+/// fault of a node's own list or designation (`ListFault`), so the
+/// blend's canonical form has no refusal of its own.
 #[test]
 fn an_unsorted_selection_is_refused_at_the_load_door() {
     let text = saved_fillet(&[0, 2]);
@@ -208,7 +208,7 @@ fn an_unsorted_selection_is_refused_at_the_load_door() {
     let corrupt = corrupt_selection(&text, 0, 9);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::InputList {
-            fault: InputFault::SelectionNotCanonical { at: 0 },
+            fault: ListFault::SelectionNotCanonical { at: 0 },
             ..
         })) => {}
         other => panic!("an unsorted selection must refuse typed at load, got {other:?}"),
@@ -224,7 +224,7 @@ fn a_repeated_selection_entry_is_refused_at_the_load_door() {
     let corrupt = corrupt_selection(&text, 2, 0);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::InputList {
-            fault: InputFault::SelectionNotCanonical { at: 0 },
+            fault: ListFault::SelectionNotCanonical { at: 0 },
             ..
         })) => {}
         other => panic!("a repeated selection must refuse typed at load, got {other:?}"),
@@ -411,7 +411,7 @@ fn the_load_door_reports_a_non_zero_position() {
     // `[0, 2, 4]` → `[0, 9, 4]`: the break moves to entry 1.
     match load(&corrupt_selection(&text, 2, 9), Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::InputList {
-            fault: InputFault::SelectionNotCanonical { at },
+            fault: ListFault::SelectionNotCanonical { at },
             ..
         })) => assert_eq!(at, 1, "the load door names the same entry"),
         other => panic!("expected a typed refusal, got {other:?}"),

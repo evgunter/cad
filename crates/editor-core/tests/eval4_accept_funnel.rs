@@ -146,7 +146,7 @@ fn a_cut_that_would_start_a_mate_placing_refuses() {
     )
     .expect_err("the re-anchored mate would place");
     assert!(
-        matches!(err, editor_core::SplitError::WouldStartPlacing { mate: m } if m == mate),
+        matches!(&err, editor_core::SplitError::WouldStartPlacing { mate: m } if m.id() == mate),
         "{err:?}"
     );
 }

@@ -2,15 +2,18 @@
 id: persist-door-refusals-speak-the-node
 kind: unit
 title: The load and save doors' refusals (SnapshotError, PersistError) speak the node from the document they judge
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-01
 priority: P2
 cost: M
+branch: emit/persist-speak
+pr: 3741
 parent: node-labels-are-document-data
 ---
 
 
-Split from `kernel-door-refusals-beyond-edit-speak-the-node`, whose PR spoke `RootFault` at every door. The rule is DESIGN.md Band 1, "Node labels", which makes no exception for loading. The load and save doors share one validator, `persist::check::validate_snapshot(doc: &ProfileDoc, …)`. It judges a deserialized document: a `Label`'s `Deserialize` runs `Label::new`, and the `LabelOnMissingNode` check runs before anything that would speak a label. So each refusal it raises holds a `SpokenNode` built with `doc.spoken(..)`, which is `absent` for an id the document does not hold, as everywhere else. A machine channel (a Python payload) keeps the full id through `SpokenNode::id`.
+Split from `kernel-door-refusals-beyond-edit-speak-the-node`, whose PR spoke `RootFault` at every door. The rule is DESIGN.md Band 1, "Node labels", which makes no exception for loading. The load and save doors share one validator, `persist::check::validate_snapshot(doc: &ProfileDoc, …)`. It judges a deserialized document whose labels `Label`'s `Deserialize` has already admitted (`Label::new`). The `LabelOnMissingNode` check runs late (after the node walk, and after every walk `validate_document` runs before `validate_snapshot`), and that order is not load-bearing: `Doc::spoken` reads a label only for a node the document holds, so a label keyed to a missing node is never spoken. So each refusal it raises holds a `SpokenNode` built with `doc.spoken(..)`, which is `absent` for an id the document does not hold, as everywhere else. A machine channel (a Python payload) keeps the full id through `SpokenNode::id`.
 
 ## The arms (node fields, at the parent PR's merge base)
 

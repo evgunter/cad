@@ -11,8 +11,8 @@
 
 use editor_core::{
     CapEnd, DocumentId, EditError, EntityKind, InlineError, MateSide, ParamName, PersistError,
-    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenNode, StableName,
-    StepId, Unplaced,
+    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode,
+    StableName, StepId, Unplaced,
 };
 use test_utils::refusal::Admission;
 
@@ -20,12 +20,21 @@ fn n(id: u64) -> RecipeNodeId {
     RecipeNodeId(test_utils::refusal::tagged(id))
 }
 
-fn name() -> Box<StableName> {
-    Box::new(StableName {
-        kind: EntityKind::Face,
-        node: n(3),
-        path: vec![RoleSeg::Cap(CapEnd::End)],
-    })
+/// Node `id` as a refusal raised over a document holding it as a
+/// `kind` speaks it.
+fn s(id: u64, kind: &'static str) -> SpokenNode {
+    editor_core::test_support::spoken(n(id), Some(kind))
+}
+
+fn name() -> SpokenName {
+    editor_core::test_support::spoken_name(
+        StableName {
+            kind: EntityKind::Face,
+            node: n(3),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        },
+        s(3, "Extrude"),
+    )
 }
 
 fn param() -> ParamName {
@@ -57,61 +66,69 @@ test_utils::f6_variants! {
 fn split_refusals() -> Vec<SplitError> {
     vec![
         SplitError::EmptyCut,
-        SplitError::UnknownCutNode { id: n(9) },
+        SplitError::UnknownCutNode {
+            id: SpokenNode::absent(n(9)),
+        },
         SplitError::PartIdCollides {
             id: DocumentId::derive("refusal-concision-refactor"),
         },
         SplitError::SeveredEdge {
-            consumer: n(5),
-            input: n(3),
+            consumer: s(5, "Extrude"),
+            input: s(3, "Profile"),
             consumer_is_cut: true,
         },
         SplitError::OperandSeveredFromMate {
-            mate: n(7),
+            mate: s(7, "Mate"),
             side: MateSide::A,
-            operand: n(3),
+            operand: s(3, "InstantiatePart"),
             mate_is_cut: false,
         },
         SplitError::TornGroup {
-            root: n(2),
-            instance: n(4),
+            root: s(2, "InstantiatePart"),
+            instance: s(4, "InstantiatePart"),
             root_is_cut: true,
         },
-        SplitError::CutHoldsGauge { gauge: n(1) },
+        SplitError::CutHoldsGauge {
+            gauge: s(1, "Gauge"),
+        },
         SplitError::TwoAnchors {
-            node: n(4),
-            first: Some(n(1)),
+            node: s(4, "Extrude"),
+            first: Some(s(1, "Gauge")),
             second: None,
         },
-        SplitError::PlacingMateLeft { mate: n(7) },
+        SplitError::PlacingMateLeft { mate: s(7, "Mate") },
         SplitError::DeadGaugeReference {
-            instance: n(4),
-            gauge: n(1),
+            instance: s(4, "InstantiatePart"),
+            gauge: s(1, "Gauge"),
         },
-        SplitError::UnplacedAlone { group: n(2) },
-        SplitError::WouldStartPlacing { mate: n(7) },
+        SplitError::UnplacedAlone {
+            group: s(2, "InstantiatePart"),
+        },
+        SplitError::WouldStartPlacing { mate: s(7, "Mate") },
         SplitError::MateFrameCrosses {
-            mate: n(7),
+            mate: s(7, "Mate"),
             side: MateSide::B,
         },
         SplitError::MateFaceFrameCrosses {
-            mate: n(7),
+            mate: s(7, "Mate"),
             side: MateSide::B,
         },
-        SplitError::HoistedMemberOffset { instance: n(4) },
+        SplitError::HoistedMemberOffset {
+            instance: s(4, "InstantiatePart"),
+        },
         SplitError::UncutParamReference {
             param: param(),
-            cut_node: n(4),
-            kept_node: n(6),
+            cut_node: s(4, "Extrude"),
+            kept_node: s(6, "Extrude"),
         },
         SplitError::PartNameReachesRemainder {
-            node: n(5),
+            node: s(5, "Extrude"),
             name: name(),
-            missing: n(6),
+            missing: s(6, "Extrude"),
         },
         SplitError::NameStraddlesCut {
             name: name(),
-            missing: Some(n(6)),
+            missing: Some(s(6, "Extrude")),
         },
         SplitError::NameOnDroppedStep {
             name: name(),
@@ -139,11 +156,15 @@ fn split_refusals() -> Vec<SplitError> {
 /// Every `InlineError` arm, on a representative payload.
 fn inline_refusals() -> Vec<InlineError> {
     vec![
-        InlineError::UnknownNode { id: n(9) },
-        InlineError::NotAnInstance { node: n(5) },
+        InlineError::UnknownNode {
+            id: SpokenNode::absent(n(9)),
+        },
+        InlineError::NotAnInstance {
+            node: s(5, "Extrude"),
+        },
         InlineError::InstanceConsumed {
-            node: n(4),
-            by: n(5),
+            node: s(4, "InstantiatePart"),
+            by: s(5, "Union"),
         },
         InlineError::Unresolved {
             failure: ResolveFailure::new(ResolveFault::Unresolved, "no such document"),
@@ -156,29 +177,35 @@ fn inline_refusals() -> Vec<InlineError> {
             key: "author".to_owned(),
         },
         InlineError::ParamConflict { param: param() },
-        InlineError::UnplaceableFrame { root: n(3) },
+        InlineError::UnplaceableFrame {
+            root: s(3, "Extrude"),
+        },
         InlineError::MatePlaced {
-            instance: n(4),
-            root: n(2),
-            mates: vec![n(7)],
+            instance: s(4, "InstantiatePart"),
+            root: s(2, "InstantiatePart"),
+            mates: vec![s(7, "Mate")],
         },
         InlineError::Unplaced {
-            instance: n(4),
+            instance: s(4, "InstantiatePart"),
             cause: Unplaced::NoOffset,
         },
-        InlineError::NeedsAGauge { instance: n(4) },
-        InlineError::PartDeadGauge { node: n(3) },
+        InlineError::NeedsAGauge {
+            instance: s(4, "InstantiatePart"),
+        },
+        InlineError::PartDeadGauge {
+            node: s(3, "Extrude"),
+        },
         InlineError::MateFrameCrosses {
-            mate: n(7),
+            mate: s(7, "Mate"),
             side: MateSide::A,
         },
         InlineError::MateFaceFrameCrosses {
-            mate: n(7),
+            mate: s(7, "Mate"),
             side: MateSide::A,
         },
         InlineError::MatePairSplits {
-            first: n(7),
-            second: n(8),
+            first: s(7, "Mate"),
+            second: s(8, "Mate"),
         },
         InlineError::InstanceBodyNameReferenced { name: name() },
         InlineError::ForeignInstanceName { name: name() },
@@ -188,7 +215,7 @@ fn inline_refusals() -> Vec<InlineError> {
         },
         InlineError::StrandedPartName {
             name: name(),
-            missing: n(6),
+            missing: s(6, "Extrude"),
         },
         InlineError::Edit {
             error: Box::new(EditError::UnknownNode {

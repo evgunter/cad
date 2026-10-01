@@ -334,7 +334,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
             at,
             determinant,
         })) => {
-            assert_eq!((node, at), (placed, second));
+            assert_eq!((node.id(), at), (placed, second));
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
         other => panic!("a mirrored step must refuse typed at load, got {other:?}"),
@@ -345,7 +345,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
             else {
                 unreachable!("matched above")
             };
-            assert_eq!((*node, *at), (placed, second));
+            assert_eq!((node.id(), *at), (placed, second));
             assert!(
                 error.to_string().ends_with(REGENERATE_RECOURSE),
                 "with the regenerate recourse: {error}"

@@ -1064,7 +1064,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     };
     let step_fault = |text: String, node: RecipeNodeId| match refused(text) {
         editor_core::SnapshotError::StepIds { node: at, fault } => {
-            assert_eq!(at, node);
+            assert_eq!(at.id(), node);
             fault
         }
         other => panic!("a step-id refusal, got {other:?}"),

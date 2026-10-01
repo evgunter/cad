@@ -231,7 +231,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         };
         assert_eq!(
             (root, instance, cut_side),
-            (leg, top, root_is_cut),
+            (doc.spoken(leg), doc.spoken(top), root_is_cut),
             "cutting {what} names the root, the instance across the tear, \
              and which side the root is on"
         );
@@ -259,7 +259,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     };
     assert_eq!(
         (consumer, input, consumer_is_cut),
-        (pattern, leg, true),
+        (doc.spoken(pattern), doc.spoken(leg), true),
         "the pattern is the cut-side consumer and its instance input is the severed end"
     );
 

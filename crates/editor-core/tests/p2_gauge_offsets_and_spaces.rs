@@ -880,7 +880,10 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
             first,
             second,
         }) => {
-            assert_eq!((node, first, second), (ext, Some(g), None));
+            assert_eq!(
+                (node.id(), first.map(|f| f.id()), second.map(|s| s.id())),
+                (ext, Some(g), None)
+            );
         }
         other => panic!("a gauged instance and plain geometry are two anchors: {other:?}"),
     }
@@ -938,7 +941,10 @@ fn a_cut_of_a_gauged_instance_and_its_transform_lands_on_two_anchors() {
             node,
             first,
             second,
-        }) => assert_eq!((node, first, second), (t, Some(g), None)),
+        }) => assert_eq!(
+            (node.id(), first.map(|f| f.id()), second.map(|s| s.id())),
+            (t, Some(g), None)
+        ),
         other => panic!("a gauged instance under its transform is two anchors: {other:?}"),
     }
 }
@@ -1250,7 +1256,14 @@ fn the_mate_placed_recourse_followed_inlines_in_place() {
             else {
                 unreachable!()
             };
-            assert_eq!((instance, root, mates), (top, base, vec![mate]));
+            assert_eq!(
+                (
+                    instance.id(),
+                    root.id(),
+                    mates.iter().map(|m| m.id()).collect::<Vec<_>>()
+                ),
+                (top, base, vec![mate])
+            );
             assert!(said.contains("not its group's root"), "{said}");
         }
         other => panic!("a mate-placed instance refuses typed: {other:?}"),

@@ -733,7 +733,7 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     )
     .expect_err("a cut that leaves its placing mate behind refuses");
     assert!(
-        matches!(left, editor_core::SplitError::PlacingMateLeft { mate: m } if m == mate),
+        matches!(&left, editor_core::SplitError::PlacingMateLeft { mate: m } if m.id() == mate),
         "{left:?}"
     );
 

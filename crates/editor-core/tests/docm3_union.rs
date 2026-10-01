@@ -304,9 +304,18 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
     let err = corrupt(format!("{},{},{}", boxes[0].0, boxes[1].0, boxes[0].0))
         .expect_err("a duplicate member must refuse");
     let said = format!("{err}");
+    let editor_core::PersistError::Snapshot(editor_core::SnapshotError::DuplicateInput {
+        node,
+        input,
+    }) = &err
+    else {
+        panic!("a repeated member is the load door's DuplicateInput, got {err:?}");
+    };
+    assert_eq!((node, input), (&doc.spoken(u), &doc.spoken(boxes[0])));
     assert!(
         said.contains("pairwise distinct")
-            && said.contains(&format!("node {}", test_utils::refusal::tag(u.0))),
+            && said.contains(&format!("Union {}: ", test_utils::refusal::tag(u.0)))
+            && said.contains(&format!("{input} is taken as an input twice")),
         "{said}"
     );
     // And a list left under two.

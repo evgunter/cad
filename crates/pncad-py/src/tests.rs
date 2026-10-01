@@ -4382,8 +4382,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
     use crate::tags::{edit_error_tag, snapshot_error_tag};
     use pncad::document::{Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError};
 
-    let node = RecipeNodeId(5);
-    let spoken = pncad::document::SpokenNode::absent(node);
+    let spoken = pncad::document::SpokenNode::absent(RecipeNodeId(5));
     let name = || ParamName::from_static("width");
 
     let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
@@ -4396,7 +4395,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
                 slot: SlotId::Radius,
             },
             SnapshotError::SlotUnknownDocParam {
-                node,
+                node: spoken.clone(),
                 slot: SlotId::Radius,
                 name: name(),
             },
@@ -4412,7 +4411,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
                 referenced: Dimension::Angle,
             },
             SnapshotError::SlotDocParamDimension {
-                node,
+                node: spoken.clone(),
                 slot: SlotId::Radius,
                 name: name(),
                 declared: Dimension::Length,
@@ -4426,7 +4425,10 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
                 name: name(),
                 node: spoken.clone(),
             },
-            SnapshotError::PayloadUnknownDocParam { node, name: name() },
+            SnapshotError::PayloadUnknownDocParam {
+                node: spoken.clone(),
+                name: name(),
+            },
         ),
         (
             "payload",
@@ -4438,7 +4440,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
                 referenced: Dimension::Angle,
             },
             SnapshotError::PayloadDocParamDimension {
-                node,
+                node: spoken.clone(),
                 name: name(),
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
@@ -5768,6 +5770,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_target",
             "dangling_input",
             "declare_input",
+            "duplicate_input",
             "epsilon_invalid",
             "forward_input",
             "gauge_cycle",
@@ -6177,6 +6180,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // them different is what made the three-door divergence in
     // `PersistError`'s `EditReplay` projection invisible.
     ("dimension", 3),
+    // One fact at two doors: `Node::input_fault`'s `Duplicate`, named
+    // by the edit door and the load door alike.
+    ("duplicate_input", 2),
     ("edge", 2),
     ("empty", 2),
     ("empty_boolean", 2),

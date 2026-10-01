@@ -1307,17 +1307,33 @@ fn a8g_a_kept_mate_whose_operand_is_cut_refuses_at_the_door() {
     .expect_err("a kept mate cannot keep an operand the cut took");
     assert!(
         matches!(
-            err,
+            &err,
             editor_core::SplitError::OperandSeveredFromMate {
                 mate: m,
                 side: MateSide::A,
                 operand,
                 mate_is_cut: false,
-            } if m == mate && operand == xf
+            } if *m == doc.spoken(mate) && *operand == doc.spoken(xf)
         ),
         "expected the operand-severed refusal naming the mate, the side \
          and the operand, got {err:?}"
     );
+    let text = err.to_string();
+    assert!(
+        text.contains(&format!(
+            "severs the a-side reference of {} from {}, the node it is read at. The mate is kept \
+             and that node is cut;",
+            doc.spoken(mate),
+            doc.spoken(xf)
+        )),
+        "{text}"
+    );
+    for id in [mate, xf] {
+        assert!(
+            !text.contains(&id.0.to_string()),
+            "{id:?} in decimal: {text}"
+        );
+    }
 }
 
 /// **A8(h) — and the other direction.** A CUT mate whose operand stays
@@ -1337,13 +1353,13 @@ fn a8h_a_cut_mate_whose_operand_is_kept_refuses_with_the_same_variant() {
     .expect_err("a cut mate cannot carry an operand the part does not have");
     assert!(
         matches!(
-            err,
+            &err,
             editor_core::SplitError::OperandSeveredFromMate {
                 mate: m,
                 side: MateSide::A,
                 operand,
                 mate_is_cut: true,
-            } if m == mate && operand == xf
+            } if *m == doc.spoken(mate) && *operand == doc.spoken(xf)
         ),
         "expected the operand-severed refusal, got {err:?}"
     );

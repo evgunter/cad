@@ -901,7 +901,7 @@ fn row7_the_validator_refuses_gauge_states_the_edits_cannot_produce() {
     assert_ne!(corrupt, text, "the corruption really landed");
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::NotAGauge { node, gauge })) => {
-            assert_eq!((node, gauge), (ids[0], other));
+            assert_eq!((node.id(), gauge.id()), (ids[0], other));
         }
         other => panic!("a gauge reference to a non-gauge must refuse, got {other:?}"),
     }

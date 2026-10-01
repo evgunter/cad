@@ -337,7 +337,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
         E::ProfileProgram { node: n, fault } => (
             word(crate::tags::program_fault_tag(fault)),
             none(),
-            node(*n),
+            node(n.id()),
             none(),
             none(),
             none(),

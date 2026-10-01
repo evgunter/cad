@@ -1389,7 +1389,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
             measure,
             bound: Dimension::Length,
             ..
-        })) => assert_eq!(measure, b),
+        })) => assert_eq!(measure.id(), b),
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 }
