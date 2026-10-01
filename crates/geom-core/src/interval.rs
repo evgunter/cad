@@ -318,11 +318,11 @@ impl Interval {
 /// overflowed sum answers `+∞`.
 #[must_use]
 pub fn norm_sup(v: &[Interval; 3]) -> f64 {
-    let sq = Real::powi(v[0], 2) + Real::powi(v[1], 2) + Real::powi(v[2], 2);
+    let sq = v[0].powi(2) + v[1].powi(2) + v[2].powi(2);
     if !sq.is_certified() {
         return f64::NAN;
     }
-    let hi = Bounds::hi(sq);
+    let hi = sq.hi();
     if hi > 0.0 { hi.sqrt().next_up() } else { hi }
 }
 
