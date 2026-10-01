@@ -185,6 +185,26 @@ Announced seam: PATHS (`crates/profile`). Delta review: mergeable, two
 MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
 `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` now
 has its measured red-first row.
+
+## 2026-09-26 — `ruled-cut-off-leaves-a-cap-ring-inside-the-removed-sliver` closed (PR #3271)
+
+The silent-wrong path the D-hole unit widened is shut: before any `mef`,
+a convex ruled cut-off meters every cap edge but the two rims it
+shortens — other rings and the cut cycle's own other edges — against a
+region enclosing the removed sliver (annulus about the section centre,
+cut by a half-plane), and refuses `RingClearance` on the cap. Full
+review found two MAJORs: the first meter tested straight edges by their
+infinite line (a square drive hole on a D-shaft's axis refused), and the
+cut cycle's own edges were unmetered (an L-channel into the sliver carved
+silently wrong — the lane had filed it P1 "unmeasured"). The fix pass
+gave edge metering one windowed home (the ladder rim's outer walk now
+uses it too) and closed both; a delta review found them closed by rows
+that go red on revert, plus one MINOR (the sentence said "removes" on
+concave bands), fixed by `RingClearance` carrying the chain's convexity.
+Remaining false refusals are disclosed on
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver` (P2).
+Filed: `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned` (P2),
+`arc-window-membership-has-three-spellings` (P1).
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/band/blend-endings-say-lower-the-tolerance-and-route-by-name.md`. `sweep::blend::ClassifiedMargin` is a third spelling of a decided margin beside `recourse::Classified`; convergence is noted on the encl certify-span row. (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
 

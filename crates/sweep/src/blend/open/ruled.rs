@@ -36,6 +36,18 @@
 //! left is the band face, bounded by two trimlines and two arcs; the
 //! caps and supports keep their keys, surfaces, senses and rings.
 //!
+//! **What the carve removes from a cap, metered first.** On the convex
+//! side the cut-off takes the sliver out of the cap, and the `mef` that
+//! does it leaves every other EDGE of the cap where it was — the edges
+//! of the cap's other cycles, and those of the cut cycle other than the
+//! two rims it shortens. So before any mutation each such edge is
+//! metered against a region that encloses the sliver ([`CapSliver`],
+//! decided by the surgery's ring carry-through pass under
+//! `fillet3_ring_clearance`); one that is not definitely clear of it
+//! refuses `RingClearance` at the cap. On the concave side the sliver
+//! is void of the source, so no edge of the cap can lie in it, and
+//! there is nothing to meter.
+//!
 //! **No strut is minted.** On a curved support a chord between two
 //! surface points is a secant, which is the scaffolding-door
 //! escalation the planar strut carries; here every new vertex sits on
@@ -75,16 +87,17 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Bounds, Decide, Point3, Real, Tol};
+use geom_core::{Bounds, Decide, Point3, Real, Tol, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, MefSite, VertexKey};
 
 use crate::blend::BlendError;
 use crate::blend::admit::AdmittedOpen;
-use crate::blend::battery::cap_incidence;
+use crate::blend::battery::{Convexity, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
-    ContactCarrier, Described, SourceFaces, SplitFragments, chord_site, face_of_half, halves_of,
-    not_intact, op, point_of, retire_fragment, seam_split_param, split_fragment, unbuilt_chain,
+    CircleFrame, ContactCarrier, Described, Piece, SourceFaces, SplitFragments, chord_site,
+    face_of_half, halves_of, not_intact, op, piece_along, piece_distance, point_of,
+    retire_fragment, seam_split_param, split_fragment, stored_piece, unbuilt_chain,
     unbuilt_geometry,
 };
 
@@ -107,6 +120,91 @@ struct CapEnd<T: Real> {
     /// The section circle's centre: the spine's crossing of the cap
     /// plane. Its radius is the band's.
     center: Point3<T>,
+    /// The region the cut-off removes from the cap, on a convex link;
+    /// `None` on a concave one, whose sliver the cap gains.
+    sliver: Option<CapSliver<T>>,
+}
+
+/// **A region that encloses what a convex ruled cut-off removes from
+/// one cap**, as the surgery's ring carry-through pass meters it.
+///
+/// The sliver `S` is bounded by the cut-off arc `A` — on the section
+/// circle, radius `radius` about `center`, from one foot to the other —
+/// and the two rim pieces from the feet to the old vertex `V`. It lies
+/// in the region
+///
+/// `Ω = { radius ≤ ‖p − center‖ ≤ reach } ∩ { (p − center)·toward ≥ floor }`:
+///
+/// - outside the section circle's open disc, because that disc is the
+///   ball's section, which is tangent to both rims and lies in the
+///   material the band keeps;
+/// - within `reach` and above `floor`, because `‖p − center‖` is convex
+///   and `(p − center)·toward` linear, so over the compact `S` the first
+///   is largest, and the second smallest, somewhere on `S`'s boundary,
+///   which is `A` and the two rim pieces; `reach` and `floor` are those
+///   extremes over the three pieces, each in closed form over its own
+///   window ([`piece_distance`], [`piece_along`]).
+///
+/// `toward` is the unit direction from `center` to `V`. Its choice is
+/// free for soundness — every unit direction gives a sound `floor` —
+/// and this one lays the half-plane's edge across the corner, so the
+/// part of the annulus on the far side of `center` from `V`, which is
+/// kept material, lies outside `Ω`.
+///
+/// `A` is not an edge of the source, so the plan describes it: at a
+/// foot the rim and the section circle are tangent and `S` is the cusp
+/// between them, so `A` leaves the foot in the direction the rim piece
+/// leaves it towards `V` — the arc from that foot turning about
+/// `(foot − center) × tangent` to the other foot.
+///
+/// An edge that misses `Ω` misses `S`; the converse does not hold, and
+/// that is the meter's conservative direction.
+///
+/// Two of its terms are pinned by no assembly row, only by the piece
+/// meters' unit row: the arc's term of `floor`, which binds only when a
+/// rim piece spans more than π, and the whole-circle arm of an arc
+/// extreme on a cap edge (work item
+/// `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned`).
+pub(in crate::blend) struct CapSliver<T: Real> {
+    /// The cap face the sliver is cut from.
+    pub(in crate::blend) cap: FaceKey,
+    /// The two rim edges the cut shortens, which the meter skips: they
+    /// bound the sliver rather than lie across it. Each joins the cap
+    /// to one support (the cap incidence the plan read), so neither
+    /// appears in any cap cycle but the one the cut runs in.
+    pub(in crate::blend) rims: [EdgeKey; 2],
+    /// The section circle's centre.
+    center: Point3<T>,
+    /// The band's radius: `Ω`'s inner radius.
+    radius: T,
+    /// `Ω`'s outer radius.
+    reach: T,
+    /// The unit direction from `center` to the old vertex.
+    toward: Vec3<T>,
+    /// The least `(p − center)·toward` over the sliver.
+    floor: T,
+}
+
+impl<T: Bounds> CapSliver<T> {
+    /// **How clear one cap edge is of the sliver**: the `carrier` over
+    /// `window` misses `Ω` when this is positive, being the largest of
+    /// how far the edge stays inside the section circle's open disc,
+    /// beyond `reach`, and short of `floor`. `None` for a carrier with
+    /// no closed form ([`piece_distance`]).
+    ///
+    /// Each term clears the whole edge on its own, so an edge that
+    /// misses `Ω` only by leaving it through different faces at
+    /// different points reads not-clear — a conservative refusal, never
+    /// a silent pass.
+    pub(in crate::blend) fn clearance(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
+        let (near, far) = piece_distance(carrier, window, self.center)?;
+        let (_, high) = piece_along(carrier, window, self.center, self.toward)?;
+        Some(
+            (self.radius - far)
+                .max(near - self.reach)
+                .max(self.floor - high),
+        )
+    }
 }
 
 /// **A ruled link whose two ends are transverse caps**, read off the
@@ -127,7 +225,9 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     /// # Errors
     ///
     /// [`BlendError::UnsupportedGeometry`] when the link's band is not
-    /// a cylinder or a trimline not a line; [`BlendError::UnsupportedChain`]
+    /// a cylinder, a trimline not a line, or a convex link's cap rim
+    /// neither a line nor a circle ([`Self::removed_sliver`]);
+    /// [`BlendError::UnsupportedChain`]
     /// when a support carries a ring, or when a cap rim is itself
     /// requested; [`BlendError::BodyNotIntact`] when the crease's
     /// halves do not lie in the supports the verdict names, an end is
@@ -172,12 +272,10 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
         // through by this carve. Together the two put the crease on
         // the support's OUTER cycle (a half-edge's loop is a cycle of
         // its face, and a ring-free face has one), which is where the
-        // trimline `mef` hangs ([`chord_site`]). The CAP's rings are
-        // not read here: the cut-off `mef` runs on whichever of the
-        // cap's cycles carries the crease's end and leaves every other
-        // cycle on the cap, wherever it lies — including inside the
-        // region the band removes, which nothing meters
-        // (`work/band/ruled-cut-off-leaves-a-cap-ring-inside-the-removed-sliver`).
+        // trimline `mef` hangs ([`chord_site`]). The CAP's other cycles
+        // are not refused here: the cut-off `mef` leaves each on the
+        // cap, so each is metered against the region the cut removes
+        // ([`CapSliver`]) by the surgery's ring carry-through pass.
         let (hp, hm) = halves_of(body, edge)
             .ok_or_else(|| not_intact(EntityId::Edge(edge), "a ruled link's edge"))?;
         for (face, half) in [(l.face_a, hp), (l.face_b, hm)] {
@@ -236,12 +334,26 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             // classification (its normal is parallel to `tau`), so the
             // quotient is total.
             let section = |p: Point3<T>| p + tau * ((*po - p).dot(*n) / tau.dot(*n));
+            let (foot_a, foot_b, center) = (section(q_a), section(q_b), section(spine_origin));
+            let sliver = match link.convexity() {
+                Convexity::Concave => None,
+                Convexity::Convex => Some(Self::removed_sliver(
+                    body,
+                    edge,
+                    v,
+                    cap,
+                    [(rim_a, foot_a), (rim_b, foot_b)],
+                    center,
+                    radius,
+                )?),
+            };
             ends.push(CapEnd {
                 vertex: v,
                 cap,
-                foot_a: section(q_a),
-                foot_b: section(q_b),
-                center: section(spine_origin),
+                foot_a,
+                foot_b,
+                center,
+                sliver,
             });
         }
         let Ok(ends) = <[CapEnd<T>; 2]>::try_from(ends) else {
@@ -253,6 +365,122 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     /// The admitted link this plan carves.
     pub(in crate::blend) fn link(&self) -> AdmittedOpen<'a, T> {
         self.link
+    }
+
+    /// The slivers this link's cut-offs REMOVE from its caps: one per
+    /// end on a convex link, none on a concave one, whose slivers are
+    /// void of the source and are added to the caps rather than taken
+    /// from them.
+    pub(in crate::blend) fn removed_slivers(&self) -> impl Iterator<Item = &CapSliver<T>> {
+        self.ends.iter().filter_map(|e| e.sliver.as_ref())
+    }
+
+    /// **The region the cut-off at `vertex` removes from `cap`**
+    /// ([`CapSliver`]), read off the source before any mutation. `rims`
+    /// pairs each rim with its foot, `face_a`'s first.
+    ///
+    /// # Errors
+    ///
+    /// [`BlendError::UnsupportedGeometry`] when a rim carries no
+    /// certified line or circle, or from a foot's split parameter;
+    /// [`BlendError::BodyNotIntact`] when the old vertex, a rim, or the
+    /// cap's half of a rim does not resolve.
+    fn removed_sliver(
+        body: &Body<T>,
+        crease: EdgeKey,
+        vertex: VertexKey,
+        cap: FaceKey,
+        rims: [(EdgeKey, Point3<T>); 2],
+        center: Point3<T>,
+        radius: T,
+    ) -> Result<CapSliver<T>, BlendError> {
+        let pv = point_of(body, vertex)
+            .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a transverse cap's old vertex"))?;
+        let toward = (pv - center).normalize();
+        let unsupported = |rim: EdgeKey| {
+            unbuilt_geometry(
+                EntityId::Edge(rim),
+                "a transverse cap's rim is neither a line nor a circle, the only rims the \
+                 sliver's extent is closed-form over",
+            )
+        };
+        let [(rim_a, foot_a), (rim_b, foot_b)] = rims;
+        let ((carrier_a, window_a), leaves_a) =
+            Self::rim_piece(body, rim_a, crease, vertex, foot_a)?;
+        let ((carrier_b, window_b), _) = Self::rim_piece(body, rim_b, crease, vertex, foot_b)?;
+        let (_, far_a) =
+            piece_distance(carrier_a, window_a, center).ok_or_else(|| unsupported(rim_a))?;
+        let (_, far_b) =
+            piece_distance(carrier_b, window_b, center).ok_or_else(|| unsupported(rim_b))?;
+        let (low_a, _) =
+            piece_along(carrier_a, window_a, center, toward).ok_or_else(|| unsupported(rim_a))?;
+        let (low_b, _) =
+            piece_along(carrier_b, window_b, center, toward).ok_or_else(|| unsupported(rim_b))?;
+        // The cut-off arc, from `face_a`'s foot along the rim's tangent
+        // there (the type's docs), to `face_b`'s: its span read in
+        // `(0, τ]` past the start.
+        let from = foot_a - center;
+        let arc = CircleFrame {
+            center,
+            axis: from.cross(leaves_a).normalize(),
+            radius,
+            u_ref: from.normalize(),
+        };
+        let (low_arc, _) = arc.along((T::zero(), arc.past(T::zero(), foot_b)), center, toward);
+        Ok(CapSliver {
+            cap,
+            rims: [rim_a, rim_b],
+            center,
+            radius,
+            reach: radius.max(far_a).max(far_b),
+            toward,
+            floor: low_arc.min(low_a).min(low_b),
+        })
+    }
+
+    /// **One rim's piece from its foot to the old vertex**: the rim's
+    /// stored carrier, the window of the piece on it, and the unit
+    /// tangent at the foot pointing along the piece towards the vertex.
+    /// The stored window runs along `he_plus` (`topo`'s edge-direction
+    /// invariant), so the vertex sits at the window's start when
+    /// `he_plus` starts there and at its end otherwise; the foot's
+    /// parameter is the one the carve splits the rim at.
+    ///
+    /// # Errors
+    ///
+    /// [`BlendError::UnsupportedGeometry`] when the rim carries no
+    /// certified carrier, or from the foot's split parameter;
+    /// [`BlendError::BodyNotIntact`] when the rim does not resolve or
+    /// does not end at `vertex`.
+    fn rim_piece(
+        body: &Body<T>,
+        rim: EdgeKey,
+        crease: EdgeKey,
+        vertex: VertexKey,
+        foot: Point3<T>,
+    ) -> Result<(Piece<'_, T>, Vec3<T>), BlendError> {
+        let he_plus = body
+            .get_edge(rim)
+            .ok_or_else(|| not_intact(EntityId::Edge(rim), "a transverse cap's rim"))?
+            .he_plus;
+        let Some((carrier, (t0, t1))) = stored_piece(body, rim)? else {
+            return Err(unbuilt_geometry(
+                EntityId::Edge(rim),
+                "a transverse cap's rim carries no certified carrier",
+            ));
+        };
+        let t = seam_split_param(body, rim, crease, foot)?;
+        let forward = carrier.ders1(t).1.normalize();
+        if body.get_half_edge(he_plus).map(|h| h.start) == Some(vertex) {
+            Ok(((carrier, (t0, t)), -forward))
+        } else if body.half_edge_end(he_plus) == Some(vertex) {
+            Ok(((carrier, (t, t1)), forward))
+        } else {
+            Err(not_intact(
+                EntityId::Edge(rim),
+                "a transverse cap's rim does not end at the crease's old vertex",
+            ))
+        }
     }
 }
 
