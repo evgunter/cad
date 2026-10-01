@@ -2229,6 +2229,19 @@ fn a_spline_destination_keeps_the_drop() {
     assert_eq!(rows_deep(&body, up), up_before, "ring_move");
 }
 
+/// `op` on `body`, through the test-only lift unless `tied`: on one
+/// payload `Arc` the move re-reads the payload every certificate on
+/// the moved edges was taken on (`Body::same_chart`), so the real door
+/// takes it; on a deep copy no edge names the third key.
+fn unless_tied<R>(body: &mut Body<f64>, tied: bool, op: impl FnOnce(&mut Body<f64>) -> R) -> R {
+    if tied {
+        op(body)
+    } else {
+        // Lifts RechartUnvouched: on the copy no edge names the third key, and the row reads the door's writes across two charts.
+        body.lifting_rechart_refusals_for_tests(op)
+    }
+}
+
 /// `up` is first moved onto `low`'s key, so the demotion into `low`
 /// is one key and carries whatever `up` kept; the ring then moves (or
 /// is promoted) onto the plane face's key, which is the question.
@@ -2252,10 +2265,7 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
             .unwrap();
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
-        // Lifts both refusals: the third key, on one payload or a copy, is the row's subject, and no edge names it.
-        s.body
-            .lifting_rechart_refusals_for_tests(|b| b.ring_move(ring, s.plane))
-            .unwrap();
+        unless_tied(&mut s.body, tied, |b| b.ring_move(ring, s.plane)).unwrap();
         let want = if tied {
             (RING_ROWS, 6 + 4 - RING_ROWS)
         } else {
@@ -2276,19 +2286,16 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
             .unwrap();
         s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
-        // Lifts both refusals: the third key, on one payload or a copy, is the row's subject, and no edge names it.
-        let made = s
-            .body
-            .lifting_rechart_refusals_for_tests(|b| {
-                b.mfkrh(
-                    ring,
-                    FaceSurface::Shared {
-                        key: keys[2],
-                        sense: false,
-                    },
-                )
-            })
-            .unwrap();
+        let made = unless_tied(&mut s.body, tied, |b| {
+            b.mfkrh(
+                ring,
+                FaceSurface::Shared {
+                    key: keys[2],
+                    sense: false,
+                },
+            )
+        })
+        .unwrap();
         let want = if tied {
             (RING_ROWS, 4 - RING_ROWS)
         } else {
@@ -2343,21 +2350,18 @@ fn mef_carries_the_runs_rows_across_one_payload() {
 
         let fa = he_at(&s.body, s.low, at(U0, VM));
         assert!(s.body.detach_pcurve(fa).is_some());
-        // Lifts both refusals: the third key, on one payload or a copy, is the row's subject, and no edge names it.
-        let made = s
-            .body
-            .lifting_rechart_refusals_for_tests(|b| {
-                b.mef(
-                    MefSite::Chords { he1, he2 },
-                    chord(),
-                    FaceSurface::Shared {
-                        key: keys[2],
-                        sense: true,
-                    },
-                    tol(),
-                )
-            })
-            .unwrap();
+        let made = unless_tied(&mut s.body, tied, |b| {
+            b.mef(
+                MefSite::Chords { he1, he2 },
+                chord(),
+                FaceSurface::Shared {
+                    key: keys[2],
+                    sense: true,
+                },
+                tol(),
+            )
+        })
+        .unwrap();
         let want = if tied { (2, 1) } else { (0, 3) };
         assert_eq!(rows_of(&s.body, made.face), want, "tied: {tied}");
     }
