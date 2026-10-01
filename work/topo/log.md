@@ -5523,3 +5523,23 @@ I posted one standing-down comment on PR 3513 naming both checks.
 fr4's `chain.py` and probes, checks at least 6 new poses, the MY1–MY5
 mutants plus one of its own, and the geom-brep dihedral re-baselines at
 all three ε. It is not a sixth full review.
+
+## PR 3648 merged main; the movefac-hop row dispatched (2026-10-01)
+
+PR 3648 had gone `dirty` against main, which by then carried PR 3618.
+The one conflict was `review_d18.rs`'s fixture imports, where both
+sides were kept. Locally, the `review_d18`, null and `kev_describing`
+rows pass 56/56 at default features, and 75/75 under
+`per-op-postcondition` with movefac included. Pushed at `7cb69a3854`;
+the PR merges on green.
+
+`movefac-hops-to-a-mates-face-without-proving-the-face-lists-its-loop`
+is dispatched on the walk target, branch
+`topo/movefac-hop-proves-ownership`. The brief is
+`movehop-impl-brief.md`. The work:
+- the converse `NotOwned` proof at the mate hop;
+- an answer, from the invariants and the sweep, on whether a hop into
+  another label can still be reached;
+- red-first on PR 3592's review witness;
+- a receipt over the other `parent_loop → face` walks, filed on their
+  owners' slates.
