@@ -803,7 +803,7 @@ pub enum SessionOp {
     /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
     /// reference into a store it has not got.
     ///
-    /// No placement is authored: A11 puts placement on the cluster and
+    /// No placement is authored: A11 puts placement on the group and
     /// an instance carries no frame of its own, so the inserted node
     /// is complete with its reference and an empty interface record
     /// (an authored instance crosses no split seam). Hiding, the

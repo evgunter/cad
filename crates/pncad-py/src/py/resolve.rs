@@ -146,7 +146,10 @@ impl Resolution {
     fn __repr__(&self) -> String {
         match (self.node, self.body) {
             (Some(node), Some(body)) => {
-                format!("Resolution(resolved at node={}, body={body})", node.0.0)
+                format!(
+                    "Resolution(resolved at node={}, body={body})",
+                    node.0.full()
+                )
             }
             _ => format!("Resolution({})", self.status),
         }

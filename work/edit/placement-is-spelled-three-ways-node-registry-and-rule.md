@@ -250,3 +250,12 @@ Filed from the sweep: `work/edit/node-bit-eq-compares-a-mates-alignment-by-value
 - The chain folds through one composition rule with `Frame::compose` (`placement::Motion`), so an identity literal anywhere moves no bit; the empty chain is the identity (`Placement::IDENTITY`), admitted at both doors. P2's identity offset can be it.
 - A literal frame is rigid at every door that admits one — a transform's step, the registry, an explicit rule's listed frame — by the evaluation's own predicate (`topo::check_rigid`), refused `NonRigidPlacement` naming the frame.
 - Filed: `work/lib/python-slot-words-stop-short-of-a-step-index.md` (LIB), `work/offer/viewer-free-move-decides-rigidity-by-its-own-predicate.md` (OFFER, for P3).
+
+## P2a (2026-10-01, PR 3625)
+
+The code's A11 vocabulary follows A4, A9 and A11: a cluster is a group, and its document-order-first instance is its root. The word "gauge" is free for P2's gauge node.
+- Rust: `mate::groups`, `groups_welded_by`, `root_of`, `SolvedPoses::root`, `solve_group`, `SplitError::TornGroup { root, instance, root_is_cut }`.
+- Python: `groups`, `root_of`, `SolvedPoses.root`, `SplitError.root`, tag `torn_group`. No aliases.
+- ASSEMBLY.md's code table names them.
+
+Nothing changed meaning: no golden, pin or saved byte moved. The identifiers P2 deletes keep their old words (`ClusterMaintenance`, `Maintain`, `Maintenance::Cluster`, `EditError::Maintenance*`, `PersistError::MaintenanceFrame`, `SnapshotError::PlacementNotGauge`/`PlacementSite`, `Doc::placements`). A11 (3)–(4)'s clause prose still says "cluster" and is P2's to re-word.

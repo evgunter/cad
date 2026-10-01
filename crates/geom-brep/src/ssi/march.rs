@@ -964,7 +964,7 @@ mod tests {
     /// stepper cannot progress at this ε when the truth is that this
     /// system has no usable chart speed and no ε would have helped.
     /// The chart lane states the same duty one door over, in
-    /// `plane_nurbs_ssi`'s seeding guard.
+    /// `plane_nurbs_ssi`'s chart-speed mint.
     ///
     /// All five non-positive-finite values are pinned together because
     /// the guard's obligation is the class, not the one member of it a

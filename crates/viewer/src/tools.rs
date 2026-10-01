@@ -518,7 +518,7 @@ impl Tools {
                 None => {}
                 Some(OpenTool::Mate(tool)) => {
                     if let Some(face) = selection.face() {
-                        tool.pick(face.clone());
+                        tool.pick(doc, face.clone());
                     }
                 }
                 Some(OpenTool::Blend(tool)) => {

@@ -856,8 +856,11 @@ impl<T: Real> Pcurve<T> {
     /// [`crate::EdgeCurve::with_chart_v_mirrored`]) point back rather
     /// than restate. A certificate is a record of metred NORMS —
     /// sampled residuals `|S(P(tᵢ)) − C(tᵢ)|`, an envelope over the
-    /// span, a hull sup-norm and a tube radius on the fitted lane —
-    /// and stores nothing in chart coordinates. On the mirrored chart
+    /// span, a hull sup-norm and a uniqueness tube on the fitted lane —
+    /// and stores nothing in a plane chart's coordinates: the one chart
+    /// quantity it can hold, the chart tube's pad
+    /// ([`crate::ssi::SsiTube::Chart`]), is a NURBS chart's, and the one
+    /// caller (`topo::revert`) reflects plane charts only. On the mirrored chart
     /// the mirrored image evaluates to the same 3-D point at every
     /// parameter: `S'(u, −v) = origin + u_ref·u + (−v_ref)·(−v)`, and
     /// `(−a)·(−b)` is `a·b` exactly in IEEE arithmetic, so every
@@ -1810,7 +1813,8 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::Limb { .. }
         | P::TubeStraddles { .. }
         | P::Escalated { .. }
-        | P::ReportedTransversalityPoisoned(_)) => unreachable!(
+        | P::ReportedTransversalityPoisoned(_)
+        | P::ChartSpeed(_)) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -1854,21 +1858,24 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     mate: &Surface<T>,
     band: Band,
 ) -> Result<SsiCertificate<T>, PcurveCertifyError> {
-    fn operand<T: Real>(s: &Surface<T>) -> SsiOperand<'_, T> {
+    fn operand<T: geom_core::CertifiedBounds>(
+        s: &Surface<T>,
+    ) -> Result<SsiOperand<'_, T>, PcurveCertifyError> {
         // The catch-all is SPLIT: an approximating surface's chart is
         // its fit's, so the spline operand is the one that describes
         // its geometry — routing it to `Analytic` would hand the SSI
         // limbs an implicit form that does not exist.
         match s {
-            Surface::Nurbs(n) => SsiOperand::Nurbs(n),
-            Surface::Approx(a) => SsiOperand::Nurbs(a.fit()),
+            Surface::Nurbs(n) => SsiOperand::nurbs(n).map_err(ssi_refusal),
+            Surface::Approx(a) => SsiOperand::nurbs(a.fit()).map_err(ssi_refusal),
             other @ (Surface::Plane { .. }
             | Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. }) => SsiOperand::Analytic(other),
+            | Surface::Torus { .. }) => Ok(SsiOperand::Analytic(other)),
         }
     }
+    let spline_operand = |s: &Surface<T>| matches!(s, Surface::Nurbs(_) | Surface::Approx(_));
     // The certificate's carrier spline: a rung-3 carrier IS one; an
     // exact circle converts to its locus-exact rational-quadratic
     // chain (`FittedLane::fitted_certificate`'s docs — the limbs are
@@ -1886,14 +1893,12 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             radius,
             u_ref,
         } => {
-            // `Approx` is included, and it has to be: `operand` three
-            // lines up routes it to `SsiOperand::Nurbs(a.fit())`, so
+            // `Approx` is included, and it has to be: `operand` above
+            // routes it to `SsiOperand::Nurbs(a.fit())`, so
             // the very limbs this guard's premise is about — the
             // parameter-coupled NURBS limbs — are the ones an `Approx`
             // operand would run. The guard reads the SAME roster its
             // premise names.
-            let spline_operand =
-                |s: &Surface<T>| matches!(s, Surface::Nurbs(_) | Surface::Approx(_));
             if spline_operand(surface) || spline_operand(mate) {
                 return Err(PcurveCertifyError::FittedCertificate {
                     limb: None,
@@ -1925,11 +1930,29 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // D4 ¶1's lever arm of last resort, and it is exactly the scale a
     // uniqueness tube around this carrier can hope to reach.
     let arm = carrier_diameter(carrier);
+    // The routing boundary answers before the chart mint: a pairing the
+    // certificate is not written for stays refused whatever the face's
+    // chart, so mending a degenerate face must not be the first thing
+    // the refusal asks for. The rule is `certify_branch`'s own, in its
+    // words: the first operand's NURBS limbs have no traced pcurve, and
+    // a NURBS second operand's chart tube is written against a plane.
+    let routing = if spline_operand(mate) {
+        Some(crate::ssi::certify::NURBS_LIMBS_NEED_PCURVE)
+    } else if spline_operand(surface) && !matches!(mate, Surface::Plane { .. }) {
+        Some(crate::ssi::certify::CHART_TUBE_NEEDS_PLANE)
+    } else {
+        None
+    };
+    if let Some(what) = routing {
+        return Err(ssi_refusal(crate::ssi::SsiError::UnsupportedCertificate {
+            what,
+        }));
+    }
     crate::ssi::certify_rung3(
         carrier,
         Some(image),
-        &operand(mate),
-        &operand(surface),
+        &operand(mate)?,
+        &operand(surface)?,
         crate::ssi::TubeScale::uniform(arm),
         band,
     )
@@ -2075,6 +2098,8 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             None,
         ),
         E::UnsupportedCertificate { what } => (None, what, None),
+        E::ChartSpeed(r) => (None, r.what(), None),
+        E::TubeDegenerate(d) => (Some(SsiLimb::Tube), d.what(), None),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. These are the structural
@@ -7297,5 +7322,79 @@ mod placeholder_sup {
             (0.0, 0.0, 0.0, 0.0, 0.0),
             "the inf door certifies nothing for it"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod fitted_lane_routing_tests {
+    use std::sync::Arc;
+
+    use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point2, Point3, Vec3};
+
+    use super::{PcurveCertifyError, fitted_lane};
+    use crate::ssi::certify::{CHART_TUBE_NEEDS_PLANE, NURBS_LIMBS_NEED_PCURVE};
+
+    /// A cubic × linear wall whose eight control points are one point:
+    /// constant along both axes, so its chart speeds would refuse.
+    fn point_wall() -> Surface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let w = NurbsSurface::new(ku, kv, vec![Point3::new(0.0, 0.0, 0.0); 8], vec![1.0; 8]);
+        Surface::Nurbs(Arc::new(w.unwrap()))
+    }
+
+    /// **A pairing the certificate is not written for refuses as that,
+    /// ahead of a degenerate face's chart speeds.** Mending the face
+    /// would still meet the routing boundary, so the boundary answers
+    /// first: a NURBS mate (whose limbs have no traced pcurve) and a
+    /// non-plane analytic mate of a NURBS face, each against the point
+    /// wall.
+    #[test]
+    fn the_routing_boundary_answers_before_the_chart_mint() {
+        let lin = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let carrier = NurbsCurve3::new(
+            lin.clone(),
+            vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let image = NurbsCurve2::new(
+            lin,
+            vec![Point2::new(0.0, 0.5), Point2::new(1.0, 0.5)],
+            vec![1.0, 1.0],
+        )
+        .unwrap();
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let carrier = Curve3::Nurbs(Arc::new(carrier));
+        for (name, surface, mate, want) in [
+            (
+                "NURBS × NURBS",
+                point_wall(),
+                point_wall(),
+                NURBS_LIMBS_NEED_PCURVE,
+            ),
+            (
+                "cylinder × NURBS",
+                point_wall(),
+                cylinder,
+                CHART_TUBE_NEEDS_PLANE,
+            ),
+        ] {
+            match fitted_lane(&carrier, 0.0, 1.0, &image, &surface, &mate, band) {
+                Err(PcurveCertifyError::FittedCertificate { what, .. }) => {
+                    assert_eq!(what, want, "{name}: answered {what}");
+                }
+                other => panic!("{name}: expected the routing boundary, got {other:?}"),
+            }
+        }
     }
 }
