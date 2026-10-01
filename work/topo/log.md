@@ -5580,3 +5580,29 @@ the wedge is undecided, with rows at all three ε and a mutant; swap the
 harness to valid-body `CoplanarNeighbours` poses and file the stranded
 fixture's invariant. On green and clean CI, I read NF-1 and merge, with
 no further verifier.
+
+## PR 3669 (movefac hop) delivered; single full review dispatched (2026-10-01)
+
+The lane delivered PR 3669 (`561fca552d`), and CI run 36843368037 went
+green.
+- **The converse proof:** the mate loop's face must list it
+  (`NotOwned`).
+- **The question the brief asked:** can a hop still land in another
+  label? With the converse alone, yes. A new `LoopEmptied` tear made
+  6,625 cross-label hops on the 2000-seed sweep, through an `Empty`
+  loop that half-edges still claim.
+- **Beyond the brief:** a second proof refuses such a loop at its pop
+  (`LoopCycleBroken`). The now-argued-unreachable cross-label hop is
+  guarded by a `debug_assert_eq!`. GUARD's `loop-boundary-discards`
+  entry for movefac is marked `audited`.
+- **Filed:** the shell and boolean face walks with the same unproven
+  hop.
+
+The single full review is dispatched on the walk target, frozen
+`561fca552d`. It targets:
+- the empty-loop proof's decision and its over-refusal on legitimate
+  `Empty` rings;
+- the unreachability argument, and whether a `debug_assert` is
+  admissible under D2 row 4;
+- order independence under shuffled face lists;
+- the GUARD gate edit.
