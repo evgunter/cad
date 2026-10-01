@@ -247,6 +247,8 @@ mod review_ssiflat_r1_probes;
 mod review_ssiflat_r2_probes;
 #[path = "rigid_map_near_eps_approx.rs"]
 mod rigid_map_near_eps_approx;
+#[path = "rigid_map_near_eps_plane_nurbs.rs"]
+mod rigid_map_near_eps_plane_nurbs;
 #[path = "rim_dim_boolean_twins.rs"]
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]

@@ -274,3 +274,11 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
 /// row can hold it against the deepest body a save writes
 /// (`tests/expr_nesting_bound.rs`).
 pub const BODY_NESTING: usize = crate::persist::nesting::BODY_NESTING;
+
+/// **A spoken node built by hand**: what a document holding `id` as a
+/// `kind` would say (`None`: a document that does not hold it), for a
+/// fixture that builds a row by hand rather than through a document.
+#[must_use]
+pub fn spoken(id: RecipeNodeId, kind: Option<&'static str>) -> crate::SpokenNode {
+    crate::SpokenNode::forged(id, kind)
+}

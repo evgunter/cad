@@ -141,7 +141,7 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
              recipe as it stands on the derivation path (node {cube}'s payload differs)",
         ),
     ];
-    let cube = cube_doc().1.0.to_string();
+    let cube = format!("{:012x}", cube_doc().1.0);
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
         assert_eq!(label, wl);
         let expected = expected.replace("{cube}", &cube);
