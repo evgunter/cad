@@ -40,31 +40,28 @@ impl SaidKey for crate::names::StableName {
     }
 }
 
-/// `text` as a JSON string, escapes and quotes included.
-fn json_string(f: &mut fmt::Formatter<'_>, text: &str) -> fmt::Result {
-    write!(f, "{}", serde_json::Value::String(text.to_owned()))
+/// `key` as the file spells it, JSON: a string with its escapes and
+/// quotes, or a unit variant's name as one. Neither can fail to
+/// serialize.
+fn as_written(f: &mut fmt::Formatter<'_>, key: &(impl Serialize + ?Sized)) -> fmt::Result {
+    f.write_str(&serde_json::to_string(key).map_err(|_| fmt::Error)?)
 }
 
 impl SaidKey for String {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        json_string(f, self)
+        as_written(f, self.as_str())
     }
 }
 
 impl SaidKey for crate::doc::ParamName {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        json_string(f, self.as_str())
+        as_written(f, self.as_str())
     }
 }
 
 impl SaidKey for crate::appearance::AttrKind {
     fn say(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // A unit variant serializes as its name, a JSON string; the
-        // `Debug` arm is that same name, for a serializer that refuses.
-        match serde_json::to_value(self) {
-            Ok(spelled) => write!(f, "{spelled}"),
-            Err(_) => write!(f, "{self:?}"),
-        }
+        as_written(f, self)
     }
 }
 
