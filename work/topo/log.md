@@ -5543,3 +5543,11 @@ is dispatched on the walk target, branch
 - red-first on PR 3592's review witness;
 - a receipt over the other `parent_loop → face` walks, filed on their
   owners' slates.
+
+## PR 3648 merged (2026-10-01)
+
+PR 3648 merged at `9569d15775` after CI run 36835851234 went green on
+`7cb69a3854`. `kev` was never wrong under `--all-features`: the
+`per-op-postcondition` scalpel reported tears the tests planted. Tests
+that tear bodies now go through `fixtures::through_the_scalpel`. The CI
+gap is filed on CIW.
