@@ -25,3 +25,17 @@ which it is neither.
 Unmeasured end to end: today the join's containment probe refuses such
 a union first (`nurbs-plane-section-has-no-component-arm`). The repair
 is a typed capability refusal naming the kind, at the backstop.
+
+## The backstop changed under this row (REACH, branch `reach/volume-backstop`, 2026-10-01)
+
+`volume_backstop` no longer reads the closed form or raises
+`ClassificationInvariant`. It measures the operands and the result
+through the scalar's own lane (`AtRestPolicy::quad_lane`): at a
+certifying scalar that is `topo::mass_properties`' walk, whose face
+dispatch sends every spline face (`Surface::spline_chart`) to the
+NURBS-patch quadrature lane; at a dual it is the closed form. Any props
+refusal now surfaces as `BooleanError::VolumeUnmeasured { operand,
+source }`, carrying the `MassPropsError` whole — at a dual a NURBS
+face's `Face { source: Unimplemented }`. That is the typed capability
+refusal this row asks for; still unmeasured end to end, for the reason
+above (the containment probe refuses first).

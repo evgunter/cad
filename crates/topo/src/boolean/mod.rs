@@ -1402,7 +1402,7 @@ pub enum BooleanError {
     /// A `Seamed` result's volume violates a set-theoretic bound —
     /// vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
     /// vol(∖) ≤ vol A — checked at the op gate with the exact planar
-    /// `mass_properties` (the review's volume-inequality backstop,
+    /// mass properties (the review's volume-inequality backstop,
     /// decided on the INVARIANT LANE — outside the length seam,
     /// Ev's #213 layering ruling). A certified violation is a
     /// **kernel invariant** failure — the Corrupt class: a bug in the
@@ -1415,6 +1415,20 @@ pub enum BooleanError {
         got: String,
         /// The violated operand-volume bound, Debug-formatted.
         bound: String,
+    },
+    /// The volume backstop could not measure one of the three bodies
+    /// its bounds compare — the operands and the result — so it cannot
+    /// say whether the result is the right one, and no body is
+    /// returned. `source` says why: a face the property layer has no
+    /// measurement for (an inventory gap, or the closed form at a
+    /// scalar that holds no certified quadrature,
+    /// [`crate::AtRestPolicy::quad_lane`]), or a structural defect its
+    /// own message names as one.
+    VolumeUnmeasured {
+        /// The operand that would not measure; `None` is the result.
+        operand: Option<Operand>,
+        /// The property layer's refusal, whole.
+        source: crate::props::MassPropsError,
     },
     /// The result would be unbounded (only reachable with complement
     /// operands, e.g. ∪ of a body with its own complement) — no
@@ -1541,6 +1555,8 @@ pub enum BooleanErrorKind {
     ResultInvalid,
     /// [`BooleanError::ResultVolumeImplausible`].
     ResultVolumeImplausible,
+    /// [`BooleanError::VolumeUnmeasured`].
+    VolumeUnmeasured,
     /// [`BooleanError::UnrepresentableResult`].
     UnrepresentableResult,
     /// [`BooleanError::GraftRecertify`].
@@ -1657,6 +1673,7 @@ impl BooleanError {
             Self::Merge(_) => BooleanErrorKind::Merge,
             Self::ResultInvalid { .. } => BooleanErrorKind::ResultInvalid,
             Self::ResultVolumeImplausible { .. } => BooleanErrorKind::ResultVolumeImplausible,
+            Self::VolumeUnmeasured { .. } => BooleanErrorKind::VolumeUnmeasured,
             Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
         }
@@ -2057,6 +2074,18 @@ impl core::fmt::Display for BooleanError {
                  ({which}: got {got}, bound {bound}), so no body is returned. \
                  {KERNEL_DEFECT_ENDING}"
             ),
+            Self::VolumeUnmeasured { operand, source } => {
+                let whose = match operand {
+                    Some(Operand::A) => "the first solid",
+                    Some(Operand::B) => "the second solid",
+                    None => "the result",
+                };
+                write!(
+                    f,
+                    "the Boolean checks its result against its inputs' volumes, and the \
+                     volume of {whose} cannot be measured, so no body is returned: {source}"
+                )
+            }
             Self::UnrepresentableResult => write!(
                 f,
                 "the result would be unbounded (complement operands) — no boundary \
@@ -3225,6 +3254,10 @@ mod tests {
                 got: "1.0".to_owned(),
                 bound: "0.5".to_owned(),
             },
+            BooleanError::VolumeUnmeasured {
+                operand: None,
+                source: crate::props::MassPropsError::Corrupt { what: "a face key" },
+            },
             BooleanError::UnrepresentableResult,
         ]
     }
@@ -3301,6 +3334,7 @@ mod tests {
                 BooleanErrorKind::Merge => "Merge",
                 BooleanErrorKind::ResultInvalid => "ResultInvalid",
                 BooleanErrorKind::ResultVolumeImplausible => "ResultVolumeImplausible",
+                BooleanErrorKind::VolumeUnmeasured => "VolumeUnmeasured",
                 BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
             }

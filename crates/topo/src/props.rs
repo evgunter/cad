@@ -318,8 +318,8 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
 /// `T: Decide`: no bracket is read anywhere on this path, so no bracket
 /// term is spelled. It IS `mass_properties_closed_form` with the band
 /// built inside from `tol`, the one public door onto that walk (the
-/// band-outside entry is `pub(crate)`, for the boolean engine's
-/// backstops, which hold a band already). Every closed-form face
+/// band-outside entry is `pub(crate)`, for the containment door's
+/// at-infinity probe, which holds a band already). Every closed-form face
 /// computes exactly as it does through the certified door, and a face
 /// that needs the certified quadrature refuses typed rather than
 /// passing unbounded, so on a closed-form body this door answers the
@@ -1048,9 +1048,9 @@ impl<T: Real> fmt::Display for TargetUnreached<T> {
 }
 
 /// The closed-form-only walk against a caller-held band: plain
-/// `T: Decide`, no quadrature lane and no bracket read — the boolean
-/// engine's internal backstops (`volume_backstop`, `at_infinity_side`)
-/// take it with the band they already hold, and
+/// `T: Decide`, no quadrature lane and no bracket read — the
+/// containment door's at-infinity probe (`at_infinity_side`)
+/// takes it with the band it already holds, and
 /// [`mass_properties_structural`] is this door with the band built
 /// inside, the public spelling of the same walk. On a conic-trimmed
 /// face the closed form refuses typed (fail-loud). The at-rest
@@ -2538,6 +2538,27 @@ mod wiring_rows {
             "`ShellDoor::<Interval>::certified()` holds something other than `shell_open`"
         );
     }
+
+    /// The boolean's volume lane, per scalar: the certifying scalars
+    /// hand out the quadrature and a dual hands out none.
+    /// [`QuadLane::certified`] is the lane's only constructor, so a
+    /// `Some` is the certified quadrature the rows above pin.
+    #[test]
+    fn the_policy_hands_out_the_quadrature_where_the_scalar_certifies() {
+        assert!(<f64 as AtRestPolicy>::quad_lane().is_some(), "f64");
+        assert!(
+            <geom_core::interval::Interval as AtRestPolicy>::quad_lane().is_some(),
+            "Interval"
+        );
+        assert!(
+            <geom_core::Sym<f64> as AtRestPolicy>::quad_lane().is_some(),
+            "Sym<f64>"
+        );
+        assert!(
+            <geom_core::Dual64 as AtRestPolicy>::quad_lane().is_none(),
+            "Dual64"
+        );
+    }
 }
 
 /// The **scalar policy for the certified at-rest gates**
@@ -2579,12 +2600,13 @@ mod wiring_rows {
 /// bounds admit; this trait only decides which scalars'
 /// evaluation-service gates consult them.
 ///
-/// The trait also carries the three INJECTED DOORS whose presence is a
+/// The trait also carries the four INJECTED DOORS whose presence is a
 /// per-scalar fact, for the same reason it carries the gates: it is
 /// the per-scalar policy home. [`AtRestPolicy::offset_fit_lane`] is
 /// the offset fit's, [`AtRestPolicy::fitted_lane`] is the fitted
-/// pcurve derivations', and [`AtRestPolicy::shell_door`] is the
-/// hollowing verb's; each answers `None` for its own reason — a
+/// pcurve derivations', [`AtRestPolicy::shell_door`] is the
+/// hollowing verb's, and [`AtRestPolicy::quad_lane`] is the boolean
+/// engine's volume measurement's; each answers `None` for its own reason — a
 /// derivation written at one scalar, or certification rights (DL1) —
 /// and the doc on each method says which. What a reader gets from the
 /// one trait is every per-scalar answer the at-rest machinery needs,
@@ -2656,6 +2678,20 @@ pub trait AtRestPolicy: Decide {
     /// [`AtRestPolicy::offset_fit_lane`] above, which is about where a
     /// derivation is written.
     fn shell_door() -> Option<ShellDoor<Self>>;
+
+    /// **This scalar's certified quadrature, or `None` where it may not
+    /// certify** — the ONE seam the `Some` comes from for the boolean
+    /// engine's volume backstop, which measures its operands and its
+    /// result through `mass_properties_with` with this lane. Holding
+    /// it, a face trimmed by an ellipse, a spiric or a spline is enclosed by
+    /// the quadrature exactly as [`mass_properties`] encloses it;
+    /// holding `None`, every face is the closed form's and one that
+    /// needed the quadrature refuses typed.
+    ///
+    /// `None` is certification rights (DL1), the same fact as
+    /// [`AtRestPolicy::fitted_lane`]'s: [`QuadLane::certified`] is
+    /// bounded on [`geom_core::CertifiedBounds`].
+    fn quad_lane() -> Option<QuadLane<Self>>;
 
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
@@ -2730,6 +2766,11 @@ impl AtRestPolicy for f64 {
         Some(ShellDoor::certified())
     }
 
+    /// A certifying scalar measures through the certified quadrature.
+    fn quad_lane() -> Option<QuadLane<Self>> {
+        Some(QuadLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2775,6 +2816,11 @@ impl AtRestPolicy for geom_core::Probe {
         Some(ShellDoor::certified())
     }
 
+    /// A certifying scalar measures through the certified quadrature.
+    fn quad_lane() -> Option<QuadLane<Self>> {
+        Some(QuadLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2814,6 +2860,11 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// what the validator's certified claim is made of.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
+    }
+
+    /// A certifying scalar measures through the certified quadrature.
+    fn quad_lane() -> Option<QuadLane<Self>> {
+        Some(QuadLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -2868,6 +2919,11 @@ where
     /// would otherwise stop hollowing the bodies it certifies.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
+    }
+
+    /// A certifying scalar measures through the certified quadrature.
+    fn quad_lane() -> Option<QuadLane<Self>> {
+        Some(QuadLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -2928,6 +2984,12 @@ where
     /// sensitivities meets a typed refusal at its shell node rather
     /// than an unvalidated hollow.
     fn shell_door() -> Option<ShellDoor<Self>> {
+        None
+    }
+
+    /// **A dual does not certify** (DL1), and the quadrature's flux
+    /// enclosures are certification arithmetic.
+    fn quad_lane() -> Option<QuadLane<Self>> {
         None
     }
 

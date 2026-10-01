@@ -1298,16 +1298,33 @@ pub(super) fn merge_rows(
 /// The volume-inequality backstop at the op gate (PR 5 review): every
 /// `Seamed` result must satisfy the set-theoretic bounds
 /// vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
-/// vol(∖) ≤ vol A — computed with the exact planar
-/// [`crate::mass_properties`]. The min/max are decomposed into per-operand
+/// vol(∖) ≤ vol A. The min/max are decomposed into per-operand
 /// inequalities, so no operand-vs-operand comparison is needed.
+///
+/// # What it measures with
+///
+/// The three bodies are measured through the scalar's own lane
+/// ([`crate::AtRestPolicy::quad_lane`]): at a certifying scalar that is
+/// [`crate::mass_properties`]' walk, so a face trimmed by an ellipse or
+/// a spline carrier is enclosed by the certified quadrature, and at a
+/// dual it is the closed form. A face neither measures refuses
+/// [`BooleanError::VolumeUnmeasured`] with the property layer's own
+/// refusal: a bound that cannot be evaluated is not a pass, and a body
+/// the kernel cannot measure is not evidence of a wrong one.
+///
+/// A quadrature volume is an enclosure, `volume ± volume_pad`, so each
+/// decision reads the end that makes it conservative: an operand is
+/// bounded only when its LOWER end is certified positive, and a margin
+/// is violated only when it stays negative with both bodies' pads
+/// added to it. On a body whose faces are all closed-form both pads
+/// are exactly `0.0` and every decision is the closed form's.
 ///
 /// Comparison posture: each bound margin is classified through the
 /// k_stats funnel (`decide` — the certified trilean against the op's
 /// linear band, under this gate's own predicate name), the codebase's
 /// only legal comparison (Q1). Only a CERTIFIED violating sign
 /// refuses ([`BooleanError::ResultVolumeImplausible`]);
-/// `Zero` and in-band indeterminate margins PASS: on the planar
+/// `Zero` and in-band indeterminate margins PASS: on the closed-form
 /// corpus the flux sums are exact for dyadic fixtures (margin exactly
 /// 0 or macroscopic), and the bug class this backstop guards —
 /// wrong-component results — violates its bound by whole regions, so
@@ -1394,7 +1411,7 @@ pub(super) fn merge_rows(
 /// operand/result volume set {1, 1, 3, 8, 8, 16} m³ logged under
 /// certify's `witness_at_mid_parameter`, scaling ×1e-9 — cubic).
 /// Routing through `decide` retires that misattribution.
-pub(super) fn volume_backstop<T: Decide>(
+pub(super) fn volume_backstop<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -1402,20 +1419,12 @@ pub(super) fn volume_backstop<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    let corrupt = || BooleanError::ClassificationInvariant {
-        what: "volume backstop: mass properties refused on a tier-valid planar body",
-    };
-    // Closed-form lane on purpose (M5 PR 11 lane split): this is the
-    // boolean engine's INTERNAL invariant backstop on its own planar/
-    // iso results — the certified quadrature lane is the at-rest
-    // measurement door, and a trimmed face here keeps the historical
-    // fail-loud refusal.
-    // Volume AND surface area: the area is this gate's metering lever
-    // (fn docs, audit F3), read from the same closed-form pass.
-    let props = |body: &Body<T>| -> Result<(T, T), BooleanError> {
-        let p =
-            crate::props::mass_properties_closed_form(body, band, tol).map_err(|_| corrupt())?;
-        Ok((p.volume, p.surface_area))
+    // Volume, its pad, AND surface area: the area is this gate's
+    // metering lever (fn docs, audit F3), read from the same pass.
+    let props = |body: &Body<T>, operand| -> Result<(T, f64, T), BooleanError> {
+        let p = crate::props::mass_properties_with(body, band, tol, T::quad_lane())
+            .map_err(|source| BooleanError::VolumeUnmeasured { operand, source })?;
+        Ok((p.volume, p.volume_pad, p.surface_area))
     };
     // The exact (bit-hairline) band for the sign arm below — the same
     // device the splitter's total order uses (`splitting::order`, audit
@@ -1424,7 +1433,9 @@ pub(super) fn volume_backstop<T: Decide>(
     // the interval scalar an enclosure straddling the hairline escalates
     // honestly. That IS "proven beyond the enclosure's own width".
     let exact = crate::splitting::order::exact_band()?;
-    let ((va, aa), (vb, ab), (vr, ar)) = (props(a)?, props(b)?, props(result)?);
+    let (va, pa, aa) = props(a, Some(Operand::A))?;
+    let (vb, pb, ab) = props(b, Some(Operand::B))?;
+    let (vr, pr, ar) = props(result, None)?;
     // A bound applies only against a certified-bounded operand
     // (positive flux volume); complement operands (certified negative)
     // make it vacuous. Poison refuses. Metered `V/A` — the operand's
@@ -1442,8 +1453,9 @@ pub(super) fn volume_backstop<T: Decide>(
     // outside the length seam by design — no door, bare T — and a
     // certified violation is a kernel invariant failure, not a
     // validity refusal. Values and predicate names are unchanged.
-    let bounded = |v: T, area: T| -> Result<bool, BooleanError> {
-        match geom_core::k_stats::decide_invariant("volume_backstop_operand", v / area, band) {
+    let bounded = |v: T, pad: f64, area: T| -> Result<bool, BooleanError> {
+        let low = v - T::from_f64(pad);
+        match geom_core::k_stats::decide_invariant("volume_backstop_operand", low / area, band) {
             Ok(Sign::Positive) => Ok(true),
             Ok(Sign::Zero | Sign::Negative) => Ok(false),
             Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated {
@@ -1455,64 +1467,70 @@ pub(super) fn volume_backstop<T: Decide>(
     };
     // `margin` ≥ 0 (within band) or the bound named by `which` is
     // violated: margin = bound − got for upper bounds, got − bound for
-    // lower bounds. `lever` is the two compared bodies' summed surface
-    // area, which turns the volume defect into a boundary displacement
-    // (fn docs). TWO ARMS, in order — see the fn docs' "Two questions,
+    // lower bounds, read at its upper end: `slack` is the two compared
+    // bodies' summed volume pads (fn docs). `lever` is their summed
+    // surface area, which turns the volume defect into a boundary
+    // displacement (fn docs). TWO ARMS, in order — see the fn docs' "Two questions,
     // two bands": the SIGN question (is the inequality violated at all?)
     // against the exact band, then the MAGNITUDE question (is the
     // displacement above the model's resolution?) against ε.
-    let check =
-        |which: &'static str, margin: T, got: T, bound: T, lever: T| -> Result<(), BooleanError> {
-            let implausible = || BooleanError::ResultVolumeImplausible {
-                which,
-                got: format!("{got:?}"),
-                bound: format!("{bound:?}"),
-            };
-            let metered = margin / lever;
-            // Arm 1 — the inequality itself. A sign-certain violation is
-            // a violated bound whatever its size, so nothing about ε
-            // enters here.
-            if geom_core::k_stats::decide_invariant("volume_backstop_violation", metered, exact)
-                == Ok(Sign::Negative)
-            {
-                return Err(implausible());
-            }
-            // Arm 2 — the magnitude, for the near-zero region arm 1
-            // leaves open. Unchanged posture: only a certified negative
-            // refuses (unreachable now, since arm 1 subsumes it — kept
-            // as the honest statement of the gate rather than a dead
-            // arm removed), Zero and in-band PASS, poison refuses.
-            match geom_core::k_stats::decide_invariant("volume_backstop", metered, band) {
-                Ok(Sign::Negative) => Err(implausible()),
-                Ok(Sign::Zero | Sign::Positive) => Ok(()),
-                Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated {
-                    decision: BooleanDecision::VolumeBackstop,
-                    diag,
-                }),
-                Err(_) => Ok(()),
-            }
+    let check = |which: &'static str,
+                 margin: T,
+                 slack: f64,
+                 got: T,
+                 bound: T,
+                 lever: T|
+     -> Result<(), BooleanError> {
+        let implausible = || BooleanError::ResultVolumeImplausible {
+            which,
+            got: format!("{got:?}"),
+            bound: format!("{bound:?}"),
         };
-    let (ba, bb) = (bounded(va, aa)?, bounded(vb, ab)?);
+        let metered = (margin + T::from_f64(slack)) / lever;
+        // Arm 1 — the inequality itself. A sign-certain violation is
+        // a violated bound whatever its size, so nothing about ε
+        // enters here.
+        if geom_core::k_stats::decide_invariant("volume_backstop_violation", metered, exact)
+            == Ok(Sign::Negative)
+        {
+            return Err(implausible());
+        }
+        // Arm 2 — the magnitude, for the near-zero region arm 1
+        // leaves open. Unchanged posture: only a certified negative
+        // refuses (unreachable now, since arm 1 subsumes it — kept
+        // as the honest statement of the gate rather than a dead
+        // arm removed), Zero and in-band PASS, poison refuses.
+        match geom_core::k_stats::decide_invariant("volume_backstop", metered, band) {
+            Ok(Sign::Negative) => Err(implausible()),
+            Ok(Sign::Zero | Sign::Positive) => Ok(()),
+            Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated {
+                decision: BooleanDecision::VolumeBackstop,
+                diag,
+            }),
+            Err(_) => Ok(()),
+        }
+    };
+    let (ba, bb) = (bounded(va, pa, aa)?, bounded(vb, pb, ab)?);
     match op {
         BooleanOp::Intersect => {
             if ba {
-                check("vol(A ∩ B) ≤ vol(A)", va - vr, vr, va, aa + ar)?;
+                check("vol(A ∩ B) ≤ vol(A)", va - vr, pa + pr, vr, va, aa + ar)?;
             }
             if bb {
-                check("vol(A ∩ B) ≤ vol(B)", vb - vr, vr, vb, ab + ar)?;
+                check("vol(A ∩ B) ≤ vol(B)", vb - vr, pb + pr, vr, vb, ab + ar)?;
             }
         }
         BooleanOp::Union => {
             if ba {
-                check("vol(A ∪ B) ≥ vol(A)", vr - va, vr, va, aa + ar)?;
+                check("vol(A ∪ B) ≥ vol(A)", vr - va, pa + pr, vr, va, aa + ar)?;
             }
             if bb {
-                check("vol(A ∪ B) ≥ vol(B)", vr - vb, vr, vb, ab + ar)?;
+                check("vol(A ∪ B) ≥ vol(B)", vr - vb, pb + pr, vr, vb, ab + ar)?;
             }
         }
         BooleanOp::Subtract => {
             if ba {
-                check("vol(A ∖ B) ≤ vol(A)", va - vr, vr, va, aa + ar)?;
+                check("vol(A ∖ B) ≤ vol(A)", va - vr, pa + pr, vr, va, aa + ar)?;
             }
         }
     }

@@ -4616,6 +4616,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "underflowed_sector_chord",
             "unrepresentable_result",
             "unsupported_declaration_class",
+            "volume_unmeasured",
             "zip_correspondence",
         ],
         delegates: &[],
