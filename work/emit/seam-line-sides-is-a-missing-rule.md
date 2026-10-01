@@ -59,6 +59,8 @@ Name matching alone cannot settle either case. Two options:
 `SeamLineSides` retired with the rankers that raised it. Edge pieces
 take `Ends`, which reads no side. The one reader left, a crossing
 ordinal along a seam edge (`emit_topo::crossed_edge_orientation`),
-orients the edge by the loop of the pair's first side, and where the
-faces' names do not settle that side, or the pair's two sides carry one
-name, the crossings tie (N2) rather than refuse.
+orients the edge by the loop of the pair's first side. Where the pair's
+two sides carry one name the crossings tie, as N2 rules; where the faces'
+names do not settle the side they tie too, which N2 does not rule:
+`crossings-of-a-seam-edge-whose-sides-names-do-not-settle-tie` carries
+that departure.

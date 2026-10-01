@@ -80,19 +80,29 @@ One PR carries the whole scope: `Ends`, the crossing ordinal and
 `Keeps` share the vertex-before-qualifier mint order and the retirement
 of `OrderAlong` for edges, and no intermediate state named consistently.
 
-What is left, as found:
+What stays: `names::canonical`'s `RankRule::Reverse` is kept for seam
+vertex groups. A crossing ranked along a union seam reads from the other
+end where the collapse (or a re-map) puts the seam's pair in the other
+order, because the edge is oriented by the loop of the pair's first side.
+It no longer applies to any edge.
+
+What is left, as found, each on its own row:
 - **The `Ends`-delta diagnosis rung is not designed**, as ruled. A
   vanished edge piece falls to the existing rungs: a flip or an edit on
   its path (its ends cite the cutter, so the cutter is on that path
   now), the group-size rung where its group stopped being divided, then
   the fallback. No fixture in the suite reached the fallback with an
-  edge piece, so nothing was filed.
-- **A union's crossings of a seam of several curves tie.** A vertex
-  cites a union seam by its head; where one face crosses it several
-  times the crossings share a name and are ranked along the seam's line
-  (`emit_union::rank_along_seam`; the area-overlap fixtures of
-  `wire_legal_union_refusals` reach it), but a seam of several curves
-  has no one carrier to order them along, so there they are N2's tie.
-  No fixture reaches the tie.
-- **A crossed NURBS edge's crossings tie**: `emit_topo::param_along`
-  has no closed-form parameter for a NURBS carrier.
+  edge piece, so that rung has no row. Whether the upstream flip and
+  recipe-edit rungs are still reachable from emitted names:
+  `are-the-upstream-flip-and-recipe-edit-rungs-reachable-from-emitted-names`.
+- The crossing ordinal is not local: a second crossing by a face that
+  already crosses an edge renames the first and the pieces ending at it
+  (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`,
+  design).
+- A union's crossings of a seam of several curves tie
+  (`crossings-of-a-union-seam-of-several-curves-tie`).
+- Crossings of a seam edge whose faces' names do not settle the first
+  side tie, where N2 rules only the equal pair
+  (`crossings-of-a-seam-edge-whose-sides-names-do-not-settle-tie`).
+- Crossings of a NURBS edge tie
+  (`a-crossing-of-a-nurbs-edge-ties-for-want-of-its-parameter`).
