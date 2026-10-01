@@ -5696,3 +5696,23 @@ PR 3673 is unaffected either way. Both keep the refusals on the
 chart-choosing doors. A would move `ring_move` with the kills, which
 the measurement says is harmless, since `ring_move` had zero production
 refusals.
+
+## Container restart #2: lanes recovered (2026-10-01)
+
+A container restart stopped every lane. Recovery:
+- **PR 3513, fix pass 6.** Its code (`6d6223b786`) and `## Fix pass 6`
+  body were done and pushed, and `e33aa63f4e` was green. The last head,
+  `71424a4252`, had no CI run, and main has moved 76 commits since. It
+  now conflicts in `dihedral.rs`, geom-brep `lib.rs`, pncad-py
+  `tests.rs` and `boolean/join.rs`. A merge-only lane
+  (`coinc-merge-brief.md`) is resolving it, and must keep NF-1's
+  semantics in `at_wedge`.
+- **PR 3669's fix pass.** Items 1–3 were pushed (`unreachable!`, the
+  two-ring row, the `loop.face` tear). The PR body, the mutants, CI and
+  the text items were not done. Resumed with `movehop-fixb-brief.md`.
+- **PR 3673's review.** Its uncommitted probe edits were saved as
+  `prerestart-probes.patch` in its scratch. Resumed with
+  `mefchart-rb-brief.md`.
+- **The designers.** Their reconciliation round 1 replies were lost.
+  Each is resumed from its transcript with the same round-1 message, so
+  blinding and context are intact.
