@@ -1611,7 +1611,7 @@ fn skip_adjacent_chord<T: Decide>(
         Some(in_plane) => Ok(in_plane),
         None => Err(SplitJoinError::SectionInvariant {
             face,
-            what: "in-plane classification of the join-adjacent edge escalated",
+            what: "section classification of the join-adjacent edge escalated",
         }),
     }
 }
@@ -2758,6 +2758,112 @@ mod tests {
             )
             .unwrap();
         body.get_edge(made.edge).unwrap().he_plus
+    }
+
+    /// A line edge from `a` to `b`, lying in the plane through `a` with
+    /// normal `n` (unit, orthogonal to `b − a`).
+    fn line_run(
+        body: &mut crate::Body<f64>,
+        a: Point3<f64>,
+        b: Point3<f64>,
+        n: Vec3<f64>,
+    ) -> crate::entity::HalfEdgeKey {
+        let dir = (b - a).normalize();
+        let seed = body.mvfs(a, true).unwrap();
+        let s1 = body.add_surface(geom::Surface::Plane {
+            origin: a,
+            normal: n,
+            u_ref: dir,
+        });
+        let s2 = body.add_surface(geom::Surface::Plane {
+            origin: a,
+            normal: dir.cross(n),
+            u_ref: dir,
+        });
+        let made = body
+            .mev(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                b,
+                EdgeCurveSpec {
+                    description: geom_brep::EdgeDescriptionSpec::Intersection {
+                        s1,
+                        s2,
+                        witness: a + (b - a) * 0.5,
+                    },
+                    carrier: geom::Curve3::Line { origin: a, dir },
+                    param_start: 0.0,
+                    param_end: (b - a).norm(),
+                },
+                Tol::witness(),
+            )
+            .unwrap();
+        body.get_edge(made.edge).unwrap().he_plus
+    }
+
+    /// **The planar-side lane's line arm, on each verdict.** No public
+    /// op hands it a line lying on the wall: an undeclared edge on a
+    /// ruling answers `Constant` at the reduction's curved-face arm and
+    /// refuses `CurvedPierceUnsupported` there, and a declared kiss has
+    /// no section to join. So its rows are direct, against the unit
+    /// cylinder about `z`:
+    ///
+    /// - a RULING (`x = 1, y = 0`) lies on the wall: it is the section
+    ///   segment, and the chord is skipped;
+    /// - a chord across the wall's section circle in `z = 0`, its
+    ///   midpoint definitely inside, is not;
+    /// - a chord of half-angle `1e-4` rad, whose sagitta `≈ 5e-9` m lies
+    ///   in the band, escalates rather than guessing either way.
+    #[test]
+    fn bool_planar_lane_reads_a_line_on_the_wall_by_its_midpoint() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let verdict = |a: Point3<f64>, b: Point3<f64>, n: Vec3<f64>| {
+            let mut body = crate::Body::<f64>::new();
+            let he = line_run(&mut body, a, b, n);
+            let mut partner_key = None;
+            let lane = JoinLane::BoolPlanar {
+                wall: wall.clone(),
+                window: (0.0, 1.0),
+                partner_key: &mut partner_key,
+            };
+            between_edge_is_section(&body, &lane, he, band).unwrap()
+        };
+        assert_eq!(
+            verdict(
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Vec3::unit_y()
+            ),
+            Some(true),
+            "a ruling is the section segment"
+        );
+        let phi = 0.7_f64;
+        assert_eq!(
+            verdict(
+                Point3::new(phi.cos(), -phi.sin(), 0.0),
+                Point3::new(phi.cos(), phi.sin(), 0.0),
+                Vec3::unit_z()
+            ),
+            Some(false),
+            "a chord definitely inside the wall is minted beside"
+        );
+        let phi = 1e-4_f64;
+        assert_eq!(
+            verdict(
+                Point3::new(phi.cos(), -phi.sin(), 0.0),
+                Point3::new(phi.cos(), phi.sin(), 0.0),
+                Vec3::unit_z()
+            ),
+            None,
+            "a chord whose sagitta is in band escalates"
+        );
     }
 
     /// The plane×plane lane's adjacency question on a conic between
