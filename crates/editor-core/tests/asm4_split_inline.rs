@@ -61,9 +61,9 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     doc
 }
 
-/// A two-cluster assembly: two instances of `doc_ref`, the second at
+/// A two-group assembly: two instances of `doc_ref`, the second at
 /// x = +5 — the flagship acceptance shape (row 1).
-fn two_cluster_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>) {
+fn two_group_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>) {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part"), 0.0, 1.0), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -123,16 +123,16 @@ fn replay(mut doc: ProfileDoc, edits: &[DocEdit<editor_core::ProfileProgram>]) -
     doc
 }
 
-// ---- Row 1: split one cluster out, A4 identity ----
+// ---- Row 1: split one group out, A4 identity ----
 
-/// Row 1 — splitting a two-cluster assembly's second cluster out
+/// Row 1 — splitting a two-group assembly's second group out
 /// leaves a remainder that instantiates the new document, and the A4
 /// identity holds: censuses equal, volumes bit-equal, and every
 /// probed name resolves to the corresponding entity (the split side
 /// through the instance qualifier).
 #[test]
-fn row1_split_one_cluster_preserves_structure_and_names() {
-    let (store, doc, ids) = two_cluster_assembly("asm4-r1");
+fn row1_split_one_group_preserves_structure_and_names() {
+    let (store, doc, ids) = two_group_assembly("asm4-r1");
     let part_ref = match doc.node(ids[0]) {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
         _ => panic!("fixture shape"),
@@ -246,7 +246,7 @@ fn row1_split_one_cluster_preserves_structure_and_names() {
     let _ = part_ref;
 }
 
-/// Row 1, the non-hoisted shape — cutting a PLAIN subtree (no cluster)
+/// Row 1, the non-hoisted shape — cutting a PLAIN subtree (no group)
 /// moves the recipe verbatim; the remainder instance sits at identity
 /// and the identity still holds.
 #[test]
@@ -299,7 +299,7 @@ fn row1_split_plain_subtree_preserves_structure() {
 /// replay to exactly the returned values).
 #[test]
 fn row2_inline_inverts_split_and_undo_restores() {
-    let (store, doc, ids) = two_cluster_assembly("asm4-r2");
+    let (store, doc, ids) = two_group_assembly("asm4-r2");
     let snapshot = doc.clone();
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
@@ -379,7 +379,7 @@ fn row2_inline_inverts_split_and_undo_restores() {
     // And the restored placement is the original frame, bit for bit.
     assert!(
         inlined.doc.placement(back).bit_eq(&doc.placement(ids[1])),
-        "the round trip restores the cluster frame exactly"
+        "the round trip restores the group frame exactly"
     );
     let _ = names1;
 }
@@ -390,7 +390,7 @@ fn row2_inline_inverts_split_and_undo_restores() {
 /// form.
 #[test]
 fn row2_appearance_rides_the_bridge_both_ways() {
-    let (store, doc, ids) = two_cluster_assembly("asm4-r2a");
+    let (store, doc, ids) = two_group_assembly("asm4-r2a");
     let opts = with_resolver(store);
     let ev = run(&doc, &opts);
     // A face name minted at the SECOND instance, keyed with an
@@ -688,7 +688,7 @@ fn row3_inline_of_stale_pin_is_pin_mismatch() {
 /// recipe can express.
 #[test]
 fn row3_further_typed_refusals() {
-    let (_, doc, ids) = two_cluster_assembly("asm4-r3f");
+    let (_, doc, ids) = two_group_assembly("asm4-r3f");
     assert!(matches!(
         split(
             &doc,
@@ -782,8 +782,8 @@ fn row3_further_typed_refusals() {
 /// its own assertion.
 #[test]
 fn row4_roots_and_placements_land_as_the_rules_say() {
-    // The hoisted single-cluster cut.
-    let (_, doc, ids) = two_cluster_assembly("asm4-r4");
+    // The hoisted single-group cut.
+    let (_, doc, ids) = two_group_assembly("asm4-r4");
     let out = split(
         &doc,
         &BTreeSet::from([ids[1]]),
@@ -807,14 +807,14 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
         out.remainder
             .placement(out.instance)
             .bit_eq(&doc.placement(ids[1])),
-        "the hoisted frame is the cluster's old frame"
+        "the hoisted frame is the group's old frame"
     );
     assert!(
         out.part.placements().is_empty(),
-        "the hoisted cluster sits at identity in the part"
+        "the hoisted group sits at identity in the part"
     );
 
-    // The multi-cluster cut: both frames MOVE, the remainder instance
+    // The multi-group cut: both frames MOVE, the remainder instance
     // sits at identity, and the part keeps the cut roots' LIST order
     // even where insertion order disagrees.
     let mut store = PartStore::default();
@@ -864,7 +864,7 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
     );
     assert!(
         out2.remainder.placement(out2.instance).is_identity_bits(),
-        "a multi-cluster cut leaves the remainder instance at identity"
+        "a multi-group cut leaves the remainder instance at identity"
     );
     assert!(
         out2.part
@@ -887,7 +887,7 @@ fn row4_roots_and_placements_land_as_the_rules_say() {
 /// bytes while empty (so no pin moves until R2 populates it).
 #[test]
 fn row5_interface_record_exists_and_round_trips() {
-    let (_, doc, ids) = two_cluster_assembly("asm4-r5");
+    let (_, doc, ids) = two_group_assembly("asm4-r5");
     let out = split(
         &doc,
         &BTreeSet::from([ids[1]]),
@@ -923,7 +923,7 @@ fn row5_interface_record_exists_and_round_trips() {
 /// save/load, and the loaded pair still evaluates to the A4 identity.
 #[test]
 fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
-    let (store, doc, ids) = two_cluster_assembly("asm4-per");
+    let (store, doc, ids) = two_group_assembly("asm4-per");
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
     let (body1, _) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
@@ -965,7 +965,7 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
 
 // ---- MIN-1 (review round 1): the root-interleaving collapse, pinned ----
 
-/// D-2 amendment rider (i), pinned: a non-adjacent multi-cluster cut's
+/// D-2 amendment rider (i), pinned: a non-adjacent multi-group cut's
 /// roots collapse onto the instance's root-list position, so the round
 /// trip restores the root SET and the spliced block's relative order
 /// but NOT the original interleaving — while the full D-4 identity
@@ -975,7 +975,7 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
     // A plain component (dyadic-exact volume, disjoint from the
-    // instances) plus three singleton clusters.
+    // instances) plus three singleton groups.
     let doc = ProfileDoc::empty(DocumentId::derive("asm4-min1"), Tol::witness());
     let (doc, p) = on_frame(
         doc,
@@ -1110,7 +1110,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // BodyNameCrossesCut: appearance keyed by a cut instance's BODY
     // name (product tables carry no root body rows, so the wrapped
     // rewrite could never resolve).
-    let (_, doc, ids) = two_cluster_assembly("asm4-min2-body");
+    let (_, doc, ids) = two_group_assembly("asm4-min2-body");
     let body_name = StableName {
         kind: EntityKind::Body,
         node: ids[1],

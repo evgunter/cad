@@ -1725,7 +1725,7 @@ pub enum PlacementRuleFault {
     },
     /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
     /// (A6). Admitting one is gated on the equivariance audit R4 owns,
-    /// exactly as for a cluster placement.
+    /// exactly as for a group placement.
     ImproperFrame {
         /// Its index in the placement list.
         index: usize,
@@ -2474,7 +2474,7 @@ pub enum Node<P> {
     /// [`Node::inputs`] is empty and the DAG has nothing to schedule
     /// ahead of it.
     ///
-    /// **No frame field.** A11 puts placement on the CLUSTER, and the
+    /// **No frame field.** A11 puts placement on the GROUP, and the
     /// registry holding it is document data ([`crate::Doc::placement`])
     /// — an instance carries no frame of its own, which is what makes
     /// zero-anchor and multi-anchor states unrepresentable rather than
@@ -2508,7 +2508,7 @@ pub enum Node<P> {
     /// operand down to its name's head yields the member the edge
     /// lands on, RECOMPUTED at need ([`crate::mate::reading_edges`])
     /// and never stored. A9's relative-freedom partition and A11's
-    /// placement clusters read consuming ∪ reading edges; A10's
+    /// placement groups read consuming ∪ reading edges; A10's
     /// invariants, maintenance and product gather read consuming
     /// edges only. Under consuming edges a mate is an isolated sink,
     /// so it is an ordinary NON-BODY root: listed like any other,
