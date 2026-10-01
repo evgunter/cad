@@ -3124,6 +3124,9 @@ fn chart_edge<T: Decide>(
         // `_` arm there already answers from `eval` over the span
         // hull.
         Pcurve::Spiric { .. } => false,
+        // A cone section's image is curved in both channels, and takes
+        // the same envelope door.
+        Pcurve::ConeSection { .. } => false,
         Pcurve::Fitted(_) | Pcurve::General(_) => false,
     };
     if straight {

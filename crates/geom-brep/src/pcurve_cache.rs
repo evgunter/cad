@@ -389,6 +389,98 @@ pub enum Pcurve<T: Real> {
         /// chart-space coefficients.
         image: SpiricImage<T>,
     },
+    /// The **exact chart image of a plane×cone section ellipse** on its
+    /// cone chart:
+    ///
+    /// ```text
+    /// u(t) = u0 + sense·(t + 2·atan2(β·sin t, 1 − β·cos t))
+    /// v(t) = v0 + va·cos t + vb·sin t
+    /// ```
+    ///
+    /// on the carrier's own parameter `t` (the ellipse's eccentric
+    /// anomaly).
+    ///
+    /// # The map, derived
+    ///
+    /// The slant is the axial height over `cos α`, and the height is a
+    /// linear functional of the point, so `v` is harmonic. The azimuth
+    /// is not: the ellipse's projection onto the plane normal to the
+    /// axis is an ellipse with the AXIS AT A FOCUS (on the cone the
+    /// distance from the axis is `tan α` times the height, which is
+    /// affine on the cutting plane — the focus–directrix property), so
+    /// the azimuth is that ellipse's true anomaly while `t` is its
+    /// eccentric anomaly. Kepler's relation between the two, written
+    /// cut-free, is `ν = t + 2·atan2(β·sin t, 1 − β·cos t)` with
+    /// `β = e / (1 + √(1 − e²))` for the projection's eccentricity `e`,
+    /// SIGNED: positive when the vertex at `t = 0` is the one nearer
+    /// the axis. `|β| < 1`, so `1 − β·cos t > 0` and the `atan2` never
+    /// reaches its cut; `ν` is strictly increasing, which is why the
+    /// azimuth needs no branch datum beyond `u0`. At `β = 0` this is
+    /// the rim circle's `u0 + sense·t`.
+    ///
+    /// **Why a variant and not a [`Pcurve::Fitted`] net**: the image is
+    /// a closed form of the carrier's own parameter, and its check-4
+    /// statement is closed form too (`run_cone_section_checks`) —
+    /// whereas a fitted image on a cone chart has no certificate at
+    /// all, since the cone's meters composite needs a root.
+    ConeSection {
+        /// The chart azimuth at `t = 0`.
+        u0: T,
+        /// The slant's constant term.
+        v0: T,
+        /// The slant's `cos t` coefficient.
+        va: T,
+        /// The slant's `sin t` coefficient (zero in ℝ on a minted
+        /// image: the minor axis is normal to the cone's axis).
+        vb: T,
+        /// The signed Kepler parameter, `|β| < 1`.
+        beta: T,
+        /// `+1` when the azimuth runs with the chart frame, `−1`
+        /// against it; exactly `±1` on every minted image.
+        sense: T,
+    },
+}
+
+/// The azimuth channel of a [`Pcurve::ConeSection`] image (variant docs).
+fn cone_section_azimuth<T: Real>(u0: T, beta: T, sense: T, t: T) -> T {
+    let (s, c) = t.sin_cos();
+    let lead = (beta * s).atan2(T::one() - beta * c);
+    u0 + sense * (t + lead + lead)
+}
+
+/// The chart box of a [`Pcurve::ConeSection`] image over `[t0, t1]`:
+/// the azimuth's endpoint hull (it is monotone) and the slant's
+/// harmonic box.
+#[allow(clippy::too_many_arguments)] // the variant's six fields and the span
+fn cone_section_span_box<T: Real>(
+    u0: T,
+    v0: T,
+    va: T,
+    vb: T,
+    beta: T,
+    sense: T,
+    t0: T,
+    t1: T,
+) -> ChartWindow<T> {
+    let zero = T::zero();
+    let slant = harmonic_span_box(
+        Point2::new(zero, v0),
+        Vec2::new(zero, va),
+        Vec2::new(zero, vb),
+        Vec2::new(zero, zero),
+        t0,
+        t1,
+    );
+    let (ua, ub) = (
+        cone_section_azimuth(u0, beta, sense, t0),
+        cone_section_azimuth(u0, beta, sense, t1),
+    );
+    ChartWindow {
+        u_min: ua.min(ub),
+        u_max: ua.max(ub),
+        v_min: slant.v_min,
+        v_max: slant.v_max,
+    }
 }
 
 /// Which chart a [`Pcurve::Spiric`] image lives on, and its chart-space
@@ -576,6 +668,24 @@ impl<T: Real> Pcurve<T> {
         Some(harmonic_span_box(p0, pa, pb, pl, t0, t1))
     }
 
+    /// [`Pcurve::chart_box`] for the closed-form images whose box needs
+    /// no span location — [`Pcurve::Harmonic`] and
+    /// [`Pcurve::ConeSection`] — at every [`Real`] scalar; `None` for
+    /// every other variant.
+    pub fn closed_form_span_box(&self, t0: T, t1: T) -> Option<ChartWindow<T>> {
+        match *self {
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => Some(cone_section_span_box(u0, v0, va, vb, beta, sense, t0, t1)),
+            _ => self.harmonic_span_box(t0, t1),
+        }
+    }
+
     /// The same image with every chart-space coefficient carried
     /// through an **affine map of the chart**, given as its action on
     /// points and its linear part on vectors: the constant term of a
@@ -699,6 +809,31 @@ impl<T: Real> Pcurve<T> {
                     }
                 },
             },
+            // The two channels are separate functions of `t`, so a map
+            // whose linear part is `diag(1, ±1)` — both maps a cone
+            // chart's rows take, the branch translation and the `v`
+            // reflection — lands exactly: the constant pair through
+            // `point`, the `v` amplitudes through `vector`. A linear
+            // part that mixes the channels has no image of this form,
+            // and nothing hands one to a cone chart's row.
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => {
+                let p = point(Point2::new(*u0, *v0));
+                Pcurve::ConeSection {
+                    u0: p.x,
+                    v0: p.y,
+                    va: vector(Vec2::new(T::zero(), *va)).y,
+                    vb: vector(Vec2::new(T::zero(), *vb)).y,
+                    beta: *beta,
+                    sense: *sense,
+                }
+            }
         }
     }
 
@@ -817,6 +952,20 @@ impl<T: SpanLocate> Pcurve<T> {
                         Point2::new(*u0 + *sense * f.atan2(*offset), *v0 + *sense * t)
                     }
                 }
+            }
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => {
+                let (s, c) = t.sin_cos();
+                Point2::new(
+                    cone_section_azimuth(*u0, *beta, *sense, t),
+                    *v0 + *va * c + *vb * s,
+                )
             }
         }
     }
@@ -950,6 +1099,18 @@ impl<T: SpanLocate> Pcurve<T> {
                     }
                 }
             }
+            // The azimuth is strictly monotone in `t` (variant docs), so
+            // its two endpoint values are its exact range over the span;
+            // the slant is a harmonic channel and takes the harmonic
+            // arm's box. Both are restriction-monotone.
+            Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            } => cone_section_span_box(*u0, *v0, *va, *vb, *beta, *sense, t0, t1),
         }
     }
 
@@ -2108,6 +2269,9 @@ impl<T: Decide> PcurveCache<T> {
             spiric @ Pcurve::Spiric { .. } => {
                 run_spiric_checks(spiric, t0, t1, carrier, surface, window, band)?
             }
+            section @ Pcurve::ConeSection { .. } => {
+                run_cone_section_checks(section, t0, t1, carrier, surface, window, band)?
+            }
         };
         Ok(Self {
             pcurve,
@@ -2341,6 +2505,15 @@ impl<T: Decide> PcurveCache<T> {
             ),
             spiric @ Pcurve::Spiric { .. } => run_spiric_checks(
                 spiric,
+                self.param_start,
+                self.param_end,
+                carrier,
+                surface,
+                window,
+                band,
+            ),
+            section @ Pcurve::ConeSection { .. } => run_cone_section_checks(
+                section,
                 self.param_start,
                 self.param_end,
                 carrier,
@@ -2985,6 +3158,176 @@ fn run_harmonic_checks<T: Decide>(
     // residual, but it is NOT folded into `max_residual`: that field is
     // the sampled max, and the two statements stay separate (the
     // certificate's field docs).
+    let mut envelope_margin = T::zero();
+    check_residual(
+        "pcurve_envelope",
+        PcurveCheck::Envelope,
+        0,
+        Margin::of(envelope),
+        band,
+        &mut envelope_margin,
+    )?;
+
+    // ---- Check 5: trim containment (the chart-box limb). ----
+    trim_containment(pcurve, t0, t1, surface, window, band)?;
+
+    Ok(PcurveCertificate {
+        samples: CERT_SAMPLES,
+        max_residual,
+        envelope,
+        statement: EnvelopeStatement::MapResidualClosedForm,
+        ssi: None,
+    })
+}
+
+/// **The cone-section lane's five checks** — the harmonic lane's order
+/// and meters, with check 4 the harmonic lane's closed form plus one
+/// remainder term.
+///
+/// 1. **Lane**: the carrier is a [`geom::Curve3::Ellipse`] and the
+///    chart a cone; `sense` is a unit sign (`pcurve_cone_section_sense`,
+///    levered at the chart's azimuth arm) and `β` is definitely inside
+///    `(−1, 1)` (`pcurve_cone_section_beta`) — the premise of the
+///    cut-free azimuth.
+/// 2. **Interval**: `t₁ − t₀` definitely forward, metered through the
+///    carrier's rate; the azimuth's extent — its endpoint difference,
+///    since it is monotone — gated against one period at the chart's
+///    azimuth arm.
+/// 3. **Schedule**: the shared [`CERT_SAMPLES`] residuals.
+/// 4. **Envelope**: with `e = 2β/(1 + β²)`, so that
+///    `√(1 − e²) = (1 − β²)/(1 + β²)`, Kepler's identities
+///    `cos ν = (cos t − e)/(1 − e·cos t)` and
+///    `sin ν = √(1 − e²)·sin t/(1 − e·cos t)` split the mapped image
+///    as `S(P(t)) = H(t) + E(t)` with
+///    `H(t) = apex + axis·cos α·v(t) + sin α·v0·((cos t − e)·d0 + √(1 − e²)·sin t·d1)`
+///    harmonic (`d0` the chart radial at `u0`, `d1` the one a quarter
+///    turn on in `sense`) and
+///    `E(t) = sin α·(v(t) − v0·(1 − e·cos t))·r̂(u(t))` a unit vector
+///    times a harmonic scalar. So
+///    `sup |S(P(t)) − C(t)| ≤ |H − C|ₕ + sin α·(|va + e·v0| + |vb|)`,
+///    `|·|ₕ` the harmonic lane's coefficient bound —
+///    [`EnvelopeStatement::MapResidualClosedForm`]. Both terms are
+///    rounding-scale on a minted image (the remainder vanishes in ℝ
+///    exactly when the image is a section of this cone), and the drift
+///    a banded `sense` admitted rides on top.
+/// 5. **Trim containment**: the shared chart-box limb.
+fn run_cone_section_checks<T: Decide>(
+    pcurve: &Pcurve<T>,
+    t0: T,
+    t1: T,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+    window: ChartWindow<T>,
+    band: Band,
+) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+    let esc = |check| {
+        move |cause| PcurveCertifyError::Escalated {
+            check,
+            sample: 0,
+            cause,
+        }
+    };
+    // ---- Check 1: the lane. ----
+    let &Pcurve::ConeSection {
+        u0,
+        v0,
+        va,
+        vb,
+        beta,
+        sense,
+    } = pcurve
+    else {
+        return Err(PcurveCertifyError::UnsupportedCarrier);
+    };
+    let &Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        u_ref,
+    } = surface
+    else {
+        return Err(PcurveCertifyError::UnsupportedChart {
+            chart: chart_name(surface),
+        });
+    };
+    let (Curve3::Ellipse { .. }, Some(carrier_form)) = (carrier, carrier_harmonic(carrier)) else {
+        return Err(PcurveCertifyError::UnsupportedCarrier);
+    };
+    let boxed = pcurve.chart_box(t0, t1);
+    let v_sup = boxed.v_reach();
+    let reach = t0.abs().max(t1.abs());
+    let arm = azimuth_lever(surface, v_sup);
+    let sense_residue = sense.abs() - T::one();
+    match decide(
+        "pcurve_cone_section_sense",
+        Margin::levered(sense_residue, arm),
+        band,
+    )
+    .map_err(esc(PcurveCheck::ChartWinding))?
+    {
+        Sign::Zero => {}
+        Sign::Positive | Sign::Negative => return Err(PcurveCertifyError::UnsupportedCarrier),
+    }
+    match decide(
+        "pcurve_cone_section_beta",
+        Margin::levered(T::one() - beta.abs(), arm),
+        band,
+    )
+    .map_err(esc(PcurveCheck::ChartWinding))?
+    {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::UnsupportedCarrier),
+    }
+
+    let mut max_residual = T::zero();
+
+    // ---- Check 2: the parameter interval, metered into metres. ----
+    let rate = param_rate(carrier);
+    let span = t1 - t0;
+    match decide("pcurve_interval_forward", Margin::metered(span, rate), band)
+        .map_err(esc(PcurveCheck::ParamSpan))?
+    {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
+    }
+    let extent = boxed.u_max - boxed.u_min;
+    match decide(
+        "pcurve_azimuth_period",
+        Margin::levered(T::tau() - extent, arm),
+        band,
+    )
+    .map_err(esc(PcurveCheck::AzimuthPeriod))?
+    {
+        Sign::Positive | Sign::Zero => {}
+        Sign::Negative => return Err(PcurveCertifyError::AzimuthPeriodExceeded),
+    }
+
+    // ---- Check 3: the schedule, in metres through the map. ----
+    schedule_residuals(pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
+
+    // ---- Check 4: the closed-form between-samples envelope. ----
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let cv = axis.cross(u_ref);
+    let (su, cu) = u0.sin_cos();
+    let d0 = u_ref * cu + cv * su;
+    let d1 = (cv * cu - u_ref * su) * sense;
+    let bb = beta * beta;
+    let ecc = (beta + beta) / (T::one() + bb);
+    let root = (T::one() - bb) / (T::one() + bb);
+    let h_c = apex + axis * (cos_a * v0) - d0 * (sin_a * v0 * ecc);
+    let h_a = axis * (cos_a * va) + d0 * (sin_a * v0);
+    let h_b = axis * (cos_a * vb) + d1 * (sin_a * v0 * root);
+    let remainder = sin_a * ((va + ecc * v0).abs() + vb.abs());
+    // A `sense` the band admitted off `±1` moves the azimuth by
+    // `||sense| − 1|·|ν|` with `|ν| ≤ |t| + π`, and `d1` by the same
+    // factor; each moves a point by at most `sin α·|v|` per radian.
+    let sense_drift = sin_a * v_sup * sense_residue.abs() * (reach + T::pi() + T::one());
+    let envelope = (h_c - carrier_form.c).norm()
+        + (h_a - carrier_form.a).norm()
+        + (h_b - carrier_form.b).norm()
+        + carrier_form.l.norm() * reach
+        + remainder
+        + sense_drift;
     let mut envelope_margin = T::zero();
     check_residual(
         "pcurve_envelope",
@@ -5099,15 +5442,15 @@ pub fn chart_pcurve<T: Decide>(
                 }
             }
         }
-        // The cone chart (M6-3, walk row 4): closed forms for the two
+        // The cone chart (M6-3, walk row 4): closed forms for the three
         // classes a cone carries at rest — RIM circles (⊥ axis,
-        // centred on it: azimuth `α + β·t`, slant constant) and RULING
+        // centred on it: azimuth `α + β·t`, slant constant), RULING
         // lines (azimuth constant, slant affine — `v` is a length, so
-        // its slope is unconstrained). A general conic on a cone chart
-        // (a tilted plane×cone section ellipse) is azimuth-NON-harmonic
-        // and refuses typed. Derivations are structure selection; the
-        // full residual certification follows every derivation and is
-        // what makes a wrong pick fail loudly.
+        // its slope is unconstrained) and tilted SECTION ellipses
+        // (azimuth-non-harmonic: the [`Pcurve::ConeSection`] image).
+        // Derivations are structure selection; the full residual
+        // certification follows every derivation and is what makes a
+        // wrong pick fail loudly.
         Surface::Cone {
             apex,
             axis,
@@ -5242,14 +5585,71 @@ pub fn chart_pcurve<T: Decide>(
                         pl: Vec2::new(beta, T::zero()),
                     })
                 }
-                Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
-                    // The tilted-section class: azimuth-non-harmonic
-                    // on a cone chart (the section's angle is not the
-                    // chart azimuth), and no ring-computable meters
-                    // composite exists for the cone (ssi/certify docs)
-                    // — neither route is honest, so the class refuses.
-                    // A spiric lies on no cone at all, and
-                    // `carrier_harmonic` has already refused it above.
+                Curve3::Ellipse {
+                    center,
+                    axis: e_axis,
+                    major,
+                    minor,
+                    u_ref: e_u,
+                } => {
+                    // The tilted-section class: the exact
+                    // [`Pcurve::ConeSection`] image (variant docs for
+                    // the derivation). The slant is the axial height
+                    // over cos α; the azimuth is the true anomaly of
+                    // the radial projection `r0 + ra·cos t + rb·sin t`,
+                    // whose focus is the axis.
+                    let e_v = e_axis.cross(e_u);
+                    let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+                    let w = center - apex;
+                    let h = w.dot(axis);
+                    let ns = match decide("pcurve_cone_chart_nappe", Margin::of(h), band)
+                        .map_err(esc)?
+                    {
+                        Sign::Positive => T::one(),
+                        Sign::Negative => T::zero() - T::one(),
+                        // A section ellipse is centred off the apex
+                        // level on its own nappe; one centred on it
+                        // lies on no cone.
+                        Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
+                    };
+                    let (r0, ra, rb) = (radial(w), radial(e_u * major), radial(e_v * minor));
+                    // Signed eccentricity: positive when the axis (the
+                    // focus, at `−r0` from the projection's centre) is
+                    // on the `t = 0` side. Total arithmetic: a carrier
+                    // that is no section of this cone yields a `β`
+                    // the schedule and envelope refuse in metres.
+                    let ecc = (T::zero() - r0.dot(ra)) / ra.dot(ra);
+                    let beta = ecc / (T::one() + (T::one() - ecc * ecc).sqrt());
+                    let orient = ra.cross(rb).dot(axis);
+                    let sense = match decide(
+                        "pcurve_chart_orientation",
+                        Margin::over_lever(orient, ra.norm()),
+                        band,
+                    )
+                    .map_err(esc)?
+                    {
+                        Sign::Positive => T::one(),
+                        Sign::Negative => T::zero() - T::one(),
+                        // A section that does not wind about the axis
+                        // is no ellipse of this cone.
+                        Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
+                    };
+                    let start = (r0 + ra) * ns;
+                    Ok(Pcurve::ConeSection {
+                        u0: stable_azimuth(start.dot(cv), start.dot(u_ref), band),
+                        v0: h / c_ha,
+                        va: e_u.dot(axis) * major / c_ha,
+                        vb: e_v.dot(axis) * minor / c_ha,
+                        beta,
+                        sense,
+                    })
+                }
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
+                    // No ring-computable meters composite exists for
+                    // the cone (ssi/certify docs), so a fitted image
+                    // has no certificate here. A spiric lies on no cone
+                    // at all, and `carrier_harmonic` has already
+                    // refused it above.
                     Err(PcurveCertifyError::UnsupportedCarrier)
                 }
             }

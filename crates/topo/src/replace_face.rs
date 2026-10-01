@@ -2104,6 +2104,23 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                 },
             },
         },
+        // The cone section's slant is a harmonic channel whose constant
+        // term is `v0`; its azimuth does not read `v`.
+        Pcurve::ConeSection {
+            u0,
+            v0,
+            va,
+            vb,
+            beta,
+            sense,
+        } => Pcurve::ConeSection {
+            u0,
+            v0: v0 + shift,
+            va,
+            vb,
+            beta,
+            sense,
+        },
         Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }

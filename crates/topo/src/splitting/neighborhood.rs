@@ -123,7 +123,9 @@ pub(super) fn sector_face<T: Decide>(
     })?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.normal, true)),
-        SectorCarrier::Cylinder => Ok((resolved.face, resolved.normal, false)),
+        SectorCarrier::Cylinder | SectorCarrier::Cone => {
+            Ok((resolved.face, resolved.normal, false))
+        }
         SectorCarrier::Sphere => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
             kind: geom_brep::SurfaceKind::Sphere,

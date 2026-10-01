@@ -17,8 +17,8 @@ use crate::validate::decide;
 /// The operand gate — the M3 planar gate refactored onto THE C5
 /// dispatch table (M5 PR 5, C12.1): a face passes iff the split
 /// pipeline executes its `(kind × plane)` arm — `Plane` (the M2/M3
-/// seam, bit-identical) and `Cylinder` (the rung-2 conic lane landed
-/// here). Every other kind refuses typed, **citing its rung routing**
+/// seam, bit-identical), `Cylinder` and `Cone` (the rung-2 conic
+/// lanes). Every other kind refuses typed, **citing its rung routing**
 /// (`CurvedBooleanUnsupported` retires per arm, never wholesale).
 /// Edge carriers: `Line`/`Circle`/`Ellipse` pass (the crossing and
 /// split lanes handle all three); `Nurbs` refuses typed (a rung-3
@@ -35,13 +35,14 @@ pub(super) fn gate_operand<T: Decide>(body: &Body<T>) -> Result<(), SplitReduceE
         };
         let kind = geom_brep::SurfaceKind::of(surface);
         match kind {
-            geom_brep::SurfaceKind::Plane | geom_brep::SurfaceKind::Cylinder => {}
+            geom_brep::SurfaceKind::Plane
+            | geom_brep::SurfaceKind::Cylinder
+            | geom_brep::SurfaceKind::Cone => {}
             // `Approx` refuses HERE, by kind, rather than passing as
             // the spline its fit is: a split arm executed against the
             // fit would cut the approximation, not the surface the
             // modeller described.
-            geom_brep::SurfaceKind::Cone
-            | geom_brep::SurfaceKind::Sphere
+            geom_brep::SurfaceKind::Sphere
             | geom_brep::SurfaceKind::Torus
             | geom_brep::SurfaceKind::Nurbs
             | geom_brep::SurfaceKind::Approx => {

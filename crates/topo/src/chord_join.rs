@@ -696,8 +696,8 @@ enum SectionCase<T: Real> {
 /// once per lane, differing only in the wording of its refusals and in
 /// what it did with the tangent arm.
 ///
-/// **Pair-general, not plane-first.** The two arms wired today are
-/// plane×cylinder and plane×sphere, and either order is accepted: the
+/// **Pair-general, not plane-first.** The arms wired today are
+/// plane×cylinder, plane×cone and plane×sphere, and either order is accepted: the
 /// caller hands over the pair it has, and which member is the plane is
 /// this function's question rather than the caller's. A pair with no
 /// arm — every curved×curved pair, today — refuses typed here, which
@@ -710,7 +710,9 @@ enum SectionCase<T: Real> {
 /// tilted against the sphere chart's polar axis, because the
 /// azimuth-anchored arc-side rule premises azimuth MONOTONE along the
 /// carrier and that holds on a sphere chart only for polar sections.
-/// The cylinder lane is PR 5/PR 9's `plane_cylinder_section`.
+/// The cylinder lane is PR 5/PR 9's `plane_cylinder_section`; the cone
+/// lane is `plane_cone_section`, whose ellipse meets every generator
+/// once, so its azimuth is monotone along the carrier.
 fn section_case<T: Decide>(
     face: FaceKey,
     band: Band,
@@ -735,7 +737,7 @@ fn section_case<T: Decide>(
         _ => {
             return Err(invariant(
                 "a chord's section pair has no plane — the C5 arms this lane reads are \
-                 plane×cylinder and plane×sphere, and a curved×curved pair has no arc-side \
+                 plane×cylinder, plane×cone and plane×sphere, and a curved×curved pair has no arc-side \
                  rule to run; refused typed rather than defaulted to a straight chord. A \
                  SPHERE PAIR is the sharp case: its section IS an exact closed-form Circle \
                  (sphere_sphere_section), so what is missing is not the locus but the \
@@ -815,47 +817,31 @@ fn section_case<T: Decide>(
             carrier: circle,
         }));
     }
+    let conic = |carrier: geom::Curve3<T>| {
+        section_conic(carrier).map(SectionCase::Conic).ok_or_else(|| {
+            invariant("a conic classification carried a carrier that is neither ellipse nor circle")
+        })
+    };
+    // The cone (C5's plane×cone arm): the tilted ellipse and the
+    // axis-normal circle are conics to select an arc of; the apex lane's
+    // generator pair is the ruling case, its tangent generator the
+    // tangent one — the cylinder's parallel-axis lane, one kind over.
+    if let geom::Surface::Cone { .. } = wall {
+        return match geom_brep::plane_cone_section(plane_s, wall, extent, band).map_err(table)? {
+            geom_brep::PlaneConeSection::TiltedEllipse(c)
+            | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
+            geom_brep::PlaneConeSection::ApexLinePair { .. } => Ok(SectionCase::Straight),
+            geom_brep::PlaneConeSection::ApexTangentLine(line) => Ok(SectionCase::Tangent(line)),
+            geom_brep::PlaneConeSection::ApexPoint(_) => Err(invariant(
+                "apex-point plane×cone classification under a minted chord — the plane \
+                 touches the cone at its apex alone",
+            )),
+        };
+    }
     let sec = geom_brep::plane_cylinder_section(plane_s, wall, extent, band).map_err(table)?;
     match sec {
-        geom_brep::PlaneCylinderSection::TiltedEllipse(e) => {
-            let geom::Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } = e
-            else {
-                return Err(invariant("tilted classification carried a non-ellipse"));
-            };
-            Ok(SectionCase::Conic(SectionConic {
-                center,
-                normal: axis,
-                major: u_ref,
-                sa: major,
-                sb: minor,
-                carrier: e.clone(),
-            }))
-        }
-        geom_brep::PlaneCylinderSection::Rim(c) => {
-            let geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } = c
-            else {
-                return Err(invariant("rim classification carried a non-circle"));
-            };
-            Ok(SectionCase::Conic(SectionConic {
-                center,
-                normal: axis,
-                major: u_ref,
-                sa: radius,
-                sb: radius,
-                carrier: c.clone(),
-            }))
-        }
+        geom_brep::PlaneCylinderSection::TiltedEllipse(c)
+        | geom_brep::PlaneCylinderSection::Rim(c) => conic(c),
         geom_brep::PlaneCylinderSection::ParallelLines { .. } => Ok(SectionCase::Straight),
         // C7 (M5 PR 9): the tangent locus is CONSTRUCTED by
         // classification, never marched. What it MEANS is the caller's
@@ -867,6 +853,70 @@ fn section_case<T: Decide>(
     }
 }
 
+/// A cone wall's chart lever and nappe for the arc-side rule.
+///
+/// The lever is the section's farthest reach from the axis, bounded by
+/// its centre's radial offset plus its semi-major axis — an honest
+/// over-arm (the sphere frame takes the sphere's radius the same way),
+/// and exact for the axis-normal circle. The nappe is the chord start's
+/// side of the apex: the chart azimuth of a mirror-nappe point is the
+/// spatial one plus `π`, and the window this chord is read against was
+/// built in the chart's azimuth.
+fn cone_chart_lever<T: Decide>(
+    face: FaceKey,
+    band: Band,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    conic: &SectionConic<T>,
+    p1: Point3<T>,
+) -> Result<(T, T), SplitJoinError> {
+    let offset = conic.center - apex;
+    let radius = (offset - axis * offset.dot(axis)).norm() + conic.sa;
+    let nappe = match decide("split_cone_chord_nappe", Margin::of((p1 - apex).dot(axis)), band)
+        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+    {
+        Sign::Positive => T::one(),
+        Sign::Negative => T::zero() - T::one(),
+        Sign::Zero => {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "a conic section chord starts at its cone's apex level — no conic arc \
+                       of a plane off the apex reaches it",
+            });
+        }
+    };
+    Ok((radius, nappe))
+}
+
+/// The arc-side frame of a section carrier: an ellipse's own axes, a
+/// circle's radius twice. `None` for any other kind.
+fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
+    let (center, normal, major, sa, sb) = match carrier {
+        geom::Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => (center, axis, u_ref, major, minor),
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => (center, axis, u_ref, radius, radius),
+        _ => return None,
+    };
+    Some(SectionConic {
+        center,
+        normal,
+        major,
+        sa,
+        sb,
+        carrier,
+    })
+}
+
 /// The wall chart an azimuth window lives in: azimuth is measured ccw
 /// about `axis` from `u_ref`, and containment margins are metered at
 /// `radius` (azimuth × chart radius — metres, the PR 6 convention).
@@ -875,6 +925,9 @@ struct ChartFrame<T: Real> {
     axis: Vec3<T>,
     radius: T,
     u_ref: Vec3<T>,
+    /// `+1`, or `−1` on a cone's mirror nappe, whose chart azimuth is
+    /// the spatial one plus `π` (the cone chart's own convention).
+    nappe: T,
 }
 
 /// **The arc-side rule (M5 S9), once, for both chord lanes.** Given
@@ -920,7 +973,7 @@ fn select_arc<T: Decide>(
     // in (cylinder chart: azimuth ccw about the axis from `u_ref`).
     let chart_az = |p: Point3<T>| -> T {
         let w = p - chart.origin;
-        let radial = w - chart.axis * w.dot(chart.axis);
+        let radial = (w - chart.axis * w.dot(chart.axis)) * chart.nappe;
         stable_azimuth(
             radial.dot(chart.axis.cross(chart.u_ref)),
             radial.dot(chart.u_ref),
@@ -1239,7 +1292,7 @@ fn chord_spec<T: Decide>(
             axis,
             radius,
             u_ref,
-        }) => (origin, axis, radius, u_ref),
+        }) => (origin, axis, Some(radius), u_ref),
         // The sphere wall (M5 S13): the chart frame is (center, polar
         // axis, radius, seam u_ref) — azimuth about the polar axis,
         // exactly the shape the S9 tail below meters.
@@ -1248,7 +1301,13 @@ fn chord_spec<T: Decide>(
             radius,
             axis,
             u_ref,
-        }) => (center, axis, radius, u_ref),
+        }) => (center, axis, Some(radius), u_ref),
+        // The cone wall: azimuth about its axis from the apex. Its
+        // radius varies along the slant, so the lever is the section's
+        // own reach, taken once the conic is known (below).
+        Some(&geom::Surface::Cone {
+            apex, axis, u_ref, ..
+        }) => (apex, axis, None, u_ref),
         // Post-gate unreachable kinds — typed, never assumed.
         Some(_) | None => {
             return Err(SplitJoinError::SectionInvariant {
@@ -1363,11 +1422,16 @@ fn chord_spec<T: Decide>(
             band,
         });
     };
+    let (radius, nappe) = match r_c {
+        Some(r) => (r, T::one()),
+        None => cone_chart_lever(face, band, o_c, a_c, &conic, p1)?,
+    };
     let chart = ChartFrame {
         origin: o_c,
         axis: a_c,
-        radius: r_c,
+        radius,
         u_ref: u_ref_c,
+        nappe,
     };
     let (carrier, t_start, t_end) = select_arc(face, band, &chart, &conic, window, p1, p2)?;
     // The aux plane surface (honest u_ref: the section's major
@@ -1506,6 +1570,7 @@ fn bool_planar_chord_spec<T: Decide>(
         axis: a_c,
         radius: r_c,
         u_ref: u_ref_c,
+        nappe: T::one(),
     };
     let (carrier, t_start, t_end) = select_arc(face, band, &chart, &conic, window, p1, p2)?;
     // The aux WALL surface in this body (honest full copy of the
@@ -1698,13 +1763,15 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 /// channel that is exactly `α + β·t` (it writes `pa.x = pb.x = 0` and
 /// `pl.x = β ∈ {−1, 0, +1}` in both of its arms), so the two endpoint
 /// evaluations ARE the range — this is closed-form structure, not a
-/// sampled bound. It is read off [`Pcurve::harmonic_span_box`], whose
-/// trigonometric widening is exactly zero for every pcurve this lane
-/// derives and keeps the statement true if the family ever widens.
+/// sampled bound. A cone-section ellipse's azimuth is strictly
+/// monotone, so its endpoints are its range too. It is read off
+/// [`Pcurve::closed_form_span_box`], whose trigonometric widening is
+/// exactly zero for every pcurve this lane derives and keeps the
+/// statement true if the family ever widens.
 ///
 /// **The closed-form lane only, and it says so with `None`.** The join
-/// lane reads a chart image's azimuth through its harmonic amplitudes;
-/// a fitted (rung-3) image has none, so it gets no answer rather than a
+/// lane reads a chart image's azimuth through its closed form; a
+/// fitted (rung-3) image has none, so it gets no answer rather than a
 /// sentinel. A sentinel would be actively wrong here: the caller hulls
 /// with `(a.min(lo), b.max(hi))`, which ABSORBS an inverted range
 /// silently instead of propagating it, so "the empty range makes the
@@ -1716,7 +1783,7 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 /// written anyway because the cyl×sphere join window (banked past M6,
 /// M6-PLAN: "chase the lift") is exactly what would make it live.
 fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
-    p.harmonic_span_box(t0, t1).map(|b| (b.u_min, b.u_max))
+    p.closed_form_span_box(t0, t1).map(|b| (b.u_min, b.u_max))
 }
 
 /// The divided face's **azimuth window** on its own chart: the hull of
@@ -3040,6 +3107,7 @@ mod tests {
             axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
             radius: ex(1.0),
             u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+            nappe: ex(1.0),
         };
         let carrier = geom::Curve3::Circle {
             center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
@@ -3124,6 +3192,7 @@ mod tests {
             axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
             radius: ex(1.0),
             u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+            nappe: ex(1.0),
         };
         let carrier = geom::Curve3::Circle {
             center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),

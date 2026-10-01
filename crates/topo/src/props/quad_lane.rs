@@ -159,12 +159,21 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     if let Some(payload) = surface.spline_chart() {
         return nurbs_face(body, payload, outer, hes, band, tol, window);
     }
+    if let Surface::Cone {
+        apex,
+        axis,
+        half_angle,
+        ..
+    } = *surface
+    {
+        return cone_face(apex, axis, half_angle, outer, band);
+    }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
-            what: "conic trim on a cone/sphere/torus chart — those charts mint stored \
+            what: "conic trim on a sphere/torus chart — those charts mint stored \
                    pcurves, but this lane's chart-normal flux algebra is the \
-                   cylinder chart's; the other analytic charts' closed-form flux \
-                   has no lane",
+                   cylinder's and the cone's; the other analytic charts' closed-form \
+                   flux has no lane",
         });
     };
     let eps = tol.eps();
@@ -220,6 +229,58 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         band,
         window,
     )
+}
+
+/// **The cone face's flux and area, in closed form** — no quadrature.
+///
+/// Every point of a cone lies on a generator through the apex, and the
+/// generator lies in the tangent plane, so `(p − apex)·n = 0` on the
+/// whole face. The flux is therefore
+/// `∮ p·n dA = apex·∮ n dA = apex·VA`, with `VA` the boundary's vector
+/// area (Stokes; `loop_vector_area`, whose arms are exact for every
+/// carrier a cone face carries). And the normal makes the constant angle
+/// `n·axis = ∓sin α` with the axis on each nappe, so the area is
+/// `|axis·VA| / sin α` — for a face on ONE nappe, which the vertex walk
+/// below decides: an edge of a line, circle or ellipse carrier stays on
+/// its endpoints' side of the apex (a circle at one height, a line
+/// between its ends, a section ellipse on one nappe whole).
+///
+/// The traversal's winding orients `VA`, so no sense bit is read — the
+/// cylinder lane's posture. The answer is final at every round.
+fn cone_face<T: Decide + Bounds + CertifiedEnclosure>(
+    apex: Point3<T>,
+    axis: geom_core::Vec3<T>,
+    half_angle: T,
+    outer: &[LoopEdge<T>],
+    band: Band,
+) -> Result<RoundOutcome, PropsError> {
+    let (mut above, mut below) = (false, false);
+    for e in outer {
+        for t in [e.t0, e.t1] {
+            let h = (e.carrier.eval(t) - apex).dot(axis);
+            match crate::validate::decide("props_cone_face_nappe", geom_core::Margin::of(h), band) {
+                Ok(geom_core::Sign::Positive) => above = true,
+                Ok(geom_core::Sign::Negative) => below = true,
+                Ok(geom_core::Sign::Zero) => {}
+                Err(_) => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a cone face's boundary vertex is too close to its apex level \
+                               to tell which nappe it is on",
+                    });
+                }
+            }
+        }
+    }
+    if above && below {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a cone face spanning both nappes — its normal turns over at the apex, \
+                   so the closed-form area does not hold",
+        });
+    }
+    let va = loop_vector_area(outer, apex)?;
+    let flux = Interval::from_certified((apex - Point3::origin()).dot(va));
+    let area = Interval::from_certified((axis.dot(va) / half_angle.sin()).abs());
+    Ok(RoundOutcome::Converged(FaceCutBounds { flux, area }))
 }
 
 /// **The NURBS-patch flux lane** (M6-3 Leg C; RATIONAL since
@@ -553,6 +614,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                     what: "a NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
                            chart images live on its own cutting plane and its own \
                            torus, and this chart is a spline patch",
+                });
+            }
+            Pcurve::ConeSection { .. } => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face half-edge carries a CONE-SECTION pcurve — that \
+                           image certifies on a cone chart only, and this chart is a \
+                           spline patch",
                 });
             }
         };

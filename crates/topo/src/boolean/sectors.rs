@@ -328,6 +328,15 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Cylinder
         | SectorCarrier::Sphere
         | SectorCarrier::Torus => {}
+        // The boolean's sector algebra has no cone arm: a cone-carried
+        // sector refuses here, typed, as the split lane's does not.
+        SectorCarrier::Cone => {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face: resolved.face,
+                kind: geom_brep::SurfaceKind::Cone,
+            });
+        }
     }
     Ok((resolved.face, resolved.normal))
 }
