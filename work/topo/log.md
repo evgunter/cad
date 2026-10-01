@@ -4910,3 +4910,29 @@ target. It is to probe:
 - the gate disposition.
 
 The report is archived as `killproof2-report.md`.
+
+## PR 3598 delivered; single full review dispatched (2026-10-01)
+
+PR 3598 (`set_face_surface` refuses a swap it cannot vouch for) went
+green on `dea9efeb87` in run 36797820701.
+
+**The measurement guard did not fire.** Of 49,989 keys-only calls, 347
+would refuse. The only production caller among them is the split
+finish (212 of 620). It moves to the describing door with identical
+output, per the lane's probe.
+
+**The refusal** is `RechartUnvouched { face, edges }`. It runs after the
+stranding check and before any write.
+
+**Deviations reported:**
+- a `same_chart` exemption, derived from tier 3;
+- curved charts under the same rule;
+- an empty loop's lone vertex not asked.
+
+**The review** is dispatched on the walk target. It is to probe:
+- the exemption and the lone vertex against tier 3;
+- the curved-chart refusal's honesty;
+- the split-finish equivalence by deep snapshot, not `Debug`.
+
+PR 3592 and PR 3598 each add an `EulerOpError` variant. Whichever
+merges second resolves the conflict.
