@@ -1691,20 +1691,19 @@ impl EditError {
             }
             // Forwarded, not restated: `InputFault` owns this
             // vocabulary (`node::duplicate_input`, which takes the
-            // input as this door speaks it). The door adds its own frame — which edit the
-            // fault is about — and joins it with a colon, because the
-            // forwarded sentence carries an em-dash of its own and two
-            // in a row read as a dump.
+            // input as this door speaks it). The door adds its own
+            // frame — which edit the fault is about — and joins it with
+            // a colon, because the forwarded sentence carries an em-dash
+            // of its own and two in a row read as a dump.
             //
-            // **The frame does not name `node`, and must not.**
-            // `check_node_inputs` is reached from `InsertNode` with
-            // the id the mint drew for it — an id that does not exist
-            // and never will if the edit is refused — and from
-            // `SetMembers` with a live one. This rendering cannot tell
-            // which, so a sentence naming that id tells a person to go
-            // and look at a node that may be a phantom. The node the
-            // reader CAN act on is `input`, which the sentence names,
-            // and it is live on both paths.
+            // **The frame does not name `node`.** From `InsertNode` it
+            // is spoken by its kind and the tag the mint drew
+            // ([`SpokenNode::entering`]), and that tag names nothing
+            // once the edit is refused, so naming it would send a
+            // reader looking for a node that does not exist. The node
+            // the reader CAN act on is `input`, which the sentence
+            // names, and it is live on both paths (`InsertNode` and
+            // `SetMembers`).
             //
             // The action is the door's to add: `InputFault` states the
             // rule ("pairwise distinct"), which says what is wrong and
@@ -3031,6 +3030,16 @@ fn check_param_refs<P>(
 /// **The node an edit writes, as its refusal speaks it**: as `doc`
 /// holds it, or, for the node an insert is minting and `doc` does not
 /// hold yet, by its kind and tag ([`SpokenNode::entering`]).
+///
+/// **Which document an edit refusal speaks from.** A node the door was
+/// handed is spoken from that document, as it stood before the edit
+/// (`doc` in [`apply_maintaining`], `before` in the helpers it hands
+/// the working copy to), never from the working copy the edit is
+/// writing. A node the edit is minting is spoken by
+/// [`SpokenNode::entering`]. An id neither holds is
+/// [`SpokenNode::absent`]. The one exception is a cluster gauge, which
+/// is spoken from the document the edit leaves, or, when the edit
+/// dropped it, from the one it found (`mate::solve::gauge_spoken`).
 fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
     if doc.node(id).is_some() {
         doc.spoken(id)
@@ -3095,6 +3104,7 @@ fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditE
 /// can name the structural/continuous divide as the reason.
 fn write_doc_param<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
+    before: &Doc<P>,
     name: &ParamName,
     value: DocParam,
 ) -> Result<EditRecord, EditError> {
@@ -3156,7 +3166,7 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     // small; spec D6's re-run requirement).
     for &id in &new.order {
         if let Some(node) = new.nodes.get(&id) {
-            check_node_slots(new, id, node)?;
+            check_node_slots(new, before, id, node)?;
         }
     }
     Ok(EditRecord {
@@ -3169,6 +3179,7 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
 /// the param table, keyed as `id` for error reporting.
 fn check_node_slots<P: crate::ProfilePayload>(
     doc: &Doc<P>,
+    before: &Doc<P>,
     id: RecipeNodeId,
     node: &Node<P>,
 ) -> Result<(), EditError> {
@@ -3200,7 +3211,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
         .into_iter()
         .filter_map(|slot| Some((slot, node.expr(slot)?)))
     {
-        check_param_refs(doc, &written(doc, id, node), slot, expr)?;
+        check_param_refs(doc, &written(before, id, node), slot, expr)?;
     }
     // The expressions no slot addresses (E3/E10). Their DIMENSIONS are
     // already fixed by construction — a `MeasureExpr` runs the F1
@@ -3213,7 +3224,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
             Some(ParamRefFault::Unknown { name }) => {
                 return Err(EditError::PayloadUnknownDocParam {
                     name,
-                    node: written(doc, id, node),
+                    node: written(before, id, node),
                 });
             }
             Some(ParamRefFault::Dimension {
@@ -3223,7 +3234,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
             }) => {
                 return Err(EditError::PayloadDocParamDimension {
                     name,
-                    node: written(doc, id, node),
+                    node: written(before, id, node),
                     declared,
                     referenced,
                 });
@@ -3236,7 +3247,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
     // passing `Node::measure`.
     if let Some(fault) = node.measure_fault() {
         return Err(EditError::MeasureMalformed {
-            node: written(doc, id, node),
+            node: written(before, id, node),
             fault,
         });
     }
@@ -3248,16 +3259,16 @@ fn check_node_slots<P: crate::ProfilePayload>(
     if let Some(fault) = node.assertion_bound_fault(doc) {
         return Err(match fault {
             AssertionBoundFault::TargetNotMeasure { measure, .. } => EditError::AssertionTarget {
-                node: written(doc, id, node),
-                measure: doc.spoken(measure),
+                node: written(before, id, node),
+                measure: before.spoken(measure),
             },
             AssertionBoundFault::DimensionMismatch {
                 measure,
                 measured,
                 bound,
             } => EditError::AssertionDimension {
-                node: written(doc, id, node),
-                measure: doc.spoken(measure),
+                node: written(before, id, node),
+                measure: before.spoken(measure),
                 measured,
                 bound,
             },
@@ -3593,8 +3604,8 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     id: SpokenNode::entering(id, node),
                 }
             })?;
-            check_node_inputs(&new, id, node)?;
-            check_declare_input(&new, id, node)?;
+            check_node_inputs(doc, id, node)?;
+            check_declare_input(doc, id, node)?;
             // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
             // the one place a node is asked whether its alignment datum
             // is decidable, which the load door's walk asks too.
@@ -3603,7 +3614,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     node: SpokenNode::entering(id, node),
                 });
             }
-            check_node_slots(&new, id, node)?;
+            check_node_slots(&new, doc, id, node)?;
             // The VQ9 authoring-time door (LIB-SWITCH §4d): a profile
             // program entering the document resolves + replays +
             // validates under the CURRENT param env, refusing typed
@@ -3647,7 +3658,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                 let env = new.param_env::<f64>();
                 crate::mate::solve::admit_mate(&new, id, &node, &env, how.reach(), tol).map_err(
                     |fault| EditError::MateRefused {
-                        node: new.spoken(id),
+                        node: SpokenNode::entering(id, &node),
                         fault,
                     },
                 )?;
@@ -3795,7 +3806,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // checks — the same function, not a mirror: dimensions and
             // parameter references over every argument of every loop.
             let probe = Node::Profile(rewritten);
-            check_node_slots(&new, *node, &probe)?;
+            check_node_slots(&new, doc, *node, &probe)?;
             let Node::Profile(rewritten) = &probe else {
                 unreachable!("the probe was built as a profile node two lines above")
             };
@@ -3827,8 +3838,8 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             if slot.is_structural() {
                 return Err(EditError::StructuralSlotNeedsStructuralEdit { slot: *slot });
             }
-            set_slot(&mut new, *node, *slot, expr)?;
-            check_profile_after_slot_edit(&new, *node, *slot, tol)?;
+            set_slot(&mut new, doc, *node, *slot, expr)?;
+            check_profile_after_slot_edit(&new, doc, *node, *slot, tol)?;
             EditRecord {
                 minted: None,
                 structural: false,
@@ -3838,7 +3849,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             if !slot.is_structural() {
                 return Err(EditError::NotStructuralSlot { slot: *slot });
             }
-            set_slot(&mut new, *node, *slot, expr)?;
+            set_slot(&mut new, doc, *node, *slot, expr)?;
             EditRecord {
                 minted: None,
                 structural: true,
@@ -3865,14 +3876,16 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                 })?
                 .map_err(EditError::Dimension)?;
             let structural = path.slot.is_structural();
-            set_slot(&mut new, path.node, path.slot, &rebuilt)?;
-            check_profile_after_slot_edit(&new, path.node, path.slot, tol)?;
+            set_slot(&mut new, doc, path.node, path.slot, &rebuilt)?;
+            check_profile_after_slot_edit(&new, doc, path.node, path.slot, tol)?;
             EditRecord {
                 minted: None,
                 structural,
             }
         }
-        DocEdit::SetDocParam { name, value } => write_doc_param(&mut new, name, value.clone())?,
+        DocEdit::SetDocParam { name, value } => {
+            write_doc_param(&mut new, doc, name, value.clone())?
+        }
         DocEdit::SetDocParamValue { name, value } => {
             let Some(declared) = new.params.get(name) else {
                 return Err(EditError::DocParamNotDeclared {
@@ -3890,7 +3903,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     offered: *value,
                 });
             };
-            write_doc_param(&mut new, name, written)?
+            write_doc_param(&mut new, doc, name, written)?
         }
         DocEdit::SetDocParamUnit { name, unit } => {
             let Some(declared) = new.params.get(name) else {
@@ -3916,7 +3929,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     }
                 }
             })?;
-            write_doc_param(&mut new, name, written)?
+            write_doc_param(&mut new, doc, name, written)?
         }
         DocEdit::SetDocParamDistribution { name, distribution } => {
             let Some(declared) = new.params.get(name) else {
@@ -3938,7 +3951,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     }
                     DistributionRefusal::Invalid { fault } => distribution_fault_error(name, fault),
                 })?;
-            write_doc_param(&mut new, name, written)?
+            write_doc_param(&mut new, doc, name, written)?
         }
         DocEdit::Rebind { from, to } => {
             if from == to {
@@ -3999,7 +4012,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             }
         }
         DocEdit::ReWitness { node, witness } => {
-            check_witness_site(&new, *node)?;
+            check_witness_site(doc, *node)?;
             new.witnesses.insert(*node, witness.clone());
             EditRecord {
                 minted: None,
@@ -4042,7 +4055,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             }
             let mut seen = std::collections::BTreeSet::new();
             for (node, _) in entries {
-                check_witness_site(&new, *node)?;
+                check_witness_site(doc, *node)?;
                 if !seen.insert(*node) {
                     return Err(EditError::DuplicateWitnessEntry {
                         node: doc.spoken(*node),
@@ -4266,30 +4279,30 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             None => {}
             Some(PlacementRuleFault::CountSpelling) => {
                 return Err(EditError::PlacementRuleMismatch {
-                    node: new.spoken(node),
+                    node: written(doc, node, n),
                 });
             }
             Some(PlacementRuleFault::NoPlacements) => {
                 return Err(EditError::EmptyPlacementList {
-                    node: new.spoken(node),
+                    node: written(doc, node, n),
                 });
             }
             Some(PlacementRuleFault::NonFiniteFrame { index }) => {
                 return Err(EditError::NonFinitePlacement {
-                    node: new.spoken(node),
+                    node: written(doc, node, n),
                     at: listed(index),
                 });
             }
             Some(PlacementRuleFault::ImproperFrame { index, determinant }) => {
                 return Err(EditError::ImproperPlacement {
-                    node: new.spoken(node),
+                    node: written(doc, node, n),
                     at: listed(index),
                     determinant,
                 });
             }
             Some(PlacementRuleFault::NonRigidFrame { index, check }) => {
                 return Err(EditError::NonRigidPlacement {
-                    node: new.spoken(node),
+                    node: written(doc, node, n),
                     at: listed(index),
                     check,
                 });
@@ -4299,7 +4312,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         // predicate.
         if let Some((index, fault)) = n.placement_frame_fault(tol) {
             return Err(EditError::placement_frame(
-                new.spoken(node),
+                written(doc, node, n),
                 FrameSite::Step { index },
                 fault,
             ));
@@ -4341,6 +4354,7 @@ fn check_witness_site<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<(), EditError
 /// CURRENT param env; refuse typed. Non-profile slots pass through.
 fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
     new: &Doc<P>,
+    before: &Doc<P>,
     id: RecipeNodeId,
     slot: SlotId,
     tol: Tol,
@@ -4350,7 +4364,7 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
     {
         p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
             EditError::ProfileProgramRefused {
-                node: new.spoken(id),
+                node: before.spoken(id),
                 refusal: Box::new(refusal),
             }
         })?;
@@ -4362,6 +4376,7 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
 /// matches, param refs valid — then write.
 fn set_slot<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
+    before: &Doc<P>,
     id: RecipeNodeId,
     slot: SlotId,
     expr: &Expr,
@@ -4371,7 +4386,7 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
             id: SpokenNode::absent(id),
         });
     };
-    let spoken = new.spoken(id);
+    let spoken = before.spoken(id);
     // Whether the node HAS the slot is this door's own question: the
     // subject is an address a caller named, and `SetParam` aimed at a
     // radius on an extrude is a reachable mistake rather than the

@@ -98,10 +98,17 @@ pub struct SpokenNode {
     /// The kind noun, `None` for an id the document does not hold.
     kind: Option<&'static str>,
     /// The node's label, `None` when it has none or is not held. Boxed
-    /// so that a spoken node stays three words wide: the edit refusals
-    /// hold up to two and every edit door returns them by value.
+    /// so that a spoken node stays 32 bytes on a 64-bit target (the id,
+    /// the kind's two words, the box): the edit refusals hold up to
+    /// two, and every edit door returns them by value.
     label: Option<Box<Label>>,
 }
+
+// The width the label's box buys, held where clippy measures it: an
+// unboxed label makes it 48 bytes, and `PersistError`, which carries an
+// `EditError`, crosses clippy's 128-byte large-`Err` line.
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<SpokenNode>() == 32);
 
 impl SpokenNode {
     /// A spoken node with no document behind it, for a fixture that
