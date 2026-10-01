@@ -17,10 +17,9 @@
 //! downstream; the explicit check makes that a typed
 //! [`TransformError::NotRigid`] refusal. On top of that, every edge
 //! carrier is **re-certified** against the mapped geometry through
-//! [`EdgeCurve::certify_via`] — with whichever plane × NURBS lane the
-//! caller's door injected ([`transform_rigid`] injects none,
-//! [`transform_rigid_via`] injects the caller's) — so a map that
-//! breaks carrier consistency
+//! [`EdgeCurve::certify_via`] — with the plane × NURBS lane the
+//! scalar's policy holds ([`crate::AtRestPolicy::nurbs_lane`]) — so a
+//! map that breaks carrier consistency
 //! surfaces as a typed [`TransformError::Certify`] refusal, never as
 //! silently corrupt geometry. (A rigid map preserves every
 //! distance-valued residual up to rounding, so re-certification of a
@@ -117,14 +116,10 @@ pub enum TransformError {
     /// reach this arm, and the third is not about the caller's
     /// geometry at all: the map is not an isometry at tolerance; or
     /// the input body's geometry was already out of certification; or
-    /// the CALLER took a door that injected no plane × NURBS lane, and
-    /// so declined a body that is perfectly sound. That last one is a
-    /// [`CertifyError::Unimplemented`] from an `Intersection` naming a
-    /// described `Nurbs` operand — the M7-8 class, which certifies
-    /// only through the lane. [`transform_rigid`] is that door;
-    /// [`transform_rigid_via`] with the lane supplied moves the same
-    /// body. Read the nested `source`, not this list, for which one it
-    /// was.
+    /// the run's scalar holds no plane × NURBS lane (a dual) and the
+    /// body carries the M7-8 class, which certifies only through it —
+    /// [`CertifyError::NurbsLaneUnsupported`], naming the scalar. Read
+    /// the nested `source`, not this list, for which one it was.
     Certify {
         /// The edge whose carrier failed.
         edge: EdgeKey,
@@ -278,7 +273,7 @@ pub fn not_rigid_reading(check: &str) -> &'static str {
 /// **The decided rigidity door** (module docs), and the one home of the
 /// rule: every margin must classify `Zero` against the linear band —
 /// definite non-zero AND in-band indeterminacy both refuse (a
-/// maybe-rigid map is not a rigid map). [`transform_rigid_via`] asks it
+/// maybe-rigid map is not a rigid map). [`transform_rigid`] asks it
 /// of every map it moves a body by, and a document door that admits a
 /// literal frame asks it of that frame, so the two cannot come to hold
 /// a map to different standards.
@@ -596,14 +591,6 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// mapped surfaces — see the module docs for the contract and the
 /// refusal doors.
 ///
-/// This is [`transform_rigid_via`] with no lane injected, so a body
-/// carrying an edge of the M7-8 class (an `Intersection` between a
-/// plane and a DESCRIBED NURBS wall) refuses here with
-/// [`TransformError::Certify`] naming [`CertifyError::Unimplemented`].
-/// That refusal is a fact about this door's rights and not about the
-/// body: a caller that can name the certified lane moves the same body
-/// through [`transform_rigid_via`].
-///
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
@@ -611,43 +598,6 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
-) -> Result<Body<T>, TransformError> {
-    transform_rigid_via(body, map, tol, None)
-}
-
-/// [`transform_rigid`] with the plane × NURBS lane
-/// ([`geom_brep::NurbsLane`]) taken as an ARGUMENT rather than read off
-/// the scalar — the door for a pass whose own bound says nothing about
-/// certification rights.
-///
-/// Re-certification of a mapped carrier is the only thing the lane
-/// reaches, and it reaches it exactly as the at-rest validator's
-/// check 2 does: `None` certifies through
-/// [`EdgeCurve::certify`] and `Some` through
-/// [`EdgeCurve::certify_nurbs_lane`], the same two doors
-/// `topo::validate`'s `_structural` and certified doors take. **This
-/// grants no certification capability the at-rest validator does not
-/// already have** — the lane is `geom_brep::plane_nurbs_limbs`, the
-/// one function both sides inject, and the checks and their order are
-/// unchanged.
-///
-/// **Why the lane is an argument and not a bound.** Raising
-/// `transform_rigid`'s own bound to `Decide + CertifiedBounds` would
-/// propagate through this op's generic callers — `boolean`'s sphere
-/// re-cut reaches it under `boolean_op_with`, which `verbs::Verb`'s
-/// `Decide + Bounds + AtRestPolicy` block runs and the dual corpus
-/// instantiates at a `Dual`, which implements no
-/// `CertifiedEnclosure`. Injecting at the door is the same resolution
-/// [`geom_brep::NurbsLane`] states for certification itself.
-///
-/// # Errors
-///
-/// [`TransformError`] — closed and typed.
-pub fn transform_rigid_via<T: Decide + crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    map: &Affine3<T>,
-    tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
 ) -> Result<Body<T>, TransformError> {
     let band = Band::linear(tol).map_err(TransformError::Band)?;
     check_rigid(map, band)?;
@@ -754,7 +704,7 @@ pub fn transform_rigid_via<T: Decide + crate::props::AtRestPolicy>(
             param_end,
         };
         let surfaces = |k| out.surfaces.get(k).cloned();
-        let mapped = EdgeCurve::certify_via(spec, start, end, surfaces, band, nurbs_lane)
+        let mapped = EdgeCurve::certify_via(spec, start, end, surfaces, band, T::nurbs_lane())
             .map_err(|source| TransformError::Certify { edge: ek, source })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key);

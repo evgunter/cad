@@ -2897,7 +2897,6 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                         voids::VoidInsertError::Corrupt { what } => {
                             BooleanError::JoinDesync { what }
                         }
-                        voids::VoidInsertError::Recertify(c) => BooleanError::GraftRecertify(c),
                         voids::VoidInsertError::MissingEvidence { .. }
                         | voids::VoidInsertError::NotStrictlyContained { .. }
                         | voids::VoidInsertError::ForeignShell { .. }

@@ -24,7 +24,17 @@
 //! normals flip inward — [`crate::Body::revert`]) and transplants its
 //! shells into the destination solid as interior shells (the
 //! [`super::combine`] graft: fresh keys, provenance forwarded,
-//! descriptions re-certified against the transplanted surfaces).
+//! certificates carried with their surface handles rewritten).
+//!
+//! **The certificates are carried, not re-derived.** The graft copies
+//! every point, surface, carrier and parameter bit for bit, and the
+//! reversal carries every certificate verbatim ([`crate::Body::revert`]),
+//! so each transplanted carrier is the certified carrier of the cavity
+//! body over the same geometry. A certificate is a claim at the band
+//! it was minted at, and the cavity's own band is not this call's
+//! `tol`; what decides validity at a band is the at-rest gate, whose
+//! check 2 re-derives every carrier at its own band and never trusts a
+//! stored certificate (see Validity below).
 //!
 //! **The door never derives containment itself.** Callers supply the
 //! evidence, one certificate per cavity shell; a shell with no
@@ -46,10 +56,9 @@
 //! walk, no containment probe: the caller's evidence says the two
 //! boundaries share no point, so there is nothing for the crossing
 //! pipeline to do. The door is a structural insertion — evidence
-//! check, revert, graft — and every predicate-funnel decision it can
-//! cause comes from the graft's description re-certification, none of
-//! it `bool_`-named (the crossing pipeline's prefix; the degenerate-
-//! arm suites pin that absence).
+//! check, revert, graft — and makes no predicate-funnel decision at
+//! all, `bool_`-named (the crossing pipeline's prefix; the degenerate-
+//! arm suites pin that absence) or otherwise.
 //!
 //! # Validity
 //!
@@ -162,9 +171,6 @@ pub enum VoidInsertError {
         /// What was wrong.
         what: &'static str,
     },
-    /// A transplanted edge description failed re-certification
-    /// against the transplanted surfaces.
-    Recertify(geom_brep::CertifyError),
 }
 
 impl core::fmt::Display for VoidInsertError {
@@ -194,13 +200,6 @@ impl core::fmt::Display for VoidInsertError {
             ),
             Self::Revert(e) => write!(f, "cavity revert failed: {e:?}"),
             Self::Corrupt { what } => write!(f, "{what}"),
-            Self::Recertify(e) => {
-                write!(
-                    f,
-                    "graft re-certification refused: {}",
-                    e.render(geom_brep::recourse::Reading::Build)
-                )
-            }
         }
     }
 }
@@ -345,13 +344,13 @@ pub fn insert_voids<T: Decide>(
         (dst.arena_counts(), transplant)
     };
     let reversed = cavity.revert().map_err(VoidInsertError::Revert)?;
-    let graft = graft_solids_with(dst, dst_solids, &reversed, Bridge::Recertify, tol).map_err(
+    let graft = graft_solids_with(dst, dst_solids, &reversed, Bridge::RemapKeys, tol).map_err(
         |e| match e {
             BooleanError::JoinDesync { what } => VoidInsertError::Corrupt { what },
-            BooleanError::GraftRecertify(c) => VoidInsertError::Recertify(c),
-            // The graft's error surface is exactly the two arms above;
-            // anything else arriving here is a kernel bug, surfaced typed
-            // rather than panicked (D9: never a panic on an error path).
+            // A handle-remapping graft's error surface is exactly the
+            // arm above; anything else arriving here is a kernel bug,
+            // surfaced typed rather than panicked (D9: never a panic on
+            // an error path).
             _ => VoidInsertError::Corrupt {
                 what: "graft refused outside its own error surface (kernel bug)",
             },

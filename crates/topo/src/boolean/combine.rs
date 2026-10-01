@@ -173,10 +173,13 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
 ///   with only the handles rewritten
 ///   ([`geom_brep::EdgeCurve::with_remapped_surfaces`]) — what a
 ///   DISJOINT graft wants, where the transplanted geometry is bitwise
-///   the source's and no surgery happened. It is also the only form
-///   that can carry a description the certification lanes cannot
-///   express at all (a rational NURBS wall certifies nowhere), which
-///   is why an import's placed instances take it.
+///   the source's and no surgery happened: an import's placed
+///   instances and the void door's reversed cavity
+///   ([`super::voids::insert_voids`]). It is also the only form that
+///   can carry a description the certification lanes cannot express at
+///   all (a rational NURBS wall certifies nowhere), or one only a
+///   lane certifies (a plane × NURBS `Intersection`), at a scalar that
+///   holds none.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Bridge {
     /// Re-run the schedule against the destination (booleans).

@@ -280,6 +280,7 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
+        CertifyError::NurbsLaneUnsupported { scalar: "dual" },
         CertifyError::IntersectionSameSurface { key },
         CertifyError::SeamOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,

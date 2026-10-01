@@ -247,11 +247,12 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
     );
 }
 
-/// **The void door takes the drum's cavity**, which is where `shell`
-/// used to stop (`ShellError::Insert`, the graft's `Recertify`): the
-/// graft re-runs the meter on the reverted cavity's images, and they
-/// are right now. The assembled thin solid's closed form is pinned end
-/// to end in `shell7_seam_corner`; this row pins the door alone.
+/// **The void door takes the drum's cavity.** The door carries the
+/// reverted cavity's certificates rather than re-running the meter, so
+/// what says the mirrored images are right is the row above, which
+/// meters every reverted edge and tier 3 of the reverted body. The
+/// assembled thin solid's closed form is pinned end to end in
+/// `shell7_seam_corner`; this row pins the door alone.
 #[test]
 fn insert_voids_takes_the_reverted_drum_cavity() {
     let body = collinear_cap_drum();
@@ -261,7 +262,7 @@ fn insert_voids_takes_the_reverted_drum_cavity() {
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     topo::insert_voids(&mut out, &solids, cavity, &evidence, tol())
-        .expect("the graft's meter passes on the mirrored images");
+        .expect("the door grafts the reverted cavity");
     assert_eq!(out.shells().count(), 2, "outer + cavity");
     assert_eq!(
         plane_images(&out).len(),

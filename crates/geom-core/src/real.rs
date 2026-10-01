@@ -1267,7 +1267,7 @@ pub mod bounds_allowlist {
     //! that door's signature rather than widening the rule's reach. It
     //! is what keeps `Bounds` off `topo`'s DEFAULT doors: the lane is a
     //! SEPARATE door whose own impl block carries the lane bound
-    //! (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)` parameterising
+    //! (`Body::set_edge_curve_nurbs_lane`), with `_via(…, lane)` parameterising
     //! the shared machinery. Injection moves a bound onto a narrower
     //! signature; it does not remove one.
     //!
@@ -1293,15 +1293,19 @@ pub mod bounds_allowlist {
     //! strictness**: a dual reached the trait and got
     //! `PlaneNurbsRefusal::LaneUnsupported` at run time; now it cannot form
     //! the call, and the refusal variant is retired with the impl that raised
-    //! it. **What a mixed pass does instead** is take the lane as an
-    //! ARGUMENT: `topo::validate`'s check 2 re-certifies through
-    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` every door
+    //! it. **What a mixed pass does instead**: `geom_brep`'s
+    //! `certify_via`/`recertify_via` take `Option<NurbsLane>` as the
+    //! shared body's argument — `NurbsLane` a sealed value whose one
+    //! constructor carries the bound above — and `topo`'s operations
+    //! fill it from the scalar's policy (`AtRestPolicy::nurbs_lane`,
+    //! `None` at a dual). The validators keep their shape: check 2
+    //! re-certifies through `recertify_via`, whose argument every door
     //! bounded on the certification right fills (`validate_geometric`,
     //! `validate_pseudomanifold`, `contact_marks` and their certificate and
     //! declared forms) and every `_structural` door leaves empty — the M7-8
-    //! class is then not re-derived
-    //! and, being outside those doors' rights, not reported either
-    //! (`EdgeCurve::needs_nurbs_lane` is where that question is asked).
+    //! class is then not re-derived and, being outside those doors'
+    //! rights, not reported either (the lane's absence is its own
+    //! refusal, `CertifyError::NurbsLaneUnsupported`).
     //! **The symbolic tier needs no arm of its own and gains none**:
     //! `Sym<T>` implements [`Bounds`](super::Bounds),
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure) and
