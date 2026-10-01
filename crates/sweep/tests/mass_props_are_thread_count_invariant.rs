@@ -309,6 +309,13 @@ fn digest() -> String {
 /// stage prefix and the face's key.** Only the text after `REFUSED`
 /// moves; the refusing face stays pinned, now by the line's own
 /// `at FaceKey(…)`, and no verdict, pad or count changes.
+///
+/// **Re-cut at all three ε when the symbolic tier gained rule G and the
+/// decision read** (`geom_core::SymRules::canonical_root`,
+/// `decision_read`) on a tree that already carried the two re-cuts
+/// above: `sym_arc_loft`'s `validate_geometric` row reads 8 more
+/// theorems out of `numeric` (`sz` 40 → 48, `num` 620 → 612) at every
+/// ε. Decisions, frozen, shapes and verdicts are unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

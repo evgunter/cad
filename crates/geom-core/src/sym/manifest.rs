@@ -24,17 +24,15 @@
 //!
 //! **Where they come from today.** The measured mint site is
 //! [`Vec3::orthonormal_basis`](crate::Vec3::orthonormal_basis), whose
-//! `s = 1.copysign(n.z)` and `r = 1/(1 + |n.z|)` take a `copysign` and
-//! an `abs` of one quantity, the frame normal's `z`: on a `FaceFrame`
-//! over the END cap of a body extruded from a frame tilted about `u`,
-//! that `z` is `1/sqrt(P(t))` for a polynomial `P` in the document's
-//! parameter — an `Inv` of a `sqrt` atom, positive wherever it has a
-//! value at all — and on the same body's START cap, or with the frame's
-//! `v` flipped, it is `−1/sqrt(P(t))`, the same atom negated, which is
-//! what the negative arm is for. That construction is not permanent:
-//! PROPS' sign-hull work replaces it, and the replacement frame's own
-//! `|n.z|` is the next `abs` of the same shape, so the rule outlives
-//! the spelling that motivated it.
+//! axis comparison `|n.z| − max(|n.x|, |n.y|)/2` takes an `abs` of the
+//! frame normal's `z`: on a `FaceFrame` over the END cap of a body
+//! extruded from a frame tilted about `u`, that `z` is `1/sqrt(P(t))`
+//! for a polynomial `P` in the document's parameter — an `Inv` of a
+//! `sqrt` atom, positive wherever it has a value at all — and on the
+//! same body's START cap, or with the frame's `v` flipped, it is
+//! `−1/sqrt(P(t))`, the same atom negated, which is what the negative
+//! arm is for. The basis transfers no sign, so it mints no `copysign`;
+//! the `copysign` half of the rule is read at the sites listed below.
 //!
 //! **What the census proves, and what the list is.** Two different
 //! claims, kept apart. (1) The EMPIRICAL claim, which covers every
@@ -70,7 +68,7 @@
 //! does, and this site's atom exists only inside one.
 //! (2) The sites the tree holds at
 //! this commit, outside this module and the scalar impls that merely
-//! forward the function: `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
+//! forward the function: `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom-brep/src/implicit.rs`'s cone gradient;
 //! `geom-brep/src/props/curved.rs`'s sphere-meridian pole margins;
 //! `geom-brep/src/tangent.rs`'s jet (the orientation sign of the
