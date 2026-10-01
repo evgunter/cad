@@ -377,7 +377,10 @@ fn one_sided_tangency_classifies_with_its_material() {
             assert_eq!(validate_closed(body), Ok(()), "{label}, s = {s}");
             assert_eq!(census(body), census(&fx.body), "{label}, s = {s}");
             let v = mass_properties(body, Tol::witness()).unwrap().volume;
-            assert!((v - v0).abs() <= 1e-12 * v0, "{label}, s = {s}: {v} vs {v0}");
+            assert!(
+                (v - v0).abs() <= 1e-12 * v0,
+                "{label}, s = {s}: {v} vs {v0}"
+            );
             let section = plane_section(&fx.body, &plane, Tol::witness()).unwrap();
             assert!(section.polygons.is_empty(), "{label}, s = {s}");
         }
