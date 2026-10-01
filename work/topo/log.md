@@ -5923,3 +5923,18 @@ PR 3513's CI on `fa330e3b82` failed one check:
 
 **Unblocked by PR 3513:** merge-orientation-rung, plane-offset-rung and
 vertex-orbit.
+
+## Dispatched: the plane offset rung carries its decided margin (2026-10-01)
+
+`plane-offset-rung-decided-zero-shares-invalid-with-a-poisoned-margin`
+(P2) is dispatched on the loopanchor target, which PR 3513 left free. The
+no-delete rule there stands.
+- **Witness first:** a NaN-poisoned offset read as `DecidedCoincident`
+  or "exactly zero", plus a genuine decided zero as the no-regression
+  half.
+- **The change:** both readers get the typed arm that PR 3513's
+  `LadderRefusal::Coplanar` already carries.
+- **Disk:** 3.9 GB free. The lane builds topo only and stops under
+  2.5 GB.
+- **Next in the queue:** merge-orientation-rung waits for the merge-door
+  lane, since both are in `merge_faces.rs`.
