@@ -5,6 +5,8 @@ title: topo: BooleanError's operand field names the face's operand at some raise
 status: open
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+cost: E
+priority: P3
 ---
 
 

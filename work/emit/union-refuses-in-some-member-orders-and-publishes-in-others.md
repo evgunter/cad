@@ -32,7 +32,7 @@ so a new one, or a change in any of these, turns it red.
 |---|---|---|
 | `DeclareResolve` (Vanished): a declared face the fold has consumed | `abg`, `abgids`, `abglow`, `abgg2`, `fam0{00,01,02,12,22}`, `fam1{00,01,02,12,22}`, `fam2{00,01,02,12,22}`, `r1flush`, `r2endsg`, part of `r4trig` | the refusal GATHER's member-space look-through unit designed, which closed with GATHER's departure (its row was deleted); the cut-and-partly-merged orders of `r2endsg` and `r4trig`: `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names` |
 | `UndeclaredContact` | none: `row` and `rowids` now refuse it in all 24 orders (measured below) | built by `union-contact-is-judged-pairwise-before-the-fold` |
-| `Boolean(Containment(RayExhausted))`: `c` (x 0.8..2.0), flush with both `a` and `b`, folded between them | `r4tri` (`[0,2,1]`, `[2,0,1]`), part of `r4trig` | `work/reach/a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted.md` (P0) |
+| `Boolean(Containment(RayExhausted))`: `c` (x 0.8..2.0), flush with both `a` and `b`, folded between them | `r4tri` (`[0,2,1]`, `[2,0,1]`), part of `r4trig` | `work/cleave/a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted.md` (P0) |
 
 `UndeclaredContact` is a fold-order dependence of the contact check
 itself: whether a contact is flush depends on whether another member

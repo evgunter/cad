@@ -425,7 +425,7 @@ impl<T: Decide> Sweep<T> {
     /// telling it from two DIFFERENT arcs between one pair of points,
     /// which do bound area, needs a carrier comparison this check does
     /// not make. That gap is filed as
-    /// `work/reach/split-section-spur-guard-skips-curved-spurs.md`.
+    /// `work/hone/split-section-spur-guard-skips-curved-spurs.md`.
     ///
     /// `first` is a half-edge of the below loop's cycle, as
     /// [`Self::certify_section_area`] resolved it.

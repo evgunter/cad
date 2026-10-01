@@ -27,7 +27,7 @@ nothing. Only `KillLeavesDangling` (PR 3570) and `NotOwned` (PR 3592,
 refuse may have been read from a file), which
 `test_utils::refusal::recourse_markers` counts; the class now ends
 three ways. This is the Euler-operator instance of
-`work/reach/kernel-bug-refusals-end-without-the-shared-ending`.
+`work/hone/kernel-bug-refusals-end-without-the-shared-ending`.
 
 ## The shape to give
 
