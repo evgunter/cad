@@ -1073,3 +1073,20 @@ Filed:
 Main carries a stale rustdoc link (`solve_cluster`, renamed by
 `f714adf56` beside MSOLVE-11). It clears when PR 3698 merges. One
 full review (C1–C5) is dispatched on Opus.
+
+MSOLVE-12 review of `fc5ea8dca`: APPROVE-WITH-FIXES, no MAJOR. C1–C5
+hold, checked against exact rationals over about 31,000 poses: the
+closed forms' error is the problem's own conditioning, ε/sine. One
+MINOR. Below the zero band, `parallel` decides everything parallel and
+the stage divides by an exact zero, so a pair meeting at the origin
+refuses `PoseOutOfRange`. That is a false cause through the public
+`intersect`, and the doors may not reach it. The fix pass has nine
+rulings, R1–R9:
+- a typed refusal at an arm at or below the zero band, before any
+  division;
+- the decided divisor given one home, carried from the table;
+- `PoseOutOfRange` naming both mates;
+- an independent C2 reference, with cylinder and skew rows;
+- doc and display truths.
+
+The fix pass went back to the implementer lane.
