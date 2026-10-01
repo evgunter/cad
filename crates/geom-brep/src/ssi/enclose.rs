@@ -72,7 +72,7 @@ use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, norm_sq, norm_sup};
-use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
+use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, Real, SupSpeed, Vec3};
 
 use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
 
@@ -146,9 +146,13 @@ impl Box3 {
         inside(self.x, o.x) && inside(self.y, o.y) && inside(self.z, o.z)
     }
 
-    /// The largest side length (the cell's size, for the floor test).
+    /// The largest side length (the cell's size, for the floor test);
+    /// `NaN` when any side is refused, so a refused axis fails the floor
+    /// test rather than dropping out of it.
     pub(crate) fn width(self) -> f64 {
-        self.x.width().max(self.y.width()).max(self.z.width())
+        [self.y.width(), self.z.width()]
+            .into_iter()
+            .fold(self.x.width(), Real::max)
     }
 
     /// The center as an f64 point (a marcher seed, never a claim).

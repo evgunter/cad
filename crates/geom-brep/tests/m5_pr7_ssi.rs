@@ -2842,10 +2842,18 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
     .unwrap();
     for (name, wall, want) in cases {
         match ssi::plane_nurbs_ssi(&cutting_plane(), &wall, wall_domain(), band()) {
-            Err(SsiError::ChartSpeed(got)) => {
+            Err(ref err @ SsiError::ChartSpeed(got)) => {
                 assert_eq!(
                     got, want,
                     "{name}: plane_nurbs_ssi refused on the wrong axis"
+                );
+                // The same fact of the face ends alike at both doors.
+                let ending = err.ending(geom_brep::recourse::Reading::Build);
+                let edge = geom_brep::PlaneNurbsRefusal::ChartSpeed(got)
+                    .ending(geom_brep::recourse::Reading::Build);
+                assert!(
+                    ending.is_some() && ending == edge,
+                    "{name}: {ending:?} vs {edge:?}"
                 );
             }
             other => panic!("{name}: plane_nurbs_ssi expected {want:?}, got {other:?}"),
@@ -2885,5 +2893,179 @@ fn a_tiny_net_the_plane_meets_never_answers_ok_empty() {
         if let Ok(out) = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band()) {
             assert!(!out.branches.is_empty(), "spread {s:e}: silent miss");
         }
+    }
+}
+
+/// **A floor no bisection of its domain can reach refuses by name, on
+/// both lanes, before any sweep runs.**
+///
+/// Chart lane: the certifiable wall scaled to `1e150` m has a finite
+/// certified chart speed of about `1e150` m per chart unit, so the
+/// accounting floor of ε metres is about `ε·1e-150` chart units, far
+/// below the `[0, 1]` domain's finest cell. The sweep used to refine
+/// toward it until the cell budget answered in the floor's place.
+///
+/// ℝ³ lane: D4 ¶1 claims micron-to-kilometre coverage with ~4 orders of
+/// f64 headroom at km scale; this is that claim as a check. A slab at
+/// `1e8` m with a `1e-8` m accounting floor (stated in metres, so the
+/// same width at every ε of the battery) cannot be resolved, because
+/// two adjacent floats there are `1.49e-8` m apart.
+#[test]
+fn a_floor_no_bisection_reaches_refuses_by_name_on_both_lanes() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{ExhaustLane, FloorFault, FloorKind};
+
+    let m = 1.0e150;
+    let wall = wall_from_cols([
+        (0.0, 0.0),
+        (0.35 * m, 0.14 * m),
+        (0.70 * m, 0.24 * m),
+        (1.05 * m, 0.30 * m),
+    ]);
+    let chart = ssi::plane_nurbs_ssi(&cutting_plane(), &wall, wall_domain(), band());
+    let Err(ref err @ SsiError::FloorUnresolvable(r)) = chart else {
+        panic!("the 1e150 m wall: expected the floor door, got {chart:?}");
+    };
+    assert_eq!(r.floor, FloorKind::Accounting);
+    let ExhaustLane::Chart { speed } = r.lane else {
+        panic!("the chart lane refused on the ℝ³ lane: {r:?}");
+    };
+    assert!(
+        speed.get() > 1.0e150 && speed.get() < 1.0e151,
+        "{:e}",
+        speed.get()
+    );
+    assert_eq!(
+        r.meters,
+        SSI_FLOOR * band().zero(),
+        "the caller's own metres"
+    );
+    let gap = 1.0 - 1.0f64.next_down();
+    assert_eq!(
+        r.fault,
+        FloorFault::BelowResolution {
+            resolution: gap,
+            reach: 1.0
+        }
+    );
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains(&format!(
+            "m is {:e} chart units at a certified chart speed of {:e} m per chart unit, \
+             which the domain cannot resolve",
+            r.width,
+            speed.get()
+        )) && shown.contains("Recourse: bring the spline face within the model's size range"),
+        "{shown}"
+    );
+
+    let at = Point3::new(1.0e8, 0.0, 0.0);
+    let far = Surface::Sphere {
+        center: at,
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cylinder = match threaded_cylinder() {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin: Point3::new(origin.x + at.x, origin.y, origin.z),
+            axis,
+            radius,
+            u_ref,
+        },
+        other => panic!("{other:?}"),
+    };
+    let domain = SsiDomain {
+        center: at,
+        floor_scale: SsiDomain::floor_scale_for(1.0e-8, band()),
+        ..slab()
+    };
+    let r3 = ssi::cylinder_sphere_ssi(&cylinder, &far, domain, band());
+    let Err(ref err @ SsiError::FloorUnresolvable(r)) = r3 else {
+        panic!("the slab at 1e8 m: expected the floor door, got {r3:?}");
+    };
+    assert!(matches!(r.lane, ExhaustLane::R3), "{r:?}");
+    assert_eq!(r.floor, FloorKind::Accounting);
+    let reach = 1.0e8 + slab().half_extent;
+    let FloorFault::BelowResolution {
+        resolution,
+        reach: got,
+    } = r.fault
+    else {
+        panic!("{r:?}");
+    };
+    assert!(
+        got >= reach && resolution > r.width && resolution < 2.0e-8,
+        "{r:?}"
+    );
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains("Recourse: move the geometry nearer the origin"),
+        "{shown}"
+    );
+}
+
+/// **A branch shorter than a few march steps names its extent.** The
+/// collapsed net at spread `1e-2`, against a plane that meets it, has
+/// a branch about 3 cm long. The march's longest step is
+/// `SSI_STEP_MAX` of the domain's 1.5 m extent, about 4.7 cm, so the
+/// trace leaves the wall in one step each way and yields 3 samples. The
+/// fit used to refuse that as `Fit(TooFewPoints)`, which named no
+/// geometry. Following the recourse — an extent the size of the branch
+/// — traces and certifies the branch.
+#[test]
+fn a_branch_shorter_than_the_march_step_names_the_extent_that_set_it() {
+    use geom_brep::recourse::Reading;
+
+    let spread = 1.0e-2;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.25 * spread),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.5,
+        floor_scale: 1.0,
+    };
+    let net = collapsed_net(spread);
+    let r = ssi::plane_nurbs_ssi(&plane, &net, dom, band());
+    let Err(
+        ref err @ SsiError::BranchUndersampled {
+            samples,
+            need,
+            length,
+            longest_step,
+            extent,
+        },
+    ) = r
+    else {
+        panic!("expected the shortfall named by its geometry, got {r:?}");
+    };
+    assert_eq!((samples, need), (3, 4));
+    assert_eq!(longest_step, ssi::SSI_STEP_MAX * 1.5);
+    assert_eq!(extent, 1.5);
+    // The wall's columns run from 0 to 3·spread along x.
+    assert!((length - 3.0 * spread).abs() < 1.0e-6, "{length:e}");
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.ends_with(&format!(
+            "Recourse: name a feature extent no larger than this feature, here {length:e} m"
+        )),
+        "{shown}"
+    );
+    let followed = SsiDomain {
+        extent: length,
+        ..dom
+    };
+    match ssi::plane_nurbs_ssi(&plane, &net, followed, band()) {
+        Ok(out) => assert_eq!(out.branches.len(), 1, "the recourse traces the branch"),
+        Err(e) => panic!("the recourse did not trace the branch: {e}"),
     }
 }
