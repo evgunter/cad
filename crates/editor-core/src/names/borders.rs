@@ -160,17 +160,19 @@ impl<K: Ord + Clone> Obstacles<K> {
     /// each wall named by `wall`. Several pieces under one set are N2's
     /// tie. The sets come out sorted, in `W`'s order.
     ///
-    /// `merged` are the parent's other faces, the ones a merge made one
-    /// with another parent's (the pair boolean names those `Merged`, N3):
-    /// they hold part of the parent's region, so an obstacle they border
-    /// counts toward dividing it, and they are neither grouped nor
-    /// checked. Every face of a union's parent is a piece, and it passes
+    /// `merged` are the parent's other faces, the ones the pair boolean
+    /// names apart from `pieces`: for an operand face, the merges that
+    /// list it (named `Merged`, N3); for a merged parent, its operand
+    /// faces' unmerged pieces and the merges that list them beside other
+    /// faces. They hold part of the parent's region, so an obstacle they
+    /// border counts toward dividing it, and they are neither grouped
+    /// nor checked. Every face of a union's parent is a piece, and it passes
     /// none.
     ///
-    /// Refuses when a piece of several borders no divider: the face is
-    /// connected, so what lies between its pieces is discarded region,
-    /// and a piece that borders none of it is a region the kernel
-    /// discarded without recording it.
+    /// Refuses when a piece of a face held as several faces, merged ones
+    /// included, borders no divider: the face is connected, so what lies
+    /// between its pieces is discarded region, and a piece that borders
+    /// none of it is a region the kernel discarded without recording it.
     pub(crate) fn split<T: geom_core::Real, W: Ord + Clone>(
         &self,
         body: &Body<T>,
@@ -252,7 +254,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                 walls[p].insert(wall(across)?);
             }
         }
-        if pieces.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
+        if pieces.len() + merged.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
             return Err(bug(
                 "a piece of a face held as several borders no recorded discard between them",
             ));

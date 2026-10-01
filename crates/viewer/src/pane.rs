@@ -29,10 +29,14 @@ pub mod viewport;
 /// that gap is where a labelling helper gets to be correct and dead at
 /// the same time.
 ///
-/// **What it still cannot reach is a pane METHOD**: `create_ui`,
-/// `feature_row` and the rest hang off `ViewerBehavior`, which borrows
-/// the whole application. A row a test must drive is therefore a free
-/// function over the `Ui`, and the method's job is to call it.
+/// **A pane METHOD is reached through the whole app, not through
+/// this module**: `create_ui`, `properties_ui` and the rest hang off
+/// `ViewerBehavior`, which borrows the whole application, so a row that
+/// drives one runs real frames of `ViewerApp` in
+/// `app::properties_pane_tests` (`app_frame`, `Driven`) and reads what
+/// they painted with [`headless::landed_in`]. What this module drives
+/// is a free function over the `Ui`, which is the cheaper row where a
+/// method's work can be one.
 #[cfg(test)]
 pub(crate) mod headless {
     // Panicking is a test harness's failure mechanism, as it is a

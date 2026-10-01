@@ -2,8 +2,9 @@
 id: a-seam-chain-along-a-curved-face-refuses-as-an-emission-bug
 kind: issue
 title: A pair boolean whose seam chain runs along a curved face refuses face_plane's emission bug, a missing rule
-status: open
+status: closed
 opened: 2026-09-30
+closed: 2026-09-30
 ---
 
 
@@ -25,3 +26,19 @@ here is the cylinder. It is a legal recipe, so an `Emission` (a kernel
 bug report) is the wrong category: it is a missing rule, like the
 union's own `SplitReference` for the same ranking. Which direction a
 curved seam's pieces are ranked along is the open question.
+
+## Closed (2026-09-30)
+
+The seam rankers read a side's plane through
+`emit_topo::seam_side_normal`, which refuses a curved side as
+`NamingError::SplitReference { curved: true }`, the union's refusal for
+the same ranking. The pair boolean's seam chain and `seam_line_dir`
+both take it, so the fixture now refuses as a missing rule in the pair
+boolean and in both union orders, citing the cylinder's wall
+(`emit_union_borders::a_curved_divider_answers_as_the_pair_boolean_does`).
+
+The ranking direction for a curved seam is its own row,
+`curved-seam-pieces-have-no-ranking-direction`. The split ranker's
+`face_plane` read, which refuses a legal plane split of a curved face
+the same way, is
+`a-plane-split-of-a-curved-face-refuses-as-an-emission-bug`.

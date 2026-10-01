@@ -721,7 +721,7 @@ pub use crate::document::{
     ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace,
     SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
 };
-pub use editor_core::StableName;
+pub use editor_core::{NameTextError, StableName};
 
 // --- 9. Names: obtain them, inspect them, select them ---------
 // `StableName` sits in group 8 with no door there to obtain or read a

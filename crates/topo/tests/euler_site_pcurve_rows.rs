@@ -9,13 +9,17 @@
 //! is complete after the op, with the rows the minting pass would
 //! derive, or — where the closed-form lane cannot mint it as the
 //! surgery leaves it — stores nothing; a face that stored no row still
-//! stores none; a face that was already half-minted is left as found;
-//! and on a spline chart the op refuses before it mutates. Doors that
-//! are not these three can still leave a face half-minted, and the
-//! `kef` row below is one; so does `mev_null`, whose edge has no
-//! carrier, and the null-edge rows at the end pin the door that
-//! re-mints that face: the edge's first description, once no null edge
-//! is left on it.
+//! stores none; a face that was already half-minted is left as found,
+//! unless its only gaps are on loops a null edge holds open or the op
+//! takes its last null edge off; and on a spline chart the op refuses
+//! before it mutates. Doors that are not
+//! these three can still leave a face half-minted, and the `kef` row
+//! below is one. `mev_null`, whose edge has no carrier, holds its loop
+//! open, and the null-edge rows at the end pin one door that releases
+//! it: the edge's first description, which mints every loop no other
+//! null edge holds open, and the whole face once none is left
+//! (`topo::null`'s rows pin the other, an operator that cuts the edge
+//! off the loop).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -957,6 +961,58 @@ fn a_description_after_an_operator_on_the_half_minted_wall_completes_it() {
         .unwrap();
     assert_eq!(missing_rows(&body), vec![], "the description completes it");
     assert_eq!(validate_pcurves(&body, band()), vec![]);
+    let minted = rows_deep(&body);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(rows_deep(&body), minted, "the rows are the pass's");
+}
+
+/// **The description that leaves no null edge on a face re-mints it
+/// whatever else it misses.** A wall carrying a two-half ring, one
+/// ring half's row detached — a gap no null edge holds — and a null
+/// strut at a corner of the outer loop. Describing the strut leaves no
+/// null edge on the wall, so the description re-walks and mints every
+/// loop: the wall leaves complete, the ring's gap filled, with the
+/// minting pass's rows. At this unit's first review head the wall kept
+/// three missing rows, the described edge's own two among them.
+/// (Adopted from the review's probe C2.)
+#[test]
+fn a_description_that_leaves_no_null_edge_completes_a_wall_with_another_gap() {
+    let (mut body, face, m) = wall();
+    let ring = two_half_ring(&mut body, face, m);
+    let topo::LoopBoundary::Cycle { first: on_ring } = body.get_loop(ring).unwrap().boundary else {
+        panic!("the ring is a cycle")
+    };
+    assert!(body.detach_pcurve(on_ring).is_some());
+    let corner = outer_first(&body, face);
+    let v = body.get_half_edge(corner).unwrap().start;
+    let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let null = null_at(&mut body, corner);
+    let mut three = vec![on_ring, null.he_plus, null.he_minus];
+    three.sort();
+    assert_eq!(
+        missing_rows(&body),
+        three,
+        "the ring's detached row and the null strut's two"
+    );
+
+    let frame = CylFrame::canonical(1.0);
+    let carrier = geom::Curve3::Circle {
+        center: frame.origin + frame.axis * p.z,
+        axis: frame.axis,
+        radius: frame.radius,
+        u_ref: frame.u_ref,
+    };
+    let azimuth = p.y.atan2(p.x);
+    let round =
+        geom_brep::EdgeCurveSpec::arc_of_circle(carrier, azimuth, azimuth + core::f64::consts::TAU)
+            .unwrap();
+    body.set_edge_curve(null.edge, round, tol()).unwrap();
+    assert_eq!(
+        missing_rows(&body),
+        vec![],
+        "the description completes the wall, the ring's gap included"
+    );
+    assert_eq!(rows_of(&body, face), (9, 0));
     let minted = rows_deep(&body);
     topo::mint_pcurves(&mut body, tol()).unwrap();
     assert_eq!(rows_deep(&body), minted, "the rows are the pass's");

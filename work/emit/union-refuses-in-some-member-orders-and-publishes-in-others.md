@@ -30,9 +30,9 @@ so a new one, or a change in any of these, turns it red.
 
 | refusal | cases | owner |
 |---|---|---|
-| `DeclareResolve` (Vanished): a declared face the fold has consumed | `abg`, `abgids`, `abglow`, `abgg2`, `fam0{00,01,02,12,22}`, `fam1{00,01,02,12,22}`, `fam2{00,01,02,12,22}`, `r1flush`, `r2endsg`, part of `r4trig` | `work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md` (P0) |
+| `DeclareResolve` (Vanished): a declared face the fold has consumed | `abg`, `abgids`, `abglow`, `abgg2`, `fam0{00,01,02,12,22}`, `fam1{00,01,02,12,22}`, `fam2{00,01,02,12,22}`, `r1flush`, `r2endsg`, part of `r4trig` | the refusal GATHER's member-space look-through unit designed, which closed with GATHER's departure (its row was deleted); the cut-and-partly-merged orders of `r2endsg` and `r4trig`: `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names` |
 | `UndeclaredContact` | none: `row` and `rowids` now refuse it in all 24 orders (measured below) | built by `union-contact-is-judged-pairwise-before-the-fold` |
-| `Boolean(Containment(RayExhausted))`: `c` (x 0.8..2.0), flush with both `a` and `b`, folded between them | `r4tri` (`[0,2,1]`, `[2,0,1]`), part of `r4trig` | `work/reach/a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted.md` (P0) |
+| `Boolean(Containment(RayExhausted))`: `c` (x 0.8..2.0), flush with both `a` and `b`, folded between them | `r4tri` (`[0,2,1]`, `[2,0,1]`), part of `r4trig` | `work/cleave/a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted.md` (P0) |
 
 `UndeclaredContact` is a fold-order dependence of the contact check
 itself: whether a contact is flush depends on whether another member
@@ -123,5 +123,32 @@ pruning today, so that has to be added.
 Ev ruled the pairwise contact rule on #3200. The `UndeclaredContact`
 arm of this row is built by `union-contact-is-judged-pairwise-before-the-fold`.
 The row stays open for the arms other programs own:
-- `DeclareResolve` belongs to GATHER's look-through row;
+- `DeclareResolve` is the refusal GATHER's closed look-through unit designed; its cut-and-partly-merged orders belong to `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`;
 - `RayExhausted` belongs to REACH's row.
+
+## Measured (EMIT, 2026-09-30, on `emit/cut-and-merged-pair`)
+
+A pair step no longer publishes a face under a constituent its merge
+retires (`a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires`,
+PR 3526). The declaration door had bound flush pairs to that bare
+piece. Where one fold step cuts a face and merges part of it, the door
+now refuses `DeclareResolve` (`ConsumedByFold { by: Split }`).
+
+| case | orders refusing before | after |
+|---|---|---|
+| `r2endsg` | 8 | 12, all `DeclareResolve` |
+| `r4trig` | 12 | 14 (`Boolean:2/DeclareResolve:12`) |
+
+- `r2endsg` `[1,3,0,2]`, `[2,3,0,1]`, `[3,1,0,2]` and `[3,2,0,1]` bound
+  the correct face. The `ALONG`~`CEND` contact at x 0..1 lies on the
+  x 0..1.4 piece. Their correct tables are now lost to totality.
+- `r4trig` `[1,3,0,2]` and `[3,1,0,2]` bound the wrong face silently.
+  Their contact at x 0.8..1 lies in the merged face.
+- `r4trig` `[2,3,0,1]` and `[3,2,0,1]` refuse `DeclareResolve` before
+  reaching `RayExhausted`.
+
+No names-only rule recovers both, so the refusal is the fail-loud
+choice for now. The lost orders are owned by
+`a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`.
+The pins now count each refusal kind, so a swap of kinds at the same
+total turns them red.

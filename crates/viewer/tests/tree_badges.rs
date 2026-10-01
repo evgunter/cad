@@ -79,8 +79,9 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
 
 /// **Only the row that refused is actionable**, over rows a real
 /// evaluation produced rather than hand-built statuses: the colour
-/// rule the Features pane draws is `RowStatus::tone()`'s answer, so a
-/// wrong tone is a wrong colour and this is where it goes red.
+/// rule the Features pane draws is `TreeRow::tone()`'s answer — the
+/// status's, on a document with no assertion — so a wrong tone is a
+/// wrong colour and this is where it goes red.
 #[test]
 fn only_the_row_whose_own_operation_refused_is_actionable() {
     let tol = Tol::witness();
@@ -94,7 +95,7 @@ fn only_the_row_whose_own_operation_refused_is_actionable() {
         session
             .tree_rows()
             .iter()
-            .all(|row| row.status.tone() == Tone::Advisory),
+            .all(|row| row.tone() == Tone::Advisory),
         "a document nobody has evaluated yet gives a reader nothing to act on"
     );
 
@@ -110,7 +111,7 @@ fn only_the_row_whose_own_operation_refused_is_actionable() {
     assert_eq!(tone_of(other_profile), Tone::Advisory, "a healthy row");
     assert_eq!(
         rows.iter()
-            .filter(|row| row.status.tone() == Tone::Actionable)
+            .filter(|row| row.tone() == Tone::Actionable)
             .count(),
         1,
         "one broken feature makes one loud row, whatever it poisons"
@@ -433,6 +434,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
             op: BooleanOp::Union,
             a: bench.post_a,
             b: bench.shelf_i,
+            declare: Vec::new(),
         },
     );
     session.pump();
@@ -528,6 +530,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
             op: BooleanOp::Union,
             a: bench.post_a,
             b: bench.shelf_i,
+            declare: Vec::new(),
         },
     );
     session.pump();
@@ -765,6 +768,24 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "asks only `is_err()` and draws nothing; the node's row carries it",
         ),
         (
+            "tree.rs",
+            ".usable(",
+            "`measured_of` is asked only of a row `rows` has read `Ok`: it picks which payload \
+             to show, never whether the row stands",
+        ),
+        (
+            "tree.rs",
+            ".usable(",
+            "`asserted` reads the dimension of a measure its assertion's verdict already \
+             compared, so the measure stands `Ok` by construction",
+        ),
+        (
+            "features.rs",
+            ".usable(",
+            "a unit test's premise: reads the measure's payload to name the reason it expects, \
+             and draws nothing",
+        ),
+        (
             "pickindex.rs",
             "NodePick::build_all",
             "reaches the chrome only through `frame::index_badge`, which re-reads it",
@@ -896,7 +917,7 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
 /// poisoned through a real DAG ancestor.
 #[test]
 fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
-    use pncad::document::{Node, NodeStanding, ProductError, RecipeNodeId};
+    use pncad::document::{Node, NodeStanding, ProductError};
 
     let tol = Tol::witness();
 
@@ -912,7 +933,6 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
         },
         tol,
     );
-    assert_eq!(extrude, RecipeNodeId(2), "the literal below names this id");
     let ev = evaluate(
         &doc,
         None,
@@ -923,17 +943,15 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
     let failed = ProductError::Root(NodeStanding::Failed { node: extrude });
     assert_eq!(
         tree::product_refusal_wording(&failed, &ev),
-        "product: root node 2 failed, so it has no value — fix the node's own failure",
+        format!(
+            "product: root node {} failed, so it has no value — fix the node's own failure",
+            extrude.0
+        ),
         "a root that is its own cause keeps the gather's sentence"
     );
 
     // A root poisoned through a real DAG ancestor.
     let (doc, extrude, moved) = common::broken_document(tol);
-    assert_eq!(
-        (extrude, moved),
-        (RecipeNodeId(2), RecipeNodeId(3)),
-        "the literal below names these ids"
-    );
     let ev = evaluate(
         &doc,
         None,
@@ -947,8 +965,11 @@ fn a_root_the_tree_does_not_redraw_keeps_the_gathers_words() {
     });
     assert_eq!(
         tree::product_refusal_wording(&poisoned, &ev),
-        "product: root node 3 is poisoned by the failure at node 2, so it has no value — the \
-         repair is upstream, at node 2",
+        format!(
+            "product: root node {} is poisoned by the failure at node {}, so it has no value — \
+             the repair is upstream, at node {}",
+            moved.0, extrude.0, extrude.0
+        ),
         "a root poisoned through the row the tree names keeps the gather's sentence"
     );
 }
@@ -1244,6 +1265,8 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         status,
         note: None,
         repair_at: None,
+        measured: None,
+        version_offer: None,
     };
     let rows = [
         row(1, RowStatus::Ok),
